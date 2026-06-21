@@ -460,14 +460,87 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, CoeffBasedProductM
 
   template <typename Dst>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void addTo(Dst& dst, const Lhs& lhs, const Rhs& rhs) {
-    // dst.noalias() += lhs.lazyProduct(rhs);
-    call_assignment_no_alias(dst, lhs.lazyProduct(rhs), internal::add_assign_op<typename Dst::Scalar, Scalar>());
+    using ProdXpr = Product<Lhs, Rhs, LazyProduct>;
+    using ProdEval = product_evaluator<ProdXpr, CoeffBasedProductMode, DenseShape, DenseShape>;
+    const ProdEval prodEval(ProdXpr(lhs, rhs));
+    const Index rows = dst.rows(), cols = dst.cols();
+
+    // FMA chain: for each output packet, load the existing dst value as the initial
+    // accumulator, then run pmadd for ALL inner-dimension steps (including k=0 — vs the
+    // normal path which uses pmul at k=0 and a separate padd at the end).  Only applies
+    // when the vectorization axis matches the destination's memory layout, and only for
+    // real scalar types (pmadd/pnmadd map to vfmadd/vfnmadd hardware instructions only
+    // for real floats and doubles; complex multiply-add has no single-instruction form).
+    if constexpr (!NumTraits<Scalar>::IsComplex && ProdEval::CanVectorizeLhs && !int(Dst::IsRowMajor)) {
+      using PktType = typename ProdEval::LhsVecPacketType;
+      constexpr int PktSize = unpacket_traits<PktType>::size;
+      const Index pktRows = (rows / PktSize) * PktSize;
+      for (Index j = 0; j < cols; ++j) {
+        for (Index i = 0; i < pktRows; i += PktSize) {
+          PktType acc = ploadt<PktType, Unaligned>(&dst.coeffRef(i, j));
+          prodEval.template packetAccumulate<Unaligned, PktType>(i, j, acc);
+          pstoret<Scalar, PktType, Unaligned>(&dst.coeffRef(i, j), acc);
+        }
+        for (Index i = pktRows; i < rows; ++i)
+          dst.coeffRef(i, j) += prodEval.coeff(i, j);
+      }
+    } else if constexpr (!NumTraits<Scalar>::IsComplex && ProdEval::CanVectorizeRhs && int(Dst::IsRowMajor)) {
+      using PktType = typename ProdEval::RhsVecPacketType;
+      constexpr int PktSize = unpacket_traits<PktType>::size;
+      const Index pktCols = (cols / PktSize) * PktSize;
+      for (Index i = 0; i < rows; ++i) {
+        for (Index j = 0; j < pktCols; j += PktSize) {
+          PktType acc = ploadt<PktType, Unaligned>(&dst.coeffRef(i, j));
+          prodEval.template packetAccumulate<Unaligned, PktType>(i, j, acc);
+          pstoret<Scalar, PktType, Unaligned>(&dst.coeffRef(i, j), acc);
+        }
+        for (Index j = pktCols; j < cols; ++j)
+          dst.coeffRef(i, j) += prodEval.coeff(i, j);
+      }
+    } else {
+      call_assignment_no_alias(dst, lhs.lazyProduct(rhs), internal::add_assign_op<typename Dst::Scalar, Scalar>());
+    }
   }
 
   template <typename Dst>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void subTo(Dst& dst, const Lhs& lhs, const Rhs& rhs) {
-    // dst.noalias() -= lhs.lazyProduct(rhs);
-    call_assignment_no_alias(dst, lhs.lazyProduct(rhs), internal::sub_assign_op<typename Dst::Scalar, Scalar>());
+    using ProdXpr = Product<Lhs, Rhs, LazyProduct>;
+    using ProdEval = product_evaluator<ProdXpr, CoeffBasedProductMode, DenseShape, DenseShape>;
+    const ProdEval prodEval(ProdXpr(lhs, rhs));
+    const Index rows = dst.rows(), cols = dst.cols();
+
+    // FMA chain for -=: load dst into accumulator, then pnmadd for every k — no separate
+    // negate or subtract instruction needed.  Maps to vfnmadd on AVX/FMA hardware.
+    // Only applies for real scalar types; see addTo() for details on the complex restriction.
+    if constexpr (!NumTraits<Scalar>::IsComplex && ProdEval::CanVectorizeLhs && !int(Dst::IsRowMajor)) {
+      using PktType = typename ProdEval::LhsVecPacketType;
+      constexpr int PktSize = unpacket_traits<PktType>::size;
+      const Index pktRows = (rows / PktSize) * PktSize;
+      for (Index j = 0; j < cols; ++j) {
+        for (Index i = 0; i < pktRows; i += PktSize) {
+          PktType acc = ploadt<PktType, Unaligned>(&dst.coeffRef(i, j));
+          prodEval.template packetSubtractAccumulate<Unaligned, PktType>(i, j, acc);
+          pstoret<Scalar, PktType, Unaligned>(&dst.coeffRef(i, j), acc);
+        }
+        for (Index i = pktRows; i < rows; ++i)
+          dst.coeffRef(i, j) -= prodEval.coeff(i, j);
+      }
+    } else if constexpr (!NumTraits<Scalar>::IsComplex && ProdEval::CanVectorizeRhs && int(Dst::IsRowMajor)) {
+      using PktType = typename ProdEval::RhsVecPacketType;
+      constexpr int PktSize = unpacket_traits<PktType>::size;
+      const Index pktCols = (cols / PktSize) * PktSize;
+      for (Index i = 0; i < rows; ++i) {
+        for (Index j = 0; j < pktCols; j += PktSize) {
+          PktType acc = ploadt<PktType, Unaligned>(&dst.coeffRef(i, j));
+          prodEval.template packetSubtractAccumulate<Unaligned, PktType>(i, j, acc);
+          pstoret<Scalar, PktType, Unaligned>(&dst.coeffRef(i, j), acc);
+        }
+        for (Index j = pktCols; j < cols; ++j)
+          dst.coeffRef(i, j) -= prodEval.coeff(i, j);
+      }
+    } else {
+      call_assignment_no_alias(dst, lhs.lazyProduct(rhs), internal::sub_assign_op<typename Dst::Scalar, Scalar>());
+    }
   }
 
   // This is a special evaluation path called from generic_product_impl<...,GemmProduct> in file GeneralMatrixMatrix.h
@@ -662,10 +735,10 @@ struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape,
 
   template <int LoadMode, typename PacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const PacketType packet(Index row, Index col) const {
-    PacketType res;
     using PacketImpl =
         etor_product_packet_impl<bool(int(Flags) & RowMajorBit) ? RowMajor : ColMajor,
                                  Unroll ? int(InnerSize) : Dynamic, LhsEtorType, RhsEtorType, PacketType, LoadMode>;
+    PacketType res = pset1<PacketType>(typename unpacket_traits<PacketType>::type(0));
     PacketImpl::run(row, col, m_lhsImpl, m_rhsImpl, m_innerDim, res);
     return res;
   }
@@ -680,10 +753,10 @@ struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape,
   template <int LoadMode, typename PacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const PacketType packetSegment(Index row, Index col, Index begin,
                                                                        Index count) const {
-    PacketType res;
     using PacketImpl =
         etor_product_packet_impl<bool(int(Flags) & RowMajorBit) ? RowMajor : ColMajor,
                                  Unroll ? int(InnerSize) : Dynamic, LhsEtorType, RhsEtorType, PacketType, LoadMode>;
+    PacketType res = pset1<PacketType>(typename unpacket_traits<PacketType>::type(0));
     PacketImpl::run_segment(row, col, m_lhsImpl, m_rhsImpl, m_innerDim, res, begin, count);
     return res;
   }
@@ -693,6 +766,45 @@ struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape,
     const Index row = (RowsAtCompileTime == 1 || MaxRowsAtCompileTime == 1) ? 0 : index;
     const Index col = (RowsAtCompileTime == 1 || MaxRowsAtCompileTime == 1) ? index : 0;
     return packetSegment<LoadMode, PacketType>(row, col, begin, count);
+  }
+
+  // FMA chain for compound assignments (+=): caller pre-loads the destination into `res`.
+  // Since run() now uses pmadd even at k=0, passing dst as the initial value folds the
+  // destination into the FMA chain — no separate padd with the destination is needed.
+  template <int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void packetAccumulate(Index row, Index col, PacketType& res) const {
+    using PacketImpl =
+        etor_product_packet_impl<bool(int(Flags) & RowMajorBit) ? RowMajor : ColMajor,
+                                 Unroll ? int(InnerSize) : Dynamic, LhsEtorType, RhsEtorType, PacketType, LoadMode>;
+    PacketImpl::run(row, col, m_lhsImpl, m_rhsImpl, m_innerDim, res);
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void packetSegmentAccumulate(Index row, Index col, Index begin, Index count,
+                                                                     PacketType& res) const {
+    using PacketImpl =
+        etor_product_packet_impl<bool(int(Flags) & RowMajorBit) ? RowMajor : ColMajor,
+                                 Unroll ? int(InnerSize) : Dynamic, LhsEtorType, RhsEtorType, PacketType, LoadMode>;
+    PacketImpl::run_segment(row, col, m_lhsImpl, m_rhsImpl, m_innerDim, res, begin, count);
+  }
+
+  // FMA chain for compound assignments (-=): caller pre-loads the destination into `res`.
+  // Uses pnmadd (= -a*b + c = c - a*b) throughout, mapping to vfnmadd on AVX/FMA hardware.
+  template <int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void packetSubtractAccumulate(Index row, Index col, PacketType& res) const {
+    using PacketImpl =
+        etor_product_packet_impl<bool(int(Flags) & RowMajorBit) ? RowMajor : ColMajor,
+                                 Unroll ? int(InnerSize) : Dynamic, LhsEtorType, RhsEtorType, PacketType, LoadMode>;
+    PacketImpl::run_sub(row, col, m_lhsImpl, m_rhsImpl, m_innerDim, res);
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void packetSegmentSubtractAccumulate(Index row, Index col, Index begin,
+                                                                             Index count, PacketType& res) const {
+    using PacketImpl =
+        etor_product_packet_impl<bool(int(Flags) & RowMajorBit) ? RowMajor : ColMajor,
+                                 Unroll ? int(InnerSize) : Dynamic, LhsEtorType, RhsEtorType, PacketType, LoadMode>;
+    PacketImpl::run_segment_sub(row, col, m_lhsImpl, m_rhsImpl, m_innerDim, res, begin, count);
   }
 
  protected:
@@ -729,12 +841,27 @@ struct etor_product_packet_impl<RowMajor, UnrollingIndex, Lhs, Rhs, Packet, Load
     res = pmadd(pset1<Packet>(lhs.coeff(row, Index(UnrollingIndex - 1))),
                 rhs.template packet<LoadMode, Packet>(Index(UnrollingIndex - 1), col), res);
   }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_sub(Index row, Index col, const Lhs& lhs, const Rhs& rhs,
+                                                            Index innerDim, Packet& res) {
+    etor_product_packet_impl<RowMajor, UnrollingIndex - 1, Lhs, Rhs, Packet, LoadMode>::run_sub(row, col, lhs, rhs,
+                                                                                                innerDim, res);
+    res = pnmadd(pset1<Packet>(lhs.coeff(row, Index(UnrollingIndex - 1))),
+                 rhs.template packet<LoadMode, Packet>(Index(UnrollingIndex - 1), col), res);
+  }
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_segment(Index row, Index col, const Lhs& lhs, const Rhs& rhs,
                                                                 Index innerDim, Packet& res, Index begin, Index count) {
     etor_product_packet_impl<RowMajor, UnrollingIndex - 1, Lhs, Rhs, Packet, LoadMode>::run_segment(
         row, col, lhs, rhs, innerDim, res, begin, count);
     res = pmadd(pset1<Packet>(lhs.coeff(row, Index(UnrollingIndex - 1))),
                 rhs.template packetSegment<LoadMode, Packet>(Index(UnrollingIndex - 1), col, begin, count), res);
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_segment_sub(Index row, Index col, const Lhs& lhs,
+                                                                    const Rhs& rhs, Index innerDim, Packet& res,
+                                                                    Index begin, Index count) {
+    etor_product_packet_impl<RowMajor, UnrollingIndex - 1, Lhs, Rhs, Packet, LoadMode>::run_segment_sub(
+        row, col, lhs, rhs, innerDim, res, begin, count);
+    res = pnmadd(pset1<Packet>(lhs.coeff(row, Index(UnrollingIndex - 1))),
+                 rhs.template packetSegment<LoadMode, Packet>(Index(UnrollingIndex - 1), col, begin, count), res);
   }
 };
 
@@ -747,6 +874,13 @@ struct etor_product_packet_impl<ColMajor, UnrollingIndex, Lhs, Rhs, Packet, Load
     res = pmadd(lhs.template packet<LoadMode, Packet>(row, Index(UnrollingIndex - 1)),
                 pset1<Packet>(rhs.coeff(Index(UnrollingIndex - 1), col)), res);
   }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_sub(Index row, Index col, const Lhs& lhs, const Rhs& rhs,
+                                                            Index innerDim, Packet& res) {
+    etor_product_packet_impl<ColMajor, UnrollingIndex - 1, Lhs, Rhs, Packet, LoadMode>::run_sub(row, col, lhs, rhs,
+                                                                                                innerDim, res);
+    res = pnmadd(lhs.template packet<LoadMode, Packet>(row, Index(UnrollingIndex - 1)),
+                 pset1<Packet>(rhs.coeff(Index(UnrollingIndex - 1), col)), res);
+  }
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_segment(Index row, Index col, const Lhs& lhs, const Rhs& rhs,
                                                                 Index innerDim, Packet& res, Index begin, Index count) {
     etor_product_packet_impl<ColMajor, UnrollingIndex - 1, Lhs, Rhs, Packet, LoadMode>::run_segment(
@@ -754,19 +888,40 @@ struct etor_product_packet_impl<ColMajor, UnrollingIndex, Lhs, Rhs, Packet, Load
     res = pmadd(lhs.template packetSegment<LoadMode, Packet>(row, Index(UnrollingIndex - 1), begin, count),
                 pset1<Packet>(rhs.coeff(Index(UnrollingIndex - 1), col)), res);
   }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_segment_sub(Index row, Index col, const Lhs& lhs,
+                                                                    const Rhs& rhs, Index innerDim, Packet& res,
+                                                                    Index begin, Index count) {
+    etor_product_packet_impl<ColMajor, UnrollingIndex - 1, Lhs, Rhs, Packet, LoadMode>::run_segment_sub(
+        row, col, lhs, rhs, innerDim, res, begin, count);
+    res = pnmadd(lhs.template packetSegment<LoadMode, Packet>(row, Index(UnrollingIndex - 1), begin, count),
+                 pset1<Packet>(rhs.coeff(Index(UnrollingIndex - 1), col)), res);
+  }
 };
 
+// Base case: res must be pre-initialized by the caller.
+// run:     pmadd(a,b,res) = a*b + res  — for += (FMA add chain)
+// run_sub: pnmadd(a,b,res) = -a*b + res = res - a*b  — for -= (FMA subtract chain)
 template <typename Lhs, typename Rhs, typename Packet, int LoadMode>
 struct etor_product_packet_impl<RowMajor, 1, Lhs, Rhs, Packet, LoadMode> {
   static EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE void run(Index row, Index col, const Lhs& lhs, const Rhs& rhs,
                                                                   Index /*innerDim*/, Packet& res) {
-    res = pmul(pset1<Packet>(lhs.coeff(row, Index(0))), rhs.template packet<LoadMode, Packet>(Index(0), col));
+    res = pmadd(pset1<Packet>(lhs.coeff(row, Index(0))), rhs.template packet<LoadMode, Packet>(Index(0), col), res);
+  }
+  static EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE void run_sub(Index row, Index col, const Lhs& lhs,
+                                                                      const Rhs& rhs, Index /*innerDim*/, Packet& res) {
+    res = pnmadd(pset1<Packet>(lhs.coeff(row, Index(0))), rhs.template packet<LoadMode, Packet>(Index(0), col), res);
   }
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_segment(Index row, Index col, const Lhs& lhs, const Rhs& rhs,
                                                                 Index /*innerDim*/, Packet& res, Index begin,
                                                                 Index count) {
-    res = pmul(pset1<Packet>(lhs.coeff(row, Index(0))),
-               rhs.template packetSegment<LoadMode, Packet>(Index(0), col, begin, count));
+    res = pmadd(pset1<Packet>(lhs.coeff(row, Index(0))),
+                rhs.template packetSegment<LoadMode, Packet>(Index(0), col, begin, count), res);
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_segment_sub(Index row, Index col, const Lhs& lhs,
+                                                                    const Rhs& rhs, Index /*innerDim*/, Packet& res,
+                                                                    Index begin, Index count) {
+    res = pnmadd(pset1<Packet>(lhs.coeff(row, Index(0))),
+                 rhs.template packetSegment<LoadMode, Packet>(Index(0), col, begin, count), res);
   }
 };
 
@@ -774,56 +929,86 @@ template <typename Lhs, typename Rhs, typename Packet, int LoadMode>
 struct etor_product_packet_impl<ColMajor, 1, Lhs, Rhs, Packet, LoadMode> {
   static EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE void run(Index row, Index col, const Lhs& lhs, const Rhs& rhs,
                                                                   Index /*innerDim*/, Packet& res) {
-    res = pmul(lhs.template packet<LoadMode, Packet>(row, Index(0)), pset1<Packet>(rhs.coeff(Index(0), col)));
+    res = pmadd(lhs.template packet<LoadMode, Packet>(row, Index(0)), pset1<Packet>(rhs.coeff(Index(0), col)), res);
+  }
+  static EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE void run_sub(Index row, Index col, const Lhs& lhs,
+                                                                      const Rhs& rhs, Index /*innerDim*/, Packet& res) {
+    res = pnmadd(lhs.template packet<LoadMode, Packet>(row, Index(0)), pset1<Packet>(rhs.coeff(Index(0), col)), res);
   }
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_segment(Index row, Index col, const Lhs& lhs, const Rhs& rhs,
                                                                 Index /*innerDim*/, Packet& res, Index begin,
                                                                 Index count) {
-    res = pmul(lhs.template packetSegment<LoadMode, Packet>(row, Index(0), begin, count),
-               pset1<Packet>(rhs.coeff(Index(0), col)));
+    res = pmadd(lhs.template packetSegment<LoadMode, Packet>(row, Index(0), begin, count),
+                pset1<Packet>(rhs.coeff(Index(0), col)), res);
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_segment_sub(Index row, Index col, const Lhs& lhs,
+                                                                    const Rhs& rhs, Index /*innerDim*/, Packet& res,
+                                                                    Index begin, Index count) {
+    res = pnmadd(lhs.template packetSegment<LoadMode, Packet>(row, Index(0), begin, count),
+                 pset1<Packet>(rhs.coeff(Index(0), col)), res);
   }
 };
 
+// Empty inner dimension (K=0): no-op; res is left as-is (zero for plain assign, dst for +=/−=).
 template <typename Lhs, typename Rhs, typename Packet, int LoadMode>
 struct etor_product_packet_impl<RowMajor, 0, Lhs, Rhs, Packet, LoadMode> {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Index /*row*/, Index /*col*/, const Lhs& /*lhs*/,
-                                                        const Rhs& /*rhs*/, Index /*innerDim*/, Packet& res) {
-    res = pset1<Packet>(typename unpacket_traits<Packet>::type(0));
-  }
+                                                        const Rhs& /*rhs*/, Index /*innerDim*/,
+                                                        Packet& /*res*/) {}
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_sub(Index /*row*/, Index /*col*/, const Lhs& /*lhs*/,
+                                                            const Rhs& /*rhs*/, Index /*innerDim*/,
+                                                            Packet& /*res*/) {}
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_segment(Index /*row*/, Index /*col*/, const Lhs& /*lhs*/,
-                                                                const Rhs& /*rhs*/, Index /*innerDim*/, Packet& res,
-                                                                Index /*begin*/, Index /*count*/) {
-    res = pset1<Packet>(typename unpacket_traits<Packet>::type(0));
-  }
+                                                                const Rhs& /*rhs*/, Index /*innerDim*/, Packet& /*res*/,
+                                                                Index /*begin*/, Index /*count*/) {}
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_segment_sub(Index /*row*/, Index /*col*/, const Lhs& /*lhs*/,
+                                                                    const Rhs& /*rhs*/, Index /*innerDim*/,
+                                                                    Packet& /*res*/, Index /*begin*/,
+                                                                    Index /*count*/) {}
 };
 
 template <typename Lhs, typename Rhs, typename Packet, int LoadMode>
 struct etor_product_packet_impl<ColMajor, 0, Lhs, Rhs, Packet, LoadMode> {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Index /*row*/, Index /*col*/, const Lhs& /*lhs*/,
-                                                        const Rhs& /*rhs*/, Index /*innerDim*/, Packet& res) {
-    res = pset1<Packet>(typename unpacket_traits<Packet>::type(0));
-  }
+                                                        const Rhs& /*rhs*/, Index /*innerDim*/,
+                                                        Packet& /*res*/) {}
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_sub(Index /*row*/, Index /*col*/, const Lhs& /*lhs*/,
+                                                            const Rhs& /*rhs*/, Index /*innerDim*/,
+                                                            Packet& /*res*/) {}
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_segment(Index /*row*/, Index /*col*/, const Lhs& /*lhs*/,
-                                                                const Rhs& /*rhs*/, Index /*innerDim*/, Packet& res,
-                                                                Index /*begin*/, Index /*count*/) {
-    res = pset1<Packet>(typename unpacket_traits<Packet>::type(0));
-  }
+                                                                const Rhs& /*rhs*/, Index /*innerDim*/, Packet& /*res*/,
+                                                                Index /*begin*/, Index /*count*/) {}
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_segment_sub(Index /*row*/, Index /*col*/, const Lhs& /*lhs*/,
+                                                                    const Rhs& /*rhs*/, Index /*innerDim*/,
+                                                                    Packet& /*res*/, Index /*begin*/,
+                                                                    Index /*count*/) {}
 };
 
+// Dynamic (runtime) inner dimension: res must be pre-initialized by the caller.
 template <typename Lhs, typename Rhs, typename Packet, int LoadMode>
 struct etor_product_packet_impl<RowMajor, Dynamic, Lhs, Rhs, Packet, LoadMode> {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Index row, Index col, const Lhs& lhs, const Rhs& rhs,
                                                         Index innerDim, Packet& res) {
-    res = pset1<Packet>(typename unpacket_traits<Packet>::type(0));
     for (Index i = 0; i < innerDim; ++i)
       res = pmadd(pset1<Packet>(lhs.coeff(row, i)), rhs.template packet<LoadMode, Packet>(i, col), res);
   }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_sub(Index row, Index col, const Lhs& lhs, const Rhs& rhs,
+                                                            Index innerDim, Packet& res) {
+    for (Index i = 0; i < innerDim; ++i)
+      res = pnmadd(pset1<Packet>(lhs.coeff(row, i)), rhs.template packet<LoadMode, Packet>(i, col), res);
+  }
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_segment(Index row, Index col, const Lhs& lhs, const Rhs& rhs,
                                                                 Index innerDim, Packet& res, Index begin, Index count) {
-    res = pset1<Packet>(typename unpacket_traits<Packet>::type(0));
     for (Index i = 0; i < innerDim; ++i)
       res = pmadd(pset1<Packet>(lhs.coeff(row, i)), rhs.template packetSegment<LoadMode, Packet>(i, col, begin, count),
                   res);
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_segment_sub(Index row, Index col, const Lhs& lhs,
+                                                                    const Rhs& rhs, Index innerDim, Packet& res,
+                                                                    Index begin, Index count) {
+    for (Index i = 0; i < innerDim; ++i)
+      res = pnmadd(pset1<Packet>(lhs.coeff(row, i)),
+                   rhs.template packetSegment<LoadMode, Packet>(i, col, begin, count), res);
   }
 };
 
@@ -831,16 +1016,26 @@ template <typename Lhs, typename Rhs, typename Packet, int LoadMode>
 struct etor_product_packet_impl<ColMajor, Dynamic, Lhs, Rhs, Packet, LoadMode> {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Index row, Index col, const Lhs& lhs, const Rhs& rhs,
                                                         Index innerDim, Packet& res) {
-    res = pset1<Packet>(typename unpacket_traits<Packet>::type(0));
     for (Index i = 0; i < innerDim; ++i)
       res = pmadd(lhs.template packet<LoadMode, Packet>(row, i), pset1<Packet>(rhs.coeff(i, col)), res);
   }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_sub(Index row, Index col, const Lhs& lhs, const Rhs& rhs,
+                                                            Index innerDim, Packet& res) {
+    for (Index i = 0; i < innerDim; ++i)
+      res = pnmadd(lhs.template packet<LoadMode, Packet>(row, i), pset1<Packet>(rhs.coeff(i, col)), res);
+  }
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_segment(Index row, Index col, const Lhs& lhs, const Rhs& rhs,
                                                                 Index innerDim, Packet& res, Index begin, Index count) {
-    res = pset1<Packet>(typename unpacket_traits<Packet>::type(0));
     for (Index i = 0; i < innerDim; ++i)
       res = pmadd(lhs.template packetSegment<LoadMode, Packet>(row, i, begin, count), pset1<Packet>(rhs.coeff(i, col)),
                   res);
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_segment_sub(Index row, Index col, const Lhs& lhs,
+                                                                    const Rhs& rhs, Index innerDim, Packet& res,
+                                                                    Index begin, Index count) {
+    for (Index i = 0; i < innerDim; ++i)
+      res = pnmadd(lhs.template packetSegment<LoadMode, Packet>(row, i, begin, count),
+                   pset1<Packet>(rhs.coeff(i, col)), res);
   }
 };
 
