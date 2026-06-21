@@ -468,8 +468,10 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, CoeffBasedProductM
     // FMA chain: for each output packet, load the existing dst value as the initial
     // accumulator, then run pmadd for ALL inner-dimension steps (including k=0 — vs the
     // normal path which uses pmul at k=0 and a separate padd at the end).  Only applies
-    // when the vectorization axis matches the destination's memory layout.
-    if constexpr (ProdEval::CanVectorizeLhs && !int(Dst::IsRowMajor)) {
+    // when the vectorization axis matches the destination's memory layout, and only for
+    // real scalar types (pmadd/pnmadd map to vfmadd/vfnmadd hardware instructions only
+    // for real floats and doubles; complex multiply-add has no single-instruction form).
+    if constexpr (!NumTraits<Scalar>::IsComplex && ProdEval::CanVectorizeLhs && !int(Dst::IsRowMajor)) {
       using PktType = typename ProdEval::LhsVecPacketType;
       constexpr int PktSize = unpacket_traits<PktType>::size;
       const Index pktRows = (rows / PktSize) * PktSize;
@@ -482,7 +484,7 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, CoeffBasedProductM
         for (Index i = pktRows; i < rows; ++i)
           dst.coeffRef(i, j) += prodEval.coeff(i, j);
       }
-    } else if constexpr (ProdEval::CanVectorizeRhs && int(Dst::IsRowMajor)) {
+    } else if constexpr (!NumTraits<Scalar>::IsComplex && ProdEval::CanVectorizeRhs && int(Dst::IsRowMajor)) {
       using PktType = typename ProdEval::RhsVecPacketType;
       constexpr int PktSize = unpacket_traits<PktType>::size;
       const Index pktCols = (cols / PktSize) * PktSize;
@@ -509,7 +511,8 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, CoeffBasedProductM
 
     // FMA chain for -=: load dst into accumulator, then pnmadd for every k — no separate
     // negate or subtract instruction needed.  Maps to vfnmadd on AVX/FMA hardware.
-    if constexpr (ProdEval::CanVectorizeLhs && !int(Dst::IsRowMajor)) {
+    // Only applies for real scalar types; see addTo() for details on the complex restriction.
+    if constexpr (!NumTraits<Scalar>::IsComplex && ProdEval::CanVectorizeLhs && !int(Dst::IsRowMajor)) {
       using PktType = typename ProdEval::LhsVecPacketType;
       constexpr int PktSize = unpacket_traits<PktType>::size;
       const Index pktRows = (rows / PktSize) * PktSize;
@@ -522,7 +525,7 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, CoeffBasedProductM
         for (Index i = pktRows; i < rows; ++i)
           dst.coeffRef(i, j) -= prodEval.coeff(i, j);
       }
-    } else if constexpr (ProdEval::CanVectorizeRhs && int(Dst::IsRowMajor)) {
+    } else if constexpr (!NumTraits<Scalar>::IsComplex && ProdEval::CanVectorizeRhs && int(Dst::IsRowMajor)) {
       using PktType = typename ProdEval::RhsVecPacketType;
       constexpr int PktSize = unpacket_traits<PktType>::size;
       const Index pktCols = (cols / PktSize) * PktSize;
