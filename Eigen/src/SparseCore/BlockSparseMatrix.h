@@ -231,6 +231,11 @@ class BlockSparseMatrix
   /** Inner block dimension (block-rows for ColMajor, block-cols for RowMajor). */
   Index blockInnerSize() const { return m_blockInnerSize; }
 
+  /** Element-level outer size: cols() for ColMajor, rows() for RowMajor. */
+  Index outerSize() const { return IsRowMajor ? rows() : cols(); }
+  /** Element-level inner size: rows() for ColMajor, cols() for RowMajor. */
+  Index innerSize() const { return IsRowMajor ? cols() : rows(); }
+
   /** Number of stored (structurally non-zero) blocks. */
   Index nonZeroBlocks() const { return m_outerIndex(m_blockOuterSize); }
   /** Total number of stored scalar coefficients (= nonZeroBlocks() * BlockRows * BlockCols). */
@@ -423,6 +428,49 @@ class BlockSparseMatrix
     const StorageIndex* it = std::lower_bound(beg, fin, StorageIndex(bInner));
     if (it == fin || *it != bInner) return Scalar(0);
     return blockRef(static_cast<Index>(it - m_innerIndex.data()))(localRow, localCol);
+  }
+
+  /** Extract the main scalar diagonal as a dense vector.
+   *
+   * Iterates outer slices once and binary-searches for the diagonal block in each
+   * slice, then copies the relevant entries from that block — one search per outer
+   * slice (square blocks) or per unique inner-block boundary (non-square blocks),
+   * vs. one search per scalar element for the coeff-by-coeff approach.
+   */
+  Matrix<Scalar, Dynamic, 1> diagonal() const {
+    constexpr Index OuterB = IsRowMajor ? BlockRows_ : BlockCols_;
+    constexpr Index InnerB = IsRowMajor ? BlockCols_ : BlockRows_;
+    const Index diagSize = numext::mini(rows(), cols());
+    Matrix<Scalar, Dynamic, 1> diag = Matrix<Scalar, Dynamic, 1>::Zero(diagSize);
+
+    for (Index out = 0; out < m_blockOuterSize; ++out) {
+      const Index scalarOuterBegin = out * OuterB;
+      if (scalarOuterBegin >= diagSize) break;
+      const Index scalarOuterEnd = numext::mini(scalarOuterBegin + OuterB, diagSize);
+
+      // Group consecutive scalar positions that share the same inner block, then
+      // binary-search once per group rather than once per scalar element.
+      // For square blocks this loop runs exactly once per outer slice.
+      Index i = scalarOuterBegin;
+      while (i < scalarOuterEnd) {
+        const Index bInner = i / InnerB;
+        const Index groupEnd = numext::mini((bInner + 1) * InnerB, scalarOuterEnd);
+
+        const StorageIndex* beg = m_innerIndex.data() + m_outerIndex(out);
+        const StorageIndex* fin = m_innerIndex.data() + m_outerIndex(out + 1);
+        const StorageIndex* it = std::lower_bound(beg, fin, StorageIndex(bInner));
+        if (it != fin && *it == StorageIndex(bInner)) {
+          const ConstBlockMap blk = blockRef(static_cast<Index>(it - m_innerIndex.data()));
+          for (Index j = i; j < groupEnd; ++j) {
+            const Index localRow = IsRowMajor ? (j % OuterB) : (j % InnerB);
+            const Index localCol = IsRowMajor ? (j % InnerB) : (j % OuterB);
+            diag(j) = blk(localRow, localCol);
+          }
+        }
+        i = groupEnd;
+      }
+    }
+    return diag;
   }
 
   // -------------------------------------------------------------------------
