@@ -1628,9 +1628,13 @@ class BlockSparseSelfAdjointView {
             result.template middleRows<BlockRows>(bi * BlockRows).noalias() +=
                 m_matrix.blockRef(id) * rhs.template middleRows<BlockCols>(bj * BlockCols);
           } else {
+            // Materialize the tiny diagonal block as a fixed-size Hermitian matrix, then use the
+            // ordinary (coeff-based for a vector rhs) product.  This avoids the runtime-sized,
+            // EIGEN_DONT_INLINE selfadjoint_matrix_vector_product kernel, which is tuned for large
+            // matrices and is pure overhead for a 2-4 row block.
+            BlockType diag = m_matrix.blockRef(id).template selfadjointView<DiagUpLo>();
             result.template middleRows<BlockRows>(bi * BlockRows).noalias() +=
-                m_matrix.blockRef(id).template selfadjointView<DiagUpLo>() *
-                rhs.template middleRows<BlockCols>(bj * BlockCols);
+                diag * rhs.template middleRows<BlockCols>(bj * BlockCols);
           }
         } else {
           result.template middleRows<BlockRows>(bi * BlockRows).noalias() +=
