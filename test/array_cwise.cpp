@@ -233,8 +233,23 @@ struct ref_pow {
 };
 
 template <typename Base, typename Exponent>
+Base ref_pow_integer_base(Base base, Exponent exponent) {
+  // std::pow uses floating-point arithmetic and can round one ulp below the exact integer result before casting.
+  Base result(1);
+  while (exponent > Exponent(0)) {
+    if (exponent & Exponent(1)) result *= base;
+    exponent >>= 1;
+    if (exponent > Exponent(0)) base *= base;
+  }
+  return result;
+}
+
+template <typename Base, typename Exponent>
 struct ref_pow<Base, Exponent, true> {
   static Base run(Base base, Exponent exponent) {
+    if (NumTraits<Base>::IsInteger && (exponent > Exponent(0) || exponent == Exponent(0))) {
+      return ref_pow_integer_base(base, exponent);
+    }
     EIGEN_USING_STD(pow);
     return static_cast<Base>(pow(base, exponent));
   }
