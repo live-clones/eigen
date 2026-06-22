@@ -475,8 +475,7 @@ struct product_packet_cascade {
     Index i = begin;
     for (; i < pktEnd; i += PacketSize) {
       const Index r = ColMajor ? i : outer, c = ColMajor ? outer : i;
-      func.template assignPacket<Unaligned, Packet>(&dst.coeffRef(r, c),
-                                                    prod.template packet<Unaligned, Packet>(r, c));
+      func.template assignPacket<Unaligned, Packet>(&dst.coeffRef(r, c), prod.template packet<Unaligned, Packet>(r, c));
     }
     // Fall back to the half packet for the remainder [i, end).
     product_packet_cascade<typename unpacket_traits<Packet>::half, ColMajor>::run(func, dst, prod, outer, i, end);
@@ -494,8 +493,7 @@ struct product_packet_cascade<Packet, ColMajor, /*Terminal=*/true> {
     Index i = begin;
     for (; i < pktEnd; i += PacketSize) {
       const Index r = ColMajor ? i : outer, c = ColMajor ? outer : i;
-      func.template assignPacket<Unaligned, Packet>(&dst.coeffRef(r, c),
-                                                    prod.template packet<Unaligned, Packet>(r, c));
+      func.template assignPacket<Unaligned, Packet>(&dst.coeffRef(r, c), prod.template packet<Unaligned, Packet>(r, c));
     }
     for (; i < end; ++i) {
       const Index r = ColMajor ? i : outer, c = ColMajor ? outer : i;
