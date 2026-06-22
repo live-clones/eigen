@@ -331,6 +331,28 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 operator-(const bfloat16& a) {
   numext::uint16_t x = numext::bit_cast<uint16_t>(a) ^ 0x8000;
   return numext::bit_cast<bfloat16>(x);
 }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool bfloat16_isnan_raw(const bfloat16& a) {
+  const numext::uint16_t bits = numext::bit_cast<numext::uint16_t>(a);
+  return (bits & 0x7f80) == 0x7f80 && (bits & 0x007f) != 0;
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool bfloat16_iszero_raw(const bfloat16& a) {
+  return (numext::bit_cast<numext::uint16_t>(a) & 0x7fff) == 0;
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool bfloat16_equal_raw(const bfloat16& a, const bfloat16& b) {
+  if (bfloat16_isnan_raw(a) || bfloat16_isnan_raw(b)) return false;
+  if (bfloat16_iszero_raw(a) && bfloat16_iszero_raw(b)) return true;
+  return numext::bit_cast<numext::uint16_t>(a) == numext::bit_cast<numext::uint16_t>(b);
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC numext::uint16_t bfloat16_order_key(const bfloat16& a) {
+  const numext::uint16_t bits = numext::bit_cast<numext::uint16_t>(a);
+  return (bits & 0x8000) ? numext::uint16_t(~bits) : numext::uint16_t(bits | 0x8000);
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool bfloat16_less_raw(const bfloat16& a, const bfloat16& b) {
+  if (bfloat16_isnan_raw(a) || bfloat16_isnan_raw(b) || (bfloat16_iszero_raw(a) && bfloat16_iszero_raw(b))) {
+    return false;
+  }
+  return bfloat16_order_key(a) < bfloat16_order_key(b);
+}
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16& operator+=(bfloat16& a, const bfloat16& b) {
   a = bfloat16(float(a) + float(b));
   return a;
@@ -366,22 +388,22 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 operator--(bfloat16& a, int) {
   return original_value;
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator==(const bfloat16& a, const bfloat16& b) {
-  return numext::equal_strict(float(a), float(b));
+  return bfloat16_equal_raw(a, b);
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator!=(const bfloat16& a, const bfloat16& b) {
-  return numext::not_equal_strict(float(a), float(b));
+  return !bfloat16_equal_raw(a, b);
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator<(const bfloat16& a, const bfloat16& b) {
-  return float(a) < float(b);
+  return bfloat16_less_raw(a, b);
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator<=(const bfloat16& a, const bfloat16& b) {
-  return float(a) <= float(b);
+  return bfloat16_equal_raw(a, b) || bfloat16_less_raw(a, b);
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator>(const bfloat16& a, const bfloat16& b) {
-  return float(a) > float(b);
+  return bfloat16_less_raw(b, a);
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator>=(const bfloat16& a, const bfloat16& b) {
-  return float(a) >= float(b);
+  return bfloat16_equal_raw(a, b) || bfloat16_less_raw(b, a);
 }
 
 #if EIGEN_COMP_CLANG && defined(EIGEN_CUDACC)
