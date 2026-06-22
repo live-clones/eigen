@@ -54,7 +54,7 @@ struct squared_norm_impl<Derived, Scalar, std::enable_if_t<squared_norm_runtime_
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Real run(const Derived& a) {
     if (a.innerStride() == 1 && (a.outerSize() == 1 || a.outerStride() == a.innerSize())) {
       using PlainVector = Matrix<Scalar, Dynamic, 1>;
-      Map<const PlainVector, Unaligned> contiguous(a.data(), a.size());
+      Map<const PlainVector, evaluator<Derived>::Alignment> contiguous(a.data(), a.size());
       return contiguous.realView().cwiseAbs2().sum();
     }
     return a.realView().cwiseAbs2().sum();

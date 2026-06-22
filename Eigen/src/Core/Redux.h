@@ -461,7 +461,7 @@ struct redux_dispatch<Func, Evaluator, XprType, true> {
                                                           const XprType& xpr) {
     if (xpr.innerStride() == 1 && (xpr.outerSize() == 1 || xpr.outerStride() == xpr.innerSize())) {
       using PlainVector = Matrix<Scalar, Dynamic, 1>;
-      using MapType = Map<const PlainVector, Unaligned>;
+      using MapType = Map<const PlainVector, Evaluator::Alignment>;
       MapType contiguous(xpr.data(), xpr.size());
       redux_evaluator<MapType> mapEval(contiguous);
       return redux_impl<Func, redux_evaluator<MapType>>::run(mapEval, func, contiguous);

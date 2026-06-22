@@ -299,6 +299,17 @@ void redux_runtime_contiguous() {
     Map<Vec, 0, InnerStride<Dynamic>> mp(data_for_prod.data(), n, InnerStride<Dynamic>(1));
     VERIFY_IS_APPROX(mp.prod(), rp);
 
+    // (a') an *aligned* dynamic-inner-stride Map with runtime stride 1 exercises the aligned-load
+    // fast path: the runtime-contiguous Map inherits evaluator<Derived>::Alignment, so an aligned
+    // source must reduce correctly and must not trip the Map alignment assertion. The data buffer
+    // comes from an Eigen Vec, which is allocated AlignedMax-aligned.
+    Map<Vec, AlignedMax, InnerStride<Dynamic>> ma(data.data(), n, InnerStride<Dynamic>(1));
+    VERIFY_IS_APPROX(ma.sum(), rs);
+    VERIFY_IS_APPROX(ma.real().minCoeff(), rmin);
+    VERIFY_IS_APPROX(ma.real().maxCoeff(), rmax);
+    VERIFY_IS_APPROX(ma.squaredNorm(), rsqn);
+    VERIFY_IS_APPROX(ma.norm(), numext::sqrt(rsqn));
+
     // (b) a row of a 1xN dynamic matrix is contiguous at runtime (inner stride == 1).
     Mat r = Mat::Random(1, n);
     Scalar row_sum(0);
