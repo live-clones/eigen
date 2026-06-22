@@ -293,6 +293,10 @@ void float_pow_test_impl() {
               bool ref_is_neg = !(numext::isnan)(e) && (bool)numext::signbit(e);
               bool flip_sign = result_is_neg != ref_is_neg;
               if (flip_sign) e = -e;
+            } else if (e == Base(0)) {
+              // Implementations may disagree on the sign of pow(-0, positive non-integer).  The specified result is
+              // +0, so do not inherit a negative zero from the scalar reference.
+              e = numext::abs(e);
             }
 
             Base a = eigenPow(j);
