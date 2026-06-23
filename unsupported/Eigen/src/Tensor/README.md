@@ -1640,15 +1640,12 @@ a.setValues({{{0.0f, 1.0f, 2.0f, 3.0f},
               {19.0f, 18.0f, 17.0f, 16.0f},
               {20.0f, 21.0f, 22.0f, 23.0f}}});
 // Reduce along all dimensions using the sum() operator.
-Eigen::Tensor<float, 0> b = a.sum();
+// In this case, we can assign directly to the tensor's scalar type:
+float b = a.sum();
 std::cout << "b\n" << b;
 
 // b
 // 276
-```
-You can extract the scalar directly by casting the expression and extract the first and only coefficient:
-```cpp
-float sum = static_cast<Eigen::Tensor<float, 0>>(a.sum())();
 ```
 
 ### (Operation) sum(const Dimensions& reduction_dims)
