@@ -814,10 +814,7 @@ struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape,
     // fast_mult_op is cwiseProduct's scalar_product_op with a pmul-based scalar path, so the
     // reduction (and its precision) is unchanged but complex scalars avoid std::complex::operator*
     // (the slow libgcc __mul?c3). See fast_mult_op.
-    return m_lhs.row(row)
-        .transpose()
-        .binaryExpr(m_rhs.col(col), fast_mult_op<LhsScalar, RhsScalar>())
-        .sum();
+    return m_lhs.row(row).transpose().binaryExpr(m_rhs.col(col), fast_mult_op<LhsScalar, RhsScalar>()).sum();
   }
 
   /* Allow index-based non-packet access. It is impossible though to allow index-based packed access,
@@ -827,10 +824,7 @@ struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape,
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const CoeffReturnType coeff(Index index) const {
     const Index row = (RowsAtCompileTime == 1 || MaxRowsAtCompileTime == 1) ? 0 : index;
     const Index col = (RowsAtCompileTime == 1 || MaxRowsAtCompileTime == 1) ? index : 0;
-    return m_lhs.row(row)
-        .transpose()
-        .binaryExpr(m_rhs.col(col), fast_mult_op<LhsScalar, RhsScalar>())
-        .sum();
+    return m_lhs.row(row).transpose().binaryExpr(m_rhs.col(col), fast_mult_op<LhsScalar, RhsScalar>()).sum();
   }
 
   template <int LoadMode, typename PacketType>
