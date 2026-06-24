@@ -559,8 +559,12 @@ struct product_packet_cascade_traits {
   using Packet = typename find_largest_packet<Scalar, Extent>::type;
   static constexpr int LargestSize = unpacket_traits<Packet>::size;
   static constexpr int GenericSize = largest_exact_divisor_size<typename packet_traits<Scalar>::type, Extent>::value;
-  static constexpr bool Enable =
-      (VecLhs || VecRhs) && DstContiguous && (LargestSize <= Extent) && (LargestSize > GenericSize);
+  // SameType mirrors the product's own PacketAccessBit (SameType && (CanVectorizeLhs ||
+  // CanVectorizeRhs)): CanVectorizeLhs/Rhs alone test only the operand's packet access, so a
+  // mixed-scalar product (e.g. double * complex) would otherwise enable the cascade and try to
+  // read the wrong-width packet out of an operand. Mixed types keep the generic (scalar) path.
+  static constexpr bool Enable = bool(ProdEval::SameType) && (VecLhs || VecRhs) && DstContiguous &&
+                                 (LargestSize <= Extent) && (LargestSize > GenericSize);
 };
 
 // Run the cascade over every outer index of dst. Traits::VecLhs is a compile-time
