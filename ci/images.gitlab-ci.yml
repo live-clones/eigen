@@ -18,9 +18,12 @@
   # since the new image is only consumed by future pipelines anyway.
   needs: []
   before_script:
-    # Register a static, F-flagged qemu handler so buildkit can run the
-    # riscv64 RUN steps under emulation (the riscv64 run image is built on an
-    # amd64 runner). No-op for the native amd64/arm64 image builds.
+    # Register a static, F-flagged qemu handler so buildkit can run the riscv64
+    # RUN steps under emulation (the riscv64 run image is built on an amd64
+    # runner). The runner host ships a stale qemu-riscv64 registration that
+    # --install would skip, so uninstall it first to force our F-flagged one in.
+    # No-op for the native amd64/arm64 image builds.
+    - docker run --privileged --rm tonistiigi/binfmt --uninstall qemu-riscv64
     - docker run --privileged --rm tonistiigi/binfmt --install riscv64
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
 
