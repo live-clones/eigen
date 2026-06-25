@@ -481,8 +481,13 @@ build:linux:cross:loongarch64:gcc-14:default:
 # tests, gcc and clang -- is actually vectorized.
 .build:linux:riscv64:
   extends: .build:linux:cross
+  # Cross-compiles to riscv64 on an amd64 runner using the prebuilt image, which
+  # carries the riscv64 cross toolchain (g++-15-riscv64-linux-gnu / clang-21)
+  # plus cmake/ninja/git -- so apt is skipped entirely.
+  image: ${EIGEN_CI_IMAGE_LINUX_RISCV64_SMOKETEST_BUILD}
   variables:
     EIGEN_CI_TARGET_ARCH: riscv64
+    EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_CROSS_TARGET_TRIPLE: riscv64-linux-gnu
     EIGEN_CI_ADDITIONAL_ARGS: >-
       -DEIGEN_TEST_CUSTOM_CXX_FLAGS=-march=rv64gc_v_zvl256b_zfh_zvfh;-mrvv-vector-bits=zvl;-DEIGEN_RISCV64_USE_RVV10
