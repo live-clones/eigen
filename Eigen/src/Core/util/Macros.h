@@ -756,6 +756,16 @@
 #define EIGEN_HAS_ATTRIBUTE(x) 0
 #endif
 
+// Disables UBSan's integer-overflow checks for an annotated function. Only use
+// this where the overflow merely yields a wrong numeric result and poses no
+// safety risk. Expands to nothing on compilers without the attribute.
+#if EIGEN_HAS_ATTRIBUTE(no_sanitize)
+#define EIGEN_NO_SANITIZE_INTEGER_OVERFLOW \
+  __attribute__((no_sanitize("signed-integer-overflow", "unsigned-integer-overflow")))
+#else
+#define EIGEN_NO_SANITIZE_INTEGER_OVERFLOW
+#endif
+
 // A Clang feature extension to determine compiler features.
 // We use it to determine 'cxx_rvalue_references'
 #ifndef __has_feature
