@@ -21,7 +21,7 @@
 //   CudaMalloc / CudaMallocAsync — stream-ordered allocation as a remedy
 //
 // Build (standalone project, see CMakeLists.txt in this directory):
-//   cmake -G Ninja -B build-bench-gpu -S unsupported/benchmarks/GPU \
+//   cmake -G Ninja -B build-bench-gpu -S contrib/benchmarks/GPU \
 //         -DCMAKE_CUDA_ARCHITECTURES=89
 //   cmake --build build-bench-gpu --target bench_overhead
 //   ./build-bench-gpu/bench_overhead
@@ -31,7 +31,7 @@
 #endif
 #include <Eigen/Cholesky>
 #include <Eigen/SparseCore>
-#include <unsupported/Eigen/GPU>
+#include <contrib/Eigen/GPU>
 
 #include <benchmark/benchmark.h>
 #include <cuda_runtime.h>
