@@ -9,18 +9,18 @@ If your tool also reads its own per-tool config file, treat that as a thin point
 These are the cross-cutting rules that catch agents most often:
 
 1. **Provenance and attribution — no plagiarism, no license laundering.** Eigen code must be original or derived from publicly published MPL-2.0-compatible material. Do **not** copy — verbatim, paraphrased, or "translated" to another syntax — from incompatibly-licensed sources (proprietary, NDA-encumbered, prior-employer internal); paraphrasing is still a derivative work. **Cite published references inline** when they inform an implementation — LAPACK / LAWN, ACM TOMS / SIAM papers, Higham, Golub & van Loan, textbook algorithms, Boost components, vendor application notes — by name (author, year, identifier; a comment or Doxygen `\note` block suffices). Same discipline for AI-suggested code: cite the source, or rewrite from a known reference and cite that, or drop it. Ideas aren't copyrightable, specific expressions are — learn from the source, write your own, credit it.
-2. **Header-only contract.** Eigen ships as headers only. **Never** include anything under `Eigen/src/...` or `unsupported/Eigen/src/...` directly — `InternalHeaderCheck.h` makes that a hard compile error. User code reaches implementation only through the umbrella module headers (`Eigen/Core`, `Eigen/Dense`, `Eigen/SVD`, …). When moving or renaming files inside any `src/` subtree, delete the old file outright; only the public umbrella headers ever get back-compat forwarding shims.
+2. **Header-only contract.** Eigen ships as headers only. **Never** include anything under `Eigen/src/...` or `contrib/Eigen/src/...` directly — `InternalHeaderCheck.h` makes that a hard compile error. User code reaches implementation only through the umbrella module headers (`Eigen/Core`, `Eigen/Dense`, `Eigen/SVD`, …). When moving or renaming files inside any `src/` subtree, delete the old file outright; only the public umbrella headers ever get back-compat forwarding shims.
 3. **Preserve `EIGEN_DEVICE_FUNC`.** It is pervasive on coefficient-level methods so the same code compiles for host and CUDA / HIP / SYCL device. Dropping it silently breaks GPU builds and is rarely caught locally.
 4. **Don't apply general C++ "modernize" advice.** Do not propose `modernize-*` or `cppcoreguidelines-*` clang-tidy fixes, replace `EIGEN_STRONG_INLINE` with `inline`, "fix" Eigen's macro indentation, or reorder includes. Eigen has its own conventions encoded in `.clang-format` (`SortIncludes: false`, custom `StatementMacros` / `AttributeMacros`); CI will diff against them.
 5. **Format before you commit.** Style is `clang-format-17` exactly (Google base, 120 cols). Other versions diff against CI. Run `scripts/format.sh` (whole tree) or `clang-format-17 -i <file>` (one file) before pushing. Format failures are the single most common reason an MR is red.
 6. **Tests are not gtest** (today). They use Eigen's own framework (`test/main.h`): `VERIFY_*` assertions, `CALL_SUBTEST_N` / `EIGEN_TEST_PART_N` for splitting, `EIGEN_DECLARE_TEST(<name>) { ... }` as the entry point. See "Adding a test" below. **In-flight migration to Google Test:** [MR 2159](https://gitlab.com/libeigen/eigen/-/merge_requests/2159) (draft) replaces `EIGEN_DECLARE_TEST` / `CALL_SUBTEST_N` with gtest `TEST` / `TYPED_TEST`, brings in gtest 1.15.2 via `FetchContent`, and bridges `VERIFY` / `VERIFY_IS_APPROX` to gtest expectations. When that lands, this rule flips — write new tests as gtest fixtures and use the bridged `VERIFY_*` macros.
-7. **Tests are not in the default `all` target.** Bare `ninja` builds nothing relevant. Use the named targets (`buildtests`, `check`, `BuildOfficial`, `BuildUnsupported`, `buildsmoketests`, `buildtests_gpu`, `check_gpu`).
+7. **Tests are not in the default `all` target.** Bare `ninja` builds nothing relevant. Use the named targets (`buildtests`, `check`, `BuildOfficial`, `BuildContrib`, `buildsmoketests`, `buildtests_gpu`, `check_gpu`).
 8. **`auto` traps.** `auto x = A + B;` captures a lazy expression holding references that can dangle. Use `.eval()` or an explicit type. Likewise be careful with `.noalias()` — it must only be used when the destination doesn't appear on the right side.
 9. **Stage commits explicitly.** Don't `git add -A` / `git add .` inside an Eigen working copy. Repo roots commonly accumulate untracked dotfiles and tool config (`.vscode/`, `.idea/`, `.claude/`, etc.) that must not enter commits. Add files by path or with targeted globs (e.g. `git add 'Eigen/src/Cholesky/'`).
 10. **Pause before pushing or filing an MR.** External-system writes (push, MR creation, MR comments) have non-trivial blast radius. After a local commit, summarize what changed and wait for the human to say "push" or "file the MR" before doing so. The same applies to scope decisions like bundling/splitting commits.
 11. **Tests and benchmarks ship with the code.** New functionality lands with its tests; performance-sensitive changes land with a benchmark. Don't defer either to a follow-up MR.
 12. **Benchmarking discipline.** Benchmarks on a loaded system are useless. Before running any benchmark: check `uptime` shows a low load average, finish/cancel background builds, and **never** run two benchmark binaries in the same shell invocation (parallel or chained with `&&`) — run each in its own shell, take medians within a binary, and optionally alternate (A, B, A, B) across separate invocations to detect drift.
-13. **Tensor module is foundational to TensorFlow.** `unsupported/Eigen/Tensor` and the work-stealing thread pool in `Eigen/ThreadPool` together form TensorFlow's core compute backend. "Unsupported" here means "looser API-stability guarantees" — it does **not** mean low-traffic or low-stakes. Breaking changes (signatures, header layout, semantics, or performance regressions on contraction / reduction / morphing kernels) ripple into every TensorFlow build and from there into every project that pulls TensorFlow as a dependency. Treat Tensor and ThreadPool as load-bearing: prefer additive changes, keep header paths stable, run downstream Tensor tests (`unsupported/test/tensor_*`), and call out any behavior change prominently in the MR description.
+13. **Tensor module is foundational to TensorFlow.** `contrib/Eigen/Tensor` and the work-stealing thread pool in `Eigen/ThreadPool` together form TensorFlow's core compute backend. The `contrib/` location means "looser API-stability guarantees" — it does **not** mean low-traffic or low-stakes. Breaking changes (signatures, header layout, semantics, or performance regressions on contraction / reduction / morphing kernels) ripple into every TensorFlow build and from there into every project that pulls TensorFlow as a dependency. Treat Tensor and ThreadPool as load-bearing: prefer additive changes, keep header paths stable, run downstream Tensor tests (`contrib/test/tensor_*`), and call out any behavior change prominently in the MR description.
 
 ## Repository overview
 
@@ -40,9 +40,9 @@ When adding or modifying a numerical kernel:
 
 - Test **numerical corner cases**, not just typical inputs: ±0, ±∞, NaN, subnormals, values at and around the function's domain boundaries (e.g. `log(0)`, `log(-x)`, `pow(0, 0)`), values near overflow / underflow, denormalized results, signed-zero preservation, and ULP behavior near hard cases (e.g. argument-reduction breakdown for `sin`/`cos` at large arguments).
 - **Matrix coverage matters as much as scalar coverage.** Decomposition, solver, and matrix-function tests should exercise ill-conditioned inputs across a range of condition numbers (well-conditioned through near-singular through singular) and matrices with structure relevant to the algorithm: Hilbert, Vandermonde, Pascal, Wilkinson's W, Frank, Lehmer, KMS / Toeplitz, banded, rank-deficient, defective and near-defective (Jordan blocks), positive-definite-but-barely, etc. Standard references: **Higham's *Accuracy and Stability of Numerical Algorithms* and *Functions of Matrices*** (and MATLAB `gallery()`, largely drawn from those books) and **Golub & van Loan, *Matrix Computations***. Where the algorithm has a LAPACK counterpart, match its `TESTING/` category coverage as the bar.
-- Verify behavior across all enabled packet backends — `test/packetmath.cpp` and `unsupported/test/special_packetmath.cpp` are the canonical entry points; a missing or divergent backend specialization usually shows up there first.
+- Verify behavior across all enabled packet backends — `test/packetmath.cpp` and `contrib/test/special_packetmath.cpp` are the canonical entry points; a missing or divergent backend specialization usually shows up there first.
 - Quantify accuracy regressions in ULPs against the scalar reference, not just relative error. Sollya / MPFR are the standard tools for ground-truth and polynomial generation; do the verification in C++ with MPFR rather than Python.
-- Performance-sensitive changes ship with a benchmark (under `benchmarks/` or `unsupported/benchmarks/`). See "Benchmarking discipline" in the agent guidelines above.
+- Performance-sensitive changes ship with a benchmark (under `benchmarks/` or `contrib/benchmarks/`). See "Benchmarking discipline" in the agent guidelines above.
 
 For decompositions and solvers: the bar is matching LAPACK on conditioning, pivoting strategy, and backward stability. Don't trade numerical robustness for speed in those code paths without explicit sign-off.
 
@@ -59,7 +59,7 @@ cmake -G Ninja ..                        # plain config
 ninja buildtests                         # build all unit tests
 ninja buildtests_gpu                     # GPU-only tests
 ninja BuildOfficial                      # only test/      (subproject "Official")
-ninja BuildUnsupported                   # only unsupported/test/ (subproject "Unsupported")
+ninja BuildContrib                       # only contrib/test/     (subproject "Contrib")
 ninja buildsmoketests                    # the MR smoke set
 ninja check                              # = buildtests + ctest
 ninja check_gpu                          # = buildtests_gpu + ctest -L gpu
@@ -100,14 +100,14 @@ Auxiliary trees:
 ```bash
 ctest --parallel --output-on-failure          # everything that's been built
 ctest -L Official                              # only tests under test/
-ctest -L Unsupported                           # only tests under unsupported/test/
+ctest -L Contrib                               # only tests under contrib/test/
 ctest -L gpu                                   # GPU-tagged tests
 ctest -L smoketest                             # the MR smoke set
 ctest -R '^cholesky'                           # regex over test names
 ctest -R '^bdcsvd_3$' --output-on-failure -V   # one specific split
 ```
 
-Subproject labels come from `set_property(GLOBAL PROPERTY EIGEN_CURRENT_SUBPROJECT "Official"|"Unsupported")` in `test/CMakeLists.txt` and `unsupported/test/CMakeLists.txt`. Build-group targets (`BuildOfficial`, `BuildUnsupported`) are kept in sync with the ctest labels.
+Subproject labels come from `set_property(GLOBAL PROPERTY EIGEN_CURRENT_SUBPROJECT "Official"|"Contrib")` in `test/CMakeLists.txt` and `contrib/test/CMakeLists.txt`. Build-group targets (`BuildOfficial`, `BuildContrib`) are kept in sync with the ctest labels.
 
 A test binary can be invoked directly to control seed / repeat:
 
@@ -122,7 +122,7 @@ A test source file containing `CALL_SUBTEST_N(...)` or `EIGEN_TEST_PART_N` macro
 
 ### Adding a test
 
-1. Create `test/<name>.cpp` (or `unsupported/test/<name>.cpp`). Include `main.h`. Use the `VERIFY*` macros (listed below). For multi-part tests, structure the body as `CALL_SUBTEST_1(...) ... CALL_SUBTEST_N(...)`.
+1. Create `test/<name>.cpp` (or `contrib/test/<name>.cpp`). Include `main.h`. Use the `VERIFY*` macros (listed below). For multi-part tests, structure the body as `CALL_SUBTEST_1(...) ... CALL_SUBTEST_N(...)`.
 2. End the file with the entry point: `EIGEN_DECLARE_TEST(<name>) { ... }` — that macro expands to the per-binary `main()` (random seed / repeat handling, signal handlers, etc.). It is **not** gtest.
 3. Register with `ei_add_test(<name>)` in the matching `CMakeLists.txt` near similar tests. The second/third args are extra compile flags / libraries (e.g. `ei_add_test(packetmath "-DEIGEN_FAST_MATH=1")`).
 4. Re-run CMake configure; the new target is then in `buildtests` and ctest.
@@ -178,14 +178,12 @@ Top-level docs (`*.md`), generated files (`*.in`), and binary assets that can't 
 
 ## Module layout
 
-> **In-flight rename:** [MR 2522](https://gitlab.com/libeigen/eigen/-/merge_requests/2522) renames the top-level `unsupported/` directory to `contrib/`. Paths below track master (still `unsupported/`). When 2522 lands, substitute `contrib/` for `unsupported/` mechanically — it doesn't affect the canonical/forwarding-shim distinction on the `unsupported/Eigen/` bullet.
-
 - `Eigen/` — supported public headers. Each filename without an extension (`Eigen/Core`, `Eigen/Dense`, `Eigen/SVD`, …) is the umbrella include for one module; implementation lives in `Eigen/src/<Module>/`. **Never include anything under `Eigen/src/...` directly** — that is a hard error (each implementation header includes `InternalHeaderCheck.h` to enforce it).
 - `Eigen/src/Core/arch/{SSE,AVX,AVX512,NEON,SVE,AltiVec,GPU,HIP,SYCL,LSX,RVV10,HVX,MSA,ZVector,clang,Default}/` — per-architecture packet-math (vectorization) backends. `GenericPacketMath.h` defines the `internal::p*` API each backend specializes. (PowerPC VSX support lives inside `AltiVec/`, no separate `VSX/` directory.)
 - `Eigen/src/Core/products/` — gemm/gemv kernels (`GeneralBlockPanelKernel.h`, triangular / self-adjoint variants, BLAS bridges in `*_BLAS.h`).
 - `Eigen/src/Core/util/` — meta-programming, macros, memory, `ForwardDeclarations.h`. `Macros.h` and `ConfigureVectorization.h` set the compile-time feature flags.
 - `Eigen/ThreadPool` (with `Eigen/src/ThreadPool/`) — work-stealing thread pool (`NonBlockingThreadPool`, `RunQueue`, `EventCount`, `ForkJoin`, `CoreThreadPoolDevice`). Originally developed for TensorFlow; now part of Core. It is the backend behind `EIGEN_GEMM_THREADPOOL` and the `ThreadPoolDevice` used by the Tensor module.
-- `unsupported/Eigen/` — modules with looser API-stability guarantees, but **not** low-traffic. The headliner is `Tensor` (umbrella `unsupported/Eigen/Tensor`, sources under `unsupported/Eigen/src/Tensor/`) — TensorFlow's core compute backend; treat as load-bearing (see agent guideline 13). Other modules: `TensorSymmetry`, `AutoDiff`, `Polynomials`, `MatrixFunctions`, `NNLS`, `FFT`, `GPU` (cuBLAS / cuSOLVER dispatch), `Splines`, `NumericalDiff`, etc. Tests go under `unsupported/test/`. Anything under `unsupported/Eigen/CXX11/` is **backward-compatibility forwarding shims only** — don't include those paths in new code or add new headers there.
+- `contrib/Eigen/` (formerly `unsupported/Eigen/`) — modules with looser API-stability guarantees, but **not** low-traffic. The headliner is `Tensor` (umbrella `contrib/Eigen/Tensor`, sources under `contrib/Eigen/src/Tensor/`) — TensorFlow's core compute backend; treat as load-bearing (see agent guideline 13). Other modules: `TensorSymmetry`, `AutoDiff`, `Polynomials`, `MatrixFunctions`, `NNLS`, `FFT`, `GPU` (cuBLAS / cuSOLVER dispatch), `Splines`, `NumericalDiff`, etc. Tests go under `contrib/test/`. The legacy `unsupported/Eigen/...` include paths still resolve via **backward-compatibility forwarding shims** (everything under `unsupported/Eigen/CXX11/` is now only such a shim) — don't use those paths in new code or add new headers there.
 - `test/` — main test sources and `test/main.h` (the test framework: `VERIFY_*`, `CALL_SUBTEST_N`, `EIGEN_TEST_PART_N`, `EIGEN_DECLARE_TEST`).
 - `failtest/` — compile-failure tests.
 - `blas/`, `lapack/` — Eigen's BLAS/LAPACK shim libraries (`eigen_blas`, `eigen_lapack`), built only when `EIGEN_BUILD_BLAS` / `EIGEN_BUILD_LAPACK` are on. These get linked by sparse-solver tests (CHOLMOD, UMFPACK, KLU, SuperLU, …) when those packages are present.
@@ -202,7 +200,7 @@ Top-level docs (`*.md`), generated files (`*.in`), and binary assets that can't 
 | Eigenvalues | `Eigen/Eigenvalues` | SelfAdjointEigenSolver, EigenSolver, ComplexEigenSolver |
 | Geometry | `Eigen/Geometry` | Quaternion, AngleAxis, Transform, Hyperplane, `cross()` |
 | Sparse | `Eigen/Sparse` | SparseMatrix, sparse solvers (SparseLU, SparseQR, SimplicialCholesky) |
-| IterativeLinearSolvers | `Eigen/IterativeLinearSolvers` | ConjugateGradient, BiCGSTAB, LeastSquaresConjugateGradient (additional iterative solvers — GMRES, DGMRES, IDRS, BiCGSTABL — live in `unsupported/Eigen/IterativeSolvers`) |
+| IterativeLinearSolvers | `Eigen/IterativeLinearSolvers` | ConjugateGradient, BiCGSTAB, LeastSquaresConjugateGradient, plus GMRES, DGMRES, IDRS, BiCGSTABL (promoted from the former IterativeSolvers module; the legacy `contrib/Eigen/IterativeSolvers` header is now a deprecated forwarding shim) |
 
 External backend umbrella headers (`Eigen/<Pkg>Support`): `AccelerateSupport`, `CholmodSupport`, `KLUSupport`, `MetisSupport`, `PaStiXSupport`, `PardisoSupport`, `SPQRSupport`, `SuperLUSupport`, `UmfPackSupport`. Intel MKL and AMD AOCL are *not* umbrella headers — activate them by defining `EIGEN_USE_MKL_ALL` / `EIGEN_USE_AOCL_ALL` (and friends like `EIGEN_USE_BLAS`, `EIGEN_USE_LAPACKE`, `EIGEN_USE_AOCL_VML`, `EIGEN_USE_AOCL_BLAS`) before including Core or Dense; glue in `Eigen/src/Core/util/MKL_support.h` and `AOCL_Support.h`. Convenience headers: `Eigen/Dense` = Core + all dense solvers; `Eigen/Eigen` = everything supported.
 
@@ -291,7 +289,7 @@ Vectorization is abstracted through a "packet" layer. Each scalar type maps to a
 - GPU: `arch/GPU/` (CUDA), `arch/HIP/`, `arch/SYCL/`
 - `arch/clang/` — generic clang vector-extension backend
 
-Packets are selected at compile time; the assignment loop splits into an aligned vectorized path plus a scalar remainder. New packet-math intrinsics get added in **every** backend that supports the type. `arch/Default/` holds generic SIMD implementations shared across backends; scalar fallbacks live in `Eigen/src/Core/GenericPacketMath.h` and `Eigen/src/Core/MathFunctions.h`. `test/packetmath.cpp` (and `unsupported/test/special_packetmath.cpp`) exercises them across all enabled backends — failures there often indicate a missing or divergent specialization.
+Packets are selected at compile time; the assignment loop splits into an aligned vectorized path plus a scalar remainder. New packet-math intrinsics get added in **every** backend that supports the type. `arch/Default/` holds generic SIMD implementations shared across backends; scalar fallbacks live in `Eigen/src/Core/GenericPacketMath.h` and `Eigen/src/Core/MathFunctions.h`. `test/packetmath.cpp` (and `contrib/test/special_packetmath.cpp`) exercises them across all enabled backends — failures there often indicate a missing or divergent specialization.
 
 **Guard intrinsics by ISA feature macro.** Inside a backend directory, an intrinsic is only available when its ISA is enabled — `arch/AVX/` is compiled when `EIGEN_VECTORIZE_AVX` is set, but AVX2 / FMA / AVX512* intrinsics within those files must each be guarded by their own `EIGEN_VECTORIZE_*` macro (`#ifdef EIGEN_VECTORIZE_AVX2`, `EIGEN_VECTORIZE_FMA`, `EIGEN_VECTORIZE_AVX512DQ`, etc.), with a fallback for the un-guarded path. Full list in `Eigen/src/Core/util/ConfigureVectorization.h`. Same discipline applies elsewhere (`EIGEN_VECTORIZE_NEON_FP16`, `EIGEN_VECTORIZE_VSX`, …). Missing guards typically compile fine locally and break CI on narrower ISA targets.
 
@@ -300,9 +298,9 @@ Packets are selected at compile time; the assignment loop splits into an aligned
 Eigen has **two independent GPU stories**, and conflating them causes confusion:
 
 1. **In-kernel use of Eigen types.** When Eigen headers are included from `.cu` / HIP / SYCL files, most functions are automatically annotated `__device__ __host__` via `EIGEN_DEVICE_FUNC` (unified under `EIGEN_GPUCC` for both CUDA and HIP). Only fixed-size types work in kernels. Host SIMD is disabled in `.cu` files — move expensive host-side Eigen code to `.cpp`. Define `EIGEN_NO_CUDA` or `EIGEN_NO_HIP` to suppress device annotations for the respective backend. On 64-bit systems, set `EIGEN_DEFAULT_DENSE_INDEX_TYPE` to `int` for device compatibility.
-2. **Host-side dispatch to NVIDIA libraries** (`unsupported/Eigen/GPU`). Plain `.cpp` files orchestrating cuBLAS / cuSOLVER / cuFFT / cuSPARSE / cuDSS calls on device-resident `gpu::DeviceMatrix<Scalar>`. Public API in `Eigen::gpu`, internals in `Eigen::gpu::internal`; solvers (`gpu::LLT`, `gpu::LU`, `gpu::QR`, `gpu::SVD`, `gpu::SelfAdjointEigenSolver`) wrap cuSOLVER. **Not** an expression-template system — every supported expression maps to a single library call, and `DeviceMatrix` does not inherit from `MatrixBase`. Tests compile as `.cpp` (not `.cu`) so NVCC doesn't instantiate Eigen CPU packet ops for CUDA vector types. See `unsupported/Eigen/src/GPU/README.md`.
+2. **Host-side dispatch to NVIDIA libraries** (`contrib/Eigen/GPU`). Plain `.cpp` files orchestrating cuBLAS / cuSOLVER / cuFFT / cuSPARSE / cuDSS calls on device-resident `gpu::DeviceMatrix<Scalar>`. Public API in `Eigen::gpu`, internals in `Eigen::gpu::internal`; solvers (`gpu::LLT`, `gpu::LU`, `gpu::QR`, `gpu::SVD`, `gpu::SelfAdjointEigenSolver`) wrap cuSOLVER. **Not** an expression-template system — every supported expression maps to a single library call, and `DeviceMatrix` does not inherit from `MatrixBase`. Tests compile as `.cpp` (not `.cu`) so NVCC doesn't instantiate Eigen CPU packet ops for CUDA vector types. See `contrib/Eigen/src/GPU/README.md`.
 
-Tensor GPU kernels live under `unsupported/Eigen/src/Tensor/` (`TensorReductionGpu.h`, `TensorContractionGpu.h`, `TensorDeviceGpu.h`).
+Tensor GPU kernels live under `contrib/Eigen/src/Tensor/` (`TensorReductionGpu.h`, `TensorContractionGpu.h`, `TensorDeviceGpu.h`).
 
 ### Multi-threading
 
@@ -369,7 +367,7 @@ Pipeline stages: `checkformat` → `build` → `test` → `benchmark` → `deplo
 
 `build` jobs produce a `.build/` artifact (test binaries) consumed by the matching `test` job — the test job only runs `ctest`, it does **not** rebuild. A test job that runs ctest without restricting via `-L` or `-R` will report `Could not find executable` for everything outside the build job's target. Test-job and build-job names must stay paired (see `needs:` in `ci/test.linux.gitlab-ci.yml`).
 
-Test jobs filter via `EIGEN_CI_CTEST_LABEL` (consumed in `ci/scripts/test.linux.script.sh` as `ctest -L $LABEL`). The `:official` and `:unsupported` job-name suffixes are convention only — actual filtering is through that variable. The top-level `.gitlab-ci.yml` `variables:` block declares these with empty/global defaults (`EIGEN_CI_BUILDDIR=.build`, `EIGEN_CI_BUILD_TARGET=""`, `EIGEN_CI_CTEST_LABEL=""`); the meaningful values are set per-job in `ci/*.gitlab-ci.yml` (e.g. `EIGEN_CI_BUILD_TARGET=buildtests`/`BuildOfficial`/`buildtests_gpu` in `ci/build.linux.gitlab-ci.yml`, `EIGEN_CI_CTEST_LABEL=Official` in the matching test jobs).
+Test jobs filter via `EIGEN_CI_CTEST_LABEL` (consumed in `ci/scripts/test.linux.script.sh` as `ctest -L $LABEL`). The `:official` and `:contrib` job-name suffixes are convention only — actual filtering is through that variable. The top-level `.gitlab-ci.yml` `variables:` block declares these with empty/global defaults (`EIGEN_CI_BUILDDIR=.build`, `EIGEN_CI_BUILD_TARGET=""`, `EIGEN_CI_CTEST_LABEL=""`); the meaningful values are set per-job in `ci/*.gitlab-ci.yml` (e.g. `EIGEN_CI_BUILD_TARGET=buildtests`/`BuildOfficial`/`buildtests_gpu` in `ci/build.linux.gitlab-ci.yml`, `EIGEN_CI_CTEST_LABEL=Official` in the matching test jobs).
 
 MR pipelines build / run only a smoke subset; scheduled (nightly) pipelines exercise the full matrix. Format failures (`scripts/format.sh` diff) are the single most common reason an MR is red — run it before pushing.
 
