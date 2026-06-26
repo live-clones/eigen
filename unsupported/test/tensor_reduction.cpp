@@ -62,7 +62,8 @@ static void test_scalar_reduction_conversion() {
   using PartialReduction = decltype(std::declval<const TensorType&>().sum(std::declval<const PartialReductionDims&>()));
 
   static_assert(std::is_convertible<FullReduction, Scalar>::value, "full reductions should convert to scalars");
-  static_assert(!std::is_convertible<PartialReduction, Scalar>::value, "partial reductions should not convert to scalars");
+  static_assert(!std::is_convertible<PartialReduction, Scalar>::value,
+                "partial reductions should not convert to scalars");
 
   TensorType tensor(2, 2, 2, 2);
   Scalar expected_sum(0);
@@ -70,7 +71,7 @@ static void test_scalar_reduction_conversion() {
   Scalar expected_min = NumTraits<Scalar>::highest();
   Scalar expected_max = NumTraits<Scalar>::lowest();
   for (int i = 0; i < tensor.size(); ++i) {
-    const Scalar value = static_cast<Scalar>((i % 3) + 1); // [1,2,3]
+    const Scalar value = static_cast<Scalar>((i % 3) + 1);  // [1,2,3]
     tensor(i) = value;
     expected_sum += value;
     expected_prod *= value;
