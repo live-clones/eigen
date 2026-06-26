@@ -256,8 +256,358 @@ struct default_inner_product_impl {
   }
 };
 
+template <typename T>
+struct has_direct_data_access {
+  static constexpr bool value = bool(traits<T>::Flags & DirectAccessBit);
+};
+
+template <typename T, typename Enable = void>
+struct dot_xpr_unwrapper {
+  using type = T;
+  static constexpr bool direct_access = has_direct_data_access<T>::value;
+  static constexpr bool conj_lhs = true;
+  static constexpr bool conj_rhs = false;
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr const T& get(
+      const T& xpr) {
+    return xpr;
+  }
+};
+
+template <typename Scalar, typename Xpr>
+struct dot_xpr_unwrapper<
+    CwiseUnaryOp<internal::scalar_conjugate_op<Scalar>, Xpr>> {
+  using type = Xpr;
+  static constexpr bool direct_access = has_direct_data_access<Xpr>::value;
+  static constexpr bool conj_lhs = false;
+  static constexpr bool conj_rhs = true;
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr const Xpr& get(
+      const CwiseUnaryOp<internal::scalar_conjugate_op<Scalar>, Xpr>& xpr) {
+    return xpr.nestedExpression();
+  }
+};
+
+template <typename Scalar, typename Xpr>
+struct dot_xpr_unwrapper<
+    const CwiseUnaryOp<internal::scalar_conjugate_op<Scalar>, Xpr>> {
+  using type = Xpr;
+  static constexpr bool direct_access = has_direct_data_access<Xpr>::value;
+  static constexpr bool conj_lhs = false;
+  static constexpr bool conj_rhs = true;
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr const Xpr& get(
+      const CwiseUnaryOp<internal::scalar_conjugate_op<Scalar>, Xpr>& xpr) {
+    return xpr.nestedExpression();
+  }
+};
+
+template <bool ConjLhs, bool ConjRhs, typename LhsScalar, typename RhsScalar>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType conj_mul(
+    const LhsScalar& x, const RhsScalar& y) {
+  return conditional_conj<LhsScalar, ConjLhs>::coeff(x) * conditional_conj<RhsScalar, ConjRhs>::coeff(y);
+}
+
+// dot_traits abstracts the differences between same-type and mixed-type dot
+// products
+template <typename LhsScalar, typename RhsScalar, bool ConjLhs, bool ConjRhs,
+          int LhsAlignment = Unaligned, int RhsAlignment = Unaligned,
+          typename Enable = void>
+struct dot_traits {
+  using ResultType = typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType;
+  static constexpr bool Vectorizable = false;
+};
+
+// Specialization for Same-Type (Real/Real or Complex/Complex)
+template <typename LhsScalar, typename RhsScalar, bool ConjLhs, bool ConjRhs,
+          int LhsAlignment, int RhsAlignment>
+struct dot_traits<
+    LhsScalar, RhsScalar, ConjLhs, ConjRhs, LhsAlignment, RhsAlignment,
+    std::enable_if_t<internal::is_same<LhsScalar, RhsScalar>::value>> {
+  using ResultType = LhsScalar;
+  using LhsPacket = typename packet_traits<LhsScalar>::type;
+  using RhsPacket = LhsPacket;
+  using ResPacket = LhsPacket;
+  static constexpr bool Vectorizable = packet_traits<LhsScalar>::Vectorizable &&
+                                       packet_traits<LhsScalar>::HasAdd &&
+                                       packet_traits<LhsScalar>::HasMul;
+  static constexpr int PacketSize = unpacket_traits<LhsPacket>::size;
+  using ConjHelper = conj_helper<LhsPacket, RhsPacket, ConjLhs, ConjRhs>;
+
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE LhsPacket
+  load_lhs(const LhsScalar* ptr) {
+    return ploadt<LhsPacket, LhsAlignment>(ptr);
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE RhsPacket
+  load_rhs(const RhsScalar* ptr) {
+    return ploadt<RhsPacket, RhsAlignment>(ptr);
+  }
+};
+
+// Specialization for Real LHS and Complex RHS (Vectorizable case)
+template <typename LhsScalar, typename RhsScalar, bool ConjLhs, bool ConjRhs,
+          int LhsAlignment, int RhsAlignment>
+struct dot_traits<
+    LhsScalar, RhsScalar, ConjLhs, ConjRhs, LhsAlignment, RhsAlignment,
+    std::enable_if_t<
+        !NumTraits<LhsScalar>::IsComplex && NumTraits<RhsScalar>::IsComplex &&
+        packet_traits<RhsScalar>::Vectorizable &&
+        packet_traits<RhsScalar>::HasAdd && packet_traits<RhsScalar>::HasMul>> {
+  using ResultType = RhsScalar;
+  using PacketCplx = typename packet_traits<RhsScalar>::type;
+  static constexpr bool Vectorizable = true;
+  using PacketReal = typename unpacket_traits<PacketCplx>::as_real;
+
+  using LhsPacket = PacketReal;
+  using RhsPacket = PacketCplx;
+  using ResPacket = PacketCplx;
+  static constexpr int PacketSize = unpacket_traits<PacketCplx>::size;
+  using ConjHelper = conj_helper<PacketReal, PacketCplx, false, false>;
+
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE LhsPacket
+  load_lhs(const LhsScalar* ptr) {
+    return ploaddup<PacketReal>(ptr);
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE RhsPacket
+  load_rhs(const RhsScalar* ptr) {
+    return conditional_conj<RhsScalar, ConjRhs>::template packet<RhsPacket>(
+        ploadt<PacketCplx, RhsAlignment>(ptr));
+  }
+};
+
+// Specialization for Real LHS and Complex RHS (Non-Vectorizable case)
+template <typename LhsScalar, typename RhsScalar, bool ConjLhs, bool ConjRhs,
+          int LhsAlignment, int RhsAlignment>
+struct dot_traits<LhsScalar, RhsScalar, ConjLhs, ConjRhs, LhsAlignment, RhsAlignment,
+                  std::enable_if_t<!NumTraits<LhsScalar>::IsComplex &&
+                                   NumTraits<RhsScalar>::IsComplex &&
+                                   !(packet_traits<RhsScalar>::Vectorizable &&
+                                     packet_traits<RhsScalar>::HasAdd &&
+                                     packet_traits<RhsScalar>::HasMul)>> {
+  using ResultType = RhsScalar;
+  static constexpr bool Vectorizable = false;
+};
+
+// Specialization for Complex LHS and Real RHS (Vectorizable case)
+template <typename LhsScalar, typename RhsScalar, bool ConjLhs, bool ConjRhs,
+          int LhsAlignment, int RhsAlignment>
+struct dot_traits<
+    LhsScalar, RhsScalar, ConjLhs, ConjRhs, LhsAlignment, RhsAlignment,
+    std::enable_if_t<
+        NumTraits<LhsScalar>::IsComplex && !NumTraits<RhsScalar>::IsComplex &&
+        packet_traits<LhsScalar>::Vectorizable &&
+        packet_traits<LhsScalar>::HasAdd && packet_traits<LhsScalar>::HasMul>> {
+  using ResultType = LhsScalar;
+  using PacketCplx = typename packet_traits<LhsScalar>::type;
+  static constexpr bool Vectorizable = true;
+  using PacketReal = typename unpacket_traits<PacketCplx>::as_real;
+
+  using LhsPacket = PacketCplx;
+  using RhsPacket = PacketReal;
+  using ResPacket = PacketCplx;
+  static constexpr int PacketSize = unpacket_traits<PacketCplx>::size;
+  using ConjHelper = conj_helper<PacketCplx, PacketReal, false, false>;
+
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE LhsPacket
+  load_lhs(const LhsScalar* ptr) {
+    return conditional_conj<LhsScalar, ConjLhs>::template packet<LhsPacket>(
+        ploadt<PacketCplx, LhsAlignment>(ptr));
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE RhsPacket
+  load_rhs(const RhsScalar* ptr) {
+    return ploaddup<PacketReal>(ptr);
+  }
+};
+
+// Specialization for Complex LHS and Real RHS (Non-Vectorizable case)
+template <typename LhsScalar, typename RhsScalar, bool ConjLhs, bool ConjRhs,
+          int LhsAlignment, int RhsAlignment>
+struct dot_traits<LhsScalar, RhsScalar, ConjLhs, ConjRhs, LhsAlignment, RhsAlignment,
+                  std::enable_if_t<NumTraits<LhsScalar>::IsComplex &&
+                                   !NumTraits<RhsScalar>::IsComplex &&
+                                   !(packet_traits<LhsScalar>::Vectorizable &&
+                                     packet_traits<LhsScalar>::HasAdd &&
+                                     packet_traits<LhsScalar>::HasMul)>> {
+  using ResultType = LhsScalar;
+  static constexpr bool Vectorizable = false;
+};
+
+template <typename LhsScalar, typename RhsScalar, bool ConjLhs, bool ConjRhs,
+          int LhsAlignment, int RhsAlignment, bool Vectorizable>
+struct generic_dot_impl_helper_impl;
+
+template <typename LhsScalar, typename RhsScalar, bool ConjLhs, bool ConjRhs,
+          int LhsAlignment, int RhsAlignment>
+struct generic_dot_impl_helper_impl<LhsScalar, RhsScalar, ConjLhs, ConjRhs, LhsAlignment, RhsAlignment, true> {
+  using Traits = dot_traits<LhsScalar, RhsScalar, ConjLhs, ConjRhs, LhsAlignment, RhsAlignment>;
+  using ResultType = typename Traits::ResultType;
+
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE ResultType
+  run(const LhsScalar* lhs, const RhsScalar* rhs, Index size) {
+    using ResPacket = typename Traits::ResPacket;
+    constexpr int PacketSize = Traits::PacketSize;
+
+    if (size < PacketSize) {
+      ResultType res(0);
+      for (Index i = 0; i < size; ++i) {
+        res += conj_mul<ConjLhs, ConjRhs>(lhs[i], rhs[i]);
+      }
+      return res;
+    }
+
+    Index numPackets = size / PacketSize;
+    Index quadPackets = numPackets / 4;
+    Index remPackets = numPackets % 4;
+
+    typename Traits::ConjHelper cj;
+    ResPacket acc0, acc1, acc2, acc3;
+    acc0 = cj.pmul(Traits::load_lhs(lhs + 0 * PacketSize),
+                   Traits::load_rhs(rhs + 0 * PacketSize));
+
+    if (numPackets >= 2) {
+      acc1 = cj.pmul(Traits::load_lhs(lhs + 1 * PacketSize),
+                     Traits::load_rhs(rhs + 1 * PacketSize));
+    }
+    if (numPackets >= 3) {
+      acc2 = cj.pmul(Traits::load_lhs(lhs + 2 * PacketSize),
+                     Traits::load_rhs(rhs + 2 * PacketSize));
+    }
+    if (numPackets >= 4) {
+      acc3 = cj.pmul(Traits::load_lhs(lhs + 3 * PacketSize),
+                     Traits::load_rhs(rhs + 3 * PacketSize));
+
+      Index i = 4 * PacketSize;
+      const Index limit = quadPackets * 4 * PacketSize;
+      for (; i < limit; i += 4 * PacketSize) {
+        acc0 = cj.pmadd(Traits::load_lhs(lhs + i + 0 * PacketSize),
+                        Traits::load_rhs(rhs + i + 0 * PacketSize), acc0);
+        acc1 = cj.pmadd(Traits::load_lhs(lhs + i + 1 * PacketSize),
+                        Traits::load_rhs(rhs + i + 1 * PacketSize), acc1);
+        acc2 = cj.pmadd(Traits::load_lhs(lhs + i + 2 * PacketSize),
+                        Traits::load_rhs(rhs + i + 2 * PacketSize), acc2);
+        acc3 = cj.pmadd(Traits::load_lhs(lhs + i + 3 * PacketSize),
+                        Traits::load_rhs(rhs + i + 3 * PacketSize), acc3);
+      }
+
+      if (remPackets >= 1) {
+        acc0 = cj.pmadd(Traits::load_lhs(lhs + i + 0 * PacketSize),
+                        Traits::load_rhs(rhs + i + 0 * PacketSize), acc0);
+      }
+      if (remPackets >= 2) {
+        acc1 = cj.pmadd(Traits::load_lhs(lhs + i + 1 * PacketSize),
+                        Traits::load_rhs(rhs + i + 1 * PacketSize), acc1);
+      }
+      if (remPackets >= 3) {
+        acc2 = cj.pmadd(Traits::load_lhs(lhs + i + 2 * PacketSize),
+                        Traits::load_rhs(rhs + i + 2 * PacketSize), acc2);
+      }
+
+      acc2 = padd(acc2, acc3);
+    }
+
+    if (numPackets >= 3) acc1 = padd(acc1, acc2);
+    if (numPackets >= 2) acc0 = padd(acc0, acc1);
+
+    ResultType res = predux(acc0);
+    Index packet_end = numPackets * PacketSize;
+    for (Index i = packet_end; i < size; ++i) {
+      res += conj_mul<ConjLhs, ConjRhs>(lhs[i], rhs[i]);
+    }
+    return res;
+  }
+};
+
+template <typename LhsScalar, typename RhsScalar, bool ConjLhs, bool ConjRhs,
+          int LhsAlignment, int RhsAlignment>
+struct generic_dot_impl_helper_impl<LhsScalar, RhsScalar, ConjLhs, ConjRhs, LhsAlignment, RhsAlignment, false> {
+  using Traits = dot_traits<LhsScalar, RhsScalar, ConjLhs, ConjRhs, LhsAlignment, RhsAlignment>;
+  using ResultType = typename Traits::ResultType;
+
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE ResultType
+  run(const LhsScalar* lhs, const RhsScalar* rhs, Index size) {
+    ResultType res(0);
+    for (Index i = 0; i < size; ++i) {
+      res += conj_mul<ConjLhs, ConjRhs>(lhs[i], rhs[i]);
+    }
+    return res;
+  }
+};
+
+// Unified generic_dot_impl_helper
+template <typename LhsScalar, typename RhsScalar, bool ConjLhs, bool ConjRhs,
+          int LhsAlignment = Unaligned, int RhsAlignment = Unaligned,
+          typename Enable = void>
+struct generic_dot_impl_helper {
+  using Traits = dot_traits<LhsScalar, RhsScalar, ConjLhs, ConjRhs, LhsAlignment, RhsAlignment>;
+  using ResultType = typename Traits::ResultType;
+
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE ResultType
+  run(const LhsScalar* lhs, const RhsScalar* rhs, Index size) {
+    return generic_dot_impl_helper_impl<LhsScalar, RhsScalar, ConjLhs, ConjRhs, LhsAlignment, RhsAlignment, Traits::Vectorizable>::run(lhs, rhs, size);
+  }
+};
+
+template <typename Lhs, typename Rhs, bool Vectorize>
+struct dot_impl_helper {
+  using LhsScalar = typename traits<Lhs>::Scalar;
+  using RhsScalar = typename traits<Rhs>::Scalar;
+  using ResultType =
+      typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType;
+
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ResultType
+  run(const MatrixBase<Lhs>& a, const MatrixBase<Rhs>& b) {
+    return default_inner_product_impl<Lhs, Rhs, true>::run(a, b);
+  }
+};
+
 template <typename Lhs, typename Rhs>
-struct dot_impl : default_inner_product_impl<Lhs, Rhs, true> {};
+struct dot_impl_helper<Lhs, Rhs, true> {
+  using LhsScalar = typename traits<Lhs>::Scalar;
+  using RhsScalar = typename traits<Rhs>::Scalar;
+  using ResultType =
+      typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType;
+
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ResultType
+  run(const MatrixBase<Lhs>& a, const MatrixBase<Rhs>& b) {
+    const auto& lhs_clean = dot_xpr_unwrapper<Lhs>::get(a.derived());
+    const auto& rhs_clean = dot_xpr_unwrapper<Rhs>::get(b.derived());
+    if (lhs_clean.innerStride() == 1 && rhs_clean.innerStride() == 1 &&
+        (bool(Lhs::IsVectorAtCompileTime) || lhs_clean.rows() == 1 ||
+         lhs_clean.cols() == 1) &&
+        (bool(Rhs::IsVectorAtCompileTime) || rhs_clean.rows() == 1 ||
+         rhs_clean.cols() == 1)) {
+      using LhsClean = typename dot_xpr_unwrapper<Lhs>::type;
+      using RhsClean = typename dot_xpr_unwrapper<Rhs>::type;
+      constexpr int LhsAlignment = evaluator<LhsClean>::Alignment;
+      constexpr int RhsAlignment = evaluator<RhsClean>::Alignment;
+      return generic_dot_impl_helper<
+          LhsScalar, RhsScalar, dot_xpr_unwrapper<Lhs>::conj_lhs,
+          dot_xpr_unwrapper<Rhs>::conj_rhs, LhsAlignment, RhsAlignment>::run(
+          lhs_clean.data(), rhs_clean.data(), lhs_clean.size());
+    }
+    return default_inner_product_impl<Lhs, Rhs, true>::run(a, b);
+  }
+};
+
+template <typename Lhs, typename Rhs>
+struct dot_impl {
+  using LhsScalar = typename traits<Lhs>::Scalar;
+  using RhsScalar = typename traits<Rhs>::Scalar;
+  using ResultType =
+      typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType;
+
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ResultType
+  run(const MatrixBase<Lhs>& a, const MatrixBase<Rhs>& b) {
+    constexpr bool is_mixed = !internal::is_same<LhsScalar, RhsScalar>::value;
+    constexpr bool is_vectorizable =
+        dot_traits<LhsScalar, RhsScalar, dot_xpr_unwrapper<Lhs>::conj_lhs,
+                   dot_xpr_unwrapper<Rhs>::conj_rhs>::Vectorizable;
+    constexpr bool cond = dot_xpr_unwrapper<Lhs>::direct_access &&
+                          dot_xpr_unwrapper<Rhs>::direct_access &&
+                          is_vectorizable &&
+                          (inner_stride_at_compile_time<
+                               typename dot_xpr_unwrapper<Lhs>::type>::value != 1 ||
+                           is_mixed);
+    return dot_impl_helper<Lhs, Rhs, cond>::run(a, b);
+  }
+};
 
 }  // namespace internal
 }  // namespace Eigen
