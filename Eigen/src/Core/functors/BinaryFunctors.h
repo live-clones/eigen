@@ -37,8 +37,8 @@ struct scalar_sum_op : binary_op_base<LhsScalar, RhsScalar> {
 #ifdef EIGEN_SCALAR_BINARY_OP_PLUGIN
   scalar_sum_op(){EIGEN_SCALAR_BINARY_OP_PLUGIN}
 #endif
-  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE result_type
-  operator()(const LhsScalar& a, const RhsScalar& b) const {
+  EIGEN_NO_SANITIZE_INTEGER_OVERFLOW EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE result_type
+  operator()(const LhsScalar & a, const RhsScalar & b) const {
     return a + b;
   }
   template <typename Packet>
