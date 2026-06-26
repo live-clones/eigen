@@ -13,10 +13,10 @@
 #
 # This image is assembled WITHOUT emulation: the first stage runs natively on
 # the amd64 build host, downloads the riscv64 .debs (and their dependency
-# closure) and unpacks them into a rootfs; the final riscv64 stage only COPYs
-# those files in, so no riscv64 code is executed at build time. That avoids the
-# qemu-emulated apt-get that otherwise hangs when building a riscv64 image on an
-# amd64 runner.
+# closure) and unpacks them into a rootfs; the final riscv64 stage only copies
+# those files in (a single COPY), so no riscv64 code runs at build time. That
+# avoids the qemu-emulated apt-get that otherwise hangs when building a riscv64
+# image on an amd64 runner.
 #
 # Rebuild and push when this file changes:
 #   docker buildx build --platform linux/riscv64 \
