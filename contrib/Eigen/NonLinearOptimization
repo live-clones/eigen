@@ -54,7 +54,7 @@
  *
  * \section Tests Tests
  *
- * The tests are placed in the file unsupported/test/NonLinear.cpp.
+ * The tests are placed in the file contrib/test/NonLinear.cpp.
  *
  * There are two kinds of tests : those that come from examples bundled with cminpack.
  * They guaranty we get the same results as the original algorithms (value for 'x',
@@ -116,7 +116,7 @@
  * \section examples Examples
  *
  * The easiest way to understand how to use this module is by looking at the many examples in the file
- * unsupported/test/NonLinearOptimization.cpp.
+ * contrib/test/NonLinearOptimization.cpp.
  */
 
 #include "../../Eigen/src/Core/util/DisableStupidWarnings.h"

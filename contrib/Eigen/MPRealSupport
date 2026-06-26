@@ -32,7 +32,7 @@ namespace Eigen {
   *
   * \warning MPFR C++ is licensed under the GPL.
   *
-  * You can find a copy of MPFR C++ that is known to be compatible in the unsupported/test/mpreal folder.
+  * You can find a copy of MPFR C++ that is known to be compatible in the contrib/test/mpreal folder.
   *
   * Here is an example:
   *
