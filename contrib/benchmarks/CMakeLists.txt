@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MPL-2.0
 
 cmake_minimum_required(VERSION 3.10)
-project(EigenUnsupportedBenchmarks CXX)
+project(EigenContribBenchmarks CXX)
 
 find_package(benchmark REQUIRED)
 find_package(Threads REQUIRED)
