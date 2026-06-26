@@ -142,15 +142,14 @@ EIGEN_DONT_INLINE Index lsmr(const MatrixType& mat, const Rhs& rhs, Dest& x, con
 
   const RealScalar normb = beta;
   const RealScalar ctol = conlim > zero ? one / conlim : zero;
-  RealScalar normr = beta;
-  RealScalar normA = sqrt(normA2);
-  RealScalar condA = one;
-  RealScalar normx = zero;
-  RealScalar test2 = zero;  // recomputed every iteration; kept for the post-loop tol_error
+  // normr, normA, condA and normx are recomputed from scratch every iteration,
+  // so they are declared as locals inside the loop. test2 is recomputed each
+  // iteration too but is also read after the loop to set tol_error.
+  RealScalar test2 = zero;
 
   Index istop = 0;
   Index itn = 0;
-  while (true) {
+  while (istop == 0) {
     ++itn;
 
     // Perform the next step of the bidiagonalization to obtain the next
@@ -216,21 +215,21 @@ EIGEN_DONT_INLINE Index lsmr(const MatrixType& mat, const Rhs& rhs, Dest& x, con
     tautildeold = (zetaold - thetatildeold * tautildeold) / rhotildeold;
     const RealScalar taud = (zeta - thetatilde * tautildeold) / rhodold;
     d += betacheck * betacheck;
-    normr = sqrt(d + numext::abs2(betad - taud) + numext::abs2(betadd));
+    const RealScalar normr = sqrt(d + numext::abs2(betad - taud) + numext::abs2(betadd));
 
     // Estimate ||A||.
     normA2 += beta * beta;
-    normA = sqrt(normA2);
+    const RealScalar normA = sqrt(normA2);
     normA2 += alpha * alpha;
 
     // Estimate cond(A).
     maxrbar = numext::maxi(maxrbar, rhobarold);
     if (itn > 1) minrbar = numext::mini(minrbar, rhobarold);
-    condA = numext::maxi(maxrbar, rhotemp) / numext::mini(minrbar, rhotemp);
+    const RealScalar condA = numext::maxi(maxrbar, rhotemp) / numext::mini(minrbar, rhotemp);
 
     // Compute the norms needed for the stopping rules.
     const RealScalar normAr = abs(zetabar);
-    normx = dx.stableNorm();
+    const RealScalar normx = dx.stableNorm();
 
     const RealScalar test1 = normr / normb;
     test2 = (normA * normr > zero) ? normAr / (normA * normr) : zero;
@@ -250,8 +249,6 @@ EIGEN_DONT_INLINE Index lsmr(const MatrixType& mat, const Rhs& rhs, Dest& x, con
     if (test3 <= ctol) istop = 3;
     if (test2 <= atol) istop = 2;
     if (test1 <= rtol) istop = 1;
-
-    if (istop != 0) break;
   }
 
   // Recover the solution: x <- x0 + M^{-1} dx.
