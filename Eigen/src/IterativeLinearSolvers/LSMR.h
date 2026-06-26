@@ -142,10 +142,7 @@ EIGEN_DONT_INLINE Index lsmr(const MatrixType& mat, const Rhs& rhs, Dest& x, con
 
   const RealScalar normb = beta;
   const RealScalar ctol = conlim > zero ? one / conlim : zero;
-  // normr, normA, condA and normx are recomputed from scratch every iteration,
-  // so they are declared as locals inside the loop. test2 is recomputed each
-  // iteration too but is also read after the loop to set tol_error.
-  RealScalar test2 = zero;
+  RealScalar test2 = zero;  // recomputed each iteration; also read after the loop for tol_error
 
   Index istop = 0;
   Index itn = 0;
