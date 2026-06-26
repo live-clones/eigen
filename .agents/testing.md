@@ -10,7 +10,7 @@ Use this guide when adding or changing tests. The checked-out source is authorit
   [`test/type_test_helpers.h`](../test/type_test_helpers.h) define random-matrix and type utilities.
 - [`cmake/EigenTesting.cmake`](../cmake/EigenTesting.cmake) defines test registration and splitting.
 - [`test/CMakeLists.txt`](../test/CMakeLists.txt) and
-  [`unsupported/test/CMakeLists.txt`](../unsupported/test/CMakeLists.txt) register the suites.
+  [`contrib/test/CMakeLists.txt`](../contrib/test/CMakeLists.txt) register the suites.
 - [`cmake/EigenConfigureTesting.cmake`](../cmake/EigenConfigureTesting.cmake) defines aggregate build and check
   targets.
 
@@ -25,7 +25,7 @@ cmake --build build --target buildtests
 ctest --test-dir build --parallel --output-on-failure
 ```
 
-Useful aggregate targets are `BuildOfficial`, `BuildUnsupported`, `buildsmoketests`, `buildtests_gpu`, `check`, and
+Useful aggregate targets are `BuildOfficial`, `BuildContrib`, `buildsmoketests`, `buildtests_gpu`, `check`, and
 `check_gpu`. Build and run one test explicitly when possible:
 
 ```bash
@@ -60,7 +60,7 @@ copying an option inventory into documentation.
 
 Eigen currently uses its own framework, not GoogleTest:
 
-1. Add `test/<name>.cpp` or `unsupported/test/<name>.cpp`.
+1. Add `test/<name>.cpp` or `contrib/test/<name>.cpp`.
 2. Include `main.h`, then the public umbrella header for tests of public behavior. A focused test of a private utility
    may include its implementation header only when that matches an established nearby pattern; never present such a
    path as a user include.
