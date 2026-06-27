@@ -270,6 +270,40 @@ static void BM_BSM_SpMV(benchmark::State& state) {
   state.counters["n"] = bsm.rows();
 }
 
+// Accumulating GEMV: y += A * x.
+template <typename Scalar, int B>
+static void BM_Sm_SpMV_Acc(benchmark::State& state) {
+  int nB, nnz;
+  parseArgs(state, nB, nnz);
+  SparseMatrix<Scalar> sm;
+  BlockSparseMatrix<Scalar, ColMajor, B, B> tmp;
+  buildPair<Scalar, B>(nB, nnz, 1, tmp, sm);
+  Matrix<Scalar, Dynamic, 1> x = Matrix<Scalar, Dynamic, 1>::Random(sm.cols());
+  Matrix<Scalar, Dynamic, 1> y = Matrix<Scalar, Dynamic, 1>::Random(sm.rows());
+  for (auto _ : state) {
+    y.noalias() += sm * x;
+    benchmark::DoNotOptimize(y.data());
+  }
+  state.counters["n"] = sm.rows();
+}
+
+template <typename Scalar, int B>
+static void BM_BSM_SpMV_Acc(benchmark::State& state) {
+  int nB, nnz;
+  parseArgs(state, nB, nnz);
+  using BSM = BlockSparseMatrix<Scalar, ColMajor, B, B>;
+  BSM bsm;
+  SparseMatrix<Scalar> smTmp;
+  buildPair<Scalar, B>(nB, nnz, 1, bsm, smTmp);
+  Matrix<Scalar, Dynamic, 1> x = Matrix<Scalar, Dynamic, 1>::Random(bsm.cols());
+  Matrix<Scalar, Dynamic, 1> y = Matrix<Scalar, Dynamic, 1>::Random(bsm.rows());
+  for (auto _ : state) {
+    y.noalias() += bsm * x;
+    benchmark::DoNotOptimize(y.data());
+  }
+  state.counters["n"] = bsm.rows();
+}
+
 // ---------------------------------------------------------------------------
 // Sparse×Dense: Triangular MV
 // ---------------------------------------------------------------------------
@@ -320,6 +354,57 @@ static void BM_BSM_TriMV_DiagT(benchmark::State& state) {
   Matrix<Scalar, Dynamic, 1> y(bsm.rows());
   for (auto _ : state) {
     y.noalias() = bsm.template triangularView<Upper, true>() * x;
+    benchmark::DoNotOptimize(y.data());
+  }
+  state.counters["n"] = bsm.rows();
+}
+
+// Accumulating triangular MV: y += A * x.
+template <typename Scalar, int B>
+static void BM_Sm_TriMV_Acc(benchmark::State& state) {
+  int nB, nnz;
+  parseArgs(state, nB, nnz);
+  SparseMatrix<Scalar> sm;
+  BlockSparseMatrix<Scalar, ColMajor, B, B> tmp;
+  buildUpperTriPair<Scalar, B>(nB, nnz, 1, tmp, sm);
+  Matrix<Scalar, Dynamic, 1> x = Matrix<Scalar, Dynamic, 1>::Random(sm.cols());
+  Matrix<Scalar, Dynamic, 1> y = Matrix<Scalar, Dynamic, 1>::Random(sm.rows());
+  for (auto _ : state) {
+    y.noalias() += sm.template triangularView<Upper>() * x;
+    benchmark::DoNotOptimize(y.data());
+  }
+  state.counters["n"] = sm.rows();
+}
+
+template <typename Scalar, int B>
+static void BM_BSM_TriMV_Acc(benchmark::State& state) {
+  int nB, nnz;
+  parseArgs(state, nB, nnz);
+  using BSM = BlockSparseMatrix<Scalar, ColMajor, B, B>;
+  BSM bsm;
+  SparseMatrix<Scalar> smTmp;
+  buildUpperTriPair<Scalar, B>(nB, nnz, 1, bsm, smTmp);
+  Matrix<Scalar, Dynamic, 1> x = Matrix<Scalar, Dynamic, 1>::Random(bsm.cols());
+  Matrix<Scalar, Dynamic, 1> y = Matrix<Scalar, Dynamic, 1>::Random(bsm.rows());
+  for (auto _ : state) {
+    y.noalias() += bsm.template triangularView<Upper, false>() * x;
+    benchmark::DoNotOptimize(y.data());
+  }
+  state.counters["n"] = bsm.rows();
+}
+
+template <typename Scalar, int B>
+static void BM_BSM_TriMV_DiagT_Acc(benchmark::State& state) {
+  int nB, nnz;
+  parseArgs(state, nB, nnz);
+  using BSM = BlockSparseMatrix<Scalar, ColMajor, B, B>;
+  BSM bsm;
+  SparseMatrix<Scalar> smTmp;
+  buildActuallyTriPair<Scalar, B>(nB, nnz, 1, bsm, smTmp);
+  Matrix<Scalar, Dynamic, 1> x = Matrix<Scalar, Dynamic, 1>::Random(bsm.cols());
+  Matrix<Scalar, Dynamic, 1> y = Matrix<Scalar, Dynamic, 1>::Random(bsm.rows());
+  for (auto _ : state) {
+    y.noalias() += bsm.template triangularView<Upper, true>() * x;
     benchmark::DoNotOptimize(y.data());
   }
   state.counters["n"] = bsm.rows();
@@ -393,6 +478,74 @@ static void BM_BSM_SymmMV_DiagSA(benchmark::State& state) {
   Matrix<Scalar, Dynamic, 1> y(bsm.rows());
   for (auto _ : state) {
     y.noalias() = bsm.template selfadjointView<Upper, true>() * x;
+    benchmark::DoNotOptimize(y.data());
+  }
+  state.counters["n"] = bsm.rows();
+}
+
+// Accumulating selfadjoint MV: y += A * x.
+template <typename Scalar, int B>
+static void BM_Sm_SymmMV_Acc(benchmark::State& state) {
+  int nB, nnz;
+  parseArgs(state, nB, nnz);
+  SparseMatrix<Scalar> sm;
+  BlockSparseMatrix<Scalar, ColMajor, B, B> tmp;
+  buildUpperTriPair<Scalar, B>(nB, nnz, 1, tmp, sm);
+  Matrix<Scalar, Dynamic, 1> x = Matrix<Scalar, Dynamic, 1>::Random(sm.cols());
+  Matrix<Scalar, Dynamic, 1> y = Matrix<Scalar, Dynamic, 1>::Random(sm.rows());
+  for (auto _ : state) {
+    y.noalias() += sm.template selfadjointView<Upper>() * x;
+    benchmark::DoNotOptimize(y.data());
+  }
+  state.counters["n"] = sm.rows();
+}
+
+template <typename Scalar, int B>
+static void BM_BSM_SymmMV_Acc(benchmark::State& state) {
+  int nB, nnz;
+  parseArgs(state, nB, nnz);
+  using BSM = BlockSparseMatrix<Scalar, ColMajor, B, B>;
+  BSM bsm;
+  SparseMatrix<Scalar> smTmp;
+  buildUpperTriPair<Scalar, B>(nB, nnz, 1, bsm, smTmp);
+  Matrix<Scalar, Dynamic, 1> x = Matrix<Scalar, Dynamic, 1>::Random(bsm.cols());
+  Matrix<Scalar, Dynamic, 1> y = Matrix<Scalar, Dynamic, 1>::Random(bsm.rows());
+  for (auto _ : state) {
+    y.noalias() += bsm.template selfadjointView<Upper>() * x;
+    benchmark::DoNotOptimize(y.data());
+  }
+  state.counters["n"] = bsm.rows();
+}
+
+template <typename Scalar, int B>
+static void BM_BSM_SymmMV_DiagNSA_Acc(benchmark::State& state) {
+  int nB, nnz;
+  parseArgs(state, nB, nnz);
+  using BSM = BlockSparseMatrix<Scalar, ColMajor, B, B>;
+  BSM bsm;
+  SparseMatrix<Scalar> smTmp;
+  buildHermDiagUpperTriPair<Scalar, B>(nB, nnz, 1, bsm, smTmp);
+  Matrix<Scalar, Dynamic, 1> x = Matrix<Scalar, Dynamic, 1>::Random(bsm.cols());
+  Matrix<Scalar, Dynamic, 1> y = Matrix<Scalar, Dynamic, 1>::Random(bsm.rows());
+  for (auto _ : state) {
+    y.noalias() += bsm.template selfadjointView<Upper, false>() * x;
+    benchmark::DoNotOptimize(y.data());
+  }
+  state.counters["n"] = bsm.rows();
+}
+
+template <typename Scalar, int B>
+static void BM_BSM_SymmMV_DiagSA_Acc(benchmark::State& state) {
+  int nB, nnz;
+  parseArgs(state, nB, nnz);
+  using BSM = BlockSparseMatrix<Scalar, ColMajor, B, B>;
+  BSM bsm;
+  SparseMatrix<Scalar> smTmp;
+  buildHermDiagUpperTriPair<Scalar, B>(nB, nnz, 1, bsm, smTmp);
+  Matrix<Scalar, Dynamic, 1> x = Matrix<Scalar, Dynamic, 1>::Random(bsm.cols());
+  Matrix<Scalar, Dynamic, 1> y = Matrix<Scalar, Dynamic, 1>::Random(bsm.rows());
+  for (auto _ : state) {
+    y.noalias() += bsm.template selfadjointView<Upper, true>() * x;
     benchmark::DoNotOptimize(y.data());
   }
   state.counters["n"] = bsm.rows();
@@ -484,13 +637,22 @@ static void BM_BSM_BSM_Mul(benchmark::State& state) {
   REG(BM_BSM_BSM_Add, S, B)->Unit(US);        \
   REG(BM_Sm_SpMV, S, B)->Unit(NS);            \
   REG(BM_BSM_SpMV, S, B)->Unit(NS);           \
+  REG(BM_Sm_SpMV_Acc, S, B)->Unit(NS);        \
+  REG(BM_BSM_SpMV_Acc, S, B)->Unit(NS);       \
   REG(BM_Sm_TriMV, S, B)->Unit(NS);           \
   REG(BM_BSM_TriMV, S, B)->Unit(NS);          \
   REG(BM_BSM_TriMV_DiagT, S, B)->Unit(NS);    \
+  REG(BM_Sm_TriMV_Acc, S, B)->Unit(NS);       \
+  REG(BM_BSM_TriMV_Acc, S, B)->Unit(NS);      \
+  REG(BM_BSM_TriMV_DiagT_Acc, S, B)->Unit(NS);\
   REG(BM_Sm_SymmMV, S, B)->Unit(NS);          \
   REG(BM_BSM_SymmMV, S, B)->Unit(NS);         \
   REG(BM_BSM_SymmMV_DiagNSA, S, B)->Unit(NS); \
   REG(BM_BSM_SymmMV_DiagSA, S, B)->Unit(NS);  \
+  REG(BM_Sm_SymmMV_Acc, S, B)->Unit(NS);      \
+  REG(BM_BSM_SymmMV_Acc, S, B)->Unit(NS);     \
+  REG(BM_BSM_SymmMV_DiagNSA_Acc, S, B)->Unit(NS); \
+  REG(BM_BSM_SymmMV_DiagSA_Acc, S, B)->Unit(NS);  \
   REG(BM_Sm_TriSolve, S, B)->Unit(NS);        \
   REG(BM_BSM_TriSolve, S, B)->Unit(NS);       \
   REG(BM_Sm_Sm_Mul, S, B)->Unit(US);          \
