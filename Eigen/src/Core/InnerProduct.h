@@ -259,8 +259,7 @@ struct default_inner_product_impl {
 template <typename T>
 struct unwrap_unary {
   using type = T;
-  static constexpr bool MayMapAtRuntime =
-      bool(traits<type>::Flags & DirectAccessBit) && inner_stride_at_compile_time<type>::value != 1;
+  static constexpr bool HasDirectAccess = bool(traits<type>::Flags & DirectAccessBit);
 
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr T const& get(T const& xpr) { return xpr; }
 };
@@ -353,7 +352,11 @@ struct dot_impl {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ResultType run(const MatrixBase<Lhs>& a, const MatrixBase<Rhs>& b) {
     using LhsUnwrapper = unwrap_unary<Lhs>;
     using RhsUnwrapper = unwrap_unary<Rhs>;
-    constexpr bool MayMap = LhsUnwrapper::MayMapAtRuntime && RhsUnwrapper::MayMapAtRuntime;
+
+    constexpr bool has_dynamic_or_nonunit_stride =
+        inner_stride_at_compile_time<typename LhsUnwrapper::type>::value != 1 ||
+        inner_stride_at_compile_time<typename RhsUnwrapper::type>::value != 1;
+    constexpr bool MayMap = LhsUnwrapper::HasDirectAccess && RhsUnwrapper::HasDirectAccess && has_dynamic_or_nonunit_stride;
 
     return dot_impl_helper<Lhs, Rhs, MayMap>::run(a, b);
   }
