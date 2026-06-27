@@ -471,10 +471,10 @@ struct product_packet_cascade {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(const Func& func, Dst& dst, const ProdEval& prod, Index outer,
                                                         Index begin, Index end) {
     constexpr int PacketSize = unpacket_traits<Packet>::size;
-    const Index pktEnd = begin + ((end - begin) / PacketSize) * PacketSize;
+    Index pktEnd = begin + numext::round_down(end - begin, PacketSize);
     Index i = begin;
     for (; i < pktEnd; i += PacketSize) {
-      const Index r = ColMajor ? i : outer, c = ColMajor ? outer : i;
+      Index r = ColMajor ? i : outer, c = ColMajor ? outer : i;
       func.template assignPacket<Unaligned, Packet>(&dst.coeffRef(r, c), prod.template packet<Unaligned, Packet>(r, c));
     }
     // Fall back to the half packet for the remainder [i, end).
@@ -489,14 +489,14 @@ struct product_packet_cascade<Packet, ColMajor, /*Terminal=*/true> {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(const Func& func, Dst& dst, const ProdEval& prod, Index outer,
                                                         Index begin, Index end) {
     constexpr int PacketSize = unpacket_traits<Packet>::size;
-    const Index pktEnd = begin + ((end - begin) / PacketSize) * PacketSize;
+    Index pktEnd = begin + numext::round_down(end - begin, PacketSize);
     Index i = begin;
     for (; i < pktEnd; i += PacketSize) {
-      const Index r = ColMajor ? i : outer, c = ColMajor ? outer : i;
+      Index r = ColMajor ? i : outer, c = ColMajor ? outer : i;
       func.template assignPacket<Unaligned, Packet>(&dst.coeffRef(r, c), prod.template packet<Unaligned, Packet>(r, c));
     }
     for (; i < end; ++i) {
-      const Index r = ColMajor ? i : outer, c = ColMajor ? outer : i;
+      Index r = ColMajor ? i : outer, c = ColMajor ? outer : i;
       func.assignCoeff(dst.coeffRef(r, c), prod.coeff(r, c));
     }
   }
@@ -568,16 +568,17 @@ struct product_packet_cascade_traits {
 };
 
 // Run the cascade over every outer index of dst. Traits::VecLhs is a compile-time
-// constant, so this plain `if` folds away; both axes are valid instantiations.
+// constant, so it folds the bounds away and selects the cascade's ColMajor axis,
+// instantiating only the active orientation (no dead branch on either axis).
 template <typename Traits, typename Func, typename Dst, typename ProdEval>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void product_run_packet_cascade(const Func& func, Dst& dst,
                                                                       const ProdEval& prod) {
   using Packet = typename Traits::Packet;
-  const Index rows = dst.rows(), cols = dst.cols();
-  if (Traits::VecLhs)
-    for (Index j = 0; j < cols; ++j) product_packet_cascade<Packet, true>::run(func, dst, prod, j, 0, rows);
-  else
-    for (Index i = 0; i < rows; ++i) product_packet_cascade<Packet, false>::run(func, dst, prod, i, 0, cols);
+  Index rows = dst.rows(), cols = dst.cols();
+  Index outerCount = Traits::VecLhs ? cols : rows;
+  Index innerEnd = Traits::VecLhs ? rows : cols;
+  for (Index outer = 0; outer < outerCount; ++outer)
+    product_packet_cascade<Packet, Traits::VecLhs>::run(func, dst, prod, outer, 0, innerEnd);
 }
 
 // Compound product assignment: take the packet cascade when the traits enable
