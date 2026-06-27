@@ -178,6 +178,53 @@ void test_lsmr_extreme_rhs() {
   }
 }
 
+// The atol/btol stopping tolerances can be set independently. setTolerance()
+// sets both; setToleranceA()/setToleranceB() override each one, and an unset
+// component falls back to tolerance(). A tight atol must still reach the QR
+// least-squares solution even when btol is left loose.
+template <typename T>
+void test_lsmr_tolerances() {
+  typedef typename NumTraits<T>::Real RealScalar;
+  typedef Matrix<T, Dynamic, Dynamic> DenseMatrix;
+  typedef Matrix<T, Dynamic, 1> DenseVector;
+
+  const RealScalar def = NumTraits<RealScalar>::epsilon();
+  const RealScalar tight = def * RealScalar(100);
+
+  // By default both tolerances track tolerance().
+  LSMR<DenseMatrix> lsmr;
+  VERIFY_IS_EQUAL(lsmr.toleranceA(), def);
+  VERIFY_IS_EQUAL(lsmr.toleranceB(), def);
+
+  // setTolerance() sets both.
+  lsmr.setTolerance(tight);
+  VERIFY_IS_EQUAL(lsmr.toleranceA(), tight);
+  VERIFY_IS_EQUAL(lsmr.toleranceB(), tight);
+
+  // An explicit override wins; the other component still tracks tolerance().
+  lsmr.setToleranceA(def);
+  VERIFY_IS_EQUAL(lsmr.toleranceA(), def);
+  VERIFY_IS_EQUAL(lsmr.toleranceB(), tight);
+  lsmr.setToleranceB(def);
+  VERIFY_IS_EQUAL(lsmr.toleranceB(), def);
+
+  for (int k = 0; k < g_repeat; ++k) {
+    Index rows = internal::random<Index>(20, 80);
+    Index cols = internal::random<Index>(4, rows);
+    DenseMatrix A = DenseMatrix::Random(rows, cols);
+    DenseVector b = DenseVector::Random(rows);
+    DenseVector xref = A.householderQr().solve(b);
+
+    // Tight atol drives the least-squares stopping rule, so the solution must
+    // match QR even with btol left loose.
+    LSMR<DenseMatrix> solver(A);
+    solver.setToleranceA(tight).setToleranceB(RealScalar(0.1));
+    DenseVector x = solver.solve(b);
+    VERIFY_IS_EQUAL(solver.info(), Success);
+    VERIFY_IS_APPROX(x, xref);
+  }
+}
+
 EIGEN_DECLARE_TEST(lsmr) {
   CALL_SUBTEST_1(test_lsmr_T<double>());
   CALL_SUBTEST_2(test_lsmr_T<std::complex<double> >());
@@ -189,4 +236,5 @@ EIGEN_DECLARE_TEST(lsmr) {
   CALL_SUBTEST_8(test_lsmr_damping<std::complex<double> >());
   CALL_SUBTEST_9(test_lsmr_minnorm<std::complex<double> >());
   CALL_SUBTEST_10(test_lsmr_guess<double>());
+  CALL_SUBTEST_11(test_lsmr_tolerances<double>());
 }

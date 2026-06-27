@@ -52,10 +52,12 @@ namespace internal {
  *                  reduces exactly to the reference algorithm.
  * \param iters     On input the maximum number of iterations, on output the
  *                  number of iterations performed.
- * \param tol_error On input the stopping tolerance (used for both \c atol and
- *                  \c btol below), on output an estimate of the relative
- *                  residual of the normal equations
- *                  \f$ ||A^T r|| / (||A||\,||r||) \f$.
+ * \param tol_error On output, an estimate of the relative residual of the
+ *                  normal equations \f$ ||A^T r|| / (||A||\,||r||) \f$.
+ * \param atol      Stopping tolerance bounding the assumed relative error in
+ *                  the entries of \a A.
+ * \param btol      Stopping tolerance bounding the assumed relative error in
+ *                  the entries of \a b.
  * \param lambda    The damping parameter \f$ \lambda \ge 0 \f$ (0 for an
  *                  unregularized problem).
  * \param conlim    An upper limit on cond(A); iterations stop if the estimate
@@ -73,8 +75,9 @@ namespace internal {
  */
 template <typename MatrixType, typename Rhs, typename Dest, typename Preconditioner>
 EIGEN_DONT_INLINE Index lsmr(const MatrixType& mat, const Rhs& rhs, Dest& x, const Preconditioner& precond,
-                             Index& iters, typename Dest::RealScalar& tol_error,
-                             const typename Dest::RealScalar& lambda, const typename Dest::RealScalar& conlim) {
+                             Index& iters, typename Dest::RealScalar& tol_error, const typename Dest::RealScalar& atol,
+                             const typename Dest::RealScalar& btol, const typename Dest::RealScalar& lambda,
+                             const typename Dest::RealScalar& conlim) {
   using numext::abs;
   using numext::sqrt;
   typedef typename Dest::RealScalar RealScalar;
@@ -86,11 +89,9 @@ EIGEN_DONT_INLINE Index lsmr(const MatrixType& mat, const Rhs& rhs, Dest& x, con
 
   const Index n = mat.cols();
   const Index maxIters = iters;
-  const RealScalar atol = tol_error;  // assumed relative error in the entries of A
-  const RealScalar btol = tol_error;  // assumed relative error in the entries of b
 
-  // n-vectors used throughout. u is the only m-vector.
-  VectorType v(n), h(n), hbar(n), Atu(n), t(n);
+  // n-vectors needed before the early-return below. u is the only m-vector.
+  VectorType v(n), Atu(n);
 
   // Set up the first vectors u and v for the bidiagonalization. These satisfy
   // beta*u = b - A*x0  and  alpha*v = M^{-1} A^T u.
@@ -114,9 +115,11 @@ EIGEN_DONT_INLINE Index lsmr(const MatrixType& mat, const Rhs& rhs, Dest& x, con
   }
 
   // dx accumulates the correction (in z-space when a preconditioner is used).
+  // The remaining n-vectors are only needed once we start iterating.
   VectorType dx = VectorType::Zero(n);
-  h = v;
-  hbar.setZero();
+  VectorType h = v;
+  VectorType hbar = VectorType::Zero(n);
+  VectorType t(n);
 
   // Quantities driving the two plane rotations.
   RealScalar alphabar = alpha;
@@ -151,7 +154,7 @@ EIGEN_DONT_INLINE Index lsmr(const MatrixType& mat, const Rhs& rhs, Dest& x, con
 
     // Perform the next step of the bidiagonalization to obtain the next
     // beta, u, alpha, v.  These satisfy
-    //     beta *u = A*(M^{-1} v) - alpha*u,
+    //     beta*u = A*(M^{-1} v) - alpha*u,
     //     alpha*v = M^{-1} A^T u - beta*v.
     t = precond.solve(v);
     u *= -alpha;
@@ -236,16 +239,23 @@ EIGEN_DONT_INLINE Index lsmr(const MatrixType& mat, const Rhs& rhs, Dest& x, con
 
     // The "1 + test <= 1" guards trigger near machine precision and make the
     // method behave as if atol = btol = eps and conlim = 1/eps even when the
-    // user passed 0 for any of them.  The user tolerances are checked last so a
+    // user passed 0 for any of them.  The user tolerances are tested first so a
     // genuine convergence (istop 1/2/3) takes priority over the machine limits.
-    if (itn >= maxIters) istop = 7;
-    if (one + test3 <= one) istop = 6;
-    if (one + test2 <= one) istop = 5;
-    if (one + t1 <= one) istop = 4;
-
-    if (test3 <= ctol) istop = 3;
-    if (test2 <= atol) istop = 2;
-    if (test1 <= rtol) istop = 1;
+    // (istop 4 uses t1 rather than test1, matching the reference algorithm.)
+    if (test1 <= rtol)
+      istop = 1;
+    else if (test2 <= atol)
+      istop = 2;
+    else if (test3 <= ctol)
+      istop = 3;
+    else if (one + t1 <= one)
+      istop = 4;
+    else if (one + test2 <= one)
+      istop = 5;
+    else if (one + test3 <= one)
+      istop = 6;
+    else if (itn >= maxIters)
+      istop = 7;
   }
 
   // Recover the solution: x <- x0 + M^{-1} dx.
@@ -297,8 +307,10 @@ struct traits<LSMR<MatrixType_, Preconditioner_> > {
  * The maximum number of iterations and the tolerance can be controlled via the
  * setMaxIterations() and setTolerance() methods. The defaults are twice the
  * number of columns of the matrix for the maximum number of iterations and
- * NumTraits<Scalar>::epsilon() for the tolerance (used as both \c atol and
- * \c btol of the algorithm).
+ * NumTraits<Scalar>::epsilon() for the tolerance. setTolerance() sets both of
+ * the algorithm's stopping tolerances \c atol (relative error assumed in \c A)
+ * and \c btol (relative error assumed in \c b); they can also be set
+ * independently via setToleranceA() and setToleranceB().
  *
  * The setDamping() method enables Tikhonov regularization: with a damping
  * \f$ \lambda > 0 \f$ the solver minimizes
@@ -348,7 +360,6 @@ class LSMR : public IterativeSolverBase<LSMR<MatrixType_, Preconditioner_> > {
   typedef typename MatrixType::RealScalar RealScalar;
   typedef Preconditioner_ Preconditioner;
 
- public:
   /** Default constructor. */
   LSMR() : Base() {}
 
@@ -394,14 +405,39 @@ class LSMR : public IterativeSolverBase<LSMR<MatrixType_, Preconditioner_> > {
   /** \returns the condition-number limit. \sa setConditionLimit() */
   RealScalar conditionLimit() const { return m_conditionLimit; }
 
+  /** Sets the stopping tolerance \c atol, which bounds the relative error
+   * assumed in the entries of \a A. It drives the least-squares stopping rule
+   * \f$ ||A^T r|| \le atol\,||A||\,||r|| \f$. If left unset (the default) it
+   * falls back to tolerance(). \sa setToleranceB(), setTolerance() */
+  LSMR& setToleranceA(const RealScalar& atol) {
+    m_atol = atol;
+    return *this;
+  }
+
+  /** \returns \c atol, or tolerance() if setToleranceA() has not been called.
+   * \sa setToleranceA() */
+  RealScalar toleranceA() const { return m_atol >= RealScalar(0) ? m_atol : Base::m_tolerance; }
+
+  /** Sets the stopping tolerance \c btol, which bounds the relative error
+   * assumed in the entries of \a b. It enters the compatible-system stopping
+   * rule \f$ ||r|| \le btol\,||b|| + atol\,||A||\,||x|| \f$. If left unset (the
+   * default) it falls back to tolerance(). \sa setToleranceA(), setTolerance() */
+  LSMR& setToleranceB(const RealScalar& btol) {
+    m_btol = btol;
+    return *this;
+  }
+
+  /** \returns \c btol, or tolerance() if setToleranceB() has not been called.
+   * \sa setToleranceB() */
+  RealScalar toleranceB() const { return m_btol >= RealScalar(0) ? m_btol : Base::m_tolerance; }
+
   /** \internal */
   template <typename Rhs, typename Dest>
   void _solve_vector_with_guess_impl(const Rhs& b, Dest& x) const {
     m_iterations = Base::maxIterations();
-    m_error = Base::m_tolerance;
 
-    Index istop =
-        internal::lsmr(matrix(), b, x, Base::m_preconditioner, m_iterations, m_error, m_lambda, m_conditionLimit);
+    Index istop = internal::lsmr(matrix(), b, x, Base::m_preconditioner, m_iterations, m_error, toleranceA(),
+                                 toleranceB(), m_lambda, m_conditionLimit);
     // istop in {0,1,2,4,5}: the (least-squares) solution was found, possibly
     // only to within machine precision (4,5). istop in {3,6,7}: stopped on the
     // condition-number limit or the iteration limit without meeting the
@@ -412,6 +448,9 @@ class LSMR : public IterativeSolverBase<LSMR<MatrixType_, Preconditioner_> > {
  protected:
   RealScalar m_lambda = RealScalar(0);
   RealScalar m_conditionLimit = RealScalar(0);
+  // Negative means "unset": toleranceA()/toleranceB() then fall back to tolerance().
+  RealScalar m_atol = RealScalar(-1);
+  RealScalar m_btol = RealScalar(-1);
 };
 
 }  // end namespace Eigen
