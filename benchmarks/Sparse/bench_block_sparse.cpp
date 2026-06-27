@@ -632,30 +632,30 @@ static void BM_BSM_BSM_Mul(benchmark::State& state) {
 // Args: {nB, sparsity%} — nnzPerCol = max(1, pct*nB/100)
 #define REG(fn, S, B) BENCHMARK(fn<S, B>)->Args({200, 1})->Args({200, 5})->Args({200, 10})
 
-#define BENCH_TYPE(S, B)                      \
-  REG(BM_Sm_Sm_Add, S, B)->Unit(US);          \
-  REG(BM_BSM_BSM_Add, S, B)->Unit(US);        \
-  REG(BM_Sm_SpMV, S, B)->Unit(NS);            \
-  REG(BM_BSM_SpMV, S, B)->Unit(NS);           \
-  REG(BM_Sm_SpMV_Acc, S, B)->Unit(NS);        \
-  REG(BM_BSM_SpMV_Acc, S, B)->Unit(NS);       \
-  REG(BM_Sm_TriMV, S, B)->Unit(NS);           \
-  REG(BM_BSM_TriMV, S, B)->Unit(NS);          \
-  REG(BM_BSM_TriMV_DiagT, S, B)->Unit(NS);    \
-  REG(BM_Sm_TriMV_Acc, S, B)->Unit(NS);       \
-  REG(BM_BSM_TriMV_Acc, S, B)->Unit(NS);      \
-  REG(BM_BSM_TriMV_DiagT_Acc, S, B)->Unit(NS);\
-  REG(BM_Sm_SymmMV, S, B)->Unit(NS);          \
-  REG(BM_BSM_SymmMV, S, B)->Unit(NS);         \
-  REG(BM_BSM_SymmMV_DiagNSA, S, B)->Unit(NS); \
-  REG(BM_BSM_SymmMV_DiagSA, S, B)->Unit(NS);  \
-  REG(BM_Sm_SymmMV_Acc, S, B)->Unit(NS);      \
-  REG(BM_BSM_SymmMV_Acc, S, B)->Unit(NS);     \
+#define BENCH_TYPE(S, B)                          \
+  REG(BM_Sm_Sm_Add, S, B)->Unit(US);              \
+  REG(BM_BSM_BSM_Add, S, B)->Unit(US);            \
+  REG(BM_Sm_SpMV, S, B)->Unit(NS);                \
+  REG(BM_BSM_SpMV, S, B)->Unit(NS);               \
+  REG(BM_Sm_SpMV_Acc, S, B)->Unit(NS);            \
+  REG(BM_BSM_SpMV_Acc, S, B)->Unit(NS);           \
+  REG(BM_Sm_TriMV, S, B)->Unit(NS);               \
+  REG(BM_BSM_TriMV, S, B)->Unit(NS);              \
+  REG(BM_BSM_TriMV_DiagT, S, B)->Unit(NS);        \
+  REG(BM_Sm_TriMV_Acc, S, B)->Unit(NS);           \
+  REG(BM_BSM_TriMV_Acc, S, B)->Unit(NS);          \
+  REG(BM_BSM_TriMV_DiagT_Acc, S, B)->Unit(NS);    \
+  REG(BM_Sm_SymmMV, S, B)->Unit(NS);              \
+  REG(BM_BSM_SymmMV, S, B)->Unit(NS);             \
+  REG(BM_BSM_SymmMV_DiagNSA, S, B)->Unit(NS);     \
+  REG(BM_BSM_SymmMV_DiagSA, S, B)->Unit(NS);      \
+  REG(BM_Sm_SymmMV_Acc, S, B)->Unit(NS);          \
+  REG(BM_BSM_SymmMV_Acc, S, B)->Unit(NS);         \
   REG(BM_BSM_SymmMV_DiagNSA_Acc, S, B)->Unit(NS); \
   REG(BM_BSM_SymmMV_DiagSA_Acc, S, B)->Unit(NS);  \
-  REG(BM_Sm_TriSolve, S, B)->Unit(NS);        \
-  REG(BM_BSM_TriSolve, S, B)->Unit(NS);       \
-  REG(BM_Sm_Sm_Mul, S, B)->Unit(US);          \
+  REG(BM_Sm_TriSolve, S, B)->Unit(NS);            \
+  REG(BM_BSM_TriSolve, S, B)->Unit(NS);           \
+  REG(BM_Sm_Sm_Mul, S, B)->Unit(US);              \
   REG(BM_BSM_BSM_Mul, S, B)->Unit(US);
 
 BENCH_TYPE(float, 2)
