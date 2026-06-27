@@ -298,6 +298,52 @@ struct rewrap_unary<CwiseUnaryOp<Op, Xpr>, Target> {
   }
 };
 
+template <typename Lhs, typename Rhs, bool MayMap = false>
+struct dot_impl_helper {
+  using LhsScalar = typename traits<Lhs>::Scalar;
+  using RhsScalar = typename traits<Rhs>::Scalar;
+  using ResultType = typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType;
+
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ResultType run(const MatrixBase<Lhs>& a, const MatrixBase<Rhs>& b) {
+    return default_inner_product_impl<Lhs, Rhs, true>::run(a, b);
+  }
+};
+
+template <typename Lhs, typename Rhs>
+struct dot_impl_helper<Lhs, Rhs, true> {
+  using LhsScalar = typename traits<Lhs>::Scalar;
+  using RhsScalar = typename traits<Rhs>::Scalar;
+  using ResultType = typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType;
+
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ResultType run(const MatrixBase<Lhs>& a, const MatrixBase<Rhs>& b) {
+    using LhsUnwrapper = unwrap_unary<Lhs>;
+    using RhsUnwrapper = unwrap_unary<Rhs>;
+    using LhsInner = typename LhsUnwrapper::type;
+    using RhsInner = typename RhsUnwrapper::type;
+
+    LhsInner const& lhs_inner = LhsUnwrapper::get(a.derived());
+    RhsInner const& rhs_inner = RhsUnwrapper::get(b.derived());
+
+    if (lhs_inner.innerStride() == 1 && rhs_inner.innerStride() == 1) {
+      using LhsMap = Map<Vector<typename LhsInner::Scalar, size_of_xpr_at_compile_time<LhsInner>::value> const,
+                         evaluator<LhsInner>::Alignment>;
+      using RhsMap = Map<Vector<typename RhsInner::Scalar, size_of_xpr_at_compile_time<RhsInner>::value> const,
+                         evaluator<RhsInner>::Alignment>;
+
+      LhsMap const lhs_map(lhs_inner.data(), lhs_inner.size());
+      RhsMap const rhs_map(rhs_inner.data(), rhs_inner.size());
+
+      using LhsRewrap = rewrap_unary<Lhs, LhsMap>;
+      using RhsRewrap = rewrap_unary<Rhs, RhsMap>;
+
+      return default_inner_product_impl<typename LhsRewrap::type, typename RhsRewrap::type, true>::run(
+          LhsRewrap::apply(a.derived(), lhs_map), RhsRewrap::apply(b.derived(), rhs_map));
+    }
+
+    return default_inner_product_impl<Lhs, Rhs, true>::run(a, b);
+  }
+};
+
 template <typename Lhs, typename Rhs>
 struct dot_impl {
   using LhsScalar = typename traits<Lhs>::Scalar;
@@ -307,34 +353,9 @@ struct dot_impl {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ResultType run(const MatrixBase<Lhs>& a, const MatrixBase<Rhs>& b) {
     using LhsUnwrapper = unwrap_unary<Lhs>;
     using RhsUnwrapper = unwrap_unary<Rhs>;
+    constexpr bool MayMap = LhsUnwrapper::MayMapAtRuntime && RhsUnwrapper::MayMapAtRuntime;
 
-    if constexpr (LhsUnwrapper::MayMapAtRuntime && RhsUnwrapper::MayMapAtRuntime) {
-      using LhsInner = typename LhsUnwrapper::type;
-      using RhsInner = typename RhsUnwrapper::type;
-
-      LhsInner const& lhs_inner = LhsUnwrapper::get(a.derived());
-      RhsInner const& rhs_inner = RhsUnwrapper::get(b.derived());
-
-      if (lhs_inner.innerStride() == 1 && rhs_inner.innerStride() == 1) {
-        using LhsMap = Map<Vector<typename LhsInner::Scalar, size_of_xpr_at_compile_time<LhsInner>::value> const,
-                           evaluator<LhsInner>::Alignment>;
-        using RhsMap = Map<Vector<typename RhsInner::Scalar, size_of_xpr_at_compile_time<RhsInner>::value> const,
-                           evaluator<RhsInner>::Alignment>;
-
-        LhsMap const lhs_map(lhs_inner.data(), lhs_inner.size());
-        RhsMap const rhs_map(rhs_inner.data(), rhs_inner.size());
-
-        using LhsRewrap = rewrap_unary<Lhs, LhsMap>;
-        using RhsRewrap = rewrap_unary<Rhs, RhsMap>;
-
-        return default_inner_product_impl<typename LhsRewrap::type, typename RhsRewrap::type, true>::run(
-            LhsRewrap::apply(a.derived(), lhs_map), RhsRewrap::apply(b.derived(), rhs_map));
-      }
-
-      return default_inner_product_impl<Lhs, Rhs, true>::run(a, b);
-    } else {
-      return default_inner_product_impl<Lhs, Rhs, true>::run(a, b);
-    }
+    return dot_impl_helper<Lhs, Rhs, MayMap>::run(a, b);
   }
 };
 
