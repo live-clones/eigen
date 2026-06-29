@@ -30,13 +30,16 @@ inline T REF_SUB(const T& a, const T& b) {
   using UnsignedT = std::make_unsigned_t<T>;
   return static_cast<T>(static_cast<UnsignedT>(a) - static_cast<UnsignedT>(b));
 }
-template <typename T, std::enable_if_t<!NumTraits<T>::IsInteger || !NumTraits<T>::IsSigned, int> = 0>
+template <typename T, std::enable_if_t<!NumTraits<T>::IsInteger || std::is_same<T, bool>::value, int> = 0>
 inline T REF_MUL(const T& a, const T& b) {
   return a * b;
 }
-template <typename T, std::enable_if_t<NumTraits<T>::IsInteger && NumTraits<T>::IsSigned, int> = 0>
+template <typename T, std::enable_if_t<NumTraits<T>::IsInteger && !std::is_same<T, bool>::value, int> = 0>
 inline T REF_MUL(const T& a, const T& b) {
-  using UnsignedT = std::make_unsigned_t<T>;
+  // Evaluate in an unsigned type at least as wide as int so that sub-int
+  // operands are not promoted back to signed int (whose product can overflow);
+  // the result then wraps modulo 2^bits just like pmul.
+  using UnsignedT = std::common_type_t<std::make_unsigned_t<T>, unsigned>;
   return static_cast<T>(static_cast<UnsignedT>(a) * static_cast<UnsignedT>(b));
 }
 
@@ -57,8 +60,11 @@ struct madd_impl {
 };
 
 template <typename Scalar>
-struct madd_impl<Scalar, std::enable_if_t<NumTraits<Scalar>::IsInteger && NumTraits<Scalar>::IsSigned>> {
-  using UnsignedScalar = std::make_unsigned_t<Scalar>;
+struct madd_impl<Scalar, std::enable_if_t<NumTraits<Scalar>::IsInteger && !std::is_same<Scalar, bool>::value>> {
+  // Unsigned type at least as wide as int, so sub-int operands are not promoted
+  // back to signed int (whose products/sums can overflow); results wrap modulo
+  // 2^bits like the packet madd/msub ops.
+  using UnsignedScalar = std::common_type_t<std::make_unsigned_t<Scalar>, unsigned>;
 
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar madd(const Scalar& a, const Scalar& b, const Scalar& c) {
     return static_cast<Scalar>(static_cast<UnsignedScalar>(a) * static_cast<UnsignedScalar>(b) +
