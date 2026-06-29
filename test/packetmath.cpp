@@ -721,25 +721,20 @@ void packetmath() {
     }
   }
 
-// C4804: unsafe use of type 'bool' in operation. Unavoidable when Scalar=bool.
-#if EIGEN_COMP_MSVC
-#pragma warning(push)
-#pragma warning(disable : 4804)
-#endif
+  // REF_ADD folds with defined wraparound for signed integers (matching predux,
+  // which wraps mod 2^N) and with || for bool, avoiding both signed-overflow UB
+  // and the MSVC C4804 "unsafe use of bool" warning that raw operator+ triggers.
   ref[0] = Scalar(0);
-  for (int i = 0; i < PacketSize; ++i) ref[0] += data1[i];
+  for (int i = 0; i < PacketSize; ++i) ref[0] = REF_ADD(ref[0], data1[i]);
   VERIFY(test::isApproxAbs(ref[0], internal::predux(internal::pload<Packet>(data1)), refvalue) && "internal::predux");
 
   if (!std::is_same<Packet, typename internal::unpacket_traits<Packet>::half>::value) {
     int HalfPacketSize = PacketSize > 4 ? PacketSize / 2 : PacketSize;
     for (int i = 0; i < HalfPacketSize; ++i) ref[i] = Scalar(0);
-    for (int i = 0; i < PacketSize; ++i) ref[i % HalfPacketSize] += data1[i];
+    for (int i = 0; i < PacketSize; ++i) ref[i % HalfPacketSize] = REF_ADD(ref[i % HalfPacketSize], data1[i]);
     internal::pstore(data2, internal::predux_half(internal::pload<Packet>(data1)));
     VERIFY(test::areApprox(ref, data2, HalfPacketSize) && "internal::predux_half");
   }
-#if EIGEN_COMP_MSVC
-#pragma warning(pop)
-#endif
 
   // Avoid overflows.
   if (NumTraits<Scalar>::IsInteger && NumTraits<Scalar>::IsSigned &&
