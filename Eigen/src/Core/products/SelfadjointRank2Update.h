@@ -27,8 +27,8 @@ struct selfadjoint_rank2_update_selector;
 
 template <typename Scalar, typename Index>
 struct selfadjoint_rank2_update_selector<Scalar, Index, Lower> {
-  EIGEN_DEVICE_FUNC static void run(Index size, Scalar* mat, Index stride, const Scalar* u, const Scalar* v,
-                                    const Scalar& alpha) {
+  EIGEN_DEVICE_FUNC static constexpr void run(Index size, Scalar* mat, Index stride, const Scalar* u, const Scalar* v,
+                                              const Scalar& alpha) {
     typedef typename packet_traits<Scalar>::type Packet;
     const Index PacketSize = unpacket_traits<Packet>::size;
     const Scalar cAlpha = numext::conj(alpha);
@@ -113,8 +113,8 @@ struct selfadjoint_rank2_update_selector<Scalar, Index, Lower> {
 
 template <typename Scalar, typename Index>
 struct selfadjoint_rank2_update_selector<Scalar, Index, Upper> {
-  EIGEN_DEVICE_FUNC static void run(Index size, Scalar* mat, Index stride, const Scalar* u, const Scalar* v,
-                                    const Scalar& alpha) {
+  EIGEN_DEVICE_FUNC static constexpr void run(Index size, Scalar* mat, Index stride, const Scalar* u, const Scalar* v,
+                                              const Scalar& alpha) {
     typedef typename packet_traits<Scalar>::type Packet;
     const Index PacketSize = unpacket_traits<Packet>::size;
     const Scalar cAlpha = numext::conj(alpha);
@@ -193,7 +193,7 @@ struct selfadjoint_rank2_update_selector<Scalar, Index, Upper> {
 
 template <typename MatrixType, unsigned int UpLo>
 template <typename DerivedU, typename DerivedV>
-EIGEN_DEVICE_FUNC SelfAdjointView<MatrixType, UpLo>& SelfAdjointView<MatrixType, UpLo>::rankUpdate(
+EIGEN_DEVICE_FUNC constexpr SelfAdjointView<MatrixType, UpLo>& SelfAdjointView<MatrixType, UpLo>::rankUpdate(
     const MatrixBase<DerivedU>& u, const MatrixBase<DerivedV>& v, const Scalar& alpha) {
   typedef internal::blas_traits<DerivedU> UBlasTraits;
   typedef typename UBlasTraits::DirectLinearAccessType ActualUType;

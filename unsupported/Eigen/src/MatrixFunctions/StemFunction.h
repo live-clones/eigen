@@ -20,14 +20,14 @@ namespace internal {
 
 /** \brief The exponential function (and its derivatives). */
 template <typename Scalar>
-Scalar stem_function_exp(Scalar x, int) {
+constexpr Scalar stem_function_exp(Scalar x, int) {
   using std::exp;
   return exp(x);
 }
 
 /** \brief Cosine (and its derivatives). */
 template <typename Scalar>
-Scalar stem_function_cos(Scalar x, int n) {
+constexpr Scalar stem_function_cos(Scalar x, int n) {
   using std::cos;
   using std::sin;
   Scalar res;
@@ -51,7 +51,7 @@ Scalar stem_function_cos(Scalar x, int n) {
 
 /** \brief Sine (and its derivatives). */
 template <typename Scalar>
-Scalar stem_function_sin(Scalar x, int n) {
+constexpr Scalar stem_function_sin(Scalar x, int n) {
   using std::cos;
   using std::sin;
   Scalar res;
@@ -75,7 +75,7 @@ Scalar stem_function_sin(Scalar x, int n) {
 
 /** \brief Hyperbolic cosine (and its derivatives). */
 template <typename Scalar>
-Scalar stem_function_cosh(Scalar x, int n) {
+constexpr Scalar stem_function_cosh(Scalar x, int n) {
   using std::cosh;
   using std::sinh;
   Scalar res;
@@ -93,7 +93,7 @@ Scalar stem_function_cosh(Scalar x, int n) {
 
 /** \brief Hyperbolic sine (and its derivatives). */
 template <typename Scalar>
-Scalar stem_function_sinh(Scalar x, int n) {
+constexpr Scalar stem_function_sinh(Scalar x, int n) {
   using std::cosh;
   using std::sinh;
   Scalar res;

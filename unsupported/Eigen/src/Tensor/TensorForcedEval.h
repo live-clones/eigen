@@ -61,9 +61,11 @@ class TensorForcedEvalOp : public TensorBase<TensorForcedEvalOp<XprType>, ReadOn
   typedef typename Eigen::internal::traits<TensorForcedEvalOp>::StorageKind StorageKind;
   typedef typename Eigen::internal::traits<TensorForcedEvalOp>::Index Index;
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorForcedEvalOp(const XprType& expr) : m_xpr(expr) {}
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorForcedEvalOp(const XprType& expr) : m_xpr(expr) {}
 
-  EIGEN_DEVICE_FUNC const internal::remove_all_t<typename XprType::Nested>& expression() const { return m_xpr; }
+  EIGEN_DEVICE_FUNC constexpr const internal::remove_all_t<typename XprType::Nested>& expression() const {
+    return m_xpr;
+  }
 
  protected:
   typename XprType::Nested m_xpr;
@@ -75,7 +77,7 @@ namespace internal {
 template <typename Device, typename CoeffReturnType>
 struct non_integral_type_placement_new {
   template <typename StorageType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool operator()(Index numValues, StorageType m_buffer) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr bool operator()(Index numValues, StorageType m_buffer) const {
     if (NumTraits<CoeffReturnType>::RequireInitialization) {
       default_construct_elements_of_array(m_buffer, numValues);
       return true;
@@ -90,7 +92,7 @@ struct non_integral_type_placement_new {
 template <typename CoeffReturnType>
 struct non_integral_type_placement_new<Eigen::SyclDevice, CoeffReturnType> {
   template <typename StorageType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool operator()(Index, StorageType) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr bool operator()(Index, StorageType) const {
     return false;
   }
 };
@@ -99,7 +101,7 @@ struct non_integral_type_placement_new<Eigen::SyclDevice, CoeffReturnType> {
 template <typename Device>
 class DeviceTempPointerHolder {
  public:
-  DeviceTempPointerHolder(const Device& device, size_t size)
+  constexpr DeviceTempPointerHolder(const Device& device, size_t size)
       : device_(device), size_(size), ptr_(device.allocate_temp(size)) {}
 
   ~DeviceTempPointerHolder() {
@@ -108,7 +110,7 @@ class DeviceTempPointerHolder {
     ptr_ = nullptr;
   }
 
-  void* ptr() { return ptr_; }
+  constexpr void* ptr() { return ptr_; }
 
  private:
   Device device_;
@@ -148,7 +150,7 @@ struct TensorEvaluator<const TensorForcedEvalOp<ArgType_>, Device> {
   typedef typename internal::TensorMaterializedBlock<CoeffReturnType, NumDims, Layout, Index> TensorBlock;
   //===--------------------------------------------------------------------===//
 
-  TensorEvaluator(const XprType& op, const Device& device)
+  constexpr TensorEvaluator(const XprType& op, const Device& device)
       : m_impl(op.expression(), device),
         m_op(op.expression()),
         m_device(device),
@@ -158,9 +160,9 @@ struct TensorEvaluator<const TensorForcedEvalOp<ArgType_>, Device> {
 
   ~TensorEvaluator() { cleanup(); }
 
-  EIGEN_DEVICE_FUNC const Dimensions& dimensions() const { return m_impl.dimensions(); }
+  EIGEN_DEVICE_FUNC constexpr const Dimensions& dimensions() const { return m_impl.dimensions(); }
 
-  EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType) {
+  EIGEN_STRONG_INLINE constexpr bool evalSubExprsIfNeeded(EvaluatorPointerType) {
     const Index numValues = internal::array_prod(m_impl.dimensions());
     m_buffer_holder = std::make_shared<DeviceTempPointerHolder<Device>>(m_device, numValues * sizeof(CoeffReturnType));
     m_buffer = static_cast<EvaluatorPointerType>(m_buffer_holder->ptr());
@@ -179,7 +181,7 @@ struct TensorEvaluator<const TensorForcedEvalOp<ArgType_>, Device> {
 
 #ifdef EIGEN_USE_THREADS
   template <typename EvalSubExprsCallback>
-  EIGEN_STRONG_INLINE void evalSubExprsIfNeededAsync(EvaluatorPointerType, EvalSubExprsCallback done) {
+  EIGEN_STRONG_INLINE constexpr void evalSubExprsIfNeededAsync(EvaluatorPointerType, EvalSubExprsCallback done) {
     const Index numValues = internal::array_prod(m_impl.dimensions());
     m_buffer_holder = std::make_shared<DeviceTempPointerHolder<Device>>(m_device, numValues * sizeof(CoeffReturnType));
     m_buffer = static_cast<EvaluatorPointerType>(m_buffer_holder->ptr());
@@ -196,7 +198,7 @@ struct TensorEvaluator<const TensorForcedEvalOp<ArgType_>, Device> {
   }
 #endif
 
-  EIGEN_STRONG_INLINE void cleanup() {
+  EIGEN_STRONG_INLINE constexpr void cleanup() {
     if (m_placement_constructed) {
       internal::destruct_elements_of_array(m_buffer, internal::array_prod(m_impl.dimensions()));
       m_placement_constructed = false;
@@ -205,19 +207,20 @@ struct TensorEvaluator<const TensorForcedEvalOp<ArgType_>, Device> {
     m_buffer = nullptr;
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index index) const { return m_buffer[index]; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr CoeffReturnType coeff(Index index) const { return m_buffer[index]; }
 
   template <int LoadMode>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketReturnType packet(Index index) const {
     return internal::ploadt<PacketReturnType, LoadMode>(m_buffer + index);
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE internal::TensorBlockResourceRequirements getResourceRequirements() const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr internal::TensorBlockResourceRequirements getResourceRequirements()
+      const {
     return internal::TensorBlockResourceRequirements::any();
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorBlock block(TensorBlockDesc& desc, TensorBlockScratch& scratch,
-                                                          bool /*root_of_expr_ast*/ = false) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorBlock block(TensorBlockDesc& desc, TensorBlockScratch& scratch,
+                                                                    bool /*root_of_expr_ast*/ = false) const {
     eigen_assert(m_buffer != nullptr);
     return TensorBlock::materialize(m_buffer, m_impl.dimensions(), desc, scratch);
   }
@@ -226,7 +229,7 @@ struct TensorEvaluator<const TensorForcedEvalOp<ArgType_>, Device> {
     return TensorOpCost(sizeof(CoeffReturnType), 0, 0, vectorized, PacketSize);
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE EvaluatorPointerType data() const { return m_buffer; }
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr EvaluatorPointerType data() const { return m_buffer; }
 
  private:
   TensorEvaluator<ArgType, Device> m_impl;

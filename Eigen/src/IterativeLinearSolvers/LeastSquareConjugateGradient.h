@@ -28,9 +28,9 @@ namespace internal {
  * \param tol_error On input the tolerance error, on output an estimation of the relative error.
  */
 template <typename MatrixType, typename Rhs, typename Dest, typename Preconditioner>
-EIGEN_DONT_INLINE void least_square_conjugate_gradient(const MatrixType& mat, const Rhs& rhs, Dest& x,
-                                                       const Preconditioner& precond, Index& iters,
-                                                       typename Dest::RealScalar& tol_error) {
+EIGEN_DONT_INLINE constexpr void least_square_conjugate_gradient(const MatrixType& mat, const Rhs& rhs, Dest& x,
+                                                                 const Preconditioner& precond, Index& iters,
+                                                                 typename Dest::RealScalar& tol_error) {
   using std::sqrt;
   typedef typename Dest::RealScalar RealScalar;
   typedef typename Dest::Scalar Scalar;
@@ -168,7 +168,7 @@ class LeastSquaresConjugateGradient
 
  public:
   /** Default constructor. */
-  LeastSquaresConjugateGradient() : Base() {}
+  constexpr LeastSquaresConjugateGradient() = default;
 
   /** Initialize the solver with matrix \a A for further \c Ax=b solving.
    *
@@ -181,11 +181,11 @@ class LeastSquaresConjugateGradient
    * matrix A, or modify a copy of A.
    */
   template <typename MatrixDerived>
-  explicit LeastSquaresConjugateGradient(const EigenBase<MatrixDerived>& A) : Base(A.derived()) {}
+  constexpr explicit LeastSquaresConjugateGradient(const EigenBase<MatrixDerived>& A) : Base(A.derived()) {}
 
   /** \internal */
   template <typename Rhs, typename Dest>
-  void _solve_vector_with_guess_impl(const Rhs& b, Dest& x) const {
+  constexpr void _solve_vector_with_guess_impl(const Rhs& b, Dest& x) const {
     m_iterations = Base::maxIterations();
     m_error = Base::m_tolerance;
 
