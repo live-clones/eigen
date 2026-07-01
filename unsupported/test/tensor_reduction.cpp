@@ -55,6 +55,57 @@ static void test_trivial_reductions() {
 }
 
 template <typename Scalar, int DataLayout>
+static void test_scalar_reduction_conversion() {
+  using TensorType = Tensor<Scalar, 4, DataLayout>;
+  using PartialReductionDims = array<ptrdiff_t, 2>;
+  using FullReduction = decltype(std::declval<const TensorType&>().sum());
+  using PartialReduction = decltype(std::declval<const TensorType&>().sum(std::declval<const PartialReductionDims&>()));
+
+  static_assert(std::is_convertible<FullReduction, Scalar>::value, "full reductions should convert to scalars");
+  static_assert(!std::is_convertible<PartialReduction, Scalar>::value,
+                "partial reductions should not convert to scalars");
+
+  TensorType tensor(2, 2, 2, 2);
+  Scalar expected_sum(0);
+  Scalar expected_prod(1);
+  Scalar expected_min = NumTraits<Scalar>::highest();
+  Scalar expected_max = NumTraits<Scalar>::lowest();
+  for (int i = 0; i < tensor.size(); ++i) {
+    const Scalar value = static_cast<Scalar>((i % 3) + 1);  // [1,2,3]
+    tensor(i) = value;
+    expected_sum += value;
+    expected_prod *= value;
+    expected_min = numext::mini(expected_min, value);
+    expected_max = numext::maxi(expected_max, value);
+  }
+
+  const Scalar sum = tensor.sum();
+  array<ptrdiff_t, 4> reduction_axis4 = {0, 1, 2, 3};
+  const Scalar sum_from_dims = tensor.sum(reduction_axis4);
+  const Scalar prod = tensor.prod();
+  const Scalar smallest = tensor.minimum();
+  const Scalar largest = tensor.maximum();
+  const Scalar mean = tensor.mean();
+  const Scalar expected_mean = expected_sum / static_cast<Scalar>(tensor.size());
+
+  if (NumTraits<Scalar>::IsInteger) {
+    VERIFY_IS_EQUAL(sum, expected_sum);
+    VERIFY_IS_EQUAL(sum_from_dims, expected_sum);
+    VERIFY_IS_EQUAL(prod, expected_prod);
+    VERIFY_IS_EQUAL(smallest, expected_min);
+    VERIFY_IS_EQUAL(largest, expected_max);
+    VERIFY_IS_EQUAL(mean, expected_mean);
+  } else {
+    VERIFY_IS_APPROX(sum, expected_sum);
+    VERIFY_IS_APPROX(sum_from_dims, expected_sum);
+    VERIFY_IS_APPROX(prod, expected_prod);
+    VERIFY_IS_APPROX(smallest, expected_min);
+    VERIFY_IS_APPROX(largest, expected_max);
+    VERIFY_IS_APPROX(mean, expected_mean);
+  }
+}
+
+template <typename Scalar, int DataLayout>
 static void test_simple_reductions() {
   Tensor<Scalar, 4, DataLayout> tensor(2, 3, 5, 7);
   tensor.setRandom();
@@ -561,6 +612,9 @@ void test_sum_accuracy() {
 EIGEN_DECLARE_TEST(tensor_reduction) {
   CALL_SUBTEST(test_trivial_reductions<ColMajor>());
   CALL_SUBTEST(test_trivial_reductions<RowMajor>());
+  CALL_SUBTEST((test_scalar_reduction_conversion<int, ColMajor>()));
+  CALL_SUBTEST((test_scalar_reduction_conversion<int, RowMajor>()));
+  CALL_SUBTEST((test_scalar_reduction_conversion<Eigen::half, ColMajor>()));
   CALL_SUBTEST((test_simple_reductions<float, ColMajor>()));
   CALL_SUBTEST((test_simple_reductions<float, RowMajor>()));
   CALL_SUBTEST((test_simple_reductions<Eigen::half, ColMajor>()));
