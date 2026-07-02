@@ -39,12 +39,12 @@ namespace internal {
 // Returns m.adjoint() when Conj==true, m.transpose() otherwise.
 // SFINAE overloads keep the return type concrete under C++14 (no if constexpr).
 template <bool Conj, typename T>
-typename std::enable_if<Conj, decltype(std::declval<const T&>().adjoint())>::type adjoint_if(const T& m) {
+std::enable_if_t<Conj, decltype(std::declval<const T&>().adjoint())> adjoint_if(const T& m) {
   return m.adjoint();
 }
 
 template <bool Conj, typename T>
-typename std::enable_if<!Conj, decltype(std::declval<const T&>().transpose())>::type adjoint_if(const T& m) {
+std::enable_if_t<!Conj, decltype(std::declval<const T&>().transpose())> adjoint_if(const T& m) {
   return m.transpose();
 }
 template <>
@@ -207,11 +207,6 @@ class BlockSparseMatrix
   BlockSparseMatrix(Index blockRows, Index blockCols)
       : m_blockOuterSize(IsRowMajor ? blockRows : blockCols), m_blockInnerSize(IsRowMajor ? blockCols : blockRows) {}
 
-  BlockSparseMatrix(const BlockSparseMatrix&) = default;
-  BlockSparseMatrix(BlockSparseMatrix&&) noexcept = default;
-  BlockSparseMatrix& operator=(const BlockSparseMatrix&) = default;
-  BlockSparseMatrix& operator=(BlockSparseMatrix&&) noexcept = default;
-
   // -------------------------------------------------------------------------
   // Dimensions
   // -------------------------------------------------------------------------
@@ -257,7 +252,7 @@ class BlockSparseMatrix
   // Block access by sequential nonzero index
   // -------------------------------------------------------------------------
 
-  /** Read-only Map to the \a k-th stored block (column-major layout within block). */
+  /** Read-only Map to the \a k-th stored block (block storage follows \c Options_). */
   ConstBlockMap blockRef(Index k) const { return ConstBlockMap(m_values.data() + k * BlockSize); }
   /** Mutable Map to the \a k-th stored block. */
   BlockMap blockRef(Index k) { return BlockMap(m_values.data() + k * BlockSize); }
@@ -569,6 +564,9 @@ class BlockSparseMatrix
    *
    * \pre  \c lhs.cols() == bsm.rows().
    * \pre  Scalar types must match.
+   * \warning The result uses \c AliasFreeProduct, so assignment goes directly
+   *          through \c generic_product_impl::evalTo with no aliasing temporary.
+   *          \c x = x * A silently corrupts; use an explicit temporary if needed.
    */
   template <typename OtherDerived>
   friend Product<OtherDerived, BlockSparseMatrix, AliasFreeProduct> operator*(const MatrixBase<OtherDerived>& lhs,
