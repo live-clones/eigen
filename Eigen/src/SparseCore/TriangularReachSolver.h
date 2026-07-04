@@ -189,6 +189,134 @@ Index sparse_reach_lower_solve(const StorageIndex* Lp, const StorageIndex* Li, c
                                                    outIdx, outVal);
 }
 
+// ---------------------------------------------------------------------------
+// Iterator-driven path: for a lower-triangular, column-major sparse expression
+// that does NOT expose raw CSC storage (has_compressed_access is false). Columns
+// are read through the expression's evaluator InnerIterator, which yields the
+// diagonal first and the sub-diagonal after (the same sorted precondition as the
+// pointer path). Because an InnerIterator can't cheaply hold DFS resume state,
+// the reach uses the worklist+sort form; the log factor is empirically ~free.
+// ---------------------------------------------------------------------------
+
+// Reach via a mark-on-push worklist that opens one column at a time through
+// InnerIterator. Same contract as lower_triangular_reach_worklist otherwise.
+template <TriangularReach Reach, typename Eval, typename StorageIndex>
+Index lower_triangular_reach_iter(const Eval& mat, const StorageIndex* bIdx, Index bCount, StorageIndex* xi,
+                                  StorageIndex* mark, Index n) {
+  Index top = n;
+  Index sp = 0;
+  for (Index r = 0; r < bCount; ++r) {
+    StorageIndex root = bIdx[r];
+    if (!mark[root]) {
+      mark[root] = 1;
+      xi[sp++] = root;
+    }
+  }
+  while (sp > 0) {
+    StorageIndex j = xi[--sp];
+    xi[--top] = j;  // collect
+    typename Eval::InnerIterator it(mat, j);
+    if (it) ++it;  // skip the diagonal stored first
+    for (; it; ++it) {
+      StorageIndex i = StorageIndex(it.index());
+      if (!mark[i]) {
+        mark[i] = 1;
+        xi[sp++] = i;
+      }
+      if (Reach == TriangularReach::EliminationTree) break;  // only the parent
+    }
+  }
+  std::sort(xi + top, xi + n);
+  return top;
+}
+
+// Numeric sweep over the reach, reading columns through InnerIterator.
+template <bool UnitDiag, typename Eval, typename StorageIndex, typename Scalar>
+void lower_triangular_solve_over_reach_iter(const Eval& mat, const StorageIndex* xi, Index top, Index n, Scalar* x) {
+  for (Index k = top; k < n; ++k) {
+    StorageIndex j = xi[k];
+    typename Eval::InnerIterator it(mat, j);
+    EIGEN_IF_CONSTEXPR(!UnitDiag) {
+      x[j] /= it.value();  // diagonal stored first
+      ++it;
+    }
+    else {
+      if (it && StorageIndex(it.index()) == j) ++it;  // skip an explicit unit diagonal
+    }
+    Scalar xj = x[j];
+    for (; it; ++it) x[it.index()] -= it.value() * xj;
+  }
+}
+
+// Iterator counterpart of the borrow-a-buffer sparse_reach_lower_solve. Uses the
+// same 3n / n workspace layout (the pstack third is simply left unused), so the
+// two paths share one workspace contract.
+template <TriangularReach Reach, bool UnitDiag, typename LhsType, typename StorageIndex, typename Scalar>
+Index sparse_reach_lower_solve_iter(const LhsType& lhs, Index n, const StorageIndex* bIdx, const Scalar* bVal,
+                                    Index bCount, StorageIndex* iwork, Scalar* xwork, StorageIndex* outIdx,
+                                    Scalar* outVal) {
+  evaluator<LhsType> mat(lhs);
+  StorageIndex* xi = iwork;
+  StorageIndex* mark = iwork + 2 * n;
+  Scalar* x = xwork;
+
+  for (Index r = 0; r < bCount; ++r) x[bIdx[r]] = bVal[r];
+  Index top = lower_triangular_reach_iter<Reach>(mat, bIdx, bCount, xi, mark, n);
+  lower_triangular_solve_over_reach_iter<UnitDiag>(mat, xi, top, n, x);
+
+  Index count = 0;
+  for (Index k = top; k < n; ++k) {  // gather, restoring x and mark to all-zero
+    StorageIndex j = xi[k];
+    outIdx[count] = j;
+    outVal[count] = x[j];
+    x[j] = Scalar(0);
+    mark[j] = 0;
+    ++count;
+  }
+  return count;
+}
+
+// Policy dispatch: an expression that exposes raw storage takes the pointer + DFS
+// fast path; anything else takes the evaluator + worklist path. Tag dispatch (not
+// if-constexpr) keeps the untaken branch from being instantiated, so outerIndexPtr()
+// is never named on a type that lacks it.
+template <TriangularReach Reach, bool UnitDiag, typename LhsType, typename StorageIndex, typename Scalar>
+Index sparse_reach_lower_solve_dispatch(std::true_type /*compressed*/, const LhsType& lhs, Index n,
+                                        const StorageIndex* bIdx, const Scalar* bVal, Index bCount,
+                                        StorageIndex* iwork, Scalar* xwork, StorageIndex* outIdx, Scalar* outVal) {
+  return sparse_reach_lower_solve<Reach, UnitDiag>(lhs.outerIndexPtr(), lhs.innerIndexPtr(), lhs.valuePtr(), n, bIdx,
+                                                   bVal, bCount, iwork, xwork, outIdx, outVal);
+}
+template <TriangularReach Reach, bool UnitDiag, typename LhsType, typename StorageIndex, typename Scalar>
+Index sparse_reach_lower_solve_dispatch(std::false_type /*iterator*/, const LhsType& lhs, Index n,
+                                        const StorageIndex* bIdx, const Scalar* bVal, Index bCount,
+                                        StorageIndex* iwork, Scalar* xwork, StorageIndex* outIdx, Scalar* outVal) {
+  return sparse_reach_lower_solve_iter<Reach, UnitDiag>(lhs, n, bIdx, bVal, bCount, iwork, xwork, outIdx, outVal);
+}
+
+// Expression overload: solve L x = b for a sparse-expression lower-triangular L
+// and sparse rhs, selecting the pointer or iterator path at compile time. Borrow
+// a 3n StorageIndex / n Scalar workspace as in the pointer overload.
+template <TriangularReach Reach, bool UnitDiag, typename LhsDerived, typename StorageIndex, typename Scalar>
+Index sparse_reach_lower_solve(const SparseMatrixBase<LhsDerived>& lhs, const StorageIndex* bIdx, const Scalar* bVal,
+                               Index bCount, StorageIndex* iwork, Scalar* xwork, StorageIndex* outIdx,
+                               Scalar* outVal) {
+  return sparse_reach_lower_solve_dispatch<Reach, UnitDiag>(
+      std::integral_constant<bool, has_compressed_access<LhsDerived>::value>{}, lhs.derived(), lhs.rows(), bIdx, bVal,
+      bCount, iwork, xwork, outIdx, outVal);
+}
+
+// Convenience expression overload: allocate (and zero) the workspace for one solve.
+template <TriangularReach Reach, bool UnitDiag, typename LhsDerived, typename StorageIndex, typename Scalar>
+Index sparse_reach_lower_solve(const SparseMatrixBase<LhsDerived>& lhs, const StorageIndex* bIdx, const Scalar* bVal,
+                               Index bCount, StorageIndex* outIdx, Scalar* outVal) {
+  Index n = lhs.rows();
+  Matrix<StorageIndex, Dynamic, 1> iwork = Matrix<StorageIndex, Dynamic, 1>::Zero(3 * n);
+  Matrix<Scalar, Dynamic, 1> xwork = Matrix<Scalar, Dynamic, 1>::Zero(n);
+  return sparse_reach_lower_solve<Reach, UnitDiag>(lhs, bIdx, bVal, bCount, iwork.data(), xwork.data(), outIdx,
+                                                   outVal);
+}
+
 }  // namespace internal
 
 }  // namespace Eigen
