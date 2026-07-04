@@ -243,6 +243,55 @@ struct sparse_solve_triangular_sparse_selector<Lhs, Rhs, Mode, UpLo, ColMajor> {
   }
 };
 
+// forward substitution, col-major, lower: reach-based (Gilbert-Peierls) sparse
+// solve. Only the columns reachable from each rhs column's pattern are touched,
+// so the cost is O(|reach| + flops) per column instead of the O(n)-per-column
+// AmbiVector sweep. More specialized than the generic selector above, so it is
+// selected for Lower/ColMajor while Upper keeps the generic path.
+template <typename Lhs, typename Rhs, int Mode>
+struct sparse_solve_triangular_sparse_selector<Lhs, Rhs, Mode, Lower, ColMajor> {
+  typedef typename Rhs::Scalar Scalar;
+  typedef typename traits<Lhs>::StorageIndex StorageIndex;
+  static void run(const Lhs& lhs, Rhs& other) {
+    Index size = lhs.rows();
+
+    // Reused across all rhs columns, so repeated columns stay allocation-free.
+    // iwork (3n, mark-third zeroed) and xwork (n) are restored by every solve.
+    Matrix<StorageIndex, Dynamic, 1> iwork = Matrix<StorageIndex, Dynamic, 1>::Zero(3 * size);
+    Matrix<Scalar, Dynamic, 1> xwork = Matrix<Scalar, Dynamic, 1>::Zero(size);
+    Matrix<StorageIndex, Dynamic, 1> bIdx(size), outIdx(size);
+    Matrix<Scalar, Dynamic, 1> bVal(size), outVal(size);
+    Matrix<Index, Dynamic, 1> perm(size);  // sorts a column's reach for ordered insert
+
+    Rhs res(other.rows(), other.cols());
+    res.reserve(other.nonZeros());
+
+    for (Index col = 0; col < other.cols(); ++col) {
+      Index bCount = 0;
+      for (typename Rhs::InnerIterator it(other, col); it; ++it) {
+        bIdx[bCount] = StorageIndex(it.index());
+        bVal[bCount] = it.value();
+        ++bCount;
+      }
+      if (bCount == 0) continue;
+
+      Index count = sparse_reach_lower_solve<TriangularReach::Dfs, bool(Mode & UnitDiag)>(
+          lhs, bIdx.data(), bVal.data(), bCount, iwork.data(), xwork.data(), outIdx.data(), outVal.data());
+
+      // The reach is emitted in topological (not index) order; sort so the
+      // column is written with increasing inner index.
+      for (Index k = 0; k < count; ++k) perm[k] = k;
+      std::sort(perm.data(), perm.data() + count, [&](Index a, Index b) { return outIdx[a] < outIdx[b]; });
+      for (Index k = 0; k < count; ++k) {
+        Index p = perm[k];
+        res.insert(outIdx[p], col) = outVal[p];
+      }
+    }
+    res.finalize();
+    other = res.markAsRValue();
+  }
+};
+
 }  // end namespace internal
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN

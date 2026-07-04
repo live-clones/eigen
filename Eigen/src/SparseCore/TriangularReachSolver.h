@@ -42,9 +42,13 @@ enum class TriangularReach {
 // output, the caller clears those flags again while gathering (no reset needed).
 // `xi` and `pstack` are size-n scratch; the DFS stack occupies xi[0..head] while
 // the output grows down from xi[n), and head < top holds so they never overlap.
+// `Lnnz` is the per-column nonzero count (innerNonZeroPtr): pass it for an
+// uncompressed matrix so column j ends at Lp[j]+Lnnz[j]; pass nullptr (compressed)
+// to end at Lp[j+1].
 template <TriangularReach Reach, typename StorageIndex>
-Index lower_triangular_reach(const StorageIndex* Lp, const StorageIndex* Li, const StorageIndex* bIdx, Index bCount,
-                             StorageIndex* xi, StorageIndex* pstack, StorageIndex* mark, Index n) {
+Index lower_triangular_reach(const StorageIndex* Lp, const StorageIndex* Li, const StorageIndex* Lnnz,
+                             const StorageIndex* bIdx, Index bCount, StorageIndex* xi, StorageIndex* pstack,
+                             StorageIndex* mark, Index n) {
   Index top = n;
   for (Index r = 0; r < bCount; ++r) {
     StorageIndex root = bIdx[r];
@@ -55,7 +59,7 @@ Index lower_triangular_reach(const StorageIndex* Lp, const StorageIndex* Li, con
     while (head >= 0) {
       StorageIndex j = xi[head];
       Index colStart = Lp[j] + 1;  // skip the diagonal stored at Lp[j]
-      Index colEnd = Lp[j + 1];
+      Index colEnd = Lnnz ? Lp[j] + Lnnz[j] : Lp[j + 1];
       if (!mark[j]) {
         mark[j] = 1;
         pstack[head] = StorageIndex(colStart);
@@ -90,8 +94,9 @@ Index lower_triangular_reach(const StorageIndex* Lp, const StorageIndex* Li, con
 // InnerIterator-based column source. Scratch: xi (n, shared stack+output) and
 // mark (n, all-zero in, reach flagged out). Returns top; xi[top..n) is sorted.
 template <TriangularReach Reach, typename StorageIndex>
-Index lower_triangular_reach_worklist(const StorageIndex* Lp, const StorageIndex* Li, const StorageIndex* bIdx,
-                                      Index bCount, StorageIndex* xi, StorageIndex* mark, Index n) {
+Index lower_triangular_reach_worklist(const StorageIndex* Lp, const StorageIndex* Li, const StorageIndex* Lnnz,
+                                      const StorageIndex* bIdx, Index bCount, StorageIndex* xi, StorageIndex* mark,
+                                      Index n) {
   Index top = n;
   Index sp = 0;  // worklist occupies xi[0..sp); output grows down from xi[n); sp <= top always
   for (Index r = 0; r < bCount; ++r) {
@@ -104,7 +109,7 @@ Index lower_triangular_reach_worklist(const StorageIndex* Lp, const StorageIndex
   while (sp > 0) {
     StorageIndex j = xi[--sp];
     xi[--top] = j;  // collect
-    Index colStart = Lp[j] + 1, colEnd = Lp[j + 1];
+    Index colStart = Lp[j] + 1, colEnd = Lnnz ? Lp[j] + Lnnz[j] : Lp[j + 1];
     Index scanEnd =
         (Reach == TriangularReach::EliminationTree) ? (colStart < colEnd ? colStart + 1 : colStart) : colEnd;
     for (Index p = colStart; p < scanEnd; ++p) {
@@ -124,19 +129,20 @@ Index lower_triangular_reach_worklist(const StorageIndex* Lp, const StorageIndex
 // columns in the order produced by lower_triangular_reach.
 template <bool UnitDiag, typename StorageIndex, typename Scalar>
 void lower_triangular_solve_over_reach(const StorageIndex* Lp, const StorageIndex* Li, const Scalar* Lx,
-                                       const StorageIndex* xi, Index top, Index n, Scalar* x) {
+                                       const StorageIndex* Lnnz, const StorageIndex* xi, Index top, Index n, Scalar* x) {
   for (Index k = top; k < n; ++k) {
     StorageIndex j = xi[k];
     Index p = Lp[j];
+    Index colEnd = Lnnz ? Lp[j] + Lnnz[j] : Lp[j + 1];
     EIGEN_IF_CONSTEXPR(!UnitDiag) {
       x[j] /= Lx[p];  // diagonal stored first
       ++p;
     }
     else {
-      if (p < Lp[j + 1] && Li[p] == j) ++p;  // skip an explicit unit diagonal
+      if (p < colEnd && Li[p] == j) ++p;  // skip an explicit unit diagonal
     }
     Scalar xj = x[j];
-    for (; p < Lp[j + 1]; ++p) x[Li[p]] -= Lx[p] * xj;
+    for (; p < colEnd; ++p) x[Li[p]] -= Lx[p] * xj;
   }
 }
 
@@ -152,18 +158,21 @@ void lower_triangular_solve_over_reach(const StorageIndex* Lp, const StorageInde
 // Preconditions (both restored on exit, so one setup suffices for many solves):
 //   - iwork's mark third (iwork[2n, 3n)) is all-zero.
 //   - xwork is all-zero.
+// `Lnnz` (innerNonZeroPtr) is nullptr for a compressed L, or the per-column
+// nonzero count for an uncompressed L (columns then end at Lp[j]+Lnnz[j]).
 template <TriangularReach Reach, bool UnitDiag, typename StorageIndex, typename Scalar>
-Index sparse_reach_lower_solve(const StorageIndex* Lp, const StorageIndex* Li, const Scalar* Lx, Index n,
-                               const StorageIndex* bIdx, const Scalar* bVal, Index bCount, StorageIndex* iwork,
-                               Scalar* xwork, StorageIndex* outIdx, Scalar* outVal) {
+Index sparse_reach_lower_solve(const StorageIndex* Lp, const StorageIndex* Li, const Scalar* Lx,
+                               const StorageIndex* Lnnz, Index n, const StorageIndex* bIdx, const Scalar* bVal,
+                               Index bCount, StorageIndex* iwork, Scalar* xwork, StorageIndex* outIdx,
+                               Scalar* outVal) {
   StorageIndex* xi = iwork;
   StorageIndex* pstack = iwork + n;
   StorageIndex* mark = iwork + 2 * n;
   Scalar* x = xwork;
 
   for (Index r = 0; r < bCount; ++r) x[bIdx[r]] = bVal[r];
-  Index top = lower_triangular_reach<Reach>(Lp, Li, bIdx, bCount, xi, pstack, mark, n);
-  lower_triangular_solve_over_reach<UnitDiag>(Lp, Li, Lx, xi, top, n, x);
+  Index top = lower_triangular_reach<Reach>(Lp, Li, Lnnz, bIdx, bCount, xi, pstack, mark, n);
+  lower_triangular_solve_over_reach<UnitDiag>(Lp, Li, Lx, Lnnz, xi, top, n, x);
 
   Index count = 0;
   for (Index k = top; k < n; ++k) {  // gather, restoring x and mark to all-zero
@@ -180,13 +189,13 @@ Index sparse_reach_lower_solve(const StorageIndex* Lp, const StorageIndex* Li, c
 // Convenience overload: no scratch supplied, so allocate (and zero) it for this
 // single solve.
 template <TriangularReach Reach, bool UnitDiag, typename StorageIndex, typename Scalar>
-Index sparse_reach_lower_solve(const StorageIndex* Lp, const StorageIndex* Li, const Scalar* Lx, Index n,
-                               const StorageIndex* bIdx, const Scalar* bVal, Index bCount, StorageIndex* outIdx,
-                               Scalar* outVal) {
+Index sparse_reach_lower_solve(const StorageIndex* Lp, const StorageIndex* Li, const Scalar* Lx,
+                               const StorageIndex* Lnnz, Index n, const StorageIndex* bIdx, const Scalar* bVal,
+                               Index bCount, StorageIndex* outIdx, Scalar* outVal) {
   Matrix<StorageIndex, Dynamic, 1> iwork = Matrix<StorageIndex, Dynamic, 1>::Zero(3 * n);
   Matrix<Scalar, Dynamic, 1> xwork = Matrix<Scalar, Dynamic, 1>::Zero(n);
-  return sparse_reach_lower_solve<Reach, UnitDiag>(Lp, Li, Lx, n, bIdx, bVal, bCount, iwork.data(), xwork.data(),
-                                                   outIdx, outVal);
+  return sparse_reach_lower_solve<Reach, UnitDiag>(Lp, Li, Lx, Lnnz, n, bIdx, bVal, bCount, iwork.data(),
+                                                   xwork.data(), outIdx, outVal);
 }
 
 // ---------------------------------------------------------------------------
@@ -280,12 +289,20 @@ Index sparse_reach_lower_solve_iter(const LhsType& lhs, Index n, const StorageIn
 // fast path; anything else takes the evaluator + worklist path. Tag dispatch (not
 // if-constexpr) keeps the untaken branch from being instantiated, so outerIndexPtr()
 // is never named on a type that lacks it.
+//
+// CompressedAccessBit is a compile-time capability, not a guarantee the instance
+// is compressed: an uncompressed SparseMatrix keeps per-column gaps addressed via
+// innerNonZeroPtr(), so its columns do NOT run to outerIndexPtr()[j+1]. Passing
+// innerNonZeroPtr() through keeps the raw-pointer path valid either way -- it is
+// nullptr exactly when compressed (columns end at Lp[j+1]) and the per-column
+// count otherwise (columns end at Lp[j]+Lnnz[j]).
 template <TriangularReach Reach, bool UnitDiag, typename LhsType, typename StorageIndex, typename Scalar>
 Index sparse_reach_lower_solve_dispatch(std::true_type /*compressed*/, const LhsType& lhs, Index n,
                                         const StorageIndex* bIdx, const Scalar* bVal, Index bCount,
                                         StorageIndex* iwork, Scalar* xwork, StorageIndex* outIdx, Scalar* outVal) {
-  return sparse_reach_lower_solve<Reach, UnitDiag>(lhs.outerIndexPtr(), lhs.innerIndexPtr(), lhs.valuePtr(), n, bIdx,
-                                                   bVal, bCount, iwork, xwork, outIdx, outVal);
+  return sparse_reach_lower_solve<Reach, UnitDiag>(lhs.outerIndexPtr(), lhs.innerIndexPtr(), lhs.valuePtr(),
+                                                   lhs.innerNonZeroPtr(), n, bIdx, bVal, bCount, iwork, xwork, outIdx,
+                                                   outVal);
 }
 template <TriangularReach Reach, bool UnitDiag, typename LhsType, typename StorageIndex, typename Scalar>
 Index sparse_reach_lower_solve_dispatch(std::false_type /*iterator*/, const LhsType& lhs, Index n,
