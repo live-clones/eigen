@@ -256,18 +256,21 @@ void run_sparse_reach_triangular_solve(const Lhs& lhs, Rhs& other) {
   typedef typename traits<Lhs>::StorageIndex StorageIndex;
   Index size = lhs.rows();
 
-  // Reused across all rhs columns, so repeated columns stay allocation-free.
-  // iwork (2n), mark (n bytes, zeroed) and xwork (n) are restored by every solve.
+  // Reused across all rhs columns, so repeated columns stay allocation-free. We use
+  // reach_solve_dense, which leaves the solution values in xwork and the reached
+  // indices in iwork[top..n): we read values straight out of xwork at insert time and
+  // clear as we go, so no outIdx/outVal snapshot is needed. iwork (2n), mark (n bytes)
+  // and xwork (n) are all restored by every column.
   Matrix<StorageIndex, Dynamic, 1> iwork = Matrix<StorageIndex, Dynamic, 1>::Zero(2 * size);
   Matrix<uint8_t, Dynamic, 1> mark = Matrix<uint8_t, Dynamic, 1>::Zero(size);
   Matrix<Scalar, Dynamic, 1> xwork = Matrix<Scalar, Dynamic, 1>::Zero(size);
-  Matrix<StorageIndex, Dynamic, 1> bIdx(size), outIdx(size);
-  Matrix<Scalar, Dynamic, 1> bVal(size), outVal(size);
-  Matrix<Index, Dynamic, 1> perm(size);  // sorts a column's reach for ordered insert
+  Matrix<StorageIndex, Dynamic, 1> bIdx(size);
+  Matrix<Scalar, Dynamic, 1> bVal(size);
 
   Rhs res(other.rows(), other.cols());
   res.reserve(other.nonZeros());
 
+  StorageIndex* xi = iwork.data();
   for (Index col = 0; col < other.cols(); ++col) {
     Index bCount = 0;
     for (typename Rhs::InnerIterator it(other, col); it; ++it) {
@@ -277,16 +280,18 @@ void run_sparse_reach_triangular_solve(const Lhs& lhs, Rhs& other) {
     }
     if (bCount == 0) continue;
 
-    Index count = sparse_reach_triangular_solve<Upper, bool(Mode & UnitDiag)>(
-        lhs, bIdx.data(), bVal.data(), bCount, iwork.data(), mark.data(), xwork.data(), outIdx.data(), outVal.data());
+    Index top = reach_solve_dense<Upper, bool(Mode & UnitDiag)>(lhs, bIdx.data(), bVal.data(), bCount, iwork.data(),
+                                                                mark.data(), xwork.data());
 
-    // The reach is emitted in topological (not index) order; sort so the
-    // column is written with increasing inner index.
-    for (Index k = 0; k < count; ++k) perm[k] = k;
-    std::sort(perm.data(), perm.data() + count, [&](Index a, Index b) { return outIdx[a] < outIdx[b]; });
-    for (Index k = 0; k < count; ++k) {
-      Index p = perm[k];
-      res.insert(outIdx[p], col) = outVal[p];
+    // The reach is in topological order; sort the reached indices ascending so the
+    // column is written with increasing inner index. Then read values from xwork and
+    // clear it and mark for the next column.
+    std::sort(xi + top, xi + size);
+    for (Index k = top; k < size; ++k) {
+      StorageIndex j = xi[k];
+      res.insert(j, col) = xwork[j];
+      xwork[j] = Scalar(0);
+      mark[j] = 0;
     }
   }
   res.finalize();

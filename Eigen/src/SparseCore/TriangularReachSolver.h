@@ -178,30 +178,17 @@ void triangular_solve_over_reach(const StorageIndex* Tp, const StorageIndex* Ti,
 // restored on exit, so one setup suffices for many solves.
 // ===========================================================================
 
-// General solve: T x = b for a column-major, sorted triangular T and a sparse rhs
-// (bIdx/bVal), writing the solution's nonzero indices/values into the caller's
-// outIdx/outVal (each with capacity >= n) in topological order, and returning their
-// count.
-//   - iwork: >= 2n StorageIndex, carved into xi | pstack (each length n).
-//   - mark:  >= n bytes, all-zero.
-//   - xwork: >= n Scalar, the dense accumulator, all-zero.
-// `Tnnz` (innerNonZeroPtr) is nullptr for a compressed T, or the per-column nonzero
-// count for an uncompressed T (columns then end at Tp[j]+Tnnz[j]).
-template <bool Upper, bool UnitDiag, typename StorageIndex, typename Scalar>
-Index sparse_reach_triangular_solve(const StorageIndex* Tp, const StorageIndex* Ti, const Scalar* Tx,
-                                    const StorageIndex* Tnnz, Index n, const StorageIndex* bIdx, const Scalar* bVal,
-                                    Index bCount, StorageIndex* iwork, uint8_t* mark, Scalar* xwork,
-                                    StorageIndex* outIdx, Scalar* outVal) {
-  StorageIndex* xi = iwork;
-  StorageIndex* pstack = iwork + n;
-  Scalar* x = xwork;
-
-  for (Index r = 0; r < bCount; ++r) x[bIdx[r]] = bVal[r];
-  Index top = triangular_reach(Tp, Ti, Tnnz, bIdx, bCount, xi, pstack, mark, n);
-  triangular_solve_over_reach<Upper, UnitDiag>(Tp, Ti, Tx, Tnnz, xi, top, n, x);
-
+// Gather a computed reach into caller arrays, restoring x and mark to all-zero, and
+// return the count. Direction-agnostic: xi[top..n) holds the reached indices (in
+// topological order) and x holds their values. This is the "clean primitive" finish
+// -- it snapshots the values into outVal because it then wipes x. A caller that
+// consumes the solution immediately (the sparse selector below) skips this and reads
+// values straight out of x, avoiding the outIdx/outVal buffers entirely.
+template <typename StorageIndex, typename Scalar>
+Index gather_reach_solution(const StorageIndex* xi, Index top, Index n, Scalar* x, uint8_t* mark, StorageIndex* outIdx,
+                            Scalar* outVal) {
   Index count = 0;
-  for (Index k = top; k < n; ++k) {  // gather, restoring x and mark to all-zero
+  for (Index k = top; k < n; ++k) {
     StorageIndex j = xi[k];
     outIdx[count] = j;
     outVal[count] = x[j];
@@ -210,6 +197,39 @@ Index sparse_reach_triangular_solve(const StorageIndex* Tp, const StorageIndex* 
     ++count;
   }
   return count;
+}
+
+// Core: scatter b, compute reach(pattern(b)), run the numeric sweep, and RETURN top
+// -- WITHOUT any cleanup. On return, xi = iwork[top..n) holds the reached columns in
+// topological order, xwork holds their solution values, and mark is set on the
+// reached set. The caller consumes xwork/xi and is responsible for clearing them (see
+// gather_reach_solution for a self-restoring finish). Solving T x = b for a
+// column-major, sorted triangular T (lower or upper) and a sparse rhs (bIdx/bVal):
+//   - iwork: >= 2n StorageIndex, carved into xi | pstack (each length n).
+//   - mark:  >= n bytes, all-zero.
+//   - xwork: >= n Scalar, the dense accumulator, all-zero.
+// `Tnnz` (innerNonZeroPtr) is nullptr for a compressed T, or the per-column nonzero
+// count for an uncompressed T (columns then end at Tp[j]+Tnnz[j]).
+template <bool Upper, bool UnitDiag, typename StorageIndex, typename Scalar>
+Index reach_solve_dense(const StorageIndex* Tp, const StorageIndex* Ti, const Scalar* Tx, const StorageIndex* Tnnz,
+                        Index n, const StorageIndex* bIdx, const Scalar* bVal, Index bCount, StorageIndex* iwork,
+                        uint8_t* mark, Scalar* xwork) {
+  for (Index r = 0; r < bCount; ++r) xwork[bIdx[r]] = bVal[r];
+  Index top = triangular_reach(Tp, Ti, Tnnz, bIdx, bCount, iwork, iwork + n, mark, n);
+  triangular_solve_over_reach<Upper, UnitDiag>(Tp, Ti, Tx, Tnnz, iwork, top, n, xwork);
+  return top;
+}
+
+// Clean, self-restoring primitive: core + gather. Writes the solution's nonzero
+// indices/values into outIdx/outVal (each capacity >= n) in topological order and
+// returns the count; x and mark are restored to all-zero.
+template <bool Upper, bool UnitDiag, typename StorageIndex, typename Scalar>
+Index sparse_reach_triangular_solve(const StorageIndex* Tp, const StorageIndex* Ti, const Scalar* Tx,
+                                    const StorageIndex* Tnnz, Index n, const StorageIndex* bIdx, const Scalar* bVal,
+                                    Index bCount, StorageIndex* iwork, uint8_t* mark, Scalar* xwork,
+                                    StorageIndex* outIdx, Scalar* outVal) {
+  Index top = reach_solve_dense<Upper, UnitDiag>(Tp, Ti, Tx, Tnnz, n, bIdx, bVal, bCount, iwork, mark, xwork);
+  return gather_reach_solution(iwork, top, n, xwork, mark, outIdx, outVal);
 }
 
 // Convenience overload: no scratch supplied, so allocate (and zero) it for this
@@ -347,37 +367,33 @@ void triangular_solve_over_reach_iter(const Eval& mat, const StorageIndex* xi, I
   }
 }
 
-// Iterator counterpart of the borrow-a-buffer sparse_reach_triangular_solve. Uses
-// the same 2n / n(bytes) / n workspace layout (the pstack half of iwork is left
-// unused), so the two general paths share one workspace contract.
+// Iterator core: scatter + reach + numeric, returning top (no cleanup), the iterator
+// counterpart of reach_solve_dense. Uses the same 2n / n(bytes) / n workspace layout
+// (the pstack half of iwork is left unused), so the two general paths share one
+// workspace contract.
+template <bool Upper, bool UnitDiag, typename LhsType, typename StorageIndex, typename Scalar>
+Index reach_solve_dense_iter(const LhsType& lhs, Index n, const StorageIndex* bIdx, const Scalar* bVal, Index bCount,
+                             StorageIndex* iwork, uint8_t* mark, Scalar* xwork) {
+  evaluator<LhsType> mat(lhs);
+  for (Index r = 0; r < bCount; ++r) xwork[bIdx[r]] = bVal[r];
+  Index top = triangular_reach_iter<Upper>(mat, bIdx, bCount, iwork, mark, n);
+  triangular_solve_over_reach_iter<Upper, UnitDiag>(mat, iwork, top, n, xwork);
+  return top;
+}
+
+// Clean iterator primitive: core + gather.
 template <bool Upper, bool UnitDiag, typename LhsType, typename StorageIndex, typename Scalar>
 Index sparse_reach_triangular_solve_iter(const LhsType& lhs, Index n, const StorageIndex* bIdx, const Scalar* bVal,
                                          Index bCount, StorageIndex* iwork, uint8_t* mark, Scalar* xwork,
                                          StorageIndex* outIdx, Scalar* outVal) {
-  evaluator<LhsType> mat(lhs);
-  StorageIndex* xi = iwork;
-  Scalar* x = xwork;
-
-  for (Index r = 0; r < bCount; ++r) x[bIdx[r]] = bVal[r];
-  Index top = triangular_reach_iter<Upper>(mat, bIdx, bCount, xi, mark, n);
-  triangular_solve_over_reach_iter<Upper, UnitDiag>(mat, xi, top, n, x);
-
-  Index count = 0;
-  for (Index k = top; k < n; ++k) {  // gather, restoring x and mark to all-zero
-    StorageIndex j = xi[k];
-    outIdx[count] = j;
-    outVal[count] = x[j];
-    x[j] = Scalar(0);
-    mark[j] = 0;
-    ++count;
-  }
-  return count;
+  Index top = reach_solve_dense_iter<Upper, UnitDiag>(lhs, n, bIdx, bVal, bCount, iwork, mark, xwork);
+  return gather_reach_solution(iwork, top, n, xwork, mark, outIdx, outVal);
 }
 
-// Policy dispatch: an expression that exposes raw storage takes the pointer + DFS
-// fast path; anything else takes the evaluator + worklist path. Tag dispatch (not
-// if-constexpr) keeps the untaken branch from being instantiated, so outerIndexPtr()
-// is never named on a type that lacks it.
+// Policy dispatch for the core (returns top): an expression that exposes raw storage
+// takes the pointer + DFS fast path; anything else takes the evaluator + worklist
+// path. Tag dispatch (not if-constexpr) keeps the untaken branch from being
+// instantiated, so outerIndexPtr() is never named on a type that lacks it.
 //
 // CompressedAccessBit is a compile-time capability, not a guarantee the instance
 // is compressed: an uncompressed SparseMatrix keeps per-column gaps addressed via
@@ -386,33 +402,37 @@ Index sparse_reach_triangular_solve_iter(const LhsType& lhs, Index n, const Stor
 // nullptr exactly when compressed (columns end at Tp[j+1]) and the per-column
 // count otherwise (columns end at Tp[j]+Tnnz[j]).
 template <bool Upper, bool UnitDiag, typename LhsType, typename StorageIndex, typename Scalar>
-Index sparse_reach_triangular_solve_dispatch(std::true_type /*compressed*/, const LhsType& lhs, Index n,
-                                             const StorageIndex* bIdx, const Scalar* bVal, Index bCount,
-                                             StorageIndex* iwork, uint8_t* mark, Scalar* xwork, StorageIndex* outIdx,
-                                             Scalar* outVal) {
-  return sparse_reach_triangular_solve<Upper, UnitDiag>(lhs.outerIndexPtr(), lhs.innerIndexPtr(), lhs.valuePtr(),
-                                                        lhs.innerNonZeroPtr(), n, bIdx, bVal, bCount, iwork, mark,
-                                                        xwork, outIdx, outVal);
+Index reach_solve_dense_dispatch(std::true_type /*compressed*/, const LhsType& lhs, Index n, const StorageIndex* bIdx,
+                                 const Scalar* bVal, Index bCount, StorageIndex* iwork, uint8_t* mark, Scalar* xwork) {
+  return reach_solve_dense<Upper, UnitDiag>(lhs.outerIndexPtr(), lhs.innerIndexPtr(), lhs.valuePtr(),
+                                            lhs.innerNonZeroPtr(), n, bIdx, bVal, bCount, iwork, mark, xwork);
 }
 template <bool Upper, bool UnitDiag, typename LhsType, typename StorageIndex, typename Scalar>
-Index sparse_reach_triangular_solve_dispatch(std::false_type /*iterator*/, const LhsType& lhs, Index n,
-                                             const StorageIndex* bIdx, const Scalar* bVal, Index bCount,
-                                             StorageIndex* iwork, uint8_t* mark, Scalar* xwork, StorageIndex* outIdx,
-                                             Scalar* outVal) {
-  return sparse_reach_triangular_solve_iter<Upper, UnitDiag>(lhs, n, bIdx, bVal, bCount, iwork, mark, xwork, outIdx,
-                                                             outVal);
+Index reach_solve_dense_dispatch(std::false_type /*iterator*/, const LhsType& lhs, Index n, const StorageIndex* bIdx,
+                                 const Scalar* bVal, Index bCount, StorageIndex* iwork, uint8_t* mark, Scalar* xwork) {
+  return reach_solve_dense_iter<Upper, UnitDiag>(lhs, n, bIdx, bVal, bCount, iwork, mark, xwork);
 }
 
-// Expression overload: solve T x = b for a sparse-expression triangular T and sparse
-// rhs, selecting the pointer or iterator path at compile time. Borrow a 2n
-// StorageIndex / n byte / n Scalar workspace as in the pointer overload.
+// Expression core: solve T x = b for a sparse-expression triangular T and sparse rhs,
+// selecting the pointer or iterator path at compile time; RETURNS top with the
+// solution left in xwork and the reach in iwork[top..n) (see reach_solve_dense). This
+// is what the sparse selector uses -- it reads xwork directly, so no outIdx/outVal.
+template <bool Upper, bool UnitDiag, typename LhsDerived, typename StorageIndex, typename Scalar>
+Index reach_solve_dense(const SparseMatrixBase<LhsDerived>& lhs, const StorageIndex* bIdx, const Scalar* bVal,
+                        Index bCount, StorageIndex* iwork, uint8_t* mark, Scalar* xwork) {
+  return reach_solve_dense_dispatch<Upper, UnitDiag>(
+      std::integral_constant<bool, has_compressed_access<LhsDerived>::value>{}, lhs.derived(), lhs.rows(), bIdx, bVal,
+      bCount, iwork, mark, xwork);
+}
+
+// Clean expression primitive: expression core + gather. Borrow a 2n StorageIndex /
+// n byte / n Scalar workspace as in the pointer overload.
 template <bool Upper, bool UnitDiag, typename LhsDerived, typename StorageIndex, typename Scalar>
 Index sparse_reach_triangular_solve(const SparseMatrixBase<LhsDerived>& lhs, const StorageIndex* bIdx,
                                     const Scalar* bVal, Index bCount, StorageIndex* iwork, uint8_t* mark, Scalar* xwork,
                                     StorageIndex* outIdx, Scalar* outVal) {
-  return sparse_reach_triangular_solve_dispatch<Upper, UnitDiag>(
-      std::integral_constant<bool, has_compressed_access<LhsDerived>::value>{}, lhs.derived(), lhs.rows(), bIdx, bVal,
-      bCount, iwork, mark, xwork, outIdx, outVal);
+  Index top = reach_solve_dense<Upper, UnitDiag>(lhs, bIdx, bVal, bCount, iwork, mark, xwork);
+  return gather_reach_solution(iwork, top, lhs.rows(), xwork, mark, outIdx, outVal);
 }
 
 // Convenience expression overload: allocate (and zero) the workspace for one solve.
