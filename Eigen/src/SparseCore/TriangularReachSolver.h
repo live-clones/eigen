@@ -19,36 +19,44 @@ namespace internal {
 
 // PROTOTYPE: Gilbert-Peierls sparse-rhs triangular solve.
 //
-// Solves L x = b for a lower-triangular, column-major, compressed L whose
-// columns are sorted with the diagonal stored first (Li[Lp[j]] == j), and a
-// sparse right-hand side b. The cost is O(|reach| + flops): only the columns
-// reachable from b's pattern are touched, independent of the dimension n.
+// Solves T x = b for a column-major triangular T (lower OR upper) with sorted
+// columns, and a sparse right-hand side b. The cost is O(|reach| + flops): only
+// the columns reachable from b's pattern are touched, independent of the dimension.
 //
-// The reach strategy is a compile-time policy: the two variants share one DFS
-// scaffold and differ only in how many successors each node exposes.
-enum class TriangularReach {
-  // Scan every sub-diagonal entry of a column. Valid for ANY triangular L.
-  Dfs,
-  // Follow only the first sub-diagonal entry (= elimination-tree parent). Valid
-  // ONLY for a symbolic Cholesky factor, whose fill property guarantees the
-  // remaining sub-diagonal entries are reached transitively through the parent.
-  EliminationTree
-};
+// Direction (lower vs upper) is a compile-time bool `Upper`, but it affects very
+// little. The reach DFS itself is direction-AGNOSTIC: a lower-triangular column
+// holds only entries with inner index >= j, an upper one only <= j, so scanning the
+// whole stored column and skipping the self-diagonal (via `mark`) yields exactly the
+// right reach successors either way -- the same trick `cs_spsolve` uses to serve
+// both lo=1 and lo=0 from one cs_reach. Only two things depend on `Upper`:
+//   - the numeric sweep, where the diagonal is the FIRST stored entry of a column
+//     for lower and the LAST for upper;
+//   - the iterator worklist reach, whose collected set is sorted into topological
+//     order (ascending for lower, descending for upper).
+//
+// A separate elimination-tree reach (lower_triangular_ereach) specializes the lower
+// forward solve for a Cholesky-type factor: O(reach), no resume stack, no sort.
 
-// Computes reach_{G(L)}(pattern(b)) via a non-recursive depth-first search,
+// ===========================================================================
+// Reach (direction-agnostic): any triangular T, raw CSC storage.
+// ===========================================================================
+
+// Computes reach_{G(T)}(pattern(b)) via a non-recursive depth-first search,
 // emitting the reached columns into xi[top..n) in topological (solve) order and
-// returning top. `mark` (length n) is a visited flag that must be all-zero on
-// entry; every reached node is flagged, and since the reached set is exactly the
-// output, the caller clears those flags again while gathering (no reset needed).
-// `xi` and `pstack` are size-n scratch; the DFS stack occupies xi[0..head] while
-// the output grows down from xi[n), and head < top holds so they never overlap.
-// `Lnnz` is the per-column nonzero count (innerNonZeroPtr): pass it for an
-// uncompressed matrix so column j ends at Lp[j]+Lnnz[j]; pass nullptr (compressed)
-// to end at Lp[j+1].
-template <TriangularReach Reach, typename StorageIndex>
-Index lower_triangular_reach(const StorageIndex* Lp, const StorageIndex* Li, const StorageIndex* Lnnz,
-                             const StorageIndex* bIdx, Index bCount, StorageIndex* xi, StorageIndex* pstack,
-                             StorageIndex* mark, Index n) {
+// returning top. `mark` (length-n byte array; a 0/1 visited flag needs no more)
+// must be all-zero on entry; every reached node is flagged, and since the reached
+// set is exactly the output, the caller clears those flags again while gathering
+// (no reset needed). `xi` and `pstack` are size-n scratch; the DFS stack occupies
+// xi[0..head] while the output grows down from xi[n), and head < top holds so they
+// never overlap. The whole stored column is scanned; the diagonal is index j itself,
+// so mark[j] (set on entry to j) skips it -- no diagonal-position knowledge needed.
+// `Tnnz` is the per-column nonzero count (innerNonZeroPtr): pass it for an
+// uncompressed matrix so column j ends at Tp[j]+Tnnz[j]; pass nullptr (compressed)
+// to end at Tp[j+1].
+template <typename StorageIndex>
+Index triangular_reach(const StorageIndex* Tp, const StorageIndex* Ti, const StorageIndex* Tnnz,
+                       const StorageIndex* bIdx, Index bCount, StorageIndex* xi, StorageIndex* pstack, uint8_t* mark,
+                       Index n) {
   Index top = n;
   for (Index r = 0; r < bCount; ++r) {
     StorageIndex root = bIdx[r];
@@ -58,19 +66,16 @@ Index lower_triangular_reach(const StorageIndex* Lp, const StorageIndex* Li, con
     xi[0] = root;
     while (head >= 0) {
       StorageIndex j = xi[head];
-      Index colStart = Lp[j] + 1;  // skip the diagonal stored at Lp[j]
-      Index colEnd = Lnnz ? Lp[j] + Lnnz[j] : Lp[j + 1];
+      Index colBeg = Tp[j];
+      Index colEnd = Tnnz ? Tp[j] + Tnnz[j] : Tp[j + 1];
       if (!mark[j]) {
         mark[j] = 1;
-        pstack[head] = StorageIndex(colStart);
+        pstack[head] = StorageIndex(colBeg);
       }
-      // Dfs exposes the whole sub-diagonal; EliminationTree only the parent.
-      Index scanEnd =
-          (Reach == TriangularReach::EliminationTree) ? (colStart < colEnd ? colStart + 1 : colStart) : colEnd;
       bool done = true;
-      for (Index p = pstack[head]; p < scanEnd; ++p) {
-        StorageIndex i = Li[p];
-        if (mark[i]) continue;  // already visited
+      for (Index p = pstack[head]; p < colEnd; ++p) {
+        StorageIndex i = Ti[p];
+        if (mark[i]) continue;  // self-diagonal (i == j) or already visited
         pstack[head] = StorageIndex(p + 1);
         xi[++head] = i;  // descend
         done = false;
@@ -85,94 +90,115 @@ Index lower_triangular_reach(const StorageIndex* Lp, const StorageIndex* Li, con
   return top;
 }
 
-// Alternative reach via a mark-on-push worklist: nodes are marked when pushed
-// (so the stack stays within n and needs no pstack), the whole column is scanned
-// at once (no pause/resume, hence no per-depth state), and the collected set is
-// then sorted -- ascending index order is a valid topological order for a lower
-// solve. Cost is O(|reach| log|reach|) vs the DFS's O(|reach|); it trades that
-// log factor for holding only one column cursor at a time, which suits an
-// InnerIterator-based column source. Scratch: xi (n, shared stack+output) and
-// mark (n, all-zero in, reach flagged out). Returns top; xi[top..n) is sorted.
-template <TriangularReach Reach, typename StorageIndex>
-Index lower_triangular_reach_worklist(const StorageIndex* Lp, const StorageIndex* Li, const StorageIndex* Lnnz,
-                                      const StorageIndex* bIdx, Index bCount, StorageIndex* xi, StorageIndex* mark,
-                                      Index n) {
+// ===========================================================================
+// Elimination-tree reach: lower Cholesky-type factor with a known etree.
+// ===========================================================================
+
+// Reach of a sparse rhs pattern through a Cholesky-type factor's elimination tree
+// (Davis's cs_ereach). Because each node's only reach-successor is its etree
+// parent, the DFS collapses to walking parent pointers: from each root we ascend
+// the tree -- marking as we go -- until we meet an already-visited node, recording
+// that path, then splice it onto the output xi[top..n). The splice reverses the
+// path in place (safe: len <= top always, so read and write ranges never clobber),
+// leaving the whole output in topological (solve) order. Hence, unlike the general
+// worklist reach, this needs NO final sort and NO resume stack: O(|reach|).
+//
+// The etree is not passed in: for a Cholesky-type factor stored diagonal-first, the
+// parent of column j is simply its first sub-diagonal entry Li[Lp[j]+1] (the least
+// i > j with L(i,j) != 0), so we read the parent straight from L. A column with no
+// sub-diagonal entry is a tree root and ends the walk. `Lnnz` (innerNonZeroPtr) is
+// nullptr for a compressed factor, else the per-column count (col j ends at
+// Lp[j]+Lnnz[j]). `xi` is length-n scratch holding both the current path (xi[0..len))
+// and the growing output (xi[top..n)). `mark` is n bytes, all-zero on entry; the
+// reached set is flagged out (the caller clears it during gather).
+template <typename StorageIndex>
+Index lower_triangular_ereach(const StorageIndex* Lp, const StorageIndex* Li, const StorageIndex* Lnnz,
+                              const StorageIndex* bIdx, Index bCount, StorageIndex* xi, uint8_t* mark, Index n) {
   Index top = n;
-  Index sp = 0;  // worklist occupies xi[0..sp); output grows down from xi[n); sp <= top always
   for (Index r = 0; r < bCount; ++r) {
-    StorageIndex root = bIdx[r];
-    if (!mark[root]) {
-      mark[root] = 1;
-      xi[sp++] = root;
+    Index len = 0;
+    StorageIndex i = bIdx[r];
+    while (i >= 0 && !mark[i]) {
+      xi[len++] = i;  // ascend, recording the path child-first
+      mark[i] = 1;
+      Index colStart = Lp[i] + 1;  // skip the diagonal stored first
+      Index colEnd = Lnnz ? Lp[i] + Lnnz[i] : Lp[i + 1];
+      i = colStart < colEnd ? Li[colStart] : StorageIndex(-1);  // parent, or root => stop
     }
+    while (len > 0) xi[--top] = xi[--len];  // splice the path in, keeping topo order
   }
-  while (sp > 0) {
-    StorageIndex j = xi[--sp];
-    xi[--top] = j;  // collect
-    Index colStart = Lp[j] + 1, colEnd = Lnnz ? Lp[j] + Lnnz[j] : Lp[j + 1];
-    Index scanEnd =
-        (Reach == TriangularReach::EliminationTree) ? (colStart < colEnd ? colStart + 1 : colStart) : colEnd;
-    for (Index p = colStart; p < scanEnd; ++p) {
-      StorageIndex i = Li[p];
-      if (!mark[i]) {
-        mark[i] = 1;
-        xi[sp++] = i;
-      }
-    }
-  }
-  std::sort(xi + top, xi + n);
   return top;
 }
 
-// Numeric sweep over a precomputed reach: solves L x = b in place on the dense
-// accumulator x (zero except where b was scattered), touching only the reached
-// columns in the order produced by lower_triangular_reach.
-template <bool UnitDiag, typename StorageIndex, typename Scalar>
-void lower_triangular_solve_over_reach(const StorageIndex* Lp, const StorageIndex* Li, const Scalar* Lx,
-                                       const StorageIndex* Lnnz, const StorageIndex* xi, Index top, Index n, Scalar* x) {
+// ===========================================================================
+// Numeric sweep over a precomputed reach.
+// ===========================================================================
+
+// Solves T x = b in place on the dense accumulator x (zero except where b was
+// scattered), touching only the reached columns in the order produced by the reach.
+// For lower the diagonal is the first stored entry of a column and the off-diagonal
+// (updated) entries follow; for upper the diagonal is the last entry and the
+// off-diagonal entries precede it.
+template <bool Upper, bool UnitDiag, typename StorageIndex, typename Scalar>
+void triangular_solve_over_reach(const StorageIndex* Tp, const StorageIndex* Ti, const Scalar* Tx,
+                                 const StorageIndex* Tnnz, const StorageIndex* xi, Index top, Index n, Scalar* x) {
   for (Index k = top; k < n; ++k) {
     StorageIndex j = xi[k];
-    Index p = Lp[j];
-    Index colEnd = Lnnz ? Lp[j] + Lnnz[j] : Lp[j + 1];
-    EIGEN_IF_CONSTEXPR(!UnitDiag) {
-      x[j] /= Lx[p];  // diagonal stored first
-      ++p;
+    Index colBeg = Tp[j];
+    Index colEnd = Tnnz ? Tp[j] + Tnnz[j] : Tp[j + 1];
+    Index offBeg = colBeg, offEnd = colEnd;
+    EIGEN_IF_CONSTEXPR(Upper) {
+      EIGEN_IF_CONSTEXPR(!UnitDiag) {
+        x[j] /= Tx[colEnd - 1];  // diagonal stored last
+        offEnd = colEnd - 1;
+      }
+      else {
+        if (colEnd > colBeg && Ti[colEnd - 1] == j) offEnd = colEnd - 1;  // skip an explicit unit diagonal
+      }
     }
     else {
-      if (p < colEnd && Li[p] == j) ++p;  // skip an explicit unit diagonal
+      EIGEN_IF_CONSTEXPR(!UnitDiag) {
+        x[j] /= Tx[colBeg];  // diagonal stored first
+        offBeg = colBeg + 1;
+      }
+      else {
+        if (colEnd > colBeg && Ti[colBeg] == j) offBeg = colBeg + 1;  // skip an explicit unit diagonal
+      }
     }
     Scalar xj = x[j];
-    for (; p < colEnd; ++p) x[Li[p]] -= Lx[p] * xj;
+    for (Index p = offBeg; p < offEnd; ++p) x[Ti[p]] -= Tx[p] * xj;
   }
 }
 
-// Solve L x = b for a lower-triangular, column-major, diagonal-first L and a
-// sparse rhs (bIdx/bVal), writing the solution's nonzero indices/values into the
-// caller's outIdx/outVal (each with capacity >= n) in topological order, and
-// returning their count.
+// ===========================================================================
+// Borrow-a-buffer solve wrappers.
 //
-// Borrow-a-buffer, like the elimination_tree helpers: the caller owns the scratch
-// and passes it in, so a reused buffer makes repeated solves allocation-free.
-//   - iwork: >= 3n StorageIndex, carved into xi | pstack | mark (each length n).
-//   - xwork: >= n Scalar, the dense accumulator.
-// Preconditions (both restored on exit, so one setup suffices for many solves):
-//   - iwork's mark third (iwork[2n, 3n)) is all-zero.
-//   - xwork is all-zero.
-// `Lnnz` (innerNonZeroPtr) is nullptr for a compressed L, or the per-column
-// nonzero count for an uncompressed L (columns then end at Lp[j]+Lnnz[j]).
-template <TriangularReach Reach, bool UnitDiag, typename StorageIndex, typename Scalar>
-Index sparse_reach_lower_solve(const StorageIndex* Lp, const StorageIndex* Li, const Scalar* Lx,
-                               const StorageIndex* Lnnz, Index n, const StorageIndex* bIdx, const Scalar* bVal,
-                               Index bCount, StorageIndex* iwork, Scalar* xwork, StorageIndex* outIdx,
-                               Scalar* outVal) {
+// Like the elimination_tree helpers, the caller owns the scratch and passes it in,
+// so a reused buffer makes repeated solves allocation-free. All buffers are
+// restored on exit, so one setup suffices for many solves.
+// ===========================================================================
+
+// General solve: T x = b for a column-major, sorted triangular T and a sparse rhs
+// (bIdx/bVal), writing the solution's nonzero indices/values into the caller's
+// outIdx/outVal (each with capacity >= n) in topological order, and returning their
+// count.
+//   - iwork: >= 2n StorageIndex, carved into xi | pstack (each length n).
+//   - mark:  >= n bytes, all-zero.
+//   - xwork: >= n Scalar, the dense accumulator, all-zero.
+// `Tnnz` (innerNonZeroPtr) is nullptr for a compressed T, or the per-column nonzero
+// count for an uncompressed T (columns then end at Tp[j]+Tnnz[j]).
+template <bool Upper, bool UnitDiag, typename StorageIndex, typename Scalar>
+Index sparse_reach_triangular_solve(const StorageIndex* Tp, const StorageIndex* Ti, const Scalar* Tx,
+                                    const StorageIndex* Tnnz, Index n, const StorageIndex* bIdx, const Scalar* bVal,
+                                    Index bCount, StorageIndex* iwork, uint8_t* mark, Scalar* xwork,
+                                    StorageIndex* outIdx, Scalar* outVal) {
   StorageIndex* xi = iwork;
   StorageIndex* pstack = iwork + n;
-  StorageIndex* mark = iwork + 2 * n;
   Scalar* x = xwork;
 
   for (Index r = 0; r < bCount; ++r) x[bIdx[r]] = bVal[r];
-  Index top = lower_triangular_reach<Reach>(Lp, Li, Lnnz, bIdx, bCount, xi, pstack, mark, n);
-  lower_triangular_solve_over_reach<UnitDiag>(Lp, Li, Lx, Lnnz, xi, top, n, x);
+  Index top = triangular_reach(Tp, Ti, Tnnz, bIdx, bCount, xi, pstack, mark, n);
+  triangular_solve_over_reach<Upper, UnitDiag>(Tp, Ti, Tx, Tnnz, xi, top, n, x);
 
   Index count = 0;
   for (Index k = top; k < n; ++k) {  // gather, restoring x and mark to all-zero
@@ -188,30 +214,78 @@ Index sparse_reach_lower_solve(const StorageIndex* Lp, const StorageIndex* Li, c
 
 // Convenience overload: no scratch supplied, so allocate (and zero) it for this
 // single solve.
-template <TriangularReach Reach, bool UnitDiag, typename StorageIndex, typename Scalar>
-Index sparse_reach_lower_solve(const StorageIndex* Lp, const StorageIndex* Li, const Scalar* Lx,
-                               const StorageIndex* Lnnz, Index n, const StorageIndex* bIdx, const Scalar* bVal,
-                               Index bCount, StorageIndex* outIdx, Scalar* outVal) {
-  Matrix<StorageIndex, Dynamic, 1> iwork = Matrix<StorageIndex, Dynamic, 1>::Zero(3 * n);
+template <bool Upper, bool UnitDiag, typename StorageIndex, typename Scalar>
+Index sparse_reach_triangular_solve(const StorageIndex* Tp, const StorageIndex* Ti, const Scalar* Tx,
+                                    const StorageIndex* Tnnz, Index n, const StorageIndex* bIdx, const Scalar* bVal,
+                                    Index bCount, StorageIndex* outIdx, Scalar* outVal) {
+  Matrix<StorageIndex, Dynamic, 1> iwork = Matrix<StorageIndex, Dynamic, 1>::Zero(2 * n);
+  Matrix<uint8_t, Dynamic, 1> mark = Matrix<uint8_t, Dynamic, 1>::Zero(n);
   Matrix<Scalar, Dynamic, 1> xwork = Matrix<Scalar, Dynamic, 1>::Zero(n);
-  return sparse_reach_lower_solve<Reach, UnitDiag>(Lp, Li, Lx, Lnnz, n, bIdx, bVal, bCount, iwork.data(),
-                                                   xwork.data(), outIdx, outVal);
+  return sparse_reach_triangular_solve<Upper, UnitDiag>(Tp, Ti, Tx, Tnnz, n, bIdx, bVal, bCount, iwork.data(),
+                                                        mark.data(), xwork.data(), outIdx, outVal);
+}
+
+// Elimination-tree solve: same contract as the general lower solve, but the reach
+// walks the factor's etree (read from L) instead of doing a full-column DFS, so it
+// needs neither a resume stack nor a final sort. Only valid for a complete
+// Cholesky-type lower factor L. Workspace:
+//   - iwork: >= n StorageIndex (xi only; the etree reach needs no pstack).
+//   - mark:  >= n bytes, all-zero.
+//   - xwork: >= n Scalar, all-zero.
+template <bool UnitDiag, typename StorageIndex, typename Scalar>
+Index sparse_reach_lower_solve_etree(const StorageIndex* Lp, const StorageIndex* Li, const Scalar* Lx,
+                                     const StorageIndex* Lnnz, Index n, const StorageIndex* bIdx, const Scalar* bVal,
+                                     Index bCount, StorageIndex* iwork, uint8_t* mark, Scalar* xwork,
+                                     StorageIndex* outIdx, Scalar* outVal) {
+  StorageIndex* xi = iwork;
+  Scalar* x = xwork;
+
+  for (Index r = 0; r < bCount; ++r) x[bIdx[r]] = bVal[r];
+  Index top = lower_triangular_ereach(Lp, Li, Lnnz, bIdx, bCount, xi, mark, n);
+  triangular_solve_over_reach<false, UnitDiag>(Lp, Li, Lx, Lnnz, xi, top, n, x);
+
+  Index count = 0;
+  for (Index k = top; k < n; ++k) {  // gather, restoring x and mark to all-zero
+    StorageIndex j = xi[k];
+    outIdx[count] = j;
+    outVal[count] = x[j];
+    x[j] = Scalar(0);
+    mark[j] = 0;
+    ++count;
+  }
+  return count;
+}
+
+// Convenience overload of the etree solve: allocate (and zero) the workspace.
+template <bool UnitDiag, typename StorageIndex, typename Scalar>
+Index sparse_reach_lower_solve_etree(const StorageIndex* Lp, const StorageIndex* Li, const Scalar* Lx,
+                                     const StorageIndex* Lnnz, Index n, const StorageIndex* bIdx, const Scalar* bVal,
+                                     Index bCount, StorageIndex* outIdx, Scalar* outVal) {
+  Matrix<StorageIndex, Dynamic, 1> iwork = Matrix<StorageIndex, Dynamic, 1>::Zero(n);
+  Matrix<uint8_t, Dynamic, 1> mark = Matrix<uint8_t, Dynamic, 1>::Zero(n);
+  Matrix<Scalar, Dynamic, 1> xwork = Matrix<Scalar, Dynamic, 1>::Zero(n);
+  return sparse_reach_lower_solve_etree<UnitDiag>(Lp, Li, Lx, Lnnz, n, bIdx, bVal, bCount, iwork.data(), mark.data(),
+                                                  xwork.data(), outIdx, outVal);
 }
 
 // ---------------------------------------------------------------------------
-// Iterator-driven path: for a lower-triangular, column-major sparse expression
-// that does NOT expose raw CSC storage (has_compressed_access is false). Columns
-// are read through the expression's evaluator InnerIterator, which yields the
-// diagonal first and the sub-diagonal after (the same sorted precondition as the
-// pointer path). Because an InnerIterator can't cheaply hold DFS resume state,
-// the reach uses the worklist+sort form; the log factor is empirically ~free.
+// Iterator-driven path: for a triangular, column-major sparse expression that does
+// NOT expose raw CSC storage (has_compressed_access is false). Columns are read
+// through the expression's evaluator InnerIterator. Because an InnerIterator can't
+// cheaply hold DFS resume state, the reach uses a mark-on-push worklist plus a final
+// sort into topological order (ascending index for lower, descending for upper --
+// both valid topological orders for the respective solve); the log factor is
+// empirically ~free.
 // ---------------------------------------------------------------------------
 
 // Reach via a mark-on-push worklist that opens one column at a time through
-// InnerIterator. Same contract as lower_triangular_reach_worklist otherwise.
-template <TriangularReach Reach, typename Eval, typename StorageIndex>
-Index lower_triangular_reach_iter(const Eval& mat, const StorageIndex* bIdx, Index bCount, StorageIndex* xi,
-                                  StorageIndex* mark, Index n) {
+// InnerIterator. The whole column is scanned; the self-diagonal is skipped by mark
+// (as in the pointer DFS). Scratch: xi (n, shared stack+output) and mark (n bytes,
+// all-zero in, reach flagged out). Returns top; xi[top..n) is sorted into the
+// topological order for the solve direction.
+template <bool Upper, typename Eval, typename StorageIndex>
+Index triangular_reach_iter(const Eval& mat, const StorageIndex* bIdx, Index bCount, StorageIndex* xi, uint8_t* mark,
+                            Index n) {
   Index top = n;
   Index sp = 0;
   for (Index r = 0; r < bCount; ++r) {
@@ -224,54 +298,69 @@ Index lower_triangular_reach_iter(const Eval& mat, const StorageIndex* bIdx, Ind
   while (sp > 0) {
     StorageIndex j = xi[--sp];
     xi[--top] = j;  // collect
-    typename Eval::InnerIterator it(mat, j);
-    if (it) ++it;  // skip the diagonal stored first
-    for (; it; ++it) {
+    for (typename Eval::InnerIterator it(mat, j); it; ++it) {
       StorageIndex i = StorageIndex(it.index());
-      if (!mark[i]) {
+      if (!mark[i]) {  // self-diagonal (i == j) already has mark[j] == 1
         mark[i] = 1;
         xi[sp++] = i;
       }
-      if (Reach == TriangularReach::EliminationTree) break;  // only the parent
     }
   }
-  std::sort(xi + top, xi + n);
+  EIGEN_IF_CONSTEXPR(Upper) {
+    std::sort(xi + top, xi + n, [](StorageIndex a, StorageIndex b) { return a > b; });  // descending
+  }
+  else {
+    std::sort(xi + top, xi + n);  // ascending
+  }
   return top;
 }
 
 // Numeric sweep over the reach, reading columns through InnerIterator.
-template <bool UnitDiag, typename Eval, typename StorageIndex, typename Scalar>
-void lower_triangular_solve_over_reach_iter(const Eval& mat, const StorageIndex* xi, Index top, Index n, Scalar* x) {
+template <bool Upper, bool UnitDiag, typename Eval, typename StorageIndex, typename Scalar>
+void triangular_solve_over_reach_iter(const Eval& mat, const StorageIndex* xi, Index top, Index n, Scalar* x) {
   for (Index k = top; k < n; ++k) {
     StorageIndex j = xi[k];
-    typename Eval::InnerIterator it(mat, j);
-    EIGEN_IF_CONSTEXPR(!UnitDiag) {
-      x[j] /= it.value();  // diagonal stored first
-      ++it;
+    EIGEN_IF_CONSTEXPR(Upper) {
+      // diagonal is the last entry; above-diagonal entries (index < j) precede it.
+      EIGEN_IF_CONSTEXPR(!UnitDiag) {
+        Scalar d(1);
+        for (typename Eval::InnerIterator dt(mat, j); dt; ++dt)
+          if (StorageIndex(dt.index()) == j) d = dt.value();
+        x[j] /= d;
+      }
+      Scalar xj = x[j];
+      for (typename Eval::InnerIterator it(mat, j); it && StorageIndex(it.index()) < j; ++it)
+        x[it.index()] -= it.value() * xj;
     }
     else {
-      if (it && StorageIndex(it.index()) == j) ++it;  // skip an explicit unit diagonal
+      typename Eval::InnerIterator it(mat, j);
+      EIGEN_IF_CONSTEXPR(!UnitDiag) {
+        x[j] /= it.value();  // diagonal stored first
+        ++it;
+      }
+      else {
+        if (it && StorageIndex(it.index()) == j) ++it;  // skip an explicit unit diagonal
+      }
+      Scalar xj = x[j];
+      for (; it; ++it) x[it.index()] -= it.value() * xj;
     }
-    Scalar xj = x[j];
-    for (; it; ++it) x[it.index()] -= it.value() * xj;
   }
 }
 
-// Iterator counterpart of the borrow-a-buffer sparse_reach_lower_solve. Uses the
-// same 3n / n workspace layout (the pstack third is simply left unused), so the
-// two paths share one workspace contract.
-template <TriangularReach Reach, bool UnitDiag, typename LhsType, typename StorageIndex, typename Scalar>
-Index sparse_reach_lower_solve_iter(const LhsType& lhs, Index n, const StorageIndex* bIdx, const Scalar* bVal,
-                                    Index bCount, StorageIndex* iwork, Scalar* xwork, StorageIndex* outIdx,
-                                    Scalar* outVal) {
+// Iterator counterpart of the borrow-a-buffer sparse_reach_triangular_solve. Uses
+// the same 2n / n(bytes) / n workspace layout (the pstack half of iwork is left
+// unused), so the two general paths share one workspace contract.
+template <bool Upper, bool UnitDiag, typename LhsType, typename StorageIndex, typename Scalar>
+Index sparse_reach_triangular_solve_iter(const LhsType& lhs, Index n, const StorageIndex* bIdx, const Scalar* bVal,
+                                         Index bCount, StorageIndex* iwork, uint8_t* mark, Scalar* xwork,
+                                         StorageIndex* outIdx, Scalar* outVal) {
   evaluator<LhsType> mat(lhs);
   StorageIndex* xi = iwork;
-  StorageIndex* mark = iwork + 2 * n;
   Scalar* x = xwork;
 
   for (Index r = 0; r < bCount; ++r) x[bIdx[r]] = bVal[r];
-  Index top = lower_triangular_reach_iter<Reach>(mat, bIdx, bCount, xi, mark, n);
-  lower_triangular_solve_over_reach_iter<UnitDiag>(mat, xi, top, n, x);
+  Index top = triangular_reach_iter<Upper>(mat, bIdx, bCount, xi, mark, n);
+  triangular_solve_over_reach_iter<Upper, UnitDiag>(mat, xi, top, n, x);
 
   Index count = 0;
   for (Index k = top; k < n; ++k) {  // gather, restoring x and mark to all-zero
@@ -294,44 +383,48 @@ Index sparse_reach_lower_solve_iter(const LhsType& lhs, Index n, const StorageIn
 // is compressed: an uncompressed SparseMatrix keeps per-column gaps addressed via
 // innerNonZeroPtr(), so its columns do NOT run to outerIndexPtr()[j+1]. Passing
 // innerNonZeroPtr() through keeps the raw-pointer path valid either way -- it is
-// nullptr exactly when compressed (columns end at Lp[j+1]) and the per-column
-// count otherwise (columns end at Lp[j]+Lnnz[j]).
-template <TriangularReach Reach, bool UnitDiag, typename LhsType, typename StorageIndex, typename Scalar>
-Index sparse_reach_lower_solve_dispatch(std::true_type /*compressed*/, const LhsType& lhs, Index n,
-                                        const StorageIndex* bIdx, const Scalar* bVal, Index bCount,
-                                        StorageIndex* iwork, Scalar* xwork, StorageIndex* outIdx, Scalar* outVal) {
-  return sparse_reach_lower_solve<Reach, UnitDiag>(lhs.outerIndexPtr(), lhs.innerIndexPtr(), lhs.valuePtr(),
-                                                   lhs.innerNonZeroPtr(), n, bIdx, bVal, bCount, iwork, xwork, outIdx,
-                                                   outVal);
+// nullptr exactly when compressed (columns end at Tp[j+1]) and the per-column
+// count otherwise (columns end at Tp[j]+Tnnz[j]).
+template <bool Upper, bool UnitDiag, typename LhsType, typename StorageIndex, typename Scalar>
+Index sparse_reach_triangular_solve_dispatch(std::true_type /*compressed*/, const LhsType& lhs, Index n,
+                                             const StorageIndex* bIdx, const Scalar* bVal, Index bCount,
+                                             StorageIndex* iwork, uint8_t* mark, Scalar* xwork, StorageIndex* outIdx,
+                                             Scalar* outVal) {
+  return sparse_reach_triangular_solve<Upper, UnitDiag>(lhs.outerIndexPtr(), lhs.innerIndexPtr(), lhs.valuePtr(),
+                                                        lhs.innerNonZeroPtr(), n, bIdx, bVal, bCount, iwork, mark,
+                                                        xwork, outIdx, outVal);
 }
-template <TriangularReach Reach, bool UnitDiag, typename LhsType, typename StorageIndex, typename Scalar>
-Index sparse_reach_lower_solve_dispatch(std::false_type /*iterator*/, const LhsType& lhs, Index n,
-                                        const StorageIndex* bIdx, const Scalar* bVal, Index bCount,
-                                        StorageIndex* iwork, Scalar* xwork, StorageIndex* outIdx, Scalar* outVal) {
-  return sparse_reach_lower_solve_iter<Reach, UnitDiag>(lhs, n, bIdx, bVal, bCount, iwork, xwork, outIdx, outVal);
+template <bool Upper, bool UnitDiag, typename LhsType, typename StorageIndex, typename Scalar>
+Index sparse_reach_triangular_solve_dispatch(std::false_type /*iterator*/, const LhsType& lhs, Index n,
+                                             const StorageIndex* bIdx, const Scalar* bVal, Index bCount,
+                                             StorageIndex* iwork, uint8_t* mark, Scalar* xwork, StorageIndex* outIdx,
+                                             Scalar* outVal) {
+  return sparse_reach_triangular_solve_iter<Upper, UnitDiag>(lhs, n, bIdx, bVal, bCount, iwork, mark, xwork, outIdx,
+                                                             outVal);
 }
 
-// Expression overload: solve L x = b for a sparse-expression lower-triangular L
-// and sparse rhs, selecting the pointer or iterator path at compile time. Borrow
-// a 3n StorageIndex / n Scalar workspace as in the pointer overload.
-template <TriangularReach Reach, bool UnitDiag, typename LhsDerived, typename StorageIndex, typename Scalar>
-Index sparse_reach_lower_solve(const SparseMatrixBase<LhsDerived>& lhs, const StorageIndex* bIdx, const Scalar* bVal,
-                               Index bCount, StorageIndex* iwork, Scalar* xwork, StorageIndex* outIdx,
-                               Scalar* outVal) {
-  return sparse_reach_lower_solve_dispatch<Reach, UnitDiag>(
+// Expression overload: solve T x = b for a sparse-expression triangular T and sparse
+// rhs, selecting the pointer or iterator path at compile time. Borrow a 2n
+// StorageIndex / n byte / n Scalar workspace as in the pointer overload.
+template <bool Upper, bool UnitDiag, typename LhsDerived, typename StorageIndex, typename Scalar>
+Index sparse_reach_triangular_solve(const SparseMatrixBase<LhsDerived>& lhs, const StorageIndex* bIdx,
+                                    const Scalar* bVal, Index bCount, StorageIndex* iwork, uint8_t* mark, Scalar* xwork,
+                                    StorageIndex* outIdx, Scalar* outVal) {
+  return sparse_reach_triangular_solve_dispatch<Upper, UnitDiag>(
       std::integral_constant<bool, has_compressed_access<LhsDerived>::value>{}, lhs.derived(), lhs.rows(), bIdx, bVal,
-      bCount, iwork, xwork, outIdx, outVal);
+      bCount, iwork, mark, xwork, outIdx, outVal);
 }
 
 // Convenience expression overload: allocate (and zero) the workspace for one solve.
-template <TriangularReach Reach, bool UnitDiag, typename LhsDerived, typename StorageIndex, typename Scalar>
-Index sparse_reach_lower_solve(const SparseMatrixBase<LhsDerived>& lhs, const StorageIndex* bIdx, const Scalar* bVal,
-                               Index bCount, StorageIndex* outIdx, Scalar* outVal) {
+template <bool Upper, bool UnitDiag, typename LhsDerived, typename StorageIndex, typename Scalar>
+Index sparse_reach_triangular_solve(const SparseMatrixBase<LhsDerived>& lhs, const StorageIndex* bIdx,
+                                    const Scalar* bVal, Index bCount, StorageIndex* outIdx, Scalar* outVal) {
   Index n = lhs.rows();
-  Matrix<StorageIndex, Dynamic, 1> iwork = Matrix<StorageIndex, Dynamic, 1>::Zero(3 * n);
+  Matrix<StorageIndex, Dynamic, 1> iwork = Matrix<StorageIndex, Dynamic, 1>::Zero(2 * n);
+  Matrix<uint8_t, Dynamic, 1> mark = Matrix<uint8_t, Dynamic, 1>::Zero(n);
   Matrix<Scalar, Dynamic, 1> xwork = Matrix<Scalar, Dynamic, 1>::Zero(n);
-  return sparse_reach_lower_solve<Reach, UnitDiag>(lhs, bIdx, bVal, bCount, iwork.data(), xwork.data(), outIdx,
-                                                   outVal);
+  return sparse_reach_triangular_solve<Upper, UnitDiag>(lhs, bIdx, bVal, bCount, iwork.data(), mark.data(),
+                                                        xwork.data(), outIdx, outVal);
 }
 
 }  // namespace internal

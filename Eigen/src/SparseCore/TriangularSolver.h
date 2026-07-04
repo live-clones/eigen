@@ -243,53 +243,64 @@ struct sparse_solve_triangular_sparse_selector<Lhs, Rhs, Mode, UpLo, ColMajor> {
   }
 };
 
-// forward substitution, col-major, lower: reach-based (Gilbert-Peierls) sparse
-// solve. Only the columns reachable from each rhs column's pattern are touched,
-// so the cost is O(|reach| + flops) per column instead of the O(n)-per-column
-// AmbiVector sweep. More specialized than the generic selector above, so it is
-// selected for Lower/ColMajor while Upper keeps the generic path.
-template <typename Lhs, typename Rhs, int Mode>
-struct sparse_solve_triangular_sparse_selector<Lhs, Rhs, Mode, Lower, ColMajor> {
+// Reach-based (Gilbert-Peierls) sparse triangular solve, col-major, for lower OR
+// upper. Only the columns reachable from each rhs column's pattern are touched, so
+// the cost is O(|reach| + flops) per column instead of the O(n)-per-column
+// AmbiVector sweep (which also pays a coeff(i,i) binary search per row in the upper
+// case). More specialized than the generic AmbiVector selector above, so it is
+// selected for both Lower/ColMajor and Upper/ColMajor. The body is shared; only the
+// solve's Upper flag differs between the two specializations below.
+template <bool Upper, typename Lhs, typename Rhs, int Mode>
+void run_sparse_reach_triangular_solve(const Lhs& lhs, Rhs& other) {
   typedef typename Rhs::Scalar Scalar;
   typedef typename traits<Lhs>::StorageIndex StorageIndex;
-  static void run(const Lhs& lhs, Rhs& other) {
-    Index size = lhs.rows();
+  Index size = lhs.rows();
 
-    // Reused across all rhs columns, so repeated columns stay allocation-free.
-    // iwork (3n, mark-third zeroed) and xwork (n) are restored by every solve.
-    Matrix<StorageIndex, Dynamic, 1> iwork = Matrix<StorageIndex, Dynamic, 1>::Zero(3 * size);
-    Matrix<Scalar, Dynamic, 1> xwork = Matrix<Scalar, Dynamic, 1>::Zero(size);
-    Matrix<StorageIndex, Dynamic, 1> bIdx(size), outIdx(size);
-    Matrix<Scalar, Dynamic, 1> bVal(size), outVal(size);
-    Matrix<Index, Dynamic, 1> perm(size);  // sorts a column's reach for ordered insert
+  // Reused across all rhs columns, so repeated columns stay allocation-free.
+  // iwork (2n), mark (n bytes, zeroed) and xwork (n) are restored by every solve.
+  Matrix<StorageIndex, Dynamic, 1> iwork = Matrix<StorageIndex, Dynamic, 1>::Zero(2 * size);
+  Matrix<uint8_t, Dynamic, 1> mark = Matrix<uint8_t, Dynamic, 1>::Zero(size);
+  Matrix<Scalar, Dynamic, 1> xwork = Matrix<Scalar, Dynamic, 1>::Zero(size);
+  Matrix<StorageIndex, Dynamic, 1> bIdx(size), outIdx(size);
+  Matrix<Scalar, Dynamic, 1> bVal(size), outVal(size);
+  Matrix<Index, Dynamic, 1> perm(size);  // sorts a column's reach for ordered insert
 
-    Rhs res(other.rows(), other.cols());
-    res.reserve(other.nonZeros());
+  Rhs res(other.rows(), other.cols());
+  res.reserve(other.nonZeros());
 
-    for (Index col = 0; col < other.cols(); ++col) {
-      Index bCount = 0;
-      for (typename Rhs::InnerIterator it(other, col); it; ++it) {
-        bIdx[bCount] = StorageIndex(it.index());
-        bVal[bCount] = it.value();
-        ++bCount;
-      }
-      if (bCount == 0) continue;
-
-      Index count = sparse_reach_lower_solve<TriangularReach::Dfs, bool(Mode & UnitDiag)>(
-          lhs, bIdx.data(), bVal.data(), bCount, iwork.data(), xwork.data(), outIdx.data(), outVal.data());
-
-      // The reach is emitted in topological (not index) order; sort so the
-      // column is written with increasing inner index.
-      for (Index k = 0; k < count; ++k) perm[k] = k;
-      std::sort(perm.data(), perm.data() + count, [&](Index a, Index b) { return outIdx[a] < outIdx[b]; });
-      for (Index k = 0; k < count; ++k) {
-        Index p = perm[k];
-        res.insert(outIdx[p], col) = outVal[p];
-      }
+  for (Index col = 0; col < other.cols(); ++col) {
+    Index bCount = 0;
+    for (typename Rhs::InnerIterator it(other, col); it; ++it) {
+      bIdx[bCount] = StorageIndex(it.index());
+      bVal[bCount] = it.value();
+      ++bCount;
     }
-    res.finalize();
-    other = res.markAsRValue();
+    if (bCount == 0) continue;
+
+    Index count = sparse_reach_triangular_solve<Upper, bool(Mode & UnitDiag)>(
+        lhs, bIdx.data(), bVal.data(), bCount, iwork.data(), mark.data(), xwork.data(), outIdx.data(), outVal.data());
+
+    // The reach is emitted in topological (not index) order; sort so the
+    // column is written with increasing inner index.
+    for (Index k = 0; k < count; ++k) perm[k] = k;
+    std::sort(perm.data(), perm.data() + count, [&](Index a, Index b) { return outIdx[a] < outIdx[b]; });
+    for (Index k = 0; k < count; ++k) {
+      Index p = perm[k];
+      res.insert(outIdx[p], col) = outVal[p];
+    }
   }
+  res.finalize();
+  other = res.markAsRValue();
+}
+
+template <typename Lhs, typename Rhs, int Mode>
+struct sparse_solve_triangular_sparse_selector<Lhs, Rhs, Mode, Lower, ColMajor> {
+  static void run(const Lhs& lhs, Rhs& other) { run_sparse_reach_triangular_solve<false, Lhs, Rhs, Mode>(lhs, other); }
+};
+
+template <typename Lhs, typename Rhs, int Mode>
+struct sparse_solve_triangular_sparse_selector<Lhs, Rhs, Mode, Upper, ColMajor> {
+  static void run(const Lhs& lhs, Rhs& other) { run_sparse_reach_triangular_solve<true, Lhs, Rhs, Mode>(lhs, other); }
 };
 
 }  // end namespace internal
