@@ -17,9 +17,20 @@ namespace Eigen {
 
 namespace internal {
 
+// Evaluator shape of the structured operator types. Keying the operators on their
+// own shape (instead of DenseShape) routes dense assignment through the
+// EigenBase2EigenBase path (i.e. evalTo/addTo/subTo) and products through a single
+// generic_product_impl partial specialization covering every product tag.
+struct StructuredShape {};
+
 // Below this dimension the FFT setup costs more than a plain O(n^2) evaluation,
-// so the structured operators fall back to a direct coefficient-based product.
+// so the structured operators fall back to a direct segment-based product.
 constexpr Index structured_direct_threshold() { return 32; }
+
+// Below this dimension even the segment-based direct product loses to a plain
+// scalar loop: the per-segment setup dominates when the average segment holds
+// fewer than a couple of packets (measured crossover on AVX2 hardware).
+constexpr Index structured_scalar_threshold() { return 16; }
 
 /** \internal
  * \returns the smallest integer >= \a n whose only prime factors are 2, 3 and 5.
@@ -40,62 +51,70 @@ inline Index fft_next_good_size(Index n) {
   }
 }
 
-/** \internal Accumulate \c dst.col(k) += alpha * seg, taking the real part for a
- * real scalar type and the value itself for a complex scalar type. */
-template <typename Scalar, typename Dest, typename ComplexSeg, std::enable_if_t<NumTraits<Scalar>::IsComplex, int> = 0>
-inline void structured_accumulate_col(Dest& dst, Index k, const ComplexSeg& seg, const Scalar& alpha) {
-  dst.col(k) += alpha * seg;
-}
+/** \internal View a complex-valued expression as \a Scalar: the expression itself
+ * when \a Scalar is complex, its real part when \a Scalar is real (the imaginary
+ * part then only holds numerically negligible roundoff). A single dispatch struct
+ * keeps the number of instantiated helpers down to one per scalar type. */
+template <typename Scalar, bool IsComplex = NumTraits<Scalar>::IsComplex>
+struct structured_scalar_part_impl {
+  template <typename Xpr>
+  static const Xpr& run(const Xpr& xpr) {
+    return xpr;
+  }
+};
 
-template <typename Scalar, typename Dest, typename ComplexSeg, std::enable_if_t<!NumTraits<Scalar>::IsComplex, int> = 0>
-inline void structured_accumulate_col(Dest& dst, Index k, const ComplexSeg& seg, const Scalar& alpha) {
-  dst.col(k) += alpha * seg.real();
-}
-
-/** \internal \returns a dense \a Scalar vector from the complex segment \a seg,
- * dropping the (numerically negligible) imaginary part for a real scalar type. */
-template <typename Scalar, typename ComplexSeg, std::enable_if_t<NumTraits<Scalar>::IsComplex, int> = 0>
-inline Matrix<Scalar, Dynamic, 1> structured_from_complex(const ComplexSeg& seg) {
-  return seg;
-}
-
-template <typename Scalar, typename ComplexSeg, std::enable_if_t<!NumTraits<Scalar>::IsComplex, int> = 0>
-inline Matrix<Scalar, Dynamic, 1> structured_from_complex(const ComplexSeg& seg) {
-  return seg.real();
-}
+template <typename Scalar>
+struct structured_scalar_part_impl<Scalar, false> {
+  template <typename Xpr>
+  static typename Xpr::RealReturnType run(const Xpr& xpr) {
+    return xpr.real();
+  }
+};
 
 /** \internal
- * Computes \c dst += alpha * (op * rhs) for the structured operator \a op, given
- * the precomputed length-\a p DFT \a symbol of its first column (circulant) or of
- * its circulant embedding (Toeplitz). Each right-hand-side column is transformed,
- * multiplied pointwise by \a symbol, and transformed back; the leading \a outSize
- * entries form the corresponding output column.
+ * Computes \c dst.col(k) += alpha * ifft( symbol .* fft(rhs.col(k)) ) for every
+ * column of \a rhs, i.e. applies the circulant operator whose eigenvalues are
+ * \a symbol. The leading \a outSize entries of each back-transform form the
+ * corresponding output column. All workspace is allocated once outside the
+ * per-column loop; right-hand sides shorter than the transform length are
+ * zero-padded into the preallocated buffer so the FFT never re-allocates.
  */
 template <typename Scalar, typename Dest, typename Rhs>
 void structured_fft_apply(Dest& dst, const Matrix<std::complex<typename NumTraits<Scalar>::Real>, Dynamic, 1>& symbol,
-                          Index p, Index outSize, const Rhs& rhs, const Scalar& alpha) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef std::complex<RealScalar> Complex;
-  typedef Matrix<Complex, Dynamic, 1> ComplexVector;
+                          Index outSize, const Rhs& rhs, const Scalar& alpha) {
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Complex = std::complex<RealScalar>;
+  using ComplexVector = Matrix<Complex, Dynamic, 1>;
+
+  const Index p = symbol.size();
+  eigen_assert(rhs.rows() <= p && outSize <= p);
+
+  if (p == 1) {
+    // Degenerate 1x1 operator: the length-1 transform is the identity (and is not
+    // supported by the kissfft backend anyway).
+    dst.row(0) +=
+        alpha * structured_scalar_part_impl<Scalar>::run(symbol.coeff(0) * rhs.row(0).template cast<Complex>());
+    return;
+  }
 
   FFT<RealScalar> fft;
+  ComplexVector xt = ComplexVector::Zero(p);  // the zero padding beyond rhs.rows() is never overwritten
   ComplexVector xf(p), yt(p);
   for (Index k = 0; k < rhs.cols(); ++k) {
-    ComplexVector xc = rhs.col(k).template cast<Complex>();
-    fft.fwd(xf, xc, p);  // zero-pads xc up to length p
-    xf = symbol.cwiseProduct(xf);
+    xt.head(rhs.rows()) = rhs.col(k).template cast<Complex>();
+    fft.fwd(xf, xt, p);
+    xf.array() *= symbol.array();
     fft.inv(yt, xf, p);
-    structured_accumulate_col<Scalar>(dst, k, yt.head(outSize), alpha);
+    dst.col(k) += alpha * structured_scalar_part_impl<Scalar>::run(yt.head(outSize));
   }
 }
 
 /** \internal Shared product implementation for the structured operator types.
  * Forwards to the operator's \c addProduct member, which performs the fast
- * matrix-vector product. The same body serves both the matrix-vector
- * (\c GemvProduct) and matrix-matrix (\c GemmProduct) dispatch tags. */
+ * matrix-vector product. The same body serves every dense product dispatch tag. */
 template <typename Op, typename Rhs>
 struct structured_product_impl : generic_product_impl_base<Op, Rhs, structured_product_impl<Op, Rhs>> {
-  typedef typename Product<Op, Rhs>::Scalar Scalar;
+  using Scalar = typename Product<Op, Rhs>::Scalar;
   template <typename Dest>
   static void scaleAndAddTo(Dest& dst, const Op& lhs, const Rhs& rhs, const Scalar& alpha) {
     lhs.addProduct(dst, rhs, alpha);

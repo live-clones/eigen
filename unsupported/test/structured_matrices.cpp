@@ -47,9 +47,10 @@ void test_circulant_product(Index n) {
   Circulant<Scalar> C(c);
   Mat dense = reference_circulant<Scalar>(c);
 
-  // The operator agrees with the independently-built dense matrix, both as a
-  // dense expansion and through coeff access.
-  VERIFY_IS_APPROX(C.toDense(), dense);
+  // The operator agrees with the independently-built dense matrix, both through
+  // coeff access and assigned to a dense matrix via its evaluator.
+  Mat Cd = C;
+  VERIFY_IS_APPROX(Cd, dense);
   for (Index t = 0; t < (std::min)(n, Index(5)); ++t) {
     Index i = internal::random<Index>(0, n - 1), j = internal::random<Index>(0, n - 1);
     VERIFY_IS_APPROX(C.coeff(i, j), dense(i, j));
@@ -91,6 +92,28 @@ void test_circulant_solve(Index n) {
   VERIFY_IS_APPROX((dense * Xs).eval(), B);
 }
 
+// The precomputed symbol holds the eigenvalues of the circulant matrix:
+// C * f_k = symbol[k] * f_k, with f_k the k-th column of the inverse DFT matrix.
+template <typename Scalar>
+void test_circulant_symbol(Index n) {
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  typedef std::complex<RealScalar> Complex;
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Complex, Dynamic, 1> ComplexVec;
+
+  Vec c = Vec::Random(n);
+  Circulant<Scalar> C(c);
+  VERIFY_IS_EQUAL(C.symbol().size(), n);
+  Matrix<Complex, Dynamic, Dynamic> denseC = reference_circulant<Scalar>(c).template cast<Complex>();
+
+  const Index step = numext::maxi<Index>(n / 4, 1);
+  for (Index k = 0; k < n; k += step) {
+    ComplexVec f(n);
+    for (Index j = 0; j < n; ++j) f[j] = std::polar(RealScalar(1), RealScalar(2 * EIGEN_PI * j * k) / RealScalar(n));
+    VERIFY_IS_APPROX((denseC * f).eval(), (C.symbol()[k] * f).eval());
+  }
+}
+
 template <typename Scalar>
 void test_toeplitz_product(Index m, Index n) {
   typedef Matrix<Scalar, Dynamic, 1> Vec;
@@ -101,13 +124,65 @@ void test_toeplitz_product(Index m, Index n) {
   Toeplitz<Scalar> T(c, r);
   Mat dense = reference_toeplitz<Scalar>(c, r);
 
-  VERIFY_IS_APPROX(T.toDense(), dense);
+  Mat Td = T;
+  VERIFY_IS_APPROX(Td, dense);
 
   Vec x = Vec::Random(n);
   VERIFY_IS_APPROX((T * x).eval(), (dense * x).eval());
 
   Mat X = Mat::Random(n, 3);
   VERIFY_IS_APPROX((T * X).eval(), (dense * X).eval());
+}
+
+// Fixed-size operators: generators are stored in fixed-size vectors, products and
+// solves return fixed-size results, and small sizes go through the coeff-based
+// product dispatch.
+template <typename Scalar, int N>
+void test_circulant_fixed() {
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  typedef Matrix<Scalar, N, 1> VecN;
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, N, N> MatN;
+
+  VecN c = VecN::Random();
+  c[0] += Scalar(RealScalar(2 * N));  // well conditioned for the solve below
+  Circulant<Scalar, N> C(c);
+  STATIC_CHECK((Circulant<Scalar, N>::RowsAtCompileTime == N));
+  STATIC_CHECK((internal::remove_all_t<decltype(makeCirculant(c))>::RowsAtCompileTime == N));
+
+  MatN dense = C;
+  VERIFY_IS_APPROX(dense, MatN(reference_circulant<Scalar>(Vec(c))));
+
+  VecN x = VecN::Random();
+  VecN y = C * x;
+  VERIFY_IS_APPROX(y, (dense * x).eval());
+
+  VecN b = VecN::Random();
+  VecN xs = C.solve(b);
+  VERIFY_IS_APPROX((dense * xs).eval(), b);
+}
+
+template <typename Scalar, int M, int N>
+void test_toeplitz_fixed() {
+  typedef Matrix<Scalar, M, 1> ColVec;
+  typedef Matrix<Scalar, N, 1> RowVec;
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, M, N> MatMN;
+
+  ColVec c = ColVec::Random();
+  RowVec r = RowVec::Random();
+  r[0] = c[0];
+  Toeplitz<Scalar, M, N> T(c, r);
+  STATIC_CHECK((Toeplitz<Scalar, M, N>::RowsAtCompileTime == M));
+  STATIC_CHECK((Toeplitz<Scalar, M, N>::ColsAtCompileTime == N));
+  STATIC_CHECK((internal::remove_all_t<decltype(makeToeplitz(c, r))>::ColsAtCompileTime == N));
+
+  MatMN dense = T;
+  VERIFY_IS_APPROX(dense, MatMN(reference_toeplitz<Scalar>(Vec(c), Vec(r))));
+
+  RowVec x = RowVec::Random();
+  Matrix<Scalar, M, 1> y = T * x;
+  VERIFY_IS_APPROX(y, (dense * x).eval());
 }
 
 template <typename Scalar>
@@ -162,25 +237,41 @@ EIGEN_DECLARE_TEST(structured_matrices) {
     CALL_SUBTEST_1((test_circulant_product<double>(64)));
     CALL_SUBTEST_1((test_circulant_product<double>(97)));  // prime, FFT path
     CALL_SUBTEST_1((test_circulant_product<float>(48)));
+    CALL_SUBTEST_1((test_circulant_product<std::complex<double>>(7)));  // direct path, complex
     CALL_SUBTEST_1((test_circulant_product<std::complex<double>>(50)));
     CALL_SUBTEST_1((test_circulant_product<std::complex<float>>(40)));
+    CALL_SUBTEST_1((test_circulant_solve<double>(1)));  // degenerate 1x1 solve
+    CALL_SUBTEST_1((test_circulant_solve<double>(8)));
     CALL_SUBTEST_1((test_circulant_solve<double>(50)));
     CALL_SUBTEST_1((test_circulant_solve<std::complex<double>>(40)));
     CALL_SUBTEST_1((test_circulant_solve<float>(32)));
+    CALL_SUBTEST_1((test_circulant_symbol<double>(16)));
+    CALL_SUBTEST_1((test_circulant_symbol<std::complex<double>>(12)));
 
-    // Toeplitz: square, tall, wide, small (direct), real and complex.
+    // Toeplitz: square, tall, wide, small (direct), single row/column, real and complex.
     CALL_SUBTEST_2((test_toeplitz_product<double>(1, 1)));
     CALL_SUBTEST_2((test_toeplitz_product<double>(2, 2)));
     CALL_SUBTEST_2((test_toeplitz_product<double>(10, 10)));
     CALL_SUBTEST_2((test_toeplitz_product<double>(64, 64)));
     CALL_SUBTEST_2((test_toeplitz_product<double>(96, 48)));
     CALL_SUBTEST_2((test_toeplitz_product<double>(48, 96)));
+    CALL_SUBTEST_2((test_toeplitz_product<double>(1, 40)));  // single row, FFT path
+    CALL_SUBTEST_2((test_toeplitz_product<double>(40, 1)));  // single column, FFT path
     CALL_SUBTEST_2((test_toeplitz_product<float>(50, 50)));
+    CALL_SUBTEST_2((test_toeplitz_product<std::complex<double>>(5, 7)));  // direct path, complex
     CALL_SUBTEST_2((test_toeplitz_product<std::complex<double>>(48, 64)));
     CALL_SUBTEST_2((test_toeplitz_product<std::complex<float>>(40, 40)));
 
     // Matrix-free iterative solves through the existing solvers.
     CALL_SUBTEST_3((test_matrix_free_cg<double>(80)));
     CALL_SUBTEST_3((test_matrix_free_gmres<double>(80)));
+
+    // Fixed-size operators: small (coeff-based dispatch) and above the FFT threshold.
+    CALL_SUBTEST_4((test_circulant_fixed<double, 4>()));
+    CALL_SUBTEST_4((test_circulant_fixed<std::complex<float>, 4>()));
+    CALL_SUBTEST_4((test_circulant_fixed<double, 48>()));
+    CALL_SUBTEST_4((test_toeplitz_fixed<double, 4, 6>()));
+    CALL_SUBTEST_4((test_toeplitz_fixed<double, 40, 24>()));
+    CALL_SUBTEST_4((test_toeplitz_fixed<std::complex<float>, 6, 4>()));
   }
 }

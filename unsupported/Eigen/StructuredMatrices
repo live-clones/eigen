@@ -27,10 +27,12 @@ namespace Eigen {
  *     O(n log n) via circulant embedding.
  *
  * The operator types derive from \c EigenBase and store only their generating
- * vectors. Because they expose \c operator* returning an Eigen product
- * expression, they also plug directly into the matrix-free iterative solvers
+ * vectors together with a precomputed DFT symbol that every product reuses.
+ * Because they expose \c operator* returning an Eigen product expression, they
+ * also plug directly into the matrix-free iterative solvers
  * (\c ConjugateGradient, \c GMRES, \c MINRES, ...) without forming the dense
- * matrix.
+ * matrix; and since they hook into the evaluator system, they can be assigned
+ * to a dense matrix when an explicit representation is needed.
  *
  * \code
  * #include <unsupported/Eigen/StructuredMatrices>
