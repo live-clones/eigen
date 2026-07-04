@@ -54,16 +54,15 @@ Index lower_triangular_reach(const StorageIndex* Lp, const StorageIndex* Li, con
     xi[0] = root;
     while (head >= 0) {
       StorageIndex j = xi[head];
-      const Index colStart = Lp[j] + 1;  // skip the diagonal stored at Lp[j]
-      const Index colEnd = Lp[j + 1];
+      Index colStart = Lp[j] + 1;  // skip the diagonal stored at Lp[j]
+      Index colEnd = Lp[j + 1];
       if (!mark[j]) {
         mark[j] = 1;
         pstack[head] = StorageIndex(colStart);
       }
       // Dfs exposes the whole sub-diagonal; EliminationTree only the parent.
-      const Index scanEnd = (Reach == TriangularReach::EliminationTree)
-                                ? (colStart < colEnd ? colStart + 1 : colStart)
-                                : colEnd;
+      Index scanEnd =
+          (Reach == TriangularReach::EliminationTree) ? (colStart < colEnd ? colStart + 1 : colStart) : colEnd;
       bool done = true;
       for (Index p = pstack[head]; p < scanEnd; ++p) {
         StorageIndex i = Li[p];
@@ -79,6 +78,44 @@ Index lower_triangular_reach(const StorageIndex* Lp, const StorageIndex* Li, con
       }
     }
   }
+  return top;
+}
+
+// Alternative reach via a mark-on-push worklist: nodes are marked when pushed
+// (so the stack stays within n and needs no pstack), the whole column is scanned
+// at once (no pause/resume, hence no per-depth state), and the collected set is
+// then sorted -- ascending index order is a valid topological order for a lower
+// solve. Cost is O(|reach| log|reach|) vs the DFS's O(|reach|); it trades that
+// log factor for holding only one column cursor at a time, which suits an
+// InnerIterator-based column source. Scratch: xi (n, shared stack+output) and
+// mark (n, all-zero in, reach flagged out). Returns top; xi[top..n) is sorted.
+template <TriangularReach Reach, typename StorageIndex>
+Index lower_triangular_reach_worklist(const StorageIndex* Lp, const StorageIndex* Li, const StorageIndex* bIdx,
+                                      Index bCount, StorageIndex* xi, StorageIndex* mark, Index n) {
+  Index top = n;
+  Index sp = 0;  // worklist occupies xi[0..sp); output grows down from xi[n); sp <= top always
+  for (Index r = 0; r < bCount; ++r) {
+    StorageIndex root = bIdx[r];
+    if (!mark[root]) {
+      mark[root] = 1;
+      xi[sp++] = root;
+    }
+  }
+  while (sp > 0) {
+    StorageIndex j = xi[--sp];
+    xi[--top] = j;  // collect
+    Index colStart = Lp[j] + 1, colEnd = Lp[j + 1];
+    Index scanEnd =
+        (Reach == TriangularReach::EliminationTree) ? (colStart < colEnd ? colStart + 1 : colStart) : colEnd;
+    for (Index p = colStart; p < scanEnd; ++p) {
+      StorageIndex i = Li[p];
+      if (!mark[i]) {
+        mark[i] = 1;
+        xi[sp++] = i;
+      }
+    }
+  }
+  std::sort(xi + top, xi + n);
   return top;
 }
 
@@ -98,7 +135,7 @@ void lower_triangular_solve_over_reach(const StorageIndex* Lp, const StorageInde
     else {
       if (p < Lp[j + 1] && Li[p] == j) ++p;  // skip an explicit unit diagonal
     }
-    const Scalar xj = x[j];
+    Scalar xj = x[j];
     for (; p < Lp[j + 1]; ++p) x[Li[p]] -= Lx[p] * xj;
   }
 }
