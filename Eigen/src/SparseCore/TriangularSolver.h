@@ -266,8 +266,8 @@ void reach_solve_columns(const Lhs& lhs, const Rhs& other, Res& res, uint8_t* ma
 
 // Reach-based (Gilbert-Peierls) sparse triangular solve, col-major, for lower OR
 // upper. Only the columns reachable from each rhs column's pattern are touched, so
-// the cost is O(|reach| + flops) per column instead of the O(n)-per-column AmbiVector
-// sweep (which also pays a coeff(i,i) binary search per row in the upper case). It is
+// the cost is O(|reach| + flops) per column instead of a dense O(n)-per-column sweep
+// (which also pays a coeff(i,i) binary search per row in the upper case). It is
 // the sole col-major sparse-sparse selector, dispatching lower/upper via the UpLo
 // template argument. reach_solve_dense leaves the solution values in
 // xwork and the reached indices in iwork[top..n); reach_solve_columns (slice or
