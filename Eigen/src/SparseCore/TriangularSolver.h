@@ -182,67 +182,6 @@ template <typename Lhs, typename Rhs, int Mode,
           int StorageOrder = int(Lhs::Flags) & RowMajorBit>
 struct sparse_solve_triangular_sparse_selector;
 
-// forward and backward substitution, col-major
-template <typename Lhs, typename Rhs, int Mode, int UpLo>
-struct sparse_solve_triangular_sparse_selector<Lhs, Rhs, Mode, UpLo, ColMajor> {
-  typedef typename Rhs::Scalar Scalar;
-  typedef typename promote_index_type<typename traits<Lhs>::StorageIndex, typename traits<Rhs>::StorageIndex>::type
-      StorageIndex;
-  static void run(const Lhs& lhs, Rhs& other) {
-    const bool IsLower = (UpLo == Lower);
-    AmbiVector<Scalar, StorageIndex> tempVector(other.rows() * 2);
-    tempVector.setBounds(0, other.rows());
-
-    Rhs res(other.rows(), other.cols());
-    res.reserve(other.nonZeros());
-
-    for (Index col = 0; col < other.cols(); ++col) {
-      // FIXME: estimate the number of non-zeros per column for better allocation.
-      tempVector.init(.99 /*float(other.col(col).nonZeros())/float(other.rows())*/);
-      tempVector.setZero();
-      tempVector.restart();
-      for (typename Rhs::InnerIterator rhsIt(other, col); rhsIt; ++rhsIt) {
-        tempVector.coeffRef(rhsIt.index()) = rhsIt.value();
-      }
-
-      for (Index i = IsLower ? 0 : lhs.cols() - 1; IsLower ? i < lhs.cols() : i >= 0; i += IsLower ? 1 : -1) {
-        tempVector.restart();
-        Scalar& ci = tempVector.coeffRef(i);
-        if (!numext::is_exactly_zero(ci)) {
-          // find
-          typename Lhs::InnerIterator it(lhs, i);
-          EIGEN_IF_CONSTEXPR (!(Mode & UnitDiag)) {
-            EIGEN_IF_CONSTEXPR (IsLower) {
-              eigen_assert(it.index() == i);
-              ci /= it.value();
-            } else
-              ci /= lhs.coeff(i, i);
-          }
-          tempVector.restart();
-          EIGEN_IF_CONSTEXPR (IsLower) {
-            if (it.index() == i) ++it;
-            for (; it; ++it) {
-              tempVector.coeffRef(it.index()) = numext::madd<Scalar>(-ci, it.value(), tempVector.coeffRef(it.index()));
-            }
-          } else {
-            for (; it && it.index() < i; ++it) {
-              tempVector.coeffRef(it.index()) = numext::madd<Scalar>(-ci, it.value(), tempVector.coeffRef(it.index()));
-            }
-          }
-        }
-      }
-
-      // FIXME: compute a reference value to filter zeros.
-      for (typename AmbiVector<Scalar, StorageIndex>::Iterator it(tempVector /*,1e-12*/); it; ++it) {
-        // FIXME: use insertBack for better performance.
-        res.insert(it.index(), col) = it.value();
-      }
-    }
-    res.finalize();
-    other = res.markAsRValue();
-  }
-};
-
 // True when the rhs exposes raw CSC storage with a StorageIndex matching the lhs, so a
 // column's stored index slice can serve as the reach roots directly (no bIdx copy).
 template <typename Lhs, typename Rhs>
@@ -328,9 +267,9 @@ void reach_solve_columns(const Lhs& lhs, const Rhs& other, Res& res, uint8_t* ma
 // Reach-based (Gilbert-Peierls) sparse triangular solve, col-major, for lower OR
 // upper. Only the columns reachable from each rhs column's pattern are touched, so
 // the cost is O(|reach| + flops) per column instead of the O(n)-per-column AmbiVector
-// sweep (which also pays a coeff(i,i) binary search per row in the upper case). More
-// specialized than the generic AmbiVector selector above, so it is selected for both
-// Lower/ColMajor and Upper/ColMajor. reach_solve_dense leaves the solution values in
+// sweep (which also pays a coeff(i,i) binary search per row in the upper case). It is
+// the sole col-major sparse-sparse selector, dispatching lower/upper via the UpLo
+// template argument. reach_solve_dense leaves the solution values in
 // xwork and the reached indices in iwork[top..n); reach_solve_columns (slice or
 // fallback, selected on the rhs storage) scatters each column and solves, and
 // reach_insert_column reads the values out and restores mark/xwork. Only mark and
@@ -348,14 +287,12 @@ void run_sparse_reach_triangular_solve(const Lhs& lhs, Rhs& other) {
   other = res.markAsRValue();
 }
 
-template <typename Lhs, typename Rhs, int Mode>
-struct sparse_solve_triangular_sparse_selector<Lhs, Rhs, Mode, Lower, ColMajor> {
-  static void run(const Lhs& lhs, Rhs& other) { run_sparse_reach_triangular_solve<false, Lhs, Rhs, Mode>(lhs, other); }
-};
-
-template <typename Lhs, typename Rhs, int Mode>
-struct sparse_solve_triangular_sparse_selector<Lhs, Rhs, Mode, Upper, ColMajor> {
-  static void run(const Lhs& lhs, Rhs& other) { run_sparse_reach_triangular_solve<true, Lhs, Rhs, Mode>(lhs, other); }
+// forward and backward substitution, col-major
+template <typename Lhs, typename Rhs, int Mode, int UpLo>
+struct sparse_solve_triangular_sparse_selector<Lhs, Rhs, Mode, UpLo, ColMajor> {
+  static void run(const Lhs& lhs, Rhs& other) {
+    run_sparse_reach_triangular_solve<UpLo == Upper, Lhs, Rhs, Mode>(lhs, other);
+  }
 };
 
 }  // end namespace internal
