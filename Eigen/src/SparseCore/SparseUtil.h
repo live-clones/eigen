@@ -69,8 +69,8 @@ namespace internal {
  * fast paths; anything else must be walked via InnerIterator.
  */
 template <typename Derived>
-struct has_compressed_access
-    : std::integral_constant<bool, (int(traits<Derived>::Flags) & CompressedAccessBit) != 0> {};
+struct has_compressed_access : std::integral_constant<bool, (int(traits<Derived>::Flags) & CompressedAccessBit) != 0> {
+};
 
 template <typename T, int Rows, int Cols, int Flags>
 struct sparse_eval;
