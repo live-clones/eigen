@@ -243,61 +243,90 @@ struct sparse_solve_triangular_sparse_selector<Lhs, Rhs, Mode, UpLo, ColMajor> {
   }
 };
 
-// Reach-based (Gilbert-Peierls) sparse triangular solve, col-major, for lower OR
-// upper. Only the columns reachable from each rhs column's pattern are touched, so
-// the cost is O(|reach| + flops) per column instead of the O(n)-per-column
-// AmbiVector sweep (which also pays a coeff(i,i) binary search per row in the upper
-// case). More specialized than the generic AmbiVector selector above, so it is
-// selected for both Lower/ColMajor and Upper/ColMajor. The body is shared; only the
-// solve's Upper flag differs between the two specializations below.
-template <bool Upper, typename Lhs, typename Rhs, int Mode>
-void run_sparse_reach_triangular_solve(const Lhs& lhs, Rhs& other) {
-  typedef typename Rhs::Scalar Scalar;
+// True when the rhs exposes raw CSC storage with a StorageIndex matching the lhs, so a
+// column's stored index slice can serve as the reach roots directly (no bIdx copy).
+template <typename Lhs, typename Rhs>
+using rhs_matching_slice =
+    std::integral_constant<bool, has_compressed_access<Rhs>::value &&
+                                     std::is_same<typename traits<Rhs>::StorageIndex,
+                                                  typename traits<Lhs>::StorageIndex>::value>;
+
+// Common per-column finish: the reach output is in xi[top..n) in topological order.
+// Sort ascending so the column is written with increasing inner index, insert reading
+// values from xwork, and clear xwork and mark for the next column.
+template <typename Res, typename StorageIndex, typename Scalar>
+void reach_insert_column(Res& res, Index col, StorageIndex* xi, Index top, Index n, Scalar* xwork, uint8_t* mark) {
+  std::sort(xi + top, xi + n);
+  for (Index k = top; k < n; ++k) {
+    StorageIndex j = xi[k];
+    res.insert(j, col) = xwork[j];
+    xwork[j] = Scalar(0);
+    mark[j] = 0;
+  }
+}
+
+// Column loop, fast path: the rhs matches (see rhs_matching_slice), so each column's
+// stored index slice is the reach root list and the value slice is scattered directly
+// -- no bIdx copy, so iwork is just 2n (xi | pstack).
+template <bool Upper, bool UnitDiag, typename Lhs, typename Rhs, typename Res, typename Scalar,
+          std::enable_if_t<rhs_matching_slice<Lhs, Rhs>::value, int> = 0>
+void reach_solve_columns(const Lhs& lhs, const Rhs& other, Res& res, uint8_t* mark, Scalar* xwork, Index n) {
   typedef typename traits<Lhs>::StorageIndex StorageIndex;
-  Index size = lhs.rows();
-
-  // Reused across all rhs columns, so repeated columns stay allocation-free. We use
-  // reach_solve_dense, which leaves the solution values in xwork and the reached
-  // indices in iwork[top..n): we read values straight out of xwork at insert time and
-  // clear as we go, so no outIdx/outVal snapshot is needed. It also expects the rhs
-  // pre-scattered into xwork, which we do while reading the column -- so only the rhs
-  // pattern bIdx is materialized, not its values.
-  //
-  // One StorageIndex allocation of 3n, carved xi | pstack | bIdx: the reach reads bIdx
-  // while writing the disjoint xi/pstack, so they coexist safely. None of it needs
-  // zero-init -- every slot is written before it is read -- so only mark and xwork are
-  // zeroed. All three buffers are restored by every column.
-  Matrix<StorageIndex, Dynamic, 1> iwork(3 * size);
-  Matrix<uint8_t, Dynamic, 1> mark = Matrix<uint8_t, Dynamic, 1>::Zero(size);
-  Matrix<Scalar, Dynamic, 1> xwork = Matrix<Scalar, Dynamic, 1>::Zero(size);
+  Matrix<StorageIndex, Dynamic, 1> iwork(2 * n);  // xi | pstack
   StorageIndex* xi = iwork.data();
-  StorageIndex* bIdx = iwork.data() + 2 * size;  // reach roots; disjoint from xi | pstack
+  for (Index col = 0; col < other.cols(); ++col) {
+    const StorageIndex* nnz = other.innerNonZeroPtr();  // null when compressed
+    Index p = other.outerIndexPtr()[col];
+    Index bCount = nnz ? Index(nnz[col]) : Index(other.outerIndexPtr()[col + 1]) - p;
+    const StorageIndex* roots = other.innerIndexPtr() + p;  // the column's stored indices
+    const Scalar* vals = other.valuePtr() + p;
+    for (Index r = 0; r < bCount; ++r) xwork[roots[r]] = vals[r];
+    Index top = reach_solve_dense<Upper, UnitDiag>(lhs, roots, bCount, xi, mark, xwork);
+    reach_insert_column(res, col, xi, top, n, xwork, mark);
+  }
+}
 
-  Rhs res(other.rows(), other.cols());
-  res.reserve(other.nonZeros());
-
+// Column loop, fallback: read each column through the InnerIterator, copying indices
+// into the bIdx third of a 3n iwork. For a rhs without raw storage or with a
+// mismatched index type.
+template <bool Upper, bool UnitDiag, typename Lhs, typename Rhs, typename Res, typename Scalar,
+          std::enable_if_t<!rhs_matching_slice<Lhs, Rhs>::value, int> = 0>
+void reach_solve_columns(const Lhs& lhs, const Rhs& other, Res& res, uint8_t* mark, Scalar* xwork, Index n) {
+  typedef typename traits<Lhs>::StorageIndex StorageIndex;
+  Matrix<StorageIndex, Dynamic, 1> iwork(3 * n);  // xi | pstack | bIdx
+  StorageIndex* xi = iwork.data();
+  StorageIndex* bIdx = iwork.data() + 2 * n;
   for (Index col = 0; col < other.cols(); ++col) {
     Index bCount = 0;
     for (typename Rhs::InnerIterator it(other, col); it; ++it) {
       bIdx[bCount] = StorageIndex(it.index());
-      xwork[it.index()] = it.value();  // scatter as we read; no separate bVal buffer
+      xwork[it.index()] = it.value();
       ++bCount;
     }
-    if (bCount == 0) continue;
-
-    Index top = reach_solve_dense<Upper, bool(Mode & UnitDiag)>(lhs, bIdx, bCount, xi, mark.data(), xwork.data());
-
-    // The reach is in topological order; sort the reached indices ascending so the
-    // column is written with increasing inner index. Then read values from xwork and
-    // clear it and mark for the next column.
-    std::sort(xi + top, xi + size);
-    for (Index k = top; k < size; ++k) {
-      StorageIndex j = xi[k];
-      res.insert(j, col) = xwork[j];
-      xwork[j] = Scalar(0);
-      mark[j] = 0;
-    }
+    Index top = reach_solve_dense<Upper, UnitDiag>(lhs, bIdx, bCount, xi, mark, xwork);
+    reach_insert_column(res, col, xi, top, n, xwork, mark);
   }
+}
+
+// Reach-based (Gilbert-Peierls) sparse triangular solve, col-major, for lower OR
+// upper. Only the columns reachable from each rhs column's pattern are touched, so
+// the cost is O(|reach| + flops) per column instead of the O(n)-per-column AmbiVector
+// sweep (which also pays a coeff(i,i) binary search per row in the upper case). More
+// specialized than the generic AmbiVector selector above, so it is selected for both
+// Lower/ColMajor and Upper/ColMajor. reach_solve_dense leaves the solution values in
+// xwork and the reached indices in iwork[top..n); reach_solve_columns (slice or
+// fallback, selected on the rhs storage) scatters each column and solves, and
+// reach_insert_column reads the values out and restores mark/xwork. Only mark and
+// xwork need zeroing -- iwork is entirely written before read.
+template <bool Upper, typename Lhs, typename Rhs, int Mode>
+void run_sparse_reach_triangular_solve(const Lhs& lhs, Rhs& other) {
+  typedef typename Rhs::Scalar Scalar;
+  Index n = lhs.rows();
+  Matrix<uint8_t, Dynamic, 1> mark = Matrix<uint8_t, Dynamic, 1>::Zero(n);
+  Matrix<Scalar, Dynamic, 1> xwork = Matrix<Scalar, Dynamic, 1>::Zero(n);
+  Rhs res(other.rows(), other.cols());
+  res.reserve(other.nonZeros());
+  reach_solve_columns<Upper, bool(Mode & UnitDiag)>(lhs, other, res, mark.data(), xwork.data(), n);
   res.finalize();
   other = res.markAsRValue();
 }
