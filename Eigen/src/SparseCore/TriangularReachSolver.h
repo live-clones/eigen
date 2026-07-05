@@ -338,11 +338,9 @@ Index triangular_reach_iter(const Eval& mat, const StorageIndex* bIdx, Index bCo
       }
     }
   }
-  EIGEN_IF_CONSTEXPR (Upper) {
-    std::sort(xi + top, xi + n, [](StorageIndex a, StorageIndex b) { return a > b; });  // descending
-  } else {
-    std::sort(xi + top, xi + n);  // ascending
-  }
+  // descending for upper, ascending for lower (comparator type picked at compile time)
+  using Comp = std::conditional_t<Upper, std::greater<StorageIndex>, std::less<StorageIndex>>;
+  std::sort(xi + top, xi + n, Comp{});
   return top;
 }
 
