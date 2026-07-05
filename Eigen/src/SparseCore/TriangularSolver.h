@@ -251,12 +251,29 @@ using rhs_matching_slice =
                                      std::is_same<typename traits<Rhs>::StorageIndex,
                                                   typename traits<Lhs>::StorageIndex>::value>;
 
-// Common per-column finish: the reach output is in xi[top..n) in topological order.
-// Sort ascending so the column is written with increasing inner index, insert reading
-// values from xwork, and clear xwork and mark for the next column.
-template <typename Res, typename StorageIndex, typename Scalar>
+// The reach for a column arrives in one of three compile-time-known orders, but the
+// output column must store ascending inner index. reach_reorder encapsulates the
+// per-order fix-up via partial specialization: an unordered reach (Ordered == false,
+// the pointer/DFS path -- Upper irrelevant) is sorted; the iterator reach is already
+// in solve order -- ascending for lower (no-op), descending for upper (reverse).
+template <bool Ordered, bool Upper, typename StorageIndex>
+struct reach_reorder {  // Ordered == false: unordered pointer/DFS reach
+  static void run(StorageIndex* first, StorageIndex* last) { std::sort(first, last); }
+};
+template <typename StorageIndex>
+struct reach_reorder<true, false, StorageIndex> {  // iterator reach, lower: already ascending
+  static void run(StorageIndex* /*first*/, StorageIndex* /*last*/) {}
+};
+template <typename StorageIndex>
+struct reach_reorder<true, true, StorageIndex> {  // iterator reach, upper: descending
+  static void run(StorageIndex* first, StorageIndex* last) { std::reverse(first, last); }
+};
+
+// Common per-column finish: reorder the reach xi[top..n) to ascending inner index,
+// insert reading values from xwork, and clear xwork and mark for the next column.
+template <bool Ordered, bool Upper, typename Res, typename StorageIndex, typename Scalar>
 void reach_insert_column(Res& res, Index col, StorageIndex* xi, Index top, Index n, Scalar* xwork, uint8_t* mark) {
-  std::sort(xi + top, xi + n);
+  reach_reorder<Ordered, Upper, StorageIndex>::run(xi + top, xi + n);
   for (Index k = top; k < n; ++k) {
     StorageIndex j = xi[k];
     res.insert(j, col) = xwork[j];
@@ -282,7 +299,7 @@ void reach_solve_columns(const Lhs& lhs, const Rhs& other, Res& res, uint8_t* ma
     const Scalar* vals = other.valuePtr() + p;
     for (Index r = 0; r < bCount; ++r) xwork[roots[r]] = vals[r];
     Index top = reach_solve_dense<Upper, UnitDiag>(lhs, roots, bCount, xi, mark, xwork);
-    reach_insert_column(res, col, xi, top, n, xwork, mark);
+    reach_insert_column<!has_compressed_access<Lhs>::value, Upper>(res, col, xi, top, n, xwork, mark);
   }
 }
 
@@ -304,7 +321,7 @@ void reach_solve_columns(const Lhs& lhs, const Rhs& other, Res& res, uint8_t* ma
       ++bCount;
     }
     Index top = reach_solve_dense<Upper, UnitDiag>(lhs, bIdx, bCount, xi, mark, xwork);
-    reach_insert_column(res, col, xi, top, n, xwork, mark);
+    reach_insert_column<!has_compressed_access<Lhs>::value, Upper>(res, col, xi, top, n, xwork, mark);
   }
 }
 
