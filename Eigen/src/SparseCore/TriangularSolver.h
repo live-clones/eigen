@@ -185,10 +185,9 @@ struct sparse_solve_triangular_sparse_selector;
 // True when the rhs exposes raw CSC storage with a StorageIndex matching the lhs, so a
 // column's stored index slice can serve as the reach roots directly (no bIdx copy).
 template <typename Lhs, typename Rhs>
-using rhs_matching_slice =
-    std::integral_constant<bool, has_compressed_access<Rhs>::value &&
-                                     std::is_same<typename traits<Rhs>::StorageIndex,
-                                                  typename traits<Lhs>::StorageIndex>::value>;
+using rhs_matching_slice = std::integral_constant<
+    bool, has_compressed_access<Rhs>::value &&
+              std::is_same<typename traits<Rhs>::StorageIndex, typename traits<Lhs>::StorageIndex>::value>;
 
 // The reach for a column arrives in one of three compile-time-known orders, but the
 // output column must store ascending inner index. reach_reorder encapsulates the
