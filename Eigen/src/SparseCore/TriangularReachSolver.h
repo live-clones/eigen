@@ -273,17 +273,7 @@ Index sparse_reach_lower_solve_etree(const StorageIndex* outerIndexPtr, const St
   for (Index r = 0; r < bCount; ++r) x[bIdx[r]] = bVal[r];
   Index top = lower_triangular_ereach(outerIndexPtr, innerIndexPtr, innerNonZeroPtr, bIdx, bCount, xi, mark, n);
   triangular_solve_over_reach<false, UnitDiag>(outerIndexPtr, innerIndexPtr, valuePtr, innerNonZeroPtr, xi, top, n, x);
-
-  Index count = 0;
-  for (Index k = top; k < n; ++k) {  // gather, restoring x and mark to all-zero
-    StorageIndex j = xi[k];
-    outIdx[count] = j;
-    outVal[count] = x[j];
-    x[j] = Scalar(0);
-    mark[j] = 0;
-    ++count;
-  }
-  return count;
+  return gather_reach_solution(xi, top, n, x, mark, outIdx, outVal);  // gather, restoring x and mark
 }
 
 // Convenience overload of the etree solve: allocate (and zero) the workspace.
