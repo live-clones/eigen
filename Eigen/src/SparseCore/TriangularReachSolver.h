@@ -148,20 +148,24 @@ void triangular_solve_over_reach(const StorageIndex* outerIndexPtr, const Storag
     StorageIndex j = xi[k];
     Index colBeg = outerIndexPtr[j];
     Index colEnd = innerNonZeroPtr ? outerIndexPtr[j] + innerNonZeroPtr[j] : outerIndexPtr[j + 1];
-    Index offBeg = colBeg, offEnd = colEnd;
+    Index offBeg, offEnd;
     EIGEN_IF_CONSTEXPR (Upper) {
+      // diagonal is the last stored entry; off-diagonal entries precede it
+      offBeg = colBeg;
       EIGEN_IF_CONSTEXPR (!UnitDiag) {
-        x[j] /= valuePtr[colEnd - 1];  // diagonal stored last
+        x[j] /= valuePtr[colEnd - 1];
         offEnd = colEnd - 1;
       } else {
-        if (colEnd > colBeg && innerIndexPtr[colEnd - 1] == j) offEnd = colEnd - 1;  // skip an explicit unit diagonal
+        offEnd = (colEnd > colBeg && innerIndexPtr[colEnd - 1] == j) ? colEnd - 1 : colEnd;
       }
     } else {
+      // diagonal is the first stored entry; off-diagonal entries follow it
+      offEnd = colEnd;
       EIGEN_IF_CONSTEXPR (!UnitDiag) {
-        x[j] /= valuePtr[colBeg];  // diagonal stored first
+        x[j] /= valuePtr[colBeg];
         offBeg = colBeg + 1;
       } else {
-        if (colEnd > colBeg && innerIndexPtr[colBeg] == j) offBeg = colBeg + 1;  // skip an explicit unit diagonal
+        offBeg = (colEnd > colBeg && innerIndexPtr[colBeg] == j) ? colBeg + 1 : colBeg;
       }
     }
     Scalar xj = x[j];
