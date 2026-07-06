@@ -211,12 +211,16 @@ struct reach_reorder<true, true, StorageIndex> {  // iterator reach, upper: desc
 
 // Common per-column finish: reorder the reach xi[top..n) to ascending inner index,
 // insert reading values from xwork, and clear xwork and mark for the next column.
+// The reach is a structural bound, not a numeric one: a reached coefficient can be
+// exactly zero (a zero rhs entry, or numerical cancellation), so skip exact zeros at
+// insertion. This matches the AmbiVector path, which pruned zeros, and keeps a zero rhs
+// from materializing O(|reach|) stored zeros. xwork and mark are cleared regardless.
 template <bool Ordered, bool Upper, typename Res, typename StorageIndex, typename Scalar>
 void reach_insert_column(Res& res, Index col, StorageIndex* xi, Index top, Index n, Scalar* xwork, uint8_t* mark) {
   reach_reorder<Ordered, Upper, StorageIndex>::run(xi + top, xi + n);
   for (Index k = top; k < n; ++k) {
     StorageIndex j = xi[k];
-    res.insert(j, col) = xwork[j];
+    if (!numext::is_exactly_zero(xwork[j])) res.insert(j, col) = xwork[j];
     xwork[j] = Scalar(0);
     mark[j] = 0;
   }
@@ -238,6 +242,9 @@ void reach_solve_columns(const Lhs& lhs, const Rhs& other, Res& res, uint8_t* ma
     Index bCount = outer ? (nnz ? Index(nnz[col]) : Index(outer[col + 1]) - p) : other.nonZeros();
     const StorageIndex* roots = other.innerIndexPtr() + p;  // the column's stored indices
     const Scalar* vals = other.valuePtr() + p;
+    // Roots are the rhs slice directly (no bIdx copy, so iwork stays 2n). An exact-zero
+    // stored rhs entry is seeded harmlessly -- it propagates zeros and is dropped at
+    // insertion; filtering it here would cost a compacted root buffer (the 3n path).
     for (Index r = 0; r < bCount; ++r) xwork[roots[r]] = vals[r];
     Index top = reach_solve_dense<Upper, UnitDiag>(lhs, roots, bCount, xi, mark, xwork);
     reach_insert_column<!has_compressed_access<Lhs>::value, Upper>(res, col, xi, top, n, xwork, mark);
@@ -257,6 +264,7 @@ void reach_solve_columns(const Lhs& lhs, const Rhs& other, Res& res, uint8_t* ma
   for (Index col = 0; col < other.cols(); ++col) {
     Index bCount = 0;
     for (typename Rhs::InnerIterator it(other, col); it; ++it) {
+      if (numext::is_exactly_zero(it.value())) continue;  // a zero root seeds nothing; xwork stays clear there
       bIdx[bCount] = StorageIndex(it.index());
       xwork[it.index()] = it.value();
       ++bCount;

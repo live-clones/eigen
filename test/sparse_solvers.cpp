@@ -161,6 +161,43 @@ void sparse_solvers(int rows, int cols) {
         mg.template triangularView<Lower>().solveInPlace(vx);
         VERIFY_IS_APPROX(DenseVector(vx), rref);
       }
+
+      // explicitly-stored zero rhs entries must not expand into stored zeros: the reach
+      // is a structural bound, so a zero rhs coefficient (or one that cancels to zero)
+      // is pruned at insertion rather than materialized across the whole reach.
+      {
+        SparseMatrix<Scalar> mb(rows, matB.cols());
+        DenseMatrix rb = DenseMatrix::Zero(rows, matB.cols());
+        for (Index c = 0; c < mb.cols(); ++c)
+          for (Index i = 0; i < rows; ++i)
+            if (internal::random<int>(0, 3) == 0) {
+              Scalar s = internal::random<int>(0, 2) == 0 ? Scalar(0) : internal::random<Scalar>();  // some explicit 0
+              mb.insert(i, c) = s;
+              rb(i, c) = s;
+            }
+        mb.makeCompressed();
+        refMatG.template triangularView<Lower>().solveInPlace(rb);
+        mg.template triangularView<Lower>().solveInPlace(mb);
+        VERIFY_IS_APPROX(mb.toDense(), rb);
+        for (Index c = 0; c < mb.cols(); ++c)
+          for (typename SparseMatrix<Scalar>::InnerIterator it(mb, c); it; ++it)
+            VERIFY(!numext::is_exactly_zero(it.value()));  // no stored zeros
+      }
+
+      // mixed-scalar rhs: a real lhs applied to a rhs must accumulate in the rhs scalar.
+      // For real Scalar this is the ordinary path; for complex Scalar it is the
+      // real-factor / complex-data case that must both compile and be correct.
+      {
+        typedef typename NumTraits<Scalar>::Real Real;
+        SparseMatrix<Real> mr(rows, rows);
+        Matrix<Real, Dynamic, Dynamic> refMatR = Matrix<Real, Dynamic, Dynamic>::Zero(rows, rows);
+        initSparse<Real>(density, refMatR, mr, ForceNonZeroDiag);
+        DenseMatrix rb = refMatB;
+        SparseMatrix<Scalar> mb = matB;
+        refMatR.template cast<Scalar>().template triangularView<Lower>().solveInPlace(rb);
+        mr.template triangularView<Lower>().solveInPlace(mb);  // SparseMatrix<Real> lhs, <Scalar> rhs
+        VERIFY_IS_APPROX(mb.toDense(), rb);
+      }
     }
 
     // test deprecated API

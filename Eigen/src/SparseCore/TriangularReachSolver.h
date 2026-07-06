@@ -103,18 +103,23 @@ Index triangular_reach(const StorageIndex* outerIndexPtr, const StorageIndex* in
 // stored column carries out-of-triangle entries (a general matrix seen through a
 // TriangularView) do we binary-search past them, in O(log nnz/col) rather than a
 // linear scan of the wrong-side run.
-template <bool Upper, bool UnitDiag, typename StorageIndex, typename Scalar>
+// The stored lhs scalar (LhsScalar, read from valuePtr) and the accumulator/rhs scalar
+// (RhsScalar, held in x) are separate: a real factor applied to a complex rhs must
+// accumulate in the complex type. The arithmetic runs in RhsScalar; LhsScalar values
+// promote to it (e.g. double -> complex<double>).
+template <bool Upper, bool UnitDiag, typename StorageIndex, typename LhsScalar, typename RhsScalar>
 void triangular_solve_over_reach(const StorageIndex* outerIndexPtr, const StorageIndex* innerIndexPtr,
-                                 const Scalar* valuePtr, const StorageIndex* innerNonZeroPtr, const StorageIndex* xi,
-                                 Index top, Index n, Scalar* x) {
+                                 const LhsScalar* valuePtr, const StorageIndex* innerNonZeroPtr, const StorageIndex* xi,
+                                 Index top, Index n, RhsScalar* x) {
   for (Index k = top; k < n; ++k) {
     StorageIndex j = xi[k];
     Index colBeg = outerIndexPtr[j];
     Index colEnd = innerNonZeroPtr ? outerIndexPtr[j] + innerNonZeroPtr[j] : outerIndexPtr[j + 1];
-    Scalar xj;
+    RhsScalar xj;
     Index offBeg, offEnd;
     EIGEN_IF_CONSTEXPR (Upper) {
-      Index e = colEnd;  // one past the last in-triangle entry (index <= j)
+      // e = one past the last in-triangle entry (index <= j)
+      Index e = colEnd;
       if (e > colBeg && innerIndexPtr[e - 1] > j)  // wrong-side (below-diagonal) tail: skip it
         e = std::upper_bound(innerIndexPtr + colBeg, innerIndexPtr + colEnd, j) - innerIndexPtr;
       bool hasDiag = e > colBeg && innerIndexPtr[e - 1] == j;
@@ -127,7 +132,8 @@ void triangular_solve_over_reach(const StorageIndex* outerIndexPtr, const Storag
       }
       offBeg = colBeg;
     } else {
-      Index s = colBeg;  // first in-triangle entry (index >= j)
+      // s = first in-triangle entry (index >= j)
+      Index s = colBeg;
       if (s < colEnd && innerIndexPtr[s] < j)  // wrong-side (above-diagonal) head: skip it
         s = std::lower_bound(innerIndexPtr + colBeg, innerIndexPtr + colEnd, j) - innerIndexPtr;
       bool hasDiag = s < colEnd && innerIndexPtr[s] == j;
@@ -143,7 +149,7 @@ void triangular_solve_over_reach(const StorageIndex* outerIndexPtr, const Storag
     xj = x[j];
     for (Index p = offBeg; p < offEnd; ++p) {
       StorageIndex i = innerIndexPtr[p];
-      x[i] = numext::madd<Scalar>(-xj, valuePtr[p], x[i]);
+      x[i] = numext::madd<RhsScalar>(-xj, RhsScalar(valuePtr[p]), x[i]);
     }
   }
 }
@@ -169,10 +175,10 @@ void triangular_solve_over_reach(const StorageIndex* outerIndexPtr, const Storag
 //   - xwork: >= n Scalar, the dense accumulator, zero except b scattered on bIdx.
 // `innerNonZeroPtr` is nullptr for a compressed T, or the per-column nonzero count for
 // an uncompressed T (columns then end at outerIndexPtr[j]+innerNonZeroPtr[j]).
-template <bool Upper, bool UnitDiag, typename StorageIndex, typename Scalar>
-Index reach_solve_dense(const StorageIndex* outerIndexPtr, const StorageIndex* innerIndexPtr, const Scalar* valuePtr,
+template <bool Upper, bool UnitDiag, typename StorageIndex, typename LhsScalar, typename RhsScalar>
+Index reach_solve_dense(const StorageIndex* outerIndexPtr, const StorageIndex* innerIndexPtr, const LhsScalar* valuePtr,
                         const StorageIndex* innerNonZeroPtr, Index n, const StorageIndex* bIdx, Index bCount,
-                        StorageIndex* iwork, uint8_t* mark, Scalar* xwork) {
+                        StorageIndex* iwork, uint8_t* mark, RhsScalar* xwork) {
   Index top =
       triangular_reach<Upper>(outerIndexPtr, innerIndexPtr, innerNonZeroPtr, bIdx, bCount, iwork, iwork + n, mark, n);
   triangular_solve_over_reach<Upper, UnitDiag>(outerIndexPtr, innerIndexPtr, valuePtr, innerNonZeroPtr, iwork, top, n,
