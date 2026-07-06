@@ -206,24 +206,36 @@ class DeviceMatrix {
    * Matches Matrix<Scalar,Dynamic,1>(n) for CG template compatibility. */
   explicit DeviceMatrix(Index n) : rows_(n), cols_(1) {
     eigen_assert(n >= 0);
-    size_t bytes = sizeInBytes();
-    if (bytes > 0) {
-      void* p = nullptr;
-      EIGEN_CUDA_RUNTIME_CHECK(cudaMalloc(&p, bytes));
-      data_.reset(static_cast<Scalar*>(p));
-    }
+    allocate(sizeInBytes());
   }
 
   /** Allocate uninitialized device memory for a rows x cols matrix. */
   DeviceMatrix(Index rows, Index cols) : rows_(rows), cols_(cols) {
     eigen_assert(rows >= 0 && cols >= 0);
-    size_t bytes = sizeInBytes();
-    if (bytes > 0) {
-      void* p = nullptr;
-      EIGEN_CUDA_RUNTIME_CHECK(cudaMalloc(&p, bytes));
-      data_.reset(static_cast<Scalar*>(p));
-    }
+    allocate(sizeInBytes());
   }
+
+  // ---- Converting constructors from expression types -------------------------
+  // Allow copy-initialization directly from a device expression, mirroring the
+  // Eigen CPU idiom:
+  //   DeviceMatrix<double> d_C = d_A * d_B;
+  //   DeviceMatrix<double> d_X = d_A.llt().solve(d_B);
+  // Each delegates to the corresponding operator= using the thread-local
+  // Context. Defined out-of-line in DeviceDispatch.h (GpuSparseContext.h for
+  // the SpMV expression), where Context is complete.
+
+  template <typename Lhs, typename Rhs>
+  DeviceMatrix(const GemmExpr<Lhs, Rhs>& expr);
+  DeviceMatrix(const Scaled<DeviceMatrix>& expr);
+  DeviceMatrix(const DeviceAddExpr<Scalar>& expr);
+  template <int UpLo>
+  DeviceMatrix(const LltSolveExpr<Scalar, UpLo>& expr);
+  DeviceMatrix(const LuSolveExpr<Scalar>& expr);
+  template <int UpLo>
+  DeviceMatrix(const TrsmExpr<Scalar, UpLo>& expr);
+  template <int UpLo>
+  DeviceMatrix(const SymmExpr<Scalar, UpLo>& expr);
+  DeviceMatrix(const SpMVExpr<Scalar>& expr);
 
   ~DeviceMatrix() {
     // cudaEventDestroy on a pending event is non-blocking: the runtime defers
@@ -239,11 +251,13 @@ class DeviceMatrix {
       : data_(std::move(o.data_)),
         rows_(o.rows_),
         cols_(o.cols_),
+        capacity_bytes_(o.capacity_bytes_),
         ready_event_(o.ready_event_),
         ready_stream_(o.ready_stream_),
         retained_buffer_(std::move(o.retained_buffer_)) {
     o.rows_ = 0;
     o.cols_ = 0;
+    o.capacity_bytes_ = 0;
     o.ready_event_ = nullptr;
     o.ready_stream_ = nullptr;
   }
@@ -254,11 +268,13 @@ class DeviceMatrix {
       data_ = std::move(o.data_);
       rows_ = o.rows_;
       cols_ = o.cols_;
+      capacity_bytes_ = o.capacity_bytes_;
       ready_event_ = o.ready_event_;
       ready_stream_ = o.ready_stream_;
       retained_buffer_ = std::move(o.retained_buffer_);
       o.rows_ = 0;
       o.cols_ = 0;
+      o.capacity_bytes_ = 0;
       o.ready_event_ = nullptr;
       o.ready_stream_ = nullptr;
     }
@@ -280,7 +296,11 @@ class DeviceMatrix {
    */
   template <typename Derived>
   static DeviceMatrix fromHost(const MatrixBase<Derived>& host, cudaStream_t stream = nullptr) {
-    const PlainMatrix mat(host.derived());
+    // Ref binds in place when the input is already a plain contiguous
+    // column-major matrix (the common case) — no host-side copy. Only genuine
+    // expressions and incompatible layouts are evaluated into the Ref's
+    // internal temporary.
+    const Ref<const PlainMatrix> mat(host.derived());
     DeviceMatrix dm(mat.rows(), mat.cols());
     if (dm.sizeInBytes() > 0) {
       EIGEN_CUDA_RUNTIME_CHECK(
@@ -376,11 +396,24 @@ class DeviceMatrix {
 
   // ---- Resize (destructive) ------------------------------------------------
 
-  /** Discard contents and reallocate to (rows x cols). Clears the ready event. */
+  /** Discard contents and resize to (rows x cols). Contents are undefined
+   * afterwards. Keeps the existing allocation when it is large enough
+   * (capacity-aware: no cudaMalloc/cudaFree churn when cycling through
+   * same-or-smaller shapes); otherwise reallocates and clears the ready
+   * event. */
   void resize(Index rows, Index cols) {
     eigen_assert(rows >= 0 && cols >= 0);
     if (rows == rows_ && cols == cols_) return;
+    const size_t bytes = static_cast<size_t>(rows) * static_cast<size_t>(cols) * sizeof(Scalar);
+    if (bytes > 0 && bytes <= capacity_bytes_ && data_) {
+      // Reuse the allocation; the ready event still orders any in-flight
+      // writes to this buffer ahead of its next producer.
+      rows_ = rows;
+      cols_ = cols;
+      return;
+    }
     data_.reset();
+    capacity_bytes_ = 0;
     if (ready_event_) {
       EIGEN_CUDA_RUNTIME_CHECK(cudaEventDestroy(ready_event_));
       ready_event_ = nullptr;
@@ -389,12 +422,7 @@ class DeviceMatrix {
     retained_buffer_ = internal::DeviceBuffer();
     rows_ = rows;
     cols_ = cols;
-    size_t bytes = sizeInBytes();
-    if (bytes > 0) {
-      void* p = nullptr;
-      EIGEN_CUDA_RUNTIME_CHECK(cudaMalloc(&p, bytes));
-      data_.reset(static_cast<Scalar*>(p));
-    }
+    allocate(bytes);
   }
 
   // ---- Accessors -----------------------------------------------------------
@@ -446,6 +474,10 @@ class DeviceMatrix {
   /** Accumulate from a GEMM expression using the thread-local default Context. */
   template <typename Lhs, typename Rhs>
   DeviceMatrix& operator+=(const GemmExpr<Lhs, Rhs>& expr);
+
+  /** Subtract a GEMM expression using the thread-local default Context. */
+  template <typename Lhs, typename Rhs>
+  DeviceMatrix& operator-=(const GemmExpr<Lhs, Rhs>& expr);
 
   /** Cholesky view: d_A.llt().solve(d_B) → LltSolveExpr. */
   LLTView<Scalar, Lower> llt() const { return LLTView<Scalar, Lower>(*this); }
@@ -577,6 +609,10 @@ class DeviceMatrix {
   /** Assign from an add expression: d_C = alpha * d_A + beta * d_B (cuBLAS geam). */
   DeviceMatrix& operator=(const DeviceAddExpr<Scalar>& expr);
 
+  /** Assign from a scaled matrix: d_C = alpha * d_A (cuBLAS geam with beta=0).
+   * Also covers unary minus: d_C = -d_A. Safe when d_C aliases d_A. */
+  DeviceMatrix& operator=(const Scaled<DeviceMatrix>& expr);
+
   /** No-op — all DeviceMatrix operations are implicitly noalias.
    *
    * Unlike Eigen's Matrix, where omitting .noalias() triggers a copy to a
@@ -599,6 +635,7 @@ class DeviceMatrix {
     dm.data_.reset(device_ptr);
     dm.rows_ = rows;
     dm.cols_ = cols;
+    dm.capacity_bytes_ = dm.sizeInBytes();
     return dm;
   }
 
@@ -624,6 +661,7 @@ class DeviceMatrix {
     Scalar* p = data_.release();
     rows_ = 0;
     cols_ = 0;
+    capacity_bytes_ = 0;
     if (ready_event_) {
       EIGEN_CUDA_RUNTIME_CHECK(cudaEventDestroy(ready_event_));
       ready_event_ = nullptr;
@@ -634,6 +672,17 @@ class DeviceMatrix {
 
  private:
   // ---- Private helpers -------------------------------------------------------
+
+  // Fresh owning allocation of `bytes` (no-op for empty). Also resets the
+  // deleter so a previously borrowed (view) deleter cannot leak the new
+  // owned pointer.
+  void allocate(size_t bytes) {
+    if (bytes > 0) {
+      data_ = std::unique_ptr<Scalar, internal::CudaFreeDeleter>(static_cast<Scalar*>(internal::device_malloc(bytes)),
+                                                                 internal::CudaFreeDeleter{});
+      capacity_bytes_ = bytes;
+    }
+  }
 
   void ensureEvent() {
     if (!ready_event_) {
@@ -648,6 +697,7 @@ class DeviceMatrix {
   std::unique_ptr<Scalar, internal::CudaFreeDeleter> data_;
   Index rows_ = 0;
   Index cols_ = 0;
+  size_t capacity_bytes_ = 0;               // owned allocation size (0 for borrowed views)
   cudaEvent_t ready_event_ = nullptr;       // internal: tracks last write completion
   cudaStream_t ready_stream_ = nullptr;     // stream that recorded ready_event_ (for same-stream skip)
   internal::DeviceBuffer retained_buffer_;  // internal: keeps async aux buffers alive
