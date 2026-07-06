@@ -22,6 +22,7 @@
 
 #include "./CuSolverSupport.h"
 #include "./CuBlasSupport.h"
+#include "./GpuContext.h"
 #include <vector>
 
 namespace Eigen {
@@ -32,7 +33,7 @@ struct GpuSolverContext {
   cudaStream_t stream_ = nullptr;
   cusolverDnHandle_t cusolver_ = nullptr;
   cublasHandle_t cublas_ = nullptr;
-  cublasLtHandle_t cublas_lt_ = nullptr;  // lazy: created on first GEMM-via-cublasLt call
+  cublasLtHandle_t cublas_lt_ = nullptr;  // lazy: created on first GEMM-via-cublasLt call (always owned)
   CusolverParams params_;
   DeviceBuffer d_scratch_;
   size_t scratch_size_ = 0;
@@ -45,6 +46,7 @@ struct GpuSolverContext {
   ComputationInfo info_ = InvalidInput;
   PinnedHostBuffer pinned_info_{sizeof(int)};  // pinned host memory for async D2H of info word
   bool info_synced_ = true;
+  bool owns_stream_and_handles_ = true;
 
   int& info_word() { return *static_cast<int*>(pinned_info_.get()); }
   int info_word() const { return *static_cast<const int*>(pinned_info_.get()); }
@@ -58,17 +60,32 @@ struct GpuSolverContext {
     ensure_scratch(0);
   }
 
+  /** Borrow stream and cuSOLVER/cuBLAS handles from a gpu::Context, so solver
+   * work runs on the same stream as the caller's other GPU operations (no
+   * cross-stream event waits, and the solver creates no stream/handles of its
+   * own). The Context must outlive this solver context. */
+  explicit GpuSolverContext(Context& ctx)
+      : stream_(ctx.stream()),
+        cusolver_(ctx.cusolverHandle()),
+        cublas_(ctx.cublasHandle()),
+        owns_stream_and_handles_(false) {
+    ensure_scratch(0);
+  }
+
   ~GpuSolverContext() {
     // Ignore errors here: dtors are noexcept, and EIGEN_CU{BLAS,SOLVER,DA_RUNTIME}_CHECK
     // are eigen_assert-based — firing one from a noexcept dtor terminates the program.
-    // The trailing cudaFree() of the device buffers (via DeviceBuffer::~DeviceBuffer) is
-    // synchronous and waits for any in-flight kernel touching the buffer.
+    // The trailing free of the device buffers (via DeviceBuffer::~DeviceBuffer) is
+    // stream-ordered (or synchronous on the cudaMalloc fallback), so it waits
+    // for any in-flight kernel touching the buffer.
     // Destroy plan cache before its cublasLt handle (entries hold descriptors).
     gemm_plan_cache_.clear();
     if (cublas_lt_) (void)cublasLtDestroy(cublas_lt_);
-    if (cublas_) (void)cublasDestroy(cublas_);
-    if (cusolver_) (void)cusolverDnDestroy(cusolver_);
-    if (stream_) (void)cudaStreamDestroy(stream_);
+    if (owns_stream_and_handles_) {
+      if (cublas_) (void)cublasDestroy(cublas_);
+      if (cusolver_) (void)cusolverDnDestroy(cusolver_);
+      if (stream_) (void)cudaStreamDestroy(stream_);
+    }
   }
 
   GpuSolverContext(GpuSolverContext&& o) noexcept
@@ -85,7 +102,8 @@ struct GpuSolverContext {
         cublaslt_max_workspace_bytes_(o.cublaslt_max_workspace_bytes_),
         info_(o.info_),
         pinned_info_(std::move(o.pinned_info_)),
-        info_synced_(o.info_synced_) {
+        info_synced_(o.info_synced_),
+        owns_stream_and_handles_(o.owns_stream_and_handles_) {
     o.stream_ = nullptr;
     o.cusolver_ = nullptr;
     o.cublas_ = nullptr;
@@ -93,6 +111,7 @@ struct GpuSolverContext {
     o.scratch_size_ = 0;
     o.info_ = InvalidInput;
     o.info_synced_ = true;
+    o.owns_stream_and_handles_ = true;
   }
 
   GpuSolverContext& operator=(GpuSolverContext&& o) noexcept {
@@ -104,9 +123,11 @@ struct GpuSolverContext {
       if (stream_) (void)cudaStreamSynchronize(stream_);
       gemm_plan_cache_.clear();
       if (cublas_lt_) (void)cublasLtDestroy(cublas_lt_);
-      if (cublas_) (void)cublasDestroy(cublas_);
-      if (cusolver_) (void)cusolverDnDestroy(cusolver_);
-      if (stream_) (void)cudaStreamDestroy(stream_);
+      if (owns_stream_and_handles_) {
+        if (cublas_) (void)cublasDestroy(cublas_);
+        if (cusolver_) (void)cusolverDnDestroy(cusolver_);
+        if (stream_) (void)cudaStreamDestroy(stream_);
+      }
       stream_ = o.stream_;
       cusolver_ = o.cusolver_;
       cublas_ = o.cublas_;
@@ -121,6 +142,7 @@ struct GpuSolverContext {
       info_ = o.info_;
       pinned_info_ = std::move(o.pinned_info_);
       info_synced_ = o.info_synced_;
+      owns_stream_and_handles_ = o.owns_stream_and_handles_;
       o.stream_ = nullptr;
       o.cusolver_ = nullptr;
       o.cublas_ = nullptr;
@@ -128,6 +150,7 @@ struct GpuSolverContext {
       o.scratch_size_ = 0;
       o.info_ = InvalidInput;
       o.info_synced_ = true;
+      o.owns_stream_and_handles_ = true;
     }
     return *this;
   }
@@ -177,6 +200,25 @@ struct GpuSolverContext {
   void mark_pending() {
     info_synced_ = false;
     info_ = InvalidInput;
+  }
+
+  // Common compute() prologue: reset info state. Returns false for the empty
+  // (n == 0) case, which is trivially successful — the caller returns early.
+  bool begin_compute(bool nonempty) {
+    info_ = InvalidInput;
+    if (!nonempty) {
+      info_ = Success;
+      info_synced_ = true;
+      return false;
+    }
+    return true;
+  }
+
+  // Common factorize() epilogue: enqueue the async D2H copy of the info word
+  // into pinned host memory. Read later by the lazy sync_info().
+  void enqueue_info_copy() {
+    EIGEN_CUDA_RUNTIME_CHECK(
+        cudaMemcpyAsync(&info_word(), scratch_info(), sizeof(int), cudaMemcpyDeviceToHost, stream_));
   }
 
   // Synchronize the stream and interpret the info word. No-op if already synced.
