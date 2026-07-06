@@ -98,8 +98,11 @@ Index triangular_reach(const StorageIndex* outerIndexPtr, const StorageIndex* in
 // Columns are sorted, so the active triangle is a contiguous run: for lower it is the
 // suffix from the first entry with index >= j (the diagonal, then the sub-diagonal
 // off-diagonals); for upper it is the prefix up to the last entry with index <= j (the
-// off-diagonals, then the diagonal). The boundary scan skips any out-of-triangle
-// entries of the stored matrix and is a no-op for a genuinely triangular one.
+// off-diagonals, then the diagonal). Locating the boundary is O(1) for a genuinely
+// triangular column (the extreme stored entry is already the diagonal); only when a
+// stored column carries out-of-triangle entries (a general matrix seen through a
+// TriangularView) do we binary-search past them, in O(log nnz/col) rather than a
+// linear scan of the wrong-side run.
 template <bool Upper, bool UnitDiag, typename StorageIndex, typename Scalar>
 void triangular_solve_over_reach(const StorageIndex* outerIndexPtr, const StorageIndex* innerIndexPtr,
                                  const Scalar* valuePtr, const StorageIndex* innerNonZeroPtr, const StorageIndex* xi,
@@ -112,7 +115,8 @@ void triangular_solve_over_reach(const StorageIndex* outerIndexPtr, const Storag
     Index offBeg, offEnd;
     EIGEN_IF_CONSTEXPR (Upper) {
       Index e = colEnd;  // one past the last in-triangle entry (index <= j)
-      while (e > colBeg && innerIndexPtr[e - 1] > j) --e;
+      if (e > colBeg && innerIndexPtr[e - 1] > j)  // wrong-side (below-diagonal) tail: skip it
+        e = std::upper_bound(innerIndexPtr + colBeg, innerIndexPtr + colEnd, j) - innerIndexPtr;
       bool hasDiag = e > colBeg && innerIndexPtr[e - 1] == j;
       EIGEN_IF_CONSTEXPR (!UnitDiag) {
         eigen_assert(hasDiag && "sparse triangular solve: missing diagonal");
@@ -124,7 +128,8 @@ void triangular_solve_over_reach(const StorageIndex* outerIndexPtr, const Storag
       offBeg = colBeg;
     } else {
       Index s = colBeg;  // first in-triangle entry (index >= j)
-      while (s < colEnd && innerIndexPtr[s] < j) ++s;
+      if (s < colEnd && innerIndexPtr[s] < j)  // wrong-side (above-diagonal) head: skip it
+        s = std::lower_bound(innerIndexPtr + colBeg, innerIndexPtr + colEnd, j) - innerIndexPtr;
       bool hasDiag = s < colEnd && innerIndexPtr[s] == j;
       EIGEN_IF_CONSTEXPR (!UnitDiag) {
         eigen_assert(hasDiag && "sparse triangular solve: missing diagonal");
