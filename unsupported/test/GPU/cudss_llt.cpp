@@ -202,6 +202,31 @@ void test_scalar() {
   CALL_SUBTEST(test_upper<Scalar>(64));
 }
 
+// ---- Device-resident solve + Context binding -----------------------------------
+
+template <typename Scalar>
+void test_device_solve_context(Index n) {
+  using SpMat = SparseMatrix<Scalar, ColMajor, int>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+
+  SpMat A = make_spd<Scalar>(n);
+  Mat B = Mat::Random(n, 3);
+
+  gpu::Context gctx;
+  gpu::SparseLLT<Scalar> llt(gctx, A);
+  VERIFY(llt.info() == Success);
+  VERIFY(llt.stream() == gctx.stream());
+
+  Mat X_host = llt.solve(B);
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B, gctx.stream());
+  gpu::DeviceMatrix<Scalar> d_X = llt.solve(d_B);
+  VERIFY_IS_APPROX(d_X.toHost(), X_host);
+
+  // Second device solve reuses the cached dense descriptors.
+  gpu::DeviceMatrix<Scalar> d_X2 = llt.solve(d_B);
+  VERIFY_IS_APPROX(d_X2.toHost(), X_host);
+}
+
 EIGEN_DECLARE_TEST(gpu_cudss_llt) {
   gpu_test::require_cudss_context();
   // Split by scalar so each part compiles in parallel.
@@ -213,4 +238,6 @@ EIGEN_DECLARE_TEST(gpu_cudss_llt) {
   CALL_SUBTEST_5(test_empty<double>());
   CALL_SUBTEST_5(test_empty<std::complex<float>>());
   CALL_SUBTEST_5(test_empty<std::complex<double>>());
+  CALL_SUBTEST_5(test_device_solve_context<float>(64));
+  CALL_SUBTEST_5(test_device_solve_context<double>(64));
 }
