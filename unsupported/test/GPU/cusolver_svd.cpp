@@ -378,10 +378,40 @@ void test_svd_empty() {
   VERIFY_IS_EQUAL(svd.singularValues().size(), 0);
 }
 
+// ---- Device-resident solve ----------------------------------------------------
+
+template <typename Scalar>
+void test_device_solve(Index m, Index n, Index nrhs) {
+  using Mat = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
+
+  Mat A = Mat::Random(m, n);
+  Mat B = Mat::Random(m, nrhs);
+
+  gpu::SVD<Scalar> svd(A);
+  VERIFY(svd.info() == Success);
+  Mat X_host = svd.solve(B);
+
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B, svd.stream());
+  gpu::DeviceMatrix<Scalar> d_X = svd.solve(d_B);
+  VERIFY_IS_APPROX(d_X.toHost(), X_host);
+
+  // Second device solve reuses the cached inverse diagonal (no host sync).
+  gpu::DeviceMatrix<Scalar> d_X2 = svd.solve(d_B);
+  VERIFY_IS_APPROX(d_X2.toHost(), X_host);
+
+  // Truncated variant matches its host counterpart too.
+  const Index trunc = (std::min)(m, n) / 2 + 1;
+  Mat Xt_host = svd.solve(B, trunc);
+  gpu::DeviceMatrix<Scalar> d_Xt = svd.solve(d_B, trunc);
+  VERIFY_IS_APPROX(d_Xt.toHost(), Xt_host);
+}
+
 // ---- Per-scalar driver ------------------------------------------------------
 
 template <typename Scalar>
 void test_scalar() {
+  CALL_SUBTEST(test_device_solve<Scalar>(64, 48, 4));
+  CALL_SUBTEST(test_device_solve<Scalar>(48, 64, 3));
   // Reconstruction + orthogonality (thin and full, identical test logic).
   CALL_SUBTEST((test_svd_reconstruction<Scalar, ComputeThinU | ComputeThinV>(64, 64)));
   CALL_SUBTEST((test_svd_reconstruction<Scalar, ComputeThinU | ComputeThinV>(128, 64)));
