@@ -34,9 +34,41 @@
 #include "./CuBlasSupport.h"
 #include "./CuSolverSupport.h"
 #include <cusparse.h>
+#include <vector>
 
 namespace Eigen {
 namespace gpu {
+
+namespace internal {
+
+// Grow-only scratch shared by the one-shot solver expressions
+// (d_A.llt().solve(d_B), d_A.lu().solve(d_B)), so repeated one-shot solves on
+// a Context perform no per-call device or pinned-host allocations. Holds only
+// CUDA-runtime types (no cuSOLVER types) to keep the lazy-linking property of
+// Context. Used by dispatch_llt_solve / dispatch_lu_solve in DeviceDispatch.h.
+struct OneShotSolverScratch {
+  DeviceBuffer d_factor;
+  size_t factor_size = 0;
+  DeviceBuffer d_ipiv;
+  size_t ipiv_size = 0;
+  DeviceBuffer d_workspace;
+  size_t workspace_size = 0;
+  DeviceBuffer d_info;      // 2 ints: {factorization, solve}
+  PinnedHostBuffer h_info;  // lazily created for the debug-build info check
+  std::vector<char> h_workspace;
+
+  static void ensure(DeviceBuffer& buf, size_t& cur, size_t needed) {
+    if (needed > cur) {
+      // Replacing an in-use buffer is safe: device_free is stream-ordered
+      // (or fully synchronous on the cudaMalloc fallback path), so the free
+      // waits for previously enqueued work touching the old buffer.
+      buf = DeviceBuffer(needed);
+      cur = needed;
+    }
+  }
+};
+
+}  // namespace internal
 
 /** \ingroup GPU_Module
  * \class Context
@@ -136,6 +168,11 @@ class Context {
    * by shape to avoid per-call overhead). Same thread-safety as workspace. */
   internal::CublasLtPlanCache* gemmPlanCache() const { return &gemm_plan_cache_; }
 
+  /** Grow-only scratch for the one-shot solver expressions
+   * (d_A.llt().solve(d_B), d_A.lu().solve(d_B)). Same thread-safety rules as
+   * the GEMM workspace: all uses must be on this context's stream. */
+  internal::OneShotSolverScratch* oneshotSolverScratch() const { return &oneshot_solver_scratch_; }
+
   /** Workspace ceiling passed to the cublasLtMatmul heuristic at plan-creation time.
    * Defaults to internal::kCublasLtMaxWorkspaceBytes (compile-time configurable via
    * EIGEN_CUDA_CUBLASLT_MAX_WORKSPACE_BYTES). */
@@ -174,6 +211,7 @@ class Context {
   mutable cusparseStatus_t (*cusparse_destroyer_)(cusparseHandle_t) = nullptr;
   mutable internal::DeviceBuffer gemm_workspace_;  // lazy
   mutable internal::CublasLtPlanCache gemm_plan_cache_{internal::kCublasLtPlanCacheCapacity};
+  mutable internal::OneShotSolverScratch oneshot_solver_scratch_;  // lazy, grow-only
   std::size_t cublaslt_max_workspace_bytes_ = internal::kCublasLtMaxWorkspaceBytes;
   bool owns_stream_ = true;
 
