@@ -49,6 +49,40 @@ constexpr cusparseOperation_t to_cusparse_op_for_scalar(GpuOp op) {
   return to_cusparse_op((op == GpuOp::ConjTrans && !NumTraits<Scalar>::IsComplex) ? GpuOp::Trans : op);
 }
 
+// Bind without copying when the input already has the target sparse format
+// and is compressed; otherwise convert/compress into `storage` and return
+// that. Avoids a full host copy + format conversion on the common
+// already-matching path.
+template <typename SpMatType, typename InputType>
+typename std::enable_if<std::is_same<SpMatType, InputType>::value, const SpMatType&>::type bind_sparse(
+    const InputType& A, SpMatType& storage) {
+  if (A.isCompressed()) return A;
+  storage = A;
+  storage.makeCompressed();
+  return storage;
+}
+
+template <typename SpMatType, typename InputType>
+typename std::enable_if<!std::is_same<SpMatType, InputType>::value, const SpMatType&>::type bind_sparse(
+    const InputType& A, SpMatType& storage) {
+  storage = A;
+  storage.makeCompressed();
+  return storage;
+}
+
+// Shared guard for the 32-bit index limits of the CUDA sparse libraries
+// (cuSPARSE, cuDSS): matrix dimensions and nonzero count must fit StorageIndex.
+template <typename StorageIndex>
+inline void check_storage_index_bounds(Index rows, Index cols, Index nnz) {
+  const Index max_storage_index = static_cast<Index>((std::numeric_limits<StorageIndex>::max)());
+  eigen_assert(rows <= max_storage_index && cols <= max_storage_index && nnz <= max_storage_index &&
+               "matrix dimensions or nonzeros exceed the index range supported by the CUDA sparse libraries");
+  EIGEN_UNUSED_VARIABLE(rows);
+  EIGEN_UNUSED_VARIABLE(cols);
+  EIGEN_UNUSED_VARIABLE(nnz);
+  EIGEN_UNUSED_VARIABLE(max_storage_index);
+}
+
 }  // namespace internal
 }  // namespace gpu
 }  // namespace Eigen
