@@ -91,6 +91,78 @@ void sparse_solvers(int rows, int cols) {
     m2.template triangularView<Upper>().solveInPlace(matB);
     VERIFY_IS_APPROX(matB, refMatB);
 
+    // A triangularView is a view of the triangular PART of a possibly-general matrix,
+    // so the stored matrix need not be strictly triangular. Exercise a general lhs, a
+    // SparseVector rhs, a mismatched-StorageIndex rhs, an uncompressed lhs, an
+    // expression lhs, and a unit diagonal -- none of which the checks above cover.
+    {
+      SparseMatrix<Scalar> mg(rows, rows);
+      DenseMatrix refMatG = DenseMatrix::Zero(rows, rows);
+      initSparse<Scalar>(density, refMatG, mg, ForceNonZeroDiag);  // GENERAL (both triangles stored)
+      initSparse<Scalar>(density, refMatB, matB);
+
+      // general matrix through a lower / upper / unit-upper view, sparse rhs
+      for (int mode = 0; mode < 3; ++mode) {
+        DenseMatrix rb = refMatB;
+        SparseMatrix<Scalar> mb = matB;
+        if (mode == 0) {
+          refMatG.template triangularView<Lower>().solveInPlace(rb);
+          mg.template triangularView<Lower>().solveInPlace(mb);
+        } else if (mode == 1) {
+          refMatG.template triangularView<Upper>().solveInPlace(rb);
+          mg.template triangularView<Upper>().solveInPlace(mb);
+        } else {
+          refMatG.template triangularView<UnitUpper>().solveInPlace(rb);
+          mg.template triangularView<UnitUpper>().solveInPlace(mb);
+        }
+        VERIFY_IS_APPROX(mb.toDense(), rb);
+      }
+
+      // expression lhs (no raw storage -> iterator path)
+      {
+        DenseMatrix rb = refMatB;
+        SparseMatrix<Scalar> mb = matB;
+        refMatG.template triangularView<Upper>().solveInPlace(rb);
+        (Scalar(1) * mg).template triangularView<Upper>().solveInPlace(mb);
+        VERIFY_IS_APPROX(mb.toDense(), rb);
+      }
+
+      // uncompressed lhs (innerNonZeroPtr != null)
+      {
+        DenseMatrix rb = refMatB;
+        SparseMatrix<Scalar> mb = matB, mu = mg;
+        mu.reserve(Matrix<int, Dynamic, 1>::Constant(mu.cols(), rows));  // -> uncompressed
+        refMatG.template triangularView<Lower>().solveInPlace(rb);
+        mu.template triangularView<Lower>().solveInPlace(mb);
+        VERIFY_IS_APPROX(mb.toDense(), rb);
+      }
+
+      // mismatched-StorageIndex rhs (-> InnerIterator fallback)
+      {
+        DenseMatrix rb = refMatB;
+        SparseMatrix<Scalar, ColMajor, long> mbl = matB;
+        refMatG.template triangularView<Lower>().solveInPlace(rb);
+        mg.template triangularView<Lower>().solveInPlace(mbl);
+        VERIFY_IS_APPROX(DenseMatrix(mbl), rb);
+      }
+
+      // SparseVector rhs (sets CompressedAccessBit but its outerIndexPtr() is null)
+      {
+        DenseVector rv = DenseVector::Zero(rows);
+        SparseVector<Scalar> vb(rows);
+        for (Index i = 0; i < rows; ++i)
+          if (internal::random<int>(0, 2) == 0) {
+            Scalar s = internal::random<Scalar>();
+            vb.coeffRef(i) = s;
+            rv(i) = s;
+          }
+        DenseVector rref = refMatG.template triangularView<Lower>().solve(rv);
+        SparseVector<Scalar> vx = vb;
+        mg.template triangularView<Lower>().solveInPlace(vx);
+        VERIFY_IS_APPROX(DenseVector(vx), rref);
+      }
+    }
+
     // test deprecated API
     initSparse<Scalar>(density, refMat2, m2, ForceNonZeroDiag | MakeLowerTriangular, &zeroCoords, &nonzeroCoords);
     VERIFY_IS_APPROX(refMat2.template triangularView<Lower>().solve(vec2),
