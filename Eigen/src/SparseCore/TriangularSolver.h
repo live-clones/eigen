@@ -183,7 +183,9 @@ template <typename Lhs, typename Rhs, int Mode,
 struct sparse_solve_triangular_sparse_selector;
 
 // True when the rhs exposes raw CSC storage with a StorageIndex matching the lhs, so a
-// column's stored index slice can serve as the reach roots directly (no bIdx copy).
+// column's stored index slice can serve as the reach roots directly (no bIdx copy). A
+// SparseVector qualifies too -- it is a single compressed column, handled below via the
+// null-outerIndexPtr guard (its outerIndexPtr() is null since it has no outer array).
 template <typename Lhs, typename Rhs>
 using rhs_matching_slice = std::integral_constant<
     bool, has_compressed_access<Rhs>::value &&
@@ -230,9 +232,10 @@ void reach_solve_columns(const Lhs& lhs, const Rhs& other, Res& res, uint8_t* ma
   Matrix<StorageIndex, Dynamic, 1> iwork(2 * n);  // xi | pstack
   StorageIndex* xi = iwork.data();
   for (Index col = 0; col < other.cols(); ++col) {
+    const StorageIndex* outer = other.outerIndexPtr();  // null for a SparseVector (single column)
     const StorageIndex* nnz = other.innerNonZeroPtr();  // null when compressed
-    Index p = other.outerIndexPtr()[col];
-    Index bCount = nnz ? Index(nnz[col]) : Index(other.outerIndexPtr()[col + 1]) - p;
+    Index p = outer ? outer[col] : 0;
+    Index bCount = outer ? (nnz ? Index(nnz[col]) : Index(outer[col + 1]) - p) : other.nonZeros();
     const StorageIndex* roots = other.innerIndexPtr() + p;  // the column's stored indices
     const Scalar* vals = other.valuePtr() + p;
     for (Index r = 0; r < bCount; ++r) xwork[roots[r]] = vals[r];
