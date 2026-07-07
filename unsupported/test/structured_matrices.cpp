@@ -134,6 +134,235 @@ void test_toeplitz_product(Index m, Index n) {
   VERIFY_IS_APPROX((T * X).eval(), (dense * X).eval());
 }
 
+// The transposed / adjoint / conjugated operators agree with the dense references,
+// both materialized and through their fast products, which reuse the cached symbol
+// (index reversal / conjugation) instead of computing new FFTs.
+template <typename Scalar>
+void test_circulant_transpose(Index n) {
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+
+  Vec c = Vec::Random(n);
+  Circulant<Scalar> C(c);
+  Mat dense = reference_circulant<Scalar>(c);
+
+  Mat Td = C.transpose();
+  VERIFY_IS_APPROX(Td, Mat(dense.transpose()));
+  Mat Ad = C.adjoint();
+  VERIFY_IS_APPROX(Ad, Mat(dense.adjoint()));
+  Mat Kd = C.conjugate();
+  VERIFY_IS_APPROX(Kd, Mat(dense.conjugate()));
+
+  Vec x = Vec::Random(n);
+  VERIFY_IS_APPROX((C.transpose() * x).eval(), (dense.transpose() * x).eval());
+  VERIFY_IS_APPROX((C.adjoint() * x).eval(), (dense.adjoint() * x).eval());
+  VERIFY_IS_APPROX((C.conjugate() * x).eval(), (dense.conjugate() * x).eval());
+
+  // The transposition family round-trips exactly: generators and symbols are pure
+  // permutations / conjugations, so no FFT is recomputed and no roundoff accrues.
+  Circulant<Scalar> Ctt = C.transpose().transpose();
+  VERIFY_IS_EQUAL(Ctt.column(), c);
+  VERIFY_IS_EQUAL(Ctt.symbol(), C.symbol());
+  Circulant<Scalar> Caa = C.adjoint().adjoint();
+  VERIFY_IS_EQUAL(Caa.column(), c);
+  VERIFY_IS_EQUAL(Caa.symbol(), C.symbol());
+}
+
+template <typename Scalar>
+void test_toeplitz_transpose(Index m, Index n) {
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+
+  // r[0] is deliberately left random (it is documented as ignored): the transposed
+  // operator must take its diagonal from c[0], not from r[0].
+  Vec c = Vec::Random(m), r = Vec::Random(n);
+  Toeplitz<Scalar> T(c, r);
+  Mat dense = reference_toeplitz<Scalar>(c, r);
+
+  Mat Td = T.transpose();
+  VERIFY_IS_APPROX(Td, Mat(dense.transpose()));
+  Mat Ad = T.adjoint();
+  VERIFY_IS_APPROX(Ad, Mat(dense.adjoint()));
+  Mat Kd = T.conjugate();
+  VERIFY_IS_APPROX(Kd, Mat(dense.conjugate()));
+
+  Vec y = Vec::Random(m);
+  VERIFY_IS_APPROX((T.transpose() * y).eval(), (dense.transpose() * y).eval());
+  VERIFY_IS_APPROX((T.adjoint() * y).eval(), (dense.adjoint() * y).eval());
+  Vec x = Vec::Random(n);
+  VERIFY_IS_APPROX((T.conjugate() * x).eval(), (dense.conjugate() * x).eval());
+
+  // Exact round trip (row[0] is normalized to the diagonal value on the way).
+  Toeplitz<Scalar> Ttt = T.transpose().transpose();
+  VERIFY_IS_EQUAL(Ttt.column(), c);
+  if (n > 1) VERIFY_IS_EQUAL(Vec(Ttt.row().tail(n - 1)), Vec(r.tail(n - 1)));
+  VERIFY_IS_EQUAL(Ttt.symbol(), T.symbol());
+}
+
+// Closed-form eigendecomposition: C * V = V * diag(eigenvalues) with V unitary.
+template <typename Scalar>
+void test_circulant_eigen(Index n) {
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  typedef std::complex<RealScalar> Complex;
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Complex, Dynamic, Dynamic> CMat;
+
+  Vec c = Vec::Random(n);
+  Circulant<Scalar> C(c);
+  CMat denseC = reference_circulant<Scalar>(c).template cast<Complex>();
+
+  Matrix<Complex, Dynamic, 1> lam = C.eigenvalues();
+  CMat V = C.eigenvectors();
+  VERIFY_IS_APPROX((denseC * V).eval(), (V * lam.asDiagonal()).eval());
+  VERIFY_IS_APPROX((V.adjoint() * V).eval(), CMat(CMat::Identity(n, n)));
+}
+
+// Closed-form SVD: the singular values match JacobiSVD, and U * S * V^H
+// reconstructs the matrix with unitary factors.
+template <typename Scalar>
+void test_circulant_svd(Index n) {
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  typedef std::complex<RealScalar> Complex;
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  typedef Matrix<Complex, Dynamic, Dynamic> CMat;
+
+  Vec c = Vec::Random(n);
+  Circulant<Scalar> C(c);
+  Mat dense = reference_circulant<Scalar>(c);
+
+  Matrix<RealScalar, Dynamic, 1> sv = C.singularValues();
+  JacobiSVD<Mat> svd(dense);
+  VERIFY_IS_APPROX(sv, svd.singularValues());
+
+  CMat U = C.matrixU(), V = C.matrixV();
+  VERIFY_IS_APPROX((U * sv.template cast<Complex>().asDiagonal() * V.adjoint()).eval(),
+                   CMat(dense.template cast<Complex>()));
+  VERIFY_IS_APPROX((U.adjoint() * U).eval(), CMat(CMat::Identity(n, n)));
+  VERIFY_IS_APPROX((V.adjoint() * V).eval(), CMat(CMat::Identity(n, n)));
+}
+
+// A rank-one circulant (the all-ones matrix): solve() must return the
+// minimum-norm least-squares solution -- the SVD pseudo-inverse applied to b --
+// for both consistent and inconsistent right-hand sides.
+template <typename Scalar>
+void test_circulant_minnorm_solve(Index n) {
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+
+  Vec c = Vec::Ones(n);
+  Circulant<Scalar> C(c);
+  VERIFY_IS_EQUAL(C.rank(), 1);
+  Mat dense = reference_circulant<Scalar>(c);
+  JacobiSVD<Mat> svd(dense, ComputeThinU | ComputeThinV);
+
+  Vec b = dense * Vec::Random(n);  // consistent right-hand side
+  VERIFY_IS_APPROX(C.solve(b), svd.solve(b).eval());
+  Vec b2 = Vec::Random(n);  // generally inconsistent; keep the projection non-zero
+  b2.array() += Scalar(2);
+  VERIFY_IS_APPROX(C.solve(b2), svd.solve(b2).eval());
+}
+
+// General rank-deficient circulant, synthesized by zeroing symbol entries. The
+// numerical rank must count exactly the surviving entries and solve() must match
+// the SVD pseudo-inverse. Scalar must be complex (the generator is an inverse DFT).
+template <typename Scalar>
+void test_circulant_rank_deficient(Index n, Index defect) {
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  typedef std::complex<RealScalar> Complex;
+  typedef Matrix<Complex, Dynamic, 1> CVec;
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+
+  CVec s = CVec::Random(n);
+  s.array() += Complex(2);  // keep the surviving moduli away from the threshold
+  for (Index k = 0; k < defect; ++k) s[2 * k + 1] = Complex(0);
+  CVec ct(n);
+  FFT<RealScalar> fft;
+  fft.inv(ct, s, n);
+  Vec c = ct;
+  Circulant<Scalar> C(c);
+  VERIFY_IS_EQUAL(C.rank(), n - defect);
+
+  Mat dense = reference_circulant<Scalar>(c);
+  JacobiSVD<Mat> svd(dense, ComputeThinU | ComputeThinV);
+  Vec b = Vec::Random(n);
+  VERIFY_IS_APPROX(C.solve(b), svd.solve(b).eval());
+
+  // The SVD factors must stay unitary and reconstruct the matrix even with zero
+  // singular values (exercising the arbitrary-phase completion of U and the
+  // tie-handling of the shared sort).
+  typedef Matrix<Complex, Dynamic, Dynamic> CMat;
+  Matrix<RealScalar, Dynamic, 1> sv = C.singularValues();
+  VERIFY((sv.tail(defect).array() <= RealScalar(n) * NumTraits<RealScalar>::epsilon() * sv[0]).all());
+  CMat U = C.matrixU(), V = C.matrixV();
+  VERIFY_IS_APPROX((U * sv.template cast<Complex>().asDiagonal() * V.adjoint()).eval(),
+                   CMat(dense.template cast<Complex>()));
+  VERIFY_IS_APPROX((U.adjoint() * U).eval(), CMat(CMat::Identity(n, n)));
+  VERIFY_IS_APPROX((V.adjoint() * V).eval(), CMat(CMat::Identity(n, n)));
+}
+
+// The zero operator: rank 0, pseudo-inverse solve identically zero, all singular
+// values zero. Pins the clamped-threshold boundary behavior.
+template <typename Scalar>
+void test_circulant_zero(Index n) {
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+
+  Circulant<Scalar> C(Vec(Vec::Zero(n)));
+  VERIFY_IS_EQUAL(C.rank(), 0);
+  VERIFY(C.singularValues().isZero());
+  Vec b = Vec::Random(n);
+  VERIFY(C.solve(b).isZero());
+}
+
+// A NaN in the generator must propagate to the solution (and count as non-zero in
+// rank()) instead of being silently laundered into zeros by the rank threshold.
+void test_circulant_nan_propagation(Index n) {
+  typedef Matrix<double, Dynamic, 1> Vec;
+
+  Vec c = Vec::Random(n);
+  c[n / 2] = std::numeric_limits<double>::quiet_NaN();
+  Circulant<double> C(c);
+  VERIFY_IS_EQUAL(C.rank(), n);
+  Vec b = Vec::Random(n);
+  Vec x = C.solve(b);
+  VERIFY(!(x.array() == x.array()).all());
+}
+
+template <typename Scalar>
+void test_circulant_inverse(Index n) {
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+
+  Vec c = Vec::Random(n);
+  c[0] += Scalar(RealScalar(2 * n));  // diagonally dominant => safely invertible
+  Circulant<Scalar> C(c);
+  Mat dense = reference_circulant<Scalar>(c);
+
+  Mat inv = C.inverse();
+  VERIFY_IS_APPROX((inv * dense).eval(), Mat(Mat::Identity(n, n)));
+
+  // The inverse operator's fast product acts as a solve.
+  Vec b = Vec::Random(n);
+  VERIFY_IS_APPROX((C.inverse() * b).eval(), C.solve(b));
+}
+
+template <typename Scalar>
+void test_circulant_determinant(Index n) {
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+
+  // Diagonal dominance keeps every eigenvalue away from zero, so the determinant
+  // is well conditioned and comparable against the dense LU-based value.
+  Vec c = Vec::Random(n);
+  c[0] += Scalar(RealScalar(2 * n));
+  Circulant<Scalar> C(c);
+  Mat dense = reference_circulant<Scalar>(c);
+  VERIFY_IS_APPROX(C.determinant(), dense.determinant());
+}
+
 // Fixed-size operators: generators are stored in fixed-size vectors, products and
 // solves return fixed-size results, and small sizes go through the coeff-based
 // product dispatch.
@@ -160,6 +389,10 @@ void test_circulant_fixed() {
   VecN b = VecN::Random();
   VecN xs = C.solve(b);
   VERIFY_IS_APPROX((dense * xs).eval(), b);
+
+  STATIC_CHECK((internal::remove_all_t<decltype(C.transpose())>::RowsAtCompileTime == N));
+  VecN xt = C.transpose() * x;
+  VERIFY_IS_APPROX(xt, (dense.transpose() * x).eval());
 }
 
 template <typename Scalar, int M, int N>
@@ -183,6 +416,12 @@ void test_toeplitz_fixed() {
   RowVec x = RowVec::Random();
   Matrix<Scalar, M, 1> y = T * x;
   VERIFY_IS_APPROX(y, (dense * x).eval());
+
+  STATIC_CHECK((internal::remove_all_t<decltype(T.transpose())>::RowsAtCompileTime == N));
+  STATIC_CHECK((internal::remove_all_t<decltype(T.transpose())>::ColsAtCompileTime == M));
+  ColVec w = ColVec::Random();
+  RowVec tw = T.transpose() * w;
+  VERIFY_IS_APPROX(tw, (dense.transpose() * w).eval());
 }
 
 template <typename Scalar>
@@ -226,6 +465,39 @@ void test_matrix_free_gmres(Index n) {
   Vec x = gmres.solve(b);
   VERIFY(gmres.info() == Success);
   VERIFY_IS_APPROX((dense * x).eval(), b);
+}
+
+// With adjoint() available, the rectangular operators feed Eigen's matrix-free
+// least-squares solvers end to end: both LSMR and LeastSquaresConjugateGradient
+// evaluate mat.adjoint() * v through the fast product.
+template <typename Scalar>
+void test_matrix_free_least_squares(Index m, Index n) {
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+
+  Vec c = Vec::Random(m), r = Vec::Random(n);
+  c[0] += Scalar(RealScalar(4));  // boost the diagonal to bound the conditioning
+  Toeplitz<Scalar> T(c, r);
+  Mat dense = reference_toeplitz<Scalar>(c, r);
+
+  Vec b = Vec::Random(m);
+  Vec xref = dense.colPivHouseholderQr().solve(b);
+
+  LSMR<Toeplitz<Scalar>, IdentityPreconditioner> lsmr;
+  lsmr.setTolerance(RealScalar(1e-12)).setMaxIterations(10 * n);
+  lsmr.compute(T);
+  Vec x = lsmr.solve(b);
+  VERIFY(lsmr.info() == Success);
+  VERIFY((x - xref).norm() <= RealScalar(1e-7) * xref.norm());
+
+  LeastSquaresConjugateGradient<Toeplitz<Scalar>, IdentityPreconditioner> lscg;
+  lscg.setTolerance(RealScalar(1e-12));
+  lscg.setMaxIterations(10 * n);
+  lscg.compute(T);
+  Vec x2 = lscg.solve(b);
+  VERIFY(lscg.info() == Success);
+  VERIFY((x2 - xref).norm() <= RealScalar(1e-7) * xref.norm());
 }
 
 // Diagonally dominant (well-conditioned) Toeplitz: the look-ahead solver must agree
@@ -371,6 +643,8 @@ EIGEN_DECLARE_TEST(structured_matrices) {
     // Matrix-free iterative solves through the existing solvers.
     CALL_SUBTEST_3((test_matrix_free_cg<double>(80)));
     CALL_SUBTEST_3((test_matrix_free_gmres<double>(80)));
+    CALL_SUBTEST_3((test_matrix_free_least_squares<double>(60, 40)));
+    CALL_SUBTEST_3((test_matrix_free_least_squares<std::complex<double>>(48, 32)));
 
     // Fixed-size operators: small (coeff-based dispatch) and above the FFT threshold.
     CALL_SUBTEST_4((test_circulant_fixed<double, 4>()));
@@ -379,6 +653,47 @@ EIGEN_DECLARE_TEST(structured_matrices) {
     CALL_SUBTEST_4((test_toeplitz_fixed<double, 4, 6>()));
     CALL_SUBTEST_4((test_toeplitz_fixed<double, 40, 24>()));
     CALL_SUBTEST_4((test_toeplitz_fixed<std::complex<float>, 6, 4>()));
+
+    // Transposition family across the dispatch tiers (scalar, direct, FFT incl. prime).
+    CALL_SUBTEST_6((test_circulant_transpose<double>(1)));
+    CALL_SUBTEST_6((test_circulant_transpose<double>(8)));
+    CALL_SUBTEST_6((test_circulant_transpose<double>(24)));
+    CALL_SUBTEST_6((test_circulant_transpose<double>(97)));
+    CALL_SUBTEST_6((test_circulant_transpose<float>(48)));
+    CALL_SUBTEST_6((test_circulant_transpose<std::complex<double>>(40)));
+    CALL_SUBTEST_6((test_circulant_transpose<std::complex<float>>(33)));
+    CALL_SUBTEST_6((test_toeplitz_transpose<double>(1, 1)));
+    CALL_SUBTEST_6((test_toeplitz_transpose<double>(12, 7)));
+    CALL_SUBTEST_6((test_toeplitz_transpose<double>(64, 40)));
+    CALL_SUBTEST_6((test_toeplitz_transpose<double>(40, 64)));
+    CALL_SUBTEST_6((test_toeplitz_transpose<double>(1, 40)));
+    CALL_SUBTEST_6((test_toeplitz_transpose<std::complex<double>>(48, 48)));
+    CALL_SUBTEST_6((test_toeplitz_transpose<std::complex<float>>(20, 36)));
+
+    // Closed-form eigendecomposition, SVD, pseudo-inverse solve, inverse, determinant.
+    CALL_SUBTEST_7((test_circulant_eigen<double>(1)));
+    CALL_SUBTEST_7((test_circulant_eigen<double>(16)));
+    CALL_SUBTEST_7((test_circulant_eigen<double>(40)));
+    CALL_SUBTEST_7((test_circulant_eigen<std::complex<double>>(21)));
+    CALL_SUBTEST_7((test_circulant_svd<double>(1)));
+    CALL_SUBTEST_7((test_circulant_svd<double>(24)));
+    CALL_SUBTEST_7((test_circulant_svd<std::complex<double>>(18)));
+    CALL_SUBTEST_7((test_circulant_svd<float>(12)));
+    CALL_SUBTEST_7((test_circulant_minnorm_solve<double>(20)));
+    CALL_SUBTEST_7((test_circulant_minnorm_solve<std::complex<double>>(15)));
+    CALL_SUBTEST_7((test_circulant_rank_deficient<std::complex<double>>(24, 3)));
+    CALL_SUBTEST_7((test_circulant_rank_deficient<std::complex<double>>(50, 5)));
+    CALL_SUBTEST_7((test_circulant_rank_deficient<std::complex<float>>(16, 2)));
+    CALL_SUBTEST_7((test_circulant_zero<double>(12)));
+    CALL_SUBTEST_7((test_circulant_zero<std::complex<double>>(7)));
+    CALL_SUBTEST_7(test_circulant_nan_propagation(20));
+    CALL_SUBTEST_7((test_circulant_inverse<double>(1)));
+    CALL_SUBTEST_7((test_circulant_inverse<double>(50)));
+    CALL_SUBTEST_7((test_circulant_inverse<std::complex<double>>(20)));
+    CALL_SUBTEST_7((test_circulant_inverse<float>(16)));
+    CALL_SUBTEST_7((test_circulant_determinant<double>(1)));
+    CALL_SUBTEST_7((test_circulant_determinant<double>(12)));
+    CALL_SUBTEST_7((test_circulant_determinant<std::complex<double>>(9)));
 
     // Look-ahead Levinson direct Toeplitz solver.
     CALL_SUBTEST_5((test_levinson_wellcond<double>(1)));
