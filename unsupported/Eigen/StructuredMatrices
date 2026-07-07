@@ -26,7 +26,10 @@ namespace Eigen {
  * solvers:
  *   - \c Circulant : a circulant matrix, diagonalized by the DFT;
  *   - \c Toeplitz  : a (possibly rectangular) Toeplitz matrix, multiplied in
- *     O(n log n) via circulant embedding.
+ *     O(n log n) via circulant embedding;
+ *   - \c Vandermonde : a Vandermonde matrix stored as its nodes, with Horner
+ *     products and O(n^2) Björck-Pereyra primal/dual solves
+ *     (\c BjorckPereyra).
  *
  * The operator types derive from \c EigenBase and store only their generating
  * vectors together with a precomputed DFT symbol that every product reuses.
@@ -50,6 +53,7 @@ namespace Eigen {
 #include "src/StructuredMatrices/Circulant.h"
 #include "src/StructuredMatrices/Toeplitz.h"
 #include "src/StructuredMatrices/LookAheadLevinson.h"
+#include "src/StructuredMatrices/Vandermonde.h"
 // IWYU pragma: end_exports
 
 #include "../../Eigen/src/Core/util/ReenableStupidWarnings.h"
