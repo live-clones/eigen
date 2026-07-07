@@ -124,6 +124,39 @@ class Toeplitz : public EigenBase<Toeplitz<Scalar_, Rows_, Cols_>> {
     return k >= 0 ? m_col.coeff(k) : m_row.coeff(-k);
   }
 
+  /** \returns the transpose of \c *this, itself a Toeplitz operator with the
+   * generators swapped (the new first column is the old first row, with its
+   * leading entry set to the diagonal value \c column()[0]). The cached embedding
+   * symbol, when present, is reused -- the symbol of the transpose is the index
+   * reversal of the symbol -- so no FFT is recomputed. */
+  Toeplitz<Scalar, Cols_, Rows_> transpose() const {
+    using TransposeType = Toeplitz<Scalar, Cols_, Rows_>;
+    const Index n = cols();
+    typename TransposeType::ColGeneratorType col(n);
+    col[0] = m_col[0];
+    if (n > 1) col.tail(n - 1) = m_row.tail(n - 1);
+    return TransposeType(col, m_col, internal::structured_reverse_symbol(m_symbol));
+  }
+
+  /** \returns the complex conjugate of \c *this, itself a Toeplitz operator. The
+   * cached embedding symbol, when present, is reused: the symbol of the conjugate
+   * is the conjugated index reversal of the symbol. */
+  Toeplitz conjugate() const {
+    return Toeplitz(m_col.conjugate(), m_row.conjugate(), internal::structured_reverse_symbol(m_symbol).conjugate());
+  }
+
+  /** \returns the adjoint of \c *this, itself a Toeplitz operator (the conjugated
+   * transpose). The cached embedding symbol, when present, is reused: the symbol
+   * of the adjoint is the elementwise conjugate of the symbol. */
+  Toeplitz<Scalar, Cols_, Rows_> adjoint() const {
+    using AdjointType = Toeplitz<Scalar, Cols_, Rows_>;
+    const Index n = cols();
+    typename AdjointType::ColGeneratorType col(n);
+    col[0] = numext::conj(m_col[0]);
+    if (n > 1) col.tail(n - 1) = m_row.tail(n - 1).conjugate();
+    return AdjointType(col, m_col.conjugate(), m_symbol.conjugate());
+  }
+
   /** \internal Writes the dense representation into \a dst; the head of column
    * \c j is a reversed slice of the row generator (entry \c i holds \c r[j-i])
    * and its tail the leading part of the column generator. Invoked through
@@ -206,6 +239,18 @@ class Toeplitz : public EigenBase<Toeplitz<Scalar_, Rows_, Cols_>> {
   }
 
  private:
+  // Grants transpose() and adjoint() access to the private constructor of the
+  // dimension-swapped instantiation.
+  template <typename OtherScalar, int OtherRows, int OtherCols>
+  friend class Toeplitz;
+
+  /** \internal Builds an operator from generators and an already-known symbol
+   * (empty for small operators), skipping the FFT of the public constructor. Used
+   * by transpose(), conjugate() and adjoint(), whose symbols are cheap
+   * transformations of the existing one. */
+  Toeplitz(const ColGeneratorType& col, const RowGeneratorType& row, const ComplexVector& symbol)
+      : m_col(col), m_row(row), m_symbol(symbol) {}
+
   /** \internal \returns the DFT of the first column of the circulant embedding. */
   ComplexVector computeSymbol() const {
     const Index m = rows(), n = cols();
