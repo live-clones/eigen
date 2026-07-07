@@ -701,6 +701,11 @@ struct etor_product_coeff_impl;
 template <int StorageOrder, int UnrollingIndex, typename Lhs, typename Rhs, typename Packet, int LoadMode>
 struct etor_product_packet_impl;
 
+struct product_empty_packet_evaluator {
+  template <typename Xpr>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit product_empty_packet_evaluator(const Xpr&) {}
+};
+
 template <typename Lhs, typename Rhs, int ProductTag>
 struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape, DenseShape>
     : evaluator_base<Product<Lhs, Rhs, LazyProduct>> {
@@ -716,9 +721,8 @@ struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape,
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE product_evaluator(const Lhs& lhs, const Rhs& rhs)
       : m_lhs(lhs),
         m_rhs(rhs),
-        m_lhsImpl(m_lhs),  // FIXME: these evaluator objects should be a no-op, but check that.
-        m_rhsImpl(m_rhs),  //        They are only useful for the packet path, so we could disable them when not needed
-                           //        or perhaps declare them on the fly in the packet methods.
+        m_lhsImpl(m_lhs),  // Real evaluator objects for packet products; empty placeholders for scalar-only products.
+        m_rhsImpl(m_rhs),
         m_innerDim(lhs.cols()) {
     EIGEN_INTERNAL_CHECK_COST_VALUE(NumTraits<Scalar>::MulCost);
     EIGEN_INTERNAL_CHECK_COST_VALUE(NumTraits<Scalar>::AddCost);
@@ -792,6 +796,10 @@ struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape,
                                // TODO: enable vectorization for mixed types
                                | (SameType && (CanVectorizeLhs || CanVectorizeRhs) ? PacketAccessBit : 0) |
                                (XprType::IsVectorAtCompileTime ? LinearAccessBit : 0);
+  using LhsPacketEtorType =
+      std::conditional_t<bool(int(Flags) & PacketAccessBit), LhsEtorType, product_empty_packet_evaluator>;
+  using RhsPacketEtorType =
+      std::conditional_t<bool(int(Flags) & PacketAccessBit), RhsEtorType, product_empty_packet_evaluator>;
 
   static constexpr int LhsOuterStrideBytes =
       int(LhsNestedCleaned::OuterStrideAtCompileTime) * int(sizeof(typename LhsNestedCleaned::Scalar));
@@ -874,8 +882,8 @@ struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape,
   add_const_on_value_type_t<LhsNested> m_lhs;
   add_const_on_value_type_t<RhsNested> m_rhs;
 
-  LhsEtorType m_lhsImpl;
-  RhsEtorType m_rhsImpl;
+  LhsPacketEtorType m_lhsImpl;
+  RhsPacketEtorType m_rhsImpl;
 
   variable_if_dynamic<Index, InnerSize> m_innerDim;
 };
