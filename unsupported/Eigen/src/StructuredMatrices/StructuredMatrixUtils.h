@@ -53,14 +53,16 @@ inline Index fft_next_good_size(Index n) {
 
 /** \internal View a complex-valued expression as \a Scalar: the expression itself
  * when \a Scalar is complex, its real part when \a Scalar is real (the imaginary
- * part then only holds numerically negligible roundoff). A single dispatch struct
- * keeps the number of instantiated helpers down to one per scalar type. */
+ * part then only holds numerically negligible roundoff). \c run_scalar is the
+ * single-coefficient analogue. A single dispatch struct keeps the number of
+ * instantiated helpers down to one per scalar type. */
 template <typename Scalar, bool IsComplex = NumTraits<Scalar>::IsComplex>
 struct structured_scalar_part_impl {
   template <typename Xpr>
   static const Xpr& run(const Xpr& xpr) {
     return xpr;
   }
+  static const Scalar& run_scalar(const Scalar& x) { return x; }
 };
 
 template <typename Scalar>
@@ -69,7 +71,24 @@ struct structured_scalar_part_impl<Scalar, false> {
   static typename Xpr::RealReturnType run(const Xpr& xpr) {
     return xpr.real();
   }
+  static Scalar run_scalar(const std::complex<Scalar>& x) { return numext::real(x); }
 };
+
+/** \internal \returns the index reversal of a DFT \a symbol: result[k] =
+ * symbol[(p - k) mod p]. This is the symbol of the transposed operator: reversing
+ * the generating sequence in index space reverses the frequencies of its DFT, for
+ * both a circulant generator and the circulant embedding of a Toeplitz matrix.
+ * An empty symbol (small operator, nothing cached) stays empty. */
+template <typename ComplexVectorType>
+ComplexVectorType structured_reverse_symbol(const ComplexVectorType& symbol) {
+  const Index p = symbol.size();
+  ComplexVectorType reversed(p);
+  if (p > 0) {
+    reversed[0] = symbol[0];
+    reversed.tail(p - 1) = symbol.tail(p - 1).reverse();
+  }
+  return reversed;
+}
 
 /** \internal
  * Computes \c dst.col(k) += alpha * ifft( symbol .* fft(rhs.col(k)) ) for every
