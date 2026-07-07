@@ -26,7 +26,10 @@ namespace Eigen {
  * solvers:
  *   - \c Circulant : a circulant matrix, diagonalized by the DFT;
  *   - \c Toeplitz  : a (possibly rectangular) Toeplitz matrix, multiplied in
- *     O(n log n) via circulant embedding.
+ *     O(n log n) via circulant embedding;
+ *   - \c DPR1EigenSolver : the direct O(n^2) secular-equation eigensolver for
+ *     real symmetric diagonal-plus-rank-one matrices D + rho*z*z^T, with
+ *     LAPACK-style deflation and Gu-Eisenstat orthogonal eigenvectors.
  *
  * The operator types derive from \c EigenBase and store only their generating
  * vectors together with a precomputed DFT symbol that every product reuses.
@@ -61,6 +64,7 @@ namespace Eigen {
 #include "src/StructuredMatrices/Circulant.h"
 #include "src/StructuredMatrices/Toeplitz.h"
 #include "src/StructuredMatrices/LookAheadLevinson.h"
+#include "src/StructuredMatrices/DPR1EigenSolver.h"
 // IWYU pragma: end_exports
 
 #include "../../Eigen/src/Core/util/ReenableStupidWarnings.h"
