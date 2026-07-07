@@ -184,6 +184,35 @@ void sparse_solvers(int rows, int cols) {
             VERIFY(!numext::is_exactly_zero(it.value()));  // no stored zeros
       }
 
+      // A reached column with no stored diagonal (non-unit) is out of contract: it must
+      // assert in debug on every path (pointer/iterator x lower/upper), rather than the
+      // failure being silently keyed to has_compressed_access. In release these divide by
+      // zero -> inf/NaN with no out-of-bounds read (covered by the sanitizer drivers).
+      {
+        SparseMatrix<Scalar> us(3, 3);
+        us.insert(0, 1) = Scalar(1);
+        us.insert(1, 1) = Scalar(2);
+        us.insert(2, 2) = Scalar(3);
+        us.makeCompressed();  // column 0 empty -> reached from rhs(0) but no diagonal
+        SparseMatrix<Scalar> ub(3, 1);
+        ub.insert(0, 0) = Scalar(1);
+        ub.makeCompressed();
+        SparseMatrix<Scalar> up = ub, ui = ub;
+        VERIFY_RAISES_ASSERT(us.template triangularView<Upper>().solveInPlace(up));                // pointer upper
+        VERIFY_RAISES_ASSERT((Scalar(1) * us).template triangularView<Upper>().solveInPlace(ui));  // iterator upper
+
+        SparseMatrix<Scalar> ls(3, 3);
+        ls.insert(0, 0) = Scalar(2);
+        ls.insert(1, 1) = Scalar(3);
+        ls.makeCompressed();  // column 2 empty (last) -> reached from rhs(2) but no diagonal
+        SparseMatrix<Scalar> lb(3, 1);
+        lb.insert(2, 0) = Scalar(1);
+        lb.makeCompressed();
+        SparseMatrix<Scalar> lp = lb, li = lb;
+        VERIFY_RAISES_ASSERT(ls.template triangularView<Lower>().solveInPlace(lp));                // pointer lower
+        VERIFY_RAISES_ASSERT((Scalar(1) * ls).template triangularView<Lower>().solveInPlace(li));  // iterator lower
+      }
+
       // mixed-scalar rhs: a real lhs applied to a rhs must accumulate in the rhs scalar.
       // For real Scalar this is the ordinary path; for complex Scalar it is the
       // real-factor / complex-data case that must both compile and be correct.

@@ -123,28 +123,26 @@ void triangular_solve_over_reach(const StorageIndex* outerIndexPtr, const Storag
       if (e > colBeg && innerIndexPtr[e - 1] > j)  // wrong-side (below-diagonal) tail: skip it
         e = std::upper_bound(innerIndexPtr + colBeg, innerIndexPtr + colEnd, j) - innerIndexPtr;
       bool hasDiag = e > colBeg && innerIndexPtr[e - 1] == j;
+      offBeg = colBeg;
+      offEnd = hasDiag ? e - 1 : e;  // drop the diagonal slot from the update iff it is stored
       EIGEN_IF_CONSTEXPR (!UnitDiag) {
         eigen_assert(hasDiag && "sparse triangular solve: missing diagonal");
-        x[j] /= valuePtr[e - 1];
-        offEnd = e - 1;
-      } else {
-        offEnd = hasDiag ? e - 1 : e;
+        // Missing diagonal is out of contract; match the old AmbiVector path -- divide by 0
+        // for a deterministic inf/NaN, rather than reading valuePtr[e-1] out of bounds.
+        x[j] /= hasDiag ? valuePtr[e - 1] : LhsScalar(0);
       }
-      offBeg = colBeg;
     } else {
       // s = first in-triangle entry (index >= j)
       Index s = colBeg;
       if (s < colEnd && innerIndexPtr[s] < j)  // wrong-side (above-diagonal) head: skip it
         s = std::lower_bound(innerIndexPtr + colBeg, innerIndexPtr + colEnd, j) - innerIndexPtr;
       bool hasDiag = s < colEnd && innerIndexPtr[s] == j;
+      offBeg = hasDiag ? s + 1 : s;  // drop the diagonal slot from the update iff it is stored
+      offEnd = colEnd;
       EIGEN_IF_CONSTEXPR (!UnitDiag) {
         eigen_assert(hasDiag && "sparse triangular solve: missing diagonal");
-        x[j] /= valuePtr[s];
-        offBeg = s + 1;
-      } else {
-        offBeg = hasDiag ? s + 1 : s;
+        x[j] /= hasDiag ? valuePtr[s] : LhsScalar(0);  // missing diagonal -> inf/NaN, not an OOB read
       }
-      offEnd = colEnd;
     }
     xj = x[j];
     for (Index p = offBeg; p < offEnd; ++p) {
@@ -241,23 +239,28 @@ void triangular_solve_over_reach_iter(const Eval& mat, const StorageIndex* xi, I
     EIGEN_IF_CONSTEXPR (Upper) {
       EIGEN_IF_CONSTEXPR (!UnitDiag) {
         Scalar d(0);  // stays 0 if the diagonal is missing, so singularity surfaces as inf/NaN
+        bool hasDiag = false;
         for (typename Eval::InnerIterator dt(mat, j); dt; ++dt)
-          if (StorageIndex(dt.index()) == j) d = dt.value();
-        x[j] /= d;
+          if (StorageIndex(dt.index()) == j) {
+            d = dt.value();
+            hasDiag = true;
+          }
+        eigen_assert(hasDiag && "sparse triangular solve: missing diagonal");
+        x[j] /= d;  // d == 0 when the diagonal is missing -> inf/NaN, consistent with the pointer path
       }
       Scalar xj = x[j];
       for (typename Eval::InnerIterator it(mat, j); it && StorageIndex(it.index()) < j; ++it)
         x[it.index()] = numext::madd<Scalar>(-xj, it.value(), x[it.index()]);
     } else {
       typename Eval::InnerIterator it(mat, j);
-      while (it && StorageIndex(it.index()) < j) ++it;  // skip out-of-triangle (index < j)
+      while (it && StorageIndex(it.index()) < j) ++it;     // skip out-of-triangle (index < j)
+      bool hasDiag = it && StorageIndex(it.index()) == j;  // diagonal is the first in-triangle entry
       EIGEN_IF_CONSTEXPR (!UnitDiag) {
-        eigen_assert(it && StorageIndex(it.index()) == j && "sparse triangular solve: missing diagonal");
-        x[j] /= it.value();  // diagonal is the first in-triangle entry
-        ++it;
-      } else {
-        if (it && StorageIndex(it.index()) == j) ++it;  // skip an explicit unit diagonal
+        eigen_assert(hasDiag && "sparse triangular solve: missing diagonal");
+        // Missing diagonal -> inf/NaN, not it.value() on an ended/wrong iterator (see pointer path).
+        x[j] /= hasDiag ? it.value() : Scalar(0);
       }
+      if (hasDiag) ++it;  // step past the stored diagonal (the divisor above, or a unit entry)
       Scalar xj = x[j];
       for (; it; ++it) x[it.index()] = numext::madd<Scalar>(-xj, it.value(), x[it.index()]);
     }
