@@ -134,6 +134,239 @@ void test_toeplitz_product(Index m, Index n) {
   VERIFY_IS_APPROX((T * X).eval(), (dense * X).eval());
 }
 
+template <typename Scalar>
+Matrix<Scalar, Dynamic, Dynamic> reference_hankel(const Matrix<Scalar, Dynamic, 1>& h, Index m, Index n) {
+  Matrix<Scalar, Dynamic, Dynamic> dense(m, n);
+  for (Index j = 0; j < n; ++j)
+    for (Index i = 0; i < m; ++i) dense(i, j) = h[i + j];
+  return dense;
+}
+
+template <typename Scalar>
+void test_hankel_product(Index m, Index n) {
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+
+  Vec h = Vec::Random(m + n - 1);
+  Hankel<Scalar> H(h.head(m), h.tail(n));
+  Mat dense = reference_hankel<Scalar>(h, m, n);
+
+  // The stored generating sequence is rebuilt exactly from column + last row.
+  VERIFY_IS_EQUAL(H.generator(), h);
+  VERIFY_IS_EQUAL(Vec(H.column()), Vec(h.head(m)));
+  VERIFY_IS_EQUAL(Vec(H.lastRow()), Vec(h.tail(n)));
+
+  Mat Hd = H;
+  VERIFY_IS_APPROX(Hd, dense);
+  for (Index t = 0; t < (std::min)(m, Index(5)); ++t) {
+    Index i = internal::random<Index>(0, m - 1), j = internal::random<Index>(0, n - 1);
+    VERIFY_IS_APPROX(H.coeff(i, j), dense(i, j));
+  }
+
+  Vec x = Vec::Random(n);
+  VERIFY_IS_APPROX((H * x).eval(), (dense * x).eval());
+
+  Mat X = Mat::Random(n, 3);
+  VERIFY_IS_APPROX((H * X).eval(), (dense * X).eval());
+
+  // Accumulation forms exercised by the iterative solvers.
+  Vec y = Vec::Random(m);
+  Vec y0 = y;
+  y.noalias() += H * x;
+  VERIFY_IS_APPROX(y, (y0 + dense * x).eval());
+}
+
+// The transposed / adjoint / conjugated Hankel operators agree with the dense
+// references, both materialized and through their fast products. For rectangular
+// operators on the FFT tier this validates the phase-multiplication symbol reuse
+// (the DFT shift theorem), including its sign.
+template <typename Scalar>
+void test_hankel_transpose(Index m, Index n) {
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+
+  Vec h = Vec::Random(m + n - 1);
+  Hankel<Scalar> H(h.head(m), h.tail(n));
+  Mat dense = reference_hankel<Scalar>(h, m, n);
+
+  Mat Td = H.transpose();
+  VERIFY_IS_APPROX(Td, Mat(dense.transpose()));
+  Mat Ad = H.adjoint();
+  VERIFY_IS_APPROX(Ad, Mat(dense.adjoint()));
+  Mat Kd = H.conjugate();
+  VERIFY_IS_APPROX(Kd, Mat(dense.conjugate()));
+
+  Vec y = Vec::Random(m);
+  VERIFY_IS_APPROX((H.transpose() * y).eval(), (dense.transpose() * y).eval());
+  VERIFY_IS_APPROX((H.adjoint() * y).eval(), (dense.adjoint() * y).eval());
+  Vec x = Vec::Random(n);
+  VERIFY_IS_APPROX((H.conjugate() * x).eval(), (dense.conjugate() * x).eval());
+
+  // The generating sequence round-trips exactly; the symbol round-trips to
+  // rounding (the phase factors cancel only approximately when m != n).
+  Hankel<Scalar> Htt = H.transpose().transpose();
+  VERIFY_IS_EQUAL(Htt.generator(), h);
+  VERIFY_IS_APPROX(Htt.symbol(), H.symbol());
+  Mat Httd = Htt;
+  VERIFY_IS_APPROX(Httd, dense);
+}
+
+// A real square Hankel matrix is symmetric: transpose() is an exact fixed point.
+template <typename Scalar>
+void test_hankel_symmetry(Index n) {
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+
+  Vec h = Vec::Random(2 * n - 1);
+  Hankel<Scalar> H(h.head(n), h.tail(n));
+  Hankel<Scalar> Ht = H.transpose();
+  VERIFY_IS_EQUAL(Ht.generator(), h);
+  VERIFY_IS_EQUAL(Ht.symbol(), H.symbol());  // square: no phase multiplication at all
+  Mat dense = H;
+  VERIFY_IS_APPROX(dense, Mat(dense.transpose()));
+}
+
+// The column-reversed Toeplitz equivalent: toToeplitz() == H * E.
+template <typename Scalar>
+void test_hankel_to_toeplitz(Index m, Index n) {
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+
+  Vec h = Vec::Random(m + n - 1);
+  Hankel<Scalar> H(h.head(m), h.tail(n));
+  Mat dense = reference_hankel<Scalar>(h, m, n);
+  Mat Td = H.toToeplitz();
+  VERIFY_IS_APPROX(Td, Mat(dense.rowwise().reverse()));
+}
+
+// Direct O(n^2) solve of a square Hankel system through the Toeplitz equivalent.
+template <typename Scalar>
+void test_hankel_solve(Index n) {
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+
+  // h[n-1] is the constant anti-diagonal that becomes the diagonal of the
+  // Toeplitz equivalent; boosting it makes the system well conditioned.
+  Vec h = Vec::Random(2 * n - 1);
+  h[n - 1] += Scalar(RealScalar(2 * n));
+  Hankel<Scalar> H(h.head(n), h.tail(n));
+  Mat dense = reference_hankel<Scalar>(h, n, n);
+
+  Vec b = Vec::Random(n);
+  Vec x = H.solve(b);
+  VERIFY_IS_APPROX((dense * x).eval(), b);
+  VERIFY_IS_APPROX(x, dense.fullPivLu().solve(b).eval());
+
+  Mat B = Mat::Random(n, 3);
+  Mat X = H.solve(B);
+  VERIFY_IS_APPROX(X, dense.fullPivLu().solve(B).eval());
+}
+
+// A zero constant anti-diagonal makes the Toeplitz equivalent's diagonal zero, so
+// its 1x1 leading minor is singular and the solve must go through the look-ahead
+// init/block-step machinery. Verified through the residual (the look-ahead
+// Levinson algorithm is weakly stable).
+template <typename Scalar>
+void test_hankel_solve_lookahead(Index n) {
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+
+  Vec h = Vec::Random(2 * n - 1);
+  h[n - 1] = Scalar(0);
+  Hankel<Scalar> H(h.head(n), h.tail(n));
+  Mat dense = reference_hankel<Scalar>(h, n, n);
+
+  Vec b = dense * Vec::Ones(n);
+  Vec x = H.solve(b);
+  VERIFY((dense * x - b).norm() <= typename NumTraits<Scalar>::Real(1e-9) * b.norm());
+}
+
+// The Hilbert matrix is the canonical ill-conditioned Hankel matrix: H(i,j) =
+// 1/(i+j+1), i.e. h[k] = 1/(k+1). Deterministic, so the tolerances below are
+// calibrated with a ~100x margin against measured values. The look-ahead Levinson
+// solver is weakly stable: the forward error grows like eps * cond, but the
+// residual stays small far beyond the point where the solution itself is lost.
+void test_hankel_hilbert() {
+  typedef Matrix<double, Dynamic, 1> Vec;
+  typedef Matrix<double, Dynamic, Dynamic> Mat;
+
+  auto residual = [](Index n) {
+    Vec h(2 * n - 1);
+    for (Index k = 0; k < 2 * n - 1; ++k) h[k] = 1.0 / double(k + 1);
+    Hankel<double> H(h.head(n), h.tail(n));
+    Mat dense = reference_hankel<double>(h, n, n);
+    Vec b = dense * Vec::Ones(n);
+    Vec x = H.solve(b);
+    return (dense * x - b).norm() / b.norm();
+  };
+  VERIFY(residual(8) <= 1e-9);   // cond ~ 1.5e10, measured residual ~ 1.4e-11
+  VERIFY(residual(12) <= 1e-5);  // cond ~ 1.7e16, measured residual ~ 1.1e-7
+
+  // The condition estimate of the Toeplitz equivalent must see the
+  // ill-conditioning (measured ~ 2.7e15 at n = 12).
+  Vec h(23);
+  for (Index k = 0; k < 23; ++k) h[k] = 1.0 / double(k + 1);
+  Hankel<double> H(h.head(12), h.tail(12));
+  LookAheadLevinson<double> lev(H.toToeplitz());
+  VERIFY(lev.conditionEstimate() >= 1e14);
+}
+
+// With adjoint() available, a rectangular Hankel feeds the matrix-free
+// least-squares solvers end to end.
+template <typename Scalar>
+void test_hankel_least_squares(Index m, Index n) {
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+
+  Vec h = Vec::Random(m + n - 1);
+  Hankel<Scalar> H(h.head(m), h.tail(n));
+  Mat dense = reference_hankel<Scalar>(h, m, n);
+
+  Vec b = Vec::Random(m);
+
+  LSMR<Hankel<Scalar>, IdentityPreconditioner> lsmr;
+  lsmr.setTolerance(RealScalar(1e-12)).setMaxIterations(20 * n);
+  lsmr.compute(H);
+  Vec x = lsmr.solve(b);
+  VERIFY(lsmr.info() == Success);
+  // Check LSMR's own convergence criterion -- the normal-equations residual --
+  // rather than the forward error, whose accuracy degrades with cond^2 and would
+  // make the test flaky for unlucky random operators.
+  Vec r = b - dense * x;
+  VERIFY((dense.adjoint() * r).norm() <= RealScalar(1e-8) * dense.norm() * r.norm() + RealScalar(1e-12) * b.norm());
+}
+
+template <typename Scalar, int M, int N>
+void test_hankel_fixed() {
+  typedef Matrix<Scalar, M, 1> ColVec;
+  typedef Matrix<Scalar, N, 1> RowVec;
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, M, N> MatMN;
+
+  Vec h = Vec::Random(M + N - 1);
+  ColVec c = h.template head<M>();
+  RowVec r = h.template tail<N>();
+  Hankel<Scalar, M, N> H(c, r);
+  STATIC_CHECK((Hankel<Scalar, M, N>::RowsAtCompileTime == M));
+  STATIC_CHECK((Hankel<Scalar, M, N>::ColsAtCompileTime == N));
+  STATIC_CHECK((internal::remove_all_t<decltype(makeHankel(c, r))>::ColsAtCompileTime == N));
+  STATIC_CHECK((internal::remove_all_t<decltype(H.transpose())>::RowsAtCompileTime == N));
+  STATIC_CHECK((internal::remove_all_t<decltype(H.transpose())>::ColsAtCompileTime == M));
+
+  MatMN dense = H;
+  VERIFY_IS_APPROX(dense, MatMN(reference_hankel<Scalar>(h, M, N)));
+
+  RowVec x = RowVec::Random();
+  Matrix<Scalar, M, 1> y = H * x;
+  VERIFY_IS_APPROX(y, (dense * x).eval());
+
+  ColVec w = ColVec::Random();
+  RowVec tw = H.transpose() * w;
+  VERIFY_IS_APPROX(tw, (dense.transpose() * w).eval());
+}
+
 // Fixed-size operators: generators are stored in fixed-size vectors, products and
 // solves return fixed-size results, and small sizes go through the coeff-based
 // product dispatch.
@@ -391,5 +624,49 @@ EIGEN_DECLARE_TEST(structured_matrices) {
     CALL_SUBTEST_5(test_levinson_lookahead());
     CALL_SUBTEST_5(test_levinson_fixed());
     CALL_SUBTEST_5(test_levinson_singular());
+
+    // Hankel: products across dispatch tiers, transposition family (validating the
+    // phase-multiplication symbol reuse on rectangular FFT-tier operators), the
+    // Toeplitz equivalence, direct solves, matrix-free least squares, fixed sizes.
+    CALL_SUBTEST_8((test_hankel_product<double>(1, 1)));
+    CALL_SUBTEST_8((test_hankel_product<double>(2, 3)));
+    CALL_SUBTEST_8((test_hankel_product<double>(8, 8)));
+    CALL_SUBTEST_8((test_hankel_product<double>(12, 7)));
+    CALL_SUBTEST_8((test_hankel_product<double>(17, 16)));  // just above the scalar tier
+    CALL_SUBTEST_8((test_hankel_product<double>(20, 24)));  // direct segment tier
+    CALL_SUBTEST_8((test_hankel_product<double>(32, 33)));  // first FFT-tier size
+    CALL_SUBTEST_8((test_hankel_product<double>(64, 40)));
+    CALL_SUBTEST_8((test_hankel_product<double>(40, 64)));
+    CALL_SUBTEST_8((test_hankel_product<double>(97, 50)));
+    CALL_SUBTEST_8((test_hankel_product<double>(1, 40)));  // single row, FFT path
+    CALL_SUBTEST_8((test_hankel_product<double>(40, 1)));  // single column, FFT path
+    CALL_SUBTEST_8((test_hankel_product<float>(50, 50)));
+    CALL_SUBTEST_8((test_hankel_product<std::complex<double>>(5, 7)));
+    CALL_SUBTEST_8((test_hankel_product<std::complex<double>>(48, 64)));
+    CALL_SUBTEST_8((test_hankel_product<std::complex<float>>(40, 40)));
+    CALL_SUBTEST_8((test_hankel_transpose<double>(1, 1)));
+    CALL_SUBTEST_8((test_hankel_transpose<double>(12, 7)));
+    CALL_SUBTEST_8((test_hankel_transpose<double>(20, 24)));  // direct tier, empty symbol
+    CALL_SUBTEST_8((test_hankel_transpose<double>(64, 40)));
+    CALL_SUBTEST_8((test_hankel_transpose<double>(40, 64)));
+    CALL_SUBTEST_8((test_hankel_transpose<double>(1, 40)));
+    CALL_SUBTEST_8((test_hankel_transpose<std::complex<double>>(33, 20)));
+    CALL_SUBTEST_8((test_hankel_transpose<std::complex<float>>(20, 36)));
+    CALL_SUBTEST_8((test_hankel_symmetry<double>(48)));
+    CALL_SUBTEST_8((test_hankel_to_toeplitz<double>(12, 7)));
+    CALL_SUBTEST_8((test_hankel_to_toeplitz<std::complex<double>>(40, 56)));
+    CALL_SUBTEST_8((test_hankel_solve<double>(1)));
+    CALL_SUBTEST_8((test_hankel_solve<double>(20)));
+    CALL_SUBTEST_8((test_hankel_solve<double>(45)));
+    CALL_SUBTEST_8((test_hankel_solve<std::complex<double>>(24)));
+    CALL_SUBTEST_8((test_hankel_solve<float>(16)));
+    CALL_SUBTEST_8((test_hankel_solve_lookahead<double>(20)));
+    CALL_SUBTEST_8((test_hankel_solve_lookahead<std::complex<double>>(15)));
+    CALL_SUBTEST_8(test_hankel_hilbert());
+    CALL_SUBTEST_8((test_hankel_least_squares<double>(60, 40)));
+    CALL_SUBTEST_8((test_hankel_least_squares<std::complex<double>>(48, 32)));
+    CALL_SUBTEST_8((test_hankel_fixed<double, 4, 6>()));
+    CALL_SUBTEST_8((test_hankel_fixed<double, 40, 24>()));
+    CALL_SUBTEST_8((test_hankel_fixed<std::complex<float>, 6, 4>()));
   }
 }
