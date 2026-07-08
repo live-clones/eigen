@@ -34,8 +34,7 @@ namespace Eigen {
  * Eigenvectors are then built not from the original \c z but from the
  * Gu-Eisenstat vector \f$ \hat z \f$ -- the one for which the computed roots
  * are \em exact secular eigenvalues -- which is what makes the computed
- * eigenvector matrix numerically orthogonal without any reorthogonalization
- * (M. Gu and S. C. Eisenstat, SIMAX 15, 1994).
+ * eigenvector matrix numerically orthogonal without any reorthogonalization.
  *
  * The total cost is O(n^2): O(n log(1/eps)) per bisected root, O(n) per
  * Gu-Eisenstat weight, and O(n) per eigenvector (the deflation rotations are
@@ -52,6 +51,11 @@ namespace Eigen {
  * \endcode
  *
  * \tparam RealScalar_ a real (non-complex) scalar type.
+ *
+ * References:
+ *  - M. Gu and S. C. Eisenstat, "A stable and efficient algorithm for the
+ *    rank-one modification of the symmetric eigenproblem," SIAM J. Matrix Anal.
+ *    Appl., 15(4):1266-1276, 1994.
  *
  * \sa class DiagonalPlusLowRank, class SelfAdjointEigenSolver
  */
@@ -96,6 +100,9 @@ class DPR1EigenSolver {
     return m_eivec;
   }
 
+  /** \returns \c Success if the decomposition succeeded, \c NoConvergence if a
+   * secular root could not be fully resolved, \c InvalidInput if the input was
+   * non-finite or its spectrum is not representable in the scalar type. */
   ComputationInfo info() const {
     eigen_assert(m_isInitialized && "DPR1EigenSolver is not initialized.");
     return m_info;
@@ -229,15 +236,15 @@ DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const Vector
     if (!deflated[static_cast<std::size_t>(i)]) sub.push_back(i);
   const Index m = static_cast<Index>(sub.size());
 
-  VectorType lambdaW(n);                             // eigenvalues in working (sorted) coordinates
-  for (Index i = 0; i < n; ++i) lambdaW[i] = ds[i];  // deflated entries are final
+  // Eigenvalues in working (sorted) coordinates; deflated entries are final.
+  VectorType lambdaW = ds;
 
   MatrixType subVectors;  // m x m secular eigenvectors (in subproblem coordinates)
-  std::vector<Index> shiftIndex(static_cast<std::size_t>(m));
-  VectorType tau(m);
 
   if (m > 0) {
     VectorType delta(m), zeta(m), zeta2(m);
+    std::vector<Index> shiftIndex(static_cast<std::size_t>(m));
+    VectorType tau(m);
     for (Index a = 0; a < m; ++a) {
       delta[a] = ds[sub[static_cast<std::size_t>(a)]];
       zeta[a] = zs[sub[static_cast<std::size_t>(a)]];
@@ -254,10 +261,9 @@ DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const Vector
         2 * ((std::numeric_limits<RealScalar>::digits > 0) ? static_cast<int>(std::numeric_limits<RealScalar>::digits)
                                                            : 128) +
         32;
-    VectorType lam(m);
+    VectorType lam(m), dsh(m);  // dsh is refilled from scratch each root
     for (Index k = 0; k < m; ++k) {
       // Choose the shift pole and the bracket, entirely in shifted coordinates.
-      VectorType dsh(m);
       RealScalar lo, hi;
       Index shift;
       if (k + 1 == m) {
@@ -271,9 +277,7 @@ DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const Vector
         // so its sign at the midpoint picks the nearer pole as the shift.
         const RealScalar left = delta[k], right = delta[k + 1];
         const RealScalar mid = left + (right - left) / RealScalar(2);
-        RealScalar fmid(1);
-        for (Index a = 0; a < m; ++a) fmid += rhoW * zeta2[a] / (delta[a] - mid);
-        if (fmid > RealScalar(0)) {
+        if (secular(delta, zeta2, rhoW, mid) > RealScalar(0)) {
           shift = k;
           lo = RealScalar(0);
           hi = mid - left;
