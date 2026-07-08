@@ -346,9 +346,11 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
     return V;
   }
 
-  /** \internal Computes \c dst += alpha * (*this) * rhs. */
-  template <typename Dest, typename Rhs>
-  void addProduct(Dest& dst, const Rhs& rhs, const Scalar& alpha) const {
+  /** \internal Computes \c dst += alpha * (*this) * rhs. \c ProductScalar is the
+   * promoted scalar of the product (complex when a real operator is applied to a
+   * complex right-hand side); the accumulation runs in the promoted type. */
+  template <typename Dest, typename Rhs, typename ProductScalar>
+  void addProduct(Dest& dst, const Rhs& rhs, const ProductScalar& alpha) const {
     const Index n = rows();
     eigen_assert(rhs.rows() == n && "invalid product: dimensions do not match");
 
@@ -357,7 +359,7 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
       // per-segment setup dominates when segments hold only a few entries.
       for (Index k = 0; k < rhs.cols(); ++k)
         for (Index i = 0; i < n; ++i) {
-          Scalar acc(0);
+          ProductScalar acc(0);
           for (Index j = 0; j < n; ++j) acc += coeff(i, j) * rhs.coeff(j, k);
           dst.coeffRef(i, k) += alpha * acc;
         }
@@ -371,7 +373,7 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
       for (Index k = 0; k < rhs.cols(); ++k) {
         auto dstCol = dst.col(k);
         for (Index j = 0; j < n; ++j) {
-          const Scalar xj = alpha * rhs.coeff(j, k);
+          const ProductScalar xj = alpha * rhs.coeff(j, k);
           dstCol.head(j) += xj * m_col.tail(j);
           dstCol.tail(n - j) += xj * m_col.head(n - j);
         }

@@ -293,6 +293,55 @@ void test_toeplitz_aliased_product(Index n) {
   VERIFY_IS_APPROX(y, (x + dense * x).eval());
 }
 
+// Mixed-scalar products: a real operator applied to a complex right-hand side
+// (and a complex operator applied to a real one) promotes to the complex product
+// scalar, so alpha and the accumulation must run in the promoted type rather than
+// the operator scalar.
+template <typename RealScalar>
+void test_circulant_mixed_scalar(Index n) {
+  typedef std::complex<RealScalar> Complex;
+  typedef Matrix<RealScalar, Dynamic, 1> RVec;
+  typedef Matrix<Complex, Dynamic, 1> CVec;
+  typedef Matrix<Complex, Dynamic, Dynamic> CMat;
+
+  RVec c = RVec::Random(n);
+  Circulant<RealScalar> C(c);
+  CMat dense = reference_circulant<RealScalar>(c).template cast<Complex>();
+
+  CVec x = CVec::Random(n);
+  CVec y = C * x;
+  VERIFY_IS_APPROX(y, (dense * x).eval());
+
+  CVec y0 = CVec::Random(n);
+  y = y0;
+  y.noalias() += C * x;
+  VERIFY_IS_APPROX(y, (y0 + dense * x).eval());
+
+  CVec cc = CVec::Random(n);
+  Circulant<Complex> Cc(cc);
+  CMat denseC = reference_circulant<Complex>(cc);
+  RVec xr = RVec::Random(n);
+  CVec z = Cc * xr;
+  VERIFY_IS_APPROX(z, (denseC * xr).eval());
+}
+
+template <typename RealScalar>
+void test_toeplitz_mixed_scalar(Index m, Index n) {
+  typedef std::complex<RealScalar> Complex;
+  typedef Matrix<RealScalar, Dynamic, 1> RVec;
+  typedef Matrix<Complex, Dynamic, 1> CVec;
+  typedef Matrix<Complex, Dynamic, Dynamic> CMat;
+
+  RVec c = RVec::Random(m), r = RVec::Random(n);
+  r[0] = c[0];
+  Toeplitz<RealScalar> T(c, r);
+  CMat dense = reference_toeplitz<RealScalar>(c, r).template cast<Complex>();
+
+  CVec x = CVec::Random(n);
+  CVec y = T * x;
+  VERIFY_IS_APPROX(y, (dense * x).eval());
+}
+
 // Closed-form eigendecomposition: C * V = V * diag(eigenvalues) with V unitary.
 template <typename Scalar>
 void test_circulant_eigen(Index n) {
@@ -876,6 +925,12 @@ EIGEN_DECLARE_TEST(structured_matrices) {
     CALL_SUBTEST_8((test_toeplitz_aliased_product<double>(12)));
     CALL_SUBTEST_8((test_toeplitz_aliased_product<double>(48)));
     CALL_SUBTEST_8((test_toeplitz_aliased_product<std::complex<float>>(36)));
+    CALL_SUBTEST_8((test_circulant_mixed_scalar<double>(8)));
+    CALL_SUBTEST_8((test_circulant_mixed_scalar<double>(24)));
+    CALL_SUBTEST_8((test_circulant_mixed_scalar<double>(64)));
+    CALL_SUBTEST_8((test_circulant_mixed_scalar<float>(97)));
+    CALL_SUBTEST_8((test_toeplitz_mixed_scalar<double>(8, 8)));
+    CALL_SUBTEST_8((test_toeplitz_mixed_scalar<double>(64, 40)));
     CALL_SUBTEST_8(test_circulant_determinant_scaled());
     CALL_SUBTEST_8(test_circulant_rank_boundaries());
 
