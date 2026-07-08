@@ -157,6 +157,89 @@ void test_bjorck_pereyra_singular() {
   VERIFY(bp.info() == NumericalIssue);
 }
 
+// Aliased products: the structured products are tagged AliasFreeProduct, so no
+// temporary shields the destination -- the product implementation itself must
+// copy an aliased right-hand side (x = V * x, x += V * x) before writing.
+template <typename Scalar>
+void test_vandermonde_aliased_product(Index n) {
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+
+  Vec x = Vec::Random(n);
+  Vandermonde<Scalar> V(x);  // square, so x = V * x type-checks
+  Mat dense = reference_vandermonde<Scalar>(x, n);
+
+  Vec b = Vec::Random(n);
+  Vec y = b;
+  y = V * y;
+  VERIFY_IS_APPROX(y, (dense * b).eval());
+
+  y = b;
+  y += V * y;
+  VERIFY_IS_APPROX(y, (b + dense * b).eval());
+
+  y = b;
+  y -= V * y;
+  VERIFY_IS_APPROX(y, (b - dense * b).eval());
+
+  Mat B = Mat::Random(n, 3);
+  Mat Y = B;
+  Y = V * Y;
+  VERIFY_IS_APPROX(Y, (dense * B).eval());
+}
+
+// A delayed-evaluated product expression must keep its structured factor alive:
+// the makeVandermonde() factory returns an owning temporary, so Product has to
+// nest the operator by value (no NestByRefBit) or `expr` dangles.
+template <typename Scalar>
+void test_vandermonde_delayed_product(Index m, Index n) {
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+
+  STATIC_CHECK(!std::is_reference<typename internal::ref_selector<Vandermonde<Scalar>>::type>::value);
+
+  Vec x = Vec::Random(m), a = Vec::Random(n);
+  Mat dense = reference_vandermonde<Scalar>(x, n);
+
+  auto expr = makeVandermonde(x, n) * a;  // the factory temporary dies with the full expression
+  Vec scribble = Vec::Random(2 * m);      // reuses the temporary's freed heap storage
+  Vec y = expr;
+  VERIFY_IS_APPROX(y, (dense * a).eval());
+  VERIFY_IS_EQUAL(scribble.size(), 2 * m);  // keep the scribble alive across the evaluation
+}
+
+// Mixed-scalar products: a real operator applied to a complex right-hand side
+// (and a complex operator applied to a real one) promotes to the complex
+// product scalar, so alpha and the Horner accumulation must run in the promoted
+// type rather than the operator scalar.
+template <typename RealScalar>
+void test_vandermonde_mixed_scalar(Index m, Index n) {
+  typedef std::complex<RealScalar> Complex;
+  typedef Matrix<RealScalar, Dynamic, 1> RVec;
+  typedef Matrix<Complex, Dynamic, 1> CVec;
+  typedef Matrix<Complex, Dynamic, Dynamic> CMat;
+
+  RVec x = RVec::Random(m);
+  Vandermonde<RealScalar> V(x, n);
+  CMat dense = reference_vandermonde<RealScalar>(x, n).template cast<Complex>();
+
+  CVec a = CVec::Random(n);
+  CVec y = V * a;
+  VERIFY_IS_APPROX(y, (dense * a).eval());
+
+  CVec y0 = CVec::Random(m);
+  y = y0;
+  y.noalias() += V * a;
+  VERIFY_IS_APPROX(y, (y0 + dense * a).eval());
+
+  CVec xc = CVec::Random(m);
+  Vandermonde<Complex> Vc(xc, n);
+  CMat denseC = reference_vandermonde<Complex>(xc, n);
+  RVec ar = RVec::Random(n);
+  CVec z = Vc * ar;
+  VERIFY_IS_APPROX(z, (denseC * ar).eval());
+}
+
 template <typename Scalar>
 void test_vandermonde_determinant(Index n) {
   typedef Matrix<Scalar, Dynamic, 1> Vec;
@@ -166,6 +249,102 @@ void test_vandermonde_determinant(Index n) {
   Vandermonde<Scalar> V(x);
   Mat dense = reference_vandermonde<Scalar>(x, n);
   VERIFY_IS_APPROX(V.determinant(), dense.determinant());
+}
+
+// Reference for the wide-dynamic-range determinant tests: the same factor
+// sequence accumulated with explicit exponent tracking. The power-of-two
+// rescaling is exact, so this reproduces the exact product of the computed
+// factors up to one rounding per multiplication -- representable even when
+// naive partial products leave the double range. Finite factors only.
+double reference_vandermonde_det(const Matrix<double, Dynamic, 1>& x) {
+  double mantissa = 1.0;
+  Index exponent = 0;
+  for (Index j = 1; j < x.size(); ++j)
+    for (Index i = 0; i < j; ++i) {
+      int e;
+      mantissa *= std::frexp(x[j] - x[i], &e);
+      exponent += e;
+      mantissa = std::frexp(mantissa, &e);
+      exponent += e;
+    }
+  return std::ldexp(mantissa, static_cast<int>(exponent));
+}
+
+// Balanced determinant accumulation (reviewer repro on MR 2691): the running
+// product is kept as mantissa * 2^e with exact frexp/ldexp renormalization, so
+// partial products that leave the representable range cannot destroy a
+// representable determinant, while zeros and genuine overflow still propagate.
+void test_vandermonde_determinant_scaled() {
+  typedef Matrix<double, Dynamic, 1> Vec;
+  typedef std::complex<double> Complex;
+  // The implementation accumulates the identical factor sequence as the
+  // reference above, so the two sides differ only by the exactness of the
+  // power-of-two renormalization.
+  const double kBalancedTol = 16 * NumTraits<double>::epsilon();
+  // The analytic values below additionally absorb the representation error of
+  // the decimal node literals and of pow(10, 27.5), amplified by the 15-factor
+  // product.
+  const double kAnalyticTol = 100 * NumTraits<double>::epsilon();
+
+  const double a = 1e-110, M = std::pow(10.0, 27.5);
+  {
+    // Underflow side (the reviewer's exact node set): the a-spaced factors alone
+    // reach 2e-330, below the smallest subnormal, so the naive running product
+    // flushes to an exact zero -- yet the determinant is 864 * a^3 * M^12 ~ 864.
+    Vec x(6);
+    x << 0.0, a, 2 * a, M, 2 * M, 3 * M;
+    Vandermonde<double> V(x);
+    const double det = V.determinant();
+    const double ref = reference_vandermonde_det(x);
+    VERIFY((numext::isfinite)(det));
+    VERIFY(numext::abs(det / ref - 1.0) <= kBalancedTol);
+    VERIFY(numext::abs(det / 864.0 - 1.0) <= kAnalyticTol);
+  }
+  {
+    // Overflow-side analogue: with the large nodes first the naive running
+    // product tops out at ~4.3e327 (infinity) three factors before the end, yet
+    // the determinant is a representable -864 * B^12 * s^3 = -8.64e305.
+    const double B = 1e28, s = 1e-11;
+    Vec x(6);
+    x << B, 2 * B, 3 * B, 0.0, s, 2 * s;
+    Vandermonde<double> V(x);
+    const double det = V.determinant();
+    const double ref = reference_vandermonde_det(x);
+    VERIFY((numext::isfinite)(det));
+    VERIFY(numext::abs(det / ref - 1.0) <= kBalancedTol);
+    VERIFY(numext::abs(det / -8.64e305 - 1.0) <= kAnalyticTol);
+  }
+  {
+    // Genuinely overflowing determinant, ~3.5e424: must saturate to +infinity.
+    const double T = 1e28;
+    Vec x(6);
+    x << 0.0, T, 2 * T, 3 * T, 4 * T, 5 * T;
+    Vandermonde<double> V(x);
+    const double det = V.determinant();
+    VERIFY((numext::isinf)(det) && det > 0.0);
+  }
+  {
+    // A repeated node makes the matrix exactly singular: the zero factor must
+    // propagate to an exact 0 even though the naive running product overflows
+    // beforehand (which would end in 0 * inf = NaN).
+    Vec x(5);
+    x << 0.0, 1e300, 1e-300, 1e300, 5.0;
+    Vandermonde<double> V(x);
+    VERIFY(V.determinant() == 0.0);
+  }
+  {
+    // Complex path of the balanced accumulation: purely imaginary nodes i*x
+    // turn every factor of the underflow-side case into i*(x_j - x_i), so
+    // det = i^15 * 864 = -864i.
+    Vec xr(6);
+    xr << 0.0, a, 2 * a, M, 2 * M, 3 * M;
+    Matrix<Complex, Dynamic, 1> x = Complex(0, 1) * xr.cast<Complex>();
+    Vandermonde<Complex> V(x);
+    const Complex det = V.determinant();
+    const Complex ref(0.0, -reference_vandermonde_det(xr));
+    VERIFY((numext::isfinite)(numext::abs(det)));
+    VERIFY(numext::abs(det - ref) <= kBalancedTol * numext::abs(ref));
+  }
 }
 
 template <typename Scalar, int M, int N>
@@ -213,8 +392,18 @@ EIGEN_DECLARE_TEST(structured_vandermonde) {
     // Closed-form determinant and fixed sizes.
     CALL_SUBTEST_3((test_vandermonde_determinant<double>(8)));
     CALL_SUBTEST_3((test_vandermonde_determinant<std::complex<double>>(7)));
+    CALL_SUBTEST_3(test_vandermonde_determinant_scaled());
     CALL_SUBTEST_3((test_vandermonde_fixed<double, 6, 4>()));
     CALL_SUBTEST_3((test_vandermonde_fixed<double, 5, 5>()));
     CALL_SUBTEST_3((test_vandermonde_fixed<std::complex<float>, 4, 4>()));
+
+    // Product regressions: aliasing, operand lifetime, mixed scalars.
+    CALL_SUBTEST_4((test_vandermonde_aliased_product<double>(8)));
+    CALL_SUBTEST_4((test_vandermonde_aliased_product<double>(17)));
+    CALL_SUBTEST_4((test_vandermonde_aliased_product<std::complex<double>>(9)));
+    CALL_SUBTEST_4((test_vandermonde_delayed_product<double>(12, 9)));
+    CALL_SUBTEST_4((test_vandermonde_delayed_product<std::complex<double>>(8, 8)));
+    CALL_SUBTEST_4((test_vandermonde_mixed_scalar<double>(10, 8)));
+    CALL_SUBTEST_4((test_vandermonde_mixed_scalar<float>(7, 9)));
   }
 }
