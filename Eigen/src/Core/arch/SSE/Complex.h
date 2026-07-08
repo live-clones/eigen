@@ -299,7 +299,7 @@ EIGEN_STRONG_INLINE Packet1cd pmul(const Packet1cd& a, const Packet1cd& b) {
 #ifdef EIGEN_VECTORIZE_SSE3
   __m128d result = _mm_addsub_pd(_mm_mul_pd(tmp2, b.v), tmp1);
 #else
-  const __m128d mask = _mm_castsi128_pd(_mm_set_epi32(0x0, 0x0, static_cast<int32_t>(0x80000000), 0x0));
+  const __m128d mask = _mm_castsi128_pd(_mm_set_epi64x(0x0, 0x8000000000000000ull));
   __m128d result = _mm_add_pd(_mm_mul_pd(tmp2, b.v), _mm_xor_pd(tmp1, mask));
 #endif
 #endif
