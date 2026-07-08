@@ -97,6 +97,17 @@ ComplexVectorType structured_reverse_symbol(const ComplexVectorType& symbol) {
  * corresponding output column. All workspace is allocated once outside the
  * per-column loop; right-hand sides shorter than the transform length are
  * zero-padded into the preallocated buffer so the FFT never re-allocates.
+ *
+ * The transforms accumulate up to \c p addends, so a finite column near the
+ * overflow threshold (or one applied through a symbol of huge magnitude) would
+ * overflow inside the FFT and turn a representable result into Inf/NaN. Each
+ * column is therefore scaled down by a power of two -- an exact shift, no
+ * roundoff -- derived from the column's and the symbol's largest exponents, and
+ * the exponent is folded back into the output after the back-transform. The
+ * scale is one whenever the conservative intermediate bound cannot overflow, so
+ * results are bit-identical for inputs of moderate magnitude; zero columns are
+ * never scaled, and non-finite inputs (genuine NaN or Inf) propagate through
+ * the transforms unscaled.
  */
 template <typename Scalar, typename Dest, typename Rhs>
 void structured_fft_apply(Dest& dst, const Matrix<std::complex<typename NumTraits<Scalar>::Real>, Dynamic, 1>& symbol,
@@ -116,15 +127,37 @@ void structured_fft_apply(Dest& dst, const Matrix<std::complex<typename NumTrait
     return;
   }
 
+  // Exponent budget of the power-of-two scaling: with the column scaled so that
+  // its magnitudes stay below 2^c, the intermediates are bounded by
+  // 2^(c + s + 2*ceil(log2(p)) + 1) -- each transform accumulates up to p
+  // addends and the complex multiplication by the symbol (magnitudes below 2^s)
+  // contributes one more bit -- which must stay below 2^max_exponent.
+  int log2p = 0;
+  for (Index t = p; t > 0; t /= 2) ++log2p;
+  const int budget = std::numeric_limits<RealScalar>::max_exponent - 2 * log2p - 2;
+  int symbolExp = 0;  // 2^(symbolExp - 1) <= max|symbol| < 2^symbolExp
+  const RealScalar symbolMax = symbol.cwiseAbs().maxCoeff();
+  if ((numext::isfinite)(symbolMax)) std::frexp(symbolMax, &symbolExp);
+
   FFT<RealScalar> fft;
   ComplexVector xt = ComplexVector::Zero(p);  // the zero padding beyond rhs.rows() is never overwritten
   ComplexVector xf(p), yt(p);
   for (Index k = 0; k < rhs.cols(); ++k) {
-    xt.head(rhs.rows()) = rhs.col(k).template cast<Complex>();
+    int colExp = 0;  // frexp leaves it 0 for an all-zero column: no scaling
+    const RealScalar colMax = rhs.col(k).cwiseAbs().maxCoeff();
+    if ((numext::isfinite)(colMax)) std::frexp(colMax, &colExp);
+    const int e = numext::maxi(colExp + symbolExp - budget, 0);
+    // Each power of two is split in halves so that the factors themselves stay
+    // inside the exponent range even when e exceeds it (a huge column applied
+    // through a huge symbol); scaling by the two exact factors in sequence is
+    // still an exact shift wherever the result is representable.
+    const RealScalar down1 = std::ldexp(RealScalar(1), -(e / 2)), down2 = std::ldexp(RealScalar(1), -(e - e / 2));
+    const RealScalar up1 = std::ldexp(RealScalar(1), e / 2), up2 = std::ldexp(RealScalar(1), e - e / 2);
+    xt.head(rhs.rows()) = ((rhs.col(k) * down1) * down2).template cast<Complex>();
     fft.fwd(xf, xt, p);
     xf.array() *= symbol.array();
     fft.inv(yt, xf, p);
-    dst.col(k) += alpha * structured_scalar_part_impl<Scalar>::run(yt.head(outSize));
+    dst.col(k) += alpha * structured_scalar_part_impl<Scalar>::run((yt.head(outSize) * up1) * up2);
   }
 }
 
