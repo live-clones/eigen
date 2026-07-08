@@ -177,7 +177,10 @@ void test_dpr1_huge_z() {
   z << 2e19f;
   DPR1EigenSolver<float> es(d, 1e-30f, z);
   VERIFY(es.info() == Success);
-  const float expected = 1.0f + 1e-30f * 4e38f;
+  // Form rho*z^2 = 4e8 one factor at a time: the literal 4e38 already overflows
+  // float (an infinite `expected` would make the bound below vacuous).
+  const float expected = 1.0f + (1e-30f * 2e19f) * 2e19f;
+  VERIFY((numext::isfinite)(expected));
   // Loose bound: expected ~ 4e8 is dominated by the rank-one term, so only its
   // leading digits survive in float.
   const float tol = 1000.0f * NumTraits<float>::epsilon();  // ~1.2e-4
@@ -204,6 +207,95 @@ void test_dpr1_nonfinite() {
   VERIFY(e2.info() == InvalidInput);
   DPR1EigenSolver<double> e3(d, std::numeric_limits<double>::quiet_NaN(), z);
   VERIFY(e3.info() == InvalidInput);
+}
+
+// Regression (MR 2694 review): poles spanning the full exponent range with a
+// huge but representable update. Pole differences (d_1 - d_0 = 1.5*DBL_MAX)
+// overflow unless the solver rescales the problem by an exact power of two;
+// it used to report Success with an infinite eigenvalue. The reference is a
+// dense solve of the exactly rescaled problem 2^-e * (d, rho), whose spectrum
+// is exactly 2^-e times the original.
+void test_dpr1_full_range_poles() {
+  typedef Matrix<double, Dynamic, 1> Vec;
+  typedef Matrix<double, Dynamic, Dynamic> Mat;
+  const double dmax = (std::numeric_limits<double>::max)();
+  Vec d(2), z(2);
+  d << -0.75 * dmax, 0.75 * dmax;
+  z << 1.0, 1.0;
+  const double rho = 1e300;
+  DPR1EigenSolver<double> es(d, rho, z);
+  VERIFY(es.info() == Success);
+  VERIFY(es.eigenvalues().allFinite());
+
+  const int e = 1024;  // 2^-e maps 0.75*DBL_MAX into [0.5, 1)
+  Vec dS(2);
+  dS << std::ldexp(d[0], -e), std::ldexp(d[1], -e);
+  const double rhoS = std::ldexp(rho, -e);
+  Mat dense = Mat(dS.asDiagonal()) + rhoS * z * z.transpose();
+  SelfAdjointEigenSolver<Mat> ref(dense, EigenvaluesOnly);
+  const double scaleS = dS.cwiseAbs().maxCoeff() + rhoS * z.squaredNorm();
+  const double tol = 100.0 * NumTraits<double>::epsilon();
+  Vec lambdaS(2);
+  lambdaS << std::ldexp(es.eigenvalues()[0], -e), std::ldexp(es.eigenvalues()[1], -e);
+  VERIFY((lambdaS - ref.eigenvalues()).cwiseAbs().maxCoeff() <= tol * scaleS);
+  // Eigenvectors are scale-invariant: check them on the rescaled matrix.
+  const Mat& V = es.eigenvectors();
+  VERIFY((dense * V - V * lambdaS.asDiagonal()).norm() <= tol * scaleS);
+  VERIFY((V.transpose() * V - Mat::Identity(2, 2)).norm() <= tol);
+}
+
+// Regression (MR 2694 review): z entries at the top of the range make ||z||
+// itself overflow, but the update rho*z*z^T (rank-one eigenvalue ~6.46e306) is
+// perfectly representable; the solver used to return InvalidInput. It must
+// instead normalize z by an exact power of two, 2^-p z with rho 2^(2p), which
+// leaves the matrix identical -- the same rewrite gives the dense reference.
+void test_dpr1_huge_z_norm() {
+  typedef Matrix<double, Dynamic, 1> Vec;
+  typedef Matrix<double, Dynamic, Dynamic> Mat;
+  const double dmax = (std::numeric_limits<double>::max)();
+  Vec d(2), z(2);
+  d << 0.0, 0.0;
+  z << dmax, dmax;
+  const double rho = 1e-310;  // subnormal, so rho * 2^(2p) stays finite
+  DPR1EigenSolver<double> es(d, rho, z);
+  VERIFY(es.info() == Success);
+
+  const int p = 1024;  // 2^-p maps DBL_MAX into [0.5, 1)
+  Vec zS(2);
+  zS << std::ldexp(z[0], -p), std::ldexp(z[1], -p);
+  const double rhoS = std::ldexp(rho, 2 * p);  // exact: subnormal scaled up
+  Mat dense = Mat(d.asDiagonal()) + rhoS * zS * zS.transpose();
+  SelfAdjointEigenSolver<Mat> ref(dense, EigenvaluesOnly);
+  const double scale = rhoS * zS.squaredNorm();  // the rank-one eigenvalue, ~6.46e306
+  const double tol = 100.0 * NumTraits<double>::epsilon();
+  VERIFY((es.eigenvalues() - ref.eigenvalues()).cwiseAbs().maxCoeff() <= tol * scale);
+  VERIFY(numext::abs(es.eigenvalues()[1] - scale) <= tol * scale);
+}
+
+// Regression (MR 2694 review): a z entry just above the deflation threshold
+// puts the secular root ~rho*z_0^2 ~ 6.3e-30 from its pole; bisecting the O(1)
+// bracket down to it takes ~150 halvings, beyond the old 2*digits+32 iteration
+// cap, and used to report NoConvergence (check_dpr1 requires Success).
+void test_dpr1_near_deflation_root() {
+  typedef Matrix<double, Dynamic, 1> Vec;
+  Vec d(2), z(2);
+  d << 0.0, 1.0;
+  z << 16.0 * NumTraits<double>::epsilon(), 1.0;
+  check_dpr1<double>(d, 1.0, z);
+}
+
+// Regression (MR 2694 review): finite 1x1 input whose only eigenvalue
+// d + rho*z^2 = 2*DBL_MAX overflows. The documented contract for a spectrum
+// that is not representable is InvalidInput, not Success carrying infinity.
+void test_dpr1_overflowing_spectrum() {
+  typedef Matrix<double, Dynamic, 1> Vec;
+  const double dmax = (std::numeric_limits<double>::max)();
+  Vec d(1), z(1);
+  d << dmax;
+  z << 1.0;
+  DPR1EigenSolver<double> es(d, dmax, z);
+  VERIFY(es.info() == InvalidInput);
+  VERIFY((numext::isnan)(es.eigenvalues()[0]));
 }
 
 // A huge diagonal spread makes every z entry individually negligible even though
@@ -248,5 +340,11 @@ EIGEN_DECLARE_TEST(structured_dpr1) {
     CALL_SUBTEST_4(test_dpr1_huge_z());
     CALL_SUBTEST_4(test_dpr1_nonfinite());
     CALL_SUBTEST_4(test_dpr1_all_deflated());
+
+    // MR 2694 review regressions: exponent-range extremes and deep bisection.
+    CALL_SUBTEST_5(test_dpr1_full_range_poles());
+    CALL_SUBTEST_5(test_dpr1_huge_z_norm());
+    CALL_SUBTEST_5(test_dpr1_near_deflation_root());
+    CALL_SUBTEST_5(test_dpr1_overflowing_spectrum());
   }
 }
