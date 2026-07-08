@@ -402,21 +402,15 @@ EIGEN_STRONG_INLINE HVXPacket<T> ptrue_hvx(const HVXPacket<T>& a) {
 }
 template <>
 EIGEN_STRONG_INLINE Packet32f ptrue(const Packet32f& a) {
-  Packet32f r = ptrue_hvx(a);
-  EIGEN_FAST_MATH_CONSTANT_BARRIER(r);
-  return r;
+  return ptrue_hvx(a);
 }
 template <>
 EIGEN_STRONG_INLINE Packet16f ptrue(const Packet16f& a) {
-  Packet16f r = ptrue_hvx(a);
-  EIGEN_FAST_MATH_CONSTANT_BARRIER(r);
-  return r;
+  return ptrue_hvx(a);
 }
 template <>
 EIGEN_STRONG_INLINE Packet8f ptrue(const Packet8f& a) {
-  Packet8f r = ptrue_hvx(a);
-  EIGEN_FAST_MATH_CONSTANT_BARRIER(r);
-  return r;
+  return ptrue_hvx(a);
 }
 
 template <HVXPacketSize T>

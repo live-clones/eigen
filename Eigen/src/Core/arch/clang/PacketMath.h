@@ -401,9 +401,11 @@ EIGEN_CLANG_PACKET_BITWISE_INT(PacketXl)
     return PACKET_TYPE(Scalar(0));                                                                   \
   }                                                                                                  \
   template <>                                                                                        \
-  constexpr EIGEN_STRONG_INLINE PACKET_TYPE ptrue<PACKET_TYPE>(const PACKET_TYPE& /* unused */) {    \
+  EIGEN_STRONG_INLINE PACKET_TYPE ptrue<PACKET_TYPE>(const PACKET_TYPE& /* unused */) {              \
     using Scalar = detail::scalar_type_of_vector_t<PACKET_TYPE>;                                     \
-    return numext::bit_cast<PACKET_TYPE>(PACKET_TYPE(Scalar(0)) == PACKET_TYPE(Scalar(0)));          \
+    PACKET_TYPE r = numext::bit_cast<PACKET_TYPE>(PACKET_TYPE(Scalar(0)) == PACKET_TYPE(Scalar(0))); \
+    EIGEN_FAST_MATH_CONSTANT_BARRIER(r);                                                             \
+    return r;                                                                                        \
   }                                                                                                  \
   template <>                                                                                        \
   EIGEN_STRONG_INLINE PACKET_TYPE pand<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b) {    \
