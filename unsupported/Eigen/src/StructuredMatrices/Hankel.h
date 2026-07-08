@@ -112,26 +112,27 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
       : m_rows(col.size()), m_cols(row.size()) {
     EIGEN_STATIC_ASSERT_VECTOR_ONLY(ColDerived)
     EIGEN_STATIC_ASSERT_VECTOR_ONLY(RowDerived)
-    eigen_assert(m_rows > 0 && m_cols > 0 && "Hankel generators must be non-empty");
-    m_h.resize(m_rows + m_cols - 1);
-    m_h.head(m_rows) = col;
-    if (m_cols > 1) m_h.tail(m_cols - 1) = row.tail(m_cols - 1);
-    if (m_rows > internal::structured_direct_threshold() || m_cols > internal::structured_direct_threshold())
+    const Index m = col.size(), n = row.size();
+    eigen_assert(m > 0 && n > 0 && "Hankel generators must be non-empty");
+    m_h.resize(m + n - 1);
+    m_h.head(m) = col;
+    if (n > 1) m_h.tail(n - 1) = row.tail(n - 1);
+    if (m > internal::structured_direct_threshold() || n > internal::structured_direct_threshold())
       m_symbol = computeSymbol();
   }
 
-  EIGEN_DEVICE_FUNC Index rows() const { return m_rows; }
-  EIGEN_DEVICE_FUNC Index cols() const { return m_cols; }
+  EIGEN_DEVICE_FUNC Index rows() const { return m_rows.value(); }
+  EIGEN_DEVICE_FUNC Index cols() const { return m_cols.value(); }
 
   /** \returns the generating sequence \c h of length \c m+n-1; entry \c (i,j) of
    * the matrix is \c h[i+j]. */
   const GeneratorType& generator() const { return m_h; }
 
   /** \returns the first column, \c h[0..m-1]. */
-  ColGeneratorType column() const { return m_h.head(m_rows); }
+  ColGeneratorType column() const { return m_h.head(rows()); }
 
   /** \returns the last row, \c h[m-1..m+n-2]. */
-  RowGeneratorType lastRow() const { return m_h.segment(m_rows - 1, m_cols); }
+  RowGeneratorType lastRow() const { return m_h.segment(rows() - 1, cols()); }
 
   /** \returns the symbol of the underlying circulant convolution: the DFT of the
    * generating sequence, zero-padded to a 5-smooth size p >= m+n-1 and rotated so
@@ -149,13 +150,13 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
    * \c n-1 to \c m-1, which multiplies DFT entry \c f by \c exp(2 pi i f (m-n)/p)
    * -- a diagonal phase multiplication instead of a new FFT. */
   Hankel<Scalar, Cols_, Rows_> transpose() const {
-    return Hankel<Scalar, Cols_, Rows_>(m_h, m_cols, m_rows, transposedSymbol());
+    return Hankel<Scalar, Cols_, Rows_>(m_h, cols(), rows(), transposedSymbol());
   }
 
   /** \returns the complex conjugate of \c *this, itself a Hankel operator. The
    * cached symbol, when present, is reused: the symbol of the conjugate is the
    * conjugated index reversal of the symbol. */
-  Hankel conjugate() const { return Hankel(m_h.conjugate(), m_rows, m_cols, reverseSymbol(m_symbol).conjugate()); }
+  Hankel conjugate() const { return Hankel(m_h.conjugate(), rows(), cols(), reverseSymbol(m_symbol).conjugate()); }
 
   /** \returns the adjoint of \c *this, itself a Hankel operator (the conjugated
    * transpose); the cached symbol is reused through the composition of the
@@ -167,8 +168,8 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
    * afresh. Useful for solving Hankel systems with the Toeplitz machinery:
    * \c H*x = b is \c T*(E*x) = b. */
   Toeplitz<Scalar, Rows_, Cols_> toToeplitz() const {
-    ColGeneratorType c = m_h.segment(m_cols - 1, m_rows);
-    RowGeneratorType r = m_h.head(m_cols).reverse();
+    ColGeneratorType c = m_h.segment(cols() - 1, rows());
+    RowGeneratorType r = m_h.head(cols()).reverse();
     return Toeplitz<Scalar, Rows_, Cols_>(c, r);
   }
 
@@ -193,19 +194,19 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
    * contiguous slice \c h[j..j+m-1]. Invoked through \c dense = hankel; */
   template <typename Dest>
   void evalTo(Dest& dst) const {
-    for (Index j = 0; j < m_cols; ++j) dst.col(j) = m_h.segment(j, m_rows);
+    for (Index j = 0; j < cols(); ++j) dst.col(j) = m_h.segment(j, rows());
   }
 
   /** \internal Computes \c dst += (*this), see evalTo(). */
   template <typename Dest>
   void addTo(Dest& dst) const {
-    for (Index j = 0; j < m_cols; ++j) dst.col(j) += m_h.segment(j, m_rows);
+    for (Index j = 0; j < cols(); ++j) dst.col(j) += m_h.segment(j, rows());
   }
 
   /** \internal Computes \c dst -= (*this), see evalTo(). */
   template <typename Dest>
   void subTo(Dest& dst) const {
-    for (Index j = 0; j < m_cols; ++j) dst.col(j) -= m_h.segment(j, m_rows);
+    for (Index j = 0; j < cols(); ++j) dst.col(j) -= m_h.segment(j, rows());
   }
 
   /** \returns the product expression \c (*this) * \a x, evaluated through a fast
@@ -218,7 +219,7 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
   /** \internal Computes \c dst += alpha * (*this) * rhs. */
   template <typename Dest, typename Rhs>
   void addProduct(Dest& dst, const Rhs& rhs, const Scalar& alpha) const {
-    const Index m = m_rows, n = m_cols;
+    const Index m = rows(), n = cols();
     eigen_assert(rhs.rows() == n && "invalid product: dimensions do not match");
 
     if (m <= internal::structured_scalar_threshold() && n <= internal::structured_scalar_threshold()) {
@@ -267,7 +268,7 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
    * 5-smooth size p >= m+n-1 and rotated left by n-1 so that the convolution
    * against a reversed input lands the product in the leading m entries. */
   ComplexVector computeSymbol() const {
-    const Index m = m_rows, n = m_cols;
+    const Index m = rows(), n = cols();
     const Index p = internal::fft_next_good_size(m + n - 1);
     ComplexVector embedding = ComplexVector::Zero(p);
     embedding.head(m) = m_h.tail(m).template cast<Complex>();  // h[n-1 .. m+n-2]
@@ -287,8 +288,8 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
   ComplexVector transposedSymbol() const {
     ComplexVector sym = m_symbol;
     const Index p = sym.size();
-    if (p > 0 && m_rows != m_cols) {
-      Index s = (m_rows - m_cols) % p;
+    if (p > 0 && rows() != cols()) {
+      Index s = (rows() - cols()) % p;
       if (s < 0) s += p;
       Index fs = 0;  // f * s mod p
       for (Index f = 0; f < p; ++f) {
@@ -313,8 +314,10 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
     return reversed;
   }
 
-  Index m_rows;
-  Index m_cols;
+  // Empty (compile-time constant) when the corresponding dimension is fixed; the
+  // dimensions cannot be recovered from m_h alone, whose length is rows()+cols()-1.
+  internal::variable_if_dynamic<Index, RowsAtCompileTime> m_rows;
+  internal::variable_if_dynamic<Index, ColsAtCompileTime> m_cols;
   GeneratorType m_h;
   ComplexVector m_symbol;
 };
