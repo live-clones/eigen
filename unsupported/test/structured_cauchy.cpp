@@ -197,8 +197,9 @@ void test_cauchy_symmetric(Index n) {
 
   Vec x(n);
   for (Index i = 0; i < n; ++i) x[i] = Scalar(1) + Scalar(i);
-  Cauchy<Scalar> C(x, (-x).eval());
-  Mat dense = reference_cauchy<Scalar>(x, Vec(-x));
+  Vec negx = -x;
+  Cauchy<Scalar> C(x, negx);
+  Mat dense = reference_cauchy<Scalar>(x, negx);
   VERIFY_IS_APPROX(dense, Mat(dense.transpose()));
   Cauchy<Scalar> Ct = C.transpose();
   VERIFY_IS_EQUAL(Ct.rowNodes(), Vec(x));  // -(-x) round-trips exactly
