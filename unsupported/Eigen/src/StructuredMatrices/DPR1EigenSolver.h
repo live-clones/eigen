@@ -36,13 +36,19 @@ namespace Eigen {
  * are \em exact secular eigenvalues -- which is what makes the computed
  * eigenvector matrix numerically orthogonal without any reorthogonalization.
  *
- * The total cost is O(n^2): O(n log(1/eps)) per bisected root, O(n) per
- * Gu-Eisenstat weight, and O(n) per eigenvector (the deflation rotations are
- * replayed instead of accumulated into a dense matrix).
+ * The total cost is O(n^2): O(n log(1/eps)) per bisected root in the common
+ * case (the iteration cap is sized to the scalar's full exponent range, so
+ * even roots subnormally close to their pole resolve), O(n) per Gu-Eisenstat
+ * weight, and O(n) per eigenvector (the deflation rotations are replayed
+ * instead of accumulated into a dense matrix).
  *
  * Both signs of \f$ \rho \f$ are supported (negative \f$ \rho \f$ is handled by
  * negating the matrix), as are \f$ \rho = 0 \f$, zero \c z, repeated diagonal
- * entries and any ordering of \c d.
+ * entries and any ordering of \c d. The problem is rescaled internally by
+ * exact powers of two, so data anywhere in the representable range is handled
+ * without internal overflow; on well-scaled data the rescaling changes no bits
+ * of the result (rounding can occur only at the subnormal boundary, far below
+ * the deflation backward-error budget).
  *
  * \code
  *   DPR1EigenSolver<double> es(d, rho, z);
@@ -72,6 +78,9 @@ class DPR1EigenSolver {
                 "DPR1EigenSolver requires a real scalar type; for a Hermitian rank-one "
                 "update, factor out the phases of z first (z = Phi*|z| gives "
                 "A = Phi (D + rho |z||z|^T) Phi^H).");
+  // The secular equation divides by pole distances; integers cannot represent
+  // its roots (same restriction as the dense eigensolvers).
+  EIGEN_STATIC_ASSERT_NON_INTEGER(RealScalar)
 
   /** Default constructor; call \ref compute before querying results. */
   DPR1EigenSolver() : m_isInitialized(false), m_vectorsComputed(false), m_info(InvalidInput) {}
@@ -172,11 +181,63 @@ DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const Vector
   }
 
   // ---- normalize z, absorbing its norm into rho ----
-  const RealScalar znorm = zs.stableNorm();  // overflow/underflow-safe
+  // Every rescaling below is an exact power of two (frexp/ldexp), so where the
+  // unscaled computation neither overflows nor rounds at the subnormal
+  // boundary it changes no bits; it only extends the representable range (cf.
+  // the overflow-guarding scalings in LAPACK's xSTEDC/xLAED*, which use
+  // general scale factors instead).
+  EIGEN_USING_STD(frexp)
+  EIGEN_USING_STD(ldexp)
+  // Exact power-of-two prescaling of z: with max|z_i| ~ 2^zExp, z / 2^zExp is
+  // exactly representable entrywise and its norm is safely computable even
+  // when the true ||z|| exceeds the scalar range (e.g. z = [max, max]).
+  int zExp = 0;
+  const RealScalar zmax = zs.cwiseAbs().maxCoeff();
+  if (zmax > RealScalar(0)) {
+    frexp(zmax, &zExp);
+    if (zExp != 0)
+      for (Index i = 0; i < n; ++i) zs[i] = ldexp(zs[i], -zExp);
+  }
+  const RealScalar znorm = zs.stableNorm();  // in [0.5, sqrt(n)): safe
+  int znormExp = 0;
+  const RealScalar znormFrac = frexp(znorm, &znormExp);
   if (znorm > RealScalar(0)) zs /= znorm;
-  // Multiply rho through one factor at a time: znorm^2 alone can overflow even
-  // when rho*||z||^2 -- the only quantity that matters -- is perfectly ordinary.
-  rhoW = (rhoW * znorm) * znorm;  // now A~ = diag(ds) + rhoW * zs zs^T with ||zs|| = 1
+  // rho <- rho * (2^zExp * znorm)^2 == rho * ||z||^2: multiply the mantissas
+  // first (all in [0.25, 1), so nothing intermediate can overflow) and apply
+  // the collected power of two in one exact ldexp -- the result overflows or
+  // underflows only if rho * ||z||^2 itself does.
+  int rhoExp = 0;
+  const RealScalar rhoFrac = frexp(rhoW, &rhoExp);
+  rhoW = ldexp((rhoFrac * znormFrac) * znormFrac, rhoExp + 2 * (zExp + znormExp));
+  // now A~ = diag(ds) + rhoW * zs zs^T with ||zs|| = 1
+
+  if (!(numext::isfinite)(rhoW)) {
+    // rho*||z||^2 overflows the scalar type even after the exact rescaling of
+    // z: the rank-one update itself is not representable, and neither is the
+    // upper end of the spectrum the secular formulation works with.
+    m_eivalues.setConstant(NumTraits<RealScalar>::quiet_NaN());
+    m_info = InvalidInput;
+    m_isInitialized = true;
+    return *this;
+  }
+
+  // ---- scale the whole problem into [0.5, 1) by an exact power of two ----
+  // The eigenvalues of diag(s*d) + (s*rho) z z^T are exactly s times those of
+  // diag(d) + rho z z^T; with s = 2^-scaleExp bringing max(|d|_inf, rho*||z||^2)
+  // into [0.5, 1), every intermediate below (pole differences, midpoints,
+  // brackets, root offsets) stays far from overflow even for data at the very
+  // end of the exponent range. The output is rescaled by 2^scaleExp at the
+  // end -- exactly, whenever it is representable.
+  const RealScalar normScale = numext::maxi(ds.cwiseAbs().maxCoeff(), rhoW);
+  int scaleExp = 0;
+  if (normScale > RealScalar(0)) {
+    frexp(normScale, &scaleExp);
+    if (scaleExp != 0) {
+      for (Index i = 0; i < n; ++i) ds[i] = ldexp(ds[i], -scaleExp);
+      rhoW = ldexp(rhoW, -scaleExp);
+    }
+  }
+  const RealScalar scaledNorm = ldexp(normScale, -scaleExp);  // in [0.5, 1)
 
   // ---- deflation ----
   // Backward-error budget: dropping a coupling of size <= tol perturbs the
@@ -184,16 +245,7 @@ DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const Vector
   // the scale is the unscaled-problem generalization of xLAED2's criterion: the
   // perturbation stays O(eps * (||D|| + rho ||z||^2)), i.e. backward stable in
   // the data.
-  const RealScalar normScale = numext::maxi(ds.cwiseAbs().maxCoeff(), rhoW);
-  if (!((numext::isfinite)(rhoW) && (numext::isfinite)(normScale))) {
-    // rho*||z||^2 (or the data) overflows the scalar type: the spectrum is not
-    // representable. Pre-scale the problem and try again.
-    m_eivalues.setConstant(NumTraits<RealScalar>::quiet_NaN());
-    m_info = InvalidInput;
-    m_isInitialized = true;
-    return *this;
-  }
-  const RealScalar tol = RealScalar(8) * NumTraits<RealScalar>::epsilon() * normScale;
+  const RealScalar tol = RealScalar(8) * NumTraits<RealScalar>::epsilon() * scaledNorm;
 
   std::vector<Rotation> rotations;
   std::vector<bool> deflated(static_cast<std::size_t>(n), false);
@@ -253,14 +305,20 @@ DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const Vector
     const RealScalar zeta2sum = zeta2.sum();
 
     // ---- secular roots by pole-shifted bisection ----
-    // The iteration count guarantees bitwise convergence: the surviving pole
-    // gaps exceed 16*eps*normScale and the smallest root offsets are bounded
-    // below by tol^2/normScale, so the bracket-to-root dynamic range is at most
-    // O(1/eps^2), i.e. ~2*digits halvings, plus slack.
-    const int maxBisect =
-        2 * ((std::numeric_limits<RealScalar>::digits > 0) ? static_cast<int>(std::numeric_limits<RealScalar>::digits)
-                                                           : 128) +
-        32;
+    // Bisection stops when the bracket has collapsed to adjacent floating-point
+    // numbers (t == a0 || t == b0 below) -- the magnitude-independent
+    // termination rule. The iteration cap is a pure backstop sized to the worst
+    // theoretical bracket: from a width of O(1) (after the 2^-scaleExp problem
+    // scaling above) down to a root offset that may be subnormal takes at most
+    // (exponent range + digits) halvings, plus digits more to resolve the last
+    // bits, plus slack.
+    const int digits =
+        (std::numeric_limits<RealScalar>::digits > 0) ? static_cast<int>(std::numeric_limits<RealScalar>::digits) : 128;
+    const int expRange = (std::numeric_limits<RealScalar>::max_exponent > std::numeric_limits<RealScalar>::min_exponent)
+                             ? static_cast<int>(std::numeric_limits<RealScalar>::max_exponent) -
+                                   static_cast<int>(std::numeric_limits<RealScalar>::min_exponent)
+                             : 16 * digits;
+    const int maxBisect = expRange + 2 * digits + 32;
     VectorType lam(m), dsh(m);  // dsh is refilled from scratch each root
     for (Index k = 0; k < m; ++k) {
       // Choose the shift pole and the bracket, entirely in shifted coordinates.
@@ -363,7 +421,9 @@ DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const Vector
   for (Index t = 0; t < n; ++t) {
     const Index w = order[static_cast<std::size_t>(t)];
     const Index outCol = negated ? n - 1 - t : t;
-    m_eivalues[outCol] = negated ? -lambdaW[w] : lambdaW[w];
+    // Undo the problem scaling: exact whenever the eigenvalue is representable
+    // (ldexp saturates to infinity when it is not; validated below).
+    m_eivalues[outCol] = ldexp(negated ? -lambdaW[w] : lambdaW[w], scaleExp);
     if (!computeVectors) continue;
 
     // Assemble the eigenvector in working coordinates, replay the deflation
@@ -384,6 +444,14 @@ DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const Vector
       wvec[it->j] = -it->s * wi + it->c * wj;
     }
     for (Index i = 0; i < n; ++i) m_eivec(pi[static_cast<std::size_t>(i)], outCol) = wvec[i];
+  }
+
+  // Finite input whose spectrum overflows the scalar type (the rescaling by
+  // 2^scaleExp saturated to infinity, e.g. d = rho = z = [max]) violates the
+  // documented representability contract: report it like non-finite input.
+  if (!m_eivalues.allFinite()) {
+    m_eivalues.setConstant(NumTraits<RealScalar>::quiet_NaN());
+    m_info = InvalidInput;
   }
 
   m_isInitialized = true;
