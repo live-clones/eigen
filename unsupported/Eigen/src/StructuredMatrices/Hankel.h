@@ -227,7 +227,7 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
       for (Index k = 0; k < rhs.cols(); ++k)
         for (Index i = 0; i < m; ++i) {
           Scalar acc(0);
-          for (Index j = 0; j < n; ++j) acc += m_h.coeff(i + j) * rhs.coeff(j, k);
+          for (Index j = 0; j < n; ++j) acc += coeff(i, j) * rhs.coeff(j, k);
           dst.coeffRef(i, k) += alpha * acc;
         }
       return;
