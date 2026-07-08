@@ -26,7 +26,8 @@ struct traits<LookAheadLevinson<Scalar_>> : traits<Matrix<Scalar_, Dynamic, Dyna
   using StorageKind = SolverStorage;
   using StorageIndex = int;
   using BaseTraits = traits<Matrix<Scalar_, Dynamic, Dynamic>>;
-  enum { Flags = BaseTraits::Flags & RowMajorBit, CoeffReadCost = Dynamic };
+  static constexpr int Flags = BaseTraits::Flags & RowMajorBit;
+  static constexpr int CoeffReadCost = Dynamic;
 };
 
 // Non-conjugating inner product sum_i a_i b_i. The look-ahead Levinson algorithm
@@ -171,10 +172,11 @@ class LookAheadLevinson : public SolverBase<LookAheadLevinson<Scalar_>> {
   DenseMatrix solveForward(const Rhs& b) const {
     const Index nrhs = b.cols();
     DenseMatrix x = m_luInit.solve(b.topRows(m_k0));
+    DenseMatrix rhs, a, xn;
     for (const Step& s : m_steps) {
-      DenseMatrix rhs = b.middleRows(s.k, s.p) - s.WspEk * x;  // (27): b_p - S_p^T E_k x_k
-      DenseMatrix a = s.luGamma.solve(rhs);
-      DenseMatrix xn(s.k + s.p, nrhs);
+      rhs = b.middleRows(s.k, s.p) - s.WspEk * x;  // (27): b_p - S_p^T E_k x_k
+      a = s.luGamma.solve(rhs);
+      xn.resize(s.k + s.p, nrhs);
       xn.topRows(s.k) = x + s.EkYp * a;  // [E_k Y_p; I_p] a_p
       xn.bottomRows(s.p) = a;
       x = xn;
