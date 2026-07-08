@@ -562,6 +562,36 @@ void test_levinson_fixed() {
   VERIFY_IS_APPROX(lev.solve(b), dense.fullPivLu().solve(b).eval());
 }
 
+// Evaluating the Solve expression inside a larger expression (rather than
+// assigning it straight to a plain matrix) goes through evaluator<Solve>, which
+// caches pointers into its preallocated result before _solve_impl runs:
+// _solve_impl must copy into the destination coefficient-wise, never move-assign
+// it (a move steals the buffer and leaves the cached pointers dangling). Only a
+// matrix right-hand side is affected: a vector one has a different plain type,
+// which cannot select the move-assignment. Hankel::solve wraps the Levinson
+// solve in exactly such an expression (colwise().reverse()).
+template <typename Scalar>
+void test_levinson_solve_in_expression(Index n) {
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+
+  Vec c = Vec::Random(n), r = Vec::Random(n);
+  r[0] = c[0] += Scalar(RealScalar(2 * n));  // diagonally dominant => well conditioned
+  Toeplitz<Scalar> T(c, r);
+  LookAheadLevinson<Scalar> lev(T);
+  VERIFY(lev.info() == Success);
+
+  Mat B = Mat::Random(n, 3);
+  Mat direct = lev.solve(B);  // plain assignment: solves straight into `direct`
+  Mat inExpr = lev.solve(B).colwise().reverse();
+  VERIFY_IS_APPROX(inExpr, direct.colwise().reverse().eval());
+
+  Vec b = Vec::Random(n);
+  Vec x = lev.solve(b).colwise().reverse();
+  VERIFY_IS_APPROX(x, Vec(Vec(lev.solve(b)).reverse()));
+}
+
 // A numerically singular Toeplitz must be reported through info().
 void test_levinson_singular() {
   typedef Matrix<double, Dynamic, 1> Vec;
@@ -629,6 +659,9 @@ EIGEN_DECLARE_TEST(structured_matrices) {
     CALL_SUBTEST_5(test_levinson_lookahead());
     CALL_SUBTEST_5(test_levinson_fixed());
     CALL_SUBTEST_5(test_levinson_singular());
+    CALL_SUBTEST_5((test_levinson_solve_in_expression<double>(1)));
+    CALL_SUBTEST_5((test_levinson_solve_in_expression<double>(24)));
+    CALL_SUBTEST_5((test_levinson_solve_in_expression<std::complex<double>>(16)));
 
     // Hankel: products across dispatch tiers, transposition family (validating the
     // phase-multiplication symbol reuse on rectangular FFT-tier operators), the
