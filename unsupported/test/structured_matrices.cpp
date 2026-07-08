@@ -269,6 +269,7 @@ void test_hankel_solve(Index n) {
 // Levinson algorithm is weakly stable).
 template <typename Scalar>
 void test_hankel_solve_lookahead(Index n) {
+  typedef typename NumTraits<Scalar>::Real RealScalar;
   typedef Matrix<Scalar, Dynamic, 1> Vec;
   typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
 
@@ -279,7 +280,7 @@ void test_hankel_solve_lookahead(Index n) {
 
   Vec b = dense * Vec::Ones(n);
   Vec x = H.solve(b);
-  VERIFY((dense * x - b).norm() <= typename NumTraits<Scalar>::Real(1e-9) * b.norm());
+  VERIFY((dense * x - b).norm() <= RealScalar(1e-9) * b.norm());
 }
 
 // The Hilbert matrix is the canonical ill-conditioned Hankel matrix: H(i,j) =
