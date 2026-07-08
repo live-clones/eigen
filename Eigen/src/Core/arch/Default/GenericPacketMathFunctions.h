@@ -610,7 +610,6 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_exp2(const Pa
     log10(x) ~= log(x) * hi + log(x) * lo, computed via fma. */
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog10_float(const Packet& x) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
   // log10(e) in higher precision, split into hi+lo so log_x*(hi+lo) is reconstructed via FMA.
   // hi = round-to-nearest-float of log10(e); lo = float(log10(e) - hi).
   const Packet cst_log10e_hi = pset1<Packet>(0.4342944920063018f);

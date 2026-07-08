@@ -835,78 +835,117 @@ EIGEN_DEVICE_FUNC inline Packet pset1frombits(BitsType a) {
   return pset1<Packet>(numext::bit_cast<Scalar>(a));
 }
 
+template <typename Packet>
+struct packet_bit_pattern_traits {
+  using Scalar = typename unpacket_traits<Packet>::type;
+  using Bits = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
+  enum { HasIntegerBits = !std::is_void<Bits>::value };
+};
+
+// Widening an opaque IEEE binary32 bit pattern produces the target's native extended-scalar representation without
+// exposing a floating-point special-value literal to Clang's fast-math optimizer.
+template <typename Scalar>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar pscalar_from_float_bits(numext::uint32_t bits) {
+  EIGEN_FAST_MATH_CONSTANT_BARRIER(bits);
+  return static_cast<Scalar>(numext::bit_cast<float>(bits));
+}
+
+template <typename Packet, bool HasIntegerBits = packet_bit_pattern_traits<Packet>::HasIntegerBits,
+          bool IsScalar = is_scalar<Packet>::value>
+struct psignmask_impl;
+
+template <typename Packet, bool IsScalar>
+struct psignmask_impl<Packet, true, IsScalar> {
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet run() {
+    using Scalar = typename packet_bit_pattern_traits<Packet>::Scalar;
+    using Bits = typename packet_bit_pattern_traits<Packet>::Bits;
+    constexpr Bits kSignBit = static_cast<Bits>(Bits(1) << (CHAR_BIT * sizeof(Scalar) - 1));
+    return pset1frombits<Packet, Bits>(kSignBit);
+  }
+};
+
+template <typename Scalar>
+struct psignmask_impl<Scalar, false, true> {
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar run() { return pscalar_from_float_bits<Scalar>(0x80000000u); }
+};
+
 /** \internal \returns a packet with all coefficients set to -0.0, i.e. with only the sign bit set.
  *
- * The mask is deliberately constructed from the integer sign-bit pattern via pset1frombits
- * instead of the floating-point literal -Scalar(0): under fast-math flags (-ffast-math implies
- * -fno-signed-zeros) compilers may treat -0.0 and +0.0 as interchangeable, and e.g. GCC's
- * value numbering substitutes a splat of -0.0 with a nearby splat of +0.0, silently zeroing
- * the mask and corrupting sign manipulation of non-zero values. Architectures that specialize
- * pset1frombits keep the constant in the integer domain, where no floating-point
- * simplification applies. See https://gitlab.com/libeigen/eigen/-/merge_requests/2698.
+ * When the lane type has a same-size integer type, the mask is deliberately constructed from the integer sign-bit
+ * pattern via pset1frombits instead of the floating-point literal -Scalar(0): under fast-math flags (-ffast-math
+ * implies -fno-signed-zeros) compilers may treat -0.0 and +0.0 as interchangeable, and e.g. GCC's value numbering
+ * substitutes a splat of -0.0 with a nearby splat of +0.0, silently zeroing the mask and corrupting sign manipulation
+ * of non-zero values. Architectures that specialize pset1frombits keep the constant in the integer domain, where no
+ * floating-point simplification applies. Extended scalar types without a same-size integer use their native -0.0
+ * representation instead. See https://gitlab.com/libeigen/eigen/-/merge_requests/2698.
  */
 template <typename Packet>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet psignmask() {
-  using Scalar = typename unpacket_traits<Packet>::type;
-  using Bits = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
-  constexpr Bits kSignBit = static_cast<Bits>(Bits(1) << (CHAR_BIT * sizeof(Scalar) - 1));
-  return pset1frombits<Packet, Bits>(kSignBit);
+  return psignmask_impl<Packet>::run();
 }
 
 /** \internal \returns a packet with all coefficients set to +infinity.
  *
- * The constant is constructed from its integer bit pattern via pset1frombits rather than from
- * a floating-point infinity literal: under fast-math flags (-ffast-math implies
- * -ffinite-math-only) an infinity or NaN literal is undefined behavior, and clang turns it
- * into a poison value that deletes the surrounding special-case handling — or the entire
- * containing expression — at compile time. The bit pattern is inert: comparisons against it
- * simply fold to false when the compiler assumes finite math.
+ * When the lane type has a same-size integer type, the constant is constructed from its integer bit pattern via
+ * pset1frombits rather than from a floating-point infinity literal: under fast-math flags (-ffast-math implies
+ * -ffinite-math-only) an infinity or NaN literal is undefined behavior, and clang turns it into a poison value that
+ * deletes the surrounding special-case handling — or the entire containing expression — at compile time. The bit
+ * pattern is inert: comparisons against it simply fold to false when the compiler assumes finite math, and selects
+ * using it as an arm keep or drop the special case as appropriate. Extended scalar types without a same-size integer
+ * widen an opaque IEEE binary32 bit pattern instead.
  */
+template <typename Packet, bool HasIntegerBits = packet_bit_pattern_traits<Packet>::HasIntegerBits,
+          bool IsScalar = is_scalar<Packet>::value>
+struct pinf_impl;
+
+template <typename Packet, bool IsScalar>
+struct pinf_impl<Packet, true, IsScalar> {
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet run() {
+    using Scalar = typename packet_bit_pattern_traits<Packet>::Scalar;
+    using Bits = typename packet_bit_pattern_traits<Packet>::Bits;
+    constexpr int kMantissaBits = std::numeric_limits<Scalar>::digits - 1;
+    constexpr int kExponentBits = static_cast<int>(CHAR_BIT * sizeof(Scalar)) - 1 - kMantissaBits;
+    constexpr Bits kInf = static_cast<Bits>(((Bits(1) << kExponentBits) - 1) << kMantissaBits);
+    return pset1frombits<Packet, Bits>(kInf);
+  }
+};
+
+template <typename Scalar>
+struct pinf_impl<Scalar, false, true> {
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar run() { return pscalar_from_float_bits<Scalar>(0x7f800000u); }
+};
+
 template <typename Packet>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet pinf() {
-  using Scalar = typename unpacket_traits<Packet>::type;
-  using Bits = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
-  constexpr int kMantissaBits = std::numeric_limits<Scalar>::digits - 1;
-  constexpr int kExponentBits = static_cast<int>(CHAR_BIT * sizeof(Scalar)) - 1 - kMantissaBits;
-  constexpr Bits kInf = static_cast<Bits>(((Bits(1) << kExponentBits) - 1) << kMantissaBits);
-#if EIGEN_FAST_MATH_CONSTANT_BARRIER_ACTIVE
-  // Assembled lane by lane from the bit pattern (an infinity literal is undefined behavior
-  // under fast-math; see EIGEN_FAST_MATH_CONSTANT_BARRIER in Macros.h).
-  Packet b;
-  char* bytes = reinterpret_cast<char*>(&b);
-  EIGEN_USING_STD(memcpy)
-  for (size_t i = 0; i < unpacket_traits<Packet>::size; ++i) {
-    memcpy(bytes + i * sizeof(Bits), &kInf, sizeof(Bits));
-  }
-  EIGEN_FAST_MATH_CONSTANT_BARRIER(b);
-  return b;
-#else
-  return pset1frombits<Packet, Bits>(kInf);
-#endif
+  return pinf_impl<Packet>::run();
 }
 
-/** \internal \returns a packet with all coefficients set to a quiet NaN, constructed from the
- * integer bit pattern for the same reason as pinf(). */
+/** \internal \returns a packet with all coefficients set to a quiet NaN, using the same construction as pinf(). */
+template <typename Packet, bool HasIntegerBits = packet_bit_pattern_traits<Packet>::HasIntegerBits,
+          bool IsScalar = is_scalar<Packet>::value>
+struct pnan_impl;
+
+template <typename Packet, bool IsScalar>
+struct pnan_impl<Packet, true, IsScalar> {
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet run() {
+    using Scalar = typename packet_bit_pattern_traits<Packet>::Scalar;
+    using Bits = typename packet_bit_pattern_traits<Packet>::Bits;
+    constexpr int kMantissaBits = std::numeric_limits<Scalar>::digits - 1;
+    constexpr int kExponentBits = static_cast<int>(CHAR_BIT * sizeof(Scalar)) - 1 - kMantissaBits;
+    constexpr Bits kInf = static_cast<Bits>(((Bits(1) << kExponentBits) - 1) << kMantissaBits);
+    constexpr Bits kNaN = static_cast<Bits>(kInf | (Bits(1) << (kMantissaBits - 1)));
+    return pset1frombits<Packet, Bits>(kNaN);
+  }
+};
+
+template <typename Scalar>
+struct pnan_impl<Scalar, false, true> {
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar run() { return pscalar_from_float_bits<Scalar>(0x7fc00000u); }
+};
+
 template <typename Packet>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet pnan() {
-  using Scalar = typename unpacket_traits<Packet>::type;
-  using Bits = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
-  constexpr int kMantissaBits = std::numeric_limits<Scalar>::digits - 1;
-  constexpr int kExponentBits = static_cast<int>(CHAR_BIT * sizeof(Scalar)) - 1 - kMantissaBits;
-  constexpr Bits kInf = static_cast<Bits>(((Bits(1) << kExponentBits) - 1) << kMantissaBits);
-  constexpr Bits kNaN = static_cast<Bits>(kInf | (Bits(1) << (kMantissaBits - 1)));
-#if EIGEN_FAST_MATH_CONSTANT_BARRIER_ACTIVE
-  Packet b;
-  char* bytes = reinterpret_cast<char*>(&b);
-  EIGEN_USING_STD(memcpy)
-  for (size_t i = 0; i < unpacket_traits<Packet>::size; ++i) {
-    memcpy(bytes + i * sizeof(Bits), &kNaN, sizeof(Bits));
-  }
-  EIGEN_FAST_MATH_CONSTANT_BARRIER(b);
-  return b;
-#else
-  return pset1frombits<Packet, Bits>(kNaN);
-#endif
+  return pnan_impl<Packet>::run();
 }
 
 template <typename Scalar, std::enable_if_t<std::is_trivially_copyable<Scalar>::value, int> = 0>

@@ -316,22 +316,6 @@
 #define EIGEN_GCC_FAST_MATH_COMPLEX_VECTORIZE_WORKAROUND_POP
 #endif
 
-// Under fast-math flags (-ffinite-math-only in particular), clang attaches the
-// `nofpclass(nan inf)` attribute to every function argument and return value of floating-point
-// (vector) type. A value that is a compile-time constant of NaN or infinity class -- e.g. the
-// all-ones bitmasks of ptrue and peven_mask, or the infinity/NaN constants guarding special
-// cases -- provably violates that attribute and is folded to poison, silently deleting the code
-// that consumes it. This barrier makes such a constant unprovable, at the cost of a stack
-// store/load pair where it is materialized. It uses a memory operand so that it works for any
-// packet type, including aggregates, and expands to nothing outside affected builds.
-#if EIGEN_COMP_CLANG && defined(__FINITE_MATH_ONLY__) && __FINITE_MATH_ONLY__ && !defined(EIGEN_GPU_COMPILE_PHASE)
-#define EIGEN_FAST_MATH_CONSTANT_BARRIER_ACTIVE 1
-#define EIGEN_FAST_MATH_CONSTANT_BARRIER(X) __asm__("" : "+m"(X))
-#else
-#define EIGEN_FAST_MATH_CONSTANT_BARRIER_ACTIVE 0
-#define EIGEN_FAST_MATH_CONSTANT_BARRIER(X)
-#endif
-
 /// \internal EIGEN_COMP_CLANG_STRICT set to 1 if the compiler is really Clang and not a compatible compiler (e.g.,
 /// AppleClang, etc.)
 #if EIGEN_COMP_CLANG && !(EIGEN_COMP_CLANGAPPLE || EIGEN_COMP_CLANGICC || EIGEN_COMP_CLANGFCC || EIGEN_COMP_CLANGCPE)
@@ -752,6 +736,21 @@
 // EIGEN_USE_SYCL is a user-defined macro while __SYCL_DEVICE_ONLY__ is a compiler-defined macro.
 // In most cases we want to check if both macros are defined which can be done using the define below.
 #define SYCL_DEVICE_ONLY
+#endif
+
+// Under fast-math flags (-ffinite-math-only in particular), clang attaches the
+// `nofpclass(nan inf)` attribute to every function argument and return value of floating-point
+// (vector) type. A value that is a compile-time constant of NaN or infinity class -- e.g. the
+// all-ones bitmasks of ptrue and peven_mask, or the infinity/NaN constants guarding special
+// cases -- provably violates that attribute and is folded to poison, silently deleting the code
+// that consumes it. This barrier makes such a constant unprovable, at the cost of a stack
+// store/load pair where it is materialized. It uses a memory operand so that it works for any
+// packet type, including aggregates, and expands to nothing outside affected builds.
+#if EIGEN_COMP_CLANG && defined(__FINITE_MATH_ONLY__) && __FINITE_MATH_ONLY__ && !defined(EIGEN_GPU_COMPILE_PHASE) && \
+    !defined(SYCL_DEVICE_ONLY)
+#define EIGEN_FAST_MATH_CONSTANT_BARRIER(X) __asm__("" : "+m"(X))
+#else
+#define EIGEN_FAST_MATH_CONSTANT_BARRIER(X)
 #endif
 
 //------------------------------------------------------------------------------------------
