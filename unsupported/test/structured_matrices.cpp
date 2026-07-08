@@ -176,6 +176,140 @@ void test_hankel_product(Index m, Index n) {
   VERIFY_IS_APPROX(y, (y0 + dense * x).eval());
 }
 
+// Reviewer regression (MR 2688): applying an exact 40x40 exchange matrix (as a
+// Hankel operator, FFT tier) to a vector of huge finite entries must return the
+// unchanged finite values, not NaNs: the FFT intermediates overflow unless each
+// column is scaled by an exact power of two derived from the column's and the
+// symbol's magnitudes.
+void test_hankel_fft_overflow() {
+  typedef Matrix<double, Dynamic, 1> Vec;
+  const Index n = 40;
+  const double huge = (std::numeric_limits<double>::max)() / 16;
+
+  // H(i,j) = h[i+j] with h = e_{n-1} is the exchange matrix (anti-identity).
+  Vec h = Vec::Zero(2 * n - 1);
+  h[n - 1] = 1.0;
+  Hankel<double> H(h.head(n), h.tail(n));
+
+  Vec x = Vec::Constant(n, huge);
+  Vec y = H * x;
+  VERIFY(y.allFinite());
+  VERIFY_IS_APPROX((y / huge).eval(), Vec::Ones(n).eval());  // y == x.reverse() == x
+
+  // A huge generator makes a huge symbol; its exponent must be scaled out too.
+  Vec hh = Vec::Zero(2 * n - 1);
+  hh[n - 1] = huge;
+  Hankel<double> Hh(hh.head(n), hh.tail(n));
+  Vec z = Hh * Vec::Ones(n);
+  VERIFY(z.allFinite());
+  VERIFY_IS_APPROX((z / huge).eval(), Vec::Ones(n).eval());
+
+  // A genuine NaN input still propagates: the FFT contaminates the whole output
+  // column (consistent with the operators' NaN semantics); the scaling must not
+  // launder non-finite inputs into finite outputs.
+  Vec xn = Vec::Random(n);
+  xn[n / 2] = std::numeric_limits<double>::quiet_NaN();
+  Vec yn = H * xn;
+  VERIFY(yn.hasNaN());
+}
+
+// transpose()/conjugate()/adjoint() return owning temporaries (and so does
+// makeHankel), so the product expression must nest the structured operand by
+// value: a delayed-evaluated expression has to outlive the temporary operator it
+// was built from. The static check pins the value nesting; the behavioral checks
+// would read freed memory if the product held a reference instead.
+template <typename Scalar>
+void test_hankel_delayed_product(Index m, Index n) {
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+
+  STATIC_CHECK(!std::is_reference<typename internal::ref_selector<Hankel<Scalar>>::type>::value);
+
+  Vec h = Vec::Random(m + n - 1);
+  Hankel<Scalar> H(h.head(m), h.tail(n));
+  Mat dense = reference_hankel<Scalar>(h, m, n);
+
+  Vec y = Vec::Random(m);
+  auto expr = H.adjoint() * y;        // the adjoint temporary dies with the full expression
+  Vec scribble = Vec::Random(m + n);  // reuses the temporary's freed heap storage
+  Vec x = expr;
+  VERIFY_IS_APPROX(x, (dense.adjoint() * y).eval());
+  VERIFY_IS_EQUAL(scribble.size(), m + n);
+
+  Vec x2 = Vec::Random(n);
+  auto expr2 = makeHankel(h.head(m).eval(), h.tail(n).eval()) * x2;  // factory-returned temporary
+  Vec scribble2 = Vec::Random(m + n);
+  Vec y2 = expr2;
+  VERIFY_IS_APPROX(y2, (dense * x2).eval());
+  VERIFY_IS_EQUAL(scribble2.size(), m + n);
+}
+
+// The products are tagged AliasFreeProduct, so no temporary shields an aliased
+// right-hand side: the shared structured_product_impl (which Hankel's products
+// dispatch through) must copy it instead. Without the copy, x = H * x reads a
+// zeroed right-hand side and x += H * x interleaves destination writes with
+// right-hand-side reads.
+template <typename Scalar>
+void test_hankel_aliased_product(Index n) {
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+
+  // Square so that the destination and the right-hand side can alias.
+  Vec h = Vec::Random(2 * n - 1);
+  Hankel<Scalar> H(h.head(n), h.tail(n));
+  Mat dense = reference_hankel<Scalar>(h, n, n);
+
+  Vec x = Vec::Random(n);
+  Vec y = x;
+  y = H * y;
+  VERIFY_IS_APPROX(y, (dense * x).eval());
+
+  y = x;
+  y += H * y;
+  VERIFY_IS_APPROX(y, (x + dense * x).eval());
+
+  y = x;
+  y -= H * y;
+  VERIFY_IS_APPROX(y, (x - dense * x).eval());
+
+  Mat X = Mat::Random(n, 3);
+  Mat Y = X;
+  Y = H * Y;
+  VERIFY_IS_APPROX(Y, (dense * X).eval());
+}
+
+// Mixed-scalar products: a real operator applied to a complex right-hand side
+// (and a complex operator applied to a real one) promotes to the complex product
+// scalar, so alpha and the accumulation must run in the promoted type rather than
+// the operator scalar.
+template <typename RealScalar>
+void test_hankel_mixed_scalar(Index m, Index n) {
+  typedef std::complex<RealScalar> Complex;
+  typedef Matrix<RealScalar, Dynamic, 1> RVec;
+  typedef Matrix<Complex, Dynamic, 1> CVec;
+  typedef Matrix<Complex, Dynamic, Dynamic> CMat;
+
+  RVec h = RVec::Random(m + n - 1);
+  Hankel<RealScalar> H(h.head(m), h.tail(n));
+  CMat dense = reference_hankel<RealScalar>(h, m, n).template cast<Complex>();
+
+  CVec x = CVec::Random(n);
+  CVec y = H * x;
+  VERIFY_IS_APPROX(y, (dense * x).eval());
+
+  CVec y0 = CVec::Random(m);
+  y = y0;
+  y.noalias() += H * x;
+  VERIFY_IS_APPROX(y, (y0 + dense * x).eval());
+
+  CVec hc = CVec::Random(m + n - 1);
+  Hankel<Complex> Hc(hc.head(m), hc.tail(n));
+  CMat denseC = reference_hankel<Complex>(hc, m, n);
+  RVec xr = RVec::Random(n);
+  CVec z = Hc * xr;
+  VERIFY_IS_APPROX(z, (denseC * xr).eval());
+}
+
 // The transposed / adjoint / conjugated Hankel operators agree with the dense
 // references, both materialized and through their fast products. For rectangular
 // operators on the FFT tier this validates the phase-multiplication symbol reuse
@@ -370,6 +504,40 @@ void test_hankel_fixed() {
   ColVec w = ColVec::Random();
   RowVec tw = H.transpose() * w;
   VERIFY_IS_APPROX(tw, (dense.transpose() * w).eval());
+}
+
+// solve() on a fixed-size operator returns a fixed-size result (reviewer
+// regression for MR 2688: the return type used to have Dynamic rows). Either
+// fixed dimension of the square operator determines the compile-time row count.
+template <typename Scalar, int N>
+void test_hankel_fixed_solve() {
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  typedef Matrix<Scalar, N, 1> VecN;
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, N, N> MatN;
+
+  STATIC_CHECK((internal::remove_all_t<decltype(std::declval<const Hankel<Scalar, N, N>&>().solve(
+                    std::declval<const VecN&>()))>::RowsAtCompileTime == N));
+  STATIC_CHECK((internal::remove_all_t<decltype(std::declval<const Hankel<Scalar, Dynamic, N>&>().solve(
+                    std::declval<const Vec&>()))>::RowsAtCompileTime == N));
+  STATIC_CHECK((internal::remove_all_t<decltype(std::declval<const Hankel<Scalar, N, Dynamic>&>().solve(
+                    std::declval<const Vec&>()))>::RowsAtCompileTime == N));
+
+  // h[N-1] is the constant anti-diagonal that becomes the diagonal of the
+  // Toeplitz equivalent; boosting it makes the system well conditioned.
+  Vec h = Vec::Random(2 * N - 1);
+  h[N - 1] += Scalar(RealScalar(2 * N));
+  Hankel<Scalar, N, N> H(h.template head<N>(), h.template tail<N>());
+  MatN dense = H;
+
+  VecN b = VecN::Random();
+  VecN x = H.solve(b);
+  VERIFY_IS_APPROX((dense * x).eval(), b);
+
+  Matrix<Scalar, N, 2> B = Matrix<Scalar, N, 2>::Random();
+  STATIC_CHECK((internal::remove_all_t<decltype(H.solve(B))>::ColsAtCompileTime == 2));
+  Matrix<Scalar, N, 2> X = H.solve(B);
+  VERIFY_IS_APPROX((dense * X).eval(), B);
 }
 
 // Fixed-size operators: generators are stored in fixed-size vectors, products and
@@ -676,8 +844,10 @@ EIGEN_DECLARE_TEST(structured_matrices) {
     CALL_SUBTEST_8((test_hankel_product<double>(64, 40)));
     CALL_SUBTEST_8((test_hankel_product<double>(40, 64)));
     CALL_SUBTEST_8((test_hankel_product<double>(97, 50)));
-    CALL_SUBTEST_8((test_hankel_product<double>(1, 40)));  // single row, FFT path
-    CALL_SUBTEST_8((test_hankel_product<double>(40, 1)));  // single column, FFT path
+    CALL_SUBTEST_8((test_hankel_product<double>(1, 40)));   // single row: direct O(n) path
+    CALL_SUBTEST_8((test_hankel_product<double>(40, 1)));   // single column: direct O(n) path
+    CALL_SUBTEST_8((test_hankel_product<double>(1, 400)));  // skinny far beyond the FFT threshold
+    CALL_SUBTEST_8((test_hankel_product<double>(400, 1)));
     CALL_SUBTEST_8((test_hankel_product<float>(50, 50)));
     CALL_SUBTEST_8((test_hankel_product<std::complex<double>>(5, 7)));
     CALL_SUBTEST_8((test_hankel_product<std::complex<double>>(48, 64)));
@@ -706,5 +876,25 @@ EIGEN_DECLARE_TEST(structured_matrices) {
     CALL_SUBTEST_8((test_hankel_fixed<double, 4, 6>()));
     CALL_SUBTEST_8((test_hankel_fixed<double, 40, 24>()));
     CALL_SUBTEST_8((test_hankel_fixed<std::complex<float>, 6, 4>()));
+    CALL_SUBTEST_8((test_hankel_fixed_solve<double, 8>()));
+    CALL_SUBTEST_8((test_hankel_fixed_solve<std::complex<double>, 12>()));
+
+    // MR 2688 review regressions: finite-overflow scaling in the FFT tier,
+    // delayed (value-nested) products, aliased right-hand sides across the
+    // dispatch tiers, and mixed real/complex products.
+    CALL_SUBTEST_9(test_hankel_fft_overflow());
+    CALL_SUBTEST_9((test_hankel_delayed_product<double>(24, 12)));
+    CALL_SUBTEST_9((test_hankel_delayed_product<double>(40, 64)));
+    CALL_SUBTEST_9((test_hankel_delayed_product<std::complex<double>>(48, 33)));
+    CALL_SUBTEST_9((test_hankel_aliased_product<double>(8)));   // scalar tier
+    CALL_SUBTEST_9((test_hankel_aliased_product<double>(24)));  // direct segment tier
+    CALL_SUBTEST_9((test_hankel_aliased_product<double>(64)));  // FFT tier
+    CALL_SUBTEST_9((test_hankel_aliased_product<std::complex<double>>(40)));
+    CALL_SUBTEST_9((test_hankel_mixed_scalar<double>(8, 8)));    // scalar tier
+    CALL_SUBTEST_9((test_hankel_mixed_scalar<double>(24, 20)));  // direct segment tier
+    CALL_SUBTEST_9((test_hankel_mixed_scalar<double>(64, 40)));  // FFT tier
+    CALL_SUBTEST_9((test_hankel_mixed_scalar<double>(1, 40)));   // skinny direct paths
+    CALL_SUBTEST_9((test_hankel_mixed_scalar<double>(40, 1)));
+    CALL_SUBTEST_9((test_hankel_mixed_scalar<float>(48, 64)));
   }
 }

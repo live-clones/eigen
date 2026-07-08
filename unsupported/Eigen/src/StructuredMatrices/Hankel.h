@@ -7,6 +7,15 @@
 // SPDX-FileCopyrightText: The Eigen Authors
 // SPDX-License-Identifier: MPL-2.0
 
+// References:
+//  [1] G. H. Golub and C. F. Van Loan, "Matrix Computations", 4th ed., Johns
+//      Hopkins University Press, 2013, chapter 4.7 (Toeplitz, Hankel and
+//      related systems) and chapter 4.8 (fast products via circulant embedding
+//      and the FFT).
+//  [2] R. H. Chan and X.-Q. Jin, "An Introduction to Iterative Toeplitz
+//      Solvers", SIAM, 2007 (a Hankel matrix is a column-reversed Toeplitz
+//      matrix, so its products and solves reduce to the Toeplitz machinery).
+
 #ifndef EIGEN_STRUCTURED_HANKEL_H
 #define EIGEN_STRUCTURED_HANKEL_H
 
@@ -30,7 +39,11 @@ struct traits<Hankel<Scalar_, Rows_, Cols_>> {
   static constexpr int ColsAtCompileTime = Cols_;
   static constexpr int MaxRowsAtCompileTime = Rows_;
   static constexpr int MaxColsAtCompileTime = Cols_;
-  static constexpr int Flags = NestByRefBit;
+  // Deliberately no NestByRefBit: transpose(), conjugate() and adjoint() return
+  // owning temporaries, so Product must nest the operator by value for a
+  // delayed-evaluated product expression to keep its left factor alive. The copy
+  // is O(n), negligible against the O(n log n) product evaluation.
+  static constexpr int Flags = 0;
 };
 
 template <typename Scalar_, int Rows_, int Cols_>
@@ -54,10 +67,17 @@ struct evaluator_traits<Hankel<Scalar_, Rows_, Cols_>> {
  * The matrix-vector product (\c operator*) is evaluated in O(n log n): a Hankel
  * matrix is a column-reversed Toeplitz matrix, so the product is a circulant
  * convolution of \c h with the reversed input, evaluated through a DFT symbol
- * computed once at construction. As with \ref Toeplitz, \c operator* returns an
- * Eigen product expression, so a \c Hankel plugs into the matrix-free iterative
+ * computed once at construction. (Small operators, and single-row or
+ * single-column ones -- whose products cost O(n) directly -- skip the FFT for a
+ * direct evaluation.) As with \ref Toeplitz, \c operator* returns an Eigen
+ * product expression, so a \c Hankel plugs into the matrix-free iterative
  * solvers (including the least-squares solvers, through \ref adjoint), and it can
- * be assigned to a dense matrix when an explicit representation is needed.
+ * be assigned to a dense matrix when an explicit representation is needed. As
+ * with any matrix-free operator, the iterative solvers must be instantiated with
+ * \c IdentityPreconditioner (e.g.
+ * \c LeastSquaresConjugateGradient<Hankel<double>,IdentityPreconditioner>):
+ * the default preconditioners read individual coefficients through \c col() or
+ * \c InnerIterator, which the structured operators do not expose.
  *
  * The class is closed under \ref transpose, \ref conjugate and \ref adjoint: the
  * transpose is the Hankel matrix of the same sequence with the dimensions
@@ -104,9 +124,10 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
    * The anti-diagonal overlap entry is taken from \a col, hence \c row[0] is
    * ignored.
    *
-   * Unless the matrix is small enough for products to always take the direct
-   * path, the DFT symbol of the underlying circulant convolution is computed
-   * here, once, and reused by every subsequent product. */
+   * Unless the matrix is small, or a single row or column (whose products are
+   * always evaluated directly, in linear time), the DFT symbol of the underlying
+   * circulant convolution is computed here, once, and reused by every subsequent
+   * product. */
   template <typename ColDerived, typename RowDerived>
   Hankel(const MatrixBase<ColDerived>& col, const MatrixBase<RowDerived>& row)
       : m_rows(col.size()), m_cols(row.size()) {
@@ -117,7 +138,7 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
     m_h.resize(m + n - 1);
     m_h.head(m) = col;
     if (n > 1) m_h.tail(n - 1) = row.tail(n - 1);
-    if (m > internal::structured_direct_threshold() || n > internal::structured_direct_threshold())
+    if (m > 1 && n > 1 && (m > internal::structured_direct_threshold() || n > internal::structured_direct_threshold()))
       m_symbol = computeSymbol();
   }
 
@@ -173,6 +194,11 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
     return Toeplitz<Scalar, Rows_, Cols_>(c, r);
   }
 
+  /** \internal Compile-time row count of solve() results: the solution of a
+   * square system has cols() == rows() entries, so either fixed dimension
+   * determines it at compile time. */
+  static constexpr int SolveRowsAtCompileTime = Cols_ != Dynamic ? Cols_ : Rows_;
+
   /** \returns the solution \c x of \c (*this) * x = b for a \b square Hankel
    * matrix, computed in O(n^2) by solving the column-reversed Toeplitz system
    * \c T*y = b with the \ref LookAheadLevinson solver and reversing the solution.
@@ -181,7 +207,7 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
    * \c info(), use \c LookAheadLevinson on \ref toToeplitz directly and reverse
    * the solution rows. */
   template <typename Rhs>
-  Matrix<Scalar, Dynamic, Rhs::ColsAtCompileTime> solve(const MatrixBase<Rhs>& b) const {
+  Matrix<Scalar, SolveRowsAtCompileTime, Rhs::ColsAtCompileTime> solve(const MatrixBase<Rhs>& b) const {
     eigen_assert(rows() == cols() && "Hankel::solve requires a square matrix");
     LookAheadLevinson<Scalar> levinson(toToeplitz());
     eigen_assert(levinson.info() == Success &&
@@ -216,18 +242,37 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
     return Product<Hankel, Rhs, AliasFreeProduct>(*this, x.derived());
   }
 
-  /** \internal Computes \c dst += alpha * (*this) * rhs. */
-  template <typename Dest, typename Rhs>
-  void addProduct(Dest& dst, const Rhs& rhs, const Scalar& alpha) const {
+  /** \internal Computes \c dst += alpha * (*this) * rhs. \c ProductScalar is the
+   * promoted scalar of the product (complex when a real operator is applied to a
+   * complex right-hand side); the accumulation runs in the promoted type. */
+  template <typename Dest, typename Rhs, typename ProductScalar>
+  void addProduct(Dest& dst, const Rhs& rhs, const ProductScalar& alpha) const {
     const Index m = rows(), n = cols();
     eigen_assert(rhs.rows() == n && "invalid product: dimensions do not match");
+
+    if (n == 1) {
+      // Single-column operator: the product is x_0 times the only column, which
+      // is the whole generating sequence -- O(m) directly, however large m is.
+      // (head(m) is the full sequence; it keeps the expression runtime-sized so
+      // fixed-size instantiations of the other shapes still compile.)
+      for (Index k = 0; k < rhs.cols(); ++k) dst.col(k) += (alpha * rhs.coeff(0, k)) * m_h.head(m);
+      return;
+    }
+
+    if (m == 1) {
+      // Single-row operator: each output entry is the dot product of the
+      // generating sequence (head(n), i.e. all of it) with the corresponding
+      // right-hand-side column -- O(n) directly, however large n is.
+      for (Index k = 0; k < rhs.cols(); ++k) dst.coeffRef(0, k) += alpha * m_h.head(n).cwiseProduct(rhs.col(k)).sum();
+      return;
+    }
 
     if (m <= internal::structured_scalar_threshold() && n <= internal::structured_scalar_threshold()) {
       // Tiny sizes: a plain scalar loop beats the segment-based path below, whose
       // per-segment setup dominates when segments hold only a few entries.
       for (Index k = 0; k < rhs.cols(); ++k)
         for (Index i = 0; i < m; ++i) {
-          Scalar acc(0);
+          ProductScalar acc(0);
           for (Index j = 0; j < n; ++j) acc += coeff(i, j) * rhs.coeff(j, k);
           dst.coeffRef(i, k) += alpha * acc;
         }
