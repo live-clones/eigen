@@ -294,7 +294,7 @@ class CauchyLU : public SolverBase<CauchyLU<Scalar_>> {
         // Exactly singular: the remaining Schur complement column is zero.
         m_info = NumericalIssue;
         m_lu.row(k).tail(n - k - 1).setZero();
-        for (Index i = k + 1; i < n; ++i) m_lu(i, k) = Scalar(0);
+        m_lu.col(k).tail(n - k - 1).setZero();
         continue;
       }
       // L column (unit diagonal implicit), U row, and generator updates that
