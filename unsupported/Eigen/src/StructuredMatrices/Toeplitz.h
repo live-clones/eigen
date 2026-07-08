@@ -7,6 +7,13 @@
 // SPDX-FileCopyrightText: The Eigen Authors
 // SPDX-License-Identifier: MPL-2.0
 
+// References:
+//  [1] R. M. Gray, "Toeplitz and Circulant Matrices: A Review", Foundations and
+//      Trends in Communications and Information Theory, 2(3), 2006.
+//  [2] G. H. Golub and C. F. Van Loan, "Matrix Computations", 4th ed., Johns
+//      Hopkins University Press, 2013, chapter 4.8 (fast Toeplitz products via
+//      circulant embedding and the FFT).
+
 #ifndef EIGEN_STRUCTURED_TOEPLITZ_H
 #define EIGEN_STRUCTURED_TOEPLITZ_H
 
@@ -30,7 +37,11 @@ struct traits<Toeplitz<Scalar_, Rows_, Cols_>> {
   static constexpr int ColsAtCompileTime = Cols_;
   static constexpr int MaxRowsAtCompileTime = Rows_;
   static constexpr int MaxColsAtCompileTime = Cols_;
-  static constexpr int Flags = NestByRefBit;
+  // Deliberately no NestByRefBit: transpose(), conjugate() and adjoint() return
+  // owning temporaries, so Product must nest the operator by value for a
+  // delayed-evaluated product expression to keep its left factor alive. The copy
+  // is O(m+n), negligible against the O(n log n) product evaluation.
+  static constexpr int Flags = 0;
 };
 
 template <typename Scalar_, int Rows_, int Cols_>
@@ -54,7 +65,11 @@ struct evaluator_traits<Toeplitz<Scalar_, Rows_, Cols_>> {
  * computed once at construction. As with \ref Circulant, \c operator* returns an
  * Eigen product expression, so a \c Toeplitz also plugs into the matrix-free
  * iterative solvers, and it can be assigned to a dense matrix when an explicit
- * representation is needed.
+ * representation is needed. As with any matrix-free operator, the iterative
+ * solvers must be instantiated with \c IdentityPreconditioner (e.g.
+ * \c LeastSquaresConjugateGradient<Toeplitz<double>,IdentityPreconditioner>):
+ * the default preconditioners read individual coefficients through \c col() or
+ * \c InnerIterator, which the structured operators do not expose.
  *
  * \tparam Scalar_ the scalar type, real or complex.
  * \tparam Rows_ the number of rows at compile time, or \c Dynamic (the default).
