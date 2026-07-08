@@ -208,8 +208,7 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
     ComplexArray sinv = symbol().cwiseInverse();
     ComplexArray g = sinv;
     ifft2(g);
-    GeneratorType ginv(m_g.rows(), m_g.cols());
-    ginv = internal::structured_scalar_part_impl<Scalar>::run(g);
+    GeneratorType ginv = internal::structured_scalar_part_impl<Scalar>::run(g);
     return Bccb(ginv, rows() > internal::structured_direct_threshold() ? sinv : ComplexArray());
   }
 
