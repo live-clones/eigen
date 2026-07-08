@@ -161,7 +161,7 @@ class DiagonalPlusLowRank : public EigenBase<DiagonalPlusLowRank<Scalar_, Size_,
    * by the Woodbury identity, \f$ (D + UV^H)^{-1} = D^{-1} + U' V'^H \f$ with
    * \f$ U' = -D^{-1} U (I_k + V^H D^{-1} U)^{-1} \f$ and \f$ V' = D^{-H} V \f$.
    * \warning Same invertibility requirements as \ref solve. */
-  DiagonalPlusLowRank<Scalar, Size_, Rank_> inverse() const {
+  DiagonalPlusLowRank inverse() const {
     const auto dinv = m_d.cwiseInverse();
     FactorType Up(rows(), correctionRank());
     if (correctionRank() > 0) {
@@ -169,7 +169,7 @@ class DiagonalPlusLowRank : public EigenBase<DiagonalPlusLowRank<Scalar_, Size_,
       Up.noalias() = -(dinv.asDiagonal() * m_U * cap.inverse());
     }
     FactorType Vp = dinv.conjugate().asDiagonal() * m_V;
-    return DiagonalPlusLowRank<Scalar, Size_, Rank_>(dinv, Up, Vp);
+    return DiagonalPlusLowRank(dinv, Up, Vp);
   }
 
   /** \returns the determinant through the matrix determinant lemma:
