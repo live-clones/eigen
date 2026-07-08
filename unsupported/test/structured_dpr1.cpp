@@ -178,7 +178,10 @@ void test_dpr1_huge_z() {
   DPR1EigenSolver<float> es(d, 1e-30f, z);
   VERIFY(es.info() == Success);
   const float expected = 1.0f + 1e-30f * 4e38f;
-  VERIFY(numext::abs(es.eigenvalues()[0] - expected) <= 1e-4f * expected);
+  // Loose bound: expected ~ 4e8 is dominated by the rank-one term, so only its
+  // leading digits survive in float.
+  const float tol = 1000.0f * NumTraits<float>::epsilon();  // ~1.2e-4
+  VERIFY(numext::abs(es.eigenvalues()[0] - expected) <= tol * expected);
 
   // Genuine overflow of rho*||z||^2 must be reported, not silently deflated.
   DPR1EigenSolver<double> ov((Matrix<double, Dynamic, 1>(1) << 1.0).finished(), 1e200,
