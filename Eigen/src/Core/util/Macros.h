@@ -325,10 +325,8 @@
 // store/load pair where it is materialized. It uses a memory operand so that it works for any
 // packet type, including aggregates, and expands to nothing outside affected builds.
 #if EIGEN_COMP_CLANG && defined(__FINITE_MATH_ONLY__) && __FINITE_MATH_ONLY__ && !defined(EIGEN_GPU_COMPILE_PHASE)
-#define EIGEN_FAST_MATH_CONSTANT_BARRIER_ACTIVE 1
 #define EIGEN_FAST_MATH_CONSTANT_BARRIER(X) __asm__("" : "+m"(X))
 #else
-#define EIGEN_FAST_MATH_CONSTANT_BARRIER_ACTIVE 0
 #define EIGEN_FAST_MATH_CONSTANT_BARRIER(X)
 #endif
 
