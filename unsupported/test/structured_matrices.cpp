@@ -280,7 +280,8 @@ void test_hankel_solve_lookahead(Index n) {
 
   Vec b = dense * Vec::Ones(n);
   Vec x = H.solve(b);
-  VERIFY((dense * x - b).norm() <= RealScalar(1e-9) * b.norm());
+  const RealScalar tol = RealScalar(5e6) * NumTraits<RealScalar>::epsilon();  // ~1e-9 in double
+  VERIFY((dense * x - b).norm() <= tol * b.norm());
 }
 
 // The Hilbert matrix is the canonical ill-conditioned Hankel matrix: H(i,j) =
@@ -301,8 +302,9 @@ void test_hankel_hilbert() {
     Vec x = H.solve(b);
     return (dense * x - b).norm() / b.norm();
   };
-  VERIFY(residual(8) <= 1e-9);   // cond ~ 1.5e10, measured residual ~ 1.4e-11
-  VERIFY(residual(12) <= 1e-5);  // cond ~ 1.7e16, measured residual ~ 1.1e-7
+  const double eps = NumTraits<double>::epsilon();
+  VERIFY(residual(8) <= 5e6 * eps);    // ~1e-9;  cond ~ 1.5e10, measured residual ~ 1.4e-11
+  VERIFY(residual(12) <= 5e10 * eps);  // ~1e-5; cond ~ 1.7e16, measured residual ~ 1.1e-7
 
   // The condition estimate of the Toeplitz equivalent must see the
   // ill-conditioning (measured ~ 2.7e15 at n = 12).
@@ -336,7 +338,9 @@ void test_hankel_least_squares(Index m, Index n) {
   // rather than the forward error, whose accuracy degrades with cond^2 and would
   // make the test flaky for unlucky random operators.
   Vec r = b - dense * x;
-  VERIFY((dense.adjoint() * r).norm() <= RealScalar(1e-8) * dense.norm() * r.norm() + RealScalar(1e-12) * b.norm());
+  const RealScalar tol = RealScalar(5e7) * NumTraits<RealScalar>::epsilon();     // ~1e-8, relative
+  const RealScalar absTol = RealScalar(5e3) * NumTraits<RealScalar>::epsilon();  // ~1e-12, floor
+  VERIFY((dense.adjoint() * r).norm() <= tol * dense.norm() * r.norm() + absTol * b.norm());
 }
 
 template <typename Scalar, int M, int N>
