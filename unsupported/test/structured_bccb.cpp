@@ -92,6 +92,113 @@ void test_bccb_transpose(Index n2, Index n1) {
   VERIFY_IS_EQUAL(Caa.symbol(), C.symbol());
 }
 
+// transpose()/conjugate()/adjoint() return owning temporaries, so the product
+// expression must nest the structured operand by value: a delayed-evaluated
+// expression has to outlive the temporary operator it was built from. The static
+// check pins the value nesting; the behavioral check would read freed memory if
+// the product held a reference instead.
+template <typename Scalar>
+void test_bccb_delayed_product(Index n2, Index n1) {
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+
+  STATIC_CHECK(!std::is_reference<typename internal::ref_selector<Bccb<Scalar>>::type>::value);
+
+  Mat G = Mat::Random(n2, n1);
+  Bccb<Scalar> C(G);
+  Mat dense = reference_bccb<Scalar>(G);
+  const Index N = n1 * n2;
+  Vec x = Vec::Random(N);
+
+  auto expr = C.adjoint() * x;        // the adjoint temporary dies with the full expression
+  Vec scribble = Vec::Random(2 * N);  // reuses the temporary's freed heap storage
+  Vec y = expr;
+  VERIFY_IS_APPROX(y, (dense.adjoint() * x).eval());
+  VERIFY_IS_EQUAL(scribble.size(), 2 * N);  // keep the scribble alive across the evaluation
+}
+
+// The products are tagged AliasFreeProduct, so no temporary shields an aliased
+// right-hand side: the shared product implementation must copy it instead.
+// Without the copy, x = C * x reads a zeroed right-hand side and x += C * x
+// interleaves destination writes with right-hand-side reads.
+template <typename Scalar>
+void test_bccb_aliased_product(Index n2, Index n1) {
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+
+  Mat G = Mat::Random(n2, n1);
+  Bccb<Scalar> C(G);
+  Mat dense = reference_bccb<Scalar>(G);
+  const Index N = n1 * n2;
+
+  Vec x = Vec::Random(N);
+  Vec y = x;
+  y = C * y;
+  VERIFY_IS_APPROX(y, (dense * x).eval());
+
+  y = x;
+  y += C * y;
+  VERIFY_IS_APPROX(y, (x + dense * x).eval());
+
+  y = x;
+  y -= C * y;
+  VERIFY_IS_APPROX(y, (x - dense * x).eval());
+
+  Mat X = Mat::Random(N, 3);
+  Mat Y = X;
+  Y = C * Y;
+  VERIFY_IS_APPROX(Y, (dense * X).eval());
+}
+
+// Mixed-scalar products: a real operator applied to a complex right-hand side
+// (and a complex operator applied to a real one) promotes to the complex product
+// scalar, so alpha and the accumulation must run in the promoted type rather than
+// the operator scalar.
+template <typename RealScalar>
+void test_bccb_mixed_scalar(Index n2, Index n1) {
+  typedef std::complex<RealScalar> Complex;
+  typedef Matrix<RealScalar, Dynamic, 1> RVec;
+  typedef Matrix<RealScalar, Dynamic, Dynamic> RMat;
+  typedef Matrix<Complex, Dynamic, 1> CVec;
+  typedef Matrix<Complex, Dynamic, Dynamic> CMat;
+
+  RMat G = RMat::Random(n2, n1);
+  Bccb<RealScalar> C(G);
+  CMat dense = reference_bccb<RealScalar>(G).template cast<Complex>();
+  const Index N = n1 * n2;
+
+  CVec x = CVec::Random(N);
+  CVec y = C * x;
+  VERIFY_IS_APPROX(y, (dense * x).eval());
+
+  CVec y0 = CVec::Random(N);
+  y = y0;
+  y.noalias() += C * x;
+  VERIFY_IS_APPROX(y, (y0 + dense * x).eval());
+
+  CMat Gc = CMat::Random(n2, n1);
+  Bccb<Complex> Cc(Gc);
+  CMat denseC = reference_bccb<Complex>(Gc);
+  RVec xr = RVec::Random(N);
+  CVec z = Cc * xr;
+  VERIFY_IS_APPROX(z, (denseC * xr).eval());
+}
+
+// Dynamic dimension mismatches must trip the runtime assertion when the product
+// or solve expression is built. (Incompatible *fixed* sizes are rejected at
+// compile time by a static assertion in operator* / solve, which a runtime test
+// cannot exercise.)
+void test_bccb_dimension_asserts() {
+  typedef Matrix<double, Dynamic, 1> Vec;
+  typedef Matrix<double, Dynamic, Dynamic> Mat;
+
+  Mat G = Mat::Random(3, 4);
+  Bccb<double> C(G);
+  Vec bad = Vec::Random(11);
+  VERIFY_RAISES_ASSERT(C * bad);
+  VERIFY_RAISES_ASSERT(C.solve(bad));
+}
+
 template <typename Scalar>
 void test_bccb_solve(Index n2, Index n1) {
   typedef typename NumTraits<Scalar>::Real RealScalar;
@@ -174,6 +281,158 @@ void test_bccb_nan_propagation(Index n2, Index n1) {
   Vec b = Vec::Random(n1 * n2);
   Vec x = C.solve(b);
   VERIFY(!(x.array() == x.array()).all());
+}
+
+// Inputs at the very top (and bottom) of the exponent range: the transforms sum
+// up to N terms, so without scaling the FFT intermediates overflow even though
+// every entry of the true result is representable. The apply path rescales the
+// symbol and each right-hand-side column by exact powers of two and folds the
+// exponent back at the end.
+void test_bccb_finite_overflow() {
+  typedef Matrix<double, Dynamic, 1> Vec;
+  typedef Matrix<double, Dynamic, Dynamic> Mat;
+
+  const double huge = (std::numeric_limits<double>::max)() / 16;
+  // The 2-D FFT round trip costs a few ulps per entry; a norm-based comparison
+  // would itself overflow at these magnitudes, hence the entrywise bound.
+  const double kFftRoundTripTol = 100 * NumTraits<double>::epsilon();
+
+  // Reviewer repro: a 36x36 identity BCCB applied to a vector of DBL_MAX/16
+  // must return the vector, not 36 NaNs.
+  Mat G = Mat::Zero(6, 6);
+  G(0, 0) = 1.0;
+  Bccb<double> C(G);
+  Vec x = Vec::Constant(36, huge);
+  Vec y = C * x;
+  VERIFY(y.allFinite());
+  VERIFY(((y - x).array().abs() <= kFftRoundTripTol * x.array().abs()).all());
+
+  // A huge generator makes a huge symbol: the scaling must come from the symbol
+  // side as well.
+  Mat Gh = Mat::Zero(6, 6);
+  Gh(0, 0) = huge;  // C == huge * Identity
+  Bccb<double> Ch(Gh);
+  Vec ones = Vec::Ones(36);
+  Vec z = Ch * ones;
+  VERIFY(z.allFinite());
+  VERIFY(((z.array() - huge).abs() <= kFftRoundTripTol * huge).all());
+
+  // The inverse symbol of a tiny operator is huge; solve() shares the scaled
+  // apply path.
+  Mat Gt = Mat::Zero(6, 6);
+  Gt(0, 0) = 1.0 / huge;
+  Bccb<double> Ct(Gt);
+  Vec w = Ct.solve(ones);
+  VERIFY(w.allFinite());
+  VERIFY(((w.array() - huge).abs() <= kFftRoundTripTol * huge).all());
+
+  // An exactly zero column maps to an exactly zero column (short-circuited
+  // before any scaling), while nonzero columns are still transformed.
+  Mat B(36, 2);
+  B.col(0).setConstant(huge);
+  B.col(1).setZero();
+  Mat Y = C * B;
+  VERIFY(Y.col(1).isZero());
+  VERIFY(((Y.col(0) - x).array().abs() <= kFftRoundTripTol * x.array().abs()).all());
+
+  // Genuine NaN and infinity inputs keep propagating; they are not laundered by
+  // the scaling.
+  Vec xn = x;
+  xn[7] = std::numeric_limits<double>::quiet_NaN();
+  Vec yn = C * xn;
+  VERIFY(!(yn.array() == yn.array()).all());
+  Vec xi = Vec::Ones(36);
+  xi[3] = std::numeric_limits<double>::infinity();
+  Vec yi = C * xi;
+  VERIFY(!yi.allFinite());
+}
+
+// Spectra with a wide dynamic range: the determinant is representable, but a
+// plain product of the eigenvalues in FFT order overflows to infinity (or
+// underflows to an exact zero) partway through. Pins the balanced accumulation
+// in determinant().
+void test_bccb_determinant_scaled() {
+  typedef std::complex<double> Complex;
+  typedef Matrix<Complex, Dynamic, Dynamic> CMat;
+
+  const Index n2 = 25, n1 = 40;  // N = 1000
+  const Index nLead = 653;
+
+  // Symbol magnitudes `lead` on the first nLead column-major-flattened indices
+  // (the accumulation order of determinant()) and `rest` elsewhere, so the
+  // naive running product leaves the representable range partway through while
+  // the true determinant lead^nLead * rest^(N - nLead) is representable. The
+  // generator is recovered through the dense inverse 2-D DFT matrices,
+  // independently of the implementation under test.
+  auto makeOperator = [n2, n1](double lead, double rest) {
+    CMat S(n2, n1);
+    for (Index k1 = 0; k1 < n1; ++k1)
+      for (Index k2 = 0; k2 < n2; ++k2) S(k2, k1) = Complex(k1 * n2 + k2 < nLead ? lead : rest);
+    CMat F2(n2, n2), F1(n1, n1);
+    for (Index a = 0; a < n2; ++a)
+      for (Index c = 0; c < n2; ++c)
+        F2(a, c) = std::polar(1.0 / double(n2), double(2 * EIGEN_PI) * double((a * c) % n2) / double(n2));
+    for (Index a = 0; a < n1; ++a)
+      for (Index c = 0; c < n1; ++c)
+        F1(a, c) = std::polar(1.0 / double(n1), double(2 * EIGEN_PI) * double((a * c) % n1) / double(n1));
+    return Bccb<Complex>((F2 * S * F1.transpose()).eval());
+  };
+
+  // The spectrum is only reproduced up to the FFT round trip's forward error,
+  // and the determinant multiplies ~1e3 such factors.
+  const double kSpectrumRoundTripTol = 1e8 * NumTraits<double>::epsilon();
+  {
+    // det = 10^653 * 10^-347 = 1e306; the naive partial product reaches 1e327.
+    Bccb<Complex> C = makeOperator(10.0, 0.1);
+    const Complex det = C.determinant();
+    VERIFY((numext::isfinite)(numext::abs(det)));
+    VERIFY(numext::abs(det / 1e306 - Complex(1)) <= kSpectrumRoundTripTol);
+  }
+  {
+    // det = 10^-653 * 10^347 = 1e-306; the naive partial product reaches
+    // 1e-327, well below the smallest subnormal, and flushes to an exact zero.
+    Bccb<Complex> C = makeOperator(0.1, 10.0);
+    const Complex det = C.determinant();
+    VERIFY(det != Complex(0));
+    VERIFY(numext::abs(det / 1e-306 - Complex(1)) <= kSpectrumRoundTripTol);
+  }
+  {
+    // A genuinely overflowing determinant must still saturate to infinity.
+    typedef Matrix<double, Dynamic, Dynamic> Mat;
+    Mat G = Mat::Zero(6, 6);
+    G(0, 0) = 1e308;  // the symbol is 1e308 everywhere: det = 10^11088
+    Bccb<double> C(G);
+    VERIFY((numext::isinf)(C.determinant()));
+  }
+}
+
+// The rank decision at the clamped threshold (the smallest normal number): a
+// smallest-normal symbol entry is still inverted -- the comparison is strict,
+// matching SVDBase::rank(), which likewise reports rank one -- a subnormal entry
+// is treated as an exact zero, and non-finite entries count as non-zero.
+void test_bccb_rank_boundaries() {
+  typedef Matrix<double, Dynamic, 1> Vec;
+  typedef Matrix<double, Dynamic, Dynamic> Mat;
+
+  const double mn = (std::numeric_limits<double>::min)();
+  const Vec b = Vec::Ones(1);
+  {
+    Bccb<double> C(Mat(Mat::Constant(1, 1, mn)));
+    VERIFY_IS_EQUAL(C.rank(), 1);
+    Vec x = C.solve(b);
+    VERIFY((numext::isfinite)(x[0]));
+    VERIFY_IS_APPROX(x[0], 1.0 / mn);
+  }
+  {
+    Bccb<double> C(Mat(Mat::Constant(1, 1, mn / 2)));  // subnormal
+    VERIFY_IS_EQUAL(C.rank(), 0);
+    VERIFY(C.solve(b).isZero());
+  }
+  {
+    Bccb<double> C(Mat(Mat::Constant(1, 1, std::numeric_limits<double>::infinity())));
+    VERIFY_IS_EQUAL(C.rank(), 1);
+    VERIFY((numext::isinf)(C.determinant()));
+  }
 }
 
 template <typename Scalar>
@@ -343,5 +602,23 @@ EIGEN_DECLARE_TEST(structured_bccb) {
     CALL_SUBTEST_5((test_bccb_matrix_free_cg<double>(8, 10)));
     CALL_SUBTEST_5((test_bccb_fixed<double, 3, 4>()));
     CALL_SUBTEST_5((test_bccb_fixed<std::complex<float>, 4, 3>()));
+
+    // Product lifetime, aliasing, mixed-scalar promotion, dimension mismatches,
+    // across the scalar-loop and FFT dispatch tiers.
+    CALL_SUBTEST_6((test_bccb_delayed_product<double>(4, 5)));
+    CALL_SUBTEST_6((test_bccb_delayed_product<std::complex<double>>(6, 8)));
+    CALL_SUBTEST_6((test_bccb_aliased_product<double>(3, 4)));
+    CALL_SUBTEST_6((test_bccb_aliased_product<double>(8, 6)));
+    CALL_SUBTEST_6((test_bccb_aliased_product<std::complex<double>>(6, 8)));
+    CALL_SUBTEST_6((test_bccb_mixed_scalar<double>(3, 4)));
+    CALL_SUBTEST_6((test_bccb_mixed_scalar<double>(6, 8)));
+    CALL_SUBTEST_6((test_bccb_mixed_scalar<float>(8, 8)));
+    CALL_SUBTEST_6(test_bccb_dimension_asserts());
+
+    // Finite-range robustness: scaled transforms, balanced determinant
+    // accumulation, and the rank threshold boundary.
+    CALL_SUBTEST_7(test_bccb_finite_overflow());
+    CALL_SUBTEST_7(test_bccb_determinant_scaled());
+    CALL_SUBTEST_7(test_bccb_rank_boundaries());
   }
 }
