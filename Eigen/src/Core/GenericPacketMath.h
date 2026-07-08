@@ -404,10 +404,21 @@ struct ptrue_impl<bool, void> {
   static EIGEN_DEVICE_FUNC inline bool run(const bool&) { return true; }
 };
 
+// The all-ones value of a floating-point packet is a NaN bit pattern, which fast-math builds
+// may fold to poison; see EIGEN_FAST_MATH_CONSTANT_BARRIER in Macros.h. The same applies to
+// peven_mask, pinf and pnan below.
 /** \internal \returns one bits. */
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet ptrue(const Packet& a) {
-  return ptrue_impl<Packet>::run(a);
+  if (is_scalar<Packet>::value || std::is_same<Packet, bool>::value) {
+    // Scalar and boolean "masks" hold the value one, which is a legal value class; delegating
+    // to ptrue_impl (and its specializations) is safe here.
+    return ptrue_impl<Packet>::run(a);
+  }
+  Packet b;
+  memset(static_cast<void*>(&b), 0xff, sizeof(Packet));
+  EIGEN_FAST_MATH_CONSTANT_BARRIER(b);
+  return b;
 }
 
 // In the general packet case, memset to zero.
@@ -842,6 +853,62 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet psignmask() {
   return pset1frombits<Packet, Bits>(kSignBit);
 }
 
+/** \internal \returns a packet with all coefficients set to +infinity.
+ *
+ * The constant is constructed from its integer bit pattern via pset1frombits rather than from
+ * a floating-point infinity literal: under fast-math flags (-ffast-math implies
+ * -ffinite-math-only) an infinity or NaN literal is undefined behavior, and clang turns it
+ * into a poison value that deletes the surrounding special-case handling — or the entire
+ * containing expression — at compile time. The bit pattern is inert: comparisons against it
+ * simply fold to false when the compiler assumes finite math.
+ */
+template <typename Packet>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet pinf() {
+  using Scalar = typename unpacket_traits<Packet>::type;
+  using Bits = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
+  constexpr int kMantissaBits = std::numeric_limits<Scalar>::digits - 1;
+  constexpr int kExponentBits = static_cast<int>(CHAR_BIT * sizeof(Scalar)) - 1 - kMantissaBits;
+  constexpr Bits kInf = static_cast<Bits>(((Bits(1) << kExponentBits) - 1) << kMantissaBits);
+#if EIGEN_FAST_MATH_CONSTANT_BARRIER_ACTIVE
+  // Assembled lane by lane from the bit pattern (an infinity literal is undefined behavior
+  // under fast-math; see EIGEN_FAST_MATH_CONSTANT_BARRIER in Macros.h).
+  Packet b;
+  char* bytes = reinterpret_cast<char*>(&b);
+  EIGEN_USING_STD(memcpy)
+  for (size_t i = 0; i < unpacket_traits<Packet>::size; ++i) {
+    memcpy(bytes + i * sizeof(Bits), &kInf, sizeof(Bits));
+  }
+  EIGEN_FAST_MATH_CONSTANT_BARRIER(b);
+  return b;
+#else
+  return pset1frombits<Packet, Bits>(kInf);
+#endif
+}
+
+/** \internal \returns a packet with all coefficients set to a quiet NaN, constructed from the
+ * integer bit pattern for the same reason as pinf(). */
+template <typename Packet>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet pnan() {
+  using Scalar = typename unpacket_traits<Packet>::type;
+  using Bits = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
+  constexpr int kMantissaBits = std::numeric_limits<Scalar>::digits - 1;
+  constexpr int kExponentBits = static_cast<int>(CHAR_BIT * sizeof(Scalar)) - 1 - kMantissaBits;
+  constexpr Bits kInf = static_cast<Bits>(((Bits(1) << kExponentBits) - 1) << kMantissaBits);
+  constexpr Bits kNaN = static_cast<Bits>(kInf | (Bits(1) << (kMantissaBits - 1)));
+#if EIGEN_FAST_MATH_CONSTANT_BARRIER_ACTIVE
+  Packet b;
+  char* bytes = reinterpret_cast<char*>(&b);
+  EIGEN_USING_STD(memcpy)
+  for (size_t i = 0; i < unpacket_traits<Packet>::size; ++i) {
+    memcpy(bytes + i * sizeof(Bits), &kNaN, sizeof(Bits));
+  }
+  EIGEN_FAST_MATH_CONSTANT_BARRIER(b);
+  return b;
+#else
+  return pset1frombits<Packet, Bits>(kNaN);
+#endif
+}
+
 template <typename Scalar, std::enable_if_t<std::is_trivially_copyable<Scalar>::value, int> = 0>
 EIGEN_DEVICE_FUNC inline Scalar pload1_scalar(const Scalar* a) {
   Scalar scalar;
@@ -920,29 +987,23 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet plset(const typename unpacket_trait
   return a;
 }
 
-template <typename Packet, typename EnableIf = void>
-struct peven_mask_impl {
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet&) {
-    typedef typename unpacket_traits<Packet>::type Scalar;
-    const size_t n = unpacket_traits<Packet>::size;
-    EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) Scalar elements[n];
-    for (size_t i = 0; i < n; ++i) {
-      memset(elements + i, ((i & 1) == 0 ? 0xff : 0), sizeof(Scalar));
-    }
-    return ploadu<Packet>(elements);
-  }
-};
-
-template <typename Scalar>
-struct peven_mask_impl<Scalar, std::enable_if_t<is_scalar<Scalar>::value>> {
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar run(const Scalar&) { return Scalar(1); }
-};
-
 /** \internal \returns a packet with constant coefficients \a a, e.g.: (x, 0, x, 0),
      where x is the value of all 1-bits. */
 template <typename Packet>
-EIGEN_DEVICE_FUNC inline Packet peven_mask(const Packet& a) {
-  return peven_mask_impl<Packet>::run(a);
+EIGEN_DEVICE_FUNC inline Packet peven_mask(const Packet& /*a*/) {
+  typedef typename unpacket_traits<Packet>::type Scalar;
+  if (is_scalar<Packet>::value) {
+    // The scalar "mask" is numeric: true is represented by the value one.
+    return pset1<Packet>(Scalar(1));
+  }
+  const size_t n = unpacket_traits<Packet>::size;
+  Packet b;
+  char* bytes = reinterpret_cast<char*>(&b);
+  for (size_t i = 0; i < n; ++i) {
+    memset(bytes + i * sizeof(Scalar), ((i & 1) == 0 ? 0xff : 0), sizeof(Scalar));
+  }
+  EIGEN_FAST_MATH_CONSTANT_BARRIER(b);
+  return b;
 }
 
 /** \internal copy the packet \a from to \a *to, \a to must be properly aligned */
@@ -1069,18 +1130,35 @@ EIGEN_DEVICE_FUNC inline Packet pdupimag(const Packet& a) {
  * Special math functions
  ***************************/
 
+// Implemented without ptrue: an all-ones float packet is a NaN bit pattern, which under
+// fast-math flags clang turns into a poison constant that deletes any expression it flows
+// into.
+template <typename Packet, bool IsComplex = NumTraits<typename unpacket_traits<Packet>::type>::IsComplex>
+struct pisnan_impl {
+  // Equivalent to !(a == a).
+  static EIGEN_DEVICE_FUNC inline Packet run(const Packet& a) { return pcmp_lt_or_nan(a, a); }
+};
+
+template <typename Packet>
+struct pisnan_impl<Packet, true> {
+  static EIGEN_DEVICE_FUNC inline Packet run(const Packet& a) {
+    using RealPacket = typename unpacket_traits<Packet>::as_real;
+    // A NaN in either the real or the imaginary lane marks the whole complex element.
+    Packet nan_lanes = Packet(pcmp_lt_or_nan<RealPacket>(a.v, a.v));
+    return por(nan_lanes, pcplxflip(nan_lanes));
+  }
+};
+
 /** \internal \returns isnan(a) */
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet pisnan(const Packet& a) {
-  return pandnot(ptrue(a), pcmp_eq(a, a));
+  return pisnan_impl<Packet>::run(a);
 }
 
 /** \internal \returns isinf(a) */
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet pisinf(const Packet& a) {
-  using Scalar = typename unpacket_traits<Packet>::type;
-  constexpr Scalar inf = NumTraits<Scalar>::infinity();
-  return pcmp_eq(pabs(a), pset1<Packet>(inf));
+  return pcmp_eq(pabs(a), pinf<Packet>());
 }
 
 /** \internal \returns the sine of \a a (coeff-wise) */
