@@ -143,8 +143,11 @@ void test_cauchy_hilbert() {
     Vec u = lu.solve(b);
     return (dense * u - b).norm() / b.norm();
   };
-  VERIFY(residual(8) <= 1e-10);
-  VERIFY(residual(12) <= 1e-8);
+  // GKO partial pivoting is backward stable, so the residual stays a small
+  // multiple of epsilon even as the Hilbert conditioning explodes with n.
+  const double eps = NumTraits<double>::epsilon();
+  VERIFY(residual(8) <= 5e5 * eps);   // ~1e-10
+  VERIFY(residual(12) <= 5e7 * eps);  // ~1e-8
 
   Vec x(5), y(5);
   for (Index i = 0; i < 5; ++i) {
@@ -173,7 +176,8 @@ void test_cauchy_lu_pivoting(Index n) {
   VERIFY(lu.info() == Success);
   Vec b = Vec::Random(n);
   Vec u = lu.solve(b);
-  VERIFY((dense * u - b).norm() <= 1e-8 * (dense.norm() * u.norm() + b.norm()));
+  const double tol = 5e7 * NumTraits<double>::epsilon();  // ~1e-8
+  VERIFY((dense * u - b).norm() <= tol * (dense.norm() * u.norm() + b.norm()));
 }
 
 // A duplicated row node makes two rows identical, hence the matrix exactly
@@ -221,7 +225,14 @@ void test_cauchy_determinant(Index n) {
   separated_nodes<Scalar>(n, n, x, y);
   Cauchy<Scalar> C(x, y);
   Mat dense = reference_cauchy<Scalar>(x, y);
-  VERIFY(numext::abs(C.determinant() - dense.determinant()) <= RealScalar(1e-6) * numext::abs(dense.determinant()));
+  // The closed form is accurate to O(n^2 eps); the dense LU reference is the less
+  // accurate side, its determinant carrying a relative error that grows like
+  // cond(C)*eps (empirically ~0.1*cond*eps). Scale the bound by the SVD condition
+  // number so the test is robust across random node draws.
+  JacobiSVD<Mat> svd(dense);
+  const RealScalar cond = svd.singularValues()(0) / svd.singularValues()(svd.singularValues().size() - 1);
+  const RealScalar tol = RealScalar(100) * cond * NumTraits<RealScalar>::epsilon();
+  VERIFY(numext::abs(C.determinant() - dense.determinant()) <= tol * numext::abs(dense.determinant()));
 }
 
 template <typename Scalar, int M, int N>
