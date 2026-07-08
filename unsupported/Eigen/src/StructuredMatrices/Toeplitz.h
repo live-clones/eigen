@@ -215,9 +215,11 @@ class Toeplitz : public EigenBase<Toeplitz<Scalar_, Rows_, Cols_>> {
     return Product<Toeplitz, Rhs, AliasFreeProduct>(*this, x.derived());
   }
 
-  /** \internal Computes \c dst += alpha * (*this) * rhs. */
-  template <typename Dest, typename Rhs>
-  void addProduct(Dest& dst, const Rhs& rhs, const Scalar& alpha) const {
+  /** \internal Computes \c dst += alpha * (*this) * rhs. \c ProductScalar is the
+   * promoted scalar of the product (complex when a real operator is applied to a
+   * complex right-hand side); the accumulation runs in the promoted type. */
+  template <typename Dest, typename Rhs, typename ProductScalar>
+  void addProduct(Dest& dst, const Rhs& rhs, const ProductScalar& alpha) const {
     const Index m = rows(), n = cols();
     eigen_assert(rhs.rows() == n && "invalid product: dimensions do not match");
 
@@ -226,7 +228,7 @@ class Toeplitz : public EigenBase<Toeplitz<Scalar_, Rows_, Cols_>> {
       // per-segment setup dominates when segments hold only a few entries.
       for (Index k = 0; k < rhs.cols(); ++k)
         for (Index i = 0; i < m; ++i) {
-          Scalar acc(0);
+          ProductScalar acc(0);
           for (Index j = 0; j < n; ++j) acc += coeff(i, j) * rhs.coeff(j, k);
           dst.coeffRef(i, k) += alpha * acc;
         }
@@ -241,7 +243,7 @@ class Toeplitz : public EigenBase<Toeplitz<Scalar_, Rows_, Cols_>> {
       for (Index k = 0; k < rhs.cols(); ++k) {
         auto dstCol = dst.col(k);
         for (Index j = 0; j < n; ++j) {
-          const Scalar xj = alpha * rhs.coeff(j, k);
+          const ProductScalar xj = alpha * rhs.coeff(j, k);
           const Index h = numext::mini(j, m);
           dstCol.head(h) += xj * m_row.segment(j - h + 1, h).reverse();
           if (j < m) dstCol.tail(m - j) += xj * m_col.head(m - j);
