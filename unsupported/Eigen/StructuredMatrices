@@ -37,7 +37,10 @@ namespace Eigen {
  * also plug directly into the matrix-free iterative solvers
  * (\c ConjugateGradient, \c GMRES, \c MINRES, ...) without forming the dense
  * matrix; and since they hook into the evaluator system, they can be assigned
- * to a dense matrix when an explicit representation is needed.
+ * to a dense matrix when an explicit representation is needed. Like every
+ * matrix-free operator, they carry no coefficient storage the default
+ * preconditioners could read, so the iterative solvers must be instantiated
+ * with \c IdentityPreconditioner.
  *
  * \code
  * #include <unsupported/Eigen/StructuredMatrices>
