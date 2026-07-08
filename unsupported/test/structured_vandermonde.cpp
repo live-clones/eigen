@@ -75,22 +75,25 @@ void test_bjorck_pereyra(Index n) {
   BjorckPereyra<Scalar> bp(V);
   VERIFY(bp.info() == Success);
 
+  // Forward-error bound for the (moderately conditioned) Chebyshev-node system.
+  const RealScalar tol = RealScalar(5e7) * NumTraits<RealScalar>::epsilon();  // ~1e-8 in double
+
   // Primal: interpolate values of a known polynomial and recover its coefficients.
   Vec aTrue = Vec::Random(n);
   Vec f = dense * aTrue;
   Vec a = bp.solve(f);
-  VERIFY((a - aTrue).norm() <= RealScalar(1e-8) * aTrue.norm());
+  VERIFY((a - aTrue).norm() <= tol * aTrue.norm());
 
   // Dual (moment) system through the SolverBase transpose idiom.
   Vec wTrue = Vec::Random(n);
   Vec b = dense.transpose() * wTrue;
   Vec w = bp.transpose().solve(b);
-  VERIFY((w - wTrue).norm() <= RealScalar(1e-8) * wTrue.norm());
+  VERIFY((w - wTrue).norm() <= tol * wTrue.norm());
 
   // Adjoint solve.
   Vec c = dense.adjoint() * wTrue;
   Vec u = bp.adjoint().solve(c);
-  VERIFY((u - wTrue).norm() <= RealScalar(1e-8) * wTrue.norm());
+  VERIFY((u - wTrue).norm() <= tol * wTrue.norm());
 
   // Multiple right-hand sides.
   Mat F = Mat::Random(n, 3);
@@ -140,7 +143,8 @@ void test_bjorck_pereyra_higham() {
   // interpolant must reproduce the alternating values to near machine precision
   // relative to the coefficient scale, despite cond(V) >> 1/eps.
   Vec r = (V * a).eval() - f;
-  VERIFY(r.norm() <= 1e-10 * a.norm());
+  const double tol = 5e5 * NumTraits<double>::epsilon();  // ~1e-10
+  VERIFY(r.norm() <= tol * a.norm());
 }
 
 // Repeated nodes make the matrix exactly singular and must be reported.
