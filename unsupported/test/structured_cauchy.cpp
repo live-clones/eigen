@@ -235,6 +235,171 @@ void test_cauchy_determinant(Index n) {
   VERIFY(numext::abs(C.determinant() - dense.determinant()) <= tol * numext::abs(dense.determinant()));
 }
 
+// The products are tagged AliasFreeProduct, so no temporary shields an aliased
+// right-hand side: the shared product implementation must copy it instead.
+// Without the copy, x = C * x reads a zeroed right-hand side and x += C * x
+// interleaves destination writes with right-hand-side reads.
+template <typename Scalar>
+void test_cauchy_aliased_product(Index n) {
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+
+  Vec x, y;
+  separated_nodes<Scalar>(n, n, x, y);
+  Cauchy<Scalar> C(x, y);
+  Mat dense = reference_cauchy<Scalar>(x, y);
+
+  Vec v = Vec::Random(n);
+  Vec w = v;
+  w = C * w;
+  VERIFY_IS_APPROX(w, (dense * v).eval());
+
+  w = v;
+  w += C * w;
+  VERIFY_IS_APPROX(w, (v + dense * v).eval());
+
+  w = v;
+  w -= C * w;
+  VERIFY_IS_APPROX(w, (v - dense * v).eval());
+
+  Mat V = Mat::Random(n, 3);
+  Mat W = V;
+  W = C * W;
+  VERIFY_IS_APPROX(W, (dense * V).eval());
+}
+
+// transpose()/conjugate()/adjoint() return owning temporaries, so the product
+// expression must nest the structured operand by value: a delayed-evaluated
+// expression has to outlive the temporary operator it was built from. The static
+// check pins the value nesting; the behavioral check would read freed memory if
+// the product held a reference instead.
+template <typename Scalar>
+void test_cauchy_delayed_product(Index m, Index n) {
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+
+  STATIC_CHECK(!std::is_reference<typename internal::ref_selector<Cauchy<Scalar>>::type>::value);
+
+  Vec x, y;
+  separated_nodes<Scalar>(m, n, x, y);
+  Cauchy<Scalar> C(x, y);
+  Mat dense = reference_cauchy<Scalar>(x, y);
+
+  Vec w = Vec::Random(m);
+  auto expr = C.adjoint() * w;        // the adjoint temporary dies with the full expression
+  Vec scribble = Vec::Random(m + n);  // reuses the temporary's freed heap storage
+  Vec u = expr;
+  VERIFY_IS_APPROX(u, (dense.adjoint() * w).eval());
+  VERIFY_IS_EQUAL(scribble.size(), m + n);  // keep the scribble alive across the evaluation
+}
+
+// Mixed-scalar products: a real operator applied to a complex right-hand side
+// (and a complex operator applied to a real one) promotes to the complex product
+// scalar, so alpha and the accumulation must run in the promoted type rather than
+// the operator scalar.
+template <typename RealScalar>
+void test_cauchy_mixed_scalar(Index m, Index n) {
+  typedef std::complex<RealScalar> Complex;
+  typedef Matrix<RealScalar, Dynamic, 1> RVec;
+  typedef Matrix<Complex, Dynamic, 1> CVec;
+  typedef Matrix<Complex, Dynamic, Dynamic> CMat;
+
+  RVec x, y;
+  separated_nodes<RealScalar>(m, n, x, y);
+  Cauchy<RealScalar> C(x, y);
+  CMat dense = reference_cauchy<RealScalar>(x, y).template cast<Complex>();
+
+  CVec v = CVec::Random(n);
+  CVec w = C * v;
+  VERIFY_IS_APPROX(w, (dense * v).eval());
+
+  CVec w0 = CVec::Random(m);
+  w = w0;
+  w.noalias() += C * v;
+  VERIFY_IS_APPROX(w, (w0 + dense * v).eval());
+
+  CVec xc, yc;
+  separated_nodes<Complex>(m, n, xc, yc);
+  Cauchy<Complex> Cc(xc, yc);
+  CMat denseC = reference_cauchy<Complex>(xc, yc);
+  RVec vr = RVec::Random(n);
+  CVec z = Cc * vr;
+  VERIFY_IS_APPROX(z, (denseC * vr).eval());
+}
+
+// Wide-dynamic-range determinants: the closed-form factors overflow or underflow
+// individually while the determinant itself is representable, so the balanced
+// m * 2^e accumulation must carry the exponent past the intermediate extremes.
+void test_cauchy_determinant_range() {
+  typedef Matrix<double, Dynamic, 1> Vec;
+  typedef Matrix<double, Dynamic, Dynamic> Mat;
+
+  // Reviewer repro: x = [2s, 3s], y = [0, s] with s = 1e160. The determinant is
+  // -1/(12 s^2) ~ -8.35e-322, a subnormal, while the naive numerator product
+  // -s^2 = -1e320 already overflows. Both the closed form and the dense LU
+  // reference round once into the subnormal range (spacing denorm_min), so the
+  // comparison needs an absolute term of a few subnormal spacings on top of a
+  // relative term; the relative term alone would be far below denorm_min.
+  {
+    const double s = 1e160;
+    Vec x(2), y(2);
+    x << 2 * s, 3 * s;
+    y << 0.0, s;
+    Cauchy<double> C(x, y);
+    Mat dense = reference_cauchy<double>(x, y);
+    const double det = C.determinant();
+    const double ref = dense.partialPivLu().determinant();
+    const double kRelTol = 16 * NumTraits<double>::epsilon();
+    const double kAbsTol = 4 * std::numeric_limits<double>::denorm_min();
+    VERIFY((numext::isfinite)(det));
+    VERIFY(numext::abs(det - ref) <= kRelTol * numext::abs(ref) + kAbsTol);
+  }
+
+  // Overflow-side analogue: x = [2s, 3s, 4s], y = [0, s/2, s] with s = 1e-60.
+  // The determinant is -1/(3780 s^3) ~ -2.65e176, huge but representable, while
+  // the naive numerator product -s^6/2 = -5e-361 underflows to zero. The dense
+  // LU reference is the less accurate side (its error carries the conditioning
+  // of the matrix, measured ~64 eps here); the deterministic nodes make 1000 eps
+  // comfortable headroom.
+  {
+    const double s = 1e-60;
+    Vec x(3), y(3);
+    x << 2 * s, 3 * s, 4 * s;
+    y << 0.0, s / 2, s;
+    Cauchy<double> C(x, y);
+    Mat dense = reference_cauchy<double>(x, y);
+    const double det = C.determinant();
+    const double ref = dense.partialPivLu().determinant();
+    const double kRelTol = 1000 * NumTraits<double>::epsilon();
+    VERIFY((numext::isfinite)(det));
+    VERIFY(numext::abs(det - ref) <= kRelTol * numext::abs(ref));
+  }
+
+  // Genuinely infinite determinant: x[0] == y[0] makes entry (0,0) infinite (a
+  // zero denominator factor with a non-zero numerator); the signed limit as
+  // x[0] -> y[0] from above is -inf, and division by the exact zero factor must
+  // produce it rather than a balanced-away finite value.
+  {
+    Vec x(2), y(2);
+    x << 1.0, 2.0;
+    y << 1.0, 3.0;
+    Cauchy<double> C(x, y);
+    const double det = C.determinant();
+    VERIFY((numext::isinf)(det));
+    VERIFY(det < 0.0);
+  }
+
+  // Coincident row nodes: two identical rows, so the matrix is exactly singular
+  // and the zero numerator factor must propagate to an exact zero.
+  {
+    Vec x(3), y(3);
+    x << 2.0, 3.0, 2.0;  // x[2] duplicates x[0]
+    y << 0.0, 0.5, 1.0;
+    Cauchy<double> C(x, y);
+    VERIFY_IS_EQUAL(C.determinant(), 0.0);
+  }
+}
+
 template <typename Scalar, int M, int N>
 void test_cauchy_fixed() {
   typedef Matrix<Scalar, M, 1> XVec;
@@ -291,5 +456,15 @@ EIGEN_DECLARE_TEST(structured_cauchy) {
     CALL_SUBTEST_3((test_cauchy_symmetric<double>(9)));
     CALL_SUBTEST_3((test_cauchy_fixed<double, 6, 4>()));
     CALL_SUBTEST_3((test_cauchy_fixed<std::complex<float>, 4, 5>()));
+
+    // Numerical and lifetime boundaries: aliased and value-nested (owning)
+    // delayed products, mixed-scalar products, wide-dynamic-range determinants.
+    CALL_SUBTEST_4((test_cauchy_aliased_product<double>(11)));
+    CALL_SUBTEST_4((test_cauchy_aliased_product<std::complex<double>>(8)));
+    CALL_SUBTEST_4((test_cauchy_delayed_product<double>(12, 9)));
+    CALL_SUBTEST_4((test_cauchy_delayed_product<std::complex<double>>(7, 10)));
+    CALL_SUBTEST_4((test_cauchy_mixed_scalar<double>(10, 13)));
+    CALL_SUBTEST_4((test_cauchy_mixed_scalar<float>(9, 6)));
+    CALL_SUBTEST_4(test_cauchy_determinant_range());
   }
 }
