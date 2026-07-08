@@ -240,6 +240,59 @@ void test_toeplitz_delayed_product(Index m, Index n) {
   VERIFY_IS_EQUAL(scribble.size(), m + n);
 }
 
+// The products are tagged AliasFreeProduct, so no temporary shields an aliased
+// right-hand side: the shared product implementation must copy it instead.
+// Without the copy, x = C * x reads a zeroed right-hand side and x += C * x
+// interleaves destination writes with right-hand-side reads.
+template <typename Scalar>
+void test_circulant_aliased_product(Index n) {
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+
+  Vec c = Vec::Random(n);
+  Circulant<Scalar> C(c);
+  Mat dense = reference_circulant<Scalar>(c);
+
+  Vec x = Vec::Random(n);
+  Vec y = x;
+  y = C * y;
+  VERIFY_IS_APPROX(y, (dense * x).eval());
+
+  y = x;
+  y += C * y;
+  VERIFY_IS_APPROX(y, (x + dense * x).eval());
+
+  y = x;
+  y -= C * y;
+  VERIFY_IS_APPROX(y, (x - dense * x).eval());
+
+  Mat X = Mat::Random(n, 3);
+  Mat Y = X;
+  Y = C * Y;
+  VERIFY_IS_APPROX(Y, (dense * X).eval());
+}
+
+template <typename Scalar>
+void test_toeplitz_aliased_product(Index n) {
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+
+  // Square so that the destination and the right-hand side can alias.
+  Vec c = Vec::Random(n), r = Vec::Random(n);
+  r[0] = c[0];
+  Toeplitz<Scalar> T(c, r);
+  Mat dense = reference_toeplitz<Scalar>(c, r);
+
+  Vec x = Vec::Random(n);
+  Vec y = x;
+  y = T * y;
+  VERIFY_IS_APPROX(y, (dense * x).eval());
+
+  y = x;
+  y += T * y;
+  VERIFY_IS_APPROX(y, (x + dense * x).eval());
+}
+
 // Closed-form eigendecomposition: C * V = V * diag(eigenvalues) with V unitary.
 template <typename Scalar>
 void test_circulant_eigen(Index n) {
@@ -811,11 +864,18 @@ EIGEN_DECLARE_TEST(structured_matrices) {
     CALL_SUBTEST_7((test_circulant_determinant<std::complex<double>>(9)));
 
     // Numerical and lifetime boundaries: value-nested (owning) delayed products,
-    // the balanced determinant accumulation, and the rank threshold boundary.
+    // aliased products across the dispatch tiers (scalar, direct, FFT), the
+    // balanced determinant accumulation, and the rank threshold boundary.
     CALL_SUBTEST_8((test_circulant_delayed_product<double>(24)));
     CALL_SUBTEST_8((test_circulant_delayed_product<std::complex<double>>(48)));
     CALL_SUBTEST_8((test_toeplitz_delayed_product<double>(40, 24)));
     CALL_SUBTEST_8((test_toeplitz_delayed_product<std::complex<float>>(12, 8)));
+    CALL_SUBTEST_8((test_circulant_aliased_product<double>(8)));
+    CALL_SUBTEST_8((test_circulant_aliased_product<double>(64)));
+    CALL_SUBTEST_8((test_circulant_aliased_product<std::complex<double>>(40)));
+    CALL_SUBTEST_8((test_toeplitz_aliased_product<double>(12)));
+    CALL_SUBTEST_8((test_toeplitz_aliased_product<double>(48)));
+    CALL_SUBTEST_8((test_toeplitz_aliased_product<std::complex<float>>(36)));
     CALL_SUBTEST_8(test_circulant_determinant_scaled());
     CALL_SUBTEST_8(test_circulant_rank_boundaries());
 
