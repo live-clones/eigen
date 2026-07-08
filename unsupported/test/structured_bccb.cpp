@@ -218,7 +218,7 @@ void test_bccb_svd(Index n2, Index n1) {
 }
 
 template <typename Scalar>
-void test_bccb_inverse_determinant(Index n2, Index n1) {
+void test_bccb_inverse(Index n2, Index n1) {
   typedef typename NumTraits<Scalar>::Real RealScalar;
   typedef Matrix<Scalar, Dynamic, 1> Vec;
   typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
@@ -334,8 +334,8 @@ EIGEN_DECLARE_TEST(structured_bccb) {
     CALL_SUBTEST_4((test_bccb_svd<double>(4, 5)));
     CALL_SUBTEST_4((test_bccb_svd<std::complex<double>>(4, 4)));
     CALL_SUBTEST_4((test_bccb_svd<float>(3, 4)));
-    CALL_SUBTEST_4((test_bccb_inverse_determinant<double>(6, 8)));
-    CALL_SUBTEST_4((test_bccb_inverse_determinant<std::complex<double>>(5, 5)));
+    CALL_SUBTEST_4((test_bccb_inverse<double>(6, 8)));
+    CALL_SUBTEST_4((test_bccb_inverse<std::complex<double>>(5, 5)));
     CALL_SUBTEST_4((test_bccb_determinant<double>(3, 4)));
     CALL_SUBTEST_4((test_bccb_determinant<std::complex<double>>(3, 3)));
 
