@@ -254,7 +254,6 @@ class BjorckPereyra : public SolverBase<BjorckPereyra<Scalar_>> {
   friend class SolverBase<BjorckPereyra>;
   EIGEN_GENERIC_PUBLIC_INTERFACE(BjorckPereyra)
   using NodeVector = Matrix<Scalar, Dynamic, 1>;
-  using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic>;
 
   /** Default constructor; call \ref compute before \ref solve. */
   BjorckPereyra() : m_isInitialized(false), m_info(InvalidInput) {}
