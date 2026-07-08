@@ -7,6 +7,14 @@
 // SPDX-FileCopyrightText: The Eigen Authors
 // SPDX-License-Identifier: MPL-2.0
 
+// References:
+//  [1] M. A. Woodbury, "Inverting Modified Matrices", Memorandum Report 42,
+//      Statistical Research Group, Princeton University, 1950. The Woodbury
+//      identity behind solve() and inverse().
+//  [2] W. W. Hager, "Updating the Inverse of a Matrix", SIAM Review, 31(2),
+//      pp. 221-239, 1989. Review of the Woodbury identity and of the matrix
+//      determinant lemma used by determinant().
+
 #ifndef EIGEN_STRUCTURED_DIAGONAL_PLUS_LOW_RANK_H
 #define EIGEN_STRUCTURED_DIAGONAL_PLUS_LOW_RANK_H
 
@@ -30,13 +38,95 @@ struct traits<DiagonalPlusLowRank<Scalar_, Size_, Rank_>> {
   static constexpr int ColsAtCompileTime = Size_;
   static constexpr int MaxRowsAtCompileTime = Size_;
   static constexpr int MaxColsAtCompileTime = Size_;
-  static constexpr int Flags = NestByRefBit;
+  // Deliberately no NestByRefBit: transpose(), conjugate(), adjoint(), inverse()
+  // and makeDiagonalPlusLowRank() return owning temporaries, so Product must nest
+  // the operator by value for a delayed-evaluated product expression to keep its
+  // left factor alive. The copy is O(nk), on par with a single product evaluation.
+  static constexpr int Flags = 0;
 };
 
 template <typename Scalar_, int Size_, int Rank_>
 struct evaluator_traits<DiagonalPlusLowRank<Scalar_, Size_, Rank_>> {
   using Kind = IndexBased;
   using Shape = StructuredShape;
+};
+
+// The capacitance-solve half of the Woodbury identity [1], factored into a
+// dispatch struct so a fixed rank-0 operator -- a plain diagonal -- never
+// instantiates PartialPivLU on a 0 x 0 matrix, which does not compile (C++14:
+// no if-constexpr). The primary template covers positive and dynamic ranks and
+// keeps the runtime rank-0 guard; the Rank_ == 0 specialization contains no LU
+// code at all.
+template <int Rank_>
+struct dplr_capacitance_impl {
+  // x -= D^{-1} U (I_k + V^H D^{-1} U)^{-1} V^H x, the correction term of the
+  // Woodbury solve, in place.
+  template <typename Op, typename Dinv, typename Workspace>
+  static void subtractSolveCorrection(const Op& op, const Dinv& dinv, Workspace& x) {
+    if (op.correctionRank() == 0) return;
+    PartialPivLU<typename Op::CapacitanceType> cap(op.capacitance());
+    x.noalias() -= dinv.asDiagonal() * (op.factorU() * cap.solve(op.factorV().adjoint() * x));
+  }
+  // Up = -D^{-1} U (I_k + V^H D^{-1} U)^{-1}, the left factor of the inverse.
+  template <typename Op, typename Dinv, typename Factor>
+  static void inverseFactor(const Op& op, const Dinv& dinv, Factor& Up) {
+    if (op.correctionRank() == 0) return;
+    PartialPivLU<typename Op::CapacitanceType> cap(op.capacitance());
+    Up.noalias() = -(dinv.asDiagonal() * op.factorU() * cap.inverse());
+  }
+  // det(I_k + V^H D^{-1} U), the capacitance factor of the determinant lemma.
+  template <typename Op>
+  static typename Op::Scalar capacitanceDeterminant(const Op& op) {
+    return op.correctionRank() == 0 ? typename Op::Scalar(1) : op.capacitance().determinant();
+  }
+};
+
+template <>
+struct dplr_capacitance_impl<0> {
+  template <typename Op, typename Dinv, typename Workspace>
+  static void subtractSolveCorrection(const Op&, const Dinv&, Workspace&) {}
+  template <typename Op, typename Dinv, typename Factor>
+  static void inverseFactor(const Op&, const Dinv&, Factor&) {}
+  template <typename Op>
+  static typename Op::Scalar capacitanceDeterminant(const Op&) {
+    return typename Op::Scalar(1);
+  }
+};
+
+// Exact power-of-two renormalization used by the balanced determinant
+// accumulation (the pattern of Circulant::determinant(), generalized over real
+// and complex scalars): balance() rescales x by the power of two that brings
+// its magnitude into [0.5, 1), accumulating the removed exponent, and ldexp()
+// applies the accumulated exponent back. The rescaling is exact, so no roundoff
+// is introduced; zeros and non-finite values, which must propagate exactly, are
+// returned untouched.
+template <typename Scalar, bool IsComplex = NumTraits<Scalar>::IsComplex>
+struct dplr_balance_impl {
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  static Scalar balance(const Scalar& z, Index& exponent) {
+    const RealScalar mag = numext::maxi(numext::abs(numext::real(z)), numext::abs(numext::imag(z)));
+    if (!(mag > RealScalar(0)) || !(numext::isfinite)(mag)) return z;
+    int e;
+    std::frexp(mag, &e);
+    exponent += e;
+    return Scalar(std::ldexp(numext::real(z), -e), std::ldexp(numext::imag(z), -e));
+  }
+  static Scalar ldexp(const Scalar& z, int e) {
+    return Scalar(std::ldexp(numext::real(z), e), std::ldexp(numext::imag(z), e));
+  }
+};
+
+template <typename Scalar>
+struct dplr_balance_impl<Scalar, false> {
+  static Scalar balance(const Scalar& x, Index& exponent) {
+    const Scalar mag = numext::abs(x);
+    if (!(mag > Scalar(0)) || !(numext::isfinite)(mag)) return x;
+    int e;
+    std::frexp(mag, &e);
+    exponent += e;
+    return std::ldexp(x, -e);
+  }
+  static Scalar ldexp(const Scalar& x, int e) { return std::ldexp(x, e); }
 };
 
 }  // namespace internal
@@ -47,16 +137,26 @@ struct evaluator_traits<DiagonalPlusLowRank<Scalar_, Size_, Rank_>> {
  * rank-k correction, stored as its diagonal and the two \c n x \c k factors.
  *
  * Products cost O(nk) instead of O(n^2). Linear systems are solved in O(nk^2)
- * through the Woodbury identity
+ * through the Woodbury identity [1]
  * \f$ (D + UV^H)^{-1} = D^{-1} - D^{-1} U (I_k + V^H D^{-1} U)^{-1} V^H D^{-1} \f$,
  * factoring only the \c k x \c k \em capacitance matrix (\ref solve). The
- * determinant follows from the matrix determinant lemma
+ * determinant follows from the matrix determinant lemma [2]
  * \f$ \det(D)\,\det(I_k + V^H D^{-1} U) \f$ (\ref determinant), and the class is
  * closed under \ref inverse, \ref transpose, \ref conjugate and \ref adjoint.
  *
  * The rank-k correction may have \c k = 0 (a plain diagonal operator). \c k is
  * not required to be small, but every advantage over a dense matrix vanishes as
  * \c k approaches \c n.
+ *
+ * The operator stores its own copies of the diagonal and the factors and derives
+ * from \c EigenBase. Because \c operator* returns an Eigen product expression, a
+ * \c DiagonalPlusLowRank also drops into the matrix-free iterative solvers, and
+ * it can be assigned to a dense matrix when an explicit representation is
+ * needed. As with any matrix-free operator, the iterative solvers must be
+ * instantiated with \c IdentityPreconditioner (e.g.
+ * \c GMRES<DiagonalPlusLowRank<double>,IdentityPreconditioner>): the default
+ * preconditioners read individual coefficients through \c col() or
+ * \c InnerIterator, which the structured operators do not expose.
  *
  * \tparam Scalar_ the scalar type, real or complex.
  * \tparam Size_ the dimension at compile time, or \c Dynamic (the default).
@@ -139,9 +239,9 @@ class DiagonalPlusLowRank : public EigenBase<DiagonalPlusLowRank<Scalar_, Size_,
     return c;
   }
 
-  /** \returns the solution of \c (*this) * x = b through the Woodbury identity,
-   * factoring only the \c k x \c k capacitance matrix: O(nk^2 + k^3) setup and
-   * O(nk) per right-hand side. Supports multiple right-hand sides.
+  /** \returns the solution of \c (*this) * x = b through the Woodbury identity
+   * [1], factoring only the \c k x \c k capacitance matrix: O(nk^2 + k^3) setup
+   * and O(nk) per right-hand side. Supports multiple right-hand sides.
    * \warning Requires an invertible diagonal \em and an invertible capacitance
    * matrix (equivalently, an invertible operator); this is not checked beyond
    * the NaN/Inf propagation of the arithmetic itself. */
@@ -150,37 +250,45 @@ class DiagonalPlusLowRank : public EigenBase<DiagonalPlusLowRank<Scalar_, Size_,
     eigen_assert(b.rows() == rows() && "right-hand side has the wrong number of rows");
     const auto dinv = m_d.cwiseInverse();
     Matrix<Scalar, Size_, Rhs::ColsAtCompileTime> x = dinv.asDiagonal() * b;
-    if (correctionRank() > 0) {
-      PartialPivLU<CapacitanceType> cap(capacitance());
-      x.noalias() -= dinv.asDiagonal() * (m_U * cap.solve(m_V.adjoint() * x));
-    }
+    internal::dplr_capacitance_impl<Rank_>::subtractSolveCorrection(*this, dinv, x);
     return x;
   }
 
   /** \returns the inverse of \c *this, itself a \c DiagonalPlusLowRank operator:
-   * by the Woodbury identity, \f$ (D + UV^H)^{-1} = D^{-1} + U' V'^H \f$ with
+   * by the Woodbury identity [1], \f$ (D + UV^H)^{-1} = D^{-1} + U' V'^H \f$ with
    * \f$ U' = -D^{-1} U (I_k + V^H D^{-1} U)^{-1} \f$ and \f$ V' = D^{-H} V \f$.
    * \warning Same invertibility requirements as \ref solve. */
   DiagonalPlusLowRank inverse() const {
     const auto dinv = m_d.cwiseInverse();
     FactorType Up(rows(), correctionRank());
-    if (correctionRank() > 0) {
-      PartialPivLU<CapacitanceType> cap(capacitance());
-      Up.noalias() = -(dinv.asDiagonal() * m_U * cap.inverse());
-    }
+    internal::dplr_capacitance_impl<Rank_>::inverseFactor(*this, dinv, Up);
     FactorType Vp = dinv.conjugate().asDiagonal() * m_V;
     return DiagonalPlusLowRank(dinv, Up, Vp);
   }
 
-  /** \returns the determinant through the matrix determinant lemma:
+  /** \returns the determinant through the matrix determinant lemma [2]:
    * \f$ \det(D)\,\det(I_k + V^H D^{-1} U) \f$, in O(nk^2 + k^3) operations.
+   * The diagonal product is accumulated in the balanced form \c m * 2^e -- every
+   * factor and the running product are renormalized to unit magnitude with the
+   * power of two tracked separately, and the capacitance determinant enters the
+   * same accumulation -- so the partial products can neither overflow nor
+   * underflow when the determinant itself is representable, whatever the
+   * ordering of large and small diagonal entries.
    * \warning The diagonal must have no zero entries (use the lemma symmetrically
    * or a dense fallback for that case). */
   Scalar determinant() const {
+    using BalanceImpl = internal::dplr_balance_impl<Scalar>;
     Scalar det(1);
-    for (Index i = 0; i < rows(); ++i) det *= m_d.coeff(i);
-    if (correctionRank() > 0) det *= capacitance().determinant();
-    return det;
+    Index exponent = 0;
+    for (Index i = 0; i < rows(); ++i)
+      det = BalanceImpl::balance(det * BalanceImpl::balance(m_d.coeff(i), exponent), exponent);
+    const Scalar capDet = internal::dplr_capacitance_impl<Rank_>::capacitanceDeterminant(*this);
+    det = BalanceImpl::balance(det * BalanceImpl::balance(capDet, exponent), exponent);
+    // ldexp saturates cleanly to zero / infinity once the accumulated exponent
+    // leaves the representable range; the clamp only guards the narrowing to int.
+    constexpr Index kMaxExponent = Index(1) << 24;
+    const int e = static_cast<int>(numext::mini(numext::maxi(exponent, -kMaxExponent), kMaxExponent));
+    return BalanceImpl::ldexp(det, e);
   }
 
   /** \internal Writes the dense representation into \a dst. Invoked through
@@ -212,15 +320,18 @@ class DiagonalPlusLowRank : public EigenBase<DiagonalPlusLowRank<Scalar_, Size_,
     return Product<DiagonalPlusLowRank, Rhs, AliasFreeProduct>(*this, v.derived());
   }
 
-  /** \internal Computes \c dst += alpha * (*this) * rhs. */
-  template <typename Dest, typename Rhs>
-  void addProduct(Dest& dst, const Rhs& rhs, const Scalar& alpha) const {
+  /** \internal Computes \c dst += alpha * (*this) * rhs. \c ProductScalar is the
+   * promoted scalar of the product (complex when a real operator is applied to a
+   * complex right-hand side); the workspaces and the accumulation run in the
+   * promoted type. */
+  template <typename Dest, typename Rhs, typename ProductScalar>
+  void addProduct(Dest& dst, const Rhs& rhs, const ProductScalar& alpha) const {
     eigen_assert(rhs.rows() == rows() && "invalid product: dimensions do not match");
-    // Evaluate the (possibly expression) right-hand side once.
-    const Matrix<Scalar, Size_, Rhs::ColsAtCompileTime> r = rhs;
+    // Evaluate the (possibly expression) right-hand side once, in the promoted type.
+    const Matrix<ProductScalar, Size_, Rhs::ColsAtCompileTime> r = rhs;
     dst += alpha * (m_d.asDiagonal() * r);
     if (correctionRank() > 0) {
-      const Matrix<Scalar, Rank_, Rhs::ColsAtCompileTime> t = m_V.adjoint() * r;
+      const Matrix<ProductScalar, Rank_, Rhs::ColsAtCompileTime> t = m_V.adjoint() * r;
       dst.noalias() += alpha * (m_U * t);
     }
   }
