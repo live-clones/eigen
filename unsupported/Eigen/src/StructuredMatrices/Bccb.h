@@ -7,6 +7,20 @@
 // SPDX-FileCopyrightText: The Eigen Authors
 // SPDX-License-Identifier: MPL-2.0
 
+// References:
+//  [1] P. J. Davis, "Circulant Matrices", Wiley, 1979. Diagonalization of
+//      circulant and block circulant matrices by the DFT; the closed-form
+//      eigenstructure used by eigenvalues()/eigenvectors(), and the SVD and
+//      pseudo-inverse below, follow from it by taking moduli/phases of the
+//      eigenvalues.
+//  [2] R. H. Chan and X.-Q. Jin, "An Introduction to Iterative Toeplitz
+//      Solvers", SIAM, 2007. BCCB matrices are diagonalized by the 2-D DFT
+//      F_{n1} (x) F_{n2}; the FFT-based products and solves below, and the use
+//      of BCCB operators as preconditioners for two-level Toeplitz (BTTB)
+//      systems, follow this reference.
+//  [3] G. H. Golub and C. F. Van Loan, "Matrix Computations", 4th ed., Johns
+//      Hopkins University Press, 2013, chapter 5.4 (numerical rank conventions).
+
 #ifndef EIGEN_STRUCTURED_BCCB_H
 #define EIGEN_STRUCTURED_BCCB_H
 
@@ -33,7 +47,11 @@ struct traits<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
   static constexpr int ColsAtCompileTime = RowsAtCompileTime;
   static constexpr int MaxRowsAtCompileTime = RowsAtCompileTime;
   static constexpr int MaxColsAtCompileTime = RowsAtCompileTime;
-  static constexpr int Flags = NestByRefBit;
+  // Deliberately no NestByRefBit: transpose(), conjugate() and adjoint() return
+  // owning temporaries, so Product must nest the operator by value for a
+  // delayed-evaluated product expression to keep its left factor alive. The copy
+  // is O(N), negligible against the O(N log N) product evaluation.
+  static constexpr int Flags = 0;
 };
 
 template <typename Scalar_, int BlockSize_, int NumBlocks_>
@@ -59,7 +77,7 @@ struct evaluator_traits<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
  * \c C*vec(X) = vec(G (*) X).
  *
  * BCCB matrices are diagonalized by the 2-D discrete Fourier transform
- * \f$ F_{n_1} \otimes F_{n_2} \f$: the operator's \em symbol -- the 2-D DFT of
+ * \f$ F_{n_1} \otimes F_{n_2} \f$ ([1], [2]): the operator's \em symbol -- the 2-D DFT of
  * \c G, computed once at construction and reused by every product -- holds the
  * eigenvalues. This yields O(N log N) products (\c operator*), an O(N log N)
  * direct (pseudo-inverse) solve (\ref solve), and closed-form factorizations:
@@ -69,7 +87,17 @@ struct evaluator_traits<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
  * \ref transpose, \ref conjugate and \ref adjoint, which reuse the cached symbol.
  * BCCB operators are the workhorse of image deblurring with periodic boundary
  * conditions, and the natural preconditioners for two-level Toeplitz (BTTB)
- * systems.
+ * systems [2].
+ *
+ * The operator stores its own copy of the generating array and derives from
+ * \c EigenBase. Because \c operator* returns an Eigen product expression, a
+ * \c Bccb also drops into the matrix-free iterative solvers, and it can be
+ * assigned to a dense matrix when an explicit representation is needed. As with
+ * any matrix-free operator, the iterative solvers must be instantiated with
+ * \c IdentityPreconditioner (e.g.
+ * \c ConjugateGradient<Bccb<double>,Lower|Upper,IdentityPreconditioner>):
+ * the default preconditioners read individual coefficients through \c col() or
+ * \c InnerIterator, which the structured operators do not expose.
  *
  * The FFTs run at the exact sizes \c n1 and \c n2 (circular convolution allows no
  * padding), so with the default kissfft backend prefer dimensions without large
@@ -90,11 +118,18 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
   using RealScalar = typename NumTraits<Scalar>::Real;
   using StorageIndex = int;
   using Complex = std::complex<RealScalar>;
-  using GeneratorType = Matrix<Scalar, BlockSize_, NumBlocks_>;
-  using ComplexArray = Matrix<Complex, Dynamic, Dynamic>;
+  // The two-level structure keys on the *column-major* flattening of the n2 x n1
+  // generating array and symbol (entry (k2, k1) is flat index k1*n2 + k2), so
+  // every internal 2-D type is pinned to ColMajor explicitly: the semantics must
+  // not change under EIGEN_DEFAULT_TO_ROW_MAJOR. The single-row special case
+  // only satisfies Eigen's rule that 1 x n matrices be row-major; with one row
+  // the two orders coincide.
+  using GeneratorType =
+      Matrix<Scalar, BlockSize_, NumBlocks_, (BlockSize_ == 1 && NumBlocks_ != 1) ? int(RowMajor) : int(ColMajor)>;
+  using ComplexArray = Matrix<Complex, Dynamic, Dynamic, ColMajor>;
   using ComplexVector = Matrix<Complex, Dynamic, 1>;
   using RealVector = Matrix<RealScalar, Dynamic, 1>;
-  using ComplexMatrix = Matrix<Complex, Dynamic, Dynamic>;
+  using ComplexMatrix = Matrix<Complex, Dynamic, Dynamic, ColMajor>;
 
   static constexpr int RowsAtCompileTime = internal::bccb_dim(BlockSize_, NumBlocks_);
   static constexpr int ColsAtCompileTime = RowsAtCompileTime;
@@ -165,38 +200,45 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
 
   /** \returns the minimum-norm least-squares solution of \c (*this) * x = b,
    * computed directly in the 2-D Fourier domain. Symbol entries whose modulus
-   * exceeds the rank threshold (see \ref rank) are inverted; the remaining ones
+   * reaches the rank threshold (see \ref rank) are inverted; the remaining ones
    * are treated as exact zeros, so the result is the pseudo-inverse applied to
    * \a b. For a non-singular operator this is the exact solution. Supports
    * multiple right-hand sides. */
   template <typename Rhs>
   Matrix<Scalar, RowsAtCompileTime, Rhs::ColsAtCompileTime> solve(const MatrixBase<Rhs>& b) const {
+    EIGEN_STATIC_ASSERT(RowsAtCompileTime == Dynamic || Rhs::RowsAtCompileTime == Dynamic ||
+                            int(RowsAtCompileTime) == int(Rhs::RowsAtCompileTime),
+                        YOU_MIXED_MATRICES_OF_DIFFERENT_SIZES)
     const Index N = rows();
     eigen_assert(b.rows() == N && "right-hand side has the wrong number of rows");
     const ComplexArray s = symbol();
     const RealScalar tol = rankThreshold(s);
     ComplexArray sinv(s.rows(), s.cols());
-    // The negated comparison keeps NaN symbol entries in the inverted set, so a
-    // NaN input propagates to the output instead of being silently zeroed.
+    // Strictly-below-threshold entries are zeroed, matching SVDBase::rank(), so a
+    // smallest-normal 1x1 operator stays invertible. The negated comparison keeps
+    // NaN symbol entries in the inverted set, so a NaN input propagates to the
+    // output instead of being silently zeroed.
     for (Index k1 = 0; k1 < s.cols(); ++k1)
       for (Index k2 = 0; k2 < s.rows(); ++k2)
-        sinv(k2, k1) = !(numext::abs(s(k2, k1)) <= tol) ? Complex(1) / s(k2, k1) : Complex(0);
+        sinv(k2, k1) = !(numext::abs(s(k2, k1)) < tol) ? Complex(1) / s(k2, k1) : Complex(0);
     Matrix<Scalar, RowsAtCompileTime, Rhs::ColsAtCompileTime> x(N, b.cols());
     applySymbol(x, sinv, b.derived(), Scalar(1), /*accumulate=*/false);
     return x;
   }
 
-  /** \returns the numerical rank: the number of symbol entries whose modulus
-   * exceeds the threshold \c N * epsilon * max|symbol|, clamped from below like
-   * \c SVDBase::rank(). This is the same threshold \ref solve uses to decide
-   * which Fourier components to invert. */
+  /** \returns the numerical rank: the number of symbol entries whose modulus is
+   * no smaller than the threshold \c N * epsilon * max|symbol|, clamped from
+   * below like \c SVDBase::rank(). This is the same threshold \ref solve uses to
+   * decide which Fourier components to invert, and the comparison is strict like
+   * SVDBase's, so an entry sitting exactly on the threshold still counts as
+   * non-zero. */
   Index rank() const {
     const ComplexArray s = symbol();
     const RealScalar tol = rankThreshold(s);
     Index r = 0;
     for (Index k1 = 0; k1 < s.cols(); ++k1)
       for (Index k2 = 0; k2 < s.rows(); ++k2)
-        if (!(numext::abs(s(k2, k1)) <= tol)) ++r;  // negated so NaN entries count as non-zero
+        if (!(numext::abs(s(k2, k1)) < tol)) ++r;  // negated so NaN entries count as non-zero
     return r;
   }
 
@@ -213,14 +255,24 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
   }
 
   /** \returns the determinant, i.e. the product of the eigenvalues (the symbol
-   * entries). For a real operator the product is real up to roundoff, and its
-   * real part is returned. */
+   * entries). The product is accumulated in the balanced form \c m * 2^e -- every
+   * factor and the running product are renormalized to unit magnitude with the
+   * power of two tracked separately -- so the partial products can neither
+   * overflow nor underflow when the determinant itself is representable, whatever
+   * the ordering of large and small eigenvalues. For a real operator the product
+   * is real up to roundoff, and its real part is returned. */
   Scalar determinant() const {
     const ComplexArray s = symbol();
     Complex det(1);
+    Index exponent = 0;
     for (Index k1 = 0; k1 < s.cols(); ++k1)
-      for (Index k2 = 0; k2 < s.rows(); ++k2) det *= s(k2, k1);
-    return toScalar(det, std::is_same<RealScalar, Scalar>());
+      for (Index k2 = 0; k2 < s.rows(); ++k2) det = balance(det * balance(s(k2, k1), exponent), exponent);
+    // ldexp saturates cleanly to zero / infinity once the accumulated exponent
+    // leaves the representable range; the clamp only guards the narrowing to int.
+    constexpr Index kMaxExponent = Index(1) << 24;
+    const int e = static_cast<int>(numext::mini(numext::maxi(exponent, -kMaxExponent), kMaxExponent));
+    return toScalar(Complex(std::ldexp(numext::real(det), e), std::ldexp(numext::imag(det), e)),
+                    std::is_same<RealScalar, Scalar>());
   }
 
   /** \returns the eigenvalues as the column-major flattening of the symbol:
@@ -339,12 +391,18 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
    * 2-D-FFT-based matrix-vector product. */
   template <typename Rhs>
   Product<Bccb, Rhs, AliasFreeProduct> operator*(const MatrixBase<Rhs>& x) const {
+    EIGEN_STATIC_ASSERT(ColsAtCompileTime == Dynamic || Rhs::RowsAtCompileTime == Dynamic ||
+                            int(ColsAtCompileTime) == int(Rhs::RowsAtCompileTime),
+                        INVALID_MATRIX_PRODUCT)
+    eigen_assert(x.rows() == cols() && "invalid product: dimensions do not match");
     return Product<Bccb, Rhs, AliasFreeProduct>(*this, x.derived());
   }
 
-  /** \internal Computes \c dst += alpha * (*this) * rhs. */
-  template <typename Dest, typename Rhs>
-  void addProduct(Dest& dst, const Rhs& rhs, const Scalar& alpha) const {
+  /** \internal Computes \c dst += alpha * (*this) * rhs. \c ProductScalar is the
+   * promoted scalar of the product (complex when a real operator is applied to a
+   * complex right-hand side); the accumulation runs in the promoted type. */
+  template <typename Dest, typename Rhs, typename ProductScalar>
+  void addProduct(Dest& dst, const Rhs& rhs, const ProductScalar& alpha) const {
     const Index N = rows();
     eigen_assert(rhs.rows() == N && "invalid product: dimensions do not match");
 
@@ -354,7 +412,7 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
       // the within-block segments are too short at these sizes.)
       for (Index k = 0; k < rhs.cols(); ++k)
         for (Index i = 0; i < N; ++i) {
-          Scalar acc(0);
+          ProductScalar acc(0);
           for (Index j = 0; j < N; ++j) acc += coeff(i, j) * rhs.coeff(j, k);
           dst.coeffRef(i, k) += alpha * acc;
         }
@@ -372,26 +430,77 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
   Bccb(const GeneratorType& g, const ComplexArray& symbol) : m_g(g), m_symbol(symbol) {}
 
   /** \internal Applies the operator whose 2-D symbol is \a s to every column of
-   * \a rhs: reshape to n2 x n1, 2-D FFT, multiply by \a s, back-transform, take
-   * the \c Scalar part. Adds into \a dst when \a accumulate, overwrites
-   * otherwise. */
-  template <typename Dest, typename Rhs>
-  void applySymbol(Dest& dst, const ComplexArray& s, const Rhs& rhs, const Scalar& alpha, bool accumulate) const {
+   * \a rhs: reshape to n2 x n1 (column-major), 2-D FFT, multiply by \a s,
+   * back-transform, take the \c ProductScalar part. Adds into \a dst when
+   * \a accumulate, overwrites otherwise.
+   *
+   * The transforms sum up to \c N inputs, so intermediates can overflow even
+   * when every entry of the true result is representable. To keep the whole
+   * pipeline overflow-free for finite inputs anywhere in the floating-point
+   * range, the symbol and each right-hand-side column are rescaled by the exact
+   * power of two that brings their maximum modulus into [0.5, 1) -- huge
+   * generators make huge symbols, hence both sides -- and the removed exponent
+   * is folded back into the output through per-entry ldexp, which saturates
+   * cleanly to zero or infinity if the true result itself leaves the
+   * representable range. Zero columns short-circuit to zero; genuine NaN or
+   * infinity inputs propagate through the unscaled transforms. */
+  template <typename Dest, typename Rhs, typename ProductScalar>
+  void applySymbol(Dest& dst, const ComplexArray& s, const Rhs& rhs, const ProductScalar& alpha,
+                   bool accumulate) const {
     const Index n2 = blockSize(), n1 = numBlocks(), N = rows();
-    Matrix<Scalar, Dynamic, 1> xc(N);
+    const int es = magnitudeExponent(s.cwiseAbs().maxCoeff());
+    ComplexArray sScaled;
+    if (es != 0) {
+      sScaled = s;
+      ldexpInPlace(sScaled, -es);
+    }
+    const ComplexArray& sUse = es != 0 ? sScaled : s;
+    Matrix<ProductScalar, Dynamic, 1> xc(N);
     ComplexArray X(n2, n1);
     for (Index k = 0; k < rhs.cols(); ++k) {
-      xc = rhs.col(k);
-      X = Map<const Matrix<Scalar, Dynamic, Dynamic>>(xc.data(), n2, n1).template cast<Complex>();
+      xc = rhs.col(k).template cast<ProductScalar>();
+      const RealScalar xmax = xc.cwiseAbs().maxCoeff();
+      if (xmax == RealScalar(0) && !xc.hasNaN()) {
+        // An exactly zero column maps to an exactly zero column.
+        if (!accumulate) dst.col(k).setZero();
+        continue;
+      }
+      const int ex = magnitudeExponent(xmax);
+      X = Map<const Matrix<ProductScalar, Dynamic, Dynamic, ColMajor>>(xc.data(), n2, n1).template cast<Complex>();
+      ldexpInPlace(X, -ex);
       fft2(X);
-      X.array() *= s.array();
+      X.array() *= sUse.array();
       ifft2(X);
+      ldexpInPlace(X, ex + es);
       const Map<const ComplexVector> xv(X.data(), N);
       if (accumulate)
-        dst.col(k) += alpha * internal::structured_scalar_part_impl<Scalar>::run(xv);
+        dst.col(k) += alpha * internal::structured_scalar_part_impl<ProductScalar>::run(xv);
       else
-        dst.col(k) = alpha * internal::structured_scalar_part_impl<Scalar>::run(xv);
+        dst.col(k) = alpha * internal::structured_scalar_part_impl<ProductScalar>::run(xv);
     }
+  }
+
+  /** \internal \returns the binary exponent of \a mag in the frexp convention
+   * (\c mag = f * 2^e with \c f in [0.5, 1)), or 0 when \a mag is zero or
+   * non-finite so that such values are left unscaled and NaN / infinity inputs
+   * propagate through the transforms untouched. */
+  static int magnitudeExponent(const RealScalar& mag) {
+    if (!(mag > RealScalar(0)) || !(numext::isfinite)(mag)) return 0;
+    int e;
+    std::frexp(mag, &e);
+    return e;
+  }
+
+  /** \internal Multiplies every entry of \a X by 2^e, exactly. The per-entry
+   * ldexp saturates to zero / infinity component-wise without ever forming the
+   * (possibly unrepresentable) scale factor 2^e itself. */
+  static void ldexpInPlace(ComplexArray& X, int e) {
+    if (e == 0) return;
+    for (Index k1 = 0; k1 < X.cols(); ++k1)
+      for (Index k2 = 0; k2 < X.rows(); ++k2) {
+        Complex& z = X.coeffRef(k2, k1);
+        z = Complex(std::ldexp(numext::real(z), e), std::ldexp(numext::imag(z), e));
+      }
   }
 
   /** \internal In-place 2-D FFT by the row-column algorithm: transform every
@@ -463,12 +572,28 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
   }
 
   /** \internal \returns the rank/pseudo-inversion threshold for \a s, in the
-   * spirit of the SVD-based pseudo-inverse: N * epsilon * max|s|, clamped from
-   * below like SVDBase::rank() so an all-tiny (or all-zero) symbol yields rank
-   * zero instead of overflowing 1/s in solve(). */
+   * spirit of the SVD-based pseudo-inverse (the N * epsilon * max|s| convention
+   * of [3], chapter 5.4): clamped from below at the smallest normal number so
+   * subnormal and zero symbol entries -- whose reciprocals overflow -- are
+   * treated as exact zeros. Entries at or above the threshold, in particular a
+   * smallest-normal entry, are inverted (their reciprocals are finite). */
   static RealScalar rankThreshold(const ComplexArray& s) {
     return numext::maxi(RealScalar(s.size()) * NumTraits<RealScalar>::epsilon() * s.cwiseAbs().maxCoeff(),
                         (std::numeric_limits<RealScalar>::min)());
+  }
+
+  /** \internal Rescales \a z by the power of two that brings \c max(|re|,|im|)
+   * into [0.5, 1), accumulating the removed exponent into \a exponent. The
+   * rescaling is exact, so no roundoff is introduced. Zeros and non-finite
+   * values, which must propagate exactly through determinant(), are returned
+   * untouched. */
+  static Complex balance(const Complex& z, Index& exponent) {
+    const RealScalar mag = numext::maxi(numext::abs(numext::real(z)), numext::abs(numext::imag(z)));
+    if (!(mag > RealScalar(0)) || !(numext::isfinite)(mag)) return z;
+    int e;
+    std::frexp(mag, &e);
+    exponent += e;
+    return Complex(std::ldexp(numext::real(z), -e), std::ldexp(numext::imag(z), -e));
   }
 
   /** \internal Writes the unit-norm 2-D Fourier eigenvector of frequencies
