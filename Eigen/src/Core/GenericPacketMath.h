@@ -860,7 +860,11 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet psignmask() {
  * -ffinite-math-only) an infinity or NaN literal is undefined behavior, and clang turns it
  * into a poison value that deletes the surrounding special-case handling — or the entire
  * containing expression — at compile time. The bit pattern is inert: comparisons against it
- * simply fold to false when the compiler assumes finite math.
+ * simply fold to false when the compiler assumes finite math, and selects using it as an arm
+ * keep or drop the special case as appropriate. This is the same (long-standing) idiom plog
+ * has always used for its infinity constants. No EIGEN_FAST_MATH_CONSTANT_BARRIER is needed
+ * here — that is only required for all-ones (NaN bit pattern) masks like ptrue/peven_mask,
+ * which clang actively folds to poison.
  */
 template <typename Packet>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet pinf() {
@@ -869,20 +873,7 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet pinf() {
   constexpr int kMantissaBits = std::numeric_limits<Scalar>::digits - 1;
   constexpr int kExponentBits = static_cast<int>(CHAR_BIT * sizeof(Scalar)) - 1 - kMantissaBits;
   constexpr Bits kInf = static_cast<Bits>(((Bits(1) << kExponentBits) - 1) << kMantissaBits);
-#if EIGEN_FAST_MATH_CONSTANT_BARRIER_ACTIVE
-  // Assembled lane by lane from the bit pattern (an infinity literal is undefined behavior
-  // under fast-math; see EIGEN_FAST_MATH_CONSTANT_BARRIER in Macros.h).
-  Packet b;
-  char* bytes = reinterpret_cast<char*>(&b);
-  EIGEN_USING_STD(memcpy)
-  for (size_t i = 0; i < unpacket_traits<Packet>::size; ++i) {
-    memcpy(bytes + i * sizeof(Bits), &kInf, sizeof(Bits));
-  }
-  EIGEN_FAST_MATH_CONSTANT_BARRIER(b);
-  return b;
-#else
   return pset1frombits<Packet, Bits>(kInf);
-#endif
 }
 
 /** \internal \returns a packet with all coefficients set to a quiet NaN, constructed from the
@@ -895,18 +886,7 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet pnan() {
   constexpr int kExponentBits = static_cast<int>(CHAR_BIT * sizeof(Scalar)) - 1 - kMantissaBits;
   constexpr Bits kInf = static_cast<Bits>(((Bits(1) << kExponentBits) - 1) << kMantissaBits);
   constexpr Bits kNaN = static_cast<Bits>(kInf | (Bits(1) << (kMantissaBits - 1)));
-#if EIGEN_FAST_MATH_CONSTANT_BARRIER_ACTIVE
-  Packet b;
-  char* bytes = reinterpret_cast<char*>(&b);
-  EIGEN_USING_STD(memcpy)
-  for (size_t i = 0; i < unpacket_traits<Packet>::size; ++i) {
-    memcpy(bytes + i * sizeof(Bits), &kNaN, sizeof(Bits));
-  }
-  EIGEN_FAST_MATH_CONSTANT_BARRIER(b);
-  return b;
-#else
   return pset1frombits<Packet, Bits>(kNaN);
-#endif
 }
 
 template <typename Scalar, std::enable_if_t<std::is_trivially_copyable<Scalar>::value, int> = 0>
