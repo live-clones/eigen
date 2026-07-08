@@ -159,7 +159,8 @@ void test_dplr_matrix_free_gmres(Index n, Index k) {
   gmres.compute(A);
   Vec x = gmres.solve(b);
   VERIFY(gmres.info() == Success);
-  VERIFY((dense * x - b).norm() <= RealScalar(1e-9) * b.norm());
+  const RealScalar tol = RealScalar(5e6) * NumTraits<RealScalar>::epsilon();  // ~1e-9 in double
+  VERIFY((dense * x - b).norm() <= tol * b.norm());
 }
 
 template <typename Scalar, int N, int K>
