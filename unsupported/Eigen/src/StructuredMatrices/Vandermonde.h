@@ -33,7 +33,12 @@ struct traits<Vandermonde<Scalar_, Rows_, Cols_>> {
   static constexpr int ColsAtCompileTime = Cols_;
   static constexpr int MaxRowsAtCompileTime = Rows_;
   static constexpr int MaxColsAtCompileTime = Cols_;
-  static constexpr int Flags = NestByRefBit;
+  // Deliberately no NestByRefBit: the makeVandermonde() factories (and any
+  // function returning the operator by value) produce owning temporaries, so
+  // Product must nest the operator by value for a delayed-evaluated product
+  // expression to keep its left factor alive. The copy is O(m), negligible
+  // against the O(mn) product evaluation.
+  static constexpr int Flags = 0;
 };
 
 template <typename Scalar_, int Rows_, int Cols_>
@@ -69,6 +74,15 @@ struct traits<BjorckPereyra<Scalar_>> : traits<Matrix<Scalar_, Dynamic, Dynamic>
  * (moment) system. There is no fast transposed \em product, so the class is not
  * closed under transposition and rectangular least-squares problems are best
  * handled by a dense QR of the materialized matrix.
+ *
+ * Because \c operator* returns an Eigen product expression, a \c Vandermonde
+ * also drops into the matrix-free iterative solvers, and it can be assigned to
+ * a dense matrix when an explicit representation is needed. As with any
+ * matrix-free operator, the iterative solvers must be instantiated with
+ * \c IdentityPreconditioner (e.g.
+ * \c BiCGSTAB<Vandermonde<double>,IdentityPreconditioner>): the default
+ * preconditioners read individual coefficients through \c col() or
+ * \c InnerIterator, which the structured operators do not expose.
  *
  * \warning Vandermonde matrices with real nodes are exponentially
  * ill-conditioned: the condition number grows at least like \f$ 2^n \f$ for any
@@ -131,14 +145,25 @@ class Vandermonde : public EigenBase<Vandermonde<Scalar_, Rows_, Cols_>> {
   }
 
   /** \returns the determinant of a \b square Vandermonde matrix through the
-   * closed form \f$ \prod_{i<j} (x_j - x_i) \f$, in O(n^2) operations. */
+   * closed form \f$ \prod_{i<j} (x_j - x_i) \f$, in O(n^2) operations. The
+   * product is accumulated in the balanced form \c m * 2^e -- every factor and
+   * the running product are renormalized to unit magnitude with the power of two
+   * tracked separately -- so the partial products can neither overflow nor
+   * underflow when the determinant itself is representable, whatever the spread
+   * of the nodes. Zero factors (repeated nodes, giving an exactly singular
+   * matrix) and non-finite factors propagate exactly. */
   Scalar determinant() const {
     eigen_assert(rows() == cols() && "Vandermonde::determinant requires a square matrix");
     const Index n = rows();
     Scalar det(1);
+    Index exponent = 0;
     for (Index j = 1; j < n; ++j)
-      for (Index i = 0; i < j; ++i) det *= m_x.coeff(j) - m_x.coeff(i);
-    return det;
+      for (Index i = 0; i < j; ++i) det = balance(det * balance(m_x.coeff(j) - m_x.coeff(i), exponent), exponent);
+    // ldexp saturates cleanly to zero / infinity once the accumulated exponent
+    // leaves the representable range; the clamp only guards the narrowing to int.
+    constexpr Index kMaxExponent = Index(1) << 24;
+    const int e = static_cast<int>(numext::mini(numext::maxi(exponent, -kMaxExponent), kMaxExponent));
+    return ldexpImpl(det, e, internal::bool_constant<NumTraits<Scalar>::IsComplex>());
   }
 
   /** \internal Writes the dense representation into \a dst: column \c j is the
@@ -180,21 +205,57 @@ class Vandermonde : public EigenBase<Vandermonde<Scalar_, Rows_, Cols_>> {
     return Product<Vandermonde, Rhs, AliasFreeProduct>(*this, a.derived());
   }
 
-  /** \internal Computes \c dst += alpha * (*this) * rhs by Horner's rule. */
-  template <typename Dest, typename Rhs>
-  void addProduct(Dest& dst, const Rhs& rhs, const Scalar& alpha) const {
+  /** \internal Computes \c dst += alpha * (*this) * rhs by Horner's rule.
+   * \c ProductScalar is the promoted scalar of the product (complex when a real
+   * operator is applied to a complex right-hand side); the accumulation runs in
+   * the promoted type. */
+  template <typename Dest, typename Rhs, typename ProductScalar>
+  void addProduct(Dest& dst, const Rhs& rhs, const ProductScalar& alpha) const {
     const Index m = rows(), n = m_cols;
     eigen_assert(rhs.rows() == n && "invalid product: dimensions do not match");
     for (Index k = 0; k < rhs.cols(); ++k)
       for (Index i = 0; i < m; ++i) {
         const Scalar xi = m_x.coeff(i);
-        Scalar acc = rhs.coeff(n - 1, k);
+        ProductScalar acc = rhs.coeff(n - 1, k);
         for (Index j = n - 2; j >= 0; --j) acc = acc * xi + rhs.coeff(j, k);
         dst.coeffRef(i, k) += alpha * acc;
       }
   }
 
  private:
+  /** \internal Rescales \a z by the power of two that brings its magnitude (the
+   * max-norm of the parts for a complex \a z) into [0.5, 1), accumulating the
+   * removed exponent into \a exponent. The rescaling is exact, so no roundoff is
+   * introduced. Zeros and non-finite values, which must propagate exactly
+   * through determinant(), are returned untouched. Only the overload matching
+   * the realness of \c Scalar is ever instantiated. */
+  static Scalar balance(const Scalar& z, Index& exponent) {
+    return balanceImpl(z, exponent, internal::bool_constant<NumTraits<Scalar>::IsComplex>());
+  }
+
+  static Scalar balanceImpl(const Scalar& z, Index& exponent, std::false_type) {
+    if (!(numext::abs(z) > RealScalar(0)) || !(numext::isfinite)(z)) return z;
+    int e;
+    std::frexp(z, &e);
+    exponent += e;
+    return std::ldexp(z, -e);
+  }
+
+  static Scalar balanceImpl(const Scalar& z, Index& exponent, std::true_type) {
+    const RealScalar mag = numext::maxi(numext::abs(numext::real(z)), numext::abs(numext::imag(z)));
+    if (!(mag > RealScalar(0)) || !(numext::isfinite)(mag)) return z;
+    int e;
+    std::frexp(mag, &e);
+    exponent += e;
+    return Scalar(std::ldexp(numext::real(z), -e), std::ldexp(numext::imag(z), -e));
+  }
+
+  /** \internal \returns \a z scaled by \c 2^e, part-wise for a complex \a z. */
+  static Scalar ldexpImpl(const Scalar& z, int e, std::false_type) { return std::ldexp(z, e); }
+  static Scalar ldexpImpl(const Scalar& z, int e, std::true_type) {
+    return Scalar(std::ldexp(numext::real(z), e), std::ldexp(numext::imag(z), e));
+  }
+
   NodeVector m_x;
   Index m_cols;
 };
