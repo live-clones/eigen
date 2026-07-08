@@ -342,6 +342,43 @@ void test_toeplitz_mixed_scalar(Index m, Index n) {
   VERIFY_IS_APPROX(y, (dense * x).eval());
 }
 
+// The FFT product path accumulates up to p addends per transform, so a finite
+// right-hand side near the overflow threshold (or a huge generator) used to
+// overflow inside the transforms and return NaN for a representable result. The
+// power-of-two scaled path must stay finite and accurate.
+template <typename RealScalar>
+void test_structured_fft_overflow(Index n) {
+  typedef Matrix<RealScalar, Dynamic, 1> Vec;
+  // FFT-transform roundoff bound for the identity round trip.
+  const RealScalar kFftRoundTripTol = RealScalar(100) * NumTraits<RealScalar>::epsilon();
+  const RealScalar huge = (std::numeric_limits<RealScalar>::max)() / RealScalar(16);
+
+  // Identity circulant applied to a huge finite vector returns it unchanged.
+  Vec c = Vec::Zero(n);
+  c[0] = RealScalar(1);
+  Circulant<RealScalar> C(c);
+  Vec x = Vec::Constant(n, huge);
+  Vec y = C * x;
+  VERIFY(y.allFinite());
+  VERIFY(((y - x).cwiseAbs() / huge).maxCoeff() <= kFftRoundTripTol);
+
+  // A huge generator applied to a moderate vector: every output entry is huge
+  // but representable.
+  Circulant<RealScalar> Ch(Vec(huge * c));
+  Vec ones = Vec::Ones(n);
+  Vec z = Ch * ones;
+  VERIFY(z.allFinite());
+  VERIFY(((z.array() - huge).abs() / huge).maxCoeff() <= kFftRoundTripTol);
+
+  // Identity Toeplitz, same huge right-hand side.
+  Vec r = Vec::Zero(n);
+  r[0] = c[0];
+  Toeplitz<RealScalar> T(c, r);
+  Vec w = T * x;
+  VERIFY(w.allFinite());
+  VERIFY(((w - x).cwiseAbs() / huge).maxCoeff() <= kFftRoundTripTol);
+}
+
 // Closed-form eigendecomposition: C * V = V * diag(eigenvalues) with V unitary.
 template <typename Scalar>
 void test_circulant_eigen(Index n) {
@@ -963,6 +1000,9 @@ EIGEN_DECLARE_TEST(structured_matrices) {
     CALL_SUBTEST_8((test_toeplitz_mixed_scalar<double>(64, 40)));
     CALL_SUBTEST_8(test_circulant_determinant_scaled());
     CALL_SUBTEST_8(test_circulant_rank_boundaries());
+    CALL_SUBTEST_8((test_structured_fft_overflow<double>(40)));
+    CALL_SUBTEST_8((test_structured_fft_overflow<double>(97)));  // prime, no 5-smooth padding
+    CALL_SUBTEST_8((test_structured_fft_overflow<float>(40)));
 
     // Look-ahead Levinson direct Toeplitz solver.
     CALL_SUBTEST_5((test_levinson_wellcond<double>(1)));
