@@ -199,6 +199,47 @@ void test_toeplitz_transpose(Index m, Index n) {
   VERIFY_IS_EQUAL(Ttt.symbol(), T.symbol());
 }
 
+// transpose()/conjugate()/adjoint() return owning temporaries, so the product
+// expression must nest the structured operand by value: a delayed-evaluated
+// expression has to outlive the temporary operator it was built from. The static
+// check pins the value nesting; the behavioral check would read freed memory if
+// the product held a reference instead.
+template <typename Scalar>
+void test_circulant_delayed_product(Index n) {
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+
+  STATIC_CHECK(!std::is_reference<typename internal::ref_selector<Circulant<Scalar>>::type>::value);
+
+  Vec c = Vec::Random(n), x = Vec::Random(n);
+  Circulant<Scalar> C(c);
+  Mat dense = reference_circulant<Scalar>(c);
+
+  auto expr = C.adjoint() * x;        // the adjoint temporary dies with the full expression
+  Vec scribble = Vec::Random(2 * n);  // reuses the temporary's freed heap storage
+  Vec y = expr;
+  VERIFY_IS_APPROX(y, (dense.adjoint() * x).eval());
+  VERIFY_IS_EQUAL(scribble.size(), 2 * n);  // keep the scribble alive across the evaluation
+}
+
+template <typename Scalar>
+void test_toeplitz_delayed_product(Index m, Index n) {
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+
+  STATIC_CHECK(!std::is_reference<typename internal::ref_selector<Toeplitz<Scalar>>::type>::value);
+
+  Vec c = Vec::Random(m), r = Vec::Random(n), y = Vec::Random(m);
+  Toeplitz<Scalar> T(c, r);
+  Mat dense = reference_toeplitz<Scalar>(c, r);
+
+  auto expr = T.adjoint() * y;
+  Vec scribble = Vec::Random(m + n);
+  Vec x = expr;
+  VERIFY_IS_APPROX(x, (dense.adjoint() * y).eval());
+  VERIFY_IS_EQUAL(scribble.size(), m + n);
+}
+
 // Closed-form eigendecomposition: C * V = V * diag(eigenvalues) with V unitary.
 template <typename Scalar>
 void test_circulant_eigen(Index n) {
@@ -361,6 +402,77 @@ void test_circulant_determinant(Index n) {
   Circulant<Scalar> C(c);
   Mat dense = reference_circulant<Scalar>(c);
   VERIFY_IS_APPROX(C.determinant(), dense.determinant());
+}
+
+// Spectra with a wide dynamic range: the determinant is representable, but a
+// plain product of the eigenvalues in FFT order overflows to infinity (or
+// underflows to an exact zero) partway through. Pins the balanced accumulation
+// in determinant().
+void test_circulant_determinant_scaled() {
+  typedef Matrix<double, Dynamic, 1> Vec;
+  typedef Matrix<std::complex<double>, Dynamic, 1> CVec;
+  const Index n = 1000;
+
+  // 653 eigenvalues `lead` and 347 eigenvalues `rest`, arranged symmetrically
+  // (s[k] == s[n-k]) so the generator is real, with the leading 327 FFT-order
+  // indices all equal to `lead` so the plain running product leaves the
+  // representable range partway through.
+  auto generator = [n](double lead, double rest) {
+    Vec mag = Vec::Constant(n, rest);
+    mag[0] = lead;
+    for (Index k = 1; k <= 326; ++k) mag[k] = mag[n - k] = lead;
+    CVec s = mag.cast<std::complex<double>>();
+    CVec ct(n);
+    FFT<double> fft;
+    fft.inv(ct, s, n);
+    return Vec(ct.real());
+  };
+
+  // The spectrum is only reproduced up to the FFT round trip's forward error,
+  // and the determinant multiplies ~1e3 such factors.
+  const double tol = 1e8 * NumTraits<double>::epsilon();
+  {
+    // det = 10^653 * 10^-347 = 1e306; the naive partial product reaches 1e327.
+    Circulant<double> C(generator(10.0, 0.1));
+    const double det = C.determinant();
+    VERIFY((numext::isfinite)(det));
+    VERIFY(numext::abs(det / 1e306 - 1.0) <= tol);
+  }
+  {
+    // det = 10^-653 * 10^347 = 1e-306; the naive partial product reaches 1e-327,
+    // well below the smallest subnormal, and flushes to an exact zero.
+    Circulant<double> C(generator(0.1, 10.0));
+    const double det = C.determinant();
+    VERIFY(det != 0.0);
+    VERIFY(numext::abs(det / 1e-306 - 1.0) <= tol);
+  }
+}
+
+// The rank decision at the clamped threshold (the smallest normal number): a
+// smallest-normal symbol entry is still inverted -- the comparison is strict,
+// matching SVDBase::rank(), which likewise reports rank one -- a subnormal entry
+// is treated as an exact zero, and non-finite entries count as non-zero.
+void test_circulant_rank_boundaries() {
+  typedef Matrix<double, Dynamic, 1> Vec;
+  const double mn = (std::numeric_limits<double>::min)();
+  const Vec b = Vec::Ones(1);
+  {
+    Circulant<double> C(Vec(Vec::Constant(1, mn)));
+    VERIFY_IS_EQUAL(C.rank(), 1);
+    Vec x = C.solve(b);
+    VERIFY((numext::isfinite)(x[0]));
+    VERIFY_IS_APPROX(x[0], 1.0 / mn);
+  }
+  {
+    Circulant<double> C(Vec(Vec::Constant(1, mn / 2)));  // subnormal
+    VERIFY_IS_EQUAL(C.rank(), 0);
+    VERIFY(C.solve(b).isZero());
+  }
+  {
+    Circulant<double> C(Vec(Vec::Constant(1, std::numeric_limits<double>::infinity())));
+    VERIFY_IS_EQUAL(C.rank(), 1);
+    VERIFY((numext::isinf)(C.determinant()));
+  }
 }
 
 // Fixed-size operators: generators are stored in fixed-size vectors, products and
@@ -697,6 +809,15 @@ EIGEN_DECLARE_TEST(structured_matrices) {
     CALL_SUBTEST_7((test_circulant_determinant<double>(1)));
     CALL_SUBTEST_7((test_circulant_determinant<double>(12)));
     CALL_SUBTEST_7((test_circulant_determinant<std::complex<double>>(9)));
+
+    // Numerical and lifetime boundaries: value-nested (owning) delayed products,
+    // the balanced determinant accumulation, and the rank threshold boundary.
+    CALL_SUBTEST_8((test_circulant_delayed_product<double>(24)));
+    CALL_SUBTEST_8((test_circulant_delayed_product<std::complex<double>>(48)));
+    CALL_SUBTEST_8((test_toeplitz_delayed_product<double>(40, 24)));
+    CALL_SUBTEST_8((test_toeplitz_delayed_product<std::complex<float>>(12, 8)));
+    CALL_SUBTEST_8(test_circulant_determinant_scaled());
+    CALL_SUBTEST_8(test_circulant_rank_boundaries());
 
     // Look-ahead Levinson direct Toeplitz solver.
     CALL_SUBTEST_5((test_levinson_wellcond<double>(1)));
