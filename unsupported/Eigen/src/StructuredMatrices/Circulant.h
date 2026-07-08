@@ -7,6 +7,17 @@
 // SPDX-FileCopyrightText: The Eigen Authors
 // SPDX-License-Identifier: MPL-2.0
 
+// References:
+//  [1] P. J. Davis, "Circulant Matrices", Wiley, 1979. Diagonalization of a
+//      circulant matrix by the DFT and the closed-form eigenstructure used by
+//      eigenvalues()/eigenvectors(); the SVD and pseudo-inverse below follow
+//      from it by taking moduli/phases of the eigenvalues.
+//  [2] R. M. Gray, "Toeplitz and Circulant Matrices: A Review", Foundations and
+//      Trends in Communications and Information Theory, 2(3), 2006.
+//  [3] G. H. Golub and C. F. Van Loan, "Matrix Computations", 4th ed., Johns
+//      Hopkins University Press, 2013, chapter 4.8 (circulant systems and
+//      FFT-based products) and chapter 5.4 (numerical rank conventions).
+
 #ifndef EIGEN_STRUCTURED_CIRCULANT_H
 #define EIGEN_STRUCTURED_CIRCULANT_H
 
@@ -30,7 +41,11 @@ struct traits<Circulant<Scalar_, Size_>> {
   static constexpr int ColsAtCompileTime = Size_;
   static constexpr int MaxRowsAtCompileTime = Size_;
   static constexpr int MaxColsAtCompileTime = Size_;
-  static constexpr int Flags = NestByRefBit;
+  // Deliberately no NestByRefBit: transpose(), conjugate() and adjoint() return
+  // owning temporaries, so Product must nest the operator by value for a
+  // delayed-evaluated product expression to keep its left factor alive. The copy
+  // is O(n), negligible against the O(n log n) product evaluation.
+  static constexpr int Flags = 0;
 };
 
 template <typename Scalar_, int Size_>
@@ -60,7 +75,12 @@ struct evaluator_traits<Circulant<Scalar_, Size_>> {
  * The operator stores its own copy of the generating column and derives from
  * \c EigenBase. Because \c operator* returns an Eigen product expression, a
  * \c Circulant also drops into the matrix-free iterative solvers, and it can be
- * assigned to a dense matrix when an explicit representation is needed.
+ * assigned to a dense matrix when an explicit representation is needed. As with
+ * any matrix-free operator, the iterative solvers must be instantiated with
+ * \c IdentityPreconditioner (e.g.
+ * \c ConjugateGradient<Circulant<double>,Lower|Upper,IdentityPreconditioner>):
+ * the default preconditioners read individual coefficients through \c col() or
+ * \c InnerIterator, which the structured operators do not expose.
  *
  * \tparam Scalar_ the scalar type, real or complex.
  * \tparam Size_ the dimension at compile time, or \c Dynamic (the default).
@@ -192,7 +212,7 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
   }
 
   /** \returns the minimum-norm least-squares solution of \c (*this) * x = b,
-   * computed directly in the Fourier domain. Symbol entries whose modulus exceeds
+   * computed directly in the Fourier domain. Symbol entries whose modulus reaches
    * the rank threshold (see \ref rank) are inverted; the remaining ones are
    * treated as exact zeros, so the result is the pseudo-inverse applied to \a b.
    * For a non-singular operator this is the exact solution
@@ -204,9 +224,11 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
     const ComplexVector s = symbol();
     const RealScalar tol = rankThreshold(s);
     ComplexVector sinv(n);
-    // The negated comparison keeps NaN symbol entries in the inverted set, so a
-    // NaN input propagates to the output instead of being silently zeroed.
-    for (Index k = 0; k < n; ++k) sinv[k] = !(numext::abs(s[k]) <= tol) ? Complex(1) / s[k] : Complex(0);
+    // Strictly-below-threshold entries are zeroed, matching SVDBase::rank(), so a
+    // smallest-normal 1x1 operator stays invertible. The negated comparison keeps
+    // NaN symbol entries in the inverted set, so a NaN input propagates to the
+    // output instead of being silently zeroed.
+    for (Index k = 0; k < n; ++k) sinv[k] = !(numext::abs(s[k]) < tol) ? Complex(1) / s[k] : Complex(0);
     Matrix<Scalar, Size_, Rhs::ColsAtCompileTime> x(n, b.cols());
     x.setZero();
     // Applying the circulant operator whose symbol is the (pseudo-)inverse of ours
@@ -215,15 +237,17 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
     return x;
   }
 
-  /** \returns the numerical rank: the number of symbol entries whose modulus
-   * exceeds the threshold \c n * epsilon * max_k|symbol[k]|. This is the same
-   * threshold \ref solve uses to decide which Fourier components to invert. */
+  /** \returns the numerical rank: the number of symbol entries whose modulus is
+   * no smaller than the threshold \c n * epsilon * max_k|symbol[k]|. This is the
+   * same threshold \ref solve uses to decide which Fourier components to invert,
+   * and the comparison is strict like SVDBase's, so an entry sitting exactly on
+   * the threshold still counts as non-zero. */
   Index rank() const {
     const ComplexVector s = symbol();
     const RealScalar tol = rankThreshold(s);
     Index r = 0;
     for (Index k = 0; k < s.size(); ++k)
-      if (!(numext::abs(s[k]) <= tol)) ++r;  // negated so NaN entries count as non-zero
+      if (!(numext::abs(s[k]) < tol)) ++r;  // negated so NaN entries count as non-zero
     return r;
   }
 
@@ -247,13 +271,23 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
   }
 
   /** \returns the determinant, i.e. the product of the eigenvalues (the symbol
-   * entries). For a real operator the product is real up to roundoff, and its
-   * real part is returned. */
+   * entries). The product is accumulated in the balanced form \c m * 2^e -- every
+   * factor and the running product are renormalized to unit magnitude with the
+   * power of two tracked separately -- so the partial products can neither
+   * overflow nor underflow when the determinant itself is representable, whatever
+   * the ordering of large and small eigenvalues. For a real operator the product
+   * is real up to roundoff, and its real part is returned. */
   Scalar determinant() const {
     const ComplexVector s = symbol();
     Complex det(1);
-    for (Index k = 0; k < s.size(); ++k) det *= s[k];
-    return internal::structured_scalar_part_impl<Scalar>::run_scalar(det);
+    Index exponent = 0;
+    for (Index k = 0; k < s.size(); ++k) det = balance(det * balance(s[k], exponent), exponent);
+    // ldexp saturates cleanly to zero / infinity once the accumulated exponent
+    // leaves the representable range; the clamp only guards the narrowing to int.
+    constexpr Index kMaxExponent = Index(1) << 24;
+    const int e = static_cast<int>(numext::mini(numext::maxi(exponent, -kMaxExponent), kMaxExponent));
+    return internal::structured_scalar_part_impl<Scalar>::run_scalar(
+        Complex(std::ldexp(numext::real(det), e), std::ldexp(numext::imag(det), e)));
   }
 
   /** \returns the eigenvalues: eigenvalue \c k is \c symbol()[k], and its
@@ -356,12 +390,28 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
   Circulant(const GeneratorType& col, const ComplexVector& symbol) : m_col(col), m_symbol(symbol) {}
 
   /** \internal \returns the rank/pseudo-inversion threshold for \a s, in the
-   * spirit of the SVD-based pseudo-inverse: n * epsilon * max_k|s[k]|, clamped
-   * from below like SVDBase::rank() so an all-tiny (or all-zero) symbol yields
-   * rank zero instead of overflowing 1/s in solve(). */
+   * spirit of the SVD-based pseudo-inverse (the n * epsilon * max_k|s[k]|
+   * convention of [3], chapter 5.4): clamped from below at the smallest normal
+   * number so subnormal and zero symbol entries -- whose reciprocals overflow --
+   * are treated as exact zeros. Entries at or above the threshold, in particular
+   * a smallest-normal entry, are inverted (their reciprocals are finite). */
   static RealScalar rankThreshold(const ComplexVector& s) {
     return numext::maxi(RealScalar(s.size()) * NumTraits<RealScalar>::epsilon() * s.cwiseAbs().maxCoeff(),
                         (std::numeric_limits<RealScalar>::min)());
+  }
+
+  /** \internal Rescales \a z by the power of two that brings \c max(|re|,|im|)
+   * into [0.5, 1), accumulating the removed exponent into \a exponent. The
+   * rescaling is exact, so no roundoff is introduced. Zeros and non-finite
+   * values, which must propagate exactly through determinant(), are returned
+   * untouched. */
+  static Complex balance(const Complex& z, Index& exponent) {
+    const RealScalar mag = numext::maxi(numext::abs(numext::real(z)), numext::abs(numext::imag(z)));
+    if (!(mag > RealScalar(0)) || !(numext::isfinite)(mag)) return z;
+    int e;
+    std::frexp(mag, &e);
+    exponent += e;
+    return Complex(std::ldexp(numext::real(z), -e), std::ldexp(numext::imag(z), -e));
   }
 
   /** \internal Writes the unit-norm Fourier eigenvector \c f_k into column
