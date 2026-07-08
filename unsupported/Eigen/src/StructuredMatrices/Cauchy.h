@@ -33,7 +33,11 @@ struct traits<Cauchy<Scalar_, Rows_, Cols_>> {
   static constexpr int ColsAtCompileTime = Cols_;
   static constexpr int MaxRowsAtCompileTime = Rows_;
   static constexpr int MaxColsAtCompileTime = Cols_;
-  static constexpr int Flags = NestByRefBit;
+  // Deliberately no NestByRefBit: transpose(), conjugate() and adjoint() return
+  // owning temporaries, so Product must nest the operator by value for a
+  // delayed-evaluated product expression to keep its left factor alive. The copy
+  // is O(m+n), negligible against the O(mn) product evaluation.
+  static constexpr int Flags = 0;
 };
 
 template <typename Scalar_, int Rows_, int Cols_>
@@ -66,6 +70,15 @@ struct traits<CauchyLU<Scalar_>> : traits<Matrix<Scalar_, Dynamic, Dynamic>> {
  * The class is closed under transposition: \f$ C(x,y)^T = C(-y,-x) \f$, and the
  * determinant of a square Cauchy matrix has the classical closed form
  * \f$ \prod_{i<j}(x_j-x_i)(y_i-y_j) \big/ \prod_{i,j}(x_i-y_j) \f$.
+ *
+ * Because \c operator* returns an Eigen product expression, a \c Cauchy also
+ * drops into the matrix-free iterative solvers, and it can be assigned to a
+ * dense matrix when an explicit representation is needed. As with any
+ * matrix-free operator, the iterative solvers must be instantiated with
+ * \c IdentityPreconditioner (e.g.
+ * \c GMRES<Cauchy<double>,IdentityPreconditioner>): the default preconditioners
+ * read individual coefficients through \c col() or \c InnerIterator, which the
+ * structured operators do not expose.
  *
  * Square systems are solved in O(n^2) by \ref CauchyLU, a partially pivoted LU
  * factorization computed through the displacement structure
@@ -139,16 +152,35 @@ class Cauchy : public EigenBase<Cauchy<Scalar_, Rows_, Cols_>> {
 
   /** \returns the determinant of a \b square Cauchy matrix through the classical
    * closed form \f$ \prod_{i<j}(x_j-x_i)(y_i-y_j) \big/ \prod_{i,j}(x_i-y_j) \f$,
-   * in O(n^2) operations. */
+   * in O(n^2) operations. All factors enter a single accumulation kept in the
+   * balanced form \c m * 2^e -- every factor and the running value are
+   * renormalized to unit magnitude with the power of two tracked separately
+   * (exact frexp/ldexp rescaling), numerator factors multiplied in and
+   * denominator factors divided out -- so no intermediate can overflow or
+   * underflow when the determinant itself is representable. Zero factors
+   * (coincident \c x or \c y nodes) and non-finite factors propagate exactly. */
   Scalar determinant() const {
     eigen_assert(rows() == cols() && "Cauchy::determinant requires a square matrix");
     const Index n = rows();
     Scalar det(1);
+    Index exponent = 0;
     for (Index j = 1; j < n; ++j)
-      for (Index i = 0; i < j; ++i) det *= (m_x.coeff(j) - m_x.coeff(i)) * (m_y.coeff(i) - m_y.coeff(j));
+      for (Index i = 0; i < j; ++i) {
+        det = balance(det * balance(m_x.coeff(j) - m_x.coeff(i), exponent), exponent);
+        det = balance(det * balance(m_y.coeff(i) - m_y.coeff(j), exponent), exponent);
+      }
     for (Index j = 0; j < n; ++j)
-      for (Index i = 0; i < n; ++i) det /= m_x.coeff(i) - m_y.coeff(j);
-    return det;
+      for (Index i = 0; i < n; ++i) {
+        Index denomExponent = 0;
+        const Scalar d = balance(m_x.coeff(i) - m_y.coeff(j), denomExponent);
+        exponent -= denomExponent;
+        det = balance(det / d, exponent);
+      }
+    // ldexp saturates cleanly to zero / infinity once the accumulated exponent
+    // leaves the representable range; the clamp only guards the narrowing to int.
+    constexpr Index kMaxExponent = Index(1) << 24;
+    const int e = static_cast<int>(numext::mini(numext::maxi(exponent, -kMaxExponent), kMaxExponent));
+    return applyExponent(det, e);
   }
 
   /** \internal Writes the dense representation into \a dst, one vectorized
@@ -177,21 +209,44 @@ class Cauchy : public EigenBase<Cauchy<Scalar_, Rows_, Cols_>> {
     return Product<Cauchy, Rhs, AliasFreeProduct>(*this, v.derived());
   }
 
-  /** \internal Computes \c dst += alpha * (*this) * rhs. */
-  template <typename Dest, typename Rhs>
-  void addProduct(Dest& dst, const Rhs& rhs, const Scalar& alpha) const {
+  /** \internal Computes \c dst += alpha * (*this) * rhs. \c ProductScalar is the
+   * promoted scalar of the product (complex when a real operator is applied to a
+   * complex right-hand side); the accumulation runs in the promoted type. */
+  template <typename Dest, typename Rhs, typename ProductScalar>
+  void addProduct(Dest& dst, const Rhs& rhs, const ProductScalar& alpha) const {
     const Index m = rows(), n = cols();
     eigen_assert(rhs.rows() == n && "invalid product: dimensions do not match");
     for (Index k = 0; k < rhs.cols(); ++k)
       for (Index i = 0; i < m; ++i) {
         const Scalar xi = m_x.coeff(i);
-        Scalar acc(0);
+        ProductScalar acc(0);
         for (Index j = 0; j < n; ++j) acc += rhs.coeff(j, k) / (xi - m_y.coeff(j));
         dst.coeffRef(i, k) += alpha * acc;
       }
   }
 
  private:
+  /** \internal Applies the exact scaling \c 2^e to a real or complex value
+   * componentwise (the overload set covers both possible \c Scalar kinds). */
+  static RealScalar applyExponent(const RealScalar& v, int e) { return std::ldexp(v, e); }
+  static std::complex<RealScalar> applyExponent(const std::complex<RealScalar>& v, int e) {
+    return std::complex<RealScalar>(std::ldexp(v.real(), e), std::ldexp(v.imag(), e));
+  }
+
+  /** \internal Rescales \a v by the power of two that brings \c max(|re|,|im|)
+   * into [0.5, 1), accumulating the removed exponent into \a exponent. The
+   * rescaling is exact, so no roundoff is introduced. Zeros and non-finite
+   * values, which must propagate exactly through determinant(), are returned
+   * untouched. */
+  static Scalar balance(const Scalar& v, Index& exponent) {
+    const RealScalar mag = numext::maxi(numext::abs(numext::real(v)), numext::abs(numext::imag(v)));
+    if (!(mag > RealScalar(0)) || !(numext::isfinite)(mag)) return v;
+    int e;
+    std::frexp(mag, &e);
+    exponent += e;
+    return applyExponent(v, -e);
+  }
+
   RowNodeVector m_x;
   ColNodeVector m_y;
 };
