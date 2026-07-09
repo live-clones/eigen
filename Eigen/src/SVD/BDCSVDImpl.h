@@ -624,10 +624,6 @@ void bdcsvd_impl<RealScalar_>::computeSingVecs(const ArrayRef& zhat, const Array
                                                MatrixXr& U, MatrixXr& V) {
   Index n = zhat.size();
   Index m = perm.size();
-  // The fast norm below is trustworthy only when the squared sum reaches the
-  // normal range; below that, subnormal squares carry too few significant
-  // bits, so norm can be finite and positive yet wildly inaccurate.
-  const RealScalar normLowerBound = numext::sqrt((std::numeric_limits<RealScalar>::min)());
 
   for (Index k = 0; k < n; ++k) {
     if (numext::is_exactly_zero(zhat(k))) {
@@ -646,22 +642,15 @@ void bdcsvd_impl<RealScalar_>::computeSingVecs(const ArrayRef& zhat, const Array
         if (m_compV && l > 0) V(i, k) = diag(i) * zhat(i) / diff / ((diag(i) + singVals[k]));
       }
       U(n, k) = Literal(0);
-      // LAPACK's xLASD3 normalizes these vectors with xNRM2, whose scaled
-      // sum avoids overflow and destructive underflow. Retain the fast norm
-      // on ordinary inputs and use Eigen's scaled norm only when necessary.
-      RealScalar norm = U.col(k).norm();
-      if ((numext::isfinite)(norm) && norm >= normLowerBound)
-        U.col(k) /= norm;
-      else
-        U.col(k).stableNormalize();
+      // LAPACK's xLASD3 normalizes these vectors with xNRM2. Use the scaled
+      // normalization unconditionally: under -ffast-math, compilers may
+      // assume that the overflowing result of norm() is finite and discard
+      // an isfinite-based fallback.
+      U.col(k).stableNormalize();
 
       if (m_compV) {
         V(0, k) = Literal(-1);
-        norm = V.col(k).norm();
-        if ((numext::isfinite)(norm) && norm >= normLowerBound)
-          V.col(k) /= norm;
-        else
-          V.col(k).stableNormalize();
+        V.col(k).stableNormalize();
       }
     }
   }

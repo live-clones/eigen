@@ -205,6 +205,14 @@ void bdcsvd_extreme_scale_regressions() {
     const Matrix6d identity = Matrix6d::Identity();
     VERIFY((svd.matrixU().transpose() * svd.matrixU() - identity).stableNorm() <= kTolerance);
     VERIFY((svd.matrixV().transpose() * svd.matrixV() - identity).stableNorm() <= kTolerance);
+
+    // Also exercise the values-only path, which uses a compact m_naiveU and
+    // linear workspace during divide-and-conquer merges.
+    BDCSVD<Matrix6d> valuesOnlySvd;
+    valuesOnlySvd.setSwitchSize(3);
+    valuesOnlySvd.compute(matrix);
+    VERIFY(valuesOnlySvd.info() == Success);
+    VERIFY_IS_APPROX(valuesOnlySvd.singularValues(), svd.singularValues());
   };
 
   Matrix6d matrix = Matrix6d::Zero();
