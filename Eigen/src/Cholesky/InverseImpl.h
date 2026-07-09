@@ -24,7 +24,6 @@ namespace internal {
 template<typename MatrixType, typename ResultType, int Size = MatrixType::ColsAtCompileTime>
 struct compute_inverse_cholesky {
   EIGEN_DEVICE_FUNC static inline void run(const MatrixType& matrix, ResultType& result) {
-    // std::cout << "chol fixed" << "\n";
     using T = typename ResultType::Scalar;
     T a[Size][Size];
 
@@ -46,11 +45,6 @@ struct compute_inverse_cholesky {
         }
         a[l][jp1] = -s1;
       }
-    }
-
-    if constexpr (Size == 1) {
-      result.coeffRef(0, 0) = a[0][0];
-      return;
     }
 
     a[0][1] = -a[0][1];
@@ -97,7 +91,6 @@ struct compute_inverse_cholesky {
 template<typename MatrixType, typename ResultType>
 struct compute_inverse_cholesky<MatrixType, ResultType, Eigen::Dynamic> {
   EIGEN_DEVICE_FUNC static inline void run(const MatrixType& matrix, ResultType& result) {
-    // std::cout << "chol dynamic" << "\n";
     result = matrix.llt().solve(ResultType::Identity(matrix.rows(), matrix.cols()));
   }
 };
@@ -109,9 +102,8 @@ struct compute_inverse_cholesky<MatrixType, ResultType, Eigen::Dynamic> {
 template<typename MatrixType, typename ResultType>
 struct compute_inverse_cholesky<MatrixType, ResultType, 1> {
   EIGEN_DEVICE_FUNC static inline void run(const MatrixType& matrix, ResultType& result) {
-    // std::cout << "chol1" << "\n";
-    using F = decltype(matrix(0, 0));
-    result(0, 0) = F(1.0) / matrix(0, 0);
+    using F = decltype(matrix.coeff(0, 0));
+    result.coeffRef(0, 0) = F(1.0) / matrix.coeff(0, 0);
   }
 };
 
@@ -142,7 +134,6 @@ EIGEN_DEVICE_FUNC inline void symmetrize_size2_helper(MatrixType& matrix) {
 template<typename MatrixType, typename ResultType>
 struct compute_inverse_cholesky<MatrixType, ResultType, 2> {
   EIGEN_DEVICE_FUNC static inline void run(const MatrixType& matrix, ResultType& result) {
-    // std::cout << "chol2" << "\n";
     compute_inverse_cholesky_size2_helper(matrix, result);
     symmetrize_size2_helper(result);
   }
@@ -187,7 +178,6 @@ EIGEN_DEVICE_FUNC inline void symmetrize_size3_helper(MatrixType& matrix) {
 template<typename MatrixType, typename ResultType>
 struct compute_inverse_cholesky<MatrixType, ResultType, 3> {
   EIGEN_DEVICE_FUNC static inline void run(const MatrixType& matrix, ResultType& result) {
-    // std::cout << "chol3" << "\n";
     compute_inverse_cholesky_size3_helper(matrix, result);
     symmetrize_size3_helper(result);
   }
@@ -245,7 +235,6 @@ EIGEN_DEVICE_FUNC inline void symmetrize_size4_helper(MatrixType& matrix) {
 template<typename MatrixType, typename ResultType>
 struct compute_inverse_cholesky<MatrixType, ResultType, 4> {
   EIGEN_DEVICE_FUNC static inline void run(const MatrixType& matrix, ResultType& result) {
-    // std::cout << "chol4" << "\n";
     compute_inverse_cholesky_size4_helper(matrix, result);
     symmetrize_size4_helper(result);
   }
@@ -321,7 +310,6 @@ EIGEN_DEVICE_FUNC inline void symmetrize_size5_helper(MatrixType& matrix) {
 template<typename MatrixType, typename ResultType>
 struct compute_inverse_cholesky<MatrixType, ResultType, 5> {
   EIGEN_DEVICE_FUNC static inline void run(const MatrixType& matrix, ResultType& result) {
-    // std::cout << "chol5" << "\n";
     compute_inverse_cholesky_size5_helper(matrix, result);
     symmetrize_size5_helper(result);
   }
@@ -427,7 +415,6 @@ EIGEN_DEVICE_FUNC inline void symmetrize_size6_helper(MatrixType& matrix) {
 template<typename MatrixType, typename ResultType>
 struct compute_inverse_cholesky<MatrixType, ResultType, 6> {
   EIGEN_DEVICE_FUNC static inline void run(const MatrixType& matrix, ResultType& result) {
-    // std::cout << "chol6" << "\n";
     compute_inverse_cholesky_size6_helper(matrix, result);
     symmetrize_size6_helper(result);
   }
@@ -435,15 +422,49 @@ struct compute_inverse_cholesky<MatrixType, ResultType, 6> {
 
 }  // end namespace internal
 
-/**********************************
-*** Public Internal Dispatcher  ***
-**********************************/
+/*********************************
+*** Public Internal Dispatcher ***
+*********************************/
 
 namespace internal {
 
-template <typename MatrixType, typename ResultType>
-EIGEN_DEVICE_FUNC inline void inverse_cholesky(const MatrixType& matrix, ResultType& result) {
-  compute_inverse_cholesky<MatrixType, ResultType, MatrixType::ColsAtCompileTime>::run(matrix, result);
+/****************************
+*** Fixed size dispatcher ***
+****************************/
+
+namespace detail {
+template <typename MatrixType>
+EIGEN_DEVICE_FUNC inline typename MatrixType::PlainObject inverse_cholesky_impl(const MatrixType& matrix, std::true_type) {
+  typename MatrixType::PlainObject result(matrix.rows(), matrix.cols());
+  compute_inverse_cholesky<MatrixType, typename MatrixType::PlainObject, MatrixType::ColsAtCompileTime>::run(matrix, result);
+  return result;
+}
+
+/******************************
+*** Dynamic size dispatcher ***
+******************************/
+
+template <typename MatrixType>
+EIGEN_DEVICE_FUNC inline typename MatrixType::PlainObject inverse_cholesky_impl(const MatrixType& matrix, std::false_type) {
+  typename MatrixType::PlainObject result(matrix.rows(), matrix.cols());
+  switch (matrix.rows()) {
+    case 1: compute_inverse_cholesky<MatrixType, typename MatrixType::PlainObject, 1>::run(matrix, result); break;
+    case 2: compute_inverse_cholesky<MatrixType, typename MatrixType::PlainObject, 2>::run(matrix, result); break;
+    case 3: compute_inverse_cholesky<MatrixType, typename MatrixType::PlainObject, 3>::run(matrix, result); break;
+    case 4: compute_inverse_cholesky<MatrixType, typename MatrixType::PlainObject, 4>::run(matrix, result); break;
+    case 5: compute_inverse_cholesky<MatrixType, typename MatrixType::PlainObject, 5>::run(matrix, result); break;
+    case 6: compute_inverse_cholesky<MatrixType, typename MatrixType::PlainObject, 6>::run(matrix, result); break;
+    default: compute_inverse_cholesky<MatrixType, typename MatrixType::PlainObject, Eigen::Dynamic>::run(matrix, result); break;
+  }
+  return result;
+}
+
+} // end namespace detail
+
+template <typename MatrixType>
+EIGEN_DEVICE_FUNC inline typename MatrixType::PlainObject inverse_cholesky(const MatrixType& matrix) {
+  return detail::inverse_cholesky_impl(matrix, std::integral_constant<bool, MatrixType::ColsAtCompileTime != Eigen::Dynamic>{}
+  );
 }
 
 }  // end namespace internal
