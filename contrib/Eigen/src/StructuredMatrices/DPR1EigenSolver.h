@@ -45,10 +45,14 @@ namespace Eigen {
  * Both signs of \f$ \rho \f$ are supported (negative \f$ \rho \f$ is handled by
  * negating the matrix), as are \f$ \rho = 0 \f$, zero \c z, repeated diagonal
  * entries and any ordering of \c d. The problem is rescaled internally by
- * exact powers of two, so data anywhere in the representable range is handled
- * without internal overflow; on well-scaled data the rescaling changes no bits
- * of the result (rounding can occur only at the subnormal boundary, far below
- * the deflation backward-error budget).
+ * exact powers of two chosen from the component exponents alone, so data
+ * anywhere in the representable range is handled without internal overflow --
+ * including inputs for which \f$ \rho \|z\|^2 \f$ alone exceeds the largest
+ * finite value while every eigenvalue is still representable. \c InvalidInput
+ * is reported only for non-finite input or a spectrum that is itself not
+ * representable. On well-scaled data the rescaling changes no bits of the
+ * result (rounding can occur only at the subnormal boundary, far below the
+ * deflation backward-error budget).
  *
  * \code
  *   DPR1EigenSolver<double> es(d, rho, z);
@@ -202,42 +206,58 @@ DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const Vector
   int znormExp = 0;
   const RealScalar znormFrac = frexp(znorm, &znormExp);
   if (znorm > RealScalar(0)) zs /= znorm;
-  // rho <- rho * (2^zExp * znorm)^2 == rho * ||z||^2: multiply the mantissas
-  // first (all in [0.25, 1), so nothing intermediate can overflow) and apply
-  // the collected power of two in one exact ldexp -- the result overflows or
-  // underflows only if rho * ||z||^2 itself does.
+  // rho <- rho * (2^zExp * znorm)^2 == rho * ||z||^2, kept as an exact
+  // (mantissa, exponent) pair instead of a materialized scalar: the mantissas
+  // are multiplied first (all in [0.25, 1), so nothing intermediate can
+  // overflow) and the collected power of two is applied only after the
+  // whole-problem scaling below has been folded in. A huge but benign
+  // rho * ||z||^2 (e.g. d = -max, rho = max/2, z = [2]: rho * ||z||^2 = 2*max
+  // overflows, yet the single eigenvalue d + rho*z^2 = max is representable)
+  // therefore never materializes as an overflowing intermediate.
   int rhoExp = 0;
   const RealScalar rhoFrac = frexp(rhoW, &rhoExp);
-  rhoW = ldexp((rhoFrac * znormFrac) * znormFrac, rhoExp + 2 * (zExp + znormExp));
-  // now A~ = diag(ds) + rhoW * zs zs^T with ||zs|| = 1
-
-  if (!(numext::isfinite)(rhoW)) {
-    // rho*||z||^2 overflows the scalar type even after the exact rescaling of
-    // z: the rank-one update itself is not representable, and neither is the
-    // upper end of the spectrum the secular formulation works with.
-    m_eivalues.setConstant(NumTraits<RealScalar>::quiet_NaN());
-    m_info = InvalidInput;
-    m_isInitialized = true;
-    return *this;
-  }
+  int rhoAdj = 0;
+  const RealScalar rhoMant = frexp((rhoFrac * znormFrac) * znormFrac, &rhoAdj);  // in [0.5, 1), or 0
+  // Each frexp exponent is bounded by the scalar's exponent range, but their
+  // accumulation is kept in a wide integer type until the (clamped) narrowing
+  // to the int that ldexp takes.
+  const numext::int64_t rhoTotExp =
+      numext::int64_t(rhoExp) + 2 * (numext::int64_t(zExp) + numext::int64_t(znormExp)) + numext::int64_t(rhoAdj);
+  // now A~ = diag(ds) + (rhoMant * 2^rhoTotExp) * zs zs^T with ||zs|| = 1
 
   // ---- scale the whole problem into [0.5, 1) by an exact power of two ----
   // The eigenvalues of diag(s*d) + (s*rho) z z^T are exactly s times those of
   // diag(d) + rho z z^T; with s = 2^-scaleExp bringing max(|d|_inf, rho*||z||^2)
   // into [0.5, 1), every intermediate below (pole differences, midpoints,
   // brackets, root offsets) stays far from overflow even for data at the very
-  // end of the exponent range. The output is rescaled by 2^scaleExp at the
-  // end -- exactly, whenever it is representable.
-  const RealScalar normScale = numext::maxi(ds.cwiseAbs().maxCoeff(), rhoW);
-  int scaleExp = 0;
-  if (normScale > RealScalar(0)) {
-    frexp(normScale, &scaleExp);
-    if (scaleExp != 0) {
-      for (Index i = 0; i < n; ++i) ds[i] = ldexp(ds[i], -scaleExp);
-      rhoW = ldexp(rhoW, -scaleExp);
-    }
+  // end of the exponent range. The two candidates are compared as
+  // (mantissa, exponent) pairs -- derived from component exponent bounds only,
+  // never from a materialized product -- so the choice of scale itself cannot
+  // overflow. The output is rescaled by 2^scaleExp at the end -- exactly,
+  // whenever it is representable.
+  int dExp = 0;
+  const RealScalar dFrac = frexp(ds.cwiseAbs().maxCoeff(), &dExp);
+  RealScalar scaledNorm;  // max(|d|_inf, rho*||z||^2) * 2^-scaleExp, in [0.5, 1) (or 0 for a zero matrix)
+  numext::int64_t scaleExpWide;
+  if (rhoMant == RealScalar(0) ||
+      (dFrac > RealScalar(0) &&
+       (numext::int64_t(dExp) > rhoTotExp || (numext::int64_t(dExp) == rhoTotExp && dFrac >= rhoMant)))) {
+    scaledNorm = dFrac;
+    scaleExpWide = dExp;
+  } else {
+    scaledNorm = rhoMant;
+    scaleExpWide = rhoTotExp;
   }
-  const RealScalar scaledNorm = ldexp(normScale, -scaleExp);  // in [0.5, 1)
+  // Clamp before narrowing: 2^(2^30) is far beyond any scalar's exponent
+  // range, so the clamp never changes which values are representable.
+  const numext::int64_t expCap = numext::int64_t(1) << 30;
+  const int scaleExp = static_cast<int>(numext::maxi(-expCap, numext::mini(expCap, scaleExpWide)));
+  if (scaleExp != 0)
+    for (Index i = 0; i < n; ++i) ds[i] = ldexp(ds[i], -scaleExp);
+  // Materialize rho * ||z||^2 only in scaled form: its exponent is <= 0 by the
+  // choice of scaleExp, so this cannot overflow; it can only underflow when
+  // the update is negligible against |d|_inf, in which case it deflates below.
+  rhoW = ldexp(rhoMant, static_cast<int>(numext::maxi(-expCap, rhoTotExp - scaleExpWide)));
 
   // ---- deflation ----
   // Backward-error budget: dropping a coupling of size <= tol perturbs the
@@ -418,12 +438,19 @@ DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const Vector
   std::vector<Index> subSlot(static_cast<std::size_t>(n), -1);
   for (Index a = 0; a < m; ++a) subSlot[static_cast<std::size_t>(sub[static_cast<std::size_t>(a)])] = a;
 
+  // Undo the problem scaling in two exact half-steps: scaleExp can exceed the
+  // scalar's exponent range (rho * ||z||^2 larger than the largest finite
+  // value), where a single-step rescale would fail on scalar types that
+  // implement ldexp as multiplication by 2^scaleExp. The halves keep every
+  // representable result exact and saturate a genuinely overflowing
+  // eigenvalue to infinity (validated below).
+  const int scaleHalf1 = scaleExp / 2;
+  const int scaleHalf2 = scaleExp - scaleHalf1;
+
   for (Index t = 0; t < n; ++t) {
     const Index w = order[static_cast<std::size_t>(t)];
     const Index outCol = negated ? n - 1 - t : t;
-    // Undo the problem scaling: exact whenever the eigenvalue is representable
-    // (ldexp saturates to infinity when it is not; validated below).
-    m_eivalues[outCol] = ldexp(negated ? -lambdaW[w] : lambdaW[w], scaleExp);
+    m_eivalues[outCol] = ldexp(ldexp(negated ? -lambdaW[w] : lambdaW[w], scaleHalf1), scaleHalf2);
     if (!computeVectors) continue;
 
     // Assemble the eigenvector in working coordinates, replay the deflation
