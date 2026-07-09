@@ -17,6 +17,14 @@
 //  [3] G. H. Golub and C. F. Van Loan, "Matrix Computations", 4th ed., Johns
 //      Hopkins University Press, 2013, chapter 4.8 (circulant systems and
 //      FFT-based products) and chapter 5.4 (numerical rank conventions).
+//  [4] J. J. Dongarra, J. R. Bunch, C. B. Moler and G. W. Stewart, "LINPACK
+//      Users' Guide", SIAM, 1979. determinant()'s balanced accumulation follows
+//      the convention of its xGEDI routines, which return determinants as a
+//      (fraction, exponent) pair to avoid spurious overflow/underflow.
+//  [5] P. H. Sterbenz, "Floating-Point Computation", Prentice-Hall, 1974.
+//      Scaling by a power of two is exact, the property the balanced
+//      accumulation, the rescaled rank threshold and the scaled FFT products
+//      rely on.
 
 #ifndef EIGEN_STRUCTURED_CIRCULANT_H
 #define EIGEN_STRUCTURED_CIRCULANT_H
@@ -232,13 +240,15 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
     const Index n = rows();
     eigen_assert(b.rows() == n && "right-hand side has the wrong number of rows");
     const ComplexVector s = symbol();
-    const RealScalar tol = rankThreshold(s);
+    RealVector mods;
+    RealScalar tol;
+    scaledModuli(s, mods, tol);
     ComplexVector sinv(n);
     // Strictly-below-threshold entries are zeroed, matching SVDBase::rank(), so a
     // smallest-normal 1x1 operator stays invertible. The negated comparison keeps
     // NaN symbol entries in the inverted set, so a NaN input propagates to the
     // output instead of being silently zeroed.
-    for (Index k = 0; k < n; ++k) sinv[k] = !(numext::abs(s[k]) < tol) ? Complex(1) / s[k] : Complex(0);
+    for (Index k = 0; k < n; ++k) sinv[k] = !(mods[k] < tol) ? Complex(1) / s[k] : Complex(0);
     Matrix<Scalar, Size_, Rhs::ColsAtCompileTime> x(n, b.cols());
     x.setZero();
     if (!b.allFinite()) {
@@ -265,16 +275,19 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
   }
 
   /** \returns the numerical rank: the number of symbol entries whose modulus is
-   * no smaller than the threshold \c n * epsilon * max_k|symbol[k]|. This is the
-   * same threshold \ref solve uses to decide which Fourier components to invert,
-   * and the comparison is strict like SVDBase's, so an entry sitting exactly on
-   * the threshold still counts as non-zero. */
+   * no smaller than the threshold \c n * epsilon * max_k|symbol[k]|, both
+   * evaluated in an exactly rescaled frame so the moduli cannot overflow (see
+   * scaledModuli()). This is the same threshold \ref solve uses to decide which
+   * Fourier components to invert, and the comparison is strict like SVDBase's,
+   * so an entry sitting exactly on the threshold still counts as non-zero. */
   Index rank() const {
     const ComplexVector s = symbol();
-    const RealScalar tol = rankThreshold(s);
+    RealVector mods;
+    RealScalar tol;
+    scaledModuli(s, mods, tol);
     Index r = 0;
     for (Index k = 0; k < s.size(); ++k)
-      if (!(numext::abs(s[k]) < tol)) ++r;  // negated so NaN entries count as non-zero
+      if (!(mods[k] < tol)) ++r;  // negated so NaN entries count as non-zero
     return r;
   }
 
@@ -298,9 +311,10 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
   }
 
   /** \returns the determinant, i.e. the product of the eigenvalues (the symbol
-   * entries). The product is accumulated in the balanced form \c m * 2^e -- every
-   * factor and the running product are renormalized to unit magnitude with the
-   * power of two tracked separately -- so the partial products can neither
+   * entries). The product is accumulated in the balanced form \c m * 2^e (the
+   * split fraction/exponent determinant convention of LINPACK's xGEDI [4]) --
+   * every factor and the running product are renormalized to unit magnitude with
+   * the power of two tracked separately -- so the partial products can neither
    * overflow nor underflow when the determinant itself is representable, whatever
    * the ordering of large and small eigenvalues. For a real operator the product
    * is real up to roundoff, and its real part is returned. */
@@ -442,15 +456,26 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
     }
   }
 
-  /** \internal \returns the rank/pseudo-inversion threshold for \a s, in the
-   * spirit of the SVD-based pseudo-inverse (the n * epsilon * max_k|s[k]|
-   * convention of [3], chapter 5.4): clamped from below at the smallest normal
-   * number so subnormal and zero symbol entries -- whose reciprocals overflow --
-   * are treated as exact zeros. Entries at or above the threshold, in particular
-   * a smallest-normal entry, are inverted (their reciprocals are finite). */
-  static RealScalar rankThreshold(const ComplexVector& s) {
-    return numext::maxi(RealScalar(s.size()) * NumTraits<RealScalar>::epsilon() * s.cwiseAbs().maxCoeff(),
-                        (std::numeric_limits<RealScalar>::min)());
+  /** \internal Computes the moduli of the symbol entries and the matching
+   * rank/pseudo-inversion threshold, both evaluated in an exactly rescaled frame:
+   * the entries are pre-scaled by a power of two chosen so no modulus can
+   * overflow. A finite complex entry near the overflow threshold has a
+   * non-representable modulus, which would otherwise turn the threshold into
+   * infinity and misclassify every other entry (rank under-reported, solve()
+   * zeroing valid Fourier modes). The rescaling is exact, so comparing scaled
+   * moduli against the scaled threshold is equivalent to the unscaled
+   * comparison. The threshold keeps the n * epsilon * max_k|s[k]| convention of
+   * [3], chapter 5.4, and the smallest-normal clamp -- carried into the scaled
+   * frame, where its underflowing to zero for a huge frame is correct: no entry
+   * of such a symbol can sit below the smallest normal number. Entries at or
+   * above the threshold, in particular a smallest-normal entry of a moderate
+   * symbol, are inverted (their reciprocals are finite). */
+  static void scaledModuli(const ComplexVector& s, RealVector& mods, RealScalar& tol) {
+    const int e = numext::maxi(internal::structured_exponent_bound(s), 0);
+    const RealScalar down = std::ldexp(RealScalar(1), -e);
+    mods = (s * down).cwiseAbs();
+    tol = numext::maxi(RealScalar(s.size()) * NumTraits<RealScalar>::epsilon() * mods.maxCoeff(),
+                       (std::numeric_limits<RealScalar>::min)() * down);
   }
 
   /** \internal Rescales \a z by the power of two that brings \c max(|re|,|im|)

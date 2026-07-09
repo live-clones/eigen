@@ -767,6 +767,43 @@ void test_circulant_rank_boundaries() {
   }
 }
 
+// A finite complex symbol entry near the overflow threshold has a
+// non-representable modulus. The rank threshold used to be computed from the raw
+// moduli, turning it into infinity: the rank was under-reported and solve()
+// zeroed valid Fourier modes. Both are now evaluated in an exactly rescaled
+// frame.
+void test_circulant_rank_complex_boundary() {
+  typedef std::complex<double> Complex;
+  typedef Matrix<Complex, Dynamic, 1> CVec;
+  const double mx = (std::numeric_limits<double>::max)();
+
+  // n = 2: the symbol is exactly [c0 + c1, c0 - c1], so pick the generator from
+  // the desired spectrum. |s0| overflows while both of its components are finite.
+  const Complex s0(0.75 * mx, 0.75 * mx), s1(1e300, 0.0);
+  CVec c(2);
+  c[0] = (s0 + s1) * 0.5;
+  c[1] = (s0 - s1) * 0.5;
+  Circulant<Complex> C(c);
+  VERIFY_IS_EQUAL(C.rank(), 2);
+
+  // The second Fourier mode must be inverted, not zeroed: a product of a small
+  // vector solves back to that vector (the accuracy is limited by the condition
+  // number |s0| / |s1| ~ 2.5e8).
+  CVec x0(2);
+  x0[0] = Complex(1e-10, -2e-10);
+  x0[1] = Complex(-3e-10, 1e-10);
+  CVec b = C * x0;
+  VERIFY(b.allFinite());
+  CVec x = C.solve(b);
+  VERIFY(((x - x0).cwiseAbs().maxCoeff() / x0.cwiseAbs().maxCoeff()) <= 1e-6);
+
+  // A genuinely negligible second entry still truncates in the scaled frame.
+  CVec c2(2);
+  c2[0] = (s0 + Complex(1)) * 0.5;
+  c2[1] = (s0 - Complex(1)) * 0.5;
+  VERIFY_IS_EQUAL(Circulant<Complex>(c2).rank(), 1);
+}
+
 // Fixed-size operators: generators are stored in fixed-size vectors, products and
 // solves return fixed-size results, and small sizes go through the coeff-based
 // product dispatch.
@@ -1153,6 +1190,7 @@ EIGEN_DECLARE_TEST(structured_matrices) {
     CALL_SUBTEST_8((test_toeplitz_mixed_scalar<double>(64, 40)));
     CALL_SUBTEST_8(test_circulant_determinant_scaled());
     CALL_SUBTEST_8(test_circulant_rank_boundaries());
+    CALL_SUBTEST_8(test_circulant_rank_complex_boundary());
     CALL_SUBTEST_8((test_structured_fft_overflow<double>(40)));
     CALL_SUBTEST_8((test_structured_fft_overflow<double>(97)));  // prime, no 5-smooth padding
     CALL_SUBTEST_8((test_structured_fft_overflow<float>(40)));

@@ -7,6 +7,15 @@
 // SPDX-FileCopyrightText: The Eigen Authors
 // SPDX-License-Identifier: MPL-2.0
 
+// References:
+//  [1] N. J. Higham, "Accuracy and Stability of Numerical Algorithms", 2nd ed.,
+//      SIAM, 2002, chapter 27. Avoiding spurious overflow by rescaling with
+//      powers of two, the technique behind structured_exponent_bound() and the
+//      column scaling in structured_fft_apply().
+//  [2] P. H. Sterbenz, "Floating-Point Computation", Prentice-Hall, 1974.
+//      Scaling by a power of two is exact, so the scaled transforms introduce
+//      no roundoff beyond the transforms themselves.
+
 #ifndef EIGEN_STRUCTURED_MATRIX_UTILS_H
 #define EIGEN_STRUCTURED_MATRIX_UTILS_H
 
