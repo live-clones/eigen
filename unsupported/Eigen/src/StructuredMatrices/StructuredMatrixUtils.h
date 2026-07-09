@@ -104,13 +104,14 @@ Scalar structured_ldexp_clamped(const Scalar& z, Index exponent) {
 template <typename RealVectorType>
 std::vector<Index> structured_svd_permutation(const RealVectorType& mods) {
   using RealScalar = typename RealVectorType::Scalar;
-  std::vector<Index> perm(static_cast<std::size_t>(mods.size()));
-  for (Index k = 0; k < mods.size(); ++k) perm[static_cast<std::size_t>(k)] = k;
+  std::vector<Index> perm;
+  perm.reserve(static_cast<std::size_t>(mods.size()));
+  for (Index k = 0; k < mods.size(); ++k) perm.push_back(k);
   std::stable_sort(perm.begin(), perm.end(), [&mods](Index a, Index b) {
     const RealScalar ka = mods[a], kb = mods[b];
-    const bool nanA = (ka != ka), nanB = (kb != kb);
-    if (nanA || nanB) return nanB && !nanA;
-    return ka > kb;
+    // isgreater is the quiet branchless form of the NaN-last ordering: it is false
+    // whenever either side is NaN, and the second clause moves a in front of a NaN b.
+    return std::isgreater(ka, kb) || (!(numext::isnan)(ka) && (numext::isnan)(kb));
   });
   return perm;
 }
@@ -122,12 +123,25 @@ std::vector<Index> structured_svd_permutation(const RealVectorType& mods) {
  * (the tables themselves are identical, so results are bit-for-bit unchanged).
  * One engine per thread keeps concurrent products on the same operator free of
  * data races; the cache grows with the number of distinct transform sizes a
- * thread touches, which mirrors the operators it works with. */
+ * thread touches, which mirrors the operators it works with.
+ *
+ * Under EIGEN_AVOID_THREAD_LOCAL -- the library-wide opt-out for targets
+ * without usable `thread_local` (see Core's Memory.h and ThreadPool's
+ * ThreadLocal.h) -- each call returns a fresh engine by value instead: the
+ * plan tables are rebuilt per call, the results are identical. Callers bind
+ * the engine with `auto&&`, which works for both signatures. */
+#ifndef EIGEN_AVOID_THREAD_LOCAL
 template <typename RealScalar>
 FFT<RealScalar>& structured_fft_engine() {
   static thread_local FFT<RealScalar> fft;
   return fft;
 }
+#else
+template <typename RealScalar>
+FFT<RealScalar> structured_fft_engine() {
+  return FFT<RealScalar>();
+}
+#endif
 
 /** \internal
  * \returns the smallest integer >= \a n whose only prime factors are 2, 3 and 5.
@@ -190,9 +204,10 @@ struct structured_scalar_part_impl<Scalar, false> {
  * missing a NaN here cannot change the result. */
 template <typename Xpr>
 bool structured_exponent_bound_finite(const Xpr& x, int& e) {
-  using RealScalar = typename NumTraits<typename Xpr::Scalar>::Real;
+  using ScalarTraits = NumTraits<typename Xpr::Scalar>;
+  using RealScalar = typename ScalarTraits::Real;
   RealScalar m;
-  if (NumTraits<typename Xpr::Scalar>::IsComplex)
+  if (ScalarTraits::IsComplex)
     // realView() reduces over both components in one pass, vectorized for
     // direct-access storage; the strided real()/imag() views never vectorize.
     m = x.realView().cwiseAbs().maxCoeff();
@@ -202,7 +217,7 @@ bool structured_exponent_bound_finite(const Xpr& x, int& e) {
   if (!(numext::isfinite)(m)) return false;
   if (m > RealScalar(0)) {
     std::frexp(m, &e);
-    if (NumTraits<typename Xpr::Scalar>::IsComplex) ++e;
+    if (ScalarTraits::IsComplex) ++e;
   }
   return true;
 }
@@ -287,7 +302,7 @@ void structured_fft_apply(Dest& dst, const Matrix<std::complex<typename NumTrait
   const int budget = std::numeric_limits<RealScalar>::max_exponent - 2 * log2p - 2;
   const int symbolExp = structured_exponent_bound(symbol);  // max|symbol| < 2^symbolExp
 
-  FFT<RealScalar>& fft = structured_fft_engine<RealScalar>();
+  auto&& fft = structured_fft_engine<RealScalar>();
   ComplexVector xt = ComplexVector::Zero(p);  // the zero padding beyond rhs.rows() is never overwritten
   ComplexVector xf(p), yt(p);
   for (Index k = 0; k < rhs.cols(); ++k) {

@@ -248,12 +248,11 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
     RealVector mods;
     RealScalar tol;
     scaledModuli(s, mods, tol);
-    ComplexVector sinv(n);
     // Strictly-below-threshold entries are zeroed, matching SVDBase::rank(), so a
-    // smallest-normal 1x1 operator stays invertible. The negated comparison keeps
-    // NaN symbol entries in the inverted set, so a NaN input propagates to the
+    // smallest-normal 1x1 operator stays invertible. NaN moduli fail the
+    // comparison and land in the inverted set, so a NaN input propagates to the
     // output instead of being silently zeroed.
-    for (Index k = 0; k < n; ++k) sinv[k] = !(mods[k] < tol) ? Complex(1) / s[k] : Complex(0);
+    const ComplexVector sinv = (mods.array() < tol).select(Complex(0), s.cwiseInverse());
     Matrix<Scalar, Size_, Rhs::ColsAtCompileTime> x(n, b.cols());
     x.setZero();
     if (!b.allFinite()) {
@@ -265,7 +264,7 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
       if (n == 1) {
         pcol[0] = internal::structured_scalar_part_impl<Scalar>::run_scalar(sinv.coeff(0));
       } else {
-        FFT<RealScalar>& fft = internal::structured_fft_engine<RealScalar>();
+        auto&& fft = internal::structured_fft_engine<RealScalar>();
         ComplexVector pt(n);
         fft.inv(pt, sinv, n);
         pcol = internal::structured_scalar_part_impl<Scalar>::run(pt);
@@ -290,10 +289,7 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
     RealVector mods;
     RealScalar tol;
     scaledModuli(s, mods, tol);
-    Index r = 0;
-    for (Index k = 0; k < s.size(); ++k)
-      if (!(mods[k] < tol)) ++r;  // negated so NaN entries count as non-zero
-    return r;
+    return (!(mods.array() < tol)).count();  // negated so NaN entries count as non-zero
   }
 
   /** \returns the inverse of \c *this, itself a \c Circulant operator: the one
@@ -307,7 +303,7 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
     if (n == 1) {
       col = internal::structured_scalar_part_impl<Scalar>::run(sinv);
     } else {
-      FFT<RealScalar>& fft = internal::structured_fft_engine<RealScalar>();
+      auto&& fft = internal::structured_fft_engine<RealScalar>();
       ComplexVector ct(n);
       fft.inv(ct, sinv, n);
       col = internal::structured_scalar_part_impl<Scalar>::run(ct);
@@ -455,7 +451,7 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
     embedding.head(n) = col.template cast<Complex>();
     embedding.tail(n - 1) = col.tail(n - 1).template cast<Complex>();
     ComplexVector symbol(p);
-    FFT<RealScalar>& fft = internal::structured_fft_engine<RealScalar>();
+    auto&& fft = internal::structured_fft_engine<RealScalar>();
     fft.fwd(symbol, embedding, p);
     return symbol;
   }
@@ -544,7 +540,7 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
     const ComplexVector cc = m_col.template cast<Complex>();
     if (n == 1) return cc;  // the DFT of a single sample is the identity
     ComplexVector symbol(n);
-    FFT<RealScalar>& fft = internal::structured_fft_engine<RealScalar>();
+    auto&& fft = internal::structured_fft_engine<RealScalar>();
     fft.fwd(symbol, cc, n);
     return symbol;
   }
