@@ -65,54 +65,18 @@ struct evaluator_traits<DiagonalPlusLowRank<Scalar_, Size_, Rank_>> {
   using Shape = StructuredShape;
 };
 
-// Exact power-of-two renormalization used by the balanced determinant
-// accumulation (the split fraction/exponent determinant convention of LINPACK's
-// xGEDI [3], following the pattern of Circulant::determinant(), generalized
-// over real and complex scalars): balance() rescales x by the power of two that
-// brings its magnitude into [0.5, 1), accumulating the removed exponent, and
-// ldexp() applies the accumulated exponent back. The rescaling is exact [4], so
-// no roundoff is introduced; zeros and non-finite values, which must propagate
-// exactly, are returned untouched.
-template <typename Scalar, bool IsComplex = NumTraits<Scalar>::IsComplex>
-struct dplr_balance_impl {
-  using RealScalar = typename NumTraits<Scalar>::Real;
-  static Scalar balance(const Scalar& z, Index& exponent) {
-    const RealScalar mag = numext::maxi(numext::abs(numext::real(z)), numext::abs(numext::imag(z)));
-    if (!(mag > RealScalar(0)) || !(numext::isfinite)(mag)) return z;
-    int e;
-    std::frexp(mag, &e);
-    exponent += e;
-    return Scalar(std::ldexp(numext::real(z), -e), std::ldexp(numext::imag(z), -e));
-  }
-  static Scalar ldexp(const Scalar& z, int e) {
-    return Scalar(std::ldexp(numext::real(z), e), std::ldexp(numext::imag(z), e));
-  }
-};
-
-template <typename Scalar>
-struct dplr_balance_impl<Scalar, false> {
-  static Scalar balance(const Scalar& x, Index& exponent) {
-    const Scalar mag = numext::abs(x);
-    if (!(mag > Scalar(0)) || !(numext::isfinite)(mag)) return x;
-    int e;
-    std::frexp(mag, &e);
-    exponent += e;
-    return std::ldexp(x, -e);
-  }
-  static Scalar ldexp(const Scalar& x, int e) { return std::ldexp(x, e); }
-};
-
 // Entrywise multiplication by the exact power of two 2^e [4], for the factor
-// normalization of the Woodbury products [5]. Built on ldexp rather than on a
-// multiplication by 2^e (or by two half powers 2^(e/2)): ldexp is exact and
-// saturates entry by entry for every exponent, whereas the scale factor itself
-// can leave the representable range -- 2^-eu overflows for a subnormal factor
-// bound, and a saturated half power would turn zero entries into NaN through
-// 0 * Inf.
+// normalization of the Woodbury products [5]. Built on the shared scalar
+// structured_balance_impl::apply_exponent (an ldexp per component) rather than
+// on a multiplication by 2^e (or by two half powers 2^(e/2)): ldexp is exact
+// and saturates entry by entry for every exponent, whereas the scale factor
+// itself can leave the representable range -- 2^-eu overflows for a subnormal
+// factor bound, and a saturated half power would turn zero entries into NaN
+// through 0 * Inf.
 template <typename Scalar>
 struct dplr_ldexp_op {
   int e;
-  Scalar operator()(const Scalar& x) const { return dplr_balance_impl<Scalar>::ldexp(x, e); }
+  Scalar operator()(const Scalar& x) const { return structured_balance_impl<Scalar>::apply_exponent(x, e); }
 };
 
 // An exponent bound e with max_ij |x(i,j)| < 2^e, or 0 when x is empty, zero or
@@ -230,12 +194,11 @@ struct dplr_capacitance_impl {
   template <typename Op>
   static typename Op::Scalar balancedCapacitanceDeterminant(const Op& op, Index& exponent) {
     using Scalar = typename Op::Scalar;
-    using BalanceImpl = dplr_balance_impl<Scalar>;
     if (op.correctionRank() == 0) return Scalar(1);
     const PartialPivLU<typename Op::CapacitanceType> lu(op.capacitance());
     Scalar det(static_cast<typename Op::RealScalar>(lu.permutationP().determinant()));
     for (Index i = 0; i < lu.matrixLU().rows(); ++i)
-      det = BalanceImpl::balance(det * BalanceImpl::balance(lu.matrixLU().coeff(i, i), exponent), exponent);
+      det = structured_balance(det * structured_balance(lu.matrixLU().coeff(i, i), exponent), exponent);
     return det;
   }
 };
@@ -443,24 +406,13 @@ class DiagonalPlusLowRank : public EigenBase<DiagonalPlusLowRank<Scalar_, Size_,
    * its reciprocals must be finite: a subnormal diagonal entry overflows
    * \f$ D^{-1} \f$ -- and with it the capacitance entries -- to infinity. */
   Scalar determinant() const {
-    using BalanceImpl = internal::dplr_balance_impl<Scalar>;
     Scalar det(1);
     Index exponent = 0;
     for (Index i = 0; i < rows(); ++i)
-      det = BalanceImpl::balance(det * BalanceImpl::balance(m_d.coeff(i), exponent), exponent);
+      det = internal::structured_balance(det * internal::structured_balance(m_d.coeff(i), exponent), exponent);
     const Scalar capDet = internal::dplr_capacitance_impl<Rank_>::balancedCapacitanceDeterminant(*this, exponent);
-    det = BalanceImpl::balance(det * capDet, exponent);
-    // Materialize m * 2^e in two exact half-power ldexp steps: each half stays
-    // well inside int range once the accumulated exponent is clamped (the clamp
-    // only guards the narrowing), the intermediate value is normal whenever the
-    // final value is nonzero so no double rounding occurs, and ldexp saturates
-    // cleanly to signed zero / infinity once the exponent leaves the
-    // representable range.
-    constexpr Index kMaxExponent = Index(1) << 24;
-    const Index clamped = numext::mini(numext::maxi(exponent, -kMaxExponent), kMaxExponent);
-    const int e1 = static_cast<int>(clamped / 2);
-    const int e2 = static_cast<int>(clamped - Index(e1));
-    return BalanceImpl::ldexp(BalanceImpl::ldexp(det, e1), e2);
+    det = internal::structured_balance(det * capDet, exponent);
+    return internal::structured_ldexp_clamped(det, exponent);
   }
 
   /** \internal Writes the dense representation into \a dst. Invoked through
