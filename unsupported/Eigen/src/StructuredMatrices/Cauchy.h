@@ -157,8 +157,13 @@ class Cauchy : public EigenBase<Cauchy<Scalar_, Rows_, Cols_>> {
    * renormalized to unit magnitude with the power of two tracked separately
    * (exact frexp/ldexp rescaling), numerator factors multiplied in and
    * denominator factors divided out -- so no intermediate can overflow or
-   * underflow when the determinant itself is representable. Zero factors
-   * (coincident \c x or \c y nodes) and non-finite factors propagate exactly. */
+   * underflow when the determinant itself is representable. A node difference
+   * that overflows even though both nodes are finite (nodes near opposite ends
+   * of the exponent range) is recomputed from the halved nodes -- exact, since
+   * such an overflow implies huge normal operands -- with the removed power of
+   * two entering the same exponent bookkeeping, so it too cannot push the
+   * accumulation to a spurious Inf. Zero factors (coincident \c x or \c y
+   * nodes) and genuinely non-finite factors propagate exactly. */
   Scalar determinant() const {
     eigen_assert(rows() == cols() && "Cauchy::determinant requires a square matrix");
     const Index n = rows();
@@ -166,13 +171,13 @@ class Cauchy : public EigenBase<Cauchy<Scalar_, Rows_, Cols_>> {
     Index exponent = 0;
     for (Index j = 1; j < n; ++j)
       for (Index i = 0; i < j; ++i) {
-        det = balance(det * balance(m_x.coeff(j) - m_x.coeff(i), exponent), exponent);
-        det = balance(det * balance(m_y.coeff(i) - m_y.coeff(j), exponent), exponent);
+        det = balance(det * balance(guardedDiff(m_x.coeff(j), m_x.coeff(i), exponent), exponent), exponent);
+        det = balance(det * balance(guardedDiff(m_y.coeff(i), m_y.coeff(j), exponent), exponent), exponent);
       }
     for (Index j = 0; j < n; ++j)
       for (Index i = 0; i < n; ++i) {
         Index denomExponent = 0;
-        const Scalar d = balance(m_x.coeff(i) - m_y.coeff(j), denomExponent);
+        const Scalar d = balance(guardedDiff(m_x.coeff(i), m_y.coeff(j), denomExponent), denomExponent);
         exponent -= denomExponent;
         det = balance(det / d, exponent);
       }
@@ -203,10 +208,17 @@ class Cauchy : public EigenBase<Cauchy<Scalar_, Rows_, Cols_>> {
   }
 
   /** \returns the product expression \c (*this) * \a v, evaluated directly at
-   * O(mn) operations and O(1) extra storage. */
+   * O(mn) operations and O(1) extra storage. The expression carries the default
+   * product tag, so assigning it behaves like any dense product: a temporary
+   * resolves aliasing between the destination and \a v, and \c .noalias() skips
+   * it. */
   template <typename Rhs>
-  Product<Cauchy, Rhs, AliasFreeProduct> operator*(const MatrixBase<Rhs>& v) const {
-    return Product<Cauchy, Rhs, AliasFreeProduct>(*this, v.derived());
+  Product<Cauchy, Rhs> operator*(const MatrixBase<Rhs>& v) const {
+    EIGEN_STATIC_ASSERT(ColsAtCompileTime == Dynamic || Rhs::RowsAtCompileTime == Dynamic ||
+                            int(ColsAtCompileTime) == int(Rhs::RowsAtCompileTime),
+                        INVALID_MATRIX_PRODUCT)
+    eigen_assert(v.rows() == cols() && "invalid product: dimensions do not match");
+    return Product<Cauchy, Rhs>(*this, v.derived());
   }
 
   /** \internal Computes \c dst += alpha * (*this) * rhs. \c ProductScalar is the
@@ -231,6 +243,26 @@ class Cauchy : public EigenBase<Cauchy<Scalar_, Rows_, Cols_>> {
   static RealScalar applyExponent(const RealScalar& v, int e) { return std::ldexp(v, e); }
   static std::complex<RealScalar> applyExponent(const std::complex<RealScalar>& v, int e) {
     return std::complex<RealScalar>(std::ldexp(v.real(), e), std::ldexp(v.imag(), e));
+  }
+
+  /** \internal Computes the determinant factor \c a - b with the true value kept
+   * as \c result * 2^k, \c k accumulated into \a exponent. The plain difference
+   * of two finite nodes can overflow (nodes near opposite ends of the binade
+   * range) even though the determinant is representable; in that case the
+   * difference is recomputed from the halved operands and one power of two is
+   * carried in \a exponent instead. The halving and the recomputed difference
+   * are exact: overflow of a finite difference implies both operands are huge
+   * normal values, and the halved difference is bounded by the largest finite
+   * value. (For complex nodes the halving of a subnormal component can round,
+   * but such a component is smaller than the overflowing one by more than the
+   * full exponent range, so the perturbation of the factor is far below
+   * roundoff.) A difference that is non-finite because a node itself is
+   * non-finite must propagate exactly and is returned untouched. */
+  static Scalar guardedDiff(const Scalar& a, const Scalar& b, Index& exponent) {
+    const Scalar t = a - b;
+    if ((numext::isfinite)(t) || !(numext::isfinite)(a) || !(numext::isfinite)(b)) return t;
+    ++exponent;
+    return a * RealScalar(0.5) - b * RealScalar(0.5);
   }
 
   /** \internal Rescales \a v by the power of two that brings \c max(|re|,|im|)

@@ -113,37 +113,26 @@ void structured_fft_apply(Dest& dst, const Matrix<std::complex<typename NumTrait
  * Forwards to the operator's \c addProduct member, which performs the fast
  * matrix-vector product. The same body serves every dense product dispatch tag.
  *
- * The structured products are tagged \c AliasFreeProduct, so assignment does not
- * create the temporary a dense product would: an aliased right-hand side
- * (\c x = op * x, \c x += op * x) must be resolved here. \c evalTo would
- * otherwise zero the destination before \c addProduct reads it, and the
- * operators' direct (non-FFT) kernels interleave destination writes with
- * right-hand-side reads, so both entry points copy an aliased right-hand side
- * up front. */
+ * The structured products carry the default product tag, so assignment has the
+ * ordinary dense-product semantics: \c x = op * expr first materializes the
+ * product into a temporary, which resolves every form of aliasing between the
+ * destination and the right-hand side (same object, overlapping views,
+ * expressions referencing the destination, destinations resized by the
+ * assignment), and \c .noalias() skips the temporary under the usual caller
+ * promise that no aliasing exists. */
 template <typename Op, typename Rhs>
 struct structured_product_impl : generic_product_impl_base<Op, Rhs, structured_product_impl<Op, Rhs>> {
   using Scalar = typename Product<Op, Rhs>::Scalar;
 
   template <typename Dest>
   static void evalTo(Dest& dst, const Op& lhs, const Rhs& rhs) {
-    if (is_same_dense(dst, rhs)) {
-      const typename plain_matrix_type<Rhs>::type rhsCopy(rhs);
-      dst.setZero();
-      lhs.addProduct(dst, rhsCopy, Scalar(1));
-    } else {
-      dst.setZero();
-      lhs.addProduct(dst, rhs, Scalar(1));
-    }
+    dst.setZero();
+    lhs.addProduct(dst, rhs, Scalar(1));
   }
 
   template <typename Dest>
   static void scaleAndAddTo(Dest& dst, const Op& lhs, const Rhs& rhs, const Scalar& alpha) {
-    if (is_same_dense(dst, rhs)) {
-      const typename plain_matrix_type<Rhs>::type rhsCopy(rhs);
-      lhs.addProduct(dst, rhsCopy, alpha);
-    } else {
-      lhs.addProduct(dst, rhs, alpha);
-    }
+    lhs.addProduct(dst, rhs, alpha);
   }
 };
 
