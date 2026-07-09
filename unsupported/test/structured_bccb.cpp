@@ -208,6 +208,51 @@ void test_bccb_mixed_scalar(Index n2, Index n1) {
   VERIFY_IS_APPROX(z, (denseC * xr).eval());
 }
 
+// Non-5-smooth block dimensions: products transform on the padded per-axis
+// circulant-embedding grid (kissfft's generic butterfly is quadratic in prime
+// factors), while the spectral operations keep the exact-size symbol. Cover
+// each padded combination -- n2 awkward, n1 awkward, both -- against the dense
+// reference, including the transposition family (which reuses the padded
+// symbol through the reversal/conjugation rules), solve, and inverse (which
+// rebuilds the padded symbol for the inverse operator).
+template <typename Scalar>
+void test_bccb_prime_dimensions(Index n2, Index n1) {
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  const Index N = n1 * n2;
+
+  Mat G = Mat::Random(n2, n1);
+  Bccb<Scalar> C(G);
+  Mat dense = reference_bccb<Scalar>(G);
+
+  Vec x = Vec::Random(N);
+  VERIFY_IS_APPROX((C * x).eval(), (dense * x).eval());
+  Mat X = Mat::Random(N, 3);
+  VERIFY_IS_APPROX((C * X).eval(), (dense * X).eval());
+
+  VERIFY_IS_APPROX((C.transpose() * x).eval(), (dense.transpose() * x).eval());
+  VERIFY_IS_APPROX((C.adjoint() * x).eval(), (dense.adjoint() * x).eval());
+  VERIFY_IS_APPROX((C.conjugate() * x).eval(), (dense.conjugate() * x).eval());
+
+  // Exact symbol round trip through the transposition family: both cached
+  // symbols are pure permutations/conjugations of the originals.
+  Bccb<Scalar> Ctt = C.transpose().transpose();
+  VERIFY_IS_EQUAL(Ctt.generator(), G);
+  VERIFY_IS_EQUAL(Ctt.symbol(), C.symbol());
+
+  // Solve (exact-size spectral path) and inverse (whose product rebuilds the
+  // padded symbol): diagonal dominance keeps the symbol away from zero.
+  Mat Gd = Mat::Random(n2, n1);
+  Gd(0, 0) += Scalar(RealScalar(2 * N));
+  Bccb<Scalar> Cd(Gd);
+  Mat densed = reference_bccb<Scalar>(Gd);
+  Vec b = Vec::Random(N);
+  Vec xs = Cd.solve(b);
+  VERIFY_IS_APPROX((densed * xs).eval(), b);
+  VERIFY_IS_APPROX((Cd.inverse() * b).eval(), xs);
+}
+
 // Dynamic dimension mismatches must trip the runtime assertion when the product
 // or solve expression is built. (Incompatible *fixed* sizes are rejected at
 // compile time by a static assertion in operator* / solve, which a runtime test
@@ -822,6 +867,14 @@ EIGEN_DECLARE_TEST(structured_bccb) {
     CALL_SUBTEST_5((test_bccb_matrix_free_cg<double>(8, 10)));
     CALL_SUBTEST_5((test_bccb_fixed<double, 3, 4>()));
     CALL_SUBTEST_5((test_bccb_fixed<std::complex<float>, 4, 3>()));
+
+    // Non-5-smooth (prime) block dimensions: the padded product-embedding grid,
+    // in each axis combination (n2 awkward, n1 awkward, both).
+    CALL_SUBTEST_5((test_bccb_prime_dimensions<double>(7, 6)));
+    CALL_SUBTEST_5((test_bccb_prime_dimensions<double>(6, 7)));
+    CALL_SUBTEST_5((test_bccb_prime_dimensions<double>(7, 7)));
+    CALL_SUBTEST_5((test_bccb_prime_dimensions<std::complex<double>>(11, 7)));
+    CALL_SUBTEST_5((test_bccb_prime_dimensions<float>(7, 6)));
 
     // Product lifetime, aliasing, mixed-scalar promotion, dimension mismatches,
     // across the scalar-loop and FFT dispatch tiers.
