@@ -235,10 +235,11 @@ void test_cauchy_determinant(Index n) {
   VERIFY(numext::abs(C.determinant() - dense.determinant()) <= tol * numext::abs(dense.determinant()));
 }
 
-// The products are tagged AliasFreeProduct, so no temporary shields an aliased
-// right-hand side: the shared product implementation must copy it instead.
-// Without the copy, x = C * x reads a zeroed right-hand side and x += C * x
-// interleaves destination writes with right-hand-side reads.
+// The products carry the default product tag, so assignment materializes a
+// temporary exactly like a dense product: x = C * x and x += C * x must see the
+// pre-assignment right-hand side. Without the temporary, x = C * x would read a
+// zeroed right-hand side and x += C * x would interleave destination writes
+// with right-hand-side reads.
 template <typename Scalar>
 void test_cauchy_aliased_product(Index n) {
   typedef Matrix<Scalar, Dynamic, 1> Vec;
@@ -266,6 +267,44 @@ void test_cauchy_aliased_product(Index n) {
   Mat W = V;
   W = C * W;
   VERIFY_IS_APPROX(W, (dense * V).eval());
+}
+
+// Aliasing beyond the same-object case: the default-product temporary must also
+// resolve right-hand-side expressions that reference the destination,
+// overlapping views of one buffer, and rectangular self-assignment where the
+// destination is resized by the assignment.
+template <typename Scalar>
+void test_cauchy_aliased_expression(Index n) {
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+
+  Vec xn, yn;
+  separated_nodes<Scalar>(n, n, xn, yn);
+  Cauchy<Scalar> C(xn, yn);
+  Mat dense = reference_cauchy<Scalar>(xn, yn);
+
+  // Right-hand-side expression referencing the destination.
+  Vec v = Vec::Random(n), v0 = v;
+  v = C * (v + Vec::Ones(n));
+  VERIFY_IS_APPROX(v, (dense * (v0 + Vec::Ones(n))).eval());
+
+  // Overlapping (shifted) segments of one buffer.
+  Vec buf = Vec::Random(n + 1);
+  Vec expected = dense * buf.tail(n);
+  buf.head(n) = C * buf.tail(n);
+  VERIFY_IS_APPROX(buf.head(n).eval(), expected);
+
+  // Rectangular self-assignment: z = R * z resizes the destination from n to m,
+  // so the product must be captured before the destination storage is touched.
+  const Index m = n + 3;
+  Vec xr, yr;
+  separated_nodes<Scalar>(m, n, xr, yr);
+  Cauchy<Scalar> R(xr, yr);
+  Mat denseR = reference_cauchy<Scalar>(xr, yr);
+  Vec z = Vec::Random(n), z0 = z;
+  z = R * z;
+  VERIFY_IS_EQUAL(z.size(), m);
+  VERIFY_IS_APPROX(z, (denseR * z0).eval());
 }
 
 // transpose()/conjugate()/adjoint() return owning temporaries, so the product
@@ -400,6 +439,108 @@ void test_cauchy_determinant_range() {
   }
 }
 
+// Node differences at the overflow boundary: forming x_j - x_i or x_i - y_j can
+// overflow to Inf even though every matrix entry is finite and unexceptional.
+// Such factors must enter the balanced accumulation through the exact
+// halved-operand recomputation, so only the determinant's own overflow or
+// underflow is visible in the result -- saturated to a zero or infinity of the
+// mathematically correct sign.
+void test_cauchy_determinant_overflow_boundary() {
+  typedef Matrix<double, Dynamic, 1> Vec;
+  const double M = 0.6 * (std::numeric_limits<double>::max)();
+
+  // Reviewer reproducer: every coefficient 1/(x_i - y_j) is finite and the exact
+  // determinant (2M)(-0.8M) / (0.7056 M^4) underflows, but the numerator
+  // difference x_1 - x_0 = 1.2 * DBL_MAX overflows if formed naively (the old
+  // code returned -Inf). The result must be a zero of the correct sign: one
+  // negative numerator factor against two negative denominator factors.
+  {
+    Vec x(2), y(2);
+    x << -M, M;
+    y << -0.4 * M, 0.4 * M;
+    const double det = Cauchy<double>(x, y).determinant();
+    VERIFY(det == 0.0 && std::signbit(det));
+  }
+
+  // Sign flip of the same configuration: swapping the y nodes negates the
+  // determinant, so the underflow must land on +0.
+  {
+    Vec x(2), y(2);
+    x << -M, M;
+    y << 0.4 * M, -0.4 * M;
+    const double det = Cauchy<double>(x, y).determinant();
+    VERIFY(det == 0.0 && !std::signbit(det));
+  }
+
+  // Purely imaginary nodes of the same magnitudes: the halved-operand
+  // recomputation applies componentwise to complex nodes. Scaling every node by
+  // i multiplies the 2x2 determinant by i^2 / i^4 = -1, so this underflow lands
+  // on a real part of +0 (the value is real: the four denominator divisions
+  // rotate the accumulation back onto the real axis).
+  {
+    typedef std::complex<double> Cplx;
+    Matrix<Cplx, Dynamic, 1> x(2), y(2);
+    x << Cplx(0.0, -M), Cplx(0.0, M);
+    y << Cplx(0.0, -0.4 * M), Cplx(0.0, 0.4 * M);
+    const Cplx det = Cauchy<Cplx>(x, y).determinant();
+    VERIFY(numext::real(det) == 0.0 && numext::imag(det) == 0.0);
+    VERIFY(!std::signbit(numext::real(det)));
+  }
+
+  // A representable determinant whose evaluation crosses the boundary, guard on
+  // a denominator factor (accumulated exponent decremented): with P = 2^1023,
+  // x = [-P, 0], y = [P, c], the difference x_0 - y_0 = -2^1024 overflows, yet
+  // det = (P - c) / (2 P c (P + c)), which for c = 2^-60 is 2^-964 up to a
+  // relative correction c/P ~ 2^-1083, far below roundoff. Every rounded factor
+  // is a power of two, so the balanced accumulation is exact here.
+  {
+    const double P = std::ldexp(1.0, 1023);
+    const double c = std::ldexp(1.0, -60);
+    Vec x(2), y(2);
+    x << -P, 0.0;
+    y << P, c;
+    const double det = Cauchy<double>(x, y).determinant();
+    VERIFY_IS_APPROX(det, std::ldexp(1.0, -964));
+  }
+
+  // Guard on a numerator factor (accumulated exponent incremented):
+  // x = [-P, P, 0], y = [c, -c, d] with c = 2^1000 and d = 2^-1050. The
+  // numerator difference x_1 - x_0 = 2^1024 overflows; the determinant
+  // -4 P^3 (c^2 - d^2) / ((P^2 - c^2)^2 (P^2 - d^2) c d) equals
+  // -2^-1017 / (1 - 2^-46)^2 up to relative corrections of order 2^-2050.
+  {
+    const double P = std::ldexp(1.0, 1023);
+    const double c = std::ldexp(1.0, 1000);
+    const double d = std::ldexp(1.0, -1050);
+    Vec x(3), y(3);
+    x << -P, P, 0.0;
+    y << c, -c, d;
+    const double det = Cauchy<double>(x, y).determinant();
+    const double r = 1.0 - std::ldexp(1.0, -46);  // 1 - (c/P)^2
+    VERIFY_IS_APPROX(det, -std::ldexp(1.0, -1017) / (r * r));
+  }
+
+  // Genuine overflow: clustered tiny nodes push the determinant past the
+  // representable range while every factor stays finite; the accumulated
+  // exponent must saturate to a correctly signed infinity, in both signs.
+  {
+    const double t = std::ldexp(1.0, -537);
+    Vec x(2), y(2);
+    x << 0.0, 3.0 * t;
+    y << t, 2.0 * t;  // det = -3 / (4 t^2) ~ -1.6e323
+    const double det = Cauchy<double>(x, y).determinant();
+    VERIFY((numext::isinf)(det) && std::signbit(det));
+  }
+  {
+    const double t = std::ldexp(1.0, -537);
+    Vec x(2), y(2);
+    x << 0.0, 3.0 * t;
+    y << 2.0 * t, t;  // swapped y nodes: det = +3 / (4 t^2)
+    const double det = Cauchy<double>(x, y).determinant();
+    VERIFY((numext::isinf)(det) && !std::signbit(det));
+  }
+}
+
 template <typename Scalar, int M, int N>
 void test_cauchy_fixed() {
   typedef Matrix<Scalar, M, 1> XVec;
@@ -424,6 +565,12 @@ void test_cauchy_fixed() {
   YVec v = YVec::Random();
   Matrix<Scalar, M, 1> w = C * v;
   VERIFY_IS_APPROX(w, (dense * v).eval());
+
+  // .noalias() keeps the direct (temporary-free) path of the default product tag;
+  // the matching fixed dimensions also pin the compile-time product check.
+  Matrix<Scalar, M, 1> w2;
+  w2.noalias() = C * v;
+  VERIFY_IS_APPROX(w2, (dense * v).eval());
 }
 
 EIGEN_DECLARE_TEST(structured_cauchy) {
@@ -461,10 +608,13 @@ EIGEN_DECLARE_TEST(structured_cauchy) {
     // delayed products, mixed-scalar products, wide-dynamic-range determinants.
     CALL_SUBTEST_4((test_cauchy_aliased_product<double>(11)));
     CALL_SUBTEST_4((test_cauchy_aliased_product<std::complex<double>>(8)));
+    CALL_SUBTEST_4((test_cauchy_aliased_expression<double>(11)));
+    CALL_SUBTEST_4((test_cauchy_aliased_expression<std::complex<double>>(8)));
     CALL_SUBTEST_4((test_cauchy_delayed_product<double>(12, 9)));
     CALL_SUBTEST_4((test_cauchy_delayed_product<std::complex<double>>(7, 10)));
     CALL_SUBTEST_4((test_cauchy_mixed_scalar<double>(10, 13)));
     CALL_SUBTEST_4((test_cauchy_mixed_scalar<float>(9, 6)));
     CALL_SUBTEST_4(test_cauchy_determinant_range());
+    CALL_SUBTEST_4(test_cauchy_determinant_overflow_boundary());
   }
 }
