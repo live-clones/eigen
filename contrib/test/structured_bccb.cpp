@@ -600,6 +600,45 @@ void test_bccb_rank_boundaries() {
   }
 }
 
+// A finite complex symbol entry near the overflow threshold has a
+// non-representable modulus. The rank threshold used to be computed from the raw
+// moduli, turning it into infinity: the rank was under-reported and solve()
+// zeroed valid Fourier modes. Both are now evaluated in an exactly rescaled
+// frame.
+void test_bccb_rank_complex_boundary() {
+  typedef std::complex<double> Complex;
+  typedef Matrix<Complex, Dynamic, 1> CVec;
+  typedef Matrix<Complex, Dynamic, Dynamic> CMat;
+  const double mx = (std::numeric_limits<double>::max)();
+
+  // n2 = 2, n1 = 1: the symbol is exactly [g0 + g1, g0 - g1], so pick the
+  // generator from the desired spectrum. |s0| overflows while both of its
+  // components are finite.
+  const Complex s0(0.75 * mx, 0.75 * mx), s1(1e300, 0.0);
+  CMat G(2, 1);
+  G(0, 0) = (s0 + s1) * 0.5;
+  G(1, 0) = (s0 - s1) * 0.5;
+  Bccb<Complex> C(G);
+  VERIFY_IS_EQUAL(C.rank(), 2);
+
+  // The second Fourier mode must be inverted, not zeroed: a product of a small
+  // vector solves back to that vector (the accuracy is limited by the condition
+  // number |s0| / |s1| ~ 2.5e8).
+  CVec x0(2);
+  x0[0] = Complex(1e-10, -2e-10);
+  x0[1] = Complex(-3e-10, 1e-10);
+  CVec b = C * x0;
+  VERIFY(b.allFinite());
+  CVec x = C.solve(b);
+  VERIFY(((x - x0).cwiseAbs().maxCoeff() / x0.cwiseAbs().maxCoeff()) <= 1e-6);
+
+  // A genuinely negligible second entry still truncates in the scaled frame.
+  CMat G2(2, 1);
+  G2(0, 0) = (s0 + Complex(1)) * 0.5;
+  G2(1, 0) = (s0 - Complex(1)) * 0.5;
+  VERIFY_IS_EQUAL(Bccb<Complex>(G2).rank(), 1);
+}
+
 template <typename Scalar>
 void test_bccb_eigen(Index n2, Index n1) {
   typedef typename NumTraits<Scalar>::Real RealScalar;
@@ -790,6 +829,7 @@ EIGEN_DECLARE_TEST(structured_bccb) {
     CALL_SUBTEST_7((test_bccb_fft_complex_boundary<float>(6, 8)));
     CALL_SUBTEST_7(test_bccb_determinant_scaled());
     CALL_SUBTEST_7(test_bccb_rank_boundaries());
+    CALL_SUBTEST_7(test_bccb_rank_complex_boundary());
 
     // Entrywise Inf/NaN propagation: FFT-sized operators must fall back to the
     // direct kernel; small ones are IEEE-exact already. A zero right-hand side
