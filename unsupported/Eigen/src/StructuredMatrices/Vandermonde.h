@@ -174,22 +174,18 @@ class Vandermonde : public EigenBase<Vandermonde<Scalar_, Rows_, Cols_>> {
     Index exponent = 0;
     for (Index j = 1; j < n; ++j)
       for (Index i = 0; i < j; ++i) {
-        Scalar diff = m_x.coeff(j) - m_x.coeff(i);
-        if (!(numext::isfinite)(diff) && (numext::isfinite)(m_x.coeff(j)) && (numext::isfinite)(m_x.coeff(i))) {
-          // The difference of two finite nodes can overflow even though the
-          // determinant is representable (e.g. nodes near +-max). Halving both
-          // operands first is exact -- a difference only overflows when its
-          // operands are huge, normal values (component-wise for complex nodes,
-          // which is what numext::isfinite checks) -- so the factor enters at
-          // half scale with the power of two carried by the running exponent.
-          diff = m_x.coeff(j) * RealScalar(0.5) - m_x.coeff(i) * RealScalar(0.5);
-          ++exponent;
-        }
-        det = balance(det * balance(diff, exponent), exponent);
+        // A node difference can overflow even though the determinant is
+        // representable (e.g. nodes near +-max); the guarded difference then
+        // enters at half scale with the factor of two carried by the running
+        // exponent.
+        int shift;
+        const Scalar diff = internal::structured_guarded_diff(m_x.coeff(j), m_x.coeff(i), shift);
+        exponent += shift;
+        det = internal::structured_balance(det * internal::structured_balance(diff, exponent), exponent);
       }
     // ldexp saturates cleanly to zero / infinity once the accumulated exponent
     // leaves the representable range; the clamp only guards the narrowing to int.
-    return ldexpClamped(det, exponent);
+    return internal::structured_ldexp_clamped(det, exponent);
   }
 
   /** \internal Writes the dense representation into \a dst: column \c j is the
@@ -295,37 +291,6 @@ class Vandermonde : public EigenBase<Vandermonde<Scalar_, Rows_, Cols_>> {
   }
 
  private:
-  /** \internal Rescales \a z by the power of two that brings its magnitude (the
-   * max-norm of the parts for a complex \a z) into [0.5, 1), accumulating the
-   * removed exponent into \a exponent. The rescaling is exact, so no roundoff is
-   * introduced. Zeros and non-finite values, which must propagate exactly
-   * through determinant() and the scaled Horner recurrence, are returned
-   * untouched. \c T is \c Scalar or the promoted scalar of a product. */
-  template <typename T>
-  static T balance(const T& z, Index& exponent) {
-    return balanceImpl(z, exponent, internal::bool_constant<NumTraits<T>::IsComplex>());
-  }
-
-  template <typename T>
-  static T balanceImpl(const T& z, Index& exponent, std::false_type) {
-    if (!(numext::abs(z) > T(0)) || !(numext::isfinite)(z)) return z;
-    int e;
-    std::frexp(z, &e);
-    exponent += e;
-    return std::ldexp(z, -e);
-  }
-
-  template <typename T>
-  static T balanceImpl(const T& z, Index& exponent, std::true_type) {
-    using Real = typename NumTraits<T>::Real;
-    const Real mag = numext::maxi(numext::abs(numext::real(z)), numext::abs(numext::imag(z)));
-    if (!(mag > Real(0)) || !(numext::isfinite)(mag)) return z;
-    int e;
-    std::frexp(mag, &e);
-    exponent += e;
-    return T(std::ldexp(numext::real(z), -e), std::ldexp(numext::imag(z), -e));
-  }
-
   /** \internal \returns an exponent bound \c e with \c |z| < 2^e (the modulus
    * for a complex \a z), or 0 for a zero or non-finite \a z; the
    * single-coefficient analogue of internal::structured_exponent_bound(). */
@@ -350,27 +315,6 @@ class Vandermonde : public EigenBase<Vandermonde<Scalar_, Rows_, Cols_>> {
     int e;
     std::frexp(mag, &e);
     return e + 1;  // the modulus is at most sqrt(2) times the largest component
-  }
-
-  /** \internal \returns \a z scaled by \c 2^e, part-wise for a complex \a z. */
-  template <typename T>
-  static T ldexpImpl(const T& z, int e, std::false_type) {
-    return std::ldexp(z, e);
-  }
-  template <typename T>
-  static T ldexpImpl(const T& z, int e, std::true_type) {
-    return T(std::ldexp(numext::real(z), e), std::ldexp(numext::imag(z), e));
-  }
-
-  /** \internal \returns \a z * 2^exponent. std::ldexp saturates exactly -- to
-   * +-Inf past the overflow threshold and to +-0 past the underflow threshold,
-   * part-wise for a complex \a z -- once the accumulated exponent leaves the
-   * representable range; the clamp only guards the narrowing to int. */
-  template <typename T>
-  static T ldexpClamped(const T& z, Index exponent) {
-    constexpr Index kMaxExponent = Index(1) << 24;
-    const int e = static_cast<int>(numext::mini(numext::maxi(exponent, -kMaxExponent), kMaxExponent));
-    return ldexpImpl(z, e, internal::bool_constant<NumTraits<T>::IsComplex>());
   }
 
   /** \internal \returns \a z * 2^e computed through two exact half-factors, so
@@ -417,13 +361,13 @@ class Vandermonde : public EigenBase<Vandermonde<Scalar_, Rows_, Cols_>> {
   template <typename ProductScalar, typename Rhs>
   ProductScalar scaledHorner(const Scalar& xi, const Rhs& rhs, Index k) const {
     Index xiE = 0;
-    const Scalar xiMant = balance(xi, xiE);  // xi = xiMant * 2^xiE, exactly
+    const Scalar xiMant = internal::structured_balance(xi, xiE);  // xi = xiMant * 2^xiE, exactly
     ProductScalar acc(0);
     Index exponent = 0;  // running value = acc * 2^exponent
     for (Index j = m_cols - 1; j >= 0; --j) {
       if (j < m_cols - 1) {
         exponent += xiE;
-        acc = balance(acc * xiMant, exponent);
+        acc = internal::structured_balance(acc * xiMant, exponent);
       }
       // A zero value has no scale: reset the frame so the next coefficient
       // enters at its own magnitude instead of underflowing in a stale one.
@@ -438,9 +382,9 @@ class Vandermonde : public EigenBase<Vandermonde<Scalar_, Rows_, Cols_>> {
         acc = twoHalfScale(acc, exponent - ajExp);
         exponent = ajExp;
       }
-      acc = balance(acc + twoHalfScale(aj, -exponent), exponent);
+      acc = internal::structured_balance(acc + twoHalfScale(aj, -exponent), exponent);
     }
-    return ldexpClamped(acc, exponent);
+    return internal::structured_ldexp_clamped(acc, exponent);
   }
 
   NodeVector m_x;
