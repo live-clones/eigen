@@ -74,6 +74,28 @@ struct structured_scalar_part_impl<Scalar, false> {
   static Scalar run_scalar(const std::complex<Scalar>& x) { return numext::real(x); }
 };
 
+/** \internal \returns an exponent bound \c e with \c max_k|x[k]| < 2^e, or 0 when
+ * \a x is zero or holds non-finite values. The bound is derived from the
+ * component-wise magnitudes, never from the modulus: a finite complex value near
+ * the overflow threshold has a non-representable modulus, which would silently
+ * disable the overflow-protection scaling exactly where it is needed. Bounding
+ * the modulus by twice the largest component costs at most one extra bit. */
+template <typename Xpr>
+int structured_exponent_bound(const Xpr& x) {
+  using RealScalar = typename NumTraits<typename Xpr::Scalar>::Real;
+  RealScalar m;
+  if (NumTraits<typename Xpr::Scalar>::IsComplex)
+    m = numext::maxi(x.real().cwiseAbs().maxCoeff(), x.imag().cwiseAbs().maxCoeff());
+  else
+    m = x.cwiseAbs().maxCoeff();
+  int e = 0;
+  if (m > RealScalar(0) && (numext::isfinite)(m)) {
+    std::frexp(m, &e);
+    if (NumTraits<typename Xpr::Scalar>::IsComplex) ++e;
+  }
+  return e;
+}
+
 /** \internal \returns the index reversal of a DFT \a symbol: result[k] =
  * symbol[(p - k) mod p]. This is the symbol of the transposed operator: reversing
  * the generating sequence in index space reverses the frequencies of its DFT, for
@@ -102,12 +124,17 @@ ComplexVectorType structured_reverse_symbol(const ComplexVectorType& symbol) {
  * overflow threshold (or one applied through a symbol of huge magnitude) would
  * overflow inside the FFT and turn a representable result into Inf/NaN. Each
  * column is therefore scaled down by a power of two -- an exact shift, no
- * roundoff -- derived from the column's and the symbol's largest exponents, and
- * the exponent is folded back into the output after the back-transform. The
- * scale is one whenever the conservative intermediate bound cannot overflow, so
- * results are bit-identical for inputs of moderate magnitude; zero columns are
- * never scaled, and non-finite inputs (genuine NaN or Inf) propagate through
- * the transforms unscaled.
+ * roundoff -- derived from the column's and the symbol's largest component-wise
+ * exponents (see structured_exponent_bound()), and the exponent is folded back
+ * into the output after the back-transform. The scale is one whenever the
+ * conservative intermediate bound cannot overflow, so results are bit-identical
+ * for inputs of moderate magnitude; zero columns are never scaled.
+ *
+ * Genuinely non-finite data (NaN or Inf in the symbol or the column) must not
+ * reach this function: the transforms mix every input entry into every output
+ * entry, so a single special value would contaminate the whole column with NaN
+ * where the dense product only propagates it through the dot products that
+ * touch it. The operators route such data to their direct kernels instead.
  */
 template <typename Scalar, typename Dest, typename Rhs>
 void structured_fft_apply(Dest& dst, const Matrix<std::complex<typename NumTraits<Scalar>::Real>, Dynamic, 1>& symbol,
@@ -135,17 +162,13 @@ void structured_fft_apply(Dest& dst, const Matrix<std::complex<typename NumTrait
   int log2p = 0;
   for (Index t = p; t > 0; t /= 2) ++log2p;
   const int budget = std::numeric_limits<RealScalar>::max_exponent - 2 * log2p - 2;
-  int symbolExp = 0;  // 2^(symbolExp - 1) <= max|symbol| < 2^symbolExp
-  const RealScalar symbolMax = symbol.cwiseAbs().maxCoeff();
-  if ((numext::isfinite)(symbolMax)) std::frexp(symbolMax, &symbolExp);
+  const int symbolExp = structured_exponent_bound(symbol);  // max|symbol| < 2^symbolExp
 
   FFT<RealScalar> fft;
   ComplexVector xt = ComplexVector::Zero(p);  // the zero padding beyond rhs.rows() is never overwritten
   ComplexVector xf(p), yt(p);
   for (Index k = 0; k < rhs.cols(); ++k) {
-    int colExp = 0;  // frexp leaves it 0 for an all-zero column: no scaling
-    const RealScalar colMax = rhs.col(k).cwiseAbs().maxCoeff();
-    if ((numext::isfinite)(colMax)) std::frexp(colMax, &colExp);
+    const int colExp = structured_exponent_bound(rhs.col(k));  // 0 for an all-zero column: no scaling
     const int e = numext::maxi(colExp + symbolExp - budget, 0);
     // Each power of two is split in halves so that the factors themselves stay
     // inside the exponent range even when e exceeds it (a huge column applied
@@ -165,37 +188,26 @@ void structured_fft_apply(Dest& dst, const Matrix<std::complex<typename NumTrait
  * Forwards to the operator's \c addProduct member, which performs the fast
  * matrix-vector product. The same body serves every dense product dispatch tag.
  *
- * The structured products are tagged \c AliasFreeProduct, so assignment does not
- * create the temporary a dense product would: an aliased right-hand side
- * (\c x = op * x, \c x += op * x) must be resolved here. \c evalTo would
- * otherwise zero the destination before \c addProduct reads it, and the
- * operators' direct (non-FFT) kernels interleave destination writes with
- * right-hand-side reads, so both entry points copy an aliased right-hand side
- * up front. */
+ * The structured products carry the default product tag, so assignment has the
+ * ordinary dense-product semantics: \c x = op * expr first materializes the
+ * product into a temporary, which resolves every form of aliasing between the
+ * destination and the right-hand side (same object, overlapping views,
+ * expressions referencing the destination, destinations resized by the
+ * assignment), and \c .noalias() skips the temporary under the usual caller
+ * promise that no aliasing exists. */
 template <typename Op, typename Rhs>
 struct structured_product_impl : generic_product_impl_base<Op, Rhs, structured_product_impl<Op, Rhs>> {
   using Scalar = typename Product<Op, Rhs>::Scalar;
 
   template <typename Dest>
   static void evalTo(Dest& dst, const Op& lhs, const Rhs& rhs) {
-    if (is_same_dense(dst, rhs)) {
-      const typename plain_matrix_type<Rhs>::type rhsCopy(rhs);
-      dst.setZero();
-      lhs.addProduct(dst, rhsCopy, Scalar(1));
-    } else {
-      dst.setZero();
-      lhs.addProduct(dst, rhs, Scalar(1));
-    }
+    dst.setZero();
+    lhs.addProduct(dst, rhs, Scalar(1));
   }
 
   template <typename Dest>
   static void scaleAndAddTo(Dest& dst, const Op& lhs, const Rhs& rhs, const Scalar& alpha) {
-    if (is_same_dense(dst, rhs)) {
-      const typename plain_matrix_type<Rhs>::type rhsCopy(rhs);
-      lhs.addProduct(dst, rhsCopy, alpha);
-    } else {
-      lhs.addProduct(dst, rhs, alpha);
-    }
+    lhs.addProduct(dst, rhs, alpha);
   }
 };
 
