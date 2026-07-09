@@ -7,6 +7,19 @@
 // SPDX-FileCopyrightText: The Eigen Authors
 // SPDX-License-Identifier: MPL-2.0
 
+// References:
+//  [1] N. J. Higham, "Accuracy and Stability of Numerical Algorithms", 2nd ed.,
+//      SIAM, 2002, chapter 27. Avoiding spurious overflow by rescaling with
+//      powers of two, the technique behind determinant()'s balanced
+//      accumulation and the scaled Horner recurrence of addProduct().
+//  [2] P. H. Sterbenz, "Floating-Point Computation", Prentice-Hall, 1974.
+//      Scaling by a power of two is exact, the property the balanced
+//      accumulation and the scaled Horner recurrence rely on.
+//  [3] J. J. Dongarra, J. R. Bunch, C. B. Moler and G. W. Stewart, "LINPACK
+//      Users' Guide", SIAM, 1979. determinant()'s balanced accumulation follows
+//      the convention of its xGEDI routines, which return determinants as a
+//      (fraction, exponent) pair to avoid spurious overflow/underflow.
+
 #ifndef EIGEN_STRUCTURED_VANDERMONDE_H
 #define EIGEN_STRUCTURED_VANDERMONDE_H
 
@@ -146,12 +159,14 @@ class Vandermonde : public EigenBase<Vandermonde<Scalar_, Rows_, Cols_>> {
 
   /** \returns the determinant of a \b square Vandermonde matrix through the
    * closed form \f$ \prod_{i<j} (x_j - x_i) \f$, in O(n^2) operations. The
-   * product is accumulated in the balanced form \c m * 2^e -- every factor and
-   * the running product are renormalized to unit magnitude with the power of two
-   * tracked separately -- so the partial products can neither overflow nor
-   * underflow when the determinant itself is representable, whatever the spread
-   * of the nodes. Zero factors (repeated nodes, giving an exactly singular
-   * matrix) and non-finite factors propagate exactly. */
+   * product is accumulated in the balanced form \c m * 2^e (the split
+   * fraction/exponent determinant convention of LINPACK's xGEDI [3]) -- every
+   * factor and the running product are renormalized to unit magnitude with the
+   * power of two tracked separately, an exact rescaling [2] -- so the partial
+   * products can neither overflow nor underflow when the determinant itself is
+   * representable, whatever the spread of the nodes. Zero factors (repeated
+   * nodes, giving an exactly singular matrix) and non-finite factors propagate
+   * exactly. */
   Scalar determinant() const {
     eigen_assert(rows() == cols() && "Vandermonde::determinant requires a square matrix");
     const Index n = rows();
@@ -366,14 +381,24 @@ class Vandermonde : public EigenBase<Vandermonde<Scalar_, Rows_, Cols_>> {
 
   /** \internal Evaluates the polynomial with ascending coefficients
    * \c rhs.col(k) at the node \a xi, keeping the running value in the balanced
-   * form \c acc * 2^exponent of determinant(): the node enters through its unit
-   * mantissa with its exponent folded into the running one, the mantissa is
+   * form \c acc * 2^exponent of determinant() (overflow-avoiding power-of-two
+   * rescaling [1], exact by [2]): the node enters through its unit mantissa
+   * with its exponent folded into the running one, the mantissa is
    * renormalized after every step, and each coefficient is folded into the
    * running frame scaled by an exact power of two split into two half-factors
    * (when the coefficient dominates the frame, the frame is rebased onto the
    * coefficient's exponent instead). Intermediates can therefore neither
    * overflow nor underflow, and the final ldexp saturates to +-Inf / +-0 exactly
    * where the true value leaves the representable range.
+   *
+   * An exactly zero mantissa carries no scale, so the frame is reset before
+   * every fold: after an exact cancellation (or a zero node annihilating the
+   * running value) a stale huge frame would otherwise underflow the next small
+   * coefficient to zero. A cancellation that leaves a tiny nonzero mantissa
+   * needs no such care -- the frexp renormalization rebases the frame to the
+   * surviving magnitude (which is a multiple of the operands' unit roundoff,
+   * hence never subnormal for real scalars, and frexp is exact on subnormal
+   * component values regardless).
    * \pre the node and the column are finite (non-finite data takes the plain
    * loop in addProduct()). */
   template <typename ProductScalar, typename Rhs>
@@ -387,6 +412,9 @@ class Vandermonde : public EigenBase<Vandermonde<Scalar_, Rows_, Cols_>> {
         exponent += xiE;
         acc = balance(acc * xiMant, exponent);
       }
+      // A zero value has no scale: reset the frame so the next coefficient
+      // enters at its own magnitude instead of underflowing in a stale one.
+      if (acc == ProductScalar(0)) exponent = 0;
       const ProductScalar aj(rhs.coeff(j, k));
       if (aj == ProductScalar(0)) continue;
       const Index ajExp = exponentBound(aj);
