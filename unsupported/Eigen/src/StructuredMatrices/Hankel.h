@@ -375,7 +375,7 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
     embedding.tail(n - 1) = m_h.head(n - 1).template cast<Complex>();
     if (p == 1) return embedding;  // the DFT of a single sample is the identity
     ComplexVector symbol(p);
-    FFT<RealScalar> fft;
+    FFT<RealScalar>& fft = internal::structured_fft_engine<RealScalar>();
     fft.fwd(symbol, embedding, p);
     return symbol;
   }

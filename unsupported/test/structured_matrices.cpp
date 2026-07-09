@@ -1654,6 +1654,7 @@ EIGEN_DECLARE_TEST(structured_matrices) {
     CALL_SUBTEST_1((test_circulant_solve<double>(1)));  // degenerate 1x1 solve
     CALL_SUBTEST_1((test_circulant_solve<double>(8)));
     CALL_SUBTEST_1((test_circulant_solve<double>(50)));
+    CALL_SUBTEST_1((test_circulant_solve<double>(97)));  // prime: solve keeps the exact-size symbol
     CALL_SUBTEST_1((test_circulant_solve<std::complex<double>>(40)));
     CALL_SUBTEST_1((test_circulant_solve<float>(32)));
     CALL_SUBTEST_1((test_circulant_symbol<double>(16)));
