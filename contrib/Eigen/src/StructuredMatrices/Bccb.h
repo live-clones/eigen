@@ -246,7 +246,10 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
       Bccb(pg, ComplexArray()).directProduct(x, b.derived(), Scalar(1));
       return x;
     }
-    applySymbol(x, sinv, b.derived(), Scalar(1), /*accumulate=*/false);
+    // The right-hand side is finite here (checked above), so no per-column
+    // direct kernel can be needed.
+    applySymbol(x, sinv, b.derived(), Scalar(1), /*accumulate=*/false,
+                [](Index) { eigen_assert(false && "non-finite column requires a direct kernel"); });
     return x;
   }
 
@@ -433,20 +436,23 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
    * promoted scalar of the product (complex when a real operator is applied to a
    * complex right-hand side); the accumulation runs in the promoted type.
    *
-   * Non-finite data -- in the generating array, the cached symbol (which can
-   * overflow even for a finite generator: the 2-D DFT accumulates up to N
-   * addends) or the right-hand side -- takes the direct O(N^2) kernel: the
-   * transforms would smear a single Inf/NaN into NaNs across the whole output,
-   * where the dense product only propagates it through the dot products that
-   * touch it. */
+   * Non-finite data takes the direct O(N^2) kernel: the transforms would smear a
+   * single Inf/NaN into NaNs across the whole output, where the dense product
+   * only propagates it through the dot products that touch it. A non-finite
+   * generating array or cached symbol (which can overflow even for a finite
+   * generator: the 2-D DFT accumulates up to N addends) routes the whole
+   * product; a non-finite right-hand-side column is detected inside the FFT
+   * loop -- in the same pass that derives its scaling exponent, so finite data
+   * pays no extra scan -- and falls back per column. */
   template <typename Dest, typename Rhs, typename ProductScalar>
   void addProduct(Dest& dst, const Rhs& rhs, const ProductScalar& alpha) const {
     const Index N = rows();
     eigen_assert(rhs.rows() == N && "invalid product: dimensions do not match");
-    if (N <= internal::structured_direct_threshold() || !m_fftUsable || !rhs.allFinite())
+    if (N <= internal::structured_direct_threshold() || !m_fftUsable)
       directProduct(dst, rhs, alpha);
     else
-      applySymbol(dst, m_symbol, rhs, alpha, /*accumulate=*/true);
+      applySymbol(dst, m_symbol, rhs, alpha, /*accumulate=*/true,
+                  [&](Index k) { directProductColumn(dst, rhs, k, alpha); });
   }
 
  private:
@@ -464,24 +470,31 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
    * to the direct kernel, which stays exact. */
   bool computeFftUsable() const { return m_g.allFinite() && (m_symbol.size() == 0 || m_symbol.allFinite()); }
 
-  /** \internal Direct O(N^2) product kernel: computes \c dst += alpha * (*this)
-   * * rhs without transforms, as a plain scalar loop. Serves operators below the
-   * FFT threshold (where the two-level segment-based middle tier of the 1-D
-   * operators does not pay off: the within-block segments are too short) and any
-   * product involving non-finite data, whose entrywise IEEE semantics the
-   * transforms cannot preserve. */
+  /** \internal Direct O(N^2) kernel for column \a k of the right-hand side:
+   * computes \c dst.col(k) += alpha * (*this) * rhs.col(k) without transforms,
+   * as a plain scalar loop (the two-level segment-based middle tier of the 1-D
+   * operators does not pay off here: the within-block segments are too short at
+   * these sizes). Serves operators below the FFT threshold and any column
+   * involving non-finite data, whose entrywise IEEE semantics the transforms
+   * cannot preserve. */
   template <typename Dest, typename Rhs, typename ProductScalar>
-  void directProduct(Dest& dst, const Rhs& rhs, const ProductScalar& alpha) const {
+  void directProductColumn(Dest& dst, const Rhs& rhs, Index k, const ProductScalar& alpha) const {
     const Index N = rows();
     // A unit alpha must not multiply: even the identity complex scalar (1,0)
     // pollutes an (Inf,0) value with NaN through the 0*Inf cross term.
     const bool unitAlpha = alpha == ProductScalar(1);
-    for (Index k = 0; k < rhs.cols(); ++k)
-      for (Index i = 0; i < N; ++i) {
-        ProductScalar acc(0);
-        for (Index j = 0; j < N; ++j) acc += coeff(i, j) * rhs.coeff(j, k);
-        dst.coeffRef(i, k) += unitAlpha ? acc : ProductScalar(alpha * acc);
-      }
+    for (Index i = 0; i < N; ++i) {
+      ProductScalar acc(0);
+      for (Index j = 0; j < N; ++j) acc += coeff(i, j) * rhs.coeff(j, k);
+      dst.coeffRef(i, k) += unitAlpha ? acc : ProductScalar(alpha * acc);
+    }
+  }
+
+  /** \internal Direct O(N^2) product kernel over every column, see
+   * directProductColumn(). */
+  template <typename Dest, typename Rhs, typename ProductScalar>
+  void directProduct(Dest& dst, const Rhs& rhs, const ProductScalar& alpha) const {
+    for (Index k = 0; k < rhs.cols(); ++k) directProductColumn(dst, rhs, k, alpha);
   }
 
   /** \internal Applies the operator whose 2-D symbol is \a s to every column of
@@ -497,20 +510,30 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
    * make huge symbols, hence both sides -- and the removed exponent is folded
    * back into the output through per-entry ldexp, which saturates cleanly to
    * zero or infinity if the true result itself leaves the representable range.
-   * The exponents come from the component-wise magnitudes (see
-   * internal::structured_exponent_bound()): the modulus of a finite complex
-   * value near the overflow threshold is not representable, which would
-   * silently disable the scaling exactly where it is needed. Zero columns
-   * short-circuit to zero, but only under a finite symbol: Inf*0 and NaN*0 are
-   * NaN entrywise. Non-finite data must otherwise not reach this function; the
-   * products route it to the direct kernel (see addProduct), and solve() takes
-   * its direct fallback for non-finite right-hand sides. */
-  template <typename Dest, typename Rhs, typename ProductScalar>
-  void applySymbol(Dest& dst, const ComplexArray& s, const Rhs& rhs, const ProductScalar& alpha,
-                   bool accumulate) const {
+   * The exponents come from the component-wise magnitudes: the modulus of a
+   * finite complex value near the overflow threshold is not representable,
+   * which would silently disable the scaling exactly where it is needed.
+   *
+   * A single plain (fast-max) reduction pass per column yields the finiteness
+   * routing, the zero-column shortcut and the scaling exponent (see
+   * internal::structured_exponent_bound_finite() for why missing a NaN in the
+   * fast max cannot change a routing decision). Non-finite columns are handed
+   * to \a directColumn, the caller's per-column direct kernel, so the remaining
+   * columns keep the fast path; a non-finite symbol is the caller's
+   * responsibility (addProduct routes it to the direct kernel up front, and
+   * solve() takes its dedicated pseudo-inverse fallback for non-finite
+   * right-hand sides). Zero columns short-circuit to zero, but only under a
+   * finite symbol (Inf*0 and NaN*0 are NaN entrywise) and after an exact
+   * recheck: the fast max can miss a NaN hiding among zeros (an Inf always
+   * surfaces), and such a column must fall back, not shortcut. */
+  template <typename Dest, typename Rhs, typename ProductScalar, typename DirectColumn>
+  void applySymbol(Dest& dst, const ComplexArray& s, const Rhs& rhs, const ProductScalar& alpha, bool accumulate,
+                   DirectColumn&& directColumn) const {
     const Index n2 = blockSize(), n1 = numBlocks(), N = rows();
     const bool sFinite = s.allFinite();
-    const int es = internal::structured_exponent_bound(s);  // max|s| < 2^es
+    // max|s| < 2^es. The bound reduces over realView() -- one linear vectorized
+    // pass over the symbol's interleaved (re, im) components.
+    const int es = internal::structured_exponent_bound(s);
     ComplexArray sScaled;
     if (es != 0) {
       sScaled = s;
@@ -521,13 +544,35 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
     ComplexArray X(n2, n1);
     for (Index k = 0; k < rhs.cols(); ++k) {
       xc = rhs.col(k).template cast<ProductScalar>();
-      if (sFinite && (xc.array() == ProductScalar(0)).all()) {
-        // An exactly zero column maps to an exactly zero column -- unless the
-        // symbol holds Inf or NaN, whose products with zero are NaN.
-        if (!accumulate) dst.col(k).setZero();
+      // The single fast-max pass over the concrete column copy, through
+      // realView() -- one linear vectorized pass over the interleaved (re, im)
+      // components when the product scalar is complex, the identity when real.
+      const RealScalar m = xc.realView().cwiseAbs().maxCoeff();
+      if (!(numext::isfinite)(m)) {
+        directColumn(k);
         continue;
       }
-      const int ex = internal::structured_exponent_bound(xc);  // 0 for an all-zero column: no scaling
+      if (m == RealScalar(0)) {
+        // The fast max cannot hide an Inf (those comparisons are ordered), but
+        // it can miss a NaN among zeros: recheck exactly before shortcutting.
+        if ((xc.array() == ProductScalar(0)).all()) {
+          if (sFinite) {
+            // An exactly zero column maps to an exactly zero column -- unless
+            // the symbol holds Inf or NaN, whose products with zero are NaN;
+            // falling through to the transforms produces exactly that.
+            if (!accumulate) dst.col(k).setZero();
+            continue;
+          }
+        } else {
+          directColumn(k);
+          continue;
+        }
+      }
+      int ex = 0;  // stays 0 for an all-zero column: no scaling
+      if (m > RealScalar(0)) {
+        std::frexp(m, &ex);
+        if (NumTraits<ProductScalar>::IsComplex) ++ex;
+      }
       X = Map<const Matrix<ProductScalar, Dynamic, Dynamic, ColMajor>>(xc.data(), n2, n1).template cast<Complex>();
       ldexpInPlace(X, -ex);
       fft2(X);
