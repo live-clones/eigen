@@ -328,13 +328,9 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
     const ComplexVector s = symbol();
     Complex det(1);
     Index exponent = 0;
-    for (Index k = 0; k < s.size(); ++k) det = balance(det * balance(s[k], exponent), exponent);
-    // ldexp saturates cleanly to zero / infinity once the accumulated exponent
-    // leaves the representable range; the clamp only guards the narrowing to int.
-    constexpr Index kMaxExponent = Index(1) << 24;
-    const int e = static_cast<int>(numext::mini(numext::maxi(exponent, -kMaxExponent), kMaxExponent));
-    return internal::structured_scalar_part_impl<Scalar>::run_scalar(
-        Complex(std::ldexp(numext::real(det), e), std::ldexp(numext::imag(det), e)));
+    for (Index k = 0; k < s.size(); ++k)
+      det = internal::structured_balance(Complex(det * internal::structured_balance(s[k], exponent)), exponent);
+    return internal::structured_scalar_part_impl<Scalar>::run_scalar(internal::structured_ldexp_clamped(det, exponent));
   }
 
   /** \returns the eigenvalues: eigenvalue \c k is \c symbol()[k], and its
@@ -360,7 +356,7 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
   RealVector singularValues() const {
     const ComplexVector s = symbol();
     const RealVector mods = s.cwiseAbs();
-    const std::vector<Index> perm = svdPermutation(mods);
+    const std::vector<Index> perm = internal::structured_svd_permutation(mods);
     RealVector sv(s.size());
     for (Index t = 0; t < s.size(); ++t) sv[t] = mods[perm[t]];
     return sv;
@@ -373,7 +369,7 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
     const Index n = rows();
     const ComplexVector s = symbol();
     const RealVector mods = s.cwiseAbs();
-    const std::vector<Index> perm = svdPermutation(mods);
+    const std::vector<Index> perm = internal::structured_svd_permutation(mods);
     ComplexMatrix U(n, n);
     for (Index t = 0; t < n; ++t) {
       fourierColumn(U, perm[t], t);
@@ -389,7 +385,7 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
   ComplexMatrix matrixV() const {
     const Index n = rows();
     const ComplexVector s = symbol();
-    const std::vector<Index> perm = svdPermutation(RealVector(s.cwiseAbs()));
+    const std::vector<Index> perm = internal::structured_svd_permutation(RealVector(s.cwiseAbs()));
     ComplexMatrix V(n, n);
     for (Index t = 0; t < n; ++t) fourierColumn(V, perm[t], t);
     return V;
@@ -526,20 +522,6 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
                        (std::numeric_limits<RealScalar>::min)() * down);
   }
 
-  /** \internal Rescales \a z by the power of two that brings \c max(|re|,|im|)
-   * into [0.5, 1), accumulating the removed exponent into \a exponent. The
-   * rescaling is exact, so no roundoff is introduced. Zeros and non-finite
-   * values, which must propagate exactly through determinant(), are returned
-   * untouched. */
-  static Complex balance(const Complex& z, Index& exponent) {
-    const RealScalar mag = numext::maxi(numext::abs(numext::real(z)), numext::abs(numext::imag(z)));
-    if (!(mag > RealScalar(0)) || !(numext::isfinite)(mag)) return z;
-    int e;
-    std::frexp(mag, &e);
-    exponent += e;
-    return Complex(std::ldexp(numext::real(z), -e), std::ldexp(numext::imag(z), -e));
-  }
-
   /** \internal Writes the unit-norm Fourier eigenvector \c f_k into column
    * \a dstCol of \a F: (f_k)_j = exp(2 pi i j k / n) / sqrt(n). The index product
    * j*k is accumulated incrementally modulo n, so the argument passed to polar()
@@ -554,24 +536,6 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
       jk += k;
       if (jk >= n) jk -= n;
     }
-  }
-
-  /** \internal \returns the indices sorted by decreasing precomputed modulus
-   * \a mods (each modulus is computed once, not on every comparison); the
-   * shared ordering of singularValues(), matrixU() and matrixV(). The sort is
-   * stable so repeated calls agree even in the presence of ties, and NaN moduli
-   * order last (comparing through NaN directly would break the strict weak
-   * ordering std::stable_sort requires). */
-  static std::vector<Index> svdPermutation(const RealVector& mods) {
-    std::vector<Index> perm(static_cast<std::size_t>(mods.size()));
-    for (Index k = 0; k < mods.size(); ++k) perm[static_cast<std::size_t>(k)] = k;
-    std::stable_sort(perm.begin(), perm.end(), [&mods](Index a, Index b) {
-      const RealScalar ka = mods[a], kb = mods[b];
-      const bool nanA = (ka != ka), nanB = (kb != kb);
-      if (nanA || nanB) return nanB && !nanA;
-      return ka > kb;
-    });
-    return perm;
   }
 
   /** \internal \returns the DFT of the generating column. */

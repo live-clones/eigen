@@ -41,6 +41,80 @@ constexpr Index structured_direct_threshold() { return 32; }
 // fewer than a couple of packets (measured crossover on AVX2 hardware).
 constexpr Index structured_scalar_threshold() { return 16; }
 
+/** \internal Balanced mantissa*2^e arithmetic shared by the structured
+ * operators' determinant-style accumulations (the split fraction/exponent
+ * convention of LINPACK's xGEDI; see the per-class references).
+ * structured_balance() rescales \a z by the power of two that brings
+ * \c max(|re|,|im|) (the modulus can overflow where the components do not) --
+ * or \c |z| for a real scalar -- into [0.5, 1), accumulating the removed
+ * exponent into \a exponent. The rescaling is exact, so no roundoff is
+ * introduced; zeros and non-finite values, which must propagate exactly, are
+ * returned untouched. */
+template <typename Scalar, bool IsComplex = NumTraits<Scalar>::IsComplex>
+struct structured_balance_impl {
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  static Scalar run(const Scalar& z, Index& exponent) {
+    const RealScalar mag = numext::maxi(numext::abs(numext::real(z)), numext::abs(numext::imag(z)));
+    if (!(mag > RealScalar(0)) || !(numext::isfinite)(mag)) return z;
+    int e;
+    std::frexp(mag, &e);
+    exponent += e;
+    return Scalar(std::ldexp(numext::real(z), -e), std::ldexp(numext::imag(z), -e));
+  }
+  static Scalar apply_exponent(const Scalar& z, int e) {
+    return Scalar(std::ldexp(numext::real(z), e), std::ldexp(numext::imag(z), e));
+  }
+};
+
+template <typename Scalar>
+struct structured_balance_impl<Scalar, false> {
+  static Scalar run(const Scalar& x, Index& exponent) {
+    const Scalar mag = numext::abs(x);
+    if (!(mag > Scalar(0)) || !(numext::isfinite)(mag)) return x;
+    int e;
+    std::frexp(mag, &e);
+    exponent += e;
+    return std::ldexp(x, -e);
+  }
+  static Scalar apply_exponent(const Scalar& x, int e) { return std::ldexp(x, e); }
+};
+
+template <typename Scalar>
+Scalar structured_balance(const Scalar& z, Index& exponent) {
+  return structured_balance_impl<Scalar>::run(z, exponent);
+}
+
+/** \internal Applies an accumulated power-of-two \a exponent to \a z,
+ * component-wise for complex scalars. ldexp saturates cleanly to zero /
+ * infinity (preserving signs) once the exponent leaves the representable
+ * range; the clamp only guards the narrowing to int. */
+template <typename Scalar>
+Scalar structured_ldexp_clamped(const Scalar& z, Index exponent) {
+  constexpr Index kMaxExponent = Index(1) << 24;
+  const int e = static_cast<int>(numext::mini(numext::maxi(exponent, -kMaxExponent), kMaxExponent));
+  return structured_balance_impl<Scalar>::apply_exponent(z, e);
+}
+
+/** \internal \returns the indices sorted by decreasing precomputed modulus
+ * \a mods (each modulus is computed once, not on every comparison); the shared
+ * ordering of the operators' singularValues()/matrixU()/matrixV(). The sort is
+ * stable so repeated calls agree even in the presence of ties, and NaN moduli
+ * order last (comparing through NaN directly would break the strict weak
+ * ordering std::stable_sort requires). */
+template <typename RealVectorType>
+std::vector<Index> structured_svd_permutation(const RealVectorType& mods) {
+  using RealScalar = typename RealVectorType::Scalar;
+  std::vector<Index> perm(static_cast<std::size_t>(mods.size()));
+  for (Index k = 0; k < mods.size(); ++k) perm[static_cast<std::size_t>(k)] = k;
+  std::stable_sort(perm.begin(), perm.end(), [&mods](Index a, Index b) {
+    const RealScalar ka = mods[a], kb = mods[b];
+    const bool nanA = (ka != ka), nanB = (kb != kb);
+    if (nanA || nanB) return nanB && !nanA;
+    return ka > kb;
+  });
+  return perm;
+}
+
 /** \internal \returns the per-thread FFT engine shared by all structured
  * operators. The kissfft backend caches its twiddle/plan tables per transform
  * size inside the engine, so reusing one engine amortizes the plan setup that a
