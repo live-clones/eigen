@@ -14,6 +14,20 @@
 //  [2] W. W. Hager, "Updating the Inverse of a Matrix", SIAM Review, 31(2),
 //      pp. 221-239, 1989. Review of the Woodbury identity and of the matrix
 //      determinant lemma used by determinant().
+//  [3] J. J. Dongarra, J. R. Bunch, C. B. Moler and G. W. Stewart, "LINPACK
+//      Users' Guide", SIAM, 1979. determinant()'s balanced accumulation follows
+//      the convention of its xGEDI routines, which return determinants as a
+//      (fraction, exponent) pair to avoid spurious overflow/underflow.
+//  [4] P. H. Sterbenz, "Floating-Point Computation", Prentice-Hall, 1974.
+//      Scaling by a power of two is exact, the property the balanced
+//      accumulation and the normalized Woodbury products rely on.
+//  [5] N. J. Higham, "Accuracy and Stability of Numerical Algorithms", 2nd ed.,
+//      SIAM, 2002, chapter 27. Overflow-avoiding rescaling of intermediate
+//      quantities, the technique behind the normalized capacitance products.
+//  [6] E. L. Yip, "A Note on the Stability of Solving a Rank-p Modification of
+//      a Linear System by the Sherman-Morrison-Woodbury Formula", SIAM Journal
+//      on Scientific and Statistical Computing, 7(3), pp. 507-513, 1986. The
+//      accuracy limitation of the Woodbury solve noted on solve().
 
 #ifndef EIGEN_STRUCTURED_DIAGONAL_PLUS_LOW_RANK_H
 #define EIGEN_STRUCTURED_DIAGONAL_PLUS_LOW_RANK_H
@@ -52,12 +66,13 @@ struct evaluator_traits<DiagonalPlusLowRank<Scalar_, Size_, Rank_>> {
 };
 
 // Exact power-of-two renormalization used by the balanced determinant
-// accumulation (the pattern of Circulant::determinant(), generalized over real
-// and complex scalars): balance() rescales x by the power of two that brings
-// its magnitude into [0.5, 1), accumulating the removed exponent, and ldexp()
-// applies the accumulated exponent back. The rescaling is exact, so no roundoff
-// is introduced; zeros and non-finite values, which must propagate exactly, are
-// returned untouched.
+// accumulation (the split fraction/exponent determinant convention of LINPACK's
+// xGEDI [3], following the pattern of Circulant::determinant(), generalized
+// over real and complex scalars): balance() rescales x by the power of two that
+// brings its magnitude into [0.5, 1), accumulating the removed exponent, and
+// ldexp() applies the accumulated exponent back. The rescaling is exact [4], so
+// no roundoff is introduced; zeros and non-finite values, which must propagate
+// exactly, are returned untouched.
 template <typename Scalar, bool IsComplex = NumTraits<Scalar>::IsComplex>
 struct dplr_balance_impl {
   using RealScalar = typename NumTraits<Scalar>::Real;
@@ -87,6 +102,61 @@ struct dplr_balance_impl<Scalar, false> {
   static Scalar ldexp(const Scalar& x, int e) { return std::ldexp(x, e); }
 };
 
+// Entrywise multiplication by the exact power of two 2^e [4], for the factor
+// normalization of the Woodbury products [5]. Built on ldexp rather than on a
+// multiplication by 2^e (or by two half powers 2^(e/2)): ldexp is exact and
+// saturates entry by entry for every exponent, whereas the scale factor itself
+// can leave the representable range -- 2^-eu overflows for a subnormal factor
+// bound, and a saturated half power would turn zero entries into NaN through
+// 0 * Inf.
+template <typename Scalar>
+struct dplr_ldexp_op {
+  int e;
+  Scalar operator()(const Scalar& x) const { return dplr_balance_impl<Scalar>::ldexp(x, e); }
+};
+
+// An exponent bound e with max_ij |x(i,j)| < 2^e, or 0 when x is empty, zero or
+// holds non-finite values. The bound is derived from the component-wise
+// magnitudes, never from the modulus: a finite complex value near the overflow
+// threshold has a non-representable modulus. Bounding the modulus by twice the
+// largest component costs at most one extra bit.
+template <typename Xpr>
+int dplr_exponent_bound(const Xpr& x) {
+  using RealScalar = typename NumTraits<typename Xpr::Scalar>::Real;
+  if (x.size() == 0) return 0;
+  RealScalar m;
+  if (NumTraits<typename Xpr::Scalar>::IsComplex)
+    m = numext::maxi(x.real().cwiseAbs().maxCoeff(), x.imag().cwiseAbs().maxCoeff());
+  else
+    m = x.cwiseAbs().maxCoeff();
+  int e = 0;
+  if (m > RealScalar(0) && (numext::isfinite)(m)) {
+    std::frexp(m, &e);
+    if (NumTraits<typename Xpr::Scalar>::IsComplex) ++e;
+  }
+  return e;
+}
+
+// The smallest e with n <= 2^e: the inner-dimension term of a product's entry
+// magnitude bound (a length-n dot product of entries below 2^a and 2^b stays
+// below 2^(a + b + e)).
+inline int dplr_index_exponent(Index n) {
+  int e = 0;
+  while ((Index(1) << e) < n) ++e;
+  return e;
+}
+
+// True when a product whose operands have entry-magnitude exponent bounds ea
+// and eb over an inner dimension of length \a inner provably cannot overflow
+// (with one bit of headroom for a trailing addition). The Woodbury kernels
+// form their products from exactly rescaled factors [4][5] when this test
+// fails; when it holds they keep the plain association, whose result is then
+// bit-identical to the unnormalized evaluation.
+template <typename RealScalar>
+bool dplr_product_fits(int ea, int eb, Index inner) {
+  return ea + eb + dplr_index_exponent(inner) + 1 < std::numeric_limits<RealScalar>::max_exponent;
+}
+
 // The capacitance-solve half of the Woodbury identity [1], factored into a
 // dispatch struct so a fixed rank-0 operator -- a plain diagonal -- never
 // instantiates PartialPivLU on a 0 x 0 matrix, which does not compile (C++14:
@@ -96,19 +166,55 @@ struct dplr_balance_impl<Scalar, false> {
 template <int Rank_>
 struct dplr_capacitance_impl {
   // x -= D^{-1} U (I_k + V^H D^{-1} U)^{-1} V^H x, the correction term of the
-  // Woodbury solve, in place.
+  // Woodbury solve, in place. Like capacitance(), the products are formed from
+  // exactly rescaled factors [4][5] when the plain association could overflow:
+  // V^H x pairs a factor with the D^{-1}-amplified right-hand side, so it can
+  // overflow spuriously in the same regime that breaks the plain capacitance
+  // association. The removed exponent is folded back entrywise into the small
+  // k-row workspace between the two structural products. When no product can
+  // overflow the plain association is kept, bit-identical to the unnormalized
+  // evaluation.
   template <typename Op, typename Dinv, typename Workspace>
   static void subtractSolveCorrection(const Op& op, const Dinv& dinv, Workspace& x) {
+    using Scalar = typename Op::Scalar;
+    using RealScalar = typename Op::RealScalar;
     if (op.correctionRank() == 0) return;
     PartialPivLU<typename Op::CapacitanceType> cap(op.capacitance());
-    x.noalias() -= dinv.asDiagonal() * (op.factorU() * cap.solve(op.factorV().adjoint() * x));
+    const int eu = dplr_exponent_bound(op.factorU());
+    const int ev = dplr_exponent_bound(op.factorV());
+    const int ed = dplr_exponent_bound(dinv);
+    const int ex = dplr_exponent_bound(x);
+    if (dplr_product_fits<RealScalar>(ev, ex, op.rows()) && dplr_product_fits<RealScalar>(ed, eu, 1)) {
+      x.noalias() -= dinv.asDiagonal() * (op.factorU() * cap.solve(op.factorV().adjoint() * x));
+      return;
+    }
+    Matrix<Scalar, Rank_, Workspace::ColsAtCompileTime> y =
+        cap.solve(op.factorV().unaryExpr(dplr_ldexp_op<Scalar>{-ev}).adjoint() * x);
+    y = y.unaryExpr(dplr_ldexp_op<Scalar>{eu + ev});
+    x.noalias() -= dinv.asDiagonal() * (op.factorU().unaryExpr(dplr_ldexp_op<Scalar>{-eu}) * y);
   }
   // Up = -D^{-1} U (I_k + V^H D^{-1} U)^{-1}, the left factor of the inverse.
+  // D^{-1} U can overflow spuriously when the capacitance inverse would shrink
+  // it back (a huge U against a tiny diagonal), so the same factor
+  // normalization applies: the product is formed as (D^{-1} U-hat) K with the
+  // removed exponent folded back entrywise at the end [4][5]. Bit-identical
+  // plain association when no product can overflow.
   template <typename Op, typename Dinv, typename Factor>
   static void inverseFactor(const Op& op, const Dinv& dinv, Factor& Up) {
+    using Scalar = typename Op::Scalar;
+    using RealScalar = typename Op::RealScalar;
     if (op.correctionRank() == 0) return;
     PartialPivLU<typename Op::CapacitanceType> cap(op.capacitance());
-    Up.noalias() = -(dinv.asDiagonal() * op.factorU() * cap.inverse());
+    const typename Op::CapacitanceType K = cap.inverse();
+    const int eu = dplr_exponent_bound(op.factorU());
+    const int ed = dplr_exponent_bound(dinv);
+    const int ek = dplr_exponent_bound(K);
+    if (dplr_product_fits<RealScalar>(ed, eu, 1) && dplr_product_fits<RealScalar>(ed + eu, ek, op.correctionRank())) {
+      Up.noalias() = -(dinv.asDiagonal() * op.factorU() * K);
+      return;
+    }
+    Up.noalias() = -(dinv.asDiagonal() * op.factorU().unaryExpr(dplr_ldexp_op<Scalar>{-eu}) * K);
+    Up = Up.unaryExpr(dplr_ldexp_op<Scalar>{eu});
   }
   // det(I_k + V^H D^{-1} U), the capacitance factor of the determinant lemma,
   // folded into the caller's balanced mantissa * 2^exponent accumulation. The
@@ -248,11 +354,39 @@ class DiagonalPlusLowRank : public EigenBase<DiagonalPlusLowRank<Scalar_, Size_,
   DiagonalPlusLowRank adjoint() const { return DiagonalPlusLowRank(m_d.conjugate(), m_V, m_U); }
 
   /** \returns the capacitance matrix \f$ I_k + V^H D^{-1} U \f$ of the Woodbury
-   * identity. \warning The diagonal must have no zero entries. */
+   * identity. Every consumer of the triple product -- \ref solve, \ref inverse
+   * and \ref determinant -- forms it through this one method.
+   *
+   * With extreme factor magnitudes the plain association can overflow even
+   * though the capacitance itself is representable: for \c d = 1e-200,
+   * \c U = 1e-200, \c V = 1e200 the operator is essentially the identity and
+   * the capacitance \c 1 + 1e200 is representable, but \f$ V^H D^{-1} \f$ is
+   * \c 1e400. The factors are therefore rescaled by exact powers of two [4]
+   * when a conservative exponent bound detects the danger, the product is
+   * formed as \f$ \hat V^H (D^{-1} \hat U) \f$ -- whose intermediates are
+   * bounded by roughly \c n * max|1/d| -- and the removed exponent is folded
+   * back entrywise before the identity is added [5]. When the plain
+   * association provably cannot overflow it is kept, so results for moderate
+   * data are bit-identical to the unnormalized evaluation.
+   * \warning The diagonal must have no zero entries. */
   CapacitanceType capacitance() const {
     const Index k = correctionRank();
     CapacitanceType c = CapacitanceType::Identity(k, k);
-    c.noalias() += m_V.adjoint() * m_d.cwiseInverse().asDiagonal() * m_U;
+    if (k == 0) return c;
+    const DiagonalVector dinv = m_d.cwiseInverse();
+    const int eu = internal::dplr_exponent_bound(m_U);
+    const int ev = internal::dplr_exponent_bound(m_V);
+    const int ed = internal::dplr_exponent_bound(dinv);
+    if (internal::dplr_product_fits<RealScalar>(ev, ed, 1) &&
+        internal::dplr_product_fits<RealScalar>(ev + ed, eu, rows())) {
+      c.noalias() += m_V.adjoint() * dinv.asDiagonal() * m_U;
+      return c;
+    }
+    const FactorType W = dinv.asDiagonal() * m_U.unaryExpr(internal::dplr_ldexp_op<Scalar>{-eu});
+    CapacitanceType t(k, k);
+    t.noalias() = m_V.unaryExpr(internal::dplr_ldexp_op<Scalar>{-ev}).adjoint() * W;
+    t = t.unaryExpr(internal::dplr_ldexp_op<Scalar>{eu + ev});
+    c += t;
     return c;
   }
 
@@ -261,7 +395,13 @@ class DiagonalPlusLowRank : public EigenBase<DiagonalPlusLowRank<Scalar_, Size_,
    * and O(nk) per right-hand side. Supports multiple right-hand sides.
    * \warning Requires an invertible diagonal \em and an invertible capacitance
    * matrix (equivalently, an invertible operator); this is not checked beyond
-   * the NaN/Inf propagation of the arithmetic itself. */
+   * the NaN/Inf propagation of the arithmetic itself.
+   * \warning The Woodbury splitting routes the solution through \f$ D^{-1} b \f$:
+   * when \c max|1/d| greatly exceeds the norm of the operator's inverse, the
+   * correction cancels most of those amplified digits and the achievable
+   * accuracy degrades accordingly, even for a well-conditioned operator [6].
+   * The normalized kernels keep such solves finite; they cannot restore the
+   * cancelled digits. */
   template <typename Rhs>
   Matrix<Scalar, Size_, Rhs::ColsAtCompileTime> solve(const MatrixBase<Rhs>& b) const {
     EIGEN_STATIC_ASSERT(RowsAtCompileTime == Dynamic || Rhs::RowsAtCompileTime == Dynamic ||
@@ -288,9 +428,11 @@ class DiagonalPlusLowRank : public EigenBase<DiagonalPlusLowRank<Scalar_, Size_,
 
   /** \returns the determinant through the matrix determinant lemma [2]:
    * \f$ \det(D)\,\det(I_k + V^H D^{-1} U) \f$, in O(nk^2 + k^3) operations.
-   * Both factors are accumulated in the balanced form \c m * 2^e -- the diagonal
-   * entries and the LU pivots of the capacitance matrix are renormalized to unit
-   * magnitude one at a time, with the powers of two tracked in a shared exponent
+   * Both factors are accumulated in the balanced form \c m * 2^e (the split
+   * fraction/exponent determinant convention of LINPACK's xGEDI [3]) -- the
+   * diagonal entries and the LU pivots of the capacitance matrix are
+   * renormalized to unit magnitude one at a time, with the powers of two tracked
+   * in a shared exponent
    * -- so no partial product, in particular neither ordinary determinant on its
    * own, can overflow or underflow when the combined determinant is
    * representable, whatever the ordering and magnitudes of the entries.
