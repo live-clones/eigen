@@ -503,7 +503,6 @@ struct ReductionReturnType {
 template <typename Op, typename Dims, typename XprType, template <class> class MakePointer_>
 class TensorReductionOp : public TensorBase<TensorReductionOp<Op, Dims, XprType, MakePointer_>, ReadOnlyAccessors> {
  public:
-  typedef TensorReductionOp<Op, Dims, XprType, MakePointer_> Self;
   typedef typename Eigen::internal::traits<TensorReductionOp>::Scalar Scalar;
   typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
   typedef std::remove_const_t<typename XprType::CoeffReturnType> CoeffReturnType;
@@ -520,9 +519,9 @@ class TensorReductionOp : public TensorBase<TensorReductionOp<Op, Dims, XprType,
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dims& dims() const { return m_dims; }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Op& reducer() const { return m_reducer; }
 
-  template <int NumDims = internal::traits<Self>::NumDimensions, EIGEN_SFINAE_ENABLE_IF(NumDims == 0)>
+  template <int NumDims = internal::traits<TensorReductionOp>::NumDimensions, EIGEN_SFINAE_ENABLE_IF(NumDims == 0)>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE operator CoeffReturnType() const {
-    TensorEvaluator<const Self, DefaultDevice> evaluator(*this, DefaultDevice());
+    TensorEvaluator<const TensorReductionOp, DefaultDevice> evaluator(*this, DefaultDevice());
     evaluator.evalSubExprsIfNeeded(NULL);
     const CoeffReturnType result = evaluator.coeff(0);
     evaluator.cleanup();
