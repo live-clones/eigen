@@ -23,6 +23,18 @@ Matrix<Scalar, Dynamic, Dynamic> reference_cauchy(const Matrix<Scalar, Dynamic, 
   return dense;
 }
 
+// Reference dense Cauchy built entry-wise through the guarded reciprocal, the
+// single helper every coefficient evaluation must agree with at the overflow
+// boundary.
+template <typename Scalar>
+Matrix<Scalar, Dynamic, Dynamic> reference_cauchy_guarded(const Matrix<Scalar, Dynamic, 1>& x,
+                                                          const Matrix<Scalar, Dynamic, 1>& y) {
+  Matrix<Scalar, Dynamic, Dynamic> dense(x.size(), y.size());
+  for (Index j = 0; j < y.size(); ++j)
+    for (Index i = 0; i < x.size(); ++i) dense(i, j) = internal::cauchy_reciprocal_diff(x[i], y[j]);
+  return dense;
+}
+
 // Separated node sets: x in [2,3], y in [0,1], so all denominators are in [1,3].
 template <typename Scalar>
 void separated_nodes(Index m, Index n, Matrix<Scalar, Dynamic, 1>& x, Matrix<Scalar, Dynamic, 1>& y) {
@@ -541,6 +553,103 @@ void test_cauchy_determinant_overflow_boundary() {
   }
 }
 
+// Boundary nodes in every coefficient evaluation: when x_i - y_j overflows for
+// finite nodes, a naively formed coefficient collapses to 1/Inf = 0 while the
+// true value is a representable subnormal. coeff(), the dense materialization,
+// the products and the CauchyLU factorization must all produce the guarded
+// value -- and agree with determinant(), which derives the same quantity
+// through its balanced accumulation.
+void test_cauchy_boundary_coefficients() {
+  typedef Matrix<double, Dynamic, 1> Vec;
+  typedef Matrix<double, Dynamic, Dynamic> Mat;
+  const double X = (std::numeric_limits<double>::max)();
+  const double e = std::ldexp(1.0, -1025);  // 1/(2*DBL_MAX), correctly rounded (subnormal)
+
+  // 1x1 reviewer case: the single coefficient is 1/(2*DBL_MAX) = 2^-1025
+  // (2.7813423231340017e-309). Every step is correctly rounded IEEE arithmetic
+  // with a power-of-two result, so the checks are exact equalities.
+  {
+    Vec x(1), y(1);
+    x << X;
+    y << -X;
+    Cauchy<double> C(x, y);
+    VERIFY_IS_EQUAL(C.coeff(0, 0), e);
+    Mat d = C;
+    VERIFY_IS_EQUAL(d(0, 0), e);
+    Mat acc = Mat::Zero(1, 1);
+    acc += C;  // addTo
+    VERIFY_IS_EQUAL(acc(0, 0), e);
+    acc -= C;  // subTo
+    VERIFY_IS_EQUAL(acc(0, 0), 0.0);
+    Vec p = C * Vec::Ones(1);
+    VERIFY_IS_EQUAL(p[0], e);
+    // determinant() reaches 2^-1025 through the balanced accumulation; the
+    // guarded coefficient matches it exactly.
+    VERIFY_IS_EQUAL(C.determinant(), e);
+    // The old code materialized a zero coefficient and reported the (regular)
+    // matrix as singular; the guarded pivot is subnormal but non-zero.
+    CauchyLU<double> lu(C);
+    VERIFY(lu.info() == Success);
+    Vec u = lu.solve(p);  // p = C * [1]; recovered exactly (e / e = 1)
+    VERIFY_IS_EQUAL(u[0], 1.0);
+  }
+
+  // 2x2 with boundary pairs among moderate ones: three of the four differences
+  // overflow (2X and two 1.5X), one stays finite (X). All APIs agree with the
+  // reference built from the guarded reciprocal; scaled by its magnitude the
+  // matrix is well conditioned (cond ~ 38), so the GKO solve -- whose column
+  // generation and generator updates cross the boundary too -- recovers the
+  // solution accurately.
+  {
+    Vec x(2), y(2);
+    x << X, X / 2;
+    y << -X, -X / 2;
+    Cauchy<double> C(x, y);
+    Mat ref = reference_cauchy_guarded<double>(x, y);
+    VERIFY_IS_EQUAL(ref(0, 0), e);                       // 1/(2*DBL_MAX)
+    VERIFY_IS_EQUAL(ref(1, 1), std::ldexp(1.0, -1024));  // 1/DBL_MAX
+    VERIFY(ref.allFinite());
+    VERIFY((ref.array() != 0.0).all());
+    for (Index j = 0; j < 2; ++j)
+      for (Index i = 0; i < 2; ++i) VERIFY_IS_EQUAL(C.coeff(i, j), ref(i, j));
+    Mat d = C;
+    for (Index j = 0; j < 2; ++j)
+      for (Index i = 0; i < 2; ++i) VERIFY_IS_EQUAL(d(i, j), ref(i, j));
+    Vec v(2);
+    v << 0.75, -0.5;
+    VERIFY_IS_APPROX((C * v).eval(), (ref * v).eval());
+    CauchyLU<double> lu(C);
+    VERIFY(lu.info() == Success);
+    Vec b = C * Vec::Ones(2);
+    Vec u = lu.solve(b);
+    VERIFY_IS_APPROX(u, Vec::Ones(2).eval());
+  }
+
+  // Complex nodes: purely imaginary boundary nodes overflow in the imaginary
+  // component of the difference; the guard applies componentwise. The paths
+  // sharing the helper agree exactly; the value is -i/(2*DBL_MAX) and the
+  // determinant derives it independently, both to within a few subnormal
+  // spacings (complex division rounds per component).
+  {
+    typedef std::complex<double> Cplx;
+    const double tiny = 4.0 * std::numeric_limits<double>::denorm_min();
+    Matrix<Cplx, Dynamic, 1> xc(1), yc(1);
+    xc << Cplx(0.0, X);
+    yc << Cplx(0.0, -X);
+    Cauchy<Cplx> C(xc, yc);
+    const Cplx cval = C.coeff(0, 0);
+    Matrix<Cplx, Dynamic, Dynamic> dc = C;
+    VERIFY_IS_EQUAL(dc(0, 0), cval);
+    Matrix<Cplx, Dynamic, 1> pc = C * Matrix<Cplx, Dynamic, 1>::Ones(1);
+    VERIFY_IS_EQUAL(pc[0], cval);
+    VERIFY(numext::abs(numext::real(cval)) <= tiny);
+    VERIFY(numext::abs(numext::imag(cval) + e) <= tiny);
+    const Cplx det = C.determinant();
+    VERIFY(numext::abs(numext::real(det) - numext::real(cval)) <= tiny);
+    VERIFY(numext::abs(numext::imag(det) - numext::imag(cval)) <= tiny);
+  }
+}
+
 template <typename Scalar, int M, int N>
 void test_cauchy_fixed() {
   typedef Matrix<Scalar, M, 1> XVec;
@@ -616,5 +725,6 @@ EIGEN_DECLARE_TEST(structured_cauchy) {
     CALL_SUBTEST_4((test_cauchy_mixed_scalar<float>(9, 6)));
     CALL_SUBTEST_4(test_cauchy_determinant_range());
     CALL_SUBTEST_4(test_cauchy_determinant_overflow_boundary());
+    CALL_SUBTEST_4(test_cauchy_boundary_coefficients());
   }
 }
