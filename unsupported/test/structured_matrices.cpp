@@ -204,13 +204,46 @@ void test_hankel_fft_overflow() {
   VERIFY(z.allFinite());
   VERIFY_IS_APPROX((z / huge).eval(), Vec::Ones(n).eval());
 
-  // A genuine NaN input still propagates: the FFT contaminates the whole output
-  // column (consistent with the operators' NaN semantics); the scaling must not
-  // launder non-finite inputs into finite outputs.
+  // A genuine NaN input still propagates -- through the direct kernel, entrywise
+  // (see test_hankel_nonfinite_product); the scaling must not launder non-finite
+  // inputs into finite outputs.
   Vec xn = Vec::Random(n);
   xn[n / 2] = std::numeric_limits<double>::quiet_NaN();
   Vec yn = H * xn;
   VERIFY(yn.hasNaN());
+}
+
+// The scaling exponents are derived from component-wise magnitudes: a finite
+// complex value near the overflow threshold has a non-representable modulus,
+// which would otherwise disable the scaling and turn an exactly representable
+// product into NaN.
+template <typename RealScalar>
+void test_hankel_fft_complex_boundary(Index n) {
+  typedef std::complex<RealScalar> Complex;
+  typedef Matrix<RealScalar, Dynamic, 1> RVec;
+  typedef Matrix<Complex, Dynamic, 1> CVec;
+  const RealScalar kFftRoundTripTol = RealScalar(100) * NumTraits<RealScalar>::epsilon();
+  const RealScalar big = RealScalar(0.75) * (std::numeric_limits<RealScalar>::max)();
+
+  // Exchange matrix with a complex generator: the product returns the reversed
+  // right-hand side -- the input itself, being constant -- even though |x_k|
+  // overflows.
+  CVec h = CVec::Zero(2 * n - 1);
+  h[n - 1] = Complex(1);
+  Hankel<Complex> H(h.head(n), h.tail(n));
+  CVec x = CVec::Constant(n, Complex(big, big));
+  CVec y = H * x;
+  VERIFY(y.allFinite());
+  VERIFY(((y - x).cwiseAbs() / big).maxCoeff() <= kFftRoundTripTol);
+
+  // A real exchange operator applied to the same complex right-hand side takes
+  // the mixed-scalar product path.
+  RVec hr = RVec::Zero(2 * n - 1);
+  hr[n - 1] = RealScalar(1);
+  Hankel<RealScalar> Hr(hr.head(n), hr.tail(n));
+  y = Hr * x;
+  VERIFY(y.allFinite());
+  VERIFY(((y - x).cwiseAbs() / big).maxCoeff() <= kFftRoundTripTol);
 }
 
 // transpose()/conjugate()/adjoint() return owning temporaries (and so does
@@ -244,11 +277,10 @@ void test_hankel_delayed_product(Index m, Index n) {
   VERIFY_IS_EQUAL(scribble2.size(), m + n);
 }
 
-// The products are tagged AliasFreeProduct, so no temporary shields an aliased
-// right-hand side: the shared structured_product_impl (which Hankel's products
-// dispatch through) must copy it instead. Without the copy, x = H * x reads a
-// zeroed right-hand side and x += H * x interleaves destination writes with
-// right-hand-side reads.
+// The products carry the default product tag, so plain assignment materializes a
+// temporary exactly like a dense product and an aliased right-hand side is safe:
+// without it, x = H * x would read a zeroed right-hand side and x += H * x would
+// interleave destination writes with right-hand-side reads.
 template <typename Scalar>
 void test_hankel_aliased_product(Index n) {
   typedef Matrix<Scalar, Dynamic, 1> Vec;
@@ -276,6 +308,42 @@ void test_hankel_aliased_product(Index n) {
   Mat Y = X;
   Y = H * Y;
   VERIFY_IS_APPROX(Y, (dense * X).eval());
+}
+
+// Aliasing beyond the same-object case: the default-product temporary must also
+// resolve right-hand-side expressions that reference the destination, overlapping
+// views of one buffer, and rectangular self-assignments where the destination is
+// resized by the assignment.
+template <typename Scalar>
+void test_hankel_aliased_expression(Index n) {
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+
+  Vec h = Vec::Random(2 * n - 1);
+  Hankel<Scalar> H(h.head(n), h.tail(n));
+  Mat dense = reference_hankel<Scalar>(h, n, n);
+
+  // Right-hand-side expression referencing the destination.
+  Vec x = Vec::Random(n), x0 = x;
+  x = H * (x + Vec::Ones(n));
+  VERIFY_IS_APPROX(x, (dense * (x0 + Vec::Ones(n))).eval());
+
+  // Overlapping (shifted) segments of one buffer.
+  Vec buf = Vec::Random(n + 1);
+  Vec expected = dense * buf.tail(n);
+  buf.head(n) = H * buf.tail(n);
+  VERIFY_IS_APPROX(buf.head(n).eval(), expected);
+
+  // Rectangular self-assignment: z = H * z resizes the destination, so the
+  // product must be captured before the destination storage is touched.
+  const Index m = n + 3;
+  Vec hr = Vec::Random(m + n - 1);
+  Hankel<Scalar> Hr(hr.head(m), hr.tail(n));
+  Mat denseR = reference_hankel<Scalar>(hr, m, n);
+  Vec z = Vec::Random(n), z0 = z;
+  z = Hr * z;
+  VERIFY_IS_EQUAL(z.size(), m);
+  VERIFY_IS_APPROX(z, (denseR * z0).eval());
 }
 
 // Mixed-scalar products: a real operator applied to a complex right-hand side
@@ -308,6 +376,104 @@ void test_hankel_mixed_scalar(Index m, Index n) {
   RVec xr = RVec::Random(n);
   CVec z = Hc * xr;
   VERIFY_IS_APPROX(z, (denseC * xr).eval());
+}
+
+// Entrywise IEEE comparison for the non-finite tests: NaNs match NaNs,
+// infinities match by value (sign included), finite entries match to roundoff.
+// VERIFY_IS_APPROX would reject any output containing NaN.
+template <typename D1, typename D2>
+bool ieee_entrywise_match(const D1& a, const D2& b) {
+  if (a.rows() != b.rows() || a.cols() != b.cols()) return false;
+  for (Index j = 0; j < a.cols(); ++j)
+    for (Index i = 0; i < a.rows(); ++i) {
+      const typename D1::Scalar x = a(i, j), y = b(i, j);
+      if (x == y) continue;                    // finite match or same-signed infinities
+      if ((x != x) && (y != y)) continue;      // both NaN
+      if (!test_isApprox(x, y)) return false;  // finite roundoff
+    }
+  return true;
+}
+
+// Scalar-loop product: the mathematically transparent IEEE reference for the
+// non-finite tests. Eigen's own vectorized complex kernels can smear a single
+// infinity into NaN (Inf - Inf across the split real/imaginary accumulators), so
+// the dense product is not a faithful entrywise reference for non-finite data.
+template <typename Scalar>
+Matrix<Scalar, Dynamic, 1> reference_product_ieee(const Matrix<Scalar, Dynamic, Dynamic>& A,
+                                                  const Matrix<Scalar, Dynamic, 1>& x) {
+  Matrix<Scalar, Dynamic, 1> y(A.rows());
+  for (Index i = 0; i < A.rows(); ++i) {
+    Scalar acc(0);
+    for (Index j = 0; j < A.cols(); ++j) acc += A(i, j) * x[j];
+    y[i] = acc;
+  }
+  return y;
+}
+
+// A single Inf or NaN in the data must propagate like the reference product --
+// through the dot products that touch it -- instead of being smeared into NaNs
+// across the whole output by the transforms. The reviewer reproducer (MR 2688):
+// the 40x40 exchange matrix, as a Hankel operator on the FFT tier, applied to a
+// vector with one +Inf must return +Inf in the mirrored entry; the remaining
+// entries are NaN through the IEEE 0*Inf terms of the dense dot products.
+template <typename Scalar>
+void test_hankel_nonfinite_product(Index n) {
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  const RealScalar inf = std::numeric_limits<RealScalar>::infinity();
+  const RealScalar nan = std::numeric_limits<RealScalar>::quiet_NaN();
+
+  // The exchange matrix is the Hankel operator generated by h = e_{n-1}.
+  Vec h = Vec::Zero(2 * n - 1);
+  h[n - 1] = Scalar(1);
+  Hankel<Scalar> H(h.head(n), h.tail(n));
+  Mat dense = reference_hankel<Scalar>(h, n, n);
+
+  // Inf in the right-hand side: the mirrored entry must be +Inf (for a complex
+  // operator its real part; the 0*Inf cross term makes the imaginary part NaN).
+  Vec x = Vec::Random(n);
+  x[n / 4] = Scalar(inf);
+  Vec y = H * x;
+  VERIFY(ieee_entrywise_match(y, reference_product_ieee(dense, x)));
+  VERIFY(numext::real(y[n - 1 - n / 4]) == inf);
+
+  // NaN in the right-hand side.
+  Vec xn = Vec::Random(n);
+  xn[n - 1] = Scalar(nan);
+  VERIFY(ieee_entrywise_match((H * xn).eval(), reference_product_ieee(dense, xn)));
+
+  // Inf in the generating sequence: the operator itself is non-finite, whatever
+  // the right-hand side.
+  Vec h2 = Vec::Random(2 * n - 1);
+  h2[1] = Scalar(-inf);
+  Hankel<Scalar> H2(h2.head(n), h2.tail(n));
+  Mat dense2 = reference_hankel<Scalar>(h2, n, n);
+  Vec x2 = Vec::Random(n);
+  VERIFY(ieee_entrywise_match((H2 * x2).eval(), reference_product_ieee(dense2, x2)));
+
+  // The Circulant and Toeplitz operators share the fallback pattern.
+  Vec c = Vec::Random(n);
+  Circulant<Scalar> C(c);
+  Mat denseC = reference_circulant<Scalar>(c);
+  VERIFY(ieee_entrywise_match((C * x).eval(), reference_product_ieee(denseC, x)));
+
+  Vec tc = Vec::Random(n), tr = Vec::Random(n);
+  tr[0] = tc[0];
+  tr[n / 2] = Scalar(inf);
+  Toeplitz<Scalar> T(tc, tr);
+  Mat denseT = reference_toeplitz<Scalar>(tc, tr);
+  VERIFY(ieee_entrywise_match((T * x2).eval(), reference_product_ieee(denseT, x2)));
+
+  // Non-finite right-hand sides of Circulant::solve take the direct inverse
+  // application; on the 1x1 operator this is a single scalar multiply by the
+  // inverse coefficient, checked against the same multiply on the dense inverse.
+  Vec b1(1);
+  b1[0] = Scalar(inf);
+  Circulant<Scalar> C1(Vec(Vec::Constant(1, Scalar(2))));
+  Mat inv1(1, 1);
+  inv1(0, 0) = Scalar(1) / Scalar(2);
+  VERIFY(ieee_entrywise_match(C1.solve(b1), reference_product_ieee(inv1, b1)));
 }
 
 // The transposed / adjoint / conjugated Hankel operators agree with the dense
@@ -852,38 +1018,6 @@ void test_structured_fft_complex_boundary(Index n) {
   y = Cr * x;
   VERIFY(y.allFinite());
   VERIFY(((y - x).cwiseAbs() / big).maxCoeff() <= kFftRoundTripTol);
-}
-
-// Entrywise IEEE comparison for the non-finite tests: NaNs match NaNs,
-// infinities match by value (sign included), finite entries match to roundoff.
-// VERIFY_IS_APPROX would reject any output containing NaN.
-template <typename D1, typename D2>
-bool ieee_entrywise_match(const D1& a, const D2& b) {
-  if (a.rows() != b.rows() || a.cols() != b.cols()) return false;
-  for (Index j = 0; j < a.cols(); ++j)
-    for (Index i = 0; i < a.rows(); ++i) {
-      const typename D1::Scalar x = a(i, j), y = b(i, j);
-      if (x == y) continue;                    // finite match or same-signed infinities
-      if ((x != x) && (y != y)) continue;      // both NaN
-      if (!test_isApprox(x, y)) return false;  // finite roundoff
-    }
-  return true;
-}
-
-// Scalar-loop product: the mathematically transparent IEEE reference for the
-// non-finite tests. Eigen's own vectorized complex kernels can smear a single
-// infinity into NaN (Inf - Inf across the split real/imaginary accumulators), so
-// the dense product is not a faithful entrywise reference for non-finite data.
-template <typename Scalar>
-Matrix<Scalar, Dynamic, 1> reference_product_ieee(const Matrix<Scalar, Dynamic, Dynamic>& A,
-                                                  const Matrix<Scalar, Dynamic, 1>& x) {
-  Matrix<Scalar, Dynamic, 1> y(A.rows());
-  for (Index i = 0; i < A.rows(); ++i) {
-    Scalar acc(0);
-    for (Index j = 0; j < A.cols(); ++j) acc += A(i, j) * x[j];
-    y[i] = acc;
-  }
-  return y;
 }
 
 // A single Inf or NaN in the data must propagate like the reference product --
@@ -1693,6 +1827,8 @@ EIGEN_DECLARE_TEST(structured_matrices) {
     // delayed (value-nested) products, aliased right-hand sides across the
     // dispatch tiers, and mixed real/complex products.
     CALL_SUBTEST_9(test_hankel_fft_overflow());
+    CALL_SUBTEST_9((test_hankel_fft_complex_boundary<double>(40)));
+    CALL_SUBTEST_9((test_hankel_fft_complex_boundary<float>(40)));
     CALL_SUBTEST_9((test_hankel_delayed_product<double>(24, 12)));
     CALL_SUBTEST_9((test_hankel_delayed_product<double>(40, 64)));
     CALL_SUBTEST_9((test_hankel_delayed_product<std::complex<double>>(48, 33)));
@@ -1700,6 +1836,19 @@ EIGEN_DECLARE_TEST(structured_matrices) {
     CALL_SUBTEST_9((test_hankel_aliased_product<double>(24)));  // direct segment tier
     CALL_SUBTEST_9((test_hankel_aliased_product<double>(64)));  // FFT tier
     CALL_SUBTEST_9((test_hankel_aliased_product<std::complex<double>>(40)));
+
+    // Aliasing beyond the same-object case, across the dispatch tiers.
+    CALL_SUBTEST_9((test_hankel_aliased_expression<double>(8)));
+    CALL_SUBTEST_9((test_hankel_aliased_expression<double>(24)));
+    CALL_SUBTEST_9((test_hankel_aliased_expression<double>(48)));
+    CALL_SUBTEST_9((test_hankel_aliased_expression<std::complex<double>>(40)));
+
+    // Entrywise Inf/NaN propagation: FFT-sized operators must fall back to the
+    // direct kernels; small ones are IEEE-exact already.
+    CALL_SUBTEST_9((test_hankel_nonfinite_product<double>(40)));
+    CALL_SUBTEST_9((test_hankel_nonfinite_product<double>(12)));
+    CALL_SUBTEST_9((test_hankel_nonfinite_product<std::complex<double>>(40)));
+
     CALL_SUBTEST_9((test_hankel_mixed_scalar<double>(8, 8)));    // scalar tier
     CALL_SUBTEST_9((test_hankel_mixed_scalar<double>(24, 20)));  // direct segment tier
     CALL_SUBTEST_9((test_hankel_mixed_scalar<double>(64, 40)));  // FFT tier
