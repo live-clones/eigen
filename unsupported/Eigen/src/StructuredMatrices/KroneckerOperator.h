@@ -29,8 +29,16 @@ class KroneckerOperator;
 
 namespace internal {
 
-/** \internal Compile-time product of two dimensions, Dynamic-aware. */
-constexpr int kron_dim(int a, int b) { return (a == Dynamic || b == Dynamic) ? Dynamic : a * b; }
+/** \internal Compile-time product of two dimensions: Dynamic when either factor
+ * is unknown, and also when the product would not fit in \c int -- no fixed-size
+ * dimension that large is usable anyway, and the overflowing multiplication
+ * would be ill-formed in a constant expression. */
+constexpr int kron_dim(int a, int b) {
+  return (a == 0 || b == 0)                            ? 0
+         : (a == Dynamic || b == Dynamic)              ? Dynamic
+         : (a > (std::numeric_limits<int>::max)() / b) ? Dynamic
+                                                       : a * b;
+}
 
 template <typename LhsMatrix, typename RhsMatrix>
 struct traits<KroneckerOperator<LhsMatrix, RhsMatrix>> {
@@ -184,19 +192,42 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
    * \c mat(b) of size \c n2 x \c n1, the system reads \f$ B X A^T = \mathrm{mat}(b) \f$,
    * so \f$ X = B^{-1} \mathrm{mat}(b) A^{-T} \f$. Supports multiple right-hand
    * sides at O(n1^3 + n2^3 + nrhs (n1 + n2) n1 n2) total cost.
+   *
+   * The intermediate \f$ B^{-1} \mathrm{mat}(b) \f$ can overflow even when the
+   * solution is representable (the subsequent \f$ A^{-T} \f$ rescales it). There
+   * is no cheap a-priori bound on the magnitude of \f$ B^{-1} \f$, so overflow is
+   * detected instead: when a column comes back non-finite from finite inputs, it
+   * is re-solved with the right-hand side scaled to unit magnitude by an exact
+   * power of two, and the exponent is folded back into the solution through two
+   * representable half-factors. Results are bit-identical whenever the first
+   * attempt stays finite, and saturation to 0/Inf remains correct when the true
+   * solution itself leaves the representable range.
    * \warning Both factors must be invertible, like in \c PartialPivLU; use
    * \ref leastSquaresSolve for rank-deficient or rectangular factors. */
   template <typename Rhs>
-  Matrix<Scalar, Dynamic, Rhs::ColsAtCompileTime> solve(const MatrixBase<Rhs>& b) const {
+  Matrix<Scalar, ColsAtCompileTime, Rhs::ColsAtCompileTime> solve(const MatrixBase<Rhs>& b) const {
+    EIGEN_STATIC_ASSERT(RowsAtCompileTime == Dynamic || Rhs::RowsAtCompileTime == Dynamic ||
+                            int(RowsAtCompileTime) == int(Rhs::RowsAtCompileTime),
+                        YOU_MIXED_MATRICES_OF_DIFFERENT_SIZES)
     const Index n1 = m_A.cols(), n2 = m_B.cols();
     eigen_assert(m_A.rows() == n1 && m_B.rows() == n2 && "KroneckerOperator::solve requires square factors");
     eigen_assert(b.rows() == n1 * n2 && "right-hand side has the wrong number of rows");
     PartialPivLU<DenseMatrix> luA(m_A), luB(m_B);
-    Matrix<Scalar, Dynamic, Rhs::ColsAtCompileTime> x(n1 * n2, b.cols());
+    const bool factorsFinite = m_A.allFinite() && m_B.allFinite();
+    Matrix<Scalar, ColsAtCompileTime, Rhs::ColsAtCompileTime> x(n1 * n2, b.cols());
     for (Index k = 0; k < b.cols(); ++k) {
-      const DenseVector bc = b.col(k);
-      const Map<const DenseMatrix> Bmat(bc.data(), n2, n1);
-      const DenseMatrix X = luA.solve(luB.solve(Bmat).transpose()).transpose();
+      DenseVector bc = b.col(k);
+      DenseMatrix X = solveColumn(luA, luB, bc, n1, n2);
+      if (!X.allFinite() && factorsFinite && bc.allFinite()) {
+        const int e = internal::structured_exponent_bound(bc);
+        const RealScalar down1 = RealScalar(std::ldexp(RealScalar(1), -(e / 2)));
+        const RealScalar down2 = RealScalar(std::ldexp(RealScalar(1), -(e - e / 2)));
+        const RealScalar up1 = RealScalar(std::ldexp(RealScalar(1), e / 2));
+        const RealScalar up2 = RealScalar(std::ldexp(RealScalar(1), e - e / 2));
+        bc = (bc * down1) * down2;
+        X = solveColumn(luA, luB, bc, n1, n2);
+        X = (X * up1) * up2;
+      }
       x.col(k) = Map<const DenseVector>(X.data(), X.size());
     }
     return x;
@@ -209,29 +240,57 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
    * the pseudo-inverse is applied via the vec identity. The singular values of
    * the product are the pairwise products \f$ \sigma_i(A)\,\sigma_j(B) \f$, so
    * the truncation thresholds those products against the product-level
-   * threshold of \ref rank -- factor-wise truncation would invert modes that
-   * are negligible at the product level. Handles rectangular and rank-deficient
-   * factors. Supports multiple right-hand sides. */
+   * threshold of \ref rank, in the same overflow-safe ratio form -- factor-wise
+   * truncation would invert modes that are negligible at the product level.
+   * Handles rectangular and rank-deficient factors. Supports multiple
+   * right-hand sides.
+   *
+   * Unlike \ref solve, no rescaling of the intermediates is needed here: the
+   * projection and back-transformation matrices have orthonormal columns, so no
+   * intermediate can outgrow the data by more than a dimension factor, exactly
+   * as in a dense product. */
   template <typename Rhs>
-  Matrix<Scalar, Dynamic, Rhs::ColsAtCompileTime> leastSquaresSolve(const MatrixBase<Rhs>& b) const {
+  Matrix<Scalar, ColsAtCompileTime, Rhs::ColsAtCompileTime> leastSquaresSolve(const MatrixBase<Rhs>& b) const {
+    EIGEN_STATIC_ASSERT(RowsAtCompileTime == Dynamic || Rhs::RowsAtCompileTime == Dynamic ||
+                            int(RowsAtCompileTime) == int(Rhs::RowsAtCompileTime),
+                        YOU_MIXED_MATRICES_OF_DIFFERENT_SIZES)
     const Index m1 = m_A.rows(), m2 = m_B.rows();
     eigen_assert(b.rows() == m1 * m2 && "right-hand side has the wrong number of rows");
     JacobiSVD<DenseMatrix> svdA(m_A, ComputeThinU | ComputeThinV), svdB(m_B, ComputeThinU | ComputeThinV);
     const RealVector sa = svdA.singularValues(), sb = svdB.singularValues();
-    const RealScalar tol = rankThreshold(sa, sb);
+    const RealScalar tol = relativeRankThreshold();
     const Index kA = sa.size(), kB = sb.size();
-    Matrix<Scalar, Dynamic, Rhs::ColsAtCompileTime> x(cols(), b.cols());
+    Matrix<Scalar, ColsAtCompileTime, Rhs::ColsAtCompileTime> x(cols(), b.cols());
+    if (sa[0] == RealScalar(0) || sb[0] == RealScalar(0)) {
+      // An exactly zero factor zeroes the whole operator, whose pseudo-inverse is
+      // zero (and the singular-value ratios below would be 0/0).
+      x.setZero();
+      return x;
+    }
     for (Index k = 0; k < b.cols(); ++k) {
       const DenseVector bc = b.col(k);
       const Map<const DenseMatrix> Bmat(bc.data(), m2, m1);
       // Project onto the factor singular bases: M = U_B^H mat(b) conj(U_A) is the
       // k_B x k_A matricization of (U_A (x) U_B)^H b, by the vec identity [1].
       DenseMatrix M = svdB.matrixU().adjoint() * Bmat * svdA.matrixU().conjugate();
-      // Invert only the pairwise products at/above the product-level threshold.
-      // The negated comparison keeps NaN products in the inverted set, so a NaN
-      // input propagates to the output instead of being silently zeroed.
+      // Invert only the pairwise products at/above the product-level threshold,
+      // decided in ratio space like rank(). The negated comparison keeps NaN
+      // ratios in the inverted set, so a NaN input propagates to the output
+      // instead of being silently zeroed. The division splits each singular
+      // value into mantissa and exponent: the product sigma_i(B) * sigma_j(A)
+      // itself can overflow, or underflow to zero, even when the quotient is
+      // representable. Applying the exact power of two first keeps every
+      // intermediate within a factor of four of the true quotient.
       for (Index j = 0; j < kA; ++j)
-        for (Index i = 0; i < kB; ++i) M(i, j) = !(sb[i] * sa[j] < tol) ? M(i, j) / (sb[i] * sa[j]) : Scalar(0);
+        for (Index i = 0; i < kB; ++i) {
+          if (!((sa[j] / sa[0]) * (sb[i] / sb[0]) < tol)) {
+            int ea, eb;
+            const RealScalar ma = std::frexp(sa[j], &ea), mb = std::frexp(sb[i], &eb);
+            M(i, j) = ldexpScalar(M(i, j), -(ea + eb)) / (ma * mb);
+          } else {
+            M(i, j) = Scalar(0);
+          }
+        }
       // Back to the original bases: mat(x) = V_B M V_A^T, again the vec identity.
       const DenseMatrix X = svdB.matrixV() * M * svdA.matrixV().transpose();
       x.col(k) = Map<const DenseVector>(X.data(), X.size());
@@ -242,9 +301,12 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
   /** \returns the numerical rank: the number of pairwise singular-value products
    * \f$ \sigma_i(A)\,\sigma_j(B) \f$ -- the singular values of the Kronecker
    * product -- that reach the threshold
-   * \c min(rows(),cols()) * epsilon * sigma_max(A) * sigma_max(B), clamped from
-   * below at the smallest normal number (the \c SVDBase convention). This is the
-   * same threshold \ref leastSquaresSolve uses to decide which modes to invert.
+   * \c min(rows(),cols()) * epsilon * sigma_max(A) * sigma_max(B) (the
+   * \c SVDBase convention). The comparison is made in ratio space,
+   * \f$ (\sigma_i(A)/\sigma_{max}(A))(\sigma_j(B)/\sigma_{max}(B)) \f$ against
+   * \c min(rows(),cols()) * epsilon, so that neither the threshold nor the
+   * products can spuriously under- or overflow. This is the same threshold
+   * \ref leastSquaresSolve uses to decide which modes to invert.
    * Thresholding the products matters: factors that are each full rank against
    * their own threshold can still form pairwise products that are negligible at
    * the product level, so the rank can be smaller than the product of the
@@ -252,11 +314,14 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
   Index rank() const {
     JacobiSVD<DenseMatrix> svdA(m_A), svdB(m_B);
     const RealVector sa = svdA.singularValues(), sb = svdB.singularValues();
-    const RealScalar tol = rankThreshold(sa, sb);
+    // An exactly zero factor zeroes the whole operator (and would make the
+    // ratios below 0/0).
+    if (sa[0] == RealScalar(0) || sb[0] == RealScalar(0)) return 0;
+    const RealScalar tol = relativeRankThreshold();
     Index r = 0;
     for (Index i = 0; i < sa.size(); ++i)
       for (Index j = 0; j < sb.size(); ++j)
-        if (!(sa[i] * sb[j] < tol)) ++r;  // negated so NaN products count as non-zero
+        if (!((sa[i] / sa[0]) * (sb[j] / sb[0]) < tol)) ++r;  // negated so NaN ratios count as non-zero
     return r;
   }
 
@@ -378,42 +443,109 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
   }
 
   /** \returns the product expression \c (*this) * \a x, evaluated through the vec
-   * identity without materializing the Kronecker product. */
+   * identity without materializing the Kronecker product. The expression carries
+   * the default product tag, so assigning it behaves like any dense product: a
+   * temporary resolves aliasing between the destination and \a x, and
+   * \c .noalias() skips it. */
   template <typename Rhs>
-  Product<KroneckerOperator, Rhs, AliasFreeProduct> operator*(const MatrixBase<Rhs>& x) const {
-    return Product<KroneckerOperator, Rhs, AliasFreeProduct>(*this, x.derived());
+  Product<KroneckerOperator, Rhs> operator*(const MatrixBase<Rhs>& x) const {
+    EIGEN_STATIC_ASSERT(ColsAtCompileTime == Dynamic || Rhs::RowsAtCompileTime == Dynamic ||
+                            int(ColsAtCompileTime) == int(Rhs::RowsAtCompileTime),
+                        INVALID_MATRIX_PRODUCT)
+    eigen_assert(x.rows() == cols() && "invalid product: dimensions do not match");
+    return Product<KroneckerOperator, Rhs>(*this, x.derived());
   }
 
   /** \internal Computes \c dst += alpha * (*this) * rhs through the vec identity
    * \f$ (A \otimes B)\,\mathrm{vec}(X) = \mathrm{vec}(B X A^T) \f$ of [1], column
    * by column. \c ProductScalar is the promoted scalar of the product (complex
    * when a real operator is applied to a complex right-hand side); the
-   * workspaces and the accumulation run in the promoted type. */
+   * workspaces and the accumulation run in the promoted type.
+   *
+   * Evaluated as \c (B X) A^T, the first factor \c B X can overflow even when
+   * the product itself is representable (the multiplication by \c A^T rescales
+   * it: think \c B huge and \c A tiny). Each column is therefore pre-scaled by
+   * an exact power of two derived from the component-wise exponent bounds of
+   * \c A, \c B and the column -- never from complex moduli, which overflow near
+   * the threshold -- so that no intermediate can spuriously overflow, and the
+   * exponent is folded back into the result through two representable
+   * half-factors, saturating to 0/Inf exactly when the true result leaves the
+   * representable range. The scale is one whenever the conservative bound shows
+   * no overflow risk, so results of moderate magnitude are bit-identical to the
+   * unscaled evaluation. Non-finite data is never scaled (the bounds cannot see
+   * past an Inf/NaN, and 0 * Inf would manufacture NaNs); the unscaled GEMMs
+   * propagate it entrywise exactly like a dense product. */
   template <typename Dest, typename Rhs, typename ProductScalar>
   void addProduct(Dest& dst, const Rhs& rhs, const ProductScalar& alpha) const {
     using ProductVector = Matrix<ProductScalar, Dynamic, 1>;
     using ProductMatrix = Matrix<ProductScalar, Dynamic, Dynamic, ColMajor>;  // ColMajor: see DenseMatrix
+    using ProductReal = typename NumTraits<ProductScalar>::Real;
     const Index n1 = m_A.cols(), n2 = m_B.cols();
     eigen_assert(rhs.rows() == n1 * n2 && "invalid product: dimensions do not match");
+    // Exponent budget of the pre-scaling: with max|X| < 2^eX after scaling, the
+    // first GEMM is bounded by 2^(eB + eX + bits2) and the full product by
+    // 2^(eA + eB + eX + bits1 + bits2), where 2^bits > dimension accounts for
+    // the length of the accumulated dot products; both bounds must stay below
+    // 2^max_exponent (with two bits of slack).
+    const bool factorsFinite = m_A.allFinite() && m_B.allFinite();
+    const int expA = internal::structured_exponent_bound(m_A);
+    const int expB = internal::structured_exponent_bound(m_B);
+    int bits1 = 0, bits2 = 0;
+    for (Index t = n1; t > 0; t /= 2) ++bits1;
+    for (Index t = n2; t > 0; t /= 2) ++bits2;
+    const int budget = std::numeric_limits<ProductReal>::max_exponent - 2;
     for (Index k = 0; k < rhs.cols(); ++k) {
-      const ProductVector xc = rhs.col(k).template cast<ProductScalar>();
+      ProductVector xc = rhs.col(k).template cast<ProductScalar>();
+      int e = 0;
+      if (factorsFinite && xc.allFinite()) {
+        const int expX = internal::structured_exponent_bound(xc);  // 0 for an all-zero column: no scaling
+        e = numext::maxi(0, numext::maxi(expB + expX + bits2 - budget, expA + expB + expX + bits1 + bits2 - budget));
+        // The cap keeps the half-factors below overflow; it only binds when the
+        // true result overflows anyway, so the saturation to Inf is genuine.
+        e = numext::mini(e, 2 * budget);
+      }
+      if (e > 0) {
+        // Each power of two is split in halves so that the factors themselves
+        // stay representable; scaling by the two exact factors in sequence is
+        // still an exact shift wherever the result is representable.
+        const ProductReal down1 = ProductReal(std::ldexp(ProductReal(1), -(e / 2)));
+        const ProductReal down2 = ProductReal(std::ldexp(ProductReal(1), -(e - e / 2)));
+        xc = (xc * down1) * down2;
+      }
       const Map<const ProductMatrix> X(xc.data(), n2, n1);
       const ProductMatrix Y = m_B * X * m_A.transpose();
-      dst.col(k) += alpha * Map<const ProductVector>(Y.data(), Y.size());
+      if (e > 0) {
+        const ProductReal up1 = ProductReal(std::ldexp(ProductReal(1), e / 2));
+        const ProductReal up2 = ProductReal(std::ldexp(ProductReal(1), e - e / 2));
+        dst.col(k) += alpha * ((Map<const ProductVector>(Y.data(), Y.size()) * up1) * up2);
+      } else {
+        dst.col(k) += alpha * Map<const ProductVector>(Y.data(), Y.size());
+      }
     }
   }
 
  private:
-  /** \internal \returns the rank/pseudo-inversion threshold for the pairwise
-   * singular-value products of the factor singular values \a sa and \a sb (each
-   * sorted decreasingly, so the leading entries are the maxima), in the spirit
-   * of the SVD-based pseudo-inverse: \c min(rows,cols) * epsilon * smax with
-   * \c smax = sa[0]*sb[0] the largest singular value of the Kronecker product,
-   * clamped from below at the smallest normal number so subnormal and zero
-   * products -- whose reciprocals overflow -- are treated as exact zeros. */
-  RealScalar rankThreshold(const RealVector& sa, const RealVector& sb) const {
-    return numext::maxi(RealScalar(numext::mini(rows(), cols())) * NumTraits<RealScalar>::epsilon() * sa[0] * sb[0],
-                        (std::numeric_limits<RealScalar>::min)());
+  /** \internal \returns the relative rank/pseudo-inversion threshold for the
+   * pairwise singular-value products, in the spirit of the SVD-based
+   * pseudo-inverse: a mode \c (i,j) is kept when
+   * \c (sa[i]/sa[0]) * (sb[j]/sb[0]) >= min(rows,cols) * epsilon, the \c SVDBase
+   * convention for \c sa[i]*sb[j] measured against \c smax = sa[0]*sb[0]. The
+   * comparison must happen in ratio space: the absolute form both underflows
+   * (\c min(rows,cols) * epsilon * sa[0] can flush to zero before the \c sb[0]
+   * multiplication, silently accepting every mode) and overflows
+   * (\c sa[0]*sb[0] can exceed the representable range). The ratios never
+   * exceed one, and a ratio product that underflows is genuinely below any
+   * epsilon-sized threshold. */
+  RealScalar relativeRankThreshold() const {
+    return RealScalar(numext::mini(rows(), cols())) * NumTraits<RealScalar>::epsilon();
+  }
+
+  /** \internal Solves \f$ B X A^T = \mathrm{mat}(bc) \f$ for one right-hand-side
+   * column \a bc through the factor LU decompositions; see solve(). */
+  static DenseMatrix solveColumn(const PartialPivLU<DenseMatrix>& luA, const PartialPivLU<DenseMatrix>& luB,
+                                 const DenseVector& bc, Index n1, Index n2) {
+    const Map<const DenseMatrix> Bmat(bc.data(), n2, n1);
+    return luA.solve(luB.solve(Bmat).transpose()).transpose();
   }
 
   template <typename T>
