@@ -93,6 +93,31 @@ Scalar structured_ldexp_clamped(const Scalar& z, Index exponent) {
   return structured_balance_impl<Scalar>::apply_exponent(z, e);
 }
 
+/** \internal Computes the guarded node difference \c a - b for the structured
+ * operators' coefficient and determinant-factor evaluations, with the true
+ * value kept as \c result * 2^e. The plain difference of two finite nodes can
+ * overflow (nodes near opposite ends of the exponent range) even though every
+ * derived quantity is representable; in that case the difference is recomputed
+ * from the halved operands and \a e reports the removed power of two. The
+ * halving and the recomputed difference are exact -- scaling by a power of two
+ * is exact (Sterbenz, "Floating-Point Computation", 1974), overflow of a finite
+ * difference implies both operands are huge normal values, and the halved
+ * difference is bounded by the largest finite value. (For complex nodes the
+ * halving of a subnormal component can round, but such a component is smaller
+ * than the overflowing one by more than the full exponent range, so the
+ * perturbation of the factor is far below roundoff.) A difference that is
+ * non-finite because a node itself is non-finite must propagate exactly and is
+ * returned untouched, with \c e = 0. */
+template <typename Scalar>
+Scalar structured_guarded_diff(const Scalar& a, const Scalar& b, int& e) {
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  e = 0;
+  const Scalar t = a - b;
+  if ((numext::isfinite)(t) || !(numext::isfinite)(a) || !(numext::isfinite)(b)) return t;
+  e = 1;
+  return a * RealScalar(0.5) - b * RealScalar(0.5);
+}
+
 /** \internal \returns the indices sorted by decreasing precomputed modulus
  * \a mods (each modulus is computed once, not on every comparison); the shared
  * ordering of the operators' singularValues()/matrixU()/matrixV(). The sort is

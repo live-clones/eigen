@@ -64,58 +64,37 @@ struct traits<CauchyLU<Scalar_>> : traits<Matrix<Scalar_, Dynamic, Dynamic>> {
   enum { Flags = BaseTraits::Flags & RowMajorBit, CoeffReadCost = Dynamic };
 };
 
-/** \internal Computes the node difference \c a - b for a Cauchy coefficient or
- * determinant factor, with the true value kept as \c result * 2^e. The plain
- * difference of two finite nodes can overflow (nodes near opposite ends of the
- * exponent range) even though every coefficient of the matrix is representable;
- * in that case the difference is recomputed from the halved operands and \a e
- * reports the removed power of two. The halving and the recomputed difference
- * are exact [2]: overflow of a finite difference implies both operands are huge
- * normal values, and the halved difference is bounded by the largest finite
- * value. (For complex nodes the halving of a subnormal component can round, but
- * such a component is smaller than the overflowing one by more than the full
- * exponent range, so the perturbation of the factor is far below roundoff.) A
- * difference that is non-finite because a node itself is non-finite must
- * propagate exactly and is returned untouched, with \c e = 0. */
-template <typename Scalar>
-Scalar cauchy_guarded_diff(const Scalar& a, const Scalar& b, int& e) {
-  using RealScalar = typename NumTraits<Scalar>::Real;
-  e = 0;
-  const Scalar t = a - b;
-  if ((numext::isfinite)(t) || !(numext::isfinite)(a) || !(numext::isfinite)(b)) return t;
-  e = 1;
-  return a * RealScalar(0.5) - b * RealScalar(0.5);
-}
-
 /** \internal \returns the Cauchy coefficient \c 1 / (a - b), guarded against a
- * spurious overflow of the difference: a naively formed coefficient would
- * collapse to 1/Inf = 0, where the true value is a representable (possibly
- * subnormal) number. When the guard fires, the reciprocal of the exactly halved
- * difference is halved again, which rounds correctly into the subnormal range.
- * Every coefficient evaluation -- coeff(), the dense materialization, the
- * product kernel and the CauchyLU recursion -- goes through this single helper,
- * so all APIs agree on boundary nodes (and with determinant(), which derives
- * the same quantities through its balanced accumulation). */
+ * spurious overflow of the difference (internal::structured_guarded_diff): a
+ * naively formed coefficient would collapse to 1/Inf = 0, where the true value
+ * is a representable (possibly subnormal) number. When the guard fires, the
+ * reciprocal of the exactly halved difference is halved again, which rounds
+ * correctly into the subnormal range. Every coefficient evaluation -- coeff(),
+ * the dense materialization, the product kernel and the CauchyLU recursion --
+ * goes through this single helper, so all APIs agree on boundary nodes (and
+ * with determinant(), which derives the same quantities through its balanced
+ * accumulation). */
 template <typename Scalar>
 Scalar cauchy_reciprocal_diff(const Scalar& a, const Scalar& b) {
   using RealScalar = typename NumTraits<Scalar>::Real;
   int e;
-  const Scalar t = cauchy_guarded_diff(a, b, e);
+  const Scalar t = structured_guarded_diff(a, b, e);
   const Scalar r = Scalar(1) / t;
   return e == 0 ? r : Scalar(r * RealScalar(0.5));
 }
 
 /** \internal \returns the ratio \c (a - b) / (a - c) of node differences, both
- * guarded (see cauchy_guarded_diff) with the removed powers of two rebalanced
- * into the quotient -- an exact rescaling [2]. Used by the CauchyLU generator
- * updates, whose numerator and denominator can each overflow on finite nodes
- * (the naive ratio then evaluates to Inf/Inf = NaN or a spurious Inf/0). */
+ * guarded (see internal::structured_guarded_diff) with the removed powers of
+ * two rebalanced into the quotient -- an exact rescaling [2]. Used by the
+ * CauchyLU generator updates, whose numerator and denominator can each overflow
+ * on finite nodes (the naive ratio then evaluates to Inf/Inf = NaN or a
+ * spurious Inf/0). */
 template <typename Scalar>
 Scalar cauchy_diff_ratio(const Scalar& a, const Scalar& b, const Scalar& c) {
   using RealScalar = typename NumTraits<Scalar>::Real;
   int en, ed;
-  const Scalar num = cauchy_guarded_diff(a, b, en);
-  const Scalar den = cauchy_guarded_diff(a, c, ed);
+  const Scalar num = structured_guarded_diff(a, b, en);
+  const Scalar den = structured_guarded_diff(a, c, ed);
   Scalar r = num / den;
   if (en > ed) r = r + r;                // fold the numerator's power of two back in
   if (ed > en) r = r * RealScalar(0.5);  // and the denominator's
@@ -243,21 +222,22 @@ class Cauchy : public EigenBase<Cauchy<Scalar_, Rows_, Cols_>> {
     Index exponent = 0;
     for (Index j = 1; j < n; ++j)
       for (Index i = 0; i < j; ++i) {
-        det = balance(det * balance(guardedDiff(m_x.coeff(j), m_x.coeff(i), exponent), exponent), exponent);
-        det = balance(det * balance(guardedDiff(m_y.coeff(i), m_y.coeff(j), exponent), exponent), exponent);
+        det = internal::structured_balance(
+            Scalar(det * internal::structured_balance(guardedDiff(m_x.coeff(j), m_x.coeff(i), exponent), exponent)),
+            exponent);
+        det = internal::structured_balance(
+            Scalar(det * internal::structured_balance(guardedDiff(m_y.coeff(i), m_y.coeff(j), exponent), exponent)),
+            exponent);
       }
     for (Index j = 0; j < n; ++j)
       for (Index i = 0; i < n; ++i) {
         Index denomExponent = 0;
-        const Scalar d = balance(guardedDiff(m_x.coeff(i), m_y.coeff(j), denomExponent), denomExponent);
+        const Scalar d =
+            internal::structured_balance(guardedDiff(m_x.coeff(i), m_y.coeff(j), denomExponent), denomExponent);
         exponent -= denomExponent;
-        det = balance(det / d, exponent);
+        det = internal::structured_balance(Scalar(det / d), exponent);
       }
-    // ldexp saturates cleanly to zero / infinity once the accumulated exponent
-    // leaves the representable range; the clamp only guards the narrowing to int.
-    constexpr Index kMaxExponent = Index(1) << 24;
-    const int e = static_cast<int>(numext::mini(numext::maxi(exponent, -kMaxExponent), kMaxExponent));
-    return applyExponent(det, e);
+    return internal::structured_ldexp_clamped(det, exponent);
   }
 
   /** \internal Writes the dense representation into \a dst, one vectorized
@@ -333,18 +313,11 @@ class Cauchy : public EigenBase<Cauchy<Scalar_, Rows_, Cols_>> {
   }
 
  private:
-  /** \internal Applies the exact scaling \c 2^e to a real or complex value
-   * componentwise (the overload set covers both possible \c Scalar kinds). */
-  static RealScalar applyExponent(const RealScalar& v, int e) { return std::ldexp(v, e); }
-  static std::complex<RealScalar> applyExponent(const std::complex<RealScalar>& v, int e) {
-    return std::complex<RealScalar>(std::ldexp(v.real(), e), std::ldexp(v.imag(), e));
-  }
-
-  /** \internal Determinant factor \c a - b: internal::cauchy_guarded_diff with
-   * the removed power of two folded into the running \a exponent. */
+  /** \internal Determinant factor \c a - b: internal::structured_guarded_diff
+   * with the removed power of two folded into the running \a exponent. */
   static Scalar guardedDiff(const Scalar& a, const Scalar& b, Index& exponent) {
     int e;
-    const Scalar t = internal::cauchy_guarded_diff(a, b, e);
+    const Scalar t = internal::structured_guarded_diff(a, b, e);
     exponent += e;
     return t;
   }
@@ -367,20 +340,6 @@ class Cauchy : public EigenBase<Cauchy<Scalar_, Rows_, Cols_>> {
       my = m_y.cwiseAbs().maxCoeff();
     }
     return !(mx + my <= (std::numeric_limits<RealScalar>::max)());
-  }
-
-  /** \internal Rescales \a v by the power of two that brings \c max(|re|,|im|)
-   * into [0.5, 1), accumulating the removed exponent into \a exponent. The
-   * rescaling is exact [2], so no roundoff is introduced. Zeros and non-finite
-   * values, which must propagate exactly through determinant(), are returned
-   * untouched. */
-  static Scalar balance(const Scalar& v, Index& exponent) {
-    const RealScalar mag = numext::maxi(numext::abs(numext::real(v)), numext::abs(numext::imag(v)));
-    if (!(mag > RealScalar(0)) || !(numext::isfinite)(mag)) return v;
-    int e;
-    std::frexp(mag, &e);
-    exponent += e;
-    return applyExponent(v, -e);
   }
 
   RowNodeVector m_x;
