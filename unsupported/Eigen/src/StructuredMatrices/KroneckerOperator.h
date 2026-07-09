@@ -15,6 +15,14 @@
 //      operand naming (A (x) B) vec(X) = vec(B X A^T) -- together with the
 //      factor-wise identities for the inverse, pseudo-inverse,
 //      eigendecomposition, SVD and determinant of a Kronecker product.
+//  [2] N. J. Higham, "Accuracy and Stability of Numerical Algorithms", 2nd ed.,
+//      SIAM, 2002, chapter 27. Avoiding spurious overflow by rescaling with
+//      powers of two, the technique behind the scaled vec-trick products, the
+//      normalized-frame solves, the exponent-split pseudo-inversion and the
+//      exponent-balanced determinant.
+//  [3] P. H. Sterbenz, "Floating-Point Computation", Prentice-Hall, 1974.
+//      Scaling by a power of two is exact, the property every rescaling in this
+//      file relies on.
 
 #ifndef EIGEN_STRUCTURED_KRONECKER_OPERATOR_H
 #define EIGEN_STRUCTURED_KRONECKER_OPERATOR_H
@@ -193,15 +201,19 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
    * so \f$ X = B^{-1} \mathrm{mat}(b) A^{-T} \f$. Supports multiple right-hand
    * sides at O(n1^3 + n2^3 + nrhs (n1 + n2) n1 n2) total cost.
    *
-   * The intermediate \f$ B^{-1} \mathrm{mat}(b) \f$ can overflow even when the
-   * solution is representable (the subsequent \f$ A^{-T} \f$ rescales it). There
-   * is no cheap a-priori bound on the magnitude of \f$ B^{-1} \f$, so overflow is
-   * detected instead: when a column comes back non-finite from finite inputs, it
-   * is re-solved with the right-hand side scaled to unit magnitude by an exact
-   * power of two, and the exponent is folded back into the solution through two
-   * representable half-factors. Results are bit-identical whenever the first
-   * attempt stays finite, and saturation to 0/Inf remains correct when the true
-   * solution itself leaves the representable range.
+   * The solves run in a normalized frame [2][3]: the factors and each right-hand
+   * side are rescaled to unit magnitude by exact powers of two, and the combined
+   * exponent is folded back into the solution entrywise afterwards. In the raw
+   * frame the intermediate \f$ B^{-1} \mathrm{mat}(b) \f$ can overflow, or
+   * silently underflow to zero, on factor magnitudes alone even when the
+   * solution is representable (the subsequent \f$ A^{-T} \f$ rescales it: think
+   * \c B huge and \c A tiny); in the normalized frame the intermediates are
+   * bounded by the conditioning of the factors, and the final fold saturates to
+   * 0/Inf exactly when the true solution leaves the representable range.
+   * Partial pivoting is invariant under the uniform power-of-two normalization
+   * and every substitution step scales exactly with it, so the result is
+   * bit-identical to the unnormalized evaluation whenever that evaluation
+   * encounters no intermediate over- or underflow.
    * \warning Both factors must be invertible, like in \c PartialPivLU; use
    * \ref leastSquaresSolve for rank-deficient or rectangular factors. */
   template <typename Rhs>
@@ -212,22 +224,24 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
     const Index n1 = m_A.cols(), n2 = m_B.cols();
     eigen_assert(m_A.rows() == n1 && m_B.rows() == n2 && "KroneckerOperator::solve requires square factors");
     eigen_assert(b.rows() == n1 * n2 && "right-hand side has the wrong number of rows");
-    PartialPivLU<DenseMatrix> luA(m_A), luB(m_B);
-    const bool factorsFinite = m_A.allFinite() && m_B.allFinite();
+    // The exponent bounds are 0 for zero or non-finite data, which is then left
+    // unnormalized (Inf/NaN propagate through the substitutions as usual).
+    const int ea = internal::structured_exponent_bound(m_A);
+    const int eb = internal::structured_exponent_bound(m_B);
+    PartialPivLU<DenseMatrix> luA(ldexpEntries(m_A, -ea)), luB(ldexpEntries(m_B, -eb));
     Matrix<Scalar, ColsAtCompileTime, Rhs::ColsAtCompileTime> x(n1 * n2, b.cols());
     for (Index k = 0; k < b.cols(); ++k) {
       DenseVector bc = b.col(k);
-      DenseMatrix X = solveColumn(luA, luB, bc, n1, n2);
-      if (!X.allFinite() && factorsFinite && bc.allFinite()) {
-        const int e = internal::structured_exponent_bound(bc);
-        const RealScalar down1 = RealScalar(std::ldexp(RealScalar(1), -(e / 2)));
-        const RealScalar down2 = RealScalar(std::ldexp(RealScalar(1), -(e - e / 2)));
-        const RealScalar up1 = RealScalar(std::ldexp(RealScalar(1), e / 2));
-        const RealScalar up2 = RealScalar(std::ldexp(RealScalar(1), e - e / 2));
-        bc = (bc * down1) * down2;
-        X = solveColumn(luA, luB, bc, n1, n2);
-        X = (X * up1) * up2;
-      }
+      const int ec = internal::structured_exponent_bound(bc);
+      if (ec != 0) bc = ldexpEntries(bc, -ec);
+      const Map<const DenseMatrix> Bmat(bc.data(), n2, n1);
+      DenseMatrix X = luA.solve(luB.solve(Bmat).transpose()).transpose();
+      // Fold the combined exponent back. The entrywise ldexp saturates exactly
+      // where the true solution over- or underflows; a multiplicative fold could
+      // not (the combined exponent can exceed the representable range of any
+      // fixed number of power-of-two factors).
+      const int e = ec - ea - eb;
+      if (e != 0) X = ldexpEntries(X, e);
       x.col(k) = Map<const DenseVector>(X.data(), X.size());
     }
     return x;
@@ -273,17 +287,18 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
       // Project onto the factor singular bases: M = U_B^H mat(b) conj(U_A) is the
       // k_B x k_A matricization of (U_A (x) U_B)^H b, by the vec identity [1].
       DenseMatrix M = svdB.matrixU().adjoint() * Bmat * svdA.matrixU().conjugate();
-      // Invert only the pairwise products at/above the product-level threshold,
-      // decided in ratio space like rank(). The negated comparison keeps NaN
-      // ratios in the inverted set, so a NaN input propagates to the output
-      // instead of being silently zeroed. The division splits each singular
-      // value into mantissa and exponent: the product sigma_i(B) * sigma_j(A)
-      // itself can overflow, or underflow to zero, even when the quotient is
-      // representable. Applying the exact power of two first keeps every
-      // intermediate within a factor of four of the true quotient.
+      // Invert only the pairwise products at/above the product-level threshold
+      // and the smallest normal number, both decided like in rank(). The negated
+      // ratio comparison keeps NaN ratios in the inverted set, so a NaN input
+      // propagates to the output instead of being silently zeroed. The division
+      // splits each singular value into mantissa and exponent [2]: the product
+      // sigma_i(B) * sigma_j(A) itself can overflow, or underflow to zero, even
+      // when the quotient is representable. Applying the exact power of two
+      // first keeps every intermediate within a factor of four of the true
+      // quotient.
       for (Index j = 0; j < kA; ++j)
         for (Index i = 0; i < kB; ++i) {
-          if (!((sa[j] / sa[0]) * (sb[i] / sb[0]) < tol)) {
+          if (!((sa[j] / sa[0]) * (sb[i] / sb[0]) < tol) && reachesMinNormal(sa[j], sb[i])) {
             int ea, eb;
             const RealScalar ma = std::frexp(sa[j], &ea), mb = std::frexp(sb[i], &eb);
             M(i, j) = ldexpScalar(M(i, j), -(ea + eb)) / (ma * mb);
@@ -302,15 +317,17 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
    * \f$ \sigma_i(A)\,\sigma_j(B) \f$ -- the singular values of the Kronecker
    * product -- that reach the threshold
    * \c min(rows(),cols()) * epsilon * sigma_max(A) * sigma_max(B) (the
-   * \c SVDBase convention). The comparison is made in ratio space,
+   * \c SVDBase convention), and that reach the smallest normal number (the
+   * \c SVDBase threshold clamp, so subnormal products count as exact zeros).
+   * The relative comparison is made in ratio space,
    * \f$ (\sigma_i(A)/\sigma_{max}(A))(\sigma_j(B)/\sigma_{max}(B)) \f$ against
-   * \c min(rows(),cols()) * epsilon, so that neither the threshold nor the
-   * products can spuriously under- or overflow. This is the same threshold
-   * \ref leastSquaresSolve uses to decide which modes to invert.
-   * Thresholding the products matters: factors that are each full rank against
-   * their own threshold can still form pairwise products that are negligible at
-   * the product level, so the rank can be smaller than the product of the
-   * factor ranks. */
+   * \c min(rows(),cols()) * epsilon, and the clamp in exponent space, so that
+   * neither the thresholds nor the products can spuriously under- or overflow.
+   * This is the same threshold \ref leastSquaresSolve uses to decide which
+   * modes to invert. Thresholding the products matters: factors that are each
+   * full rank against their own threshold can still form pairwise products
+   * that are negligible at the product level, so the rank can be smaller than
+   * the product of the factor ranks. */
   Index rank() const {
     JacobiSVD<DenseMatrix> svdA(m_A), svdB(m_B);
     const RealVector sa = svdA.singularValues(), sb = svdB.singularValues();
@@ -321,7 +338,8 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
     Index r = 0;
     for (Index i = 0; i < sa.size(); ++i)
       for (Index j = 0; j < sb.size(); ++j)
-        if (!((sa[i] / sa[0]) * (sb[j] / sb[0]) < tol)) ++r;  // negated so NaN ratios count as non-zero
+        // Negated ratio comparison so NaN ratios count as non-zero.
+        if (!((sa[i] / sa[0]) * (sb[j] / sb[0]) < tol) && reachesMinNormal(sa[i], sb[j])) ++r;
     return r;
   }
 
@@ -465,9 +483,10 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
    * Evaluated as \c (B X) A^T, the first factor \c B X can overflow even when
    * the product itself is representable (the multiplication by \c A^T rescales
    * it: think \c B huge and \c A tiny). Each column is therefore pre-scaled by
-   * an exact power of two derived from the component-wise exponent bounds of
-   * \c A, \c B and the column -- never from complex moduli, which overflow near
-   * the threshold -- so that no intermediate can spuriously overflow, and the
+   * an exact power of two [2][3] derived from the component-wise exponent
+   * bounds of \c A, \c B and the column -- never from complex moduli, which
+   * overflow near the threshold -- so that no intermediate can spuriously
+   * overflow, and the
    * exponent is folded back into the result through two representable
    * half-factors, saturating to 0/Inf exactly when the true result leaves the
    * representable range. The scale is one whenever the conservative bound shows
@@ -540,12 +559,34 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
     return RealScalar(numext::mini(rows(), cols())) * NumTraits<RealScalar>::epsilon();
   }
 
-  /** \internal Solves \f$ B X A^T = \mathrm{mat}(bc) \f$ for one right-hand-side
-   * column \a bc through the factor LU decompositions; see solve(). */
-  static DenseMatrix solveColumn(const PartialPivLU<DenseMatrix>& luA, const PartialPivLU<DenseMatrix>& luB,
-                                 const DenseVector& bc, Index n1, Index n2) {
-    const Map<const DenseMatrix> Bmat(bc.data(), n2, n1);
-    return luA.solve(luB.solve(Bmat).transpose()).transpose();
+  /** \internal \returns \a M rescaled by \c 2^e entrywise (componentwise for
+   * complex scalars): exact where the result is representable [3], with correct
+   * saturation to 0/Inf and correctly rounded subnormals beyond -- unlike a
+   * multiplication by \c 2^e, whose factor may itself be unrepresentable. */
+  template <typename Xpr>
+  static typename Xpr::PlainObject ldexpEntries(const Xpr& M, int e) {
+    return M.unaryExpr([e](const Scalar& z) { return ldexpScalar(z, e); });
+  }
+
+  /** \internal Whether the pairwise singular-value product \c s1*s2 reaches the
+   * smallest normal number -- the clamp \c SVDBase places under its
+   * pseudo-inversion threshold, so that subnormal singular values (whose
+   * reciprocals overflow) are treated as exact zeros. The boundary itself is
+   * kept, matching the \c >= convention of \c SVDBase::rank(). The product is
+   * compared exponent-safely: the frexp mantissas lie in [0.5, 1), so their
+   * product in [0.25, 1) can neither over- nor underflow, and the exponents add
+   * as integers. Non-finite singular values return true so they stay in the
+   * inverted set and propagate. */
+  static bool reachesMinNormal(const RealScalar& s1, const RealScalar& s2) {
+    int e1, e2;
+    const RealScalar m = std::frexp(s1, &e1) * std::frexp(s2, &e2);
+    if (!(numext::isfinite)(m)) return true;  // NaN or Inf singular values must propagate
+    if (m == RealScalar(0)) return false;     // an exactly zero product
+    // Renormalize the mantissa product into [0.5, 1), so that s1*s2 = m * 2^e
+    // reaches the smallest normal number 2^(min_exponent - 1) iff e is at least
+    // min_exponent.
+    const int e = m < RealScalar(0.5) ? e1 + e2 - 1 : e1 + e2;
+    return e >= std::numeric_limits<RealScalar>::min_exponent;
   }
 
   template <typename T>
