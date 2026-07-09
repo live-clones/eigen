@@ -1647,6 +1647,15 @@ std::cout << "b\n" << b;
 // b
 // 276
 ```
+Assigning a full reduction expression to the tensor's scalar type evaluates the
+expression immediately on the default device.
+Each scalar conversion evaluates the expression again. To evaluate on a specific
+device:
+
+```cpp
+Eigen::Tensor<float, 0> b;
+b.device(device) = a.sum();
+```
 
 ### (Operation) sum(const Dimensions& reduction_dims)
 ### (Operation) sum()
