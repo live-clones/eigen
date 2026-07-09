@@ -253,7 +253,17 @@ class Vandermonde : public EigenBase<Vandermonde<Scalar_, Rows_, Cols_>> {
    * also take the plain loop, which propagates Inf/NaN entrywise like a dense
    * product; and a unit alpha must not multiply -- even the identity complex
    * scalar (1,0) pollutes an (Inf,0) value with NaN through the 0*Inf cross
-   * term. */
+   * term.
+   *
+   * The column's finiteness and its exponent bound come from the single
+   * fast-max pass of internal::structured_exponent_bound_finite(), which is not
+   * guaranteed to propagate NaN. That is sufficient here for the same reason as
+   * in the FFT products: an Inf in NaN-free data always surfaces in a fast
+   * maximum, and a column containing NaN yields the NaN results dense-product
+   * semantics require through the plain loop and the scaled recurrence alike
+   * (every Horner step folds the NaN coefficient in, and the balancing helpers
+   * pass non-finite values through), so missing a NaN cannot change the
+   * result. */
   template <typename Dest, typename Rhs, typename ProductScalar>
   void addProduct(Dest& dst, const Rhs& rhs, const ProductScalar& alpha) const {
     const Index m = rows(), n = m_cols;
@@ -262,8 +272,8 @@ class Vandermonde : public EigenBase<Vandermonde<Scalar_, Rows_, Cols_>> {
     int log2n = 0;  // n < 2^log2n: bounds the number of addends of the Horner sum
     for (Index t = n; t > 0; t /= 2) ++log2n;
     for (Index k = 0; k < rhs.cols(); ++k) {
-      const bool colFinite = rhs.col(k).allFinite();
-      const int colExp = internal::structured_exponent_bound(rhs.col(k));  // max modulus < 2^colExp
+      int colExp;  // max modulus < 2^colExp; 0 for a zero or non-finite column
+      const bool colFinite = internal::structured_exponent_bound_finite(rhs.col(k), colExp);
       for (Index i = 0; i < m; ++i) {
         const Scalar xi = m_x.coeff(i);
         // Every Horner intermediate at node xi is below
@@ -399,8 +409,11 @@ class Vandermonde : public EigenBase<Vandermonde<Scalar_, Rows_, Cols_>> {
    * surviving magnitude (which is a multiple of the operands' unit roundoff,
    * hence never subnormal for real scalars, and frexp is exact on subnormal
    * component values regardless).
-   * \pre the node and the column are finite (non-finite data takes the plain
-   * loop in addProduct()). */
+   * \pre the node is finite and the column passed the fast-max routing
+   * predicate of addProduct(): it holds no Inf without an accompanying NaN. A
+   * NaN-bearing column can reach the recurrence when the fast maximum misses
+   * the NaN; every helper passes non-finite values through, so it produces the
+   * NaN result dense-product semantics require. */
   template <typename ProductScalar, typename Rhs>
   ProductScalar scaledHorner(const Scalar& xi, const Rhs& rhs, Index k) const {
     Index xiE = 0;
