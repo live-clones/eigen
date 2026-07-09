@@ -227,20 +227,24 @@ class Toeplitz : public EigenBase<Toeplitz<Scalar_, Rows_, Cols_>> {
    * promoted scalar of the product (complex when a real operator is applied to a
    * complex right-hand side); the accumulation runs in the promoted type.
    *
-   * Non-finite data -- in the generators, the cached embedding symbol (which can
-   * overflow even for finite generators) or the right-hand side -- takes the
-   * direct O(mn) kernel: the transforms would smear a single Inf/NaN into NaNs
-   * across the whole output, where the dense product only propagates it through
-   * the dot products that touch it. */
+   * Non-finite data takes the direct O(mn) kernel: the transforms would smear a
+   * single Inf/NaN into NaNs across the whole output, where the dense product
+   * only propagates it through the dot products that touch it. Non-finite
+   * generators or a non-finite cached embedding symbol (which can overflow even
+   * for finite generators) route the whole product; a non-finite right-hand-side
+   * column is detected inside the FFT loop -- in the same pass that derives its
+   * scaling exponent, so finite data pays no extra scan -- and falls back per
+   * column. */
   template <typename Dest, typename Rhs, typename ProductScalar>
   void addProduct(Dest& dst, const Rhs& rhs, const ProductScalar& alpha) const {
     const Index m = rows(), n = cols();
     eigen_assert(rhs.rows() == n && "invalid product: dimensions do not match");
     const bool small = m <= internal::structured_direct_threshold() && n <= internal::structured_direct_threshold();
-    if (small || !m_fftUsable || !rhs.allFinite())
+    if (small || !m_fftUsable)
       directProduct(dst, rhs, alpha);
     else
-      internal::structured_fft_apply(dst, m_symbol, m, rhs, alpha);
+      internal::structured_fft_apply(dst, m_symbol, m, rhs, alpha,
+                                     [&](Index k) { directProductColumn(dst, rhs, k, alpha); });
   }
 
  private:
@@ -266,12 +270,13 @@ class Toeplitz : public EigenBase<Toeplitz<Scalar_, Rows_, Cols_>> {
     return m_col.allFinite() && m_row.allFinite() && (m_symbol.size() == 0 || m_symbol.allFinite());
   }
 
-  /** \internal Direct O(mn) product kernels: computes \c dst += alpha * (*this)
-   * * rhs without transforms. Serves operators below the FFT threshold and any
-   * product involving non-finite data, whose entrywise IEEE semantics the
-   * transforms cannot preserve. */
+  /** \internal Direct O(mn) kernel for column \a k of the right-hand side:
+   * computes \c dst.col(k) += alpha * (*this) * rhs.col(k) without transforms.
+   * Serves operators below the FFT threshold and any column involving
+   * non-finite data, whose entrywise IEEE semantics the transforms cannot
+   * preserve. */
   template <typename Dest, typename Rhs, typename ProductScalar>
-  void directProduct(Dest& dst, const Rhs& rhs, const ProductScalar& alpha) const {
+  void directProductColumn(Dest& dst, const Rhs& rhs, Index k, const ProductScalar& alpha) const {
     const Index m = rows(), n = cols();
     // A unit alpha must not multiply: even the identity complex scalar (1,0)
     // pollutes an (Inf,0) value with NaN through the 0*Inf cross term.
@@ -279,12 +284,11 @@ class Toeplitz : public EigenBase<Toeplitz<Scalar_, Rows_, Cols_>> {
     if (m <= internal::structured_scalar_threshold() && n <= internal::structured_scalar_threshold()) {
       // Tiny sizes: a plain scalar loop beats the segment-based path below, whose
       // per-segment setup dominates when segments hold only a few entries.
-      for (Index k = 0; k < rhs.cols(); ++k)
-        for (Index i = 0; i < m; ++i) {
-          ProductScalar acc(0);
-          for (Index j = 0; j < n; ++j) acc += coeff(i, j) * rhs.coeff(j, k);
-          dst.coeffRef(i, k) += unitAlpha ? acc : ProductScalar(alpha * acc);
-        }
+      for (Index i = 0; i < m; ++i) {
+        ProductScalar acc(0);
+        for (Index j = 0; j < n; ++j) acc += coeff(i, j) * rhs.coeff(j, k);
+        dst.coeffRef(i, k) += unitAlpha ? acc : ProductScalar(alpha * acc);
+      }
       return;
     }
 
@@ -292,15 +296,20 @@ class Toeplitz : public EigenBase<Toeplitz<Scalar_, Rows_, Cols_>> {
     // head is a reversed slice of the row generator (entry i holds r[j-i]) and
     // its tail the leading part of the column generator; both are segment
     // operations that vectorize.
-    for (Index k = 0; k < rhs.cols(); ++k) {
-      auto dstCol = dst.col(k);
-      for (Index j = 0; j < n; ++j) {
-        const ProductScalar xj = unitAlpha ? ProductScalar(rhs.coeff(j, k)) : ProductScalar(alpha * rhs.coeff(j, k));
-        const Index h = numext::mini(j, m);
-        dstCol.head(h) += xj * m_row.segment(j - h + 1, h).reverse();
-        if (j < m) dstCol.tail(m - j) += xj * m_col.head(m - j);
-      }
+    auto dstCol = dst.col(k);
+    for (Index j = 0; j < n; ++j) {
+      const ProductScalar xj = unitAlpha ? ProductScalar(rhs.coeff(j, k)) : ProductScalar(alpha * rhs.coeff(j, k));
+      const Index h = numext::mini(j, m);
+      dstCol.head(h) += xj * m_row.segment(j - h + 1, h).reverse();
+      if (j < m) dstCol.tail(m - j) += xj * m_col.head(m - j);
     }
+  }
+
+  /** \internal Direct O(mn) product kernel over every column, see
+   * directProductColumn(). */
+  template <typename Dest, typename Rhs, typename ProductScalar>
+  void directProduct(Dest& dst, const Rhs& rhs, const ProductScalar& alpha) const {
+    for (Index k = 0; k < rhs.cols(); ++k) directProductColumn(dst, rhs, k, alpha);
   }
 
   /** \internal \returns the DFT of the first column of the circulant embedding. */

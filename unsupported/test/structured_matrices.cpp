@@ -505,6 +505,15 @@ void test_structured_nonfinite_product(Index n) {
   xn[n - 1] = Scalar(nan);
   VERIFY(ieee_entrywise_match((C * xn).eval(), reference_product_ieee(dense, xn)));
 
+  // Mixed multi-column right-hand side: the non-finite column falls back to the
+  // direct kernel individually while the finite column keeps the FFT path.
+  Mat Xm(n, 2);
+  Xm.col(0) = Vec::Random(n);
+  Xm.col(1) = x;
+  Mat Ym = C * Xm;
+  VERIFY_IS_APPROX(Ym.col(0).eval(), (dense * Xm.col(0)).eval());
+  VERIFY(ieee_entrywise_match(Ym.col(1).eval(), reference_product_ieee(dense, Vec(Xm.col(1)))));
+
   // Inf in the generator: the operator itself is non-finite, whatever the
   // right-hand side.
   Vec c2 = Vec::Random(n);
