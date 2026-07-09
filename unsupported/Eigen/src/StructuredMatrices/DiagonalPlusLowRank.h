@@ -51,48 +51,6 @@ struct evaluator_traits<DiagonalPlusLowRank<Scalar_, Size_, Rank_>> {
   using Shape = StructuredShape;
 };
 
-// The capacitance-solve half of the Woodbury identity [1], factored into a
-// dispatch struct so a fixed rank-0 operator -- a plain diagonal -- never
-// instantiates PartialPivLU on a 0 x 0 matrix, which does not compile (C++14:
-// no if-constexpr). The primary template covers positive and dynamic ranks and
-// keeps the runtime rank-0 guard; the Rank_ == 0 specialization contains no LU
-// code at all.
-template <int Rank_>
-struct dplr_capacitance_impl {
-  // x -= D^{-1} U (I_k + V^H D^{-1} U)^{-1} V^H x, the correction term of the
-  // Woodbury solve, in place.
-  template <typename Op, typename Dinv, typename Workspace>
-  static void subtractSolveCorrection(const Op& op, const Dinv& dinv, Workspace& x) {
-    if (op.correctionRank() == 0) return;
-    PartialPivLU<typename Op::CapacitanceType> cap(op.capacitance());
-    x.noalias() -= dinv.asDiagonal() * (op.factorU() * cap.solve(op.factorV().adjoint() * x));
-  }
-  // Up = -D^{-1} U (I_k + V^H D^{-1} U)^{-1}, the left factor of the inverse.
-  template <typename Op, typename Dinv, typename Factor>
-  static void inverseFactor(const Op& op, const Dinv& dinv, Factor& Up) {
-    if (op.correctionRank() == 0) return;
-    PartialPivLU<typename Op::CapacitanceType> cap(op.capacitance());
-    Up.noalias() = -(dinv.asDiagonal() * op.factorU() * cap.inverse());
-  }
-  // det(I_k + V^H D^{-1} U), the capacitance factor of the determinant lemma.
-  template <typename Op>
-  static typename Op::Scalar capacitanceDeterminant(const Op& op) {
-    return op.correctionRank() == 0 ? typename Op::Scalar(1) : op.capacitance().determinant();
-  }
-};
-
-template <>
-struct dplr_capacitance_impl<0> {
-  template <typename Op, typename Dinv, typename Workspace>
-  static void subtractSolveCorrection(const Op&, const Dinv&, Workspace&) {}
-  template <typename Op, typename Dinv, typename Factor>
-  static void inverseFactor(const Op&, const Dinv&, Factor&) {}
-  template <typename Op>
-  static typename Op::Scalar capacitanceDeterminant(const Op&) {
-    return typename Op::Scalar(1);
-  }
-};
-
 // Exact power-of-two renormalization used by the balanced determinant
 // accumulation (the pattern of Circulant::determinant(), generalized over real
 // and complex scalars): balance() rescales x by the power of two that brings
@@ -127,6 +85,65 @@ struct dplr_balance_impl<Scalar, false> {
     return std::ldexp(x, -e);
   }
   static Scalar ldexp(const Scalar& x, int e) { return std::ldexp(x, e); }
+};
+
+// The capacitance-solve half of the Woodbury identity [1], factored into a
+// dispatch struct so a fixed rank-0 operator -- a plain diagonal -- never
+// instantiates PartialPivLU on a 0 x 0 matrix, which does not compile (C++14:
+// no if-constexpr). The primary template covers positive and dynamic ranks and
+// keeps the runtime rank-0 guard; the Rank_ == 0 specialization contains no LU
+// code at all.
+template <int Rank_>
+struct dplr_capacitance_impl {
+  // x -= D^{-1} U (I_k + V^H D^{-1} U)^{-1} V^H x, the correction term of the
+  // Woodbury solve, in place.
+  template <typename Op, typename Dinv, typename Workspace>
+  static void subtractSolveCorrection(const Op& op, const Dinv& dinv, Workspace& x) {
+    if (op.correctionRank() == 0) return;
+    PartialPivLU<typename Op::CapacitanceType> cap(op.capacitance());
+    x.noalias() -= dinv.asDiagonal() * (op.factorU() * cap.solve(op.factorV().adjoint() * x));
+  }
+  // Up = -D^{-1} U (I_k + V^H D^{-1} U)^{-1}, the left factor of the inverse.
+  template <typename Op, typename Dinv, typename Factor>
+  static void inverseFactor(const Op& op, const Dinv& dinv, Factor& Up) {
+    if (op.correctionRank() == 0) return;
+    PartialPivLU<typename Op::CapacitanceType> cap(op.capacitance());
+    Up.noalias() = -(dinv.asDiagonal() * op.factorU() * cap.inverse());
+  }
+  // det(I_k + V^H D^{-1} U), the capacitance factor of the determinant lemma,
+  // folded into the caller's balanced mantissa * 2^exponent accumulation. The
+  // capacitance matrix is factored with partial-pivoting LU and its determinant
+  // assembled pivot by pivot -- each one frexp-renormalized into the running
+  // mantissa with the removed power of two added to \a exponent, and the
+  // permutation parity supplying the sign -- never as the plain pivot product a
+  // .determinant() call would form: D^{-1} scales the capacitance entries by
+  // the reciprocals of the diagonal, so extreme diagonals push det(D) and
+  // det(capacitance) to opposite ends of the exponent range and either plain
+  // product can overflow or underflow even when the combined determinant is
+  // representable.
+  template <typename Op>
+  static typename Op::Scalar balancedCapacitanceDeterminant(const Op& op, Index& exponent) {
+    using Scalar = typename Op::Scalar;
+    using BalanceImpl = dplr_balance_impl<Scalar>;
+    if (op.correctionRank() == 0) return Scalar(1);
+    const PartialPivLU<typename Op::CapacitanceType> lu(op.capacitance());
+    Scalar det(static_cast<typename Op::RealScalar>(lu.permutationP().determinant()));
+    for (Index i = 0; i < lu.matrixLU().rows(); ++i)
+      det = BalanceImpl::balance(det * BalanceImpl::balance(lu.matrixLU().coeff(i, i), exponent), exponent);
+    return det;
+  }
+};
+
+template <>
+struct dplr_capacitance_impl<0> {
+  template <typename Op, typename Dinv, typename Workspace>
+  static void subtractSolveCorrection(const Op&, const Dinv&, Workspace&) {}
+  template <typename Op, typename Dinv, typename Factor>
+  static void inverseFactor(const Op&, const Dinv&, Factor&) {}
+  template <typename Op>
+  static typename Op::Scalar balancedCapacitanceDeterminant(const Op&, Index&) {
+    return typename Op::Scalar(1);
+  }
 };
 
 }  // namespace internal
@@ -247,6 +264,9 @@ class DiagonalPlusLowRank : public EigenBase<DiagonalPlusLowRank<Scalar_, Size_,
    * the NaN/Inf propagation of the arithmetic itself. */
   template <typename Rhs>
   Matrix<Scalar, Size_, Rhs::ColsAtCompileTime> solve(const MatrixBase<Rhs>& b) const {
+    EIGEN_STATIC_ASSERT(RowsAtCompileTime == Dynamic || Rhs::RowsAtCompileTime == Dynamic ||
+                            int(RowsAtCompileTime) == int(Rhs::RowsAtCompileTime),
+                        YOU_MIXED_MATRICES_OF_DIFFERENT_SIZES)
     eigen_assert(b.rows() == rows() && "right-hand side has the wrong number of rows");
     const auto dinv = m_d.cwiseInverse();
     Matrix<Scalar, Size_, Rhs::ColsAtCompileTime> x = dinv.asDiagonal() * b;
@@ -268,27 +288,37 @@ class DiagonalPlusLowRank : public EigenBase<DiagonalPlusLowRank<Scalar_, Size_,
 
   /** \returns the determinant through the matrix determinant lemma [2]:
    * \f$ \det(D)\,\det(I_k + V^H D^{-1} U) \f$, in O(nk^2 + k^3) operations.
-   * The diagonal product is accumulated in the balanced form \c m * 2^e -- every
-   * factor and the running product are renormalized to unit magnitude with the
-   * power of two tracked separately, and the capacitance determinant enters the
-   * same accumulation -- so the partial products can neither overflow nor
-   * underflow when the determinant itself is representable, whatever the
-   * ordering of large and small diagonal entries.
+   * Both factors are accumulated in the balanced form \c m * 2^e -- the diagonal
+   * entries and the LU pivots of the capacitance matrix are renormalized to unit
+   * magnitude one at a time, with the powers of two tracked in a shared exponent
+   * -- so no partial product, in particular neither ordinary determinant on its
+   * own, can overflow or underflow when the combined determinant is
+   * representable, whatever the ordering and magnitudes of the entries.
+   * Genuinely out-of-range determinants still saturate to (signed) zero or
+   * infinity.
    * \warning The diagonal must have no zero entries (use the lemma symmetrically
-   * or a dense fallback for that case). */
+   * or a dense fallback for that case), and, as with \ref solve and \ref inverse,
+   * its reciprocals must be finite: a subnormal diagonal entry overflows
+   * \f$ D^{-1} \f$ -- and with it the capacitance entries -- to infinity. */
   Scalar determinant() const {
     using BalanceImpl = internal::dplr_balance_impl<Scalar>;
     Scalar det(1);
     Index exponent = 0;
     for (Index i = 0; i < rows(); ++i)
       det = BalanceImpl::balance(det * BalanceImpl::balance(m_d.coeff(i), exponent), exponent);
-    const Scalar capDet = internal::dplr_capacitance_impl<Rank_>::capacitanceDeterminant(*this);
-    det = BalanceImpl::balance(det * BalanceImpl::balance(capDet, exponent), exponent);
-    // ldexp saturates cleanly to zero / infinity once the accumulated exponent
-    // leaves the representable range; the clamp only guards the narrowing to int.
+    const Scalar capDet = internal::dplr_capacitance_impl<Rank_>::balancedCapacitanceDeterminant(*this, exponent);
+    det = BalanceImpl::balance(det * capDet, exponent);
+    // Materialize m * 2^e in two exact half-power ldexp steps: each half stays
+    // well inside int range once the accumulated exponent is clamped (the clamp
+    // only guards the narrowing), the intermediate value is normal whenever the
+    // final value is nonzero so no double rounding occurs, and ldexp saturates
+    // cleanly to signed zero / infinity once the exponent leaves the
+    // representable range.
     constexpr Index kMaxExponent = Index(1) << 24;
-    const int e = static_cast<int>(numext::mini(numext::maxi(exponent, -kMaxExponent), kMaxExponent));
-    return BalanceImpl::ldexp(det, e);
+    const Index clamped = numext::mini(numext::maxi(exponent, -kMaxExponent), kMaxExponent);
+    const int e1 = static_cast<int>(clamped / 2);
+    const int e2 = static_cast<int>(clamped - Index(e1));
+    return BalanceImpl::ldexp(BalanceImpl::ldexp(det, e1), e2);
   }
 
   /** \internal Writes the dense representation into \a dst. Invoked through
@@ -314,10 +344,17 @@ class DiagonalPlusLowRank : public EigenBase<DiagonalPlusLowRank<Scalar_, Size_,
   }
 
   /** \returns the product expression \c (*this) * \a v, evaluated at O(nk)
-   * operations without forming the matrix. */
+   * operations without forming the matrix. The expression carries the default
+   * product tag, so assigning it behaves like any dense product: a temporary
+   * resolves aliasing between the destination and \a v, and \c .noalias() skips
+   * it. */
   template <typename Rhs>
-  Product<DiagonalPlusLowRank, Rhs, AliasFreeProduct> operator*(const MatrixBase<Rhs>& v) const {
-    return Product<DiagonalPlusLowRank, Rhs, AliasFreeProduct>(*this, v.derived());
+  Product<DiagonalPlusLowRank, Rhs> operator*(const MatrixBase<Rhs>& v) const {
+    EIGEN_STATIC_ASSERT(ColsAtCompileTime == Dynamic || Rhs::RowsAtCompileTime == Dynamic ||
+                            int(ColsAtCompileTime) == int(Rhs::RowsAtCompileTime),
+                        INVALID_MATRIX_PRODUCT)
+    eigen_assert(v.rows() == cols() && "invalid product: dimensions do not match");
+    return Product<DiagonalPlusLowRank, Rhs>(*this, v.derived());
   }
 
   /** \internal Computes \c dst += alpha * (*this) * rhs. \c ProductScalar is the
