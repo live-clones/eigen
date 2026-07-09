@@ -71,6 +71,9 @@ void test_dplr_product(Index n, Index k) {
   Vec y0 = y;
   y.noalias() += A * x;
   VERIFY_IS_APPROX(y, (y0 + dense * x).eval());
+
+  // Dimension mismatches are caught when the product expression is formed.
+  VERIFY_RAISES_ASSERT(A * Vec(Vec::Random(n + 1)));
 }
 
 template <typename Scalar>
@@ -163,17 +166,18 @@ void test_dplr_matrix_free_gmres(Index n, Index k) {
   VERIFY((dense * x - b).norm() <= tol * b.norm());
 }
 
-// The products are tagged AliasFreeProduct, so no temporary shields an aliased
-// right-hand side: the shared product implementation must copy it instead.
-// Without the copy, x = A * x reads a zeroed right-hand side and x += A * x
-// interleaves destination writes with right-hand-side reads.
+// The products carry the default product tag, so an assignment whose right-hand
+// side aliases the destination materializes the product into a temporary exactly
+// like a dense product would -- including the aliasing that the former
+// is_same_dense check could not see: overlapping views and right-hand-side
+// expressions referencing the destination.
 template <typename Scalar>
 void test_dplr_aliased_product(Index n, Index k) {
   typedef Matrix<Scalar, Dynamic, 1> Vec;
   typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
 
   // Pin the routing: the structured products must dispatch through the shared
-  // structured_product_impl, where the aliasing copy lives.
+  // structured_product_impl.
   STATIC_CHECK(
       (std::is_base_of<internal::structured_product_impl<DiagonalPlusLowRank<Scalar>, Vec>,
                        internal::generic_product_impl<DiagonalPlusLowRank<Scalar>, Vec, internal::StructuredShape,
@@ -193,6 +197,20 @@ void test_dplr_aliased_product(Index n, Index k) {
   y = x;
   y += A * y;
   VERIFY_IS_APPROX(y, (x + dense * x).eval());
+
+  // Right-hand-side expression referencing the destination.
+  y = x;
+  y = A * (y + Vec::Ones(n));
+  VERIFY_IS_APPROX(y, (dense * (x + Vec::Ones(n))).eval());
+
+  // Overlapping views of a shared buffer, in both directions.
+  Vec w = Vec::Random(n + 1);
+  Vec w0 = w;
+  w.tail(n) = A * w.head(n);
+  VERIFY_IS_APPROX(w.tail(n).eval(), (dense * w0.head(n)).eval());
+  w = w0;
+  w.head(n) = A * w.tail(n);
+  VERIFY_IS_APPROX(w.head(n).eval(), (dense * w0.tail(n)).eval());
 }
 
 // Product expressions must nest the structured operand by value: a
@@ -333,6 +351,84 @@ void test_dplr_determinant_scaled() {
   }
 }
 
+// The two factors of the determinant lemma can sit at opposite ends of the
+// exponent range even when the determinant itself is ~1: D^{-1} scales the
+// capacitance entries by the reciprocals of the diagonal. det(D) and
+// det(capacitance) must therefore both be accumulated in the balanced
+// mantissa * 2^e form -- the latter from the LU pivots, never as the plain
+// pivot product a .determinant() call would form.
+void test_dplr_determinant_capacitance() {
+  typedef Matrix<double, Dynamic, 1> Vec;
+  typedef Matrix<double, Dynamic, Dynamic> Mat;
+  typedef std::complex<double> Complex;
+  typedef Matrix<Complex, Dynamic, Dynamic> CMat;
+  const double eps = NumTraits<double>::epsilon();
+
+  {
+    // The reviewer's reproducer: D + I I^H = diag(1 + 1e-200) is essentially the
+    // identity, but det(D) = 1e-400 underflows and det(capacitance) ~ 1e400
+    // overflows when either is formed on its own.
+    Vec d(2);
+    d << 1e-200, 1e-200;
+    DiagonalPlusLowRank<double> A(d, Mat::Identity(2, 2), Mat::Identity(2, 2));
+    const double det = A.determinant();
+    VERIFY(numext::abs(det - 1.0) <= 16.0 * eps);
+  }
+  {
+    // Mirrored, in exact powers of two: d = 2^60 and U = -(2^60 - 2^8) I with
+    // V = I represent diag(2^8), so det(A) = 2^176 exactly. Every intermediate
+    // is a power-of-two computation (the capacitance is exactly 2^-52 I by
+    // Sterbenz subtraction), yet det(D) = 2^1342-ish overflows and the plain
+    // capacitance pivot product 2^-1144 underflows.
+    const Index n = 22;
+    Vec d = Vec::Constant(n, std::ldexp(1.0, 60));
+    Mat U = (std::ldexp(1.0, 8) - std::ldexp(1.0, 60)) * Mat::Identity(n, n);
+    Mat V = Mat::Identity(n, n);
+    DiagonalPlusLowRank<double> A(d, U, V);
+    VERIFY_IS_EQUAL(A.determinant(), std::ldexp(1.0, 176));
+  }
+  {
+    // Complex analogue of the reproducer: the mantissa stays complex and is
+    // balanced on max(|re|, |im|). D + I I^H = diag(1 + 1e-200 i), det ~ 1.
+    Matrix<Complex, Dynamic, 1> d(2);
+    d << Complex(0, 1e-200), Complex(0, 1e-200);
+    DiagonalPlusLowRank<Complex> A(d, CMat::Identity(2, 2), CMat::Identity(2, 2));
+    VERIFY_IS_APPROX(A.determinant(), Complex(1, 0));
+  }
+  {
+    // Sign correctness through the capacitance path at extreme scales:
+    // D + (-I) I^H = diag(1e-200 - 1) ~ -I_3, det ~ -1; the balanced pivot
+    // product of the capacitance ~ -1e200 I_3 carries the sign.
+    Vec d = Vec::Constant(3, 1e-200);
+    DiagonalPlusLowRank<double> A(d, (-Mat::Identity(3, 3)).eval(), Mat::Identity(3, 3));
+    VERIFY_IS_APPROX(A.determinant(), -1.0);
+  }
+  {
+    // Sign correctness across mixed extreme diagonal scales (rank 0).
+    Vec d(4);
+    d << -1e200, 1e-200, 1e200, 1e-200;
+    DiagonalPlusLowRank<double> A(d, Mat::Zero(4, 0), Mat::Zero(4, 0));
+    VERIFY_IS_APPROX(A.determinant(), -1.0);
+  }
+  {
+    // Genuine overflow saturates to infinity of the correct sign...
+    Vec d(3);
+    d << -1e200, 1e200, 1e200;
+    DiagonalPlusLowRank<double> A(d, Mat::Zero(3, 0), Mat::Zero(3, 0));
+    const double det = A.determinant();
+    VERIFY((numext::isinf)(det) && det < 0.0);
+  }
+  {
+    // ... and genuine underflow to a zero of the correct sign.
+    Vec d(3);
+    d << -1e-200, 1e-200, 1e-200;
+    DiagonalPlusLowRank<double> A(d, Mat::Zero(3, 0), Mat::Zero(3, 0));
+    const double det = A.determinant();
+    VERIFY_IS_EQUAL(det, 0.0);
+    VERIFY(std::signbit(det));
+  }
+}
+
 // A fixed correction rank of zero is a compile-level regression: the operator
 // must instantiate -- the capacitance solve is compile-time dispatched away, so
 // PartialPivLU<Matrix<Scalar, 0, 0>> is never formed -- and behave as the plain
@@ -405,6 +501,12 @@ void test_dplr_fixed() {
   VecN b = VecN::Random();
   VecN xs = A.solve(b);
   VERIFY_IS_APPROX((dense * xs).eval(), b);
+
+  // A dynamic right-hand side against the fixed-size operator: the compile-time
+  // product-dimension check must accept the Dynamic/fixed mix.
+  Vec xd = Vec(x);
+  Vec yd = A * xd;
+  VERIFY_IS_APPROX(yd, (dense * xd).eval());
 }
 
 EIGEN_DECLARE_TEST(structured_dplr) {
@@ -450,6 +552,7 @@ EIGEN_DECLARE_TEST(structured_dplr) {
     CALL_SUBTEST_4((test_dplr_mixed_scalar<double>(12, 3)));
     CALL_SUBTEST_4((test_dplr_mixed_scalar<float>(9, 2)));
     CALL_SUBTEST_4(test_dplr_determinant_scaled());
+    CALL_SUBTEST_4(test_dplr_determinant_capacitance());
     CALL_SUBTEST_4((test_dplr_fixed_rank0<double, 5>()));
     CALL_SUBTEST_4((test_dplr_fixed_rank0<std::complex<float>, 4>()));
   }
