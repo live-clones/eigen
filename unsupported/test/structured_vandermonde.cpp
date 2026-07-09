@@ -511,6 +511,55 @@ void test_vandermonde_scaled_horner() {
     VERIFY_IS_EQUAL(y[0], -M);
   }
   {
+    // A vanished accumulator has no scale (reviewer repro): after the running
+    // value becomes exactly zero -- a zero node annihilating it, or an exact
+    // cancellation -- the frame exponent must reset, or the trailing small
+    // coefficient underflows in the stale huge frame and the value 0 is
+    // returned instead of the coefficient itself.
+    const double mn = (std::numeric_limits<double>::min)();
+    const double dm = std::numeric_limits<double>::denorm_min();
+    Vec x(1);
+    x << 0.0;  // zero node: the value is exactly a[0]
+    Vandermonde<double> V0(x, 3);
+    Vec a(3);
+    a << mn, M, M;
+    Vec y = V0 * a;
+    VERIFY_IS_EQUAL(y[0], mn);
+
+    x << 1.0;  // exact cancellation: M - M + dm = dm
+    Vandermonde<double> V1(x, 3);
+    a << dm, -M, M;
+    y = V1 * a;
+    VERIFY_IS_EQUAL(y[0], dm);
+  }
+  {
+    // Complex variant: the real components cancel exactly while the tiny
+    // imaginary coefficient must survive in a fresh frame.
+    const double dm = std::numeric_limits<double>::denorm_min();
+    CVec xc(1);
+    xc << Complex(1.0, 0.0);
+    Vandermonde<Complex> Vc(xc, 3);
+    CVec ac(3);
+    ac << Complex(0.0, dm), Complex(-M, 0.0), Complex(M, 0.0);
+    CVec yc = Vc * ac;
+    VERIFY_IS_EQUAL(numext::real(yc[0]), 0.0);
+    VERIFY_IS_EQUAL(numext::imag(yc[0]), dm);
+  }
+  {
+    // Near-cancellation: M - (M - 2^971) leaves the tiny nonzero intermediate
+    // 2^971 (mantissa 2^-53 in the huge frame), which the frexp renormalization
+    // must rebase; the trailing coefficient 1 then rounds away exactly as in
+    // real arithmetic: fl(2^971 + 1) = 2^971.
+    const double big = std::ldexp(1.0, 971);  // ulp(DBL_MAX), and M - big is exact
+    Vec x(1);
+    x << 1.0;
+    Vandermonde<double> V(x, 3);
+    Vec a(3);
+    a << 1.0, -(M - big), M;
+    Vec y = V * a;
+    VERIFY_IS_EQUAL(y[0], big);
+  }
+  {
     // Moderate data keeps the plain path: bit-identical to a naive Horner loop.
     const Index m = 7, n = 6;
     Vec x = Vec::Random(m), a = Vec::Random(n);
