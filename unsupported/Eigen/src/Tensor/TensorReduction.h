@@ -519,8 +519,9 @@ class TensorReductionOp : public TensorBase<TensorReductionOp<Op, Dims, XprType,
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dims& dims() const { return m_dims; }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Op& reducer() const { return m_reducer; }
 
+  // Scalar reduction
   template <int NumDims = internal::traits<TensorReductionOp>::NumDimensions, EIGEN_SFINAE_ENABLE_IF(NumDims == 0)>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE operator CoeffReturnType() const {
+  EIGEN_STRONG_INLINE operator CoeffReturnType() const {
     TensorEvaluator<const TensorReductionOp, DefaultDevice> evaluator(*this, DefaultDevice());
     evaluator.evalSubExprsIfNeeded(NULL);
     const CoeffReturnType result = evaluator.coeff(0);
