@@ -77,10 +77,11 @@ void test_kron_transpose(Index m1, Index n1, Index m2, Index n2) {
   VERIFY_IS_APPROX((K.adjoint() * y).eval(), (dense.adjoint() * y).eval());
 }
 
-// The products are tagged AliasFreeProduct, so no temporary shields an aliased
-// right-hand side: the shared product implementation must copy it instead.
-// Without the copy, x = K * x reads a zeroed right-hand side and x += K * x
-// interleaves destination writes with right-hand-side reads.
+// The products carry the default product tag, so plain assignment materializes a
+// temporary exactly like a dense product would. That must resolve every aliasing
+// form between the destination and the right-hand side: the same object, an
+// expression referencing the destination, and overlapping views -- cases the old
+// AliasFreeProduct same-object check could not see.
 template <typename Scalar>
 void test_kron_aliased_product(Index n1, Index n2) {
   typedef Matrix<Scalar, Dynamic, 1> Vec;
@@ -108,6 +109,42 @@ void test_kron_aliased_product(Index n1, Index n2) {
   Mat Y = X;
   Y = K * Y;
   VERIFY_IS_APPROX(Y, (dense * X).eval());
+
+  // Right-hand-side expression referencing the destination.
+  y = x;
+  y = K * (y + Vec::Ones(n1 * n2));
+  VERIFY_IS_APPROX(y, (dense * (x + Vec::Ones(n1 * n2))).eval());
+
+  // Overlapping views: the destination shares all but one entry with the
+  // right-hand side.
+  Vec buf = Vec::Random(n1 * n2 + 1);
+  const Vec expected = dense * buf.tail(n1 * n2);
+  buf.head(n1 * n2) = K * buf.tail(n1 * n2);
+  VERIFY_IS_APPROX(buf.head(n1 * n2).eval(), expected);
+}
+
+// Rectangular operators resize an aliased destination: x = K * x must evaluate
+// into a temporary before x is resized from cols() to rows() entries.
+template <typename Scalar>
+void test_kron_aliased_resize(Index m1, Index n1, Index m2, Index n2) {
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+
+  Mat A = Mat::Random(m1, n1), B = Mat::Random(m2, n2);
+  KroneckerOperator<Mat, Mat> K(A, B);
+  Mat dense = reference_kron<Scalar>(A, B);
+
+  Vec x = Vec::Random(n1 * n2);
+  const Vec xref = x;
+  x = K * x;
+  VERIFY_IS_EQUAL(x.size(), m1 * m2);
+  VERIFY_IS_APPROX(x, (dense * xref).eval());
+
+  Mat X = Mat::Random(n1 * n2, 2);
+  const Mat Xref = X;
+  X = K * X;
+  VERIFY_IS_EQUAL(X.rows(), m1 * m2);
+  VERIFY_IS_APPROX(X, (dense * Xref).eval());
 }
 
 // transpose()/conjugate()/adjoint() and makeKroneckerOperator() return owning
@@ -302,6 +339,138 @@ static void test_kron_determinant_scaling() {
   VERIFY_IS_EQUAL(K4.determinant(), 0.0);
 }
 
+// Reviewer repro: (A (x) B) with A = [1e-200] and B = [1e200] is exactly the
+// identity, but evaluating (B X) A^T without protection overflows in
+// B X = 1e400 and returns Inf. The power-of-two pre-scaling must keep every
+// intermediate finite whenever the true result is representable -- and powers of
+// two shift only exponents, so no accuracy may be lost.
+static void test_kron_extreme_scale_product() {
+  typedef Matrix<double, Dynamic, 1> Vec;
+  typedef Matrix<double, Dynamic, Dynamic> Mat;
+
+  Mat A(1, 1), B(1, 1);
+  A << 1e-200;
+  B << 1e200;
+  KroneckerOperator<Mat, Mat> K(A, B);
+  Vec x(1);
+  x << 1e200;
+  Vec y = K * x;
+  VERIFY(y.allFinite());
+  VERIFY_IS_APPROX(y[0], 1e200);
+
+  // Same magnitudes through solve(): with the factors swapped the operator is
+  // still the identity, and the intermediate B^{-1} mat(b) = 1e400 overflows;
+  // the detect-and-rescale retry must return the exact solution.
+  KroneckerOperator<Mat, Mat> Ks(B, A);
+  Vec b(1);
+  b << 1e200;
+  Vec xs = Ks.solve(b);
+  VERIFY(xs.allFinite());
+  VERIFY_IS_APPROX(xs[0], 1e200);
+
+  // Identity built from scaled unit matrices: the first GEMM is ~1e400 while
+  // K * x == x exactly.
+  Mat A2 = 1e-200 * Mat::Identity(2, 2), B2 = 1e200 * Mat::Identity(3, 3);
+  KroneckerOperator<Mat, Mat> K2(A2, B2);
+  Vec x2 = 1e200 * Vec::Random(6);
+  Vec y2 = K2 * x2;
+  VERIFY(y2.allFinite());
+  VERIFY_IS_APPROX(y2, x2);
+
+  // Multi-dimensional overflow boundary: the intermediate B X ~ 2^1103 overflows
+  // while the true result ~ 2^904 is representable -- and the dense reference can
+  // compute it, because the materialized product has moderate entries ~ 2^400.
+  Mat A3 = std::ldexp(1.0, -200) * Mat::Random(2, 2);
+  Mat B3 = std::ldexp(1.0, 600) * Mat::Random(2, 2);
+  KroneckerOperator<Mat, Mat> K3(A3, B3);
+  Mat dense3 = reference_kron<double>(A3, B3);
+  Vec x3 = std::ldexp(1.0, 500) * Vec::Random(4);
+  Vec y3 = K3 * x3;
+  VERIFY(y3.allFinite());
+  VERIFY_IS_APPROX(y3, (dense3 * x3).eval());
+
+  // A genuinely overflowing result must still saturate to infinity.
+  KroneckerOperator<Mat, Mat> K4(B, B);  // [1e200] (x) [1e200]
+  Vec y4 = K4 * x;                       // true result 1e600
+  VERIFY((numext::isinf)(y4[0]));
+  VERIFY(y4[0] > 0);
+}
+
+// Complex analogue: the exponent bounds must come from the component-wise
+// magnitudes. A finite complex value near the overflow threshold has a
+// non-representable modulus, which would silently disable the scaling (and a
+// result with components near the threshold has one too, which must not be
+// destroyed on the way back).
+static void test_kron_extreme_scale_complex() {
+  typedef std::complex<double> Complex;
+  typedef Matrix<Complex, Dynamic, 1> Vec;
+  typedef Matrix<Complex, Dynamic, Dynamic> Mat;
+
+  Mat A(1, 1), B(1, 1);
+  A << Complex(1e-300, 0.0);
+  B << Complex(1e308, 1e308);  // |B(0,0)| overflows; the components are finite
+  KroneckerOperator<Mat, Mat> K(A, B);
+  Vec x(1);
+  x << Complex(1e300, 0.0);
+  Vec y = K * x;
+  VERIFY(y.allFinite());
+  // Exact scalar reference, evaluated in an order that never leaves the
+  // representable range: (A * B) * x = (1e8 + 1e8 i) * 1e300.
+  const Complex expected = (A(0, 0) * B(0, 0)) * x[0];
+  VERIFY_IS_APPROX(y[0], expected);
+
+  Mat A2(1, 1), B2(1, 1);
+  A2 << Complex(1e-200, 0.0);
+  B2 << Complex(1.2e200, -1.3e200);
+  KroneckerOperator<Mat, Mat> K2(A2, B2);
+  Vec x2(1);
+  x2 << Complex(1.1e200, -0.7e200);
+  Vec y2 = K2 * x2;
+  VERIFY(y2.allFinite());
+  VERIFY_IS_APPROX(y2[0], ((A2(0, 0) * B2(0, 0)) * x2[0]));
+}
+
+// Reviewer repro: with A = [1e-310] (subnormal) the absolute rank threshold
+// min(rows,cols) * eps * sa_max underflows to zero before the sb_max
+// multiplication, so every pairwise singular-value product used to pass and
+// rank() returned 8 where the dense SVD says 1. The comparison must happen in
+// ratio space: (sa_i/sa_0) * (sb_j/sb_0) against min(rows,cols) * eps.
+static void test_kron_rank_ratio_threshold() {
+  typedef Matrix<double, Dynamic, 1> Vec;
+  typedef Matrix<double, Dynamic, Dynamic> Mat;
+
+  Mat A(1, 1);
+  A << 1e-310;  // subnormal
+  Mat B = Mat::Zero(8, 8);
+  for (Index i = 0; i < 8; ++i) B(i, i) = std::pow(10.0, 308.0 - 15.0 * double(i));  // 1e308, 1e293, ...
+  KroneckerOperator<Mat, Mat> K(A, B);
+
+  // The materialized product has moderate entries (1e-2 down to 1e-107), so the
+  // dense SVD is a trustworthy reference: the singular-value ratios decay by
+  // 1e-15 per mode, below the 8 * eps ~ 1.8e-15 threshold, leaving rank one.
+  Mat dense = reference_kron<double>(A, B);
+  JacobiSVD<Mat> svd(dense, ComputeThinU | ComputeThinV);
+  VERIFY_IS_EQUAL(svd.rank(), 1);
+  VERIFY_IS_EQUAL(K.rank(), svd.rank());
+
+  // leastSquaresSolve must truncate the seven sub-threshold modes instead of
+  // inverting them: inverting even the second one would blow the solution up by
+  // ~1e17 (the last by ~1e107). The kept mode has sigma = 1e-2.
+  Vec b = Vec::Random(8);
+  Vec x = K.leastSquaresSolve(b);
+  VERIFY(x.allFinite());
+  VERIFY_IS_APPROX(x, svd.solve(b).eval());
+  VERIFY(x.norm() <= 1e3 * b.norm());
+
+  // An exactly zero factor zeroes the whole operator: rank 0 and a zero
+  // pseudo-inverse (instead of 0/0 singular-value ratios).
+  Mat Z = Mat::Zero(2, 2);
+  KroneckerOperator<Mat, Mat> Kz(Z, B.topLeftCorner(2, 2).eval());
+  VERIFY_IS_EQUAL(Kz.rank(), 0);
+  Vec bz = Vec::Random(4);
+  VERIFY_IS_EQUAL(Kz.leastSquaresSolve(bz).norm(), 0.0);
+}
+
 template <typename Scalar>
 void test_kron_eigen(Index n1, Index n2) {
   typedef typename NumTraits<Scalar>::Real RealScalar;
@@ -410,6 +579,43 @@ void test_kron_fixed() {
   Matrix<Scalar, N1 * N2, 1> x = Matrix<Scalar, N1 * N2, 1>::Random();
   Matrix<Scalar, M1 * M2, 1> y = K * x;
   VERIFY_IS_APPROX(y, (dense * x).eval());
+
+  // The solvers must propagate the compile-time product dimension instead of
+  // collapsing to Dynamic rows.
+  typedef Matrix<Scalar, M1 * M2, 1> FixedB;
+  STATIC_CHECK((internal::remove_all_t<decltype(std::declval<const KroneckerOperator<MatA, MatB>&>().leastSquaresSolve(
+                    std::declval<const FixedB&>()))>::RowsAtCompileTime == N1 * N2));
+
+  // The compile-time dimension product guards against int overflow by falling
+  // back to Dynamic (46341^2 is the first square past INT_MAX).
+  STATIC_CHECK((internal::kron_dim(46340, 46340) == 46340 * 46340));
+  STATIC_CHECK((internal::kron_dim(46341, 46341) == Dynamic));
+  STATIC_CHECK((internal::kron_dim(1 << 16, 1 << 16) == Dynamic));
+}
+
+// solve()/leastSquaresSolve() on fixed-size square factors: the returned type
+// carries the fixed row count, and the values match the dense references.
+template <typename Scalar, int N1, int N2>
+void test_kron_fixed_solve() {
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  typedef Matrix<Scalar, N1, N1> MatA;
+  typedef Matrix<Scalar, N2, N2> MatB;
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+
+  MatA A = MatA::Random() + RealScalar(2 * N1) * MatA::Identity();
+  MatB B = MatB::Random() + RealScalar(2 * N2) * MatB::Identity();
+  KroneckerOperator<MatA, MatB> K(A, B);
+  Mat dense = reference_kron<Scalar>(Mat(A), Mat(B));
+
+  const Matrix<Scalar, N1 * N2, 1> b = Matrix<Scalar, N1 * N2, 1>::Random();
+  const auto x = K.solve(b);
+  STATIC_CHECK((internal::remove_all_t<decltype(x)>::RowsAtCompileTime == N1 * N2));
+  VERIFY_IS_APPROX((dense * Vec(x)).eval(), Vec(b));
+
+  const auto xls = K.leastSquaresSolve(b);
+  STATIC_CHECK((internal::remove_all_t<decltype(xls)>::RowsAtCompileTime == N1 * N2));
+  VERIFY_IS_APPROX(Vec(xls), Vec(x));
 }
 
 EIGEN_DECLARE_TEST(structured_kronecker) {
@@ -457,17 +663,25 @@ EIGEN_DECLARE_TEST(structured_kronecker) {
     CALL_SUBTEST_5((test_kron_matrix_free_cg<double>(6, 7)));
     CALL_SUBTEST_5((test_kron_fixed<double, 3, 4, 2, 5>()));
     CALL_SUBTEST_5((test_kron_fixed<std::complex<float>, 2, 3, 3, 2>()));
+    CALL_SUBTEST_5((test_kron_fixed_solve<double, 2, 3>()));
+    CALL_SUBTEST_5((test_kron_fixed_solve<std::complex<double>, 3, 2>()));
 
     // Lifetime and aliasing of the product expression, mixed-scalar promotion.
     CALL_SUBTEST_6((test_kron_aliased_product<double>(3, 4)));
     CALL_SUBTEST_6((test_kron_aliased_product<std::complex<double>>(4, 3)));
+    CALL_SUBTEST_6((test_kron_aliased_resize<double>(4, 3, 2, 5)));
+    CALL_SUBTEST_6((test_kron_aliased_resize<std::complex<double>>(2, 4, 5, 3)));
     CALL_SUBTEST_6((test_kron_delayed_product<double>(4, 3, 2, 5)));
     CALL_SUBTEST_6((test_kron_delayed_product<std::complex<float>>(3, 3, 4, 2)));
     CALL_SUBTEST_6((test_kron_mixed_scalar<double>(4, 3, 3, 5)));
     CALL_SUBTEST_6((test_kron_mixed_scalar<float>(3, 4, 2, 3)));
 
-    // Numerical boundaries: product-level rank truncation, balanced determinant.
+    // Numerical boundaries: product-level rank truncation, balanced determinant,
+    // overflow-safe product scaling and ratio-space rank thresholds.
     CALL_SUBTEST_7(test_kron_product_level_rank());
     CALL_SUBTEST_7(test_kron_determinant_scaling());
+    CALL_SUBTEST_7(test_kron_extreme_scale_product());
+    CALL_SUBTEST_7(test_kron_extreme_scale_complex());
+    CALL_SUBTEST_7(test_kron_rank_ratio_threshold());
   }
 }
