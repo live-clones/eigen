@@ -70,6 +70,63 @@ void test_circulant_product(Index n) {
   VERIFY_IS_APPROX(y, (y0 + dense * x).eval());
 }
 
+// The structured products carry the default product tag, so an assignment whose
+// right-hand side aliases the destination materializes the product into a
+// temporary exactly like a dense product would: same object, overlapping views,
+// and right-hand-side expressions referencing the destination.
+template <typename Scalar>
+void test_circulant_aliased_product(Index n) {
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+
+  Vec c = Vec::Random(n);
+  Circulant<Scalar> C(c);
+  Mat dense = reference_circulant<Scalar>(c);
+
+  Vec x = Vec::Random(n);
+  Vec y = x;
+  y = C * y;
+  VERIFY_IS_APPROX(y, (dense * x).eval());
+
+  y = x;
+  y += C * y;
+  VERIFY_IS_APPROX(y, (x + dense * x).eval());
+
+  y = x;
+  y = C * (y + Vec::Ones(n));
+  VERIFY_IS_APPROX(y, (dense * (x + Vec::Ones(n))).eval());
+
+  Vec w = Vec::Random(n + 1);
+  Vec w0 = w;
+  w.tail(n) = C * w.head(n);
+  VERIFY_IS_APPROX(w.tail(n).eval(), (dense * w0.head(n)).eval());
+}
+
+template <typename Scalar>
+void test_toeplitz_aliased_product(Index n) {
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+
+  Vec c = Vec::Random(n), r = Vec::Random(n);
+  r[0] = c[0];
+  Toeplitz<Scalar> T(c, r);
+  Mat dense = reference_toeplitz<Scalar>(c, r);
+
+  Vec x = Vec::Random(n);
+  Vec y = x;
+  y = T * y;
+  VERIFY_IS_APPROX(y, (dense * x).eval());
+
+  y = x;
+  y = T * (y + Vec::Ones(n));
+  VERIFY_IS_APPROX(y, (dense * (x + Vec::Ones(n))).eval());
+
+  Vec w = Vec::Random(n + 1);
+  Vec w0 = w;
+  w.head(n) = T * w.tail(n);
+  VERIFY_IS_APPROX(w.head(n).eval(), (dense * w0.tail(n)).eval());
+}
+
 template <typename Scalar>
 void test_circulant_solve(Index n) {
   typedef typename NumTraits<Scalar>::Real RealScalar;
@@ -346,6 +403,9 @@ EIGEN_DECLARE_TEST(structured_matrices) {
     CALL_SUBTEST_1((test_circulant_product<std::complex<double>>(7)));  // direct path, complex
     CALL_SUBTEST_1((test_circulant_product<std::complex<double>>(50)));
     CALL_SUBTEST_1((test_circulant_product<std::complex<float>>(40)));
+    CALL_SUBTEST_1((test_circulant_aliased_product<double>(8)));   // direct path
+    CALL_SUBTEST_1((test_circulant_aliased_product<double>(64)));  // FFT path
+    CALL_SUBTEST_1((test_circulant_aliased_product<std::complex<double>>(48)));
     CALL_SUBTEST_1((test_circulant_solve<double>(1)));  // degenerate 1x1 solve
     CALL_SUBTEST_1((test_circulant_solve<double>(8)));
     CALL_SUBTEST_1((test_circulant_solve<double>(50)));
@@ -367,6 +427,9 @@ EIGEN_DECLARE_TEST(structured_matrices) {
     CALL_SUBTEST_2((test_toeplitz_product<std::complex<double>>(5, 7)));  // direct path, complex
     CALL_SUBTEST_2((test_toeplitz_product<std::complex<double>>(48, 64)));
     CALL_SUBTEST_2((test_toeplitz_product<std::complex<float>>(40, 40)));
+    CALL_SUBTEST_2((test_toeplitz_aliased_product<double>(10)));  // direct path
+    CALL_SUBTEST_2((test_toeplitz_aliased_product<double>(64)));  // FFT path
+    CALL_SUBTEST_2((test_toeplitz_aliased_product<std::complex<double>>(48)));
 
     // Matrix-free iterative solves through the existing solvers.
     CALL_SUBTEST_3((test_matrix_free_cg<double>(80)));

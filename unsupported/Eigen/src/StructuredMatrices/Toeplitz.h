@@ -161,10 +161,17 @@ class Toeplitz : public EigenBase<Toeplitz<Scalar_, Rows_, Cols_>> {
   }
 
   /** \returns the product expression \c (*this) * \a x, evaluated through a fast
-   * FFT-based matrix-vector product (circulant embedding). */
+   * FFT-based matrix-vector product (circulant embedding). The expression carries
+   * the default product tag, so assigning it behaves like any dense product: a
+   * temporary resolves aliasing between the destination and \a x, and
+   * \c .noalias() skips it. */
   template <typename Rhs>
-  Product<Toeplitz, Rhs, AliasFreeProduct> operator*(const MatrixBase<Rhs>& x) const {
-    return Product<Toeplitz, Rhs, AliasFreeProduct>(*this, x.derived());
+  Product<Toeplitz, Rhs> operator*(const MatrixBase<Rhs>& x) const {
+    EIGEN_STATIC_ASSERT(ColsAtCompileTime == Dynamic || Rhs::RowsAtCompileTime == Dynamic ||
+                            int(ColsAtCompileTime) == int(Rhs::RowsAtCompileTime),
+                        INVALID_MATRIX_PRODUCT)
+    eigen_assert(x.rows() == cols() && "invalid product: dimensions do not match");
+    return Product<Toeplitz, Rhs>(*this, x.derived());
   }
 
   /** \internal Computes \c dst += alpha * (*this) * rhs. */
