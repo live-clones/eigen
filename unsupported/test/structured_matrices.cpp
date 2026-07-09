@@ -293,6 +293,43 @@ void test_toeplitz_aliased_product(Index n) {
   VERIFY_IS_APPROX(y, (x + dense * x).eval());
 }
 
+// Aliasing beyond the same-object case: the default-product temporary must also
+// resolve right-hand-side expressions that reference the destination, overlapping
+// views of one buffer, and rectangular self-assignments where the destination is
+// resized by the assignment.
+template <typename Scalar>
+void test_structured_aliased_expression(Index n) {
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+
+  Vec c = Vec::Random(n);
+  Circulant<Scalar> C(c);
+  Mat dense = reference_circulant<Scalar>(c);
+
+  // Right-hand-side expression referencing the destination.
+  Vec x = Vec::Random(n), x0 = x;
+  x = C * (x + Vec::Ones(n));
+  VERIFY_IS_APPROX(x, (dense * (x0 + Vec::Ones(n))).eval());
+
+  // Overlapping (shifted) segments of one buffer.
+  Vec buf = Vec::Random(n + 1);
+  Vec expected = dense * buf.tail(n);
+  buf.head(n) = C * buf.tail(n);
+  VERIFY_IS_APPROX(buf.head(n).eval(), expected);
+
+  // Rectangular self-assignment: x = T * x resizes the destination, so the
+  // product must be captured before the destination storage is touched.
+  const Index m = n + 3;
+  Vec tc = Vec::Random(m), tr = Vec::Random(n);
+  tr[0] = tc[0];
+  Toeplitz<Scalar> T(tc, tr);
+  Mat denseT = reference_toeplitz<Scalar>(tc, tr);
+  Vec z = Vec::Random(n), z0 = z;
+  z = T * z;
+  VERIFY_IS_EQUAL(z.size(), m);
+  VERIFY_IS_APPROX(z, (denseT * z0).eval());
+}
+
 // Mixed-scalar products: a real operator applied to a complex right-hand side
 // (and a complex operator applied to a real one) promotes to the complex product
 // scalar, so alpha and the accumulation must run in the promoted type rather than
@@ -377,6 +414,122 @@ void test_structured_fft_overflow(Index n) {
   Vec w = T * x;
   VERIFY(w.allFinite());
   VERIFY(((w - x).cwiseAbs() / huge).maxCoeff() <= kFftRoundTripTol);
+}
+
+// The scaling exponents are derived from component-wise magnitudes: a finite
+// complex value near the overflow threshold has a non-representable modulus,
+// which would otherwise disable the scaling and turn an exactly representable
+// product into NaN.
+template <typename RealScalar>
+void test_structured_fft_complex_boundary(Index n) {
+  typedef std::complex<RealScalar> Complex;
+  typedef Matrix<RealScalar, Dynamic, 1> RVec;
+  typedef Matrix<Complex, Dynamic, 1> CVec;
+  const RealScalar kFftRoundTripTol = RealScalar(100) * NumTraits<RealScalar>::epsilon();
+  const RealScalar big = RealScalar(0.75) * (std::numeric_limits<RealScalar>::max)();
+
+  // Identity circulant with a complex generator: the product returns the
+  // right-hand side unchanged even though |x_k| overflows.
+  CVec c = CVec::Zero(n);
+  c[0] = Complex(1);
+  Circulant<Complex> C(c);
+  CVec x = CVec::Constant(n, Complex(big, big));
+  CVec y = C * x;
+  VERIFY(y.allFinite());
+  VERIFY(((y - x).cwiseAbs() / big).maxCoeff() <= kFftRoundTripTol);
+
+  // A real identity operator applied to the same complex right-hand side takes
+  // the mixed-scalar product path.
+  RVec cr = RVec::Zero(n);
+  cr[0] = RealScalar(1);
+  Circulant<RealScalar> Cr(cr);
+  y = Cr * x;
+  VERIFY(y.allFinite());
+  VERIFY(((y - x).cwiseAbs() / big).maxCoeff() <= kFftRoundTripTol);
+}
+
+// Entrywise IEEE comparison for the non-finite tests: NaNs match NaNs,
+// infinities match by value (sign included), finite entries match to roundoff.
+// VERIFY_IS_APPROX would reject any output containing NaN.
+template <typename D1, typename D2>
+bool ieee_entrywise_match(const D1& a, const D2& b) {
+  if (a.rows() != b.rows() || a.cols() != b.cols()) return false;
+  for (Index j = 0; j < a.cols(); ++j)
+    for (Index i = 0; i < a.rows(); ++i) {
+      const typename D1::Scalar x = a(i, j), y = b(i, j);
+      if (x == y) continue;                    // finite match or same-signed infinities
+      if ((x != x) && (y != y)) continue;      // both NaN
+      if (!test_isApprox(x, y)) return false;  // finite roundoff
+    }
+  return true;
+}
+
+// Scalar-loop product: the mathematically transparent IEEE reference for the
+// non-finite tests. Eigen's own vectorized complex kernels can smear a single
+// infinity into NaN (Inf - Inf across the split real/imaginary accumulators), so
+// the dense product is not a faithful entrywise reference for non-finite data.
+template <typename Scalar>
+Matrix<Scalar, Dynamic, 1> reference_product_ieee(const Matrix<Scalar, Dynamic, Dynamic>& A,
+                                                  const Matrix<Scalar, Dynamic, 1>& x) {
+  Matrix<Scalar, Dynamic, 1> y(A.rows());
+  for (Index i = 0; i < A.rows(); ++i) {
+    Scalar acc(0);
+    for (Index j = 0; j < A.cols(); ++j) acc += A(i, j) * x[j];
+    y[i] = acc;
+  }
+  return y;
+}
+
+// A single Inf or NaN in the data must propagate like the reference product --
+// through the dot products that touch it -- instead of being smeared into NaNs
+// across the whole output by the transforms.
+template <typename Scalar>
+void test_structured_nonfinite_product(Index n) {
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  const RealScalar inf = std::numeric_limits<RealScalar>::infinity();
+  const RealScalar nan = std::numeric_limits<RealScalar>::quiet_NaN();
+
+  Vec c = Vec::Random(n);
+  Circulant<Scalar> C(c);
+  Mat dense = reference_circulant<Scalar>(c);
+
+  // Inf in the right-hand side.
+  Vec x = Vec::Random(n);
+  x[n / 2] = Scalar(inf);
+  VERIFY(ieee_entrywise_match((C * x).eval(), reference_product_ieee(dense, x)));
+
+  // NaN in the right-hand side.
+  Vec xn = Vec::Random(n);
+  xn[n - 1] = Scalar(nan);
+  VERIFY(ieee_entrywise_match((C * xn).eval(), reference_product_ieee(dense, xn)));
+
+  // Inf in the generator: the operator itself is non-finite, whatever the
+  // right-hand side.
+  Vec c2 = Vec::Random(n);
+  c2[1] = Scalar(-inf);
+  Circulant<Scalar> C2(c2);
+  Mat dense2 = reference_circulant<Scalar>(c2);
+  Vec x2 = Vec::Random(n);
+  VERIFY(ieee_entrywise_match((C2 * x2).eval(), reference_product_ieee(dense2, x2)));
+
+  // Toeplitz with an Inf in the row generator.
+  Vec tc = Vec::Random(n), tr = Vec::Random(n);
+  tr[0] = tc[0];
+  tr[n / 2] = Scalar(inf);
+  Toeplitz<Scalar> T(tc, tr);
+  Mat denseT = reference_toeplitz<Scalar>(tc, tr);
+  VERIFY(ieee_entrywise_match((T * x2).eval(), reference_product_ieee(denseT, x2)));
+
+  // Non-finite right-hand sides of solve() take the direct pseudo-inverse
+  // application; on the 1x1 operator this is a single scalar multiply by the
+  // inverse coefficient, checked against the same multiply on the dense inverse.
+  Vec b1(1);
+  b1[0] = Scalar(inf);
+  Circulant<Scalar> C1(Vec(Vec::Constant(1, Scalar(2))));
+  Mat pinv1 = Mat(C1.inverse());
+  VERIFY(ieee_entrywise_match(C1.solve(b1), reference_product_ieee(pinv1, b1)));
 }
 
 // Closed-form eigendecomposition: C * V = V * diag(eigenvalues) with V unitary.
@@ -1003,6 +1156,20 @@ EIGEN_DECLARE_TEST(structured_matrices) {
     CALL_SUBTEST_8((test_structured_fft_overflow<double>(40)));
     CALL_SUBTEST_8((test_structured_fft_overflow<double>(97)));  // prime, no 5-smooth padding
     CALL_SUBTEST_8((test_structured_fft_overflow<float>(40)));
+    CALL_SUBTEST_8((test_structured_fft_complex_boundary<double>(40)));
+    CALL_SUBTEST_8((test_structured_fft_complex_boundary<float>(40)));
+
+    // Aliasing beyond the same-object case, across the dispatch tiers.
+    CALL_SUBTEST_8((test_structured_aliased_expression<double>(8)));
+    CALL_SUBTEST_8((test_structured_aliased_expression<double>(24)));
+    CALL_SUBTEST_8((test_structured_aliased_expression<double>(48)));
+    CALL_SUBTEST_8((test_structured_aliased_expression<std::complex<double>>(40)));
+
+    // Entrywise Inf/NaN propagation: FFT-sized operators must fall back to the
+    // direct kernel; small ones are IEEE-exact already.
+    CALL_SUBTEST_8((test_structured_nonfinite_product<double>(40)));
+    CALL_SUBTEST_8((test_structured_nonfinite_product<double>(12)));
+    CALL_SUBTEST_8((test_structured_nonfinite_product<std::complex<double>>(40)));
 
     // Look-ahead Levinson direct Toeplitz solver.
     CALL_SUBTEST_5((test_levinson_wellcond<double>(1)));
