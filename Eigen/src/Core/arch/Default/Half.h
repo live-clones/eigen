@@ -893,7 +893,8 @@ struct NumTraits<Eigen::half> : GenericNumTraits<Eigen::half> {
   enum { IsSigned = true, IsInteger = false, IsComplex = false, RequireInitialization = false };
 
   EIGEN_DEVICE_FUNC _EIGEN_MAYBE_CONSTEXPR static EIGEN_STRONG_INLINE Eigen::half epsilon() {
-    return half_impl::raw_uint16_to_half(0x0800);
+    // 0x1400 is 2^-10, the fp16 machine epsilon, matching std::numeric_limits<Eigen::half>::epsilon().
+    return half_impl::raw_uint16_to_half(0x1400);
   }
   EIGEN_DEVICE_FUNC _EIGEN_MAYBE_CONSTEXPR static EIGEN_STRONG_INLINE Eigen::half dummy_precision() {
     return half_impl::raw_uint16_to_half(0x211f);  //  Eigen::half(1e-2f);
