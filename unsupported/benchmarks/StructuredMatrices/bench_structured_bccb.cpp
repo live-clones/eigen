@@ -52,7 +52,9 @@ static void BM_BccbProduct(benchmark::State& state) {
     benchmark::DoNotOptimize(y.data());
   }
 }
-BENCHMARK(BM_BccbProduct)->Arg(8)->Arg(16)->Arg(32)->Arg(64)->Arg(128);
+// 97 is prime in both block dimensions: the product pins the padded embedding
+// (the exact-size transform would run kissfft's quadratic generic butterfly).
+BENCHMARK(BM_BccbProduct)->Arg(8)->Arg(16)->Arg(32)->Arg(64)->Arg(97)->Arg(128);
 
 static void BM_DenseProduct(benchmark::State& state) {
   const Index n = state.range(0), N = n * n;
@@ -77,7 +79,7 @@ static void BM_BccbSolve(benchmark::State& state) {
     benchmark::DoNotOptimize(x.data());
   }
 }
-BENCHMARK(BM_BccbSolve)->Arg(8)->Arg(16)->Arg(32)->Arg(64)->Arg(128);
+BENCHMARK(BM_BccbSolve)->Arg(8)->Arg(16)->Arg(32)->Arg(64)->Arg(97)->Arg(128);
 
 static void BM_DenseSolve(benchmark::State& state) {
   const Index n = state.range(0), N = n * n;
