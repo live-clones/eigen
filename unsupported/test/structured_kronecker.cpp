@@ -471,6 +471,105 @@ static void test_kron_rank_ratio_threshold() {
   VERIFY_IS_EQUAL(Kz.leastSquaresSolve(bz).norm(), 0.0);
 }
 
+// The ratio test alone dropped SVDBase's smallest-normal clamp: a subnormal
+// product singular value, whose reciprocal overflows, must count as an exact
+// zero. A = [1], B = [DBL_MIN/2] has the singular value DBL_MIN/2: the dense
+// rank is 0 and the pseudo-inverse is zero, but without the clamp the
+// structured rank was 1 and leastSquaresSolve returned ~9e307. The boundary
+// DBL_MIN itself stays rank one, matching SVDBase::rank()'s >= convention.
+static void test_kron_rank_min_normal_clamp() {
+  typedef Matrix<double, Dynamic, 1> Vec;
+  typedef Matrix<double, Dynamic, Dynamic> Mat;
+  const double mn = (std::numeric_limits<double>::min)();
+
+  Mat A(1, 1), B(1, 1);
+  A << 1.0;
+  B << mn / 2;  // subnormal
+  KroneckerOperator<Mat, Mat> K(A, B);
+  Mat dense = reference_kron<double>(A, B);
+  JacobiSVD<Mat> svd(dense, ComputeThinU | ComputeThinV);
+  VERIFY_IS_EQUAL(svd.rank(), 0);
+  VERIFY_IS_EQUAL(K.rank(), svd.rank());
+  Vec b(1);
+  b << 1.0;
+  VERIFY_IS_EQUAL(K.leastSquaresSolve(b).norm(), 0.0);
+  VERIFY_IS_EQUAL(svd.solve(b).norm(), 0.0);
+
+  // Boundary: the smallest normal number is the smallest kept singular value.
+  Mat B2(1, 1);
+  B2 << mn;
+  KroneckerOperator<Mat, Mat> K2(A, B2);
+  JacobiSVD<Mat> svd2(reference_kron<double>(A, B2));
+  VERIFY_IS_EQUAL(svd2.rank(), 1);
+  VERIFY_IS_EQUAL(K2.rank(), svd2.rank());
+  Vec x2 = K2.leastSquaresSolve(b);
+  VERIFY(x2.allFinite());
+  VERIFY_IS_APPROX(x2[0], 1.0 / mn);
+}
+
+// solve() must run in a normalized frame; the previous detect-and-retry missed
+// (a) silent underflow -- the intermediate B^-1 mat(b) flushes to zero, which is
+// finite, so nothing triggered a retry -- and (b) factors whose raw inverse is
+// not representable even against a unit right-hand side.
+static void test_kron_solve_normalized() {
+  typedef Matrix<double, Dynamic, 1> Vec;
+  typedef Matrix<double, Dynamic, Dynamic> Mat;
+
+  // (a) Identity operator, tiny right-hand side: B^-1 * b = 1e-400 used to
+  // underflow silently to zero.
+  Mat A(1, 1), B(1, 1);
+  A << 1e-200;
+  B << 1e200;
+  KroneckerOperator<Mat, Mat> K(A, B);
+  Vec b(1);
+  b << 1e-200;
+  Vec x = K.solve(b);
+  VERIFY_IS_APPROX(x[0], 1e-200);
+
+  // (b) B^-1 ~ 1e310 is not representable, yet the operator is ~0.01 and the
+  // solution ~100: in the normalized frame every intermediate is bounded by the
+  // conditioning of the factors.
+  Mat A2(1, 1), B2(1, 1);
+  A2 << 1e308;
+  B2 << 1e-310;  // subnormal
+  KroneckerOperator<Mat, Mat> K2(A2, B2);
+  Vec b2(1);
+  b2 << 1.0;
+  Vec x2 = K2.solve(b2);
+  VERIFY(x2.allFinite());
+  VERIFY_IS_APPROX(x2[0], 1.0 / (A2(0, 0) * B2(0, 0)));
+}
+
+// Moderate inputs must be bit-identical to the unnormalized evaluation: partial
+// pivoting is invariant under the uniform power-of-two normalization and every
+// substitution step scales exactly with it.
+template <typename Scalar>
+void test_kron_solve_bit_identity(Index n1, Index n2) {
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  // The reference below reproduces the member-internal evaluation, which pins
+  // its workspaces to column-major storage.
+  typedef Matrix<Scalar, Dynamic, Dynamic, ColMajor> CmMat;
+
+  Mat A = Mat::Random(n1, n1) + RealScalar(2 * n1) * Mat::Identity(n1, n1);
+  Mat B = Mat::Random(n2, n2) + RealScalar(2 * n2) * Mat::Identity(n2, n2);
+  KroneckerOperator<Mat, Mat> K(A, B);
+
+  Mat Bm = Mat::Random(n1 * n2, 2);
+  Mat X = K.solve(Bm);
+
+  // Raw, unnormalized reference evaluation.
+  PartialPivLU<CmMat> luA(A), luB(B);
+  for (Index k = 0; k < Bm.cols(); ++k) {
+    const Vec bc = Bm.col(k);
+    const Map<const CmMat> Bmat(bc.data(), n2, n1);
+    const CmMat Xref = luA.solve(luB.solve(Bmat).transpose()).transpose();
+    const Map<const Vec> xref(Xref.data(), Xref.size());
+    VERIFY_IS_EQUAL(X.col(k).eval(), Vec(xref));
+  }
+}
+
 template <typename Scalar>
 void test_kron_eigen(Index n1, Index n2) {
   typedef typename NumTraits<Scalar>::Real RealScalar;
@@ -640,6 +739,9 @@ EIGEN_DECLARE_TEST(structured_kronecker) {
     CALL_SUBTEST_3((test_kron_solve<double>(9, 5)));
     CALL_SUBTEST_3((test_kron_solve<float>(5, 4)));
     CALL_SUBTEST_3((test_kron_solve<std::complex<double>>(6, 4)));
+    CALL_SUBTEST_3(test_kron_solve_normalized());
+    CALL_SUBTEST_3((test_kron_solve_bit_identity<double>(4, 3)));
+    CALL_SUBTEST_3((test_kron_solve_bit_identity<std::complex<double>>(3, 4)));
 
     // Minimum-norm least squares through factor pseudo-inverses.
     CALL_SUBTEST_3((test_kron_least_squares<double>(8, 5, 7, 4)));  // tall x tall
@@ -683,5 +785,6 @@ EIGEN_DECLARE_TEST(structured_kronecker) {
     CALL_SUBTEST_7(test_kron_extreme_scale_product());
     CALL_SUBTEST_7(test_kron_extreme_scale_complex());
     CALL_SUBTEST_7(test_kron_rank_ratio_threshold());
+    CALL_SUBTEST_7(test_kron_rank_min_normal_clamp());
   }
 }
