@@ -93,6 +93,7 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
     EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
     eigen_assert(m_col.size() > 0 && "Circulant generator must be non-empty");
     if (m_col.size() > internal::structured_direct_threshold()) m_symbol = computeSymbol();
+    m_fftUsable = computeFftUsable();
   }
 
   EIGEN_DEVICE_FUNC Index rows() const { return m_col.size(); }
@@ -147,10 +148,16 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
   }
 
   /** \returns the product expression \c (*this) * \a x, evaluated through a fast
-   * FFT-based matrix-vector product. */
+   * FFT-based matrix-vector product. The expression carries the default product
+   * tag, so assigning it behaves like any dense product: a temporary resolves
+   * aliasing between the destination and \a x, and \c .noalias() skips it. */
   template <typename Rhs>
-  Product<Circulant, Rhs, AliasFreeProduct> operator*(const MatrixBase<Rhs>& x) const {
-    return Product<Circulant, Rhs, AliasFreeProduct>(*this, x.derived());
+  Product<Circulant, Rhs> operator*(const MatrixBase<Rhs>& x) const {
+    EIGEN_STATIC_ASSERT(ColsAtCompileTime == Dynamic || Rhs::RowsAtCompileTime == Dynamic ||
+                            int(ColsAtCompileTime) == int(Rhs::RowsAtCompileTime),
+                        INVALID_MATRIX_PRODUCT)
+    eigen_assert(x.rows() == cols() && "invalid product: dimensions do not match");
+    return Product<Circulant, Rhs>(*this, x.derived());
   }
 
   /** \returns the solution \c x of \c (*this) * x = b, computed directly in the
@@ -158,22 +165,71 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
    * \warning The circulant matrix is assumed to be non-singular. */
   template <typename Rhs>
   Matrix<Scalar, Size_, Rhs::ColsAtCompileTime> solve(const MatrixBase<Rhs>& b) const {
+    EIGEN_STATIC_ASSERT(RowsAtCompileTime == Dynamic || Rhs::RowsAtCompileTime == Dynamic ||
+                            int(RowsAtCompileTime) == int(Rhs::RowsAtCompileTime),
+                        YOU_MIXED_MATRICES_OF_DIFFERENT_SIZES)
     const Index n = rows();
     eigen_assert(b.rows() == n && "right-hand side has the wrong number of rows");
+    const ComplexVector sinv = symbol().cwiseInverse();
     Matrix<Scalar, Size_, Rhs::ColsAtCompileTime> x(n, b.cols());
     x.setZero();
+    if (!b.allFinite()) {
+      // A non-finite right-hand side cannot go through the transforms (see
+      // addProduct): apply the inverse -- itself a circulant matrix, generated
+      // by the inverse DFT of the reciprocal symbol -- through the direct kernel
+      // so Inf/NaN propagate entrywise.
+      GeneratorType icol(n);
+      if (n == 1) {
+        icol[0] = internal::structured_scalar_part_impl<Scalar>::run_scalar(sinv.coeff(0));
+      } else {
+        FFT<RealScalar> fft;
+        ComplexVector it(n);
+        fft.inv(it, sinv, n);
+        icol = internal::structured_scalar_part_impl<Scalar>::run(it);
+      }
+      Circulant(icol).directProduct(x, b.derived(), Scalar(1));
+      return x;
+    }
     // Applying the circulant operator whose symbol is the inverse of ours is
     // exactly the inverse operator.
-    internal::structured_fft_apply(x, symbol().cwiseInverse().eval(), n, b.derived(), Scalar(1));
+    internal::structured_fft_apply(x, sinv, n, b.derived(), Scalar(1));
     return x;
   }
 
-  /** \internal Computes \c dst += alpha * (*this) * rhs. */
+  /** \internal Computes \c dst += alpha * (*this) * rhs.
+   *
+   * Non-finite data -- in the generator, the cached symbol (which can overflow
+   * even for a finite generator) or the right-hand side -- takes the direct
+   * O(n^2) kernel: the transforms would smear a single Inf/NaN into NaNs across
+   * the whole output, where the dense product only propagates it through the dot
+   * products that touch it. */
   template <typename Dest, typename Rhs>
   void addProduct(Dest& dst, const Rhs& rhs, const Scalar& alpha) const {
     const Index n = rows();
     eigen_assert(rhs.rows() == n && "invalid product: dimensions do not match");
+    if (n <= internal::structured_direct_threshold() || !m_fftUsable || !rhs.allFinite())
+      directProduct(dst, rhs, alpha);
+    else
+      internal::structured_fft_apply(dst, m_symbol, n, rhs, alpha);
+  }
 
+ private:
+  /** \internal Whether products may take the FFT path: the generator and the
+   * cached symbol must be finite. The symbol accumulates up to n addends, so it
+   * can overflow to Inf even for a finite generator; such operators fall back to
+   * the direct kernel, which stays exact. */
+  bool computeFftUsable() const { return m_col.allFinite() && (m_symbol.size() == 0 || m_symbol.allFinite()); }
+
+  /** \internal Direct O(n^2) product kernels: computes \c dst += alpha * (*this)
+   * * rhs without transforms. Serves operators below the FFT threshold and any
+   * product involving non-finite data, whose entrywise IEEE semantics the
+   * transforms cannot preserve. */
+  template <typename Dest, typename Rhs>
+  void directProduct(Dest& dst, const Rhs& rhs, const Scalar& alpha) const {
+    const Index n = rows();
+    // A unit alpha must not multiply: even the identity complex scalar (1,0)
+    // pollutes an (Inf,0) value with NaN through the 0*Inf cross term.
+    const bool unitAlpha = alpha == Scalar(1);
     if (n <= internal::structured_scalar_threshold()) {
       // Tiny sizes: a plain scalar loop beats the segment-based path below, whose
       // per-segment setup dominates when segments hold only a few entries.
@@ -181,30 +237,24 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
         for (Index i = 0; i < n; ++i) {
           Scalar acc(0);
           for (Index j = 0; j < n; ++j) acc += coeff(i, j) * rhs.coeff(j, k);
-          dst.coeffRef(i, k) += alpha * acc;
+          dst.coeffRef(i, k) += unitAlpha ? acc : Scalar(alpha * acc);
         }
       return;
     }
 
-    if (n <= internal::structured_direct_threshold()) {
-      // Direct path: accumulate x_j times the j-th column of the operator, which
-      // is the generator rotated downwards by j. Only contiguous, forward segment
-      // operations are involved, so everything vectorizes.
-      for (Index k = 0; k < rhs.cols(); ++k) {
-        auto dstCol = dst.col(k);
-        for (Index j = 0; j < n; ++j) {
-          const Scalar xj = alpha * rhs.coeff(j, k);
-          dstCol.head(j) += xj * m_col.tail(j);
-          dstCol.tail(n - j) += xj * m_col.head(n - j);
-        }
+    // Segment path: accumulate x_j times the j-th column of the operator, which
+    // is the generator rotated downwards by j. Only contiguous, forward segment
+    // operations are involved, so everything vectorizes.
+    for (Index k = 0; k < rhs.cols(); ++k) {
+      auto dstCol = dst.col(k);
+      for (Index j = 0; j < n; ++j) {
+        const Scalar xj = unitAlpha ? Scalar(rhs.coeff(j, k)) : Scalar(alpha * rhs.coeff(j, k));
+        dstCol.head(j) += xj * m_col.tail(j);
+        dstCol.tail(n - j) += xj * m_col.head(n - j);
       }
-      return;
     }
-
-    internal::structured_fft_apply(dst, m_symbol, n, rhs, alpha);
   }
 
- private:
   /** \internal \returns the DFT of the generating column. */
   ComplexVector computeSymbol() const {
     const Index n = m_col.size();
@@ -218,6 +268,7 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
 
   GeneratorType m_col;
   ComplexVector m_symbol;
+  bool m_fftUsable;
 };
 
 /** \ingroup StructuredMatrices_Module

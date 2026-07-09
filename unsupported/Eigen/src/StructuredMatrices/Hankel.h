@@ -140,6 +140,7 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
     if (n > 1) m_h.tail(n - 1) = row.tail(n - 1);
     if (m > 1 && n > 1 && (m > internal::structured_direct_threshold() || n > internal::structured_direct_threshold()))
       m_symbol = computeSymbol();
+    m_fftUsable = computeFftUsable();
   }
 
   EIGEN_DEVICE_FUNC Index rows() const { return m_rows.value(); }
@@ -208,7 +209,11 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
    * the solution rows. */
   template <typename Rhs>
   Matrix<Scalar, SolveRowsAtCompileTime, Rhs::ColsAtCompileTime> solve(const MatrixBase<Rhs>& b) const {
+    EIGEN_STATIC_ASSERT(RowsAtCompileTime == Dynamic || Rhs::RowsAtCompileTime == Dynamic ||
+                            int(RowsAtCompileTime) == int(Rhs::RowsAtCompileTime),
+                        YOU_MIXED_MATRICES_OF_DIFFERENT_SIZES)
     eigen_assert(rows() == cols() && "Hankel::solve requires a square matrix");
+    eigen_assert(b.rows() == rows() && "right-hand side has the wrong number of rows");
     LookAheadLevinson<Scalar> levinson(toToeplitz());
     eigen_assert(levinson.info() == Success &&
                  "Hankel::solve: the Levinson recursion broke down; "
@@ -236,60 +241,37 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
   }
 
   /** \returns the product expression \c (*this) * \a x, evaluated through a fast
-   * FFT-based matrix-vector product. */
+   * FFT-based matrix-vector product. The expression carries the default product
+   * tag, so assigning it behaves like any dense product: a temporary resolves
+   * aliasing between the destination and \a x, and \c .noalias() skips it. */
   template <typename Rhs>
-  Product<Hankel, Rhs, AliasFreeProduct> operator*(const MatrixBase<Rhs>& x) const {
-    return Product<Hankel, Rhs, AliasFreeProduct>(*this, x.derived());
+  Product<Hankel, Rhs> operator*(const MatrixBase<Rhs>& x) const {
+    EIGEN_STATIC_ASSERT(ColsAtCompileTime == Dynamic || Rhs::RowsAtCompileTime == Dynamic ||
+                            int(ColsAtCompileTime) == int(Rhs::RowsAtCompileTime),
+                        INVALID_MATRIX_PRODUCT)
+    eigen_assert(x.rows() == cols() && "invalid product: dimensions do not match");
+    return Product<Hankel, Rhs>(*this, x.derived());
   }
 
   /** \internal Computes \c dst += alpha * (*this) * rhs. \c ProductScalar is the
    * promoted scalar of the product (complex when a real operator is applied to a
-   * complex right-hand side); the accumulation runs in the promoted type. */
+   * complex right-hand side); the accumulation runs in the promoted type.
+   *
+   * Non-finite data -- in the generating sequence, the cached symbol (which can
+   * overflow even for a finite sequence) or the right-hand side -- takes the
+   * direct kernels: the transforms would smear a single Inf/NaN into NaNs across
+   * the whole output, where the dense product only propagates it through the dot
+   * products that touch it. */
   template <typename Dest, typename Rhs, typename ProductScalar>
   void addProduct(Dest& dst, const Rhs& rhs, const ProductScalar& alpha) const {
     const Index m = rows(), n = cols();
     eigen_assert(rhs.rows() == n && "invalid product: dimensions do not match");
-
-    if (n == 1) {
-      // Single-column operator: the product is x_0 times the only column, which
-      // is the whole generating sequence -- O(m) directly, however large m is.
-      // (head(m) is the full sequence; it keeps the expression runtime-sized so
-      // fixed-size instantiations of the other shapes still compile.)
-      for (Index k = 0; k < rhs.cols(); ++k) dst.col(k) += (alpha * rhs.coeff(0, k)) * m_h.head(m);
+    const bool small = m == 1 || n == 1 ||
+                       (m <= internal::structured_direct_threshold() && n <= internal::structured_direct_threshold());
+    if (small || !m_fftUsable || !rhs.allFinite()) {
+      directProduct(dst, rhs, alpha);
       return;
     }
-
-    if (m == 1) {
-      // Single-row operator: each output entry is the dot product of the
-      // generating sequence (head(n), i.e. all of it) with the corresponding
-      // right-hand-side column -- O(n) directly, however large n is.
-      for (Index k = 0; k < rhs.cols(); ++k) dst.coeffRef(0, k) += alpha * m_h.head(n).cwiseProduct(rhs.col(k)).sum();
-      return;
-    }
-
-    if (m <= internal::structured_scalar_threshold() && n <= internal::structured_scalar_threshold()) {
-      // Tiny sizes: a plain scalar loop beats the segment-based path below, whose
-      // per-segment setup dominates when segments hold only a few entries.
-      for (Index k = 0; k < rhs.cols(); ++k)
-        for (Index i = 0; i < m; ++i) {
-          ProductScalar acc(0);
-          for (Index j = 0; j < n; ++j) acc += coeff(i, j) * rhs.coeff(j, k);
-          dst.coeffRef(i, k) += alpha * acc;
-        }
-      return;
-    }
-
-    if (m <= internal::structured_direct_threshold() && n <= internal::structured_direct_threshold()) {
-      // Direct path: accumulate x_j times the j-th column of the operator, the
-      // contiguous slice h[j..j+m-1] -- a single vectorizable segment operation
-      // per column.
-      for (Index k = 0; k < rhs.cols(); ++k) {
-        auto dstCol = dst.col(k);
-        for (Index j = 0; j < n; ++j) dstCol += (alpha * rhs.coeff(j, k)) * m_h.segment(j, m);
-      }
-      return;
-    }
-
     // FFT path: H*x = sum_j h[i+j] x_j is the circular convolution of the padded
     // generating sequence with the reversed input; the rotation baked into the
     // symbol places the result in the leading m entries of the back-transform.
@@ -307,7 +289,74 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
    * public constructor. Used by transpose(), conjugate() and adjoint(), whose
    * symbols are cheap transformations of the existing one. */
   Hankel(const GeneratorType& h, Index rows, Index cols, const ComplexVector& symbol)
-      : m_rows(rows), m_cols(cols), m_h(h), m_symbol(symbol) {}
+      : m_rows(rows), m_cols(cols), m_h(h), m_symbol(symbol) {
+    m_fftUsable = computeFftUsable();
+  }
+
+  /** \internal Whether products may take the FFT path: the generating sequence
+   * and the cached symbol must be finite. The symbol accumulates up to p addends,
+   * so it can overflow to Inf even for a finite sequence; such operators fall
+   * back to the direct kernels, which stay exact. */
+  bool computeFftUsable() const { return m_h.allFinite() && (m_symbol.size() == 0 || m_symbol.allFinite()); }
+
+  /** \internal Direct product kernels: computes \c dst += alpha * (*this) * rhs
+   * without transforms. Serves operators below the FFT threshold, single-row and
+   * single-column operators (whose products cost O(n) directly, however large the
+   * operator), and any product involving non-finite data, whose entrywise IEEE
+   * semantics the transforms cannot preserve. */
+  template <typename Dest, typename Rhs, typename ProductScalar>
+  void directProduct(Dest& dst, const Rhs& rhs, const ProductScalar& alpha) const {
+    const Index m = rows(), n = cols();
+    // A unit alpha must not multiply: even the identity complex scalar (1,0)
+    // pollutes an (Inf,0) value with NaN through the 0*Inf cross term.
+    const bool unitAlpha = alpha == ProductScalar(1);
+
+    if (n == 1) {
+      // Single-column operator: the product is x_0 times the only column, which
+      // is the whole generating sequence -- O(m) directly, however large m is.
+      // (head(m) is the full sequence; it keeps the expression runtime-sized so
+      // fixed-size instantiations of the other shapes still compile.)
+      for (Index k = 0; k < rhs.cols(); ++k) {
+        const ProductScalar xj = unitAlpha ? ProductScalar(rhs.coeff(0, k)) : ProductScalar(alpha * rhs.coeff(0, k));
+        dst.col(k) += xj * m_h.head(m);
+      }
+      return;
+    }
+
+    if (m == 1) {
+      // Single-row operator: each output entry is the dot product of the
+      // generating sequence (head(n), i.e. all of it) with the corresponding
+      // right-hand-side column -- O(n) directly, however large n is.
+      for (Index k = 0; k < rhs.cols(); ++k) {
+        const ProductScalar acc = m_h.head(n).cwiseProduct(rhs.col(k)).sum();
+        dst.coeffRef(0, k) += unitAlpha ? acc : ProductScalar(alpha * acc);
+      }
+      return;
+    }
+
+    if (m <= internal::structured_scalar_threshold() && n <= internal::structured_scalar_threshold()) {
+      // Tiny sizes: a plain scalar loop beats the segment-based path below, whose
+      // per-segment setup dominates when segments hold only a few entries.
+      for (Index k = 0; k < rhs.cols(); ++k)
+        for (Index i = 0; i < m; ++i) {
+          ProductScalar acc(0);
+          for (Index j = 0; j < n; ++j) acc += coeff(i, j) * rhs.coeff(j, k);
+          dst.coeffRef(i, k) += unitAlpha ? acc : ProductScalar(alpha * acc);
+        }
+      return;
+    }
+
+    // Segment path: accumulate x_j times the j-th column of the operator, the
+    // contiguous slice h[j..j+m-1] -- a single vectorizable segment operation
+    // per column.
+    for (Index k = 0; k < rhs.cols(); ++k) {
+      auto dstCol = dst.col(k);
+      for (Index j = 0; j < n; ++j) {
+        const ProductScalar xj = unitAlpha ? ProductScalar(rhs.coeff(j, k)) : ProductScalar(alpha * rhs.coeff(j, k));
+        dstCol += xj * m_h.segment(j, m);
+      }
+    }
+  }
 
   /** \internal \returns the DFT of the generating sequence, zero-padded to the
    * 5-smooth size p >= m+n-1 and rotated left by n-1 so that the convolution
@@ -365,6 +414,7 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
   internal::variable_if_dynamic<Index, ColsAtCompileTime> m_cols;
   GeneratorType m_h;
   ComplexVector m_symbol;
+  bool m_fftUsable;
 };
 
 /** \ingroup StructuredMatrices_Module

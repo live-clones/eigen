@@ -102,6 +102,7 @@ class Toeplitz : public EigenBase<Toeplitz<Scalar_, Rows_, Cols_>> {
     // no consumer, so skip the embedding altogether.
     if (rows() > internal::structured_direct_threshold() || cols() > internal::structured_direct_threshold())
       m_symbol = computeSymbol();
+    m_fftUsable = computeFftUsable();
   }
 
   EIGEN_DEVICE_FUNC Index rows() const { return m_col.size(); }
@@ -161,18 +162,56 @@ class Toeplitz : public EigenBase<Toeplitz<Scalar_, Rows_, Cols_>> {
   }
 
   /** \returns the product expression \c (*this) * \a x, evaluated through a fast
-   * FFT-based matrix-vector product (circulant embedding). */
+   * FFT-based matrix-vector product (circulant embedding). The expression carries
+   * the default product tag, so assigning it behaves like any dense product: a
+   * temporary resolves aliasing between the destination and \a x, and
+   * \c .noalias() skips it. */
   template <typename Rhs>
-  Product<Toeplitz, Rhs, AliasFreeProduct> operator*(const MatrixBase<Rhs>& x) const {
-    return Product<Toeplitz, Rhs, AliasFreeProduct>(*this, x.derived());
+  Product<Toeplitz, Rhs> operator*(const MatrixBase<Rhs>& x) const {
+    EIGEN_STATIC_ASSERT(ColsAtCompileTime == Dynamic || Rhs::RowsAtCompileTime == Dynamic ||
+                            int(ColsAtCompileTime) == int(Rhs::RowsAtCompileTime),
+                        INVALID_MATRIX_PRODUCT)
+    eigen_assert(x.rows() == cols() && "invalid product: dimensions do not match");
+    return Product<Toeplitz, Rhs>(*this, x.derived());
   }
 
-  /** \internal Computes \c dst += alpha * (*this) * rhs. */
+  /** \internal Computes \c dst += alpha * (*this) * rhs.
+   *
+   * Non-finite data -- in the generators, the cached embedding symbol (which can
+   * overflow even for finite generators) or the right-hand side -- takes the
+   * direct O(mn) kernel: the transforms would smear a single Inf/NaN into NaNs
+   * across the whole output, where the dense product only propagates it through
+   * the dot products that touch it. */
   template <typename Dest, typename Rhs>
   void addProduct(Dest& dst, const Rhs& rhs, const Scalar& alpha) const {
     const Index m = rows(), n = cols();
     eigen_assert(rhs.rows() == n && "invalid product: dimensions do not match");
+    const bool small = m <= internal::structured_direct_threshold() && n <= internal::structured_direct_threshold();
+    if (small || !m_fftUsable || !rhs.allFinite())
+      directProduct(dst, rhs, alpha);
+    else
+      internal::structured_fft_apply(dst, m_symbol, m, rhs, alpha);
+  }
 
+ private:
+  /** \internal Whether products may take the FFT path: the generators and the
+   * cached embedding symbol must be finite. The symbol accumulates up to p
+   * addends, so it can overflow to Inf even for finite generators; such operators
+   * fall back to the direct kernel, which stays exact. */
+  bool computeFftUsable() const {
+    return m_col.allFinite() && m_row.allFinite() && (m_symbol.size() == 0 || m_symbol.allFinite());
+  }
+
+  /** \internal Direct O(mn) product kernels: computes \c dst += alpha * (*this)
+   * * rhs without transforms. Serves operators below the FFT threshold and any
+   * product involving non-finite data, whose entrywise IEEE semantics the
+   * transforms cannot preserve. */
+  template <typename Dest, typename Rhs>
+  void directProduct(Dest& dst, const Rhs& rhs, const Scalar& alpha) const {
+    const Index m = rows(), n = cols();
+    // A unit alpha must not multiply: even the identity complex scalar (1,0)
+    // pollutes an (Inf,0) value with NaN through the 0*Inf cross term.
+    const bool unitAlpha = alpha == Scalar(1);
     if (m <= internal::structured_scalar_threshold() && n <= internal::structured_scalar_threshold()) {
       // Tiny sizes: a plain scalar loop beats the segment-based path below, whose
       // per-segment setup dominates when segments hold only a few entries.
@@ -180,32 +219,26 @@ class Toeplitz : public EigenBase<Toeplitz<Scalar_, Rows_, Cols_>> {
         for (Index i = 0; i < m; ++i) {
           Scalar acc(0);
           for (Index j = 0; j < n; ++j) acc += coeff(i, j) * rhs.coeff(j, k);
-          dst.coeffRef(i, k) += alpha * acc;
+          dst.coeffRef(i, k) += unitAlpha ? acc : Scalar(alpha * acc);
         }
       return;
     }
 
-    if (m <= internal::structured_direct_threshold() && n <= internal::structured_direct_threshold()) {
-      // Direct path: accumulate x_j times the j-th column of the operator. Its
-      // head is a reversed slice of the row generator (entry i holds r[j-i]) and
-      // its tail the leading part of the column generator; both are segment
-      // operations that vectorize.
-      for (Index k = 0; k < rhs.cols(); ++k) {
-        auto dstCol = dst.col(k);
-        for (Index j = 0; j < n; ++j) {
-          const Scalar xj = alpha * rhs.coeff(j, k);
-          const Index h = numext::mini(j, m);
-          dstCol.head(h) += xj * m_row.segment(j - h + 1, h).reverse();
-          if (j < m) dstCol.tail(m - j) += xj * m_col.head(m - j);
-        }
+    // Segment path: accumulate x_j times the j-th column of the operator. Its
+    // head is a reversed slice of the row generator (entry i holds r[j-i]) and
+    // its tail the leading part of the column generator; both are segment
+    // operations that vectorize.
+    for (Index k = 0; k < rhs.cols(); ++k) {
+      auto dstCol = dst.col(k);
+      for (Index j = 0; j < n; ++j) {
+        const Scalar xj = unitAlpha ? Scalar(rhs.coeff(j, k)) : Scalar(alpha * rhs.coeff(j, k));
+        const Index h = numext::mini(j, m);
+        dstCol.head(h) += xj * m_row.segment(j - h + 1, h).reverse();
+        if (j < m) dstCol.tail(m - j) += xj * m_col.head(m - j);
       }
-      return;
     }
-
-    internal::structured_fft_apply(dst, m_symbol, m, rhs, alpha);
   }
 
- private:
   /** \internal \returns the DFT of the first column of the circulant embedding. */
   ComplexVector computeSymbol() const {
     const Index m = rows(), n = cols();
@@ -223,6 +256,7 @@ class Toeplitz : public EigenBase<Toeplitz<Scalar_, Rows_, Cols_>> {
   ColGeneratorType m_col;
   RowGeneratorType m_row;
   ComplexVector m_symbol;
+  bool m_fftUsable;
 };
 
 /** \ingroup StructuredMatrices_Module
