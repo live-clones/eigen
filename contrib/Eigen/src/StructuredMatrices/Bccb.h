@@ -305,13 +305,9 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
     Complex det(1);
     Index exponent = 0;
     for (Index k1 = 0; k1 < s.cols(); ++k1)
-      for (Index k2 = 0; k2 < s.rows(); ++k2) det = balance(det * balance(s(k2, k1), exponent), exponent);
-    // ldexp saturates cleanly to zero / infinity once the accumulated exponent
-    // leaves the representable range; the clamp only guards the narrowing to int.
-    constexpr Index kMaxExponent = Index(1) << 24;
-    const int e = static_cast<int>(numext::mini(numext::maxi(exponent, -kMaxExponent), kMaxExponent));
-    return toScalar(Complex(std::ldexp(numext::real(det), e), std::ldexp(numext::imag(det), e)),
-                    std::is_same<RealScalar, Scalar>());
+      for (Index k2 = 0; k2 < s.rows(); ++k2)
+        det = internal::structured_balance(Complex(det * internal::structured_balance(s(k2, k1), exponent)), exponent);
+    return toScalar(internal::structured_ldexp_clamped(det, exponent), std::is_same<RealScalar, Scalar>());
   }
 
   /** \returns the eigenvalues as the column-major flattening of the symbol:
@@ -342,7 +338,7 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
   RealVector singularValues() const {
     const ComplexVector s = eigenvalues();
     const RealVector mods = s.cwiseAbs();
-    const std::vector<Index> perm = svdPermutation(mods);
+    const std::vector<Index> perm = internal::structured_svd_permutation(mods);
     RealVector sv(s.size());
     for (Index t = 0; t < s.size(); ++t) sv[t] = mods[perm[t]];
     return sv;
@@ -355,7 +351,7 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
     const Index n2 = blockSize(), N = rows();
     const ComplexVector s = eigenvalues();
     const RealVector mods = s.cwiseAbs();
-    const std::vector<Index> perm = svdPermutation(mods);
+    const std::vector<Index> perm = internal::structured_svd_permutation(mods);
     ComplexMatrix U(N, N);
     for (Index t = 0; t < N; ++t) {
       fourierColumn(U, perm[t] / n2, perm[t] % n2, t);
@@ -371,7 +367,7 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
   ComplexMatrix matrixV() const {
     const Index n2 = blockSize(), N = rows();
     const ComplexVector s = eigenvalues();
-    const std::vector<Index> perm = svdPermutation(RealVector(s.cwiseAbs()));
+    const std::vector<Index> perm = internal::structured_svd_permutation(RealVector(s.cwiseAbs()));
     ComplexMatrix V(N, N);
     for (Index t = 0; t < N; ++t) fourierColumn(V, perm[t] / n2, perm[t] % n2, t);
     return V;
@@ -759,20 +755,6 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
                        (std::numeric_limits<RealScalar>::min)() * down);
   }
 
-  /** \internal Rescales \a z by the power of two that brings \c max(|re|,|im|)
-   * into [0.5, 1), accumulating the removed exponent into \a exponent. The
-   * rescaling is exact, so no roundoff is introduced. Zeros and non-finite
-   * values, which must propagate exactly through determinant(), are returned
-   * untouched. */
-  static Complex balance(const Complex& z, Index& exponent) {
-    const RealScalar mag = numext::maxi(numext::abs(numext::real(z)), numext::abs(numext::imag(z)));
-    if (!(mag > RealScalar(0)) || !(numext::isfinite)(mag)) return z;
-    int e;
-    std::frexp(mag, &e);
-    exponent += e;
-    return Complex(std::ldexp(numext::real(z), -e), std::ldexp(numext::imag(z), -e));
-  }
-
   /** \internal Writes the unit-norm 2-D Fourier eigenvector of frequencies
    * \c (f1, f2) into column \a dstCol of \a F: entry \c b1*n2 + i2 is
    * exp(2 pi i (b1 f1 / n1 + i2 f2 / n2)) / sqrt(N). All frequency products are
@@ -795,24 +777,6 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
       bf += f1;
       if (bf >= n1) bf -= n1;
     }
-  }
-
-  /** \internal \returns the indices sorted by decreasing precomputed modulus
-   * \a mods (each modulus is computed once, not on every comparison); the
-   * shared ordering of singularValues(), matrixU() and matrixV(). The sort is
-   * stable so repeated calls agree even in the presence of ties, and NaN moduli
-   * order last (comparing through NaN directly would break the strict weak
-   * ordering std::stable_sort requires). */
-  static std::vector<Index> svdPermutation(const RealVector& mods) {
-    std::vector<Index> perm(static_cast<std::size_t>(mods.size()));
-    for (Index k = 0; k < mods.size(); ++k) perm[static_cast<std::size_t>(k)] = k;
-    std::stable_sort(perm.begin(), perm.end(), [&mods](Index a, Index b) {
-      const RealScalar ka = mods[a], kb = mods[b];
-      const bool nanA = (ka != ka), nanB = (kb != kb);
-      if (nanA || nanB) return nanB && !nanA;
-      return ka > kb;
-    });
-    return perm;
   }
 
   /** \internal Projects the complex determinant onto \c Scalar. */
