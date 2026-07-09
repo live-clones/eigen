@@ -843,9 +843,15 @@ struct packet_bit_pattern_traits {
 };
 
 // Widening an opaque IEEE binary32 bit pattern produces the target's native extended-scalar representation without
-// exposing a floating-point special-value literal to Clang's fast-math optimizer.
+// exposing a floating-point special-value literal to fast-math optimizers.
 template <typename Scalar>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar pscalar_from_float_bits(numext::uint32_t bits) {
+#if EIGEN_COMP_GNUC_STRICT && defined(__FINITE_MATH_ONLY__) && __FINITE_MATH_ONLY__ && \
+    !defined(EIGEN_GPU_COMPILE_PHASE) && !defined(SYCL_DEVICE_ONLY)
+  // GCC also needs the integer pattern hidden before bit_cast and widening. Use a memory operand so this works on
+  // targets where EIGEN_OPTIMIZATION_BARRIER is intentionally unavailable.
+  __asm__("" : "+m"(bits));
+#endif
   EIGEN_FAST_MATH_CONSTANT_BARRIER(bits);
   return static_cast<Scalar>(numext::bit_cast<float>(bits));
 }

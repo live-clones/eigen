@@ -16,6 +16,12 @@ EIGEN_DONT_INLINE void store_extended_scalar_constants(Scalar* output) {
   output[2] = Eigen::internal::pnan<Scalar>();
 }
 
+template <typename Scalar>
+EIGEN_DONT_INLINE Eigen::numext::uint32_t extended_to_float_bits(const volatile Scalar* input) {
+  const float narrowed = static_cast<float>(*input);
+  return Eigen::numext::bit_cast<Eigen::numext::uint32_t>(narrowed);
+}
+
 template <typename Scalar, bool Vectorizable = Eigen::internal::packet_traits<Scalar>::Vectorizable>
 struct packetmath_fastmath_runner {
   static void run() {}
@@ -55,26 +61,17 @@ template <typename Scalar>
 struct extended_scalar_constant_runner<Scalar, false> {
   static void run() {
     Scalar actual[3];
-    Scalar expected[3];
-    std::memset(static_cast<void*>(actual), 0, sizeof(actual));
-    std::memset(static_cast<void*>(expected), 0, sizeof(expected));
-
     store_extended_scalar_constants(actual);
 
-    // Floating-point classification is optimized away under -ffinite-math-only, so compare object representations
-    // against independent opaque conversions. Zeroing first makes extended-precision padding deterministic.
+    // Floating-point classification is optimized away under -ffinite-math-only. Narrow through a volatile pointer and
+    // inspect the resulting integer bits instead; this also avoids indeterminate padding in x87 long double objects.
     typedef Eigen::numext::uint32_t Bits;
-    static volatile const Bits expected_bits[3] = {0x80000000u, 0x7f800000u, 0x7fc00000u};
-    for (int i = 0; i < 3; ++i) {
-      const Bits bits = expected_bits[i];
-      expected[i] = static_cast<Scalar>(Eigen::numext::bit_cast<float>(bits));
-    }
-
-    const unsigned char* actual_bytes = reinterpret_cast<const unsigned char*>(actual);
-    const unsigned char* expected_bytes = reinterpret_cast<const unsigned char*>(expected);
-    for (std::size_t i = 0; i < sizeof(actual); ++i) {
-      VERIFY_IS_EQUAL(actual_bytes[i], expected_bytes[i]);
-    }
+    const Bits sign_bits = extended_to_float_bits(actual + 0);
+    const Bits inf_bits = extended_to_float_bits(actual + 1);
+    const Bits nan_bits = extended_to_float_bits(actual + 2);
+    VERIFY_IS_EQUAL(sign_bits, Bits(0x80000000u));
+    VERIFY_IS_EQUAL(inf_bits, Bits(0x7f800000u));
+    VERIFY_IS_EQUAL(nan_bits & Bits(0x7fc00000u), Bits(0x7fc00000u));
   }
 };
 
