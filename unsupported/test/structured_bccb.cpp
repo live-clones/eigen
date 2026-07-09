@@ -117,10 +117,9 @@ void test_bccb_delayed_product(Index n2, Index n1) {
   VERIFY_IS_EQUAL(scribble.size(), 2 * N);  // keep the scribble alive across the evaluation
 }
 
-// The products are tagged AliasFreeProduct, so no temporary shields an aliased
-// right-hand side: the shared product implementation must copy it instead.
-// Without the copy, x = C * x reads a zeroed right-hand side and x += C * x
-// interleaves destination writes with right-hand-side reads.
+// The products carry the default product tag, so plain assignment materializes
+// a temporary exactly like a dense product: x = C * x and x += C * x get the
+// ordinary dense-product aliasing semantics.
 template <typename Scalar>
 void test_bccb_aliased_product(Index n2, Index n1) {
   typedef Matrix<Scalar, Dynamic, 1> Vec;
@@ -148,6 +147,31 @@ void test_bccb_aliased_product(Index n2, Index n1) {
   Mat Y = X;
   Y = C * Y;
   VERIFY_IS_APPROX(Y, (dense * X).eval());
+}
+
+// Aliasing beyond the same-object case: the default-product temporary must also
+// resolve right-hand-side expressions that reference the destination and
+// overlapping views of one buffer, neither of which is_same_dense can see.
+template <typename Scalar>
+void test_bccb_aliased_expression(Index n2, Index n1) {
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+
+  Mat G = Mat::Random(n2, n1);
+  Bccb<Scalar> C(G);
+  Mat dense = reference_bccb<Scalar>(G);
+  const Index N = n1 * n2;
+
+  // Right-hand-side expression referencing the destination.
+  Vec x = Vec::Random(N), x0 = x;
+  x = C * (x + Vec::Ones(N));
+  VERIFY_IS_APPROX(x, (dense * (x0 + Vec::Ones(N))).eval());
+
+  // Overlapping (shifted) segments of one buffer.
+  Vec buf = Vec::Random(N + 1);
+  Vec expected = dense * buf.tail(N);
+  buf.head(N) = C * buf.tail(N);
+  VERIFY_IS_APPROX(buf.head(N).eval(), expected);
 }
 
 // Mixed-scalar products: a real operator applied to a complex right-hand side
@@ -335,8 +359,9 @@ void test_bccb_finite_overflow() {
   VERIFY(Y.col(1).isZero());
   VERIFY(((Y.col(0) - x).array().abs() <= kFftRoundTripTol * x.array().abs()).all());
 
-  // Genuine NaN and infinity inputs keep propagating; they are not laundered by
-  // the scaling.
+  // Genuine NaN and infinity inputs keep propagating; such right-hand sides
+  // take the direct kernel (see test_bccb_nonfinite_product for the entrywise
+  // semantics).
   Vec xn = x;
   xn[7] = std::numeric_limits<double>::quiet_NaN();
   Vec yn = C * xn;
@@ -345,6 +370,146 @@ void test_bccb_finite_overflow() {
   xi[3] = std::numeric_limits<double>::infinity();
   Vec yi = C * xi;
   VERIFY(!yi.allFinite());
+}
+
+// The scaling exponents are derived from component-wise magnitudes: a finite
+// complex value near the overflow threshold has a non-representable modulus,
+// which would otherwise disable the scaling and turn an exactly representable
+// product into NaN.
+template <typename RealScalar>
+void test_bccb_fft_complex_boundary(Index n2, Index n1) {
+  typedef std::complex<RealScalar> Complex;
+  typedef Matrix<RealScalar, Dynamic, Dynamic> RMat;
+  typedef Matrix<Complex, Dynamic, 1> CVec;
+  typedef Matrix<Complex, Dynamic, Dynamic> CMat;
+  const RealScalar kFftRoundTripTol = RealScalar(100) * NumTraits<RealScalar>::epsilon();
+  const RealScalar big = RealScalar(0.75) * (std::numeric_limits<RealScalar>::max)();
+  const Index N = n1 * n2;
+
+  // Identity BCCB with a complex generator: the product returns the right-hand
+  // side unchanged even though |x_k| overflows.
+  CMat G = CMat::Zero(n2, n1);
+  G(0, 0) = Complex(1);
+  Bccb<Complex> C(G);
+  CVec x = CVec::Constant(N, Complex(big, big));
+  CVec y = C * x;
+  VERIFY(y.allFinite());
+  VERIFY(((y - x).cwiseAbs() / big).maxCoeff() <= kFftRoundTripTol);
+
+  // A real identity operator applied to the same complex right-hand side takes
+  // the mixed-scalar product path.
+  RMat Gr = RMat::Zero(n2, n1);
+  Gr(0, 0) = RealScalar(1);
+  Bccb<RealScalar> Cr(Gr);
+  y = Cr * x;
+  VERIFY(y.allFinite());
+  VERIFY(((y - x).cwiseAbs() / big).maxCoeff() <= kFftRoundTripTol);
+}
+
+// Entrywise IEEE comparison for the non-finite tests: NaNs match NaNs,
+// infinities match by value (sign included), finite entries match to roundoff.
+// VERIFY_IS_APPROX would reject any output containing NaN.
+template <typename D1, typename D2>
+bool ieee_entrywise_match(const D1& a, const D2& b) {
+  if (a.rows() != b.rows() || a.cols() != b.cols()) return false;
+  for (Index j = 0; j < a.cols(); ++j)
+    for (Index i = 0; i < a.rows(); ++i) {
+      const typename D1::Scalar x = a(i, j), y = b(i, j);
+      if (x == y) continue;                    // finite match or same-signed infinities
+      if ((x != x) && (y != y)) continue;      // both NaN
+      if (!test_isApprox(x, y)) return false;  // finite roundoff
+    }
+  return true;
+}
+
+// Scalar-loop product: the mathematically transparent IEEE reference for the
+// non-finite tests. Eigen's own vectorized complex kernels can smear a single
+// infinity into NaN (Inf - Inf across the split real/imaginary accumulators), so
+// the dense product is not a faithful entrywise reference for non-finite data.
+template <typename Scalar>
+Matrix<Scalar, Dynamic, 1> reference_product_ieee(const Matrix<Scalar, Dynamic, Dynamic>& A,
+                                                  const Matrix<Scalar, Dynamic, 1>& x) {
+  Matrix<Scalar, Dynamic, 1> y(A.rows());
+  for (Index i = 0; i < A.rows(); ++i) {
+    Scalar acc(0);
+    for (Index j = 0; j < A.cols(); ++j) acc += A(i, j) * x[j];
+    y[i] = acc;
+  }
+  return y;
+}
+
+// A single Inf or NaN in the data must propagate like the reference product --
+// through the dot products that touch it -- instead of being smeared into NaNs
+// across the whole output by the transforms.
+template <typename Scalar>
+void test_bccb_nonfinite_product(Index n2, Index n1) {
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  const RealScalar inf = std::numeric_limits<RealScalar>::infinity();
+  const RealScalar nan = std::numeric_limits<RealScalar>::quiet_NaN();
+  const Index N = n1 * n2;
+
+  Mat G = Mat::Random(n2, n1);
+  Bccb<Scalar> C(G);
+  Mat dense = reference_bccb<Scalar>(G);
+
+  // Inf in the right-hand side.
+  Vec x = Vec::Random(N);
+  x[N / 2] = Scalar(inf);
+  VERIFY(ieee_entrywise_match((C * x).eval(), reference_product_ieee(dense, x)));
+
+  // NaN in the right-hand side.
+  Vec xn = Vec::Random(N);
+  xn[N - 1] = Scalar(nan);
+  VERIFY(ieee_entrywise_match((C * xn).eval(), reference_product_ieee(dense, xn)));
+
+  // Inf in the generating array: the operator itself is non-finite, whatever the
+  // right-hand side.
+  Mat G2 = Mat::Random(n2, n1);
+  G2(n2 / 2, n1 / 2) = Scalar(-inf);
+  Bccb<Scalar> C2(G2);
+  Mat dense2 = reference_bccb<Scalar>(G2);
+  Vec x2 = Vec::Random(N);
+  VERIFY(ieee_entrywise_match((C2 * x2).eval(), reference_product_ieee(dense2, x2)));
+
+  // Non-finite right-hand sides of solve() apply the pseudo-inverse -- itself a
+  // BCCB operator -- through the direct kernel, so the Inf propagates entrywise
+  // instead of NaN-ing the whole output through the transforms. The operator is
+  // diagonally dominant, so no symbol entry is thresholded and the pseudo-inverse
+  // coincides with inverse(), whose dense form serves as the reference matrix.
+  Mat Gd = Mat::Random(n2, n1);
+  Gd(0, 0) += Scalar(RealScalar(2 * N));
+  Bccb<Scalar> Cd(Gd);
+  Mat pinv = Mat(Cd.inverse());
+  Vec binf = Vec::Random(N);
+  binf[N / 3] = Scalar(inf);
+  VERIFY(ieee_entrywise_match(Cd.solve(binf), reference_product_ieee(pinv, binf)));
+}
+
+// An all-zero right-hand side must not short-circuit to an exact zero when the
+// operator holds non-finite data: every row of a BCCB touches every generator
+// entry, so each result entry is a dot product with an Inf coefficient times
+// zero -- NaN under IEEE, not zero.
+void test_bccb_nonfinite_zero_rhs(Index n2, Index n1) {
+  typedef Matrix<double, Dynamic, 1> Vec;
+  typedef Matrix<double, Dynamic, Dynamic> Mat;
+  const Index N = n1 * n2;
+
+  Mat G = Mat::Random(n2, n1);
+  G(n2 / 2, n1 / 2) = std::numeric_limits<double>::infinity();
+  Bccb<double> C(G);
+  Mat dense = reference_bccb<double>(G);
+
+  const Vec z = Vec::Zero(N);
+  Vec y = C * z;
+  VERIFY(y.hasNaN());
+  VERIFY(ieee_entrywise_match(y, reference_product_ieee(dense, z)));
+
+  // The same holds for solve(): the symbol of a non-finite operator holds NaN,
+  // so the pseudo-inverse applied to a zero right-hand side is NaN, not zero.
+  Vec xs = C.solve(z);
+  VERIFY(xs.hasNaN());
 }
 
 // Spectra with a wide dynamic range: the determinant is representable, but a
@@ -610,15 +775,28 @@ EIGEN_DECLARE_TEST(structured_bccb) {
     CALL_SUBTEST_6((test_bccb_aliased_product<double>(3, 4)));
     CALL_SUBTEST_6((test_bccb_aliased_product<double>(8, 6)));
     CALL_SUBTEST_6((test_bccb_aliased_product<std::complex<double>>(6, 8)));
+    CALL_SUBTEST_6((test_bccb_aliased_expression<double>(3, 4)));
+    CALL_SUBTEST_6((test_bccb_aliased_expression<double>(6, 8)));
+    CALL_SUBTEST_6((test_bccb_aliased_expression<std::complex<double>>(6, 8)));
     CALL_SUBTEST_6((test_bccb_mixed_scalar<double>(3, 4)));
     CALL_SUBTEST_6((test_bccb_mixed_scalar<double>(6, 8)));
     CALL_SUBTEST_6((test_bccb_mixed_scalar<float>(8, 8)));
     CALL_SUBTEST_6(test_bccb_dimension_asserts());
 
-    // Finite-range robustness: scaled transforms, balanced determinant
-    // accumulation, and the rank threshold boundary.
+    // Finite-range robustness: scaled transforms, the complex overflow boundary,
+    // balanced determinant accumulation, and the rank threshold boundary.
     CALL_SUBTEST_7(test_bccb_finite_overflow());
+    CALL_SUBTEST_7((test_bccb_fft_complex_boundary<double>(6, 8)));
+    CALL_SUBTEST_7((test_bccb_fft_complex_boundary<float>(6, 8)));
     CALL_SUBTEST_7(test_bccb_determinant_scaled());
     CALL_SUBTEST_7(test_bccb_rank_boundaries());
+
+    // Entrywise Inf/NaN propagation: FFT-sized operators must fall back to the
+    // direct kernel; small ones are IEEE-exact already. A zero right-hand side
+    // under a non-finite operator yields NaN, not zero.
+    CALL_SUBTEST_7((test_bccb_nonfinite_product<double>(6, 8)));
+    CALL_SUBTEST_7((test_bccb_nonfinite_product<double>(3, 4)));
+    CALL_SUBTEST_7((test_bccb_nonfinite_product<std::complex<double>>(6, 8)));
+    CALL_SUBTEST_7(test_bccb_nonfinite_zero_rhs(6, 8));
   }
 }
