@@ -41,6 +41,20 @@ constexpr Index structured_direct_threshold() { return 32; }
 // fewer than a couple of packets (measured crossover on AVX2 hardware).
 constexpr Index structured_scalar_threshold() { return 16; }
 
+/** \internal \returns the per-thread FFT engine shared by all structured
+ * operators. The kissfft backend caches its twiddle/plan tables per transform
+ * size inside the engine, so reusing one engine amortizes the plan setup that a
+ * per-call engine would redo on every product, solve and symbol computation
+ * (the tables themselves are identical, so results are bit-for-bit unchanged).
+ * One engine per thread keeps concurrent products on the same operator free of
+ * data races; the cache grows with the number of distinct transform sizes a
+ * thread touches, which mirrors the operators it works with. */
+template <typename RealScalar>
+FFT<RealScalar>& structured_fft_engine() {
+  static thread_local FFT<RealScalar> fft;
+  return fft;
+}
+
 /** \internal
  * \returns the smallest integer >= \a n whose only prime factors are 2, 3 and 5.
  *
@@ -199,7 +213,7 @@ void structured_fft_apply(Dest& dst, const Matrix<std::complex<typename NumTrait
   const int budget = std::numeric_limits<RealScalar>::max_exponent - 2 * log2p - 2;
   const int symbolExp = structured_exponent_bound(symbol);  // max|symbol| < 2^symbolExp
 
-  FFT<RealScalar> fft;
+  FFT<RealScalar>& fft = structured_fft_engine<RealScalar>();
   ComplexVector xt = ComplexVector::Zero(p);  // the zero padding beyond rhs.rows() is never overwritten
   ComplexVector xf(p), yt(p);
   for (Index k = 0; k < rhs.cols(); ++k) {

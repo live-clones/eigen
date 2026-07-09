@@ -1096,7 +1096,8 @@ EIGEN_DECLARE_TEST(structured_matrices) {
     CALL_SUBTEST_1((test_circulant_product<double>(2)));
     CALL_SUBTEST_1((test_circulant_product<double>(8)));
     CALL_SUBTEST_1((test_circulant_product<double>(64)));
-    CALL_SUBTEST_1((test_circulant_product<double>(97)));  // prime, FFT path
+    CALL_SUBTEST_1((test_circulant_product<double>(97)));  // prime: padded embedding product
+    CALL_SUBTEST_1((test_circulant_product<std::complex<double>>(97)));
     CALL_SUBTEST_1((test_circulant_product<float>(48)));
     CALL_SUBTEST_1((test_circulant_product<std::complex<double>>(7)));  // direct path, complex
     CALL_SUBTEST_1((test_circulant_product<std::complex<double>>(50)));
@@ -1172,6 +1173,7 @@ EIGEN_DECLARE_TEST(structured_matrices) {
     CALL_SUBTEST_7(test_circulant_nan_propagation(20));
     CALL_SUBTEST_7((test_circulant_inverse<double>(1)));
     CALL_SUBTEST_7((test_circulant_inverse<double>(50)));
+    CALL_SUBTEST_7((test_circulant_inverse<double>(97)));  // prime: inverse rebuilds the padded product symbol
     CALL_SUBTEST_7((test_circulant_inverse<std::complex<double>>(20)));
     CALL_SUBTEST_7((test_circulant_inverse<float>(16)));
     CALL_SUBTEST_7((test_circulant_determinant<double>(1)));
