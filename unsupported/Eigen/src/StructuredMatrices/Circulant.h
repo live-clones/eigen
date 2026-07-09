@@ -391,19 +391,22 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
    * promoted scalar of the product (complex when a real operator is applied to a
    * complex right-hand side); the accumulation runs in the promoted type.
    *
-   * Non-finite data -- in the generator, the cached symbol (which can overflow
-   * even for a finite generator) or the right-hand side -- takes the direct
-   * O(n^2) kernel: the transforms would smear a single Inf/NaN into NaNs across
-   * the whole output, where the dense product only propagates it through the dot
-   * products that touch it. */
+   * Non-finite data takes the direct O(n^2) kernel: the transforms would smear a
+   * single Inf/NaN into NaNs across the whole output, where the dense product
+   * only propagates it through the dot products that touch it. A non-finite
+   * generator or cached symbol (which can overflow even for a finite generator)
+   * routes the whole product; a non-finite right-hand-side column is detected
+   * inside the FFT loop -- in the same pass that derives its scaling exponent,
+   * so finite data pays no extra scan -- and falls back per column. */
   template <typename Dest, typename Rhs, typename ProductScalar>
   void addProduct(Dest& dst, const Rhs& rhs, const ProductScalar& alpha) const {
     const Index n = rows();
     eigen_assert(rhs.rows() == n && "invalid product: dimensions do not match");
-    if (n <= internal::structured_direct_threshold() || !m_fftUsable || !rhs.allFinite())
+    if (n <= internal::structured_direct_threshold() || !m_fftUsable)
       directProduct(dst, rhs, alpha);
     else
-      internal::structured_fft_apply(dst, m_symbol, n, rhs, alpha);
+      internal::structured_fft_apply(dst, m_symbol, n, rhs, alpha,
+                                     [&](Index k) { directProductColumn(dst, rhs, k, alpha); });
   }
 
  private:
@@ -421,12 +424,13 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
    * the direct kernel, which stays exact. */
   bool computeFftUsable() const { return m_col.allFinite() && (m_symbol.size() == 0 || m_symbol.allFinite()); }
 
-  /** \internal Direct O(n^2) product kernels: computes \c dst += alpha * (*this)
-   * * rhs without transforms. Serves operators below the FFT threshold and any
-   * product involving non-finite data, whose entrywise IEEE semantics the
-   * transforms cannot preserve. */
+  /** \internal Direct O(n^2) kernel for column \a k of the right-hand side:
+   * computes \c dst.col(k) += alpha * (*this) * rhs.col(k) without transforms.
+   * Serves operators below the FFT threshold and any column involving
+   * non-finite data, whose entrywise IEEE semantics the transforms cannot
+   * preserve. */
   template <typename Dest, typename Rhs, typename ProductScalar>
-  void directProduct(Dest& dst, const Rhs& rhs, const ProductScalar& alpha) const {
+  void directProductColumn(Dest& dst, const Rhs& rhs, Index k, const ProductScalar& alpha) const {
     const Index n = rows();
     // A unit alpha must not multiply: even the identity complex scalar (1,0)
     // pollutes an (Inf,0) value with NaN through the 0*Inf cross term.
@@ -434,26 +438,30 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
     if (n <= internal::structured_scalar_threshold()) {
       // Tiny sizes: a plain scalar loop beats the segment-based path below, whose
       // per-segment setup dominates when segments hold only a few entries.
-      for (Index k = 0; k < rhs.cols(); ++k)
-        for (Index i = 0; i < n; ++i) {
-          ProductScalar acc(0);
-          for (Index j = 0; j < n; ++j) acc += coeff(i, j) * rhs.coeff(j, k);
-          dst.coeffRef(i, k) += unitAlpha ? acc : ProductScalar(alpha * acc);
-        }
+      for (Index i = 0; i < n; ++i) {
+        ProductScalar acc(0);
+        for (Index j = 0; j < n; ++j) acc += coeff(i, j) * rhs.coeff(j, k);
+        dst.coeffRef(i, k) += unitAlpha ? acc : ProductScalar(alpha * acc);
+      }
       return;
     }
 
     // Segment path: accumulate x_j times the j-th column of the operator, which
     // is the generator rotated downwards by j. Only contiguous, forward segment
     // operations are involved, so everything vectorizes.
-    for (Index k = 0; k < rhs.cols(); ++k) {
-      auto dstCol = dst.col(k);
-      for (Index j = 0; j < n; ++j) {
-        const ProductScalar xj = unitAlpha ? ProductScalar(rhs.coeff(j, k)) : ProductScalar(alpha * rhs.coeff(j, k));
-        dstCol.head(j) += xj * m_col.tail(j);
-        dstCol.tail(n - j) += xj * m_col.head(n - j);
-      }
+    auto dstCol = dst.col(k);
+    for (Index j = 0; j < n; ++j) {
+      const ProductScalar xj = unitAlpha ? ProductScalar(rhs.coeff(j, k)) : ProductScalar(alpha * rhs.coeff(j, k));
+      dstCol.head(j) += xj * m_col.tail(j);
+      dstCol.tail(n - j) += xj * m_col.head(n - j);
     }
+  }
+
+  /** \internal Direct O(n^2) product kernel over every column, see
+   * directProductColumn(). */
+  template <typename Dest, typename Rhs, typename ProductScalar>
+  void directProduct(Dest& dst, const Rhs& rhs, const ProductScalar& alpha) const {
+    for (Index k = 0; k < rhs.cols(); ++k) directProductColumn(dst, rhs, k, alpha);
   }
 
   /** \internal Computes the moduli of the symbol entries and the matching

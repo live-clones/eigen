@@ -83,25 +83,48 @@ struct structured_scalar_part_impl<Scalar, false> {
   static Scalar run_scalar(const std::complex<Scalar>& x) { return numext::real(x); }
 };
 
-/** \internal \returns an exponent bound \c e with \c max_k|x[k]| < 2^e, or 0 when
- * \a x is zero or holds non-finite values. The bound is derived from the
- * component-wise magnitudes, never from the modulus: a finite complex value near
- * the overflow threshold has a non-representable modulus, which would silently
- * disable the overflow-protection scaling exactly where it is needed. Bounding
- * the modulus by twice the largest component costs at most one extra bit. */
+/** \internal Computes an exponent bound \c e with \c max_k|x[k]| < 2^e (0 when
+ * \a x is zero or reduces to a non-finite maximum) and \returns whether \a x is
+ * safe for the transforms, from a single plain (fast-max) reduction pass. The
+ * bound is derived from the component-wise magnitudes, never from the modulus:
+ * a finite complex value near the overflow threshold has a non-representable
+ * modulus, which would silently disable the overflow-protection scaling exactly
+ * where it is needed. Bounding the modulus by twice the largest component costs
+ * at most one extra bit.
+ *
+ * The routing predicate deliberately uses the fast max reduction, which is not
+ * guaranteed to propagate NaN (the NaN-propagating reduction de-vectorizes to a
+ * branchy scalar loop on strided component views). That is sufficient: an Inf
+ * in NaN-free data always surfaces in the maximum (every comparison is
+ * ordered), and a column containing NaN produces the all-NaN output the dense
+ * product semantics require through *either* path -- every dot product picks
+ * up a coeff*NaN term, and the transforms propagate NaN just the same -- so
+ * missing a NaN here cannot change the result. */
 template <typename Xpr>
-int structured_exponent_bound(const Xpr& x) {
+bool structured_exponent_bound_finite(const Xpr& x, int& e) {
   using RealScalar = typename NumTraits<typename Xpr::Scalar>::Real;
   RealScalar m;
   if (NumTraits<typename Xpr::Scalar>::IsComplex)
-    m = numext::maxi(x.real().cwiseAbs().maxCoeff(), x.imag().cwiseAbs().maxCoeff());
+    // realView() reduces over both components in one pass, vectorized for
+    // direct-access storage; the strided real()/imag() views never vectorize.
+    m = x.realView().cwiseAbs().maxCoeff();
   else
     m = x.cwiseAbs().maxCoeff();
-  int e = 0;
-  if (m > RealScalar(0) && (numext::isfinite)(m)) {
+  e = 0;
+  if (!(numext::isfinite)(m)) return false;
+  if (m > RealScalar(0)) {
     std::frexp(m, &e);
     if (NumTraits<typename Xpr::Scalar>::IsComplex) ++e;
   }
+  return true;
+}
+
+/** \internal The exponent bound alone (see structured_exponent_bound_finite()),
+ * for callers that handle non-finite data separately: the bound is 0 there. */
+template <typename Xpr>
+int structured_exponent_bound(const Xpr& x) {
+  int e;
+  structured_exponent_bound_finite(x, e);
   return e;
 }
 
@@ -139,15 +162,18 @@ ComplexVectorType structured_reverse_symbol(const ComplexVectorType& symbol) {
  * conservative intermediate bound cannot overflow, so results are bit-identical
  * for inputs of moderate magnitude; zero columns are never scaled.
  *
- * Genuinely non-finite data (NaN or Inf in the symbol or the column) must not
- * reach this function: the transforms mix every input entry into every output
- * entry, so a single special value would contaminate the whole column with NaN
- * where the dense product only propagates it through the dot products that
- * touch it. The operators route such data to their direct kernels instead.
+ * Genuinely non-finite data must not go through the transforms: they mix every
+ * input entry into every output entry, so a single special value would
+ * contaminate the whole column with NaN where the dense product only propagates
+ * it through the dot products that touch it. A non-finite symbol is the
+ * caller's responsibility (the operators route it to their direct kernels up
+ * front); a non-finite column is detected here -- in the same single pass that
+ * derives its scaling exponent -- and handed to \a directColumn, the caller's
+ * per-column direct kernel, so the remaining columns keep the fast path.
  */
-template <typename Scalar, typename Dest, typename Rhs>
+template <typename Scalar, typename Dest, typename Rhs, typename DirectColumn>
 void structured_fft_apply(Dest& dst, const Matrix<std::complex<typename NumTraits<Scalar>::Real>, Dynamic, 1>& symbol,
-                          Index outSize, const Rhs& rhs, const Scalar& alpha) {
+                          Index outSize, const Rhs& rhs, const Scalar& alpha, DirectColumn&& directColumn) {
   using RealScalar = typename NumTraits<Scalar>::Real;
   using Complex = std::complex<RealScalar>;
   using ComplexVector = Matrix<Complex, Dynamic, 1>;
@@ -177,7 +203,11 @@ void structured_fft_apply(Dest& dst, const Matrix<std::complex<typename NumTrait
   ComplexVector xt = ComplexVector::Zero(p);  // the zero padding beyond rhs.rows() is never overwritten
   ComplexVector xf(p), yt(p);
   for (Index k = 0; k < rhs.cols(); ++k) {
-    const int colExp = structured_exponent_bound(rhs.col(k));  // 0 for an all-zero column: no scaling
+    int colExp;  // 0 for an all-zero column: no scaling
+    if (!structured_exponent_bound_finite(rhs.col(k), colExp)) {
+      directColumn(k);
+      continue;
+    }
     const int e = numext::maxi(colExp + symbolExp - budget, 0);
     // Each power of two is split in halves so that the factors themselves stay
     // inside the exponent range even when e exceeds it (a huge column applied
@@ -191,6 +221,17 @@ void structured_fft_apply(Dest& dst, const Matrix<std::complex<typename NumTrait
     fft.inv(yt, xf, p);
     dst.col(k) += alpha * structured_scalar_part_impl<Scalar>::run((yt.head(outSize) * up1) * up2);
   }
+}
+
+/** \internal Overload for callers that guarantee finite right-hand-side data
+ * (e.g. solve(), which checks its input up front and takes a dedicated
+ * pseudo-inverse fallback otherwise): a non-finite column has no direct kernel
+ * here and would be skipped, so it asserts. */
+template <typename Scalar, typename Dest, typename Rhs>
+void structured_fft_apply(Dest& dst, const Matrix<std::complex<typename NumTraits<Scalar>::Real>, Dynamic, 1>& symbol,
+                          Index outSize, const Rhs& rhs, const Scalar& alpha) {
+  structured_fft_apply(dst, symbol, outSize, rhs, alpha,
+                       [](Index) { eigen_assert(false && "non-finite column requires a direct kernel"); });
 }
 
 /** \internal Shared product implementation for the structured operator types.
