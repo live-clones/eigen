@@ -66,6 +66,15 @@ namespace Eigen {
  *  - M. Gu and S. C. Eisenstat, "A stable and efficient algorithm for the
  *    rank-one modification of the symmetric eigenproblem," SIAM J. Matrix Anal.
  *    Appl., 15(4):1266-1276, 1994.
+ *  - N. J. Higham, "Accuracy and Stability of Numerical Algorithms", 2nd ed.,
+ *    SIAM, 2002, chapter 27. Avoiding spurious overflow by rescaling with
+ *    powers of two: the whole-problem scale chosen from component exponents
+ *    and the (mantissa, exponent) handling of rho*||z||^2 follow this
+ *    technique.
+ *  - P. H. Sterbenz, "Floating-Point Computation", Prentice-Hall, 1974.
+ *    Scaling by a power of two is exact, the property the frexp/ldexp
+ *    problem scaling and the deferred two-half-ldexp unscaling of the
+ *    eigenvalues rely on.
  *
  * \sa class DiagonalPlusLowRank, class SelfAdjointEigenSolver
  */
