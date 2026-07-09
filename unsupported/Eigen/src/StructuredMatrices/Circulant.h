@@ -147,10 +147,16 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
   }
 
   /** \returns the product expression \c (*this) * \a x, evaluated through a fast
-   * FFT-based matrix-vector product. */
+   * FFT-based matrix-vector product. The expression carries the default product
+   * tag, so assigning it behaves like any dense product: a temporary resolves
+   * aliasing between the destination and \a x, and \c .noalias() skips it. */
   template <typename Rhs>
-  Product<Circulant, Rhs, AliasFreeProduct> operator*(const MatrixBase<Rhs>& x) const {
-    return Product<Circulant, Rhs, AliasFreeProduct>(*this, x.derived());
+  Product<Circulant, Rhs> operator*(const MatrixBase<Rhs>& x) const {
+    EIGEN_STATIC_ASSERT(ColsAtCompileTime == Dynamic || Rhs::RowsAtCompileTime == Dynamic ||
+                            int(ColsAtCompileTime) == int(Rhs::RowsAtCompileTime),
+                        INVALID_MATRIX_PRODUCT)
+    eigen_assert(x.rows() == cols() && "invalid product: dimensions do not match");
+    return Product<Circulant, Rhs>(*this, x.derived());
   }
 
   /** \returns the solution \c x of \c (*this) * x = b, computed directly in the
@@ -158,6 +164,9 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
    * \warning The circulant matrix is assumed to be non-singular. */
   template <typename Rhs>
   Matrix<Scalar, Size_, Rhs::ColsAtCompileTime> solve(const MatrixBase<Rhs>& b) const {
+    EIGEN_STATIC_ASSERT(RowsAtCompileTime == Dynamic || Rhs::RowsAtCompileTime == Dynamic ||
+                            int(RowsAtCompileTime) == int(Rhs::RowsAtCompileTime),
+                        YOU_MIXED_MATRICES_OF_DIFFERENT_SIZES)
     const Index n = rows();
     eigen_assert(b.rows() == n && "right-hand side has the wrong number of rows");
     Matrix<Scalar, Size_, Rhs::ColsAtCompileTime> x(n, b.cols());

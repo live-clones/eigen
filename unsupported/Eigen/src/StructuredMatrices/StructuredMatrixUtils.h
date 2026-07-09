@@ -71,6 +71,28 @@ struct structured_scalar_part_impl<Scalar, false> {
   }
 };
 
+/** \internal \returns an exponent bound \c e with \c max_k|x[k]| < 2^e, or 0 when
+ * \a x is zero or holds non-finite values. The bound is derived from the
+ * component-wise magnitudes, never from the modulus: a finite complex value near
+ * the overflow threshold has a non-representable modulus, which would silently
+ * disable the overflow-protection scaling exactly where it is needed. Bounding
+ * the modulus by twice the largest component costs at most one extra bit. */
+template <typename Xpr>
+int structured_exponent_bound(const Xpr& x) {
+  using RealScalar = typename NumTraits<typename Xpr::Scalar>::Real;
+  RealScalar m;
+  if (NumTraits<typename Xpr::Scalar>::IsComplex)
+    m = numext::maxi(x.real().cwiseAbs().maxCoeff(), x.imag().cwiseAbs().maxCoeff());
+  else
+    m = x.cwiseAbs().maxCoeff();
+  int e = 0;
+  if (m > RealScalar(0) && (numext::isfinite)(m)) {
+    std::frexp(m, &e);
+    if (NumTraits<typename Xpr::Scalar>::IsComplex) ++e;
+  }
+  return e;
+}
+
 /** \internal
  * Computes \c dst.col(k) += alpha * ifft( symbol .* fft(rhs.col(k)) ) for every
  * column of \a rhs, i.e. applies the circulant operator whose eigenvalues are
@@ -113,37 +135,26 @@ void structured_fft_apply(Dest& dst, const Matrix<std::complex<typename NumTrait
  * Forwards to the operator's \c addProduct member, which performs the fast
  * matrix-vector product. The same body serves every dense product dispatch tag.
  *
- * The structured products are tagged \c AliasFreeProduct, so assignment does not
- * create the temporary a dense product would: an aliased right-hand side
- * (\c x = op * x, \c x += op * x) must be resolved here. \c evalTo would
- * otherwise zero the destination before \c addProduct reads it, and the
- * operators' direct (non-FFT) kernels interleave destination writes with
- * right-hand-side reads, so both entry points copy an aliased right-hand side
- * up front. */
+ * The structured products carry the default product tag, so assignment has the
+ * ordinary dense-product semantics: \c x = op * expr first materializes the
+ * product into a temporary, which resolves every form of aliasing between the
+ * destination and the right-hand side (same object, overlapping views,
+ * expressions referencing the destination, destinations resized by the
+ * assignment), and \c .noalias() skips the temporary under the usual caller
+ * promise that no aliasing exists. */
 template <typename Op, typename Rhs>
 struct structured_product_impl : generic_product_impl_base<Op, Rhs, structured_product_impl<Op, Rhs>> {
   using Scalar = typename Product<Op, Rhs>::Scalar;
 
   template <typename Dest>
   static void evalTo(Dest& dst, const Op& lhs, const Rhs& rhs) {
-    if (is_same_dense(dst, rhs)) {
-      const typename plain_matrix_type<Rhs>::type rhsCopy(rhs);
-      dst.setZero();
-      lhs.addProduct(dst, rhsCopy, Scalar(1));
-    } else {
-      dst.setZero();
-      lhs.addProduct(dst, rhs, Scalar(1));
-    }
+    dst.setZero();
+    lhs.addProduct(dst, rhs, Scalar(1));
   }
 
   template <typename Dest>
   static void scaleAndAddTo(Dest& dst, const Op& lhs, const Rhs& rhs, const Scalar& alpha) {
-    if (is_same_dense(dst, rhs)) {
-      const typename plain_matrix_type<Rhs>::type rhsCopy(rhs);
-      lhs.addProduct(dst, rhsCopy, alpha);
-    } else {
-      lhs.addProduct(dst, rhs, alpha);
-    }
+    lhs.addProduct(dst, rhs, alpha);
   }
 };
 
