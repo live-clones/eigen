@@ -397,6 +397,44 @@ struct functor_traits<scalar_exp2_op<Scalar>> {
 
 /** \internal
  *
+ * \brief Template functor to multiply a scalar by 2 raised to a fixed integer exponent.
+ *
+ * Unlike multiplying by a precomputed 2^exponent, the scaling directly adjusts the
+ * floating-point exponent, so it is exact — including for denormal results and for
+ * exponents where 2^exponent itself is not representable as a Scalar.
+ *
+ * \sa class CwiseUnaryOp, ArrayBase::ldexp()
+ */
+template <typename Scalar>
+struct scalar_ldexp_op {
+  static_assert(!NumTraits<Scalar>::IsComplex && !NumTraits<Scalar>::IsInteger,
+                "ldexp is only defined for real floating-point scalar types");
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE explicit scalar_ldexp_op(int exponent) : m_exponent(exponent) {}
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a) const {
+    return numext::ldexp(a, m_exponent);
+  }
+  template <typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a) const {
+    // pldexp clamps the exponent internally, so the saturating cast of a large m_exponent to a
+    // (possibly infinite) Scalar is safe.
+    return internal::pldexp(a, pset1<Packet>(static_cast<Scalar>(m_exponent)));
+  }
+
+ private:
+  const int m_exponent;
+};
+template <typename Scalar>
+struct functor_traits<scalar_ldexp_op<Scalar>> {
+  enum {
+    // Every vectorized exp() relies on pldexp, and the packetmath test verifies pldexp for all
+    // packet types with HasExp set.
+    PacketAccess = packet_traits<Scalar>::HasExp,
+    Cost = 4 * NumTraits<Scalar>::MulCost
+  };
+};
+
+/** \internal
+ *
  * \brief Template functor to compute the exponential of a scalar - 1.
  *
  * \sa class CwiseUnaryOp, ArrayBase::expm1()
