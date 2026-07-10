@@ -100,9 +100,19 @@ struct partial_redux_dummy_func;
 namespace internal {
 
 EIGEN_MEMBER_FUNCTOR(norm, (Size + 5) * NumTraits<Scalar>::MulCost + (Size - 1) * NumTraits<Scalar>::AddCost);
-EIGEN_MEMBER_FUNCTOR(stableNorm, (Size + 5) * NumTraits<Scalar>::MulCost + (Size - 1) * NumTraits<Scalar>::AddCost);
-EIGEN_MEMBER_FUNCTOR(blueNorm, (Size + 5) * NumTraits<Scalar>::MulCost + (Size - 1) * NumTraits<Scalar>::AddCost);
-EIGEN_MEMBER_FUNCTOR(hypotNorm, (Size - 1) * functor_traits<scalar_hypot_op<Scalar>>::Cost);
+// stableNorm performs a max pass followed by a scaled sum-of-squares pass;
+// blueNorm uses scalar classification and three accumulators.  Their costs
+// must not inherit the substantially cheaper one-pass norm estimate, because
+// it can prevent an enclosing expression from being materialized.
+EIGEN_MEMBER_FUNCTOR(stableNorm, Size* NumTraits<Scalar>::ReadCost + (2 * Size + 5) * NumTraits<Scalar>::MulCost +
+                                     (2 * Size - 1) * NumTraits<Scalar>::AddCost);
+EIGEN_MEMBER_FUNCTOR(blueNorm, Size* NumTraits<Scalar>::ReadCost + (2 * Size + 8) * NumTraits<Scalar>::MulCost +
+                                   (3 * Size - 1) * NumTraits<Scalar>::AddCost);
+EIGEN_MEMBER_FUNCTOR(
+    hypotNorm,
+    ((NumTraits<Scalar>::IsComplex ? 2 * Size : Size) - 1) *
+        functor_traits<
+            scalar_hypot_op<typename stable_norm_accumulator<typename NumTraits<Scalar>::Real>::type>>::Cost);
 EIGEN_MEMBER_FUNCTOR(all, (Size - 1) * NumTraits<Scalar>::AddCost);
 EIGEN_MEMBER_FUNCTOR(any, (Size - 1) * NumTraits<Scalar>::AddCost);
 EIGEN_MEMBER_FUNCTOR(count, (Size - 1) * NumTraits<Scalar>::AddCost);
