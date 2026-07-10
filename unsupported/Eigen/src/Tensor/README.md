@@ -28,7 +28,7 @@ int main() {
   b.setConstant(1.0f);
   Eigen::Tensor<float, 2> c = a + b;
 
-  // Reduce all dimensions directly to a scalar.
+  // A full reduction can initialize its exact scalar result type.
   const float total = c.sum();
   std::cout << "Sum of all elements: " << total << "\n";
 
@@ -1642,8 +1642,7 @@ a.setValues({{{0.0f, 1.0f, 2.0f, 3.0f},
               {{12.0f, 13.0f, 14.0f, 15.0f},
               {19.0f, 18.0f, 17.0f, 16.0f},
               {20.0f, 21.0f, 22.0f, 23.0f}}});
-// Reduce along all dimensions using the sum() operator.  Giving the expression
-// a target of its exact scalar result type requests immediate evaluation.
+// An exact scalar target evaluates the rank-0 reduction immediately.
 const float b = a.sum();
 std::cout << "b\n" << b;
 
@@ -1655,8 +1654,9 @@ context.  A bare `auto` declaration supplies no target and therefore keeps the
 lazy reduction expression:
 
 ```cpp
-auto sum_expression = a.sum();                // Lazy TensorReductionOp.
-const auto sum = static_cast<float>(a.sum());  // Evaluates to float.
+// auto preserves the expression type; the scalar cast forces evaluation.
+auto sum_expression = a.sum();
+const auto sum = static_cast<float>(a.sum());
 ```
 
 For example, a reduction with a `float` result cannot convert directly to

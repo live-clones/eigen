@@ -19,10 +19,7 @@
 namespace Eigen {
 
 namespace internal {
-// The scalar argument types accepted by the deduced-scalar operator overloads of TensorBase below: Scalar itself, plus
-// arithmetic types and unscoped enums that implicitly convert to Scalar. The convertibility requirement keeps out
-// mixed argument types that only convert explicitly (e.g. float arguments when Scalar is Eigen::half), for which the
-// operators have never been available.
+// Keep mixed arithmetic and enum operands within the existing implicit-conversion boundary.
 template <typename OtherScalar, typename Scalar>
 struct is_scalar_operand
     : bool_constant<std::is_same<OtherScalar, Scalar>::value ||
@@ -604,8 +601,7 @@ class TensorBase<Derived, ReadOnlyAccessors>
       return operator!=(constant(threshold));
     }
 
-    // Deduced-scalar overloads of the scalar comparisons above; see the deduced-scalar arithmetic operators for why
-    // these are needed.
+    // Exact matches keep rank-0 reductions' mixed-scalar comparisons from becoming ambiguous with built-ins.
 #define EIGEN_FORWARD_SCALAR_CMP(op, tag)                                                                             \
   template <typename OtherScalar, EIGEN_SFINAE_ENABLE_IF((internal::is_scalar_operand<OtherScalar, Scalar>::value))>  \
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const                                                                         \
@@ -1250,10 +1246,8 @@ class TensorBase : public TensorBase<Derived, ReadOnlyAccessors> {
 };
 #endif // EIGEN_PARSED_BY_DOXYGEN
 
-// Deduced-scalar overloads for scalar-on-the-left Tensor expressions. Defining each operator once at namespace scope
-// avoids injecting one hidden friend per TensorBase instantiation. In particular, the latter pollutes
-// argument-dependent lookup for Eigen's unscoped NumTraits enums and makes ordinary enum arithmetic ambiguous in MSVC
-// 14.29.
+// Exact matches keep rank-0 reductions' mixed-scalar arithmetic from becoming ambiguous with built-ins.
+// Namespace scope avoids hidden-friend ADL pollution of NumTraits enum arithmetic on MSVC 14.29.
 #define EIGEN_FORWARD_SCALAR_BINOP(op, name)                                                                           \
   template <typename OtherScalar, typename Derived,                                                                   \
             EIGEN_SFINAE_ENABLE_IF((internal::is_scalar_operand<                                                       \

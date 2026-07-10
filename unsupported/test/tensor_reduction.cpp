@@ -71,7 +71,8 @@ static void test_scalar_reduction_conversion() {
   Scalar expected_min = NumTraits<Scalar>::highest();
   Scalar expected_max = NumTraits<Scalar>::lowest();
   for (int i = 0; i < tensor.size(); ++i) {
-    const Scalar value = static_cast<Scalar>((i % 3) + 1);  // [1,2,3]
+    // Bound the product so the half test does not overflow.
+    const Scalar value = static_cast<Scalar>((i % 3) + 1);
     tensor(i) = value;
     expected_sum += value;
     expected_prod *= value;
@@ -107,13 +108,11 @@ static void test_scalar_reduction_conversion() {
 
 template <typename Scalar, int DataLayout>
 static void test_scalar_reduction_mixed_operators() {
-  // Operator expressions mixing a rank-0 reduction with a scalar of another type must keep resolving to lazy
-  // coefficient-wise expressions rather than becoming ambiguous with the C++ built-in operators through the
-  // reduction's implicit conversion to Scalar.
+  // Mixed scalar operations must stay lazy despite the reduction's implicit scalar conversion.
   Tensor<Scalar, 2, DataLayout> tensor(3, 4);
-  tensor.setConstant(Scalar(2));  // sum() == 24
+  tensor.setConstant(Scalar(2));
 
-  // The scalar-left overloads must not enter ADL for unrelated arithmetic on Eigen's unscoped NumTraits enums.
+  // Scalar-left overloads must not pollute ADL for NumTraits enums.
   static_assert(NumTraits<Scalar>::MulCost + 1 > 0, "NumTraits enum arithmetic should not be ambiguous");
 
   static_assert(!std::is_same<decltype(tensor.sum() > 0), bool>::value,
@@ -144,7 +143,7 @@ static void test_scalar_reduction_mixed_operators() {
   const Tensor<Scalar, 0, DataLayout> scaled = 2.0 * tensor.sum();
   VERIFY_IS_EQUAL(scaled(), Scalar(48));
 
-  // Unscoped enums convert to Scalar like arithmetic types do and must keep working as operands as well.
+  // Unscoped enums must remain valid scalar operands.
   enum MixedOpsTestEnum { kEnumTwo = 2 };
   const Tensor<bool, 0, DataLayout> gt_enum = tensor.sum() > kEnumTwo;
   VERIFY(gt_enum());
@@ -154,7 +153,7 @@ static void test_scalar_reduction_mixed_operators() {
 
 static void test_scalar_reduction_mixed_operators_mod() {
   Tensor<int, 2> tensor(3, 4);
-  tensor.setConstant(2);  // sum() == 24
+  tensor.setConstant(2);
   const Tensor<int, 0> rem = tensor.sum() % 5L;
   VERIFY_IS_EQUAL(rem(), 4);
 }
