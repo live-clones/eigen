@@ -19,7 +19,7 @@ EIGEN_DONT_INLINE T copy(const T& x) {
 }
 
 struct StableNormCountingOp {
-  explicit StableNormCountingOp(Index* count) : count(count) {}
+  explicit StableNormCountingOp(Index* counter) : count(counter) {}
 
   EIGEN_DONT_INLINE double operator()(Index index) const {
     ++*count;
