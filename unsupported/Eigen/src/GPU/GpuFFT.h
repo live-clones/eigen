@@ -272,7 +272,7 @@ class FFT {
   /** Forward 1D C2C FFT, device-resident: d_X = fft(d_x). */
   void fwd(const DeviceMatrix<Complex>& d_x, DeviceMatrix<Complex>& d_X) {
     eigen_assert(d_x.cols() <= 1 && "device fwd(): expected a column vector");
-    const int n = static_cast<int>(d_x.rows());
+    const int n = internal::to_blas_int(d_x.rows());
     prepare_out(d_x, d_X, n, 1);
     if (n == 0) return;
     cufftHandle plan = get_plan_1d(n, internal::cufft_c2c_type<Scalar>::value);
@@ -284,7 +284,7 @@ class FFT {
   /** Inverse 1D C2C FFT, device-resident. Scaled by 1/n. */
   void inv(const DeviceMatrix<Complex>& d_X, DeviceMatrix<Complex>& d_x) {
     eigen_assert(d_X.cols() <= 1 && "device inv(): expected a column vector");
-    const int n = static_cast<int>(d_X.rows());
+    const int n = internal::to_blas_int(d_X.rows());
     prepare_out(d_X, d_x, n, 1);
     if (n == 0) return;
     cufftHandle plan = get_plan_1d(n, internal::cufft_c2c_type<Scalar>::value);
@@ -297,7 +297,7 @@ class FFT {
   /** Forward 1D R2C FFT, device-resident. Output is n/2+1 complex values. */
   void fwd(const DeviceMatrix<Scalar>& d_x, DeviceMatrix<Complex>& d_X) {
     eigen_assert(d_x.cols() <= 1 && "device fwd(): expected a column vector");
-    const int n = static_cast<int>(d_x.rows());
+    const int n = internal::to_blas_int(d_x.rows());
     const int n_complex = n / 2 + 1;
     prepare_out(d_x, d_X, n == 0 ? 0 : n_complex, 1);
     if (n == 0) return;
@@ -311,7 +311,7 @@ class FFT {
    * C2R may overwrite its input, so it is staged through internal scratch). */
   void invReal(const DeviceMatrix<Complex>& d_X, DeviceMatrix<Scalar>& d_x, Index nfft) {
     eigen_assert(d_X.cols() <= 1 && "device invReal(): expected a column vector");
-    const int n = static_cast<int>(nfft);
+    const int n = internal::to_blas_int(nfft);
     const int n_complex = n / 2 + 1;
     eigen_assert(n == 0 || d_X.rows() == n_complex);
     prepare_out(d_X, d_x, n, 1);
@@ -328,8 +328,8 @@ class FFT {
 
   /** Forward 2D C2C FFT, device-resident. */
   void fwd2(const DeviceMatrix<Complex>& d_A, DeviceMatrix<Complex>& d_B) {
-    const int rows = static_cast<int>(d_A.rows());
-    const int cols = static_cast<int>(d_A.cols());
+    const int rows = internal::to_blas_int(d_A.rows());
+    const int cols = internal::to_blas_int(d_A.cols());
     prepare_out(d_A, d_B, rows, cols);
     if (rows == 0 || cols == 0) return;
     cufftHandle plan = get_plan_2d(rows, cols, internal::cufft_c2c_type<Scalar>::value);
@@ -340,14 +340,14 @@ class FFT {
 
   /** Inverse 2D C2C FFT, device-resident. Scaled by 1/(rows*cols). */
   void inv2(const DeviceMatrix<Complex>& d_A, DeviceMatrix<Complex>& d_B) {
-    const int rows = static_cast<int>(d_A.rows());
-    const int cols = static_cast<int>(d_A.cols());
+    const int rows = internal::to_blas_int(d_A.rows());
+    const int cols = internal::to_blas_int(d_A.cols());
     prepare_out(d_A, d_B, rows, cols);
     if (rows == 0 || cols == 0) return;
     cufftHandle plan = get_plan_2d(rows, cols, internal::cufft_c2c_type<Scalar>::value);
     EIGEN_CUFFT_CHECK(
         internal::cufftExecC2C_dispatch(plan, const_cast<Complex*>(d_A.data()), d_B.data(), CUFFT_INVERSE));
-    const int total_elems = rows * cols;
+    const int total_elems = internal::to_blas_int(static_cast<int64_t>(rows) * static_cast<int64_t>(cols));
     EIGEN_CUBLAS_CHECK(
         internal::cublasXscal(ctx_->cublasHandle(), total_elems, Scalar(1) / Scalar(total_elems), d_B.data(), 1));
     d_B.recordReady(ctx_->stream());

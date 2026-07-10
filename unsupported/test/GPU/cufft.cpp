@@ -150,6 +150,14 @@ void test_plan_reuse() {
   }
 }
 
+void test_device_invalid_fft_size() {
+  using Complex = std::complex<float>;
+  gpu::FFT<float> fft;
+  gpu::DeviceMatrix<Complex> input;
+  gpu::DeviceMatrix<float> output;
+  VERIFY_RAISES_ASSERT(fft.invReal(input, output, Index(-1)));
+}
+
 // ---- LRU eviction + user-configurable capacity ------------------------------
 // Constructs an FFT with an explicit small plan-cache capacity (also exercising
 // the user-configurable constructor), pushes 2 * capacity distinct shapes
@@ -299,5 +307,6 @@ EIGEN_DECLARE_TEST(gpu_cufft) {
   gpu_test::require_cufft_context();
   // Split by scalar so each part compiles in parallel.
   CALL_SUBTEST_1(test_scalar<float>());
+  CALL_SUBTEST_1(test_device_invalid_fft_size());
   CALL_SUBTEST_2(test_scalar<double>());
 }
