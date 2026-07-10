@@ -227,7 +227,7 @@ void unary_ops_test() {
 template <typename Scalar>
 void ldexp_test() {
   const std::vector<Scalar> vals = special_values<Scalar>();
-  // Replicate each value so that both the vectorized and non-vectorized paths are exercised.
+  // Exercise both packet and scalar tails.
   const Index num_repeats = 2 * Index(internal::packet_traits<Scalar>::size) + 1;
   Array<Scalar, Dynamic, 1> x(num_repeats * Index(vals.size()));
   Index count = 0;
@@ -237,8 +237,7 @@ void ldexp_test() {
 
   const int digits = std::numeric_limits<Scalar>::digits;
   const int max_exp = std::numeric_limits<Scalar>::max_exponent;
-  // Cover exact scalings, denormal results, and saturation to zero/infinity, including
-  // exponents for which 2^e itself is not representable as a Scalar.
+  // Include denormals, saturation, and unrepresentable 2^e scale factors.
   const int exponents[] = {0,
                            1,
                            -1,
@@ -258,9 +257,7 @@ void ldexp_test() {
     const Array<Scalar, Dynamic, 1> method_result = x.ldexp(exponent);
     const Array<Scalar, Dynamic, 1> global_result = Eigen::ldexp(x, exponent);
     for (Index i = 0; i < x.size(); ++i) {
-      // double covers the range of every Scalar tested here with room to spare, so the scaling
-      // below is exact and the single rounding back to Scalar gives the correctly rounded
-      // reference. ldexp is exact whenever the result is representable, so compare exactly.
+      // double covers every tested Scalar, so one conversion back gives the exact reference.
       const double expected = static_cast<double>(static_cast<Scalar>(std::ldexp(static_cast<double>(x(i)), exponent)));
 #if EIGEN_ARCH_ARM
       // Work around 32-bit ARM flush-to-zero mode: skip cases with subnormal results.

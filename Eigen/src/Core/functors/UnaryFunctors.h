@@ -397,11 +397,7 @@ struct functor_traits<scalar_exp2_op<Scalar>> {
 
 /** \internal
  *
- * \brief Template functor to multiply a scalar by 2 raised to a fixed integer exponent.
- *
- * Unlike multiplying by a precomputed 2^exponent, the scaling directly adjusts the
- * floating-point exponent, so it is exact — including for denormal results and for
- * exponents where 2^exponent itself is not representable as a Scalar.
+ * \brief Multiplies a scalar by 2 raised to a fixed integer exponent.
  *
  * \sa class CwiseUnaryOp, ArrayBase::ldexp()
  */
@@ -415,8 +411,7 @@ struct scalar_ldexp_op {
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a) const {
-    // pldexp clamps the exponent internally, so the saturating cast of a large m_exponent to a
-    // (possibly infinite) Scalar is safe.
+    // pldexp clamps exponents, so a saturating conversion to Scalar is safe.
     return internal::pldexp(a, pset1<Packet>(static_cast<Scalar>(m_exponent)));
   }
 
@@ -426,8 +421,7 @@ struct scalar_ldexp_op {
 template <typename Scalar>
 struct functor_traits<scalar_ldexp_op<Scalar>> {
   enum {
-    // Every vectorized exp() relies on pldexp, and the packetmath test verifies pldexp for all
-    // packet types with HasExp set.
+    // HasExp packets already require a tested pldexp implementation.
     PacketAccess = packet_traits<Scalar>::HasExp,
     Cost = 4 * NumTraits<Scalar>::MulCost
   };

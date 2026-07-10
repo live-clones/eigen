@@ -799,8 +799,7 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half exp2(const half& a) {
 #endif
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half expm1(const half& a) { return half(numext::expm1(float(a))); }
-// Exact: float covers the entire range of half, so the scaling happens in float and the
-// single rounding back to half is correct.
+// float covers the half range, so the single conversion back rounds correctly.
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half ldexp(const half& a, int exponent) {
   return half(numext::ldexp(float(a), exponent));
 }

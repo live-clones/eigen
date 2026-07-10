@@ -658,8 +658,7 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 abs(const bfloat16& a) {
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 exp(const bfloat16& a) { return bfloat16(::expf(float(a))); }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 exp2(const bfloat16& a) { return bfloat16(::exp2f(float(a))); }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 expm1(const bfloat16& a) { return bfloat16(numext::expm1(float(a))); }
-// Exact: float covers the entire range of bfloat16, so the scaling happens in float and the
-// single rounding back to bfloat16 is correct.
+// float covers the bfloat16 range, so the single conversion back rounds correctly.
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 ldexp(const bfloat16& a, int exponent) {
   return bfloat16(numext::ldexp(float(a), exponent));
 }

@@ -1680,10 +1680,8 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE std::complex<double> exp2(const std::compl
 }
 #endif
 
-// Computes x * 2^exponent. The scaling is exact: it directly adjusts the floating-point
-// exponent, so it produces correct results (including denormals) even when 2^exponent itself
-// is not representable as a T. The result saturates to zero or infinity when the scaled value
-// falls outside the finite range of T.
+// Exact scaling by 2^exponent, including denormals and unrepresentable scale factors.
+// Results outside the finite range saturate to zero or infinity.
 template <typename T>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE T ldexp(const T& x, int exponent) {
   EIGEN_USING_STD(ldexp);
