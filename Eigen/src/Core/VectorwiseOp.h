@@ -100,10 +100,8 @@ struct partial_redux_dummy_func;
 namespace internal {
 
 EIGEN_MEMBER_FUNCTOR(norm, (Size + 5) * NumTraits<Scalar>::MulCost + (Size - 1) * NumTraits<Scalar>::AddCost);
-// stableNorm performs a max pass followed by a scaled sum-of-squares pass;
-// blueNorm uses scalar classification and three accumulators.  Their costs
-// must not inherit the substantially cheaper one-pass norm estimate, because
-// it can prevent an enclosing expression from being materialized.
+// These multi-pass reductions must not inherit the cheaper one-pass norm cost,
+// which could suppress materialization of an enclosing expression.
 EIGEN_MEMBER_FUNCTOR(stableNorm, Size* NumTraits<Scalar>::ReadCost + (2 * Size + 5) * NumTraits<Scalar>::MulCost +
                                      (2 * Size - 1) * NumTraits<Scalar>::AddCost);
 EIGEN_MEMBER_FUNCTOR(blueNorm, Size* NumTraits<Scalar>::ReadCost + (2 * Size + 8) * NumTraits<Scalar>::MulCost +

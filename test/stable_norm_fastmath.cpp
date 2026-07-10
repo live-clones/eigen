@@ -14,9 +14,7 @@ EIGEN_DONT_INLINE RealScalar underflow_probe() {
 #if defined(EIGEN_HAS_ARM64_FP16_SCALAR_ARITHMETIC) && EIGEN_HAS_ARM64_FP16_SCALAR_ARITHMETIC
 EIGEN_DONT_INLINE half fp16_underflow_probe(half normal_min, half one_half) { return normal_min * one_half; }
 
-// A noinline function can still be cloned by interprocedural constant propagation.  Calling through a volatile
-// function pointer ensures this probe executes after ScopedFlushToZero changes FPCR rather than being folded using
-// the default floating-point environment.
+// Volatile dispatch prevents constant-propagation clones from bypassing the changed FPCR.
 typedef half (*Fp16UnderflowProbe)(half, half);
 static Fp16UnderflowProbe volatile fp16_underflow_probe_runtime = &fp16_underflow_probe;
 
