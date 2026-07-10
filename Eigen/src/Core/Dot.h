@@ -22,17 +22,17 @@ namespace internal {
 // computations. Keep their public result type, but accumulate in float.
 template <typename RealScalar>
 struct stable_norm_accumulator {
-  typedef RealScalar type;
+  using type = RealScalar;
 };
 
 template <>
 struct stable_norm_accumulator<half> {
-  typedef float type;
+  using type = float;
 };
 
 template <>
 struct stable_norm_accumulator<bfloat16> {
-  typedef float type;
+  using type = float;
 };
 
 template <typename RealScalar, typename Accumulator>
@@ -75,11 +75,10 @@ template <typename VectorType, typename Accumulator,
           bool = bool(traits<VectorType>::Flags & DirectAccessBit) &&
                  (int(inner_stride_at_compile_time<VectorType>::value) != 1)>
 struct stable_normalization_dispatch {
-  typedef typename traits<VectorType>::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Scalar = typename traits<VectorType>::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   // Arbitrary complex scalars have no guaranteed component-array layout, so their realView() is read-only.
-  typedef std::integral_constant<bool, !NumTraits<Scalar>::IsComplex || complex_array_access<Scalar>::value>
-      HasWritableRealView;
+  using HasWritableRealView = bool_constant<!NumTraits<Scalar>::IsComplex || complex_array_access<Scalar>::value>;
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Accumulator max_abs(const VectorType& vec) {
     return vec.realView().template cast<Accumulator>().cwiseAbs().template maxCoeff<PropagateNaN>();
@@ -128,11 +127,12 @@ struct stable_normalization_dispatch {
 // stride is dynamic but whose storage is contiguous at runtime.
 template <typename VectorType, typename Accumulator>
 struct stable_normalization_dispatch<VectorType, Accumulator, true> {
-  typedef typename traits<VectorType>::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, 1> PlainVector;
-  typedef Map<const PlainVector, evaluator<VectorType>::Alignment> ConstContiguousMap;
-  typedef Map<PlainVector, evaluator<VectorType>::Alignment> ContiguousMap;
+  using Scalar = typename traits<VectorType>::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  // Keeping this map runtime-sized avoids over-unrolling some fixed-size normalization paths.
+  using PlainVector = Matrix<Scalar, Dynamic, 1>;
+  using ConstContiguousMap = Map<const PlainVector, evaluator<VectorType>::Alignment>;
+  using ContiguousMap = Map<PlainVector, evaluator<VectorType>::Alignment>;
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE bool is_contiguous(const VectorType& vec) {
     return vec.innerStride() == 1 && (vec.outerSize() == 1 || vec.outerStride() == vec.innerSize());
@@ -334,10 +334,10 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void MatrixBase<Derived>::normalize() {
 template <typename Derived>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const typename MatrixBase<Derived>::PlainObject
 MatrixBase<Derived>::stableNormalized() const {
-  typedef typename internal::nested_eval<Derived, 3>::type Nested_;
-  typedef internal::remove_all_t<Nested_> NestedClean;
-  typedef typename internal::stable_norm_accumulator<RealScalar>::type Accumulator;
-  typedef internal::stable_normalization_dispatch<NestedClean, Accumulator> Dispatch;
+  using Nested_ = typename internal::nested_eval<Derived, 3>::type;
+  using NestedClean = internal::remove_all_t<Nested_>;
+  using Accumulator = typename internal::stable_norm_accumulator<RealScalar>::type;
+  using Dispatch = internal::stable_normalization_dispatch<NestedClean, Accumulator>;
   Nested_ n(derived());
   if (EIGEN_PREDICT_FALSE(n.size() == 0)) return n;
 
@@ -401,8 +401,8 @@ MatrixBase<Derived>::stableNormalized() const {
  */
 template <typename Derived>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void MatrixBase<Derived>::stableNormalize() {
-  typedef typename internal::stable_norm_accumulator<RealScalar>::type Accumulator;
-  typedef internal::stable_normalization_dispatch<Derived, Accumulator> Dispatch;
+  using Accumulator = typename internal::stable_norm_accumulator<RealScalar>::type;
+  using Dispatch = internal::stable_normalization_dispatch<Derived, Accumulator>;
   if (EIGEN_PREDICT_FALSE(size() == 0)) return;
 
   const Accumulator w = Dispatch::max_abs(derived());
