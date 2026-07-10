@@ -80,9 +80,11 @@ struct evaluator_traits<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
  * levels: it is an n1 x n1 block circulant whose n2 x n2 blocks are themselves
  * circulant. With the generating array \c G (column \c k holds the first column
  * of the k-th block), entry \c (i,j) with \c i = b1*n2 + i2, \c j = c1*n2 + j2
- * equals \c G((i2-j2) mod n2, (b1-c1) mod n1), and the operator acts on a
- * column-major reshaped vector as the 2-D circular convolution
- * \c C*vec(X) = vec(G (*) X).
+ * equals
+ * \f[ C_{i,j}=G_{(i_2-j_2)\bmod n_2,\,(b_1-c_1)\bmod n_1}. \f]
+ * On a column-major reshaped vector, \f$C\,\operatorname{vec}(X)
+ * =\operatorname{vec}(G\mathbin{\circledast}X)\f$, where \f$\circledast\f$
+ * denotes 2-D circular convolution.
  *
  * BCCB matrices are diagonalized by the 2-D discrete Fourier transform
  * \f$ F_{n_1} \otimes F_{n_2} \f$ ([1], [2]): the operator's \em symbol -- the 2-D DFT of
@@ -587,8 +589,7 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
     const Index p2 = s.rows(), p1 = s.cols();  // the symbol's transform grid: (n2, n1) or the padded product grid
     const bool padded = p2 != n2 || p1 != n1;
     const bool sFinite = s.allFinite();
-    // max|s| < 2^es. The bound reduces over realView() -- one linear vectorized
-    // pass over the symbol's interleaved (re, im) components.
+    // max|s| < 2^es; component bounds avoid overflow in complex moduli.
     const int es = internal::structured_exponent_bound(s);
     ComplexArray sScaled;
     if (es != 0) {
@@ -600,9 +601,6 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
     ComplexArray X(p2, p1), Xn;  // Xn: the leading-block extraction of a padded grid
     for (Index k = 0; k < rhs.cols(); ++k) {
       xc = rhs.col(k).template cast<ProductScalar>();
-      // The single fast-max pass over the concrete column copy, through
-      // realView() -- one linear vectorized pass over the interleaved (re, im)
-      // components when the product scalar is complex, the identity when real.
       const RealScalar m = xc.realView().cwiseAbs().maxCoeff();
       if (!(numext::isfinite)(m)) {
         directColumn(k);
@@ -630,8 +628,6 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
         if (NumTraits<ProductScalar>::IsComplex) ++ex;
       }
       if (padded) {
-        // The transforms overwrite the whole grid in place, so the pad region
-        // must be re-zeroed for every column.
         X.setZero();
         X.topLeftCorner(n2, n1) =
             Map<const Matrix<ProductScalar, Dynamic, Dynamic, ColMajor>>(xc.data(), n2, n1).template cast<Complex>();
@@ -802,8 +798,6 @@ Bccb<typename Derived::Scalar, Derived::RowsAtCompileTime, Derived::ColsAtCompil
 
 namespace internal {
 
-// Single product specialization covering every product tag; see the note in
-// Circulant.h.
 template <typename Scalar_, int BlockSize_, int NumBlocks_, typename Rhs, int ProductTag>
 struct generic_product_impl<Bccb<Scalar_, BlockSize_, NumBlocks_>, Rhs, StructuredShape, DenseShape, ProductTag>
     : structured_product_impl<Bccb<Scalar_, BlockSize_, NumBlocks_>, Rhs> {};
