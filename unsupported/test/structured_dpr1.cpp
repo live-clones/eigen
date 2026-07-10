@@ -212,6 +212,15 @@ void test_dpr1_nonfinite() {
   VERIFY(e3.info() == InvalidInput);
 }
 
+void test_dpr1_invalid_options() {
+  typedef Matrix<double, Dynamic, 1> Vec;
+  const Vec d = Vec::LinSpaced(3, 1.0, 3.0);
+  const Vec z = Vec::Ones(3);
+  DPR1EigenSolver<double> es;
+  VERIFY_RAISES_ASSERT((es.compute(d, 1.0, z, ComputeEigenvectors | EigenvaluesOnly)));
+  VERIFY_RAISES_ASSERT((es.compute(d, 1.0, z, ComputeFullU)));
+}
+
 // Regression (MR 2694 review): poles spanning the full exponent range with a
 // huge but representable update. Pole differences (d_1 - d_0 = 1.5*DBL_MAX)
 // overflow unless the solver rescales the problem by an exact power of two;
@@ -306,6 +315,43 @@ void test_dpr1_overflowing_spectrum() {
   DPR1EigenSolver<double> es2(d, dmax, z);
   VERIFY(es2.info() == InvalidInput);
   VERIFY((numext::isnan)(es2.eigenvalues()[0]));
+}
+
+// Regression (MR 2694 review): the normalized secular problem can round a root
+// across the maximum-finite boundary before it is scaled back. Finiteness of
+// that rounded root therefore cannot classify the exact spectrum. The first
+// update has lambda = DBL_MAX - 19/256 ulp, which rounds to DBL_MAX; the second
+// has lambda = DBL_MAX + 3739/2048 ulp and genuinely overflows. The constants
+// are assembled from their exact binary significands because hexadecimal
+// floating-point literals are not part of the project's C++14 baseline.
+void test_dpr1_maximum_range_rounding() {
+  typedef Matrix<double, Dynamic, 1> Vec;
+  const double dmax = (std::numeric_limits<double>::max)();
+  Vec d(1), z(1);
+
+  d << -dmax;
+  z << 31.0 / 8.0;
+  const double rhoRepresentable = std::ldexp(4798840810018093.0, 969);
+  DPR1EigenSolver<double> representable(d, rhoRepresentable, z);
+  VERIFY(representable.info() == Success);
+  VERIFY_IS_EQUAL(representable.eigenvalues()[0], dmax);
+
+  d << dmax;
+  DPR1EigenSolver<double> representableNegative(d, -rhoRepresentable, z);
+  VERIFY(representableNegative.info() == Success);
+  VERIFY_IS_EQUAL(representableNegative.eigenvalues()[0], -dmax);
+
+  d << -dmax;
+  z << 65.0 / 2.0;
+  const double rhoOverflow = std::ldexp(8732186543767835.0, 962);
+  DPR1EigenSolver<double> overflow(d, rhoOverflow, z);
+  VERIFY(overflow.info() == InvalidInput);
+  VERIFY((numext::isnan)(overflow.eigenvalues()[0]));
+
+  d << dmax;
+  DPR1EigenSolver<double> overflowNegative(d, -rhoOverflow, z);
+  VERIFY(overflowNegative.info() == InvalidInput);
+  VERIFY((numext::isnan)(overflowNegative.eigenvalues()[0]));
 }
 
 // Regression (MR 2694 review): rho*||z||^2 = 2*max overflows, but the single
@@ -448,6 +494,7 @@ EIGEN_DECLARE_TEST(structured_dpr1) {
     CALL_SUBTEST_3((test_dpr1_edges<float>()));
     CALL_SUBTEST_3((test_dpr1_unsorted<double>(17)));
     CALL_SUBTEST_3((test_dpr1_scaling<double>(14)));
+    CALL_SUBTEST_3(test_dpr1_invalid_options());
 
     // Gu-Eisenstat litmus (close but undeflated poles), orthogonality growth at
     // larger n, extreme scales, non-finite rejection, full-deflation pin.
@@ -463,6 +510,7 @@ EIGEN_DECLARE_TEST(structured_dpr1) {
     CALL_SUBTEST_5(test_dpr1_huge_z_norm());
     CALL_SUBTEST_5(test_dpr1_near_deflation_root());
     CALL_SUBTEST_5(test_dpr1_overflowing_spectrum());
+    CALL_SUBTEST_5(test_dpr1_maximum_range_rounding());
     CALL_SUBTEST_5((test_dpr1_overflowing_update_representable_spectrum<double>()));
     CALL_SUBTEST_5((test_dpr1_overflowing_update_representable_spectrum<float>()));
     CALL_SUBTEST_5(test_dpr1_huge_representable_spectrum());
