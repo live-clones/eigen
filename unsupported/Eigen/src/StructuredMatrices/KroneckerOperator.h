@@ -284,8 +284,7 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
     for (Index k = 0; k < b.cols(); ++k) {
       const DenseVector bc = b.col(k);
       const Map<const DenseMatrix> Bmat(bc.data(), m2, m1);
-      // Project onto the factor singular bases: M = U_B^H mat(b) conj(U_A) is the
-      // k_B x k_A matricization of (U_A (x) U_B)^H b, by the vec identity [1].
+      // By [1], M = U_B^H mat(b) conj(U_A) matricizes (U_A (x) U_B)^H b.
       DenseMatrix M = svdB.matrixU().adjoint() * Bmat * svdA.matrixU().conjugate();
       // Invert only the pairwise products at/above the product-level threshold
       // and the smallest normal number, both decided like in rank(). The negated
@@ -306,7 +305,6 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
             M(i, j) = Scalar(0);
           }
         }
-      // Back to the original bases: mat(x) = V_B M V_A^T, again the vec identity.
       const DenseMatrix X = svdB.matrixV() * M * svdA.matrixV().transpose();
       x.col(k) = Map<const DenseVector>(X.data(), X.size());
     }
@@ -501,11 +499,8 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
     using ProductReal = typename NumTraits<ProductScalar>::Real;
     const Index n1 = m_A.cols(), n2 = m_B.cols();
     eigen_assert(rhs.rows() == n1 * n2 && "invalid product: dimensions do not match");
-    // Exponent budget of the pre-scaling: with max|X| < 2^eX after scaling, the
-    // first GEMM is bounded by 2^(eB + eX + bits2) and the full product by
-    // 2^(eA + eB + eX + bits1 + bits2), where 2^bits > dimension accounts for
-    // the length of the accumulated dot products; both bounds must stay below
-    // 2^max_exponent (with two bits of slack).
+    // If max|X| < 2^eX, the two GEMMs are bounded by 2^(eB+eX+bits2) and
+    // 2^(eA+eB+eX+bits1+bits2), including dot-product growth.
     const bool factorsFinite = m_A.allFinite() && m_B.allFinite();
     const int expA = internal::structured_exponent_bound(m_A);
     const int expB = internal::structured_exponent_bound(m_B);
@@ -651,8 +646,6 @@ KroneckerOperator<typename LhsDerived::PlainObject, typename RhsDerived::PlainOb
 
 namespace internal {
 
-// Single product specialization covering every product tag; see the note in
-// Circulant.h.
 template <typename LhsMatrix, typename RhsMatrix, typename Rhs, int ProductTag>
 struct generic_product_impl<KroneckerOperator<LhsMatrix, RhsMatrix>, Rhs, StructuredShape, DenseShape, ProductTag>
     : structured_product_impl<KroneckerOperator<LhsMatrix, RhsMatrix>, Rhs> {};
