@@ -259,6 +259,11 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
    * promoted scalar of the product (complex when a real operator is applied to a
    * complex right-hand side); the accumulation runs in the promoted type.
    *
+   * The FFT path evaluates the circular convolution
+   * \f[ (Hx)_i = \sum_{j=0}^{n-1} h_{i+j} x_j. \f]
+   * Reversing \f$x\f$ and rotating the padded symbol by \f$n-1\f$ places these
+   * entries at the start of the inverse transform.
+   *
    * Non-finite data takes the direct kernels: the transforms would smear a
    * single Inf/NaN into NaNs across the whole output, where the dense product
    * only propagates it through the dot products that touch it. A non-finite
@@ -276,18 +281,12 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
       directProduct(dst, rhs, alpha);
       return;
     }
-    // FFT path: H*x = sum_j h[i+j] x_j is the circular convolution of the padded
-    // generating sequence with the reversed input; the rotation baked into the
-    // symbol places the result in the leading m entries of the back-transform.
-    // (Column k of the reversed expression is non-finite exactly when column k
-    // of rhs is, so the fallback indexes the original right-hand side.)
+    // Reversal preserves which right-hand-side columns need the direct fallback.
     internal::structured_fft_apply(dst, m_symbol, m, rhs.colwise().reverse(), alpha,
                                    [&](Index k) { directProductColumn(dst, rhs, k, alpha); });
   }
 
  private:
-  // Grants transpose() and adjoint() access to the private constructor of the
-  // dimension-swapped instantiation.
   template <typename OtherScalar, int OtherRows, int OtherCols>
   friend class Hankel;
 
@@ -320,19 +319,13 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
     const bool unitAlpha = alpha == ProductScalar(1);
 
     if (n == 1) {
-      // Single-column operator: the product is x_0 times the only column, which
-      // is the whole generating sequence -- O(m) directly, however large m is.
-      // (head(m) is the full sequence; it keeps the expression runtime-sized so
-      // fixed-size instantiations of the other shapes still compile.)
+      // The runtime-sized head keeps other fixed-size shapes well-formed.
       const ProductScalar xj = unitAlpha ? ProductScalar(rhs.coeff(0, k)) : ProductScalar(alpha * rhs.coeff(0, k));
       dst.col(k) += xj * m_h.head(m);
       return;
     }
 
     if (m == 1) {
-      // Single-row operator: the output entry is the dot product of the
-      // generating sequence (head(n), i.e. all of it) with the right-hand-side
-      // column -- O(n) directly, however large n is.
       const ProductScalar acc = m_h.head(n).cwiseProduct(rhs.col(k)).sum();
       dst.coeffRef(0, k) += unitAlpha ? acc : ProductScalar(alpha * acc);
       return;
@@ -349,9 +342,7 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
       return;
     }
 
-    // Segment path: accumulate x_j times the j-th column of the operator, the
-    // contiguous slice h[j..j+m-1] -- a single vectorizable segment operation
-    // per column.
+    // Column j is the contiguous, vectorizable slice h[j..j+m-1].
     auto dstCol = dst.col(k);
     for (Index j = 0; j < n; ++j) {
       const ProductScalar xj = unitAlpha ? ProductScalar(rhs.coeff(j, k)) : ProductScalar(alpha * rhs.coeff(j, k));
