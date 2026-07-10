@@ -121,23 +121,14 @@ bool dplr_product_fits(int ea, int eb, Index inner) {
   return ea + eb + dplr_index_exponent(inner) + 1 < std::numeric_limits<RealScalar>::max_exponent;
 }
 
-// The capacitance-solve half of the Woodbury identity [1], factored into a
-// dispatch struct so a fixed rank-0 operator -- a plain diagonal -- never
-// instantiates PartialPivLU on a 0 x 0 matrix, which does not compile (C++14:
-// no if-constexpr). The primary template covers positive and dynamic ranks and
-// keeps the runtime rank-0 guard; the Rank_ == 0 specialization contains no LU
-// code at all.
+// Compile-time dispatch keeps fixed rank zero from instantiating a 0 x 0 LU;
+// C++14 cannot express this branch with if constexpr.
 template <int Rank_>
 struct dplr_capacitance_impl {
-  // x -= D^{-1} U (I_k + V^H D^{-1} U)^{-1} V^H x, the correction term of the
-  // Woodbury solve, in place. Like capacitance(), the products are formed from
-  // exactly rescaled factors [4][5] when the plain association could overflow:
-  // V^H x pairs a factor with the D^{-1}-amplified right-hand side, so it can
-  // overflow spuriously in the same regime that breaks the plain capacitance
-  // association. The removed exponent is folded back entrywise into the small
-  // k-row workspace between the two structural products. When no product can
-  // overflow the plain association is kept, bit-identical to the unnormalized
-  // evaluation.
+  /** Applies the Woodbury correction
+   * \f[ x\mathrel{-}=D^{-1}U(I_k+V^H D^{-1}U)^{-1}V^Hx. \f]
+   * Exact power-of-two scaling is used only when either structural product can
+   * overflow [4][5], preserving the unscaled result bit-for-bit otherwise. */
   template <typename Op, typename Dinv, typename Workspace>
   static void subtractSolveCorrection(const Op& op, const Dinv& dinv, Workspace& x) {
     using Scalar = typename Op::Scalar;
@@ -157,12 +148,9 @@ struct dplr_capacitance_impl {
     y = y.unaryExpr(dplr_ldexp_op<Scalar>{eu + ev});
     x.noalias() -= dinv.asDiagonal() * (op.factorU().unaryExpr(dplr_ldexp_op<Scalar>{-eu}) * y);
   }
-  // Up = -D^{-1} U (I_k + V^H D^{-1} U)^{-1}, the left factor of the inverse.
-  // D^{-1} U can overflow spuriously when the capacitance inverse would shrink
-  // it back (a huge U against a tiny diagonal), so the same factor
-  // normalization applies: the product is formed as (D^{-1} U-hat) K with the
-  // removed exponent folded back entrywise at the end [4][5]. Bit-identical
-  // plain association when no product can overflow.
+  /** Forms \f$U'=-D^{-1}U(I_k+V^HD^{-1}U)^{-1}\f$. Scaling prevents a
+   * spurious overflow in \f$D^{-1}U\f$ when the capacitance inverse subsequently
+   * shrinks it [4][5]. */
   template <typename Op, typename Dinv, typename Factor>
   static void inverseFactor(const Op& op, const Dinv& dinv, Factor& Up) {
     using Scalar = typename Op::Scalar;
@@ -180,17 +168,10 @@ struct dplr_capacitance_impl {
     Up.noalias() = -(dinv.asDiagonal() * op.factorU().unaryExpr(dplr_ldexp_op<Scalar>{-eu}) * K);
     Up = Up.unaryExpr(dplr_ldexp_op<Scalar>{eu});
   }
-  // det(I_k + V^H D^{-1} U), the capacitance factor of the determinant lemma,
-  // folded into the caller's balanced mantissa * 2^exponent accumulation. The
-  // capacitance matrix is factored with partial-pivoting LU and its determinant
-  // assembled pivot by pivot -- each one frexp-renormalized into the running
-  // mantissa with the removed power of two added to \a exponent, and the
-  // permutation parity supplying the sign -- never as the plain pivot product a
-  // .determinant() call would form: D^{-1} scales the capacitance entries by
-  // the reciprocals of the diagonal, so extreme diagonals push det(D) and
-  // det(capacitance) to opposite ends of the exponent range and either plain
-  // product can overflow or underflow even when the combined determinant is
-  // representable.
+  /** Accumulates the determinant-lemma factor
+   * \f$\det(I_k+V^HD^{-1}U)\f$ as a mantissa and power of two. Each LU pivot is
+   * renormalized before multiplication because \f$\det(D)\f$ and the capacitance
+   * determinant can occupy opposite ends of the exponent range. */
   template <typename Op>
   static typename Op::Scalar balancedCapacitanceDeterminant(const Op& op, Index& exponent) {
     using Scalar = typename Op::Scalar;
@@ -458,7 +439,6 @@ class DiagonalPlusLowRank : public EigenBase<DiagonalPlusLowRank<Scalar_, Size_,
   template <typename Dest, typename Rhs, typename ProductScalar>
   void addProduct(Dest& dst, const Rhs& rhs, const ProductScalar& alpha) const {
     eigen_assert(rhs.rows() == rows() && "invalid product: dimensions do not match");
-    // Evaluate the (possibly expression) right-hand side once, in the promoted type.
     const Matrix<ProductScalar, Size_, Rhs::ColsAtCompileTime> r = rhs;
     dst += alpha * (m_d.asDiagonal() * r);
     if (correctionRank() > 0) {
