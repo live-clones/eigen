@@ -75,7 +75,11 @@ template <typename VectorType, typename Accumulator,
           bool = bool(traits<VectorType>::Flags & DirectAccessBit) &&
                  (int(inner_stride_at_compile_time<VectorType>::value) != 1)>
 struct stable_normalization_dispatch {
-  typedef typename NumTraits<typename traits<VectorType>::Scalar>::Real RealScalar;
+  typedef typename traits<VectorType>::Scalar Scalar;
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  // Arbitrary complex scalars have no guaranteed component-array layout, so their realView() is read-only.
+  typedef std::integral_constant<bool, !NumTraits<Scalar>::IsComplex || complex_array_access<Scalar>::value>
+      HasWritableRealView;
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Accumulator max_abs(const VectorType& vec) {
     return vec.realView().template cast<Accumulator>().cwiseAbs().template maxCoeff<PropagateNaN>();
@@ -89,11 +93,34 @@ struct stable_normalization_dispatch {
   template <typename ResultType>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void assign_scaled(ResultType& result, const VectorType& vec,
                                                                   const Accumulator& factor) {
-    result.realView() = (vec.realView().template cast<Accumulator>() * factor).template cast<RealScalar>();
+    assign_scaled_impl(result, vec, factor, HasWritableRealView());
   }
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void scale_in_place(VectorType& vec, const Accumulator& factor) {
+    scale_in_place_impl(vec, factor, HasWritableRealView());
+  }
+
+ private:
+  template <typename ResultType>
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void assign_scaled_impl(ResultType& result, const VectorType& vec,
+                                                                       const Accumulator& factor, std::true_type) {
+    result.realView() = (vec.realView().template cast<Accumulator>() * factor).template cast<RealScalar>();
+  }
+
+  template <typename ResultType>
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void assign_scaled_impl(ResultType& result, const VectorType& vec,
+                                                                       const Accumulator& factor, std::false_type) {
+    result = vec * static_cast<RealScalar>(factor);
+  }
+
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void scale_in_place_impl(VectorType& vec, const Accumulator& factor,
+                                                                        std::true_type) {
     vec.realView() = (vec.realView().template cast<Accumulator>() * factor).template cast<RealScalar>();
+  }
+
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void scale_in_place_impl(VectorType& vec, const Accumulator& factor,
+                                                                        std::false_type) {
+    vec = vec * static_cast<RealScalar>(factor);
   }
 };
 
