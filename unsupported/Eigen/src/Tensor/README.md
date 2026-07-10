@@ -1649,8 +1649,11 @@ std::cout << "b\n" << b;
 ```
 Assigning a full reduction expression to the tensor's scalar type evaluates the
 expression immediately on the default device.
-Each scalar conversion evaluates the expression again. To evaluate on a specific
-device:
+Each scalar conversion evaluates the expression again.
+Operator expressions that combine a full reduction with a scalar, such as
+`2 * a.sum()` or `a.sum() > 0`, do not use this conversion; they continue to
+produce lazy coefficient-wise expressions.
+To evaluate on a specific device:
 
 ```cpp
 Eigen::Tensor<float, 0> b;

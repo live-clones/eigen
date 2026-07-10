@@ -106,6 +106,57 @@ static void test_scalar_reduction_conversion() {
 }
 
 template <typename Scalar, int DataLayout>
+static void test_scalar_reduction_mixed_operators() {
+  // Operator expressions mixing a rank-0 reduction with a scalar of another type must keep resolving to lazy
+  // coefficient-wise expressions rather than becoming ambiguous with the C++ built-in operators through the
+  // reduction's implicit conversion to Scalar.
+  Tensor<Scalar, 2, DataLayout> tensor(3, 4);
+  tensor.setConstant(Scalar(2));  // sum() == 24
+
+  static_assert(!std::is_same<decltype(tensor.sum() > 0), bool>::value,
+                "scalar comparisons on a full reduction should stay lazy expressions");
+  static_assert(!std::is_arithmetic<decltype(2 * tensor.sum())>::value,
+                "scalar arithmetic on a full reduction should stay lazy expressions");
+
+  const Tensor<bool, 0, DataLayout> gt = tensor.sum() > 0;
+  VERIFY(gt());
+  const Tensor<bool, 0, DataLayout> eq = tensor.sum() == 24;
+  VERIFY(eq());
+  const Tensor<bool, 0, DataLayout> lt = tensor.sum() < 1L;
+  VERIFY(!lt());
+  const Tensor<bool, 0, DataLayout> ge = tensor.sum() >= 0.0f;
+  VERIFY(ge());
+  const Tensor<bool, 0, DataLayout> le = tensor.sum() <= 100u;
+  VERIFY(le());
+  const Tensor<bool, 0, DataLayout> ne = tensor.sum() != 0;
+  VERIFY(ne());
+  const Tensor<Scalar, 0, DataLayout> twice = 2 * tensor.sum();
+  VERIFY_IS_EQUAL(twice(), Scalar(48));
+  const Tensor<Scalar, 0, DataLayout> plus_one = 1 + tensor.sum();
+  VERIFY_IS_EQUAL(plus_one(), Scalar(25));
+  const Tensor<Scalar, 0, DataLayout> from_25 = 25 - tensor.sum();
+  VERIFY_IS_EQUAL(from_25(), Scalar(1));
+  const Tensor<Scalar, 0, DataLayout> ratio = 48 / tensor.sum();
+  VERIFY_IS_EQUAL(ratio(), Scalar(2));
+  const Tensor<Scalar, 0, DataLayout> scaled = 2.0 * tensor.sum();
+  VERIFY_IS_EQUAL(scaled(), Scalar(48));
+
+  // Unscoped enums convert to Scalar like arithmetic types do and must keep working as operands as well.
+  enum MixedOpsTestEnum { kEnumTwo = 2 };
+  const Tensor<bool, 0, DataLayout> gt_enum = tensor.sum() > kEnumTwo;
+  VERIFY(gt_enum());
+  const Tensor<Scalar, 0, DataLayout> twice_enum = kEnumTwo * tensor.sum();
+  VERIFY_IS_EQUAL(twice_enum(), Scalar(48));
+}
+
+static void test_scalar_reduction_mixed_operators_mod() {
+  Tensor<int, 2> tensor(3, 4);
+  tensor.setConstant(2);  // sum() == 24
+  const Tensor<int, 0> rem = tensor.sum() % 5L;
+  VERIFY_IS_EQUAL(rem(), 4);
+}
+
+template <typename Scalar, int DataLayout>
 static void test_simple_reductions() {
   Tensor<Scalar, 4, DataLayout> tensor(2, 3, 5, 7);
   tensor.setRandom();
@@ -615,6 +666,10 @@ EIGEN_DECLARE_TEST(tensor_reduction) {
   CALL_SUBTEST((test_scalar_reduction_conversion<int, ColMajor>()));
   CALL_SUBTEST((test_scalar_reduction_conversion<int, RowMajor>()));
   CALL_SUBTEST((test_scalar_reduction_conversion<Eigen::half, ColMajor>()));
+  CALL_SUBTEST((test_scalar_reduction_mixed_operators<float, ColMajor>()));
+  CALL_SUBTEST((test_scalar_reduction_mixed_operators<double, ColMajor>()));
+  CALL_SUBTEST((test_scalar_reduction_mixed_operators<int, RowMajor>()));
+  CALL_SUBTEST(test_scalar_reduction_mixed_operators_mod());
   CALL_SUBTEST((test_simple_reductions<float, ColMajor>()));
   CALL_SUBTEST((test_simple_reductions<float, RowMajor>()));
   CALL_SUBTEST((test_simple_reductions<Eigen::half, ColMajor>()));
