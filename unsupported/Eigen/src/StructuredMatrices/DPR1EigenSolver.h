@@ -312,12 +312,11 @@ DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const Vector
     return *this;
   }
 
-  // ---- reduce to rho >= 0 by negating the matrix if necessary ----
   const bool negated = rho < RealScalar(0);
   VectorType dW = negated ? VectorType(-d) : d;
   RealScalar rhoW = negated ? -rho : rho;
 
-  // ---- sort the diagonal ascending; permutation pi maps working index -> input row ----
+  // pi maps each sorted working index to its input row.
   std::vector<Index> pi;
   pi.reserve(static_cast<std::size_t>(n));
   for (Index i = 0; i < n; ++i) pi.push_back(i);
@@ -328,17 +327,11 @@ DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const Vector
     zs[i] = z[pi[static_cast<std::size_t>(i)]];
   }
 
-  // ---- normalize z, absorbing its norm into rho ----
-  // Every rescaling below is an exact power of two (frexp/ldexp), so where the
-  // unscaled computation neither overflows nor rounds at the subnormal
-  // boundary it changes no bits; it only extends the representable range (cf.
-  // the overflow-guarding scalings in LAPACK's xSTEDC/xLAED*, which use
-  // general scale factors instead).
+  // Normalize z and absorb ||z||^2 into rho. Power-of-two scaling is exact away
+  // from the subnormal boundary, unlike the general scaling in LAPACK xLAED*.
   EIGEN_USING_STD(frexp)
   EIGEN_USING_STD(ldexp)
-  // Exact power-of-two prescaling of z: with max|z_i| ~ 2^zExp, z / 2^zExp is
-  // exactly representable entrywise and its norm is safely computable even
-  // when the true ||z|| exceeds the scalar range (e.g. z = [max, max]).
+  // With max|z_i| < 2^zExp, ||2^-zExp z|| is representable even if ||z|| is not.
   int zExp = 0;
   const RealScalar zmax = zs.cwiseAbs().maxCoeff();
   if (zmax > RealScalar(0)) {
@@ -350,14 +343,8 @@ DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const Vector
   int znormExp = 0;
   const RealScalar znormFrac = frexp(znorm, &znormExp);
   if (znorm > RealScalar(0)) zs /= znorm;
-  // rho <- rho * (2^zExp * znorm)^2 == rho * ||z||^2, kept as an exact
-  // (mantissa, exponent) pair instead of a materialized scalar: the mantissas
-  // are multiplied first (all in [0.25, 1), so nothing intermediate can
-  // overflow) and the collected power of two is applied only after the
-  // whole-problem scaling below has been folded in. A huge but benign
-  // rho * ||z||^2 (e.g. d = -max, rho = max/2, z = [2]: rho * ||z||^2 = 2*max
-  // overflows, yet the single eigenvalue d + rho*z^2 = max is representable)
-  // therefore never materializes as an overflowing intermediate.
+  // Store rho ||z||^2 = rhoMant * 2^rhoTotExp without materializing a possibly
+  // overflowing product; each mantissa factor lies in [1/4,1).
   int rhoExp = 0;
   const RealScalar rhoFrac = frexp(rhoW, &rhoExp);
   int rhoAdj = 0;
@@ -367,18 +354,9 @@ DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const Vector
   // to the int that ldexp takes.
   const numext::int64_t rhoTotExp =
       numext::int64_t(rhoExp) + 2 * (numext::int64_t(zExp) + numext::int64_t(znormExp)) + numext::int64_t(rhoAdj);
-  // now A~ = diag(ds) + (rhoMant * 2^rhoTotExp) * zs zs^T with ||zs|| = 1
-
-  // ---- scale the whole problem into [0.5, 1) by an exact power of two ----
-  // The eigenvalues of diag(s*d) + (s*rho) z z^T are exactly s times those of
-  // diag(d) + rho z z^T; with s = 2^-scaleExp bringing max(|d|_inf, rho*||z||^2)
-  // into [0.5, 1), every intermediate below (pole differences, midpoints,
-  // brackets, root offsets) stays far from overflow even for data at the very
-  // end of the exponent range. The two candidates are compared as
-  // (mantissa, exponent) pairs -- derived from component exponent bounds only,
-  // never from a materialized product -- so the choice of scale itself cannot
-  // overflow. The output is rescaled by 2^scaleExp at the end -- exactly,
-  // whenever it is representable.
+  // For s = 2^-scaleExp, eig(sD + s rho zz^T) = s eig(D + rho zz^T).
+  // Choose s so max(||sD||_inf, s rho ||z||^2) lies in [1/2,1), comparing the
+  // two scales as mantissa-exponent pairs to avoid overflow.
   int dExp = 0;
   const RealScalar dFrac = frexp(ds.cwiseAbs().maxCoeff(), &dExp);
   RealScalar scaledNorm;  // max(|d|_inf, rho*||z||^2) * 2^-scaleExp, in [0.5, 1) (or 0 for a zero matrix)
@@ -407,7 +385,6 @@ DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const Vector
   // the update is negligible against |d|_inf, in which case it deflates below.
   rhoW = ldexp(rhoMant, static_cast<int>(numext::maxi(-expCap, rhoTotExp - scaleExpWide)));
 
-  // ---- deflation ----
   // Backward-error budget: dropping a coupling of size <= tol perturbs the
   // matrix by O(tol), like LAPACK's xLAED2. Using max(|d|_inf, rho*||z||^2) as
   // the scale is the unscaled-problem generalization of xLAED2's criterion: the
@@ -419,13 +396,11 @@ DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const Vector
   std::vector<bool> deflated;
 
   if (rhoW <= tol) {
-    // The rank-one update is negligible: everything deflates.
     deflated.assign(static_cast<std::size_t>(n), true);
   } else {
-    // (a) negligible z entries: d_i is an eigenvalue already.
+    // Negligible z_i leaves d_i as an eigenvalue.
     deflated.reserve(static_cast<std::size_t>(n));
     for (Index i = 0; i < n; ++i) deflated.push_back(rhoW * numext::abs(zs[i]) <= tol);
-    // (b) close poles: rotate the weight of the earlier pole onto the later one.
     // The dropped off-diagonal coupling is |c*s*(ds[i]-ds[p])| <= tol.
     Index p = -1;
     for (Index i = 0; i < n; ++i) {
@@ -450,13 +425,11 @@ DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const Vector
     }
   }
 
-  // ---- gather the surviving secular subproblem ----
   std::vector<Index> sub;  // working positions of the surviving poles
   for (Index i = 0; i < n; ++i)
     if (!deflated[static_cast<std::size_t>(i)]) sub.push_back(i);
   const Index m = static_cast<Index>(sub.size());
 
-  // Eigenvalues in working (sorted) coordinates; deflated entries are final.
   VectorType lambdaW = ds;
 
   MatrixType subVectors;  // m x m secular eigenvectors (in subproblem coordinates)
@@ -472,14 +445,9 @@ DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const Vector
     }
     const RealScalar zeta2sum = zeta2.sum();
 
-    // ---- secular roots by pole-shifted bisection ----
     // Bisection stops when the bracket has collapsed to adjacent floating-point
-    // numbers (t == a0 || t == b0 below) -- the magnitude-independent
-    // termination rule. The iteration cap is a pure backstop sized to the worst
-    // theoretical bracket: from a width of O(1) (after the 2^-scaleExp problem
-    // scaling above) down to a root offset that may be subnormal takes at most
-    // (exponent range + digits) halvings, plus digits more to resolve the last
-    // bits, plus slack.
+    // numbers. The backstop covers exponent_range + 2*digits halvings, enough
+    // to shrink a unit-width bracket to a subnormal root offset and resolve it.
     const int digits =
         (std::numeric_limits<RealScalar>::digits > 0) ? static_cast<int>(std::numeric_limits<RealScalar>::digits) : 128;
     const int expRange = (std::numeric_limits<RealScalar>::max_exponent > std::numeric_limits<RealScalar>::min_exponent)
@@ -576,13 +544,11 @@ DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const Vector
     for (Index k = 0; k < m; ++k) lambdaW[sub[static_cast<std::size_t>(k)]] = lam[k];
   }
 
-  // ---- sort all eigenvalues ascending (deflated and secular interleave) ----
   std::vector<Index> order;
   order.reserve(static_cast<std::size_t>(n));
   for (Index i = 0; i < n; ++i) order.push_back(i);
   std::stable_sort(order.begin(), order.end(), [&lambdaW](Index a, Index b) { return lambdaW[a] < lambdaW[b]; });
 
-  // Map working position -> secular subproblem slot (or -1 when deflated).
   std::vector<Index> subSlot(static_cast<std::size_t>(n), -1);
   for (Index a = 0; a < m; ++a) subSlot[static_cast<std::size_t>(sub[static_cast<std::size_t>(a)])] = a;
 
@@ -601,8 +567,6 @@ DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const Vector
     m_eivalues[outCol] = ldexp(ldexp(negated ? -lambdaW[w] : lambdaW[w], scaleHalf1), scaleHalf2);
     if (!computeVectors) continue;
 
-    // Assemble the eigenvector in working coordinates, replay the deflation
-    // rotations in reverse, and undo the sorting permutation.
     VectorType wvec = VectorType::Zero(n);
     const Index slot = subSlot[static_cast<std::size_t>(w)];
     if (slot < 0) {
