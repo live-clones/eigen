@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: The Eigen Authors
 // SPDX-License-Identifier: MPL-2.0
 
-// Benchmarks ordinary and stable vector normalization across representative sizes and scales.
 // The large and small inputs have finite, nonzero mathematical norms, but their squared norms
 // overflow and underflow, respectively, when accumulated without scaling.
 
@@ -77,7 +76,7 @@ void setNormCounters(benchmark::State& state, Index size) {
 
 template <typename Scalar>
 void setNormalizeCounters(benchmark::State& state, Index size) {
-  // Report one logical read and write per coefficient, independent of the implementation's pass count.
+  // Count logical traffic rather than implementation-specific passes.
   state.SetBytesProcessed(state.iterations() * size * static_cast<int64_t>(2 * sizeof(Scalar)));
 }
 

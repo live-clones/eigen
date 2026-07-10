@@ -8,7 +8,6 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-// Enable runtime malloc tracking for the in-place exceptional-scale check.
 #define EIGEN_RUNTIME_NO_MALLOC
 
 #include "main.h"
@@ -554,7 +553,7 @@ void stable_norm_expression_and_stride() {
   runtime_packed.stableNormalize();
   VERIFY_IS_APPROX(runtime_packed.norm(), 1.0);
 
-  // Fixed row vectors and multi-column matrices must retain their total size when flattened to a contiguous map.
+  // Flattening must preserve total size for fixed rows and multi-column matrices.
   typedef Matrix<double, 1, 4> FixedRowVector;
   FixedRowVector fixed_row_storage;
   fixed_row_storage << 1.0, 2.0, 3.0, 4.0;

@@ -18,8 +18,7 @@ namespace Eigen {
 
 namespace internal {
 
-// Half and bfloat16 have too little range and precision for robust norm
-// computations. Keep their public result type, but accumulate in float.
+// Accumulate low-precision norms in float without changing the public result type.
 template <typename RealScalar>
 struct stable_norm_accumulator {
   using type = RealScalar;
@@ -42,9 +41,7 @@ struct stable_normalization_normal_min {
   }
 };
 
-// The custom numeric_limits functions for these storage types are not device
-// functions.  Return the same exact powers of two using device-safe float
-// arithmetic instead.
+// The half and bfloat16 numeric_limits functions are not device functions.
 template <typename Accumulator>
 struct stable_normalization_normal_min<half, Accumulator> {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Accumulator run() { return Accumulator(1) / Accumulator(16384); }
@@ -77,7 +74,7 @@ template <typename VectorType, typename Accumulator,
 struct stable_normalization_dispatch {
   using Scalar = typename traits<VectorType>::Scalar;
   using RealScalar = typename NumTraits<Scalar>::Real;
-  // Arbitrary complex scalars have no guaranteed component-array layout, so their realView() is read-only.
+  // Only complex_array_access scalars have a writable component view.
   using HasWritableRealView = bool_constant<!NumTraits<Scalar>::IsComplex || complex_array_access<Scalar>::value>;
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Accumulator max_abs(const VectorType& vec) {
@@ -123,13 +120,12 @@ struct stable_normalization_dispatch {
   }
 };
 
-// Recover packet traversal for Map/Ref and vector blocks whose compile-time
-// stride is dynamic but whose storage is contiguous at runtime.
+// Runtime-contiguous expressions can still use packet traversal.
 template <typename VectorType, typename Accumulator>
 struct stable_normalization_dispatch<VectorType, Accumulator, true> {
   using Scalar = typename traits<VectorType>::Scalar;
   using RealScalar = typename NumTraits<Scalar>::Real;
-  // Keeping this map runtime-sized avoids over-unrolling some fixed-size normalization paths.
+  // A dynamic map avoids over-unrolling fixed-size normalization paths.
   using PlainVector = Matrix<Scalar, Dynamic, 1>;
   using ConstContiguousMap = Map<const PlainVector, evaluator<VectorType>::Alignment>;
   using ContiguousMap = Map<PlainVector, evaluator<VectorType>::Alignment>;
@@ -178,8 +174,7 @@ struct stable_normalization_dispatch<VectorType, Accumulator, true> {
   }
 };
 
-// Keeping exceptional scaling passes out of line prevents fast-math from
-// reassociating their individually normal factors into one subnormal factor.
+// Prevent fast-math from merging normal scale factors into a subnormal factor.
 template <typename VectorType, typename Accumulator>
 EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void stable_normalization_scale_in_place(VectorType& vec,
                                                                              const Accumulator& factor) {
@@ -341,17 +336,14 @@ MatrixBase<Derived>::stableNormalized() const {
   Nested_ n(derived());
   if (EIGEN_PREDICT_FALSE(n.size() == 0)) return n;
 
-  // Inspect real and imaginary components separately.  Besides avoiding a
-  // hypot for every complex coefficient, this keeps the scale finite when a
-  // finite complex coefficient has an overflowing absolute value.
+  // Component-wise scaling stays finite when a finite complex value has an
+  // overflowing magnitude, and avoids a hypot per coefficient.
   const Accumulator w = Dispatch::max_abs(n);
   const Accumulator highest = static_cast<Accumulator>(NumTraits<RealScalar>::highest());
   if (EIGEN_PREDICT_FALSE(!(w > Accumulator(0)) || !(w <= highest))) return n;
 
   if (EIGEN_PREDICT_TRUE((internal::stable_normalization_use_reciprocal<RealScalar, Accumulator>::run(w)))) {
-    // On this range both w and its reciprocal are normal.  Multiplication by
-    // the reciprocal is faster than division and cannot overflow or flush the
-    // largest component to zero.
+    // Here w and its reciprocal are normal, so multiplication is safe.
     const Accumulator inv_w = Accumulator(1) / w;
     const Accumulator z = Dispatch::scaled_squared_norm(n, inv_w);
     if (z > Accumulator(0)) {
@@ -372,9 +364,8 @@ MatrixBase<Derived>::stableNormalized() const {
     return n;
   }
 
-  // A reciprocal of an exceptional scale can overflow or become subnormal.
-  // Split the scaling into two explicitly materialized divisions by normal
-  // values so fast-math cannot turn it back into multiplication by 1 / w.
+  // Two normal divisors avoid an exceptional reciprocal and fast-math
+  // reassociation into multiplication by 1 / w.
   const Accumulator sqrt_w = numext::sqrt(w);
   const RealScalar scale1 = static_cast<RealScalar>(sqrt_w);
   const RealScalar scale2 = static_cast<RealScalar>(w / sqrt_w);

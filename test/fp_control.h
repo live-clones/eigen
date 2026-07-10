@@ -45,17 +45,12 @@
 
 namespace Eigen {
 
-// Temporarily enables the architecture's flush-to-zero mode. C++14 has no
-// standard FTZ control, so <cfenv> preserves the standard floating-point
-// environment while the implementation-specific control state below handles
-// FTZ itself.
+// C++14 has no standard FTZ control. <cfenv> preserves the standard state;
+// architecture-specific registers preserve and control FTZ.
 //
-// PowerPC has multiple implementation-dependent non-IEEE modes rather than a
-// portable FTZ mode. ZVector, LSX, and RVV provide gradual underflow without a
-// runtime FTZ control. Hexagon/HVX uses fixed QFloat subnormal semantics rather
-// than a runtime FTZ mode (Qualcomm Hexagon V68 HVX Programmer's Reference
-// Manual, QFloat). CUDA, HIP, and SYCL device modes are selected by their
-// compiler and are intentionally not changed by this host-side test utility.
+// PowerPC has no portable FTZ mode; ZVector, LSX, and RVV have no runtime FTZ
+// control; Hexagon/HVX has fixed QFloat subnormal semantics (Qualcomm Hexagon
+// V68 HVX Programmer's Reference Manual). Device compiler modes are unchanged.
 // Control-bit definitions follow the Intel 64 and IA-32 Architectures
 // Software Developer's Manual (MXCSR), the Arm Architecture Reference Manual
 // (FPSCR/FPCR FZ and FZ16), and MIPS Architecture for Programmers Volumes I

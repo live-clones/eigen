@@ -27,15 +27,12 @@ template <typename Accumulator>
 struct stable_norm_unscaled_predicate<Accumulator, true> {
   static inline bool run(const Accumulator& maxCoeff, const Accumulator& invScale) {
     using std::sqrt;
-    // A kernel contains at most 4096 scalars, or 8192 real components for a
-    // complex scalar.  The factor of two keeps both bounds conservative after
-    // rounding.  At the lower bound, even flushing every subnormal component
-    // square changes the block norm by less than one epsilon.
+    // A block has at most 8192 real components. These bounds keep the error
+    // from flushed component squares below one epsilon.
     static const Accumulator kSqrtMin =
         sqrt((numext::numeric_limits<Accumulator>::min)() * (Accumulator(16384) / NumTraits<Accumulator>::epsilon()));
     static const Accumulator kSqrtMax = sqrt(NumTraits<Accumulator>::highest() / Accumulator(16384));
-    // Avoid forming a subnormal invScale^2.  In particular, this preserves the
-    // fast-math-safe scaled calculation when an earlier block set a huge scale.
+    // A normal invScale avoids fast-math flushing invScale^2.
     static const Accumulator kSqrtNormalMin = sqrt((numext::numeric_limits<Accumulator>::min)());
     return maxCoeff >= kSqrtMin && maxCoeff <= kSqrtMax && invScale >= kSqrtNormalMin;
   }
@@ -53,8 +50,7 @@ inline Accumulator stable_norm_squared_norm(const ExpressionType& block, const A
 template <typename ExpressionType, typename Accumulator>
 inline void stable_norm_kernel(const ExpressionType& block, Accumulator& ssq, Accumulator& scale,
                                Accumulator& invScale) {
-  // Looking at the real components avoids a hypot per complex coefficient and
-  // still supplies exactly the scale needed by the sum of component squares.
+  // Component-wise maxima give the required scale without complex hypot calls.
   Accumulator maxCoeff = block.realView().template cast<Accumulator>().cwiseAbs().template maxCoeff<PropagateNaN>();
 
   if (maxCoeff > scale) {
@@ -338,8 +334,7 @@ template <typename Derived>
 inline typename NumTraits<typename internal::traits<Derived>::Scalar>::Real MatrixBase<Derived>::hypotNorm() const {
   typedef typename internal::stable_norm_accumulator<RealScalar>::type Accumulator;
   if (size() == 0) return RealScalar(0);
-  // Reducing real components avoids prematurely rounding complex magnitudes
-  // and lets half and bfloat16 accumulate in float without changing the API.
+  // Component reduction avoids rounded complex magnitudes and permits promoted accumulation.
   return RealScalar(
       derived().realView().template cast<Accumulator>().cwiseAbs().redux(internal::scalar_hypot_op<Accumulator>()));
 }
