@@ -49,9 +49,10 @@ namespace Eigen {
  * \c conjugate(), \c adjoint() return operators of the same kind, reusing the
  * cached symbol), which in particular feeds the least-squares solvers \c LSMR
  * and \c LeastSquaresConjugateGradient (again with \c IdentityPreconditioner).
- * \c Circulant additionally exposes its closed-form eigendecomposition and SVD
- * in the Fourier basis, a pseudo-inverse (minimum-norm least-squares) solve,
- * \c rank(), \c inverse() and \c determinant().
+ * \c Circulant and \c Bccb additionally expose their closed-form
+ * eigendecomposition and SVD in the Fourier basis, a pseudo-inverse
+ * (minimum-norm least-squares) solve, \c rank(), \c inverse() and
+ * \c determinant().
  *
  * \code
  * #include <unsupported/Eigen/StructuredMatrices>
