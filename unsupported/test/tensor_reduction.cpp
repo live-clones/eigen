@@ -113,6 +113,9 @@ static void test_scalar_reduction_mixed_operators() {
   Tensor<Scalar, 2, DataLayout> tensor(3, 4);
   tensor.setConstant(Scalar(2));  // sum() == 24
 
+  // The scalar-left overloads must not enter ADL for unrelated arithmetic on Eigen's unscoped NumTraits enums.
+  static_assert(NumTraits<Scalar>::MulCost + 1 > 0, "NumTraits enum arithmetic should not be ambiguous");
+
   static_assert(!std::is_same<decltype(tensor.sum() > 0), bool>::value,
                 "scalar comparisons on a full reduction should stay lazy expressions");
   static_assert(!std::is_arithmetic<decltype(2 * tensor.sum())>::value,

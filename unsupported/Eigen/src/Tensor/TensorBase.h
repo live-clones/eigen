@@ -19,14 +19,15 @@
 namespace Eigen {
 
 namespace internal {
-// The scalar argument types accepted by the deduced-scalar operator overloads of TensorBase below: arithmetic types
-// and unscoped enums that the plain-Scalar overloads would also accept, i.e. that implicitly convert to Scalar. The
-// convertibility requirement keeps out argument types that only convert explicitly (e.g. float arguments when Scalar
-// is Eigen::half), for which the operators have never been available.
+// The scalar argument types accepted by the deduced-scalar operator overloads of TensorBase below: Scalar itself, plus
+// arithmetic types and unscoped enums that implicitly convert to Scalar. The convertibility requirement keeps out
+// mixed argument types that only convert explicitly (e.g. float arguments when Scalar is Eigen::half), for which the
+// operators have never been available.
 template <typename OtherScalar, typename Scalar>
 struct is_scalar_operand
-    : bool_constant<(std::is_arithmetic<OtherScalar>::value || std::is_enum<OtherScalar>::value) &&
-                    std::is_convertible<OtherScalar, Scalar>::value> {};
+    : bool_constant<std::is_same<OtherScalar, Scalar>::value ||
+                    ((std::is_arithmetic<OtherScalar>::value || std::is_enum<OtherScalar>::value) &&
+                     std::is_convertible<OtherScalar, Scalar>::value)> {};
 }  // namespace internal
 
 /** \class TensorBase
@@ -371,24 +372,10 @@ class TensorBase<Derived, ReadOnlyAccessors>
     }
 
     EIGEN_DEVICE_FUNC
-    EIGEN_STRONG_INLINE friend
-    const TensorCwiseUnaryOp<internal::bind1st_op<internal::scalar_sum_op<Scalar> >, const Derived>
-    operator+ (Scalar lhs, const Derived& rhs) {
-      return rhs.unaryExpr(internal::bind1st_op<internal::scalar_sum_op<Scalar> >(lhs));
-    }
-
-    EIGEN_DEVICE_FUNC
     EIGEN_STRONG_INLINE const TensorCwiseUnaryOp<internal::bind2nd_op<internal::scalar_difference_op<Scalar,Scalar> >, const Derived>
     operator- (Scalar rhs) const {
       EIGEN_STATIC_ASSERT((NumTraits<Scalar>::IsSigned || std::is_same<Scalar, const std::complex<float> >::value), YOU_MADE_A_PROGRAMMING_MISTAKE);
       return unaryExpr(internal::bind2nd_op<internal::scalar_difference_op<Scalar,Scalar> >(rhs));
-    }
-
-    EIGEN_DEVICE_FUNC
-    EIGEN_STRONG_INLINE friend
-    const TensorCwiseUnaryOp<internal::bind1st_op<internal::scalar_difference_op<Scalar> >, const Derived>
-    operator- (Scalar lhs, const Derived& rhs) {
-      return rhs.unaryExpr(internal::bind1st_op<internal::scalar_difference_op<Scalar> >(lhs));
     }
 
     EIGEN_DEVICE_FUNC
@@ -398,23 +385,9 @@ class TensorBase<Derived, ReadOnlyAccessors>
     }
 
     EIGEN_DEVICE_FUNC
-    EIGEN_STRONG_INLINE friend
-    const TensorCwiseUnaryOp<internal::bind1st_op<internal::scalar_product_op<Scalar> >, const Derived>
-    operator* (Scalar lhs, const Derived& rhs) {
-      return rhs.unaryExpr(internal::bind1st_op<internal::scalar_product_op<Scalar> >(lhs));
-    }
-
-    EIGEN_DEVICE_FUNC
     EIGEN_STRONG_INLINE const TensorCwiseUnaryOp<internal::bind2nd_op<internal::scalar_quotient_op<Scalar,Scalar> >, const Derived>
     operator/ (Scalar rhs) const {
       return unaryExpr(internal::bind2nd_op<internal::scalar_quotient_op<Scalar,Scalar> >(rhs));
-    }
-
-    EIGEN_DEVICE_FUNC
-    EIGEN_STRONG_INLINE friend
-    const TensorCwiseUnaryOp<internal::bind1st_op<internal::scalar_quotient_op<Scalar> >, const Derived>
-    operator/ (Scalar lhs, const Derived& rhs) {
-      return rhs.unaryExpr(internal::bind1st_op<internal::scalar_quotient_op<Scalar> >(lhs));
     }
 
     EIGEN_DEVICE_FUNC
@@ -423,28 +396,6 @@ class TensorBase<Derived, ReadOnlyAccessors>
       EIGEN_STATIC_ASSERT(NumTraits<Scalar>::IsInteger, YOU_MADE_A_PROGRAMMING_MISTAKE_TRY_MOD);
       return unaryExpr(internal::scalar_mod_op<Scalar>(rhs));
     }
-
-    // Deduced-scalar overloads of the scalar operators above. For an argument of a type other than Scalar they are
-    // an exact match where the Scalar overloads would require a conversion, so that mixed-scalar-type expressions
-    // involving a rank-0 reduction -- which is implicitly convertible to Scalar -- keep resolving to the lazy
-    // coefficient-wise expressions instead of becoming ambiguous with the C++ built-in operators. When the argument
-    // is exactly Scalar these templates tie with the non-template overloads above and lose the standard
-    // template/non-template tie-break, so exact-type expressions resolve to the non-template overloads unchanged.
-    // The non-template overloads are also the only candidates for scalar types that internal::is_scalar_operand
-    // rejects (e.g. std::complex or Eigen::half arguments) and the delegation targets of the bodies below, so they
-    // must stay even though they look shadowed for arithmetic Scalar.
-#define EIGEN_FORWARD_SCALAR_BINOP(op, name)                                                                          \
-  template <typename OtherScalar, EIGEN_SFINAE_ENABLE_IF((internal::is_scalar_operand<OtherScalar, Scalar>::value))>  \
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE friend const TensorCwiseUnaryOp<                                              \
-      internal::bind1st_op<internal::scalar_##name##_op<Scalar> >, const Derived>                                     \
-  op(OtherScalar lhs, const Derived& rhs) {                                                                           \
-    return rhs.unaryExpr(internal::bind1st_op<internal::scalar_##name##_op<Scalar> >(static_cast<Scalar>(lhs)));      \
-  }
-    EIGEN_FORWARD_SCALAR_BINOP(operator+, sum)
-    EIGEN_FORWARD_SCALAR_BINOP(operator-, difference)
-    EIGEN_FORWARD_SCALAR_BINOP(operator*, product)
-    EIGEN_FORWARD_SCALAR_BINOP(operator/, quotient)
-#undef EIGEN_FORWARD_SCALAR_BINOP
 
     template <typename OtherScalar, EIGEN_SFINAE_ENABLE_IF((internal::is_scalar_operand<OtherScalar, Scalar>::value))>
     EIGEN_DEVICE_FUNC
@@ -1298,6 +1249,28 @@ class TensorBase : public TensorBase<Derived, ReadOnlyAccessors> {
     }
 };
 #endif // EIGEN_PARSED_BY_DOXYGEN
+
+// Deduced-scalar overloads for scalar-on-the-left Tensor expressions. Defining each operator once at namespace scope
+// avoids injecting one hidden friend per TensorBase instantiation. In particular, the latter pollutes
+// argument-dependent lookup for Eigen's unscoped NumTraits enums and makes ordinary enum arithmetic ambiguous in MSVC
+// 14.29.
+#define EIGEN_FORWARD_SCALAR_BINOP(op, name)                                                                           \
+  template <typename OtherScalar, typename Derived,                                                                   \
+            EIGEN_SFINAE_ENABLE_IF((internal::is_scalar_operand<                                                       \
+                                    OtherScalar, typename internal::traits<Derived>::Scalar>::value))>                 \
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const TensorCwiseUnaryOp<                                                       \
+      internal::bind1st_op<internal::scalar_##name##_op<typename internal::traits<Derived>::Scalar> >, const Derived>  \
+  op(OtherScalar lhs, const TensorBase<Derived, ReadOnlyAccessors>& rhs) {                                              \
+    typedef typename internal::traits<Derived>::Scalar Scalar;                                                         \
+    return rhs.derived().unaryExpr(                                                                                    \
+        internal::bind1st_op<internal::scalar_##name##_op<Scalar> >(static_cast<Scalar>(lhs)));                        \
+  }
+EIGEN_FORWARD_SCALAR_BINOP(operator+, sum)
+EIGEN_FORWARD_SCALAR_BINOP(operator-, difference)
+EIGEN_FORWARD_SCALAR_BINOP(operator*, product)
+EIGEN_FORWARD_SCALAR_BINOP(operator/, quotient)
+#undef EIGEN_FORWARD_SCALAR_BINOP
+
 } // end namespace Eigen
 
 #endif // EIGEN_TENSOR_TENSOR_BASE_H
