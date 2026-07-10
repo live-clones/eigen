@@ -76,9 +76,10 @@ struct traits<BjorckPereyra<Scalar_>> : traits<Matrix<Scalar_, Dynamic, Dynamic>
  * \brief An \c m x \c n Vandermonde matrix represented by its node vector.
  *
  * A Vandermonde matrix has entry \c (i,j) equal to \f$ x_i^j \f$, where \c x is
- * the node vector: row \c i holds the powers \c 0..n-1 of node \c x_i, so
- * \c V*a evaluates the polynomial with (ascending) coefficients \c a at every
- * node. The class stores only the \c m nodes; products are evaluated by Horner's
+ * the node vector. Thus
+ * \f[ (Va)_i = \sum_{j=0}^{n-1} a_j x_i^j, \qquad
+ *     p_{n-1}=a_{n-1},\quad p_j=a_j+x_i p_{j+1}. \f]
+ * The class stores only the \c m nodes; products evaluate this Horner recurrence
  * rule at O(mn) operations -- the same cost as a dense product, but with O(m)
  * storage and without ever forming the matrix.
  *
@@ -272,9 +273,7 @@ class Vandermonde : public EigenBase<Vandermonde<Scalar_, Rows_, Cols_>> {
       const bool colFinite = internal::structured_exponent_bound_finite(rhs.col(k), colExp);
       for (Index i = 0; i < m; ++i) {
         const Scalar xi = m_x.coeff(i);
-        // Every Horner intermediate at node xi is below
-        // 2^(colExp + log2n + (n-1)*max(xiExp, 0) + 1): the coefficient scale,
-        // the sum length, and up to n-1 powers of the node.
+        // |p_j| < 2^(colExp+log2n+(n-1) max(xiExp,0)+1).
         const bool plain = !colFinite || !(numext::isfinite)(xi) ||
                            Index(colExp) + Index(log2n) + (n - 1) * Index(numext::maxi(exponentBound(xi), 0)) + 2 <=
                                Index(std::numeric_limits<RealScalar>::max_exponent);
@@ -538,8 +537,6 @@ class BjorckPereyra : public SolverBase<BjorckPereyra<Scalar_>> {
 
 namespace internal {
 
-// Single product specialization covering every product tag; see the note in
-// Circulant.h.
 template <typename Scalar_, int Rows_, int Cols_, typename Rhs, int ProductTag>
 struct generic_product_impl<Vandermonde<Scalar_, Rows_, Cols_>, Rhs, StructuredShape, DenseShape, ProductTag>
     : structured_product_impl<Vandermonde<Scalar_, Rows_, Cols_>, Rhs> {};
