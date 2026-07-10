@@ -554,7 +554,37 @@ void stable_norm_expression_and_stride() {
   runtime_packed.stableNormalize();
   VERIFY_IS_APPROX(runtime_packed.norm(), 1.0);
 
+  // Fixed row vectors and multi-column matrices must retain their total size when flattened to a contiguous map.
+  typedef Matrix<double, 1, 4> FixedRowVector;
+  FixedRowVector fixed_row_storage;
+  fixed_row_storage << 1.0, 2.0, 3.0, 4.0;
+  Map<FixedRowVector, Unaligned, VectorStride> fixed_row(fixed_row_storage.data(), VectorStride(1));
+  const double fixed_row_norm = std::sqrt(30.0);
+  const FixedRowVector expected_fixed_row = fixed_row_storage / fixed_row_norm;
+  VERIFY_IS_APPROX(fixed_row.stableNorm(), fixed_row_norm);
+  const FixedRowVector fixed_row_normalized = fixed_row.stableNormalized();
+  VERIFY_IS_APPROX(fixed_row_normalized, expected_fixed_row);
+  VERIFY_IS_APPROX(fixed_row_normalized.norm(), 1.0);
+  fixed_row.stableNormalize();
+  VERIFY_IS_APPROX(fixed_row, expected_fixed_row);
+  VERIFY_IS_APPROX(fixed_row.norm(), 1.0);
+
   typedef Stride<Dynamic, Dynamic> MatrixStride;
+  typedef Matrix<double, 2, 3> FixedMatrix;
+  FixedMatrix fixed_matrix_storage;
+  fixed_matrix_storage << 1.0, 2.0, 3.0, 4.0, 5.0, 6.0;
+  Map<FixedMatrix, Unaligned, MatrixStride> fixed_matrix(fixed_matrix_storage.data(),
+                                                         MatrixStride(FixedMatrix::RowsAtCompileTime, 1));
+  const double fixed_matrix_norm = std::sqrt(91.0);
+  const FixedMatrix expected_fixed_matrix = fixed_matrix_storage / fixed_matrix_norm;
+  VERIFY_IS_APPROX(fixed_matrix.stableNorm(), fixed_matrix_norm);
+  const FixedMatrix fixed_matrix_normalized = fixed_matrix.stableNormalized();
+  VERIFY_IS_APPROX(fixed_matrix_normalized, expected_fixed_matrix);
+  VERIFY_IS_APPROX(fixed_matrix_normalized.norm(), 1.0);
+  fixed_matrix.stableNormalize();
+  VERIFY_IS_APPROX(fixed_matrix, expected_fixed_matrix);
+  VERIFY_IS_APPROX(fixed_matrix.norm(), 1.0);
+
   const double padding_value = 42.0;
   VectorXd matrix_storage = VectorXd::Constant(20, padding_value);
   Map<Matrix<double, Dynamic, Dynamic>, Unaligned, MatrixStride> gapped_matrix(matrix_storage.data(), 3, 4,

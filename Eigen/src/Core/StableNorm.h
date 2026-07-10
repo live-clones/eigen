@@ -108,9 +108,9 @@ template <typename VectorType, typename Accumulator>
 struct stable_norm_vector_dispatch<VectorType, Accumulator, true> {
   static inline void run(const VectorType& vec, Accumulator& ssq, Accumulator& scale, Accumulator& invScale) {
     if (vec.innerStride() == 1) {
-      typedef typename traits<VectorType>::Scalar Scalar;
-      typedef Matrix<Scalar, Dynamic, 1> PlainVector;
-      typedef Map<const PlainVector, evaluator<VectorType>::Alignment> ContiguousMap;
+      using Scalar = typename traits<VectorType>::Scalar;
+      using PlainVector = Matrix<Scalar, VectorType::SizeAtCompileTime, 1, 0, VectorType::MaxSizeAtCompileTime, 1>;
+      using ContiguousMap = Map<const PlainVector, evaluator<VectorType>::Alignment>;
       const ContiguousMap contiguous(vec.data(), vec.size());
       stable_norm_impl_inner_step(contiguous, ssq, scale, invScale);
       return;
@@ -144,9 +144,9 @@ template <typename MatrixType, typename Accumulator>
 struct stable_norm_matrix_dispatch<MatrixType, Accumulator, true> {
   static inline void run(const MatrixType& mat, Accumulator& ssq, Accumulator& scale, Accumulator& invScale) {
     if (mat.innerStride() == 1 && (mat.outerSize() == 1 || mat.outerStride() == mat.innerSize())) {
-      typedef typename traits<MatrixType>::Scalar Scalar;
-      typedef Matrix<Scalar, Dynamic, 1> PlainVector;
-      typedef Map<const PlainVector, evaluator<MatrixType>::Alignment> ContiguousMap;
+      using Scalar = typename traits<MatrixType>::Scalar;
+      using PlainVector = Matrix<Scalar, MatrixType::SizeAtCompileTime, 1, 0, MatrixType::MaxSizeAtCompileTime, 1>;
+      using ContiguousMap = Map<const PlainVector, evaluator<MatrixType>::Alignment>;
       const ContiguousMap contiguous(mat.data(), mat.size());
       stable_norm_impl_inner_step(contiguous, ssq, scale, invScale);
       return;

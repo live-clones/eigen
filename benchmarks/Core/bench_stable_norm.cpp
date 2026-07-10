@@ -117,6 +117,41 @@ static void BM_StableNorm(benchmark::State& state) {
   setNormCounters<Scalar>(state, size);
 }
 
+template <typename Plain>
+Plain makeFixedInput(Index seed) {
+  typedef typename Plain::Scalar Scalar;
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  const RealScalar magnitude = RealScalar(0.25) + RealScalar(seed % 17) / RealScalar(64);
+  Plain input;
+  for (Index i = 0; i < input.size(); ++i) input.data()[i] = coefficient_maker<Scalar>::run(magnitude, i + seed);
+  return input;
+}
+
+template <typename Plain>
+static void BM_FixedMapStableNorm(benchmark::State& state) {
+  typedef typename Plain::Scalar Scalar;
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  typedef Stride<Dynamic, Dynamic> DynamicStride;
+  typedef Map<const Plain, Unaligned, DynamicStride> MapType;
+
+  const Index input_count = 256;
+  std::vector<Plain, aligned_allocator<Plain>> inputs(static_cast<std::size_t>(input_count));
+  for (Index i = 0; i < input_count; ++i) inputs[static_cast<std::size_t>(i)] = makeFixedInput<Plain>(i);
+  benchmark::DoNotOptimize(inputs.data());
+  benchmark::ClobberMemory();
+
+  Index index = 0;
+  for (auto _ : state) {
+    const Plain& storage = inputs[static_cast<std::size_t>(index)];
+    const DynamicStride stride(storage.outerStride(), storage.innerStride());
+    const MapType input(storage.data(), storage.rows(), storage.cols(), stride);
+    RealScalar result = input.stableNorm();
+    benchmark::DoNotOptimize(result);
+    index = (index + 1) & (input_count - 1);
+  }
+  setNormCounters<Scalar>(state, Plain::SizeAtCompileTime);
+}
+
 template <typename Scalar>
 static void BM_BlueNorm(benchmark::State& state) {
   typedef typename NumTraits<Scalar>::Real RealScalar;
@@ -191,8 +226,22 @@ static void BM_StableNormalize(benchmark::State& state) {
   setNormalizeCounters<Scalar>(state, size);
 }
 
+typedef Matrix<float, 1, 16> FixedRow16f;
+typedef Matrix<float, 16, 1> FixedCol16f;
+typedef Matrix<float, 4, 4> FixedMatrix4f;
+typedef Matrix<double, 1, 8> FixedRow8d;
+typedef Matrix<double, 8, 1> FixedCol8d;
+typedef Matrix<double, 3, 3> FixedMatrix3d;
+typedef Matrix<std::complex<float>, 1, 8> FixedRow8cf;
+typedef Matrix<std::complex<float>, 8, 1> FixedCol8cf;
+typedef Matrix<std::complex<float>, 2, 4> FixedMatrix4cf;
+typedef Matrix<std::complex<double>, 1, 4> FixedRow4cd;
+typedef Matrix<std::complex<double>, 4, 1> FixedCol4cd;
+typedef Matrix<std::complex<double>, 2, 2> FixedMatrix4cd;
+
 // clang-format off
 #define NORM_ARGS ->ArgsProduct({{64, 4096, 65536}, {kOrdinary, kLarge, kSmall}})->ArgNames({"size", "scale"})
+#define FIXED_MAP_STABLE_NORM(Type, Label) BENCHMARK(BM_FixedMapStableNorm<Type>)->Name("FixedMapStableNorm_" #Label)
 BENCHMARK(BM_Norm<float>) NORM_ARGS ->Name("Norm_float");
 BENCHMARK(BM_Norm<double>) NORM_ARGS ->Name("Norm_double");
 BENCHMARK(BM_Norm<half>) NORM_ARGS ->Name("Norm_half");
@@ -205,6 +254,18 @@ BENCHMARK(BM_StableNorm<half>) NORM_ARGS ->Name("StableNorm_half");
 BENCHMARK(BM_StableNorm<bfloat16>) NORM_ARGS ->Name("StableNorm_bfloat16");
 BENCHMARK(BM_StableNorm<std::complex<float>>) NORM_ARGS ->Name("StableNorm_cfloat");
 BENCHMARK(BM_StableNorm<std::complex<double>>) NORM_ARGS ->Name("StableNorm_cdouble");
+FIXED_MAP_STABLE_NORM(FixedRow16f, row16f);
+FIXED_MAP_STABLE_NORM(FixedCol16f, col16f);
+FIXED_MAP_STABLE_NORM(FixedMatrix4f, matrix4f);
+FIXED_MAP_STABLE_NORM(FixedRow8d, row8d);
+FIXED_MAP_STABLE_NORM(FixedCol8d, col8d);
+FIXED_MAP_STABLE_NORM(FixedMatrix3d, matrix3d);
+FIXED_MAP_STABLE_NORM(FixedRow8cf, row8cf);
+FIXED_MAP_STABLE_NORM(FixedCol8cf, col8cf);
+FIXED_MAP_STABLE_NORM(FixedMatrix4cf, matrix4cf);
+FIXED_MAP_STABLE_NORM(FixedRow4cd, row4cd);
+FIXED_MAP_STABLE_NORM(FixedCol4cd, col4cd);
+FIXED_MAP_STABLE_NORM(FixedMatrix4cd, matrix4cd);
 BENCHMARK(BM_BlueNorm<float>) NORM_ARGS ->Name("BlueNorm_float");
 BENCHMARK(BM_BlueNorm<double>) NORM_ARGS ->Name("BlueNorm_double");
 BENCHMARK(BM_BlueNorm<half>) NORM_ARGS ->Name("BlueNorm_half");
@@ -230,6 +291,7 @@ BENCHMARK(BM_StableNormalize<bfloat16>) NORM_ARGS ->Name("StableNormalize_bfloat
 BENCHMARK(BM_StableNormalize<std::complex<float>>) NORM_ARGS ->Name("StableNormalize_cfloat");
 BENCHMARK(BM_StableNormalize<std::complex<double>>) NORM_ARGS ->Name("StableNormalize_cdouble");
 #undef NORM_ARGS
+#undef FIXED_MAP_STABLE_NORM
 // clang-format on
 
 }  // namespace
