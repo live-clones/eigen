@@ -333,19 +333,19 @@ MatrixBase<Derived>::stableNormalized() const {
   using NestedClean = internal::remove_all_t<Nested_>;
   using Accumulator = typename internal::stable_norm_accumulator<RealScalar>::type;
   using Dispatch = internal::stable_normalization_dispatch<NestedClean, Accumulator>;
-  Nested_ n(derived());
-  if (EIGEN_PREDICT_FALSE(n.size() == 0)) return n;
+  Nested_ vec(derived());
+  if (EIGEN_PREDICT_FALSE(vec.size() == 0)) return vec;
 
   // Component-wise scaling stays finite when a finite complex value has an
   // overflowing magnitude, and avoids a hypot per coefficient.
-  const Accumulator w = Dispatch::max_abs(n);
+  const Accumulator w = Dispatch::max_abs(vec);
   const Accumulator highest = static_cast<Accumulator>(NumTraits<RealScalar>::highest());
-  if (EIGEN_PREDICT_FALSE(!(w > Accumulator(0)) || !(w <= highest))) return n;
+  if (EIGEN_PREDICT_FALSE(!(w > Accumulator(0)) || !(w <= highest))) return vec;
 
   if (EIGEN_PREDICT_TRUE((internal::stable_normalization_use_reciprocal<RealScalar, Accumulator>::run(w)))) {
     // Here w and its reciprocal are normal, so multiplication is safe.
     const Accumulator inv_w = Accumulator(1) / w;
-    const Accumulator z = Dispatch::scaled_squared_norm(n, inv_w);
+    const Accumulator z = Dispatch::scaled_squared_norm(vec, inv_w);
     if (z > Accumulator(0)) {
       const Accumulator sqrt_z = numext::sqrt(z);
       const Accumulator factor = inv_w / sqrt_z;
@@ -353,15 +353,15 @@ MatrixBase<Derived>::stableNormalized() const {
       const Accumulator accumulator_normal_min =
           internal::stable_normalization_normal_min<Accumulator, Accumulator>::run();
       if (EIGEN_PREDICT_TRUE(factor >= accumulator_normal_min)) {
-        Dispatch::assign_scaled(normalized, n, factor);
+        Dispatch::assign_scaled(normalized, vec, factor);
       } else {
         // inv_w and sqrt_z are normal even though their quotient is not.
-        Dispatch::assign_scaled(normalized, n, inv_w);
+        Dispatch::assign_scaled(normalized, vec, inv_w);
         internal::stable_normalization_divide_in_place(normalized, static_cast<RealScalar>(sqrt_z));
       }
       return normalized;
     }
-    return n;
+    return vec;
   }
 
   // Two normal divisors avoid an exceptional reciprocal and fast-math
@@ -369,7 +369,7 @@ MatrixBase<Derived>::stableNormalized() const {
   const Accumulator sqrt_w = numext::sqrt(w);
   const RealScalar scale1 = static_cast<RealScalar>(sqrt_w);
   const RealScalar scale2 = static_cast<RealScalar>(w / sqrt_w);
-  PlainObject normalized = n;
+  PlainObject normalized = vec;
   internal::stable_normalization_divide_in_place(normalized, scale1);
   internal::stable_normalization_divide_in_place(normalized, scale2);
   const Accumulator z = normalized.realView().template cast<Accumulator>().squaredNorm();
