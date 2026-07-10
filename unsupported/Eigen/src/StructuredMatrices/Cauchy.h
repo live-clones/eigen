@@ -409,25 +409,27 @@ class CauchyLU : public SolverBase<CauchyLU<Scalar_>> {
   }
 
   /** Factorizes the square Cauchy matrix \a C as \c P*C = L*U by the GKO
-   * recursion with partial pivoting. \sa solve */
+   * recursion with partial pivoting. The Schur complement retains the form
+   * \f[ S_{ij}=\frac{a_i b_j}{x_i-y_j}, \qquad
+   * a_i\leftarrow a_i\frac{x_i-x_k}{x_i-y_k},\quad
+   * b_j\leftarrow b_j\frac{y_j-y_k}{y_j-x_k}. \f]
+   * This follows from the rank-one displacement
+   * \f$D_x C-C D_y=\mathbf{1}\mathbf{1}^T\f$. \sa solve */
   template <int Rows_, int Cols_>
   CauchyLU& compute(const Cauchy<Scalar, Rows_, Cols_>& C) {
     eigen_assert(C.rows() == C.cols() && "CauchyLU requires a square Cauchy matrix");
     const Index n = C.rows();
-    DenseVector x = C.rowNodes();  // row nodes, permuted in place by pivoting
+    DenseVector x = C.rowNodes();
     const DenseVector y = C.colNodes();
-    DenseVector a = DenseVector::Ones(n);  // displacement generators of the
-    DenseVector b = DenseVector::Ones(n);  // running Schur complement
+    DenseVector a = DenseVector::Ones(n);
+    DenseVector b = DenseVector::Ones(n);
     m_lu.resize(n, n);
     m_perm.resize(static_cast<std::size_t>(n));
     m_info = Success;
 
     for (Index k = 0; k < n; ++k) {
-      // Column k of the current Schur complement, generated from O(n) data. The
-      // node differences enter through the same guarded reciprocal and ratio as
-      // every other coefficient evaluation, so boundary nodes (whose plain
-      // differences overflow) produce the true subnormal coefficients instead of
-      // spurious zero pivots or NaN generators.
+      // Guarded differences preserve subnormal Schur-complement entries at the
+      // exponent boundary instead of creating zero pivots or NaN generators.
       Index piv = k;
       RealScalar best(-1);
       for (Index i = k; i < n; ++i) {
@@ -446,14 +448,11 @@ class CauchyLU : public SolverBase<CauchyLU<Scalar_>> {
       m_perm[static_cast<std::size_t>(k)] = piv;
       const Scalar pivot = m_lu(k, k);
       if (pivot == Scalar(0)) {
-        // Exactly singular: the remaining Schur complement column is zero.
         m_info = NumericalIssue;
         m_lu.row(k).tail(n - k - 1).setZero();
         m_lu.col(k).tail(n - k - 1).setZero();
         continue;
       }
-      // L column (unit diagonal implicit), U row, and generator updates that
-      // keep the Schur complement Cauchy-like.
       for (Index i = k + 1; i < n; ++i) m_lu(i, k) /= pivot;
       for (Index j = k + 1; j < n; ++j) m_lu(k, j) = a[k] * b[j] * internal::cauchy_reciprocal_diff(x[k], y[j]);
       for (Index i = k + 1; i < n; ++i) a[i] *= internal::cauchy_diff_ratio(x[i], x[k], y[k]);
