@@ -669,7 +669,7 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
    * column (length n2), then every row (length n1). Length-1 transforms are the
    * identity (and unsupported by the kissfft backend), hence the guards. */
   void fft2(ComplexArray& X) const {
-    FFT<RealScalar>& fft = internal::structured_fft_engine<RealScalar>();
+    auto&& fft = internal::structured_fft_engine<RealScalar>();
     const Index n2 = X.rows(), n1 = X.cols();
     if (n2 > 1) {
       ComplexVector tmp(n2);
@@ -691,7 +691,7 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
 
   /** \internal In-place 2-D inverse FFT, see fft2(). */
   void ifft2(ComplexArray& X) const {
-    FFT<RealScalar>& fft = internal::structured_fft_engine<RealScalar>();
+    auto&& fft = internal::structured_fft_engine<RealScalar>();
     const Index n2 = X.rows(), n1 = X.cols();
     if (n2 > 1) {
       ComplexVector tmp(n2);
