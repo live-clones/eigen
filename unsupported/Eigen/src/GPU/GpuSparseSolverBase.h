@@ -54,13 +54,13 @@ class SparseSolverBase {
   using DenseVector = Matrix<Scalar, Dynamic, 1>;
   using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
 
-  SparseSolverBase() { init_context(/*borrowed_stream=*/nullptr); }
+  SparseSolverBase() { init_context(/*stream=*/nullptr, /*borrow_stream=*/false); }
 
   /** Borrow \p ctx's stream: solver work runs on the same stream as the
    * caller's other GPU operations (device-resident solves chain with SpMV /
    * cuBLAS work without cross-stream event waits). The cuDSS handle itself is
    * always owned by this solver. \p ctx must outlive this object. */
-  explicit SparseSolverBase(Context& ctx) { init_context(ctx.stream()); }
+  explicit SparseSolverBase(Context& ctx) { init_context(ctx.stream(), /*borrow_stream=*/true); }
 
   ~SparseSolverBase() {
     destroy_cudss_objects();
@@ -291,9 +291,11 @@ class SparseSolverBase {
   Derived& derived() { return static_cast<Derived&>(*this); }
   const Derived& derived() const { return static_cast<const Derived&>(*this); }
 
-  void init_context(cudaStream_t borrowed_stream) {
-    if (borrowed_stream) {
-      stream_ = borrowed_stream;
+  void init_context(cudaStream_t stream, bool borrow_stream) {
+    if (borrow_stream) {
+      // nullptr is CUDA's valid legacy default stream, so ownership cannot be
+      // inferred from the stream value.
+      stream_ = stream;
       owns_stream_ = false;
     } else {
       EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&stream_));
