@@ -42,7 +42,7 @@ namespace Eigen {
  * preconditioners could read, so the iterative solvers must be instantiated
  * with \c IdentityPreconditioner.
  *
- * Both operator types are closed under transposition (\c transpose(),
+ * The operator types are closed under transposition (\c transpose(),
  * \c conjugate(), \c adjoint() return operators of the same kind, reusing the
  * cached symbol), which in particular feeds the least-squares solvers \c LSMR
  * and \c LeastSquaresConjugateGradient (again with \c IdentityPreconditioner).

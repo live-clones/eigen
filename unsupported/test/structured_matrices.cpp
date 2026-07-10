@@ -1788,82 +1788,82 @@ EIGEN_DECLARE_TEST(structured_matrices) {
     // Hankel: products across dispatch tiers, transposition family (validating the
     // phase-multiplication symbol reuse on rectangular FFT-tier operators), the
     // Toeplitz equivalence, direct solves, matrix-free least squares, fixed sizes.
-    CALL_SUBTEST_8((test_hankel_product<double>(1, 1)));
-    CALL_SUBTEST_8((test_hankel_product<double>(2, 3)));
-    CALL_SUBTEST_8((test_hankel_product<double>(8, 8)));
-    CALL_SUBTEST_8((test_hankel_product<double>(12, 7)));
-    CALL_SUBTEST_8((test_hankel_product<double>(17, 16)));  // just above the scalar tier
-    CALL_SUBTEST_8((test_hankel_product<double>(20, 24)));  // direct segment tier
-    CALL_SUBTEST_8((test_hankel_product<double>(32, 33)));  // first FFT-tier size
-    CALL_SUBTEST_8((test_hankel_product<double>(64, 40)));
-    CALL_SUBTEST_8((test_hankel_product<double>(40, 64)));
-    CALL_SUBTEST_8((test_hankel_product<double>(97, 50)));
-    CALL_SUBTEST_8((test_hankel_product<double>(1, 40)));   // single row: direct O(n) path
-    CALL_SUBTEST_8((test_hankel_product<double>(40, 1)));   // single column: direct O(n) path
-    CALL_SUBTEST_8((test_hankel_product<double>(1, 400)));  // skinny far beyond the FFT threshold
-    CALL_SUBTEST_8((test_hankel_product<double>(400, 1)));
-    CALL_SUBTEST_8((test_hankel_product<float>(50, 50)));
-    CALL_SUBTEST_8((test_hankel_product<std::complex<double>>(5, 7)));
-    CALL_SUBTEST_8((test_hankel_product<std::complex<double>>(48, 64)));
-    CALL_SUBTEST_8((test_hankel_product<std::complex<float>>(40, 40)));
-    CALL_SUBTEST_8((test_hankel_transpose<double>(1, 1)));
-    CALL_SUBTEST_8((test_hankel_transpose<double>(12, 7)));
-    CALL_SUBTEST_8((test_hankel_transpose<double>(20, 24)));  // direct tier, empty symbol
-    CALL_SUBTEST_8((test_hankel_transpose<double>(64, 40)));
-    CALL_SUBTEST_8((test_hankel_transpose<double>(40, 64)));
-    CALL_SUBTEST_8((test_hankel_transpose<double>(1, 40)));
-    CALL_SUBTEST_8((test_hankel_transpose<std::complex<double>>(33, 20)));
-    CALL_SUBTEST_8((test_hankel_transpose<std::complex<float>>(20, 36)));
-    CALL_SUBTEST_8((test_hankel_symmetry<double>(48)));
-    CALL_SUBTEST_8((test_hankel_to_toeplitz<double>(12, 7)));
-    CALL_SUBTEST_8((test_hankel_to_toeplitz<std::complex<double>>(40, 56)));
-    CALL_SUBTEST_8((test_hankel_solve<double>(1)));
-    CALL_SUBTEST_8((test_hankel_solve<double>(20)));
-    CALL_SUBTEST_8((test_hankel_solve<double>(45)));
-    CALL_SUBTEST_8((test_hankel_solve<std::complex<double>>(24)));
-    CALL_SUBTEST_8((test_hankel_solve<float>(16)));
-    CALL_SUBTEST_8((test_hankel_solve_lookahead<double>(20)));
-    CALL_SUBTEST_8((test_hankel_solve_lookahead<std::complex<double>>(15)));
-    CALL_SUBTEST_8(test_hankel_hilbert());
-    CALL_SUBTEST_8((test_hankel_least_squares<double>(60, 40)));
-    CALL_SUBTEST_8((test_hankel_least_squares<std::complex<double>>(48, 32)));
-    CALL_SUBTEST_8((test_hankel_fixed<double, 4, 6>()));
-    CALL_SUBTEST_8((test_hankel_fixed<double, 40, 24>()));
-    CALL_SUBTEST_8((test_hankel_fixed<std::complex<float>, 6, 4>()));
-    CALL_SUBTEST_8((test_hankel_fixed_solve<double, 8>()));
-    CALL_SUBTEST_8((test_hankel_fixed_solve<std::complex<double>, 12>()));
+    CALL_SUBTEST_9((test_hankel_product<double>(1, 1)));
+    CALL_SUBTEST_9((test_hankel_product<double>(2, 3)));
+    CALL_SUBTEST_9((test_hankel_product<double>(8, 8)));
+    CALL_SUBTEST_9((test_hankel_product<double>(12, 7)));
+    CALL_SUBTEST_9((test_hankel_product<double>(17, 16)));  // just above the scalar tier
+    CALL_SUBTEST_9((test_hankel_product<double>(20, 24)));  // direct segment tier
+    CALL_SUBTEST_9((test_hankel_product<double>(32, 33)));  // first FFT-tier size
+    CALL_SUBTEST_9((test_hankel_product<double>(64, 40)));
+    CALL_SUBTEST_9((test_hankel_product<double>(40, 64)));
+    CALL_SUBTEST_9((test_hankel_product<double>(97, 50)));
+    CALL_SUBTEST_9((test_hankel_product<double>(1, 40)));   // single row: direct O(n) path
+    CALL_SUBTEST_9((test_hankel_product<double>(40, 1)));   // single column: direct O(n) path
+    CALL_SUBTEST_9((test_hankel_product<double>(1, 400)));  // skinny far beyond the FFT threshold
+    CALL_SUBTEST_9((test_hankel_product<double>(400, 1)));
+    CALL_SUBTEST_9((test_hankel_product<float>(50, 50)));
+    CALL_SUBTEST_9((test_hankel_product<std::complex<double>>(5, 7)));
+    CALL_SUBTEST_9((test_hankel_product<std::complex<double>>(48, 64)));
+    CALL_SUBTEST_9((test_hankel_product<std::complex<float>>(40, 40)));
+    CALL_SUBTEST_9((test_hankel_transpose<double>(1, 1)));
+    CALL_SUBTEST_9((test_hankel_transpose<double>(12, 7)));
+    CALL_SUBTEST_9((test_hankel_transpose<double>(20, 24)));  // direct tier, empty symbol
+    CALL_SUBTEST_9((test_hankel_transpose<double>(64, 40)));
+    CALL_SUBTEST_9((test_hankel_transpose<double>(40, 64)));
+    CALL_SUBTEST_9((test_hankel_transpose<double>(1, 40)));
+    CALL_SUBTEST_9((test_hankel_transpose<std::complex<double>>(33, 20)));
+    CALL_SUBTEST_9((test_hankel_transpose<std::complex<float>>(20, 36)));
+    CALL_SUBTEST_9((test_hankel_symmetry<double>(48)));
+    CALL_SUBTEST_9((test_hankel_to_toeplitz<double>(12, 7)));
+    CALL_SUBTEST_9((test_hankel_to_toeplitz<std::complex<double>>(40, 56)));
+    CALL_SUBTEST_9((test_hankel_solve<double>(1)));
+    CALL_SUBTEST_9((test_hankel_solve<double>(20)));
+    CALL_SUBTEST_9((test_hankel_solve<double>(45)));
+    CALL_SUBTEST_9((test_hankel_solve<std::complex<double>>(24)));
+    CALL_SUBTEST_9((test_hankel_solve<float>(16)));
+    CALL_SUBTEST_9((test_hankel_solve_lookahead<double>(20)));
+    CALL_SUBTEST_9((test_hankel_solve_lookahead<std::complex<double>>(15)));
+    CALL_SUBTEST_9(test_hankel_hilbert());
+    CALL_SUBTEST_9((test_hankel_least_squares<double>(60, 40)));
+    CALL_SUBTEST_9((test_hankel_least_squares<std::complex<double>>(48, 32)));
+    CALL_SUBTEST_9((test_hankel_fixed<double, 4, 6>()));
+    CALL_SUBTEST_9((test_hankel_fixed<double, 40, 24>()));
+    CALL_SUBTEST_9((test_hankel_fixed<std::complex<float>, 6, 4>()));
+    CALL_SUBTEST_9((test_hankel_fixed_solve<double, 8>()));
+    CALL_SUBTEST_9((test_hankel_fixed_solve<std::complex<double>, 12>()));
 
     // MR 2688 review regressions: finite-overflow scaling in the FFT tier,
     // delayed (value-nested) products, aliased right-hand sides across the
     // dispatch tiers, and mixed real/complex products.
-    CALL_SUBTEST_9(test_hankel_fft_overflow());
-    CALL_SUBTEST_9((test_hankel_fft_complex_boundary<double>(40)));
-    CALL_SUBTEST_9((test_hankel_fft_complex_boundary<float>(40)));
-    CALL_SUBTEST_9((test_hankel_delayed_product<double>(24, 12)));
-    CALL_SUBTEST_9((test_hankel_delayed_product<double>(40, 64)));
-    CALL_SUBTEST_9((test_hankel_delayed_product<std::complex<double>>(48, 33)));
-    CALL_SUBTEST_9((test_hankel_aliased_product<double>(8)));   // scalar tier
-    CALL_SUBTEST_9((test_hankel_aliased_product<double>(24)));  // direct segment tier
-    CALL_SUBTEST_9((test_hankel_aliased_product<double>(64)));  // FFT tier
-    CALL_SUBTEST_9((test_hankel_aliased_product<std::complex<double>>(40)));
+    CALL_SUBTEST_10(test_hankel_fft_overflow());
+    CALL_SUBTEST_10((test_hankel_fft_complex_boundary<double>(40)));
+    CALL_SUBTEST_10((test_hankel_fft_complex_boundary<float>(40)));
+    CALL_SUBTEST_10((test_hankel_delayed_product<double>(24, 12)));
+    CALL_SUBTEST_10((test_hankel_delayed_product<double>(40, 64)));
+    CALL_SUBTEST_10((test_hankel_delayed_product<std::complex<double>>(48, 33)));
+    CALL_SUBTEST_10((test_hankel_aliased_product<double>(8)));   // scalar tier
+    CALL_SUBTEST_10((test_hankel_aliased_product<double>(24)));  // direct segment tier
+    CALL_SUBTEST_10((test_hankel_aliased_product<double>(64)));  // FFT tier
+    CALL_SUBTEST_10((test_hankel_aliased_product<std::complex<double>>(40)));
 
     // Aliasing beyond the same-object case, across the dispatch tiers.
-    CALL_SUBTEST_9((test_hankel_aliased_expression<double>(8)));
-    CALL_SUBTEST_9((test_hankel_aliased_expression<double>(24)));
-    CALL_SUBTEST_9((test_hankel_aliased_expression<double>(48)));
-    CALL_SUBTEST_9((test_hankel_aliased_expression<std::complex<double>>(40)));
+    CALL_SUBTEST_10((test_hankel_aliased_expression<double>(8)));
+    CALL_SUBTEST_10((test_hankel_aliased_expression<double>(24)));
+    CALL_SUBTEST_10((test_hankel_aliased_expression<double>(48)));
+    CALL_SUBTEST_10((test_hankel_aliased_expression<std::complex<double>>(40)));
 
     // Entrywise Inf/NaN propagation: FFT-sized operators must fall back to the
     // direct kernels; small ones are IEEE-exact already.
-    CALL_SUBTEST_9((test_hankel_nonfinite_product<double>(40)));
-    CALL_SUBTEST_9((test_hankel_nonfinite_product<double>(12)));
-    CALL_SUBTEST_9((test_hankel_nonfinite_product<std::complex<double>>(40)));
+    CALL_SUBTEST_10((test_hankel_nonfinite_product<double>(40)));
+    CALL_SUBTEST_10((test_hankel_nonfinite_product<double>(12)));
+    CALL_SUBTEST_10((test_hankel_nonfinite_product<std::complex<double>>(40)));
 
-    CALL_SUBTEST_9((test_hankel_mixed_scalar<double>(8, 8)));    // scalar tier
-    CALL_SUBTEST_9((test_hankel_mixed_scalar<double>(24, 20)));  // direct segment tier
-    CALL_SUBTEST_9((test_hankel_mixed_scalar<double>(64, 40)));  // FFT tier
-    CALL_SUBTEST_9((test_hankel_mixed_scalar<double>(1, 40)));   // skinny direct paths
-    CALL_SUBTEST_9((test_hankel_mixed_scalar<double>(40, 1)));
-    CALL_SUBTEST_9((test_hankel_mixed_scalar<float>(48, 64)));
+    CALL_SUBTEST_10((test_hankel_mixed_scalar<double>(8, 8)));    // scalar tier
+    CALL_SUBTEST_10((test_hankel_mixed_scalar<double>(24, 20)));  // direct segment tier
+    CALL_SUBTEST_10((test_hankel_mixed_scalar<double>(64, 40)));  // FFT tier
+    CALL_SUBTEST_10((test_hankel_mixed_scalar<double>(1, 40)));   // skinny direct paths
+    CALL_SUBTEST_10((test_hankel_mixed_scalar<double>(40, 1)));
+    CALL_SUBTEST_10((test_hankel_mixed_scalar<float>(48, 64)));
   }
 }

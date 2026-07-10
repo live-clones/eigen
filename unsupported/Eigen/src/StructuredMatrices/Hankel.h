@@ -178,7 +178,9 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
   /** \returns the complex conjugate of \c *this, itself a Hankel operator. The
    * cached symbol, when present, is reused: the symbol of the conjugate is the
    * conjugated index reversal of the symbol. */
-  Hankel conjugate() const { return Hankel(m_h.conjugate(), rows(), cols(), reverseSymbol(m_symbol).conjugate()); }
+  Hankel conjugate() const {
+    return Hankel(m_h.conjugate(), rows(), cols(), internal::structured_reverse_symbol(m_symbol).conjugate());
+  }
 
   /** \returns the adjoint of \c *this, itself a Hankel operator (the conjugated
    * transpose); the cached symbol is reused through the composition of the
@@ -375,7 +377,7 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
     embedding.tail(n - 1) = m_h.head(n - 1).template cast<Complex>();
     if (p == 1) return embedding;  // the DFT of a single sample is the identity
     ComplexVector symbol(p);
-    FFT<RealScalar>& fft = internal::structured_fft_engine<RealScalar>();
+    auto&& fft = internal::structured_fft_engine<RealScalar>();
     fft.fwd(symbol, embedding, p);
     return symbol;
   }
@@ -399,19 +401,6 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
       }
     }
     return sym;
-  }
-
-  /** \internal \returns the index reversal of \a symbol: result[k] =
-   * symbol[(p - k) mod p], the symbol of the conjugated operator before
-   * conjugation. An empty symbol stays empty. */
-  static ComplexVector reverseSymbol(const ComplexVector& symbol) {
-    const Index p = symbol.size();
-    ComplexVector reversed(p);
-    if (p > 0) {
-      reversed[0] = symbol[0];
-      reversed.tail(p - 1) = symbol.tail(p - 1).reverse();
-    }
-    return reversed;
   }
 
   // Empty (compile-time constant) when the corresponding dimension is fixed; the
