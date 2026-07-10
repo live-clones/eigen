@@ -96,12 +96,11 @@ class DPR1EigenSolver {
   EIGEN_STATIC_ASSERT_NON_INTEGER(RealScalar)
 
   /** Default constructor; call \ref compute before querying results. */
-  DPR1EigenSolver() : m_isInitialized(false), m_vectorsComputed(false), m_info(InvalidInput) {}
+  DPR1EigenSolver() = default;
 
   /** Computes the eigendecomposition of \c diag(d) + \c rho*z*z^T.
    * \a options is \c ComputeEigenvectors (the default) or \c EigenvaluesOnly. */
-  DPR1EigenSolver(const VectorType& d, RealScalar rho, const VectorType& z, int options = ComputeEigenvectors)
-      : m_isInitialized(false), m_vectorsComputed(false), m_info(InvalidInput) {
+  DPR1EigenSolver(const VectorType& d, RealScalar rho, const VectorType& z, int options = ComputeEigenvectors) {
     compute(d, rho, z, options);
   }
 
@@ -141,16 +140,14 @@ class DPR1EigenSolver {
    * g(tau) = 1 + rho * sum_i zeta_i^2 / (delta_i - tau), with delta_i the pole
    * offsets relative to the chosen shift. */
   static RealScalar secular(const VectorType& delta, const VectorType& zeta2, RealScalar rho, RealScalar tau) {
-    RealScalar s(1);
-    for (Index i = 0; i < delta.size(); ++i) s += rho * zeta2[i] / (delta[i] - tau);
-    return s;
+    return RealScalar(1) + rho * (zeta2.array() / (delta.array() - tau)).sum();
   }
 
   VectorType m_eivalues;
   MatrixType m_eivec;
-  bool m_isInitialized;
-  bool m_vectorsComputed;
-  ComputationInfo m_info;
+  bool m_isInitialized = false;
+  bool m_vectorsComputed = false;
+  ComputationInfo m_info = InvalidInput;
 };
 
 template <typename RealScalar_>
@@ -184,8 +181,9 @@ DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const Vector
   RealScalar rhoW = negated ? -rho : rho;
 
   // ---- sort the diagonal ascending; permutation pi maps working index -> input row ----
-  std::vector<Index> pi(static_cast<std::size_t>(n));
-  for (Index i = 0; i < n; ++i) pi[static_cast<std::size_t>(i)] = i;
+  std::vector<Index> pi;
+  pi.reserve(static_cast<std::size_t>(n));
+  for (Index i = 0; i < n; ++i) pi.push_back(i);
   std::stable_sort(pi.begin(), pi.end(), [&dW](Index a, Index b) { return dW[a] < dW[b]; });
   VectorType ds(n), zs(n);
   for (Index i = 0; i < n; ++i) {
@@ -277,15 +275,15 @@ DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const Vector
   const RealScalar tol = RealScalar(8) * NumTraits<RealScalar>::epsilon() * scaledNorm;
 
   std::vector<Rotation> rotations;
-  std::vector<bool> deflated(static_cast<std::size_t>(n), false);
+  std::vector<bool> deflated;
 
   if (rhoW <= tol) {
     // The rank-one update is negligible: everything deflates.
-    for (Index i = 0; i < n; ++i) deflated[static_cast<std::size_t>(i)] = true;
+    deflated.assign(static_cast<std::size_t>(n), true);
   } else {
     // (a) negligible z entries: d_i is an eigenvalue already.
-    for (Index i = 0; i < n; ++i)
-      if (rhoW * numext::abs(zs[i]) <= tol) deflated[static_cast<std::size_t>(i)] = true;
+    deflated.reserve(static_cast<std::size_t>(n));
+    for (Index i = 0; i < n; ++i) deflated.push_back(rhoW * numext::abs(zs[i]) <= tol);
     // (b) close poles: rotate the weight of the earlier pole onto the later one.
     // The dropped off-diagonal coupling is |c*s*(ds[i]-ds[p])| <= tol.
     Index p = -1;
@@ -375,7 +373,7 @@ DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const Vector
         }
       }
       const RealScalar shiftVal = delta[shift];
-      for (Index a = 0; a < m; ++a) dsh[a] = delta[a] - shiftVal;
+      dsh.array() = delta.array() - shiftVal;
 
       // Bisection: g(lo) < 0 < g(hi) by the pole signs (for shift = k the
       // function tends to -inf as tau -> 0+, for shift = k+1 to +inf as
@@ -428,10 +426,9 @@ DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const Vector
           subVectors(sj, j) = RealScalar(1);
           continue;
         }
-        for (Index i = 0; i < m; ++i) {
-          const RealScalar dist = (delta[i] - delta[sj]) - tau[j];  // delta_i - lam_j
-          subVectors(i, j) = zhat[i] / dist;
-        }
+        // Divide by the pole distances delta_i - lam_j, each formed as
+        // (delta_i - delta_sj) - tau_j.
+        subVectors.col(j).array() = zhat.array() / ((delta.array() - delta[sj]) - tau[j]);
         subVectors.col(j).stableNormalize();
       }
     }
@@ -439,8 +436,9 @@ DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const Vector
   }
 
   // ---- sort all eigenvalues ascending (deflated and secular interleave) ----
-  std::vector<Index> order(static_cast<std::size_t>(n));
-  for (Index i = 0; i < n; ++i) order[static_cast<std::size_t>(i)] = i;
+  std::vector<Index> order;
+  order.reserve(static_cast<std::size_t>(n));
+  for (Index i = 0; i < n; ++i) order.push_back(i);
   std::stable_sort(order.begin(), order.end(), [&lambdaW](Index a, Index b) { return lambdaW[a] < lambdaW[b]; });
 
   // Map working position -> secular subproblem slot (or -1 when deflated).
