@@ -227,6 +227,13 @@ void test_device_solve_context(Index n) {
   VERIFY_IS_APPROX(d_X2.toHost(), X_host);
 }
 
+void test_default_stream_context() {
+  gpu::Context gctx(/*stream=*/nullptr);
+  gpu::SparseLLT<float> llt(gctx);
+  VERIFY_IS_EQUAL(llt.stream(), gctx.stream());
+  VERIFY_IS_EQUAL(llt.stream(), static_cast<cudaStream_t>(nullptr));
+}
+
 EIGEN_DECLARE_TEST(gpu_cudss_llt) {
   gpu_test::require_cudss_context();
   // Split by scalar so each part compiles in parallel.
@@ -240,4 +247,5 @@ EIGEN_DECLARE_TEST(gpu_cudss_llt) {
   CALL_SUBTEST_5(test_empty<std::complex<double>>());
   CALL_SUBTEST_5(test_device_solve_context<float>(64));
   CALL_SUBTEST_5(test_device_solve_context<double>(64));
+  CALL_SUBTEST_5(test_default_stream_context());
 }
