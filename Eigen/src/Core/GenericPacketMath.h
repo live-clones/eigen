@@ -1178,19 +1178,32 @@ EIGEN_DEVICE_FUNC inline Packet pdupimag(const Packet& a) {
 // Implemented without ptrue: an all-ones float packet is a NaN bit pattern, which under
 // fast-math flags clang turns into a poison constant that deletes any expression it flows
 // into.
-template <typename Packet, bool IsComplex = NumTraits<typename unpacket_traits<Packet>::type>::IsComplex>
+template <typename Packet, bool IsComplex = NumTraits<typename unpacket_traits<Packet>::type>::IsComplex,
+          bool IsScalar = is_scalar<Packet>::value>
 struct pisnan_impl {
   // Equivalent to !(a == a).
   static EIGEN_DEVICE_FUNC inline Packet run(const Packet& a) { return pcmp_lt_or_nan(a, a); }
 };
 
 template <typename Packet>
-struct pisnan_impl<Packet, true> {
+struct pisnan_impl<Packet, true, false> {
   static EIGEN_DEVICE_FUNC inline Packet run(const Packet& a) {
     using RealPacket = typename unpacket_traits<Packet>::as_real;
     // A NaN in either the real or the imaginary lane marks the whole complex element.
     Packet nan_lanes = Packet(pcmp_lt_or_nan<RealPacket>(a.v, a.v));
     return por(nan_lanes, pcplxflip(nan_lanes));
+  }
+};
+
+// Scalar complex arguments have no wrapped real packet; combine the per-component results in the
+// value domain, where the scalar mask convention is Scalar(1)/Scalar(0).
+template <typename Scalar>
+struct pisnan_impl<Scalar, true, true> {
+  static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& a) {
+    using RealScalar = typename NumTraits<Scalar>::Real;
+    const RealScalar nan_mask =
+        por(pisnan_impl<RealScalar>::run(numext::real(a)), pisnan_impl<RealScalar>::run(numext::imag(a)));
+    return Scalar(nan_mask);
   }
 };
 
