@@ -60,7 +60,7 @@ namespace Eigen {
  *   MatrixXd  V      = es.eigenvectors();  // orthogonal
  * \endcode
  *
- * \tparam RealScalar_ a real (non-complex) scalar type.
+ * \tparam RealScalar_ one of \c float, \c double, or \c long \c double.
  *
  * References:
  *  - M. Gu and S. C. Eisenstat, "A stable and efficient algorithm for the
@@ -87,13 +87,9 @@ class DPR1EigenSolver {
   using VectorType = Matrix<RealScalar, Dynamic, 1>;
   using MatrixType = Matrix<RealScalar, Dynamic, Dynamic>;
 
-  static_assert(!NumTraits<RealScalar>::IsComplex,
-                "DPR1EigenSolver requires a real scalar type; for a Hermitian rank-one "
-                "update, factor out the phases of z first (z = Phi*|z| gives "
-                "A = Phi (D + rho |z||z|^T) Phi^H).");
-  // The secular equation divides by pole distances; integers cannot represent
-  // its roots (same restriction as the dense eigensolvers).
-  EIGEN_STATIC_ASSERT_NON_INTEGER(RealScalar)
+  static_assert(std::is_same<RealScalar, float>::value || std::is_same<RealScalar, double>::value ||
+                    std::is_same<RealScalar, long double>::value,
+                "DPR1EigenSolver supports only float, double, and long double scalar types.");
 
   /** Default constructor; call \ref compute before querying results. */
   DPR1EigenSolver() = default;
@@ -136,6 +132,18 @@ class DPR1EigenSolver {
     RealScalar c, s;
   };
 
+  struct DoubleWord {
+    RealScalar hi, lo;
+  };
+
+  enum class SpectrumRange { Representable, Overflow, Uncertain };
+
+  static DoubleWord addDoubleWords(const DoubleWord& x, const DoubleWord& y);
+  static DoubleWord multiplyDoubleWords(const DoubleWord& x, const DoubleWord& y);
+  static DoubleWord divideDoubleWords(const DoubleWord& x, const DoubleWord& y);
+  static DoubleWord scaleDoubleWord(const DoubleWord& x, int exponent);
+  static SpectrumRange classifySpectrumRange(const VectorType& d, RealScalar rho, const VectorType& z);
+
   /** \internal Evaluates the shifted secular function
    * g(tau) = 1 + rho * sum_i zeta_i^2 / (delta_i - tau), with delta_i the pole
    * offsets relative to the chosen shift. */
@@ -151,17 +159,146 @@ class DPR1EigenSolver {
 };
 
 template <typename RealScalar_>
+typename DPR1EigenSolver<RealScalar_>::DoubleWord DPR1EigenSolver<RealScalar_>::addDoubleWords(const DoubleWord& x,
+                                                                                               const DoubleWord& y) {
+  DoubleWord result;
+  internal::twosum(x.hi, x.lo, y.hi, y.lo, result.hi, result.lo);
+  return result;
+}
+
+template <typename RealScalar_>
+typename DPR1EigenSolver<RealScalar_>::DoubleWord DPR1EigenSolver<RealScalar_>::multiplyDoubleWords(
+    const DoubleWord& x, const DoubleWord& y) {
+  DoubleWord result;
+  internal::twoprod(x.hi, x.lo, y.hi, y.lo, result.hi, result.lo);
+  return result;
+}
+
+template <typename RealScalar_>
+typename DPR1EigenSolver<RealScalar_>::DoubleWord DPR1EigenSolver<RealScalar_>::divideDoubleWords(const DoubleWord& x,
+                                                                                                  const DoubleWord& y) {
+  DoubleWord quotient;
+  internal::doubleword_div_fp(x.hi, x.lo, y.hi, quotient.hi, quotient.lo);
+  const DoubleWord product = multiplyDoubleWords(quotient, y);
+  const DoubleWord remainder = addDoubleWords(x, DoubleWord{-product.hi, -product.lo});
+  DoubleWord correction;
+  internal::doubleword_div_fp(remainder.hi, remainder.lo, y.hi, correction.hi, correction.lo);
+  return addDoubleWords(quotient, correction);
+}
+
+template <typename RealScalar_>
+typename DPR1EigenSolver<RealScalar_>::DoubleWord DPR1EigenSolver<RealScalar_>::scaleDoubleWord(const DoubleWord& x,
+                                                                                                int exponent) {
+  EIGEN_USING_STD(ldexp)
+  DoubleWord result{ldexp(x.hi, exponent), ldexp(x.lo, exponent)};
+  if ((numext::isfinite)(result.hi)) {
+    DoubleWord normalized;
+    internal::fast_twosum(result.hi, result.lo, normalized.hi, normalized.lo);
+    result = normalized;
+  }
+  return result;
+}
+
+template <typename RealScalar_>
+typename DPR1EigenSolver<RealScalar_>::SpectrumRange DPR1EigenSolver<RealScalar_>::classifySpectrumRange(
+    const VectorType& d, RealScalar rho, const VectorType& z) {
+  // For rho >= 0 only the largest eigenvalue can leave the finite range. With
+  // M = highest(), the matrix determinant lemma gives
+  //   lambda_max <= M  iff  rho * sum_i z_i^2 / (M - d_i) <= 1.
+  // Evaluate this endpoint test from the original data, not the normalized
+  // secular problem: the latter has already rounded rho*||z||^2. Double-word
+  // arithmetic and its O(u^2) error bounds follow Joldes, Muller, and Popescu,
+  // "Tight and rigorous error bounds for basic building blocks of double-word
+  // arithmetic", ACM TOMS 44(2), 2017.
+  if (rho == RealScalar(0)) return SpectrumRange::Representable;
+
+  EIGEN_USING_STD(frexp)
+  EIGEN_USING_STD(ldexp)
+  const RealScalar highest = (std::numeric_limits<RealScalar>::max)();
+  const RealScalar highestHalf = highest / RealScalar(2);
+  int rhoExponent = 0;
+  const RealScalar rhoFraction = frexp(rho, &rhoExponent);
+  DoubleWord sum{RealScalar(0), RealScalar(0)};
+  Index active = 0;
+  bool exactUnitTerm = false;
+
+  for (Index i = 0; i < d.size(); ++i) {
+    if (z[i] == RealScalar(0)) continue;
+    ++active;
+    if (d[i] == highest) return SpectrumRange::Overflow;
+
+    int zExponent = 0;
+    const RealScalar zFraction = frexp(numext::abs(z[i]), &zExponent);
+    DoubleWord numerator;
+    internal::twoprod(rhoFraction, zFraction, numerator.hi, numerator.lo);
+    const bool numeratorExact = numerator.lo == RealScalar(0) || zFraction == RealScalar(0.5);
+    if (zFraction == RealScalar(0.5)) {
+      numerator.hi *= zFraction;
+      numerator.lo *= zFraction;
+      DoubleWord normalized;
+      internal::fast_twosum(numerator.hi, numerator.lo, normalized.hi, normalized.lo);
+      numerator = normalized;
+    } else if (numerator.lo == RealScalar(0)) {
+      DoubleWord product;
+      internal::twoprod(numerator.hi, zFraction, product.hi, product.lo);
+      numerator = product;
+    } else {
+      DoubleWord product;
+      internal::twoprod(numerator.hi, numerator.lo, zFraction, product.hi, product.lo);
+      numerator = product;
+    }
+
+    // Work with (M - d_i)/2, which cannot overflow even when d_i = -M.
+    const RealScalar dHalf = d[i] / RealScalar(2);
+    DoubleWord denominator;
+    internal::twosum(highestHalf, RealScalar(0), -dHalf, RealScalar(0), denominator.hi, denominator.lo);
+    const bool denominatorExact = d[i] == RealScalar(0) || dHalf * RealScalar(2) == d[i];
+    int denominatorExponent = 0;
+    frexp(denominator.hi, &denominatorExponent);
+    denominator = scaleDoubleWord(denominator, -denominatorExponent);
+
+    const int termExponent = rhoExponent + 2 * zExponent - denominatorExponent - 1;
+    if (active == 1 && numeratorExact && denominatorExact) {
+      const DoubleWord scaledNumerator = termExponent >= 0 ? scaleDoubleWord(numerator, termExponent) : numerator;
+      const DoubleWord scaledDenominator = termExponent < 0 ? scaleDoubleWord(denominator, -termExponent) : denominator;
+      exactUnitTerm = scaledNumerator.hi == scaledDenominator.hi && scaledNumerator.lo == scaledDenominator.lo;
+    }
+
+    DoubleWord term = scaleDoubleWord(divideDoubleWords(numerator, denominator), termExponent);
+    if (!(numext::isfinite)(term.hi) || term.hi > RealScalar(2)) return SpectrumRange::Overflow;
+    sum = addDoubleWords(sum, term);
+    if (!(numext::isfinite)(sum.hi) || sum.hi > RealScalar(2)) return SpectrumRange::Overflow;
+  }
+
+  if (active == 0) return SpectrumRange::Representable;
+  if (active == 1 && exactUnitTerm) return SpectrumRange::Representable;
+
+  const DoubleWord difference = addDoubleWords(sum, DoubleWord{RealScalar(-1), RealScalar(0)});
+  const RealScalar estimate = difference.hi + difference.lo;
+  const RealScalar unitRoundoff = NumTraits<RealScalar>::epsilon() / RealScalar(2);
+  // The factor 32 covers two products, corrected division, exponent scaling,
+  // and accumulation per active term. The exact one-term equality is handled
+  // above rather than widened into the uncertainty interval.
+  const RealScalar error = RealScalar(32) * RealScalar(active + 1) * unitRoundoff * unitRoundoff;
+  if (estimate < -error) return SpectrumRange::Representable;
+  if (estimate > error) return SpectrumRange::Overflow;
+  return SpectrumRange::Uncertain;
+}
+
+template <typename RealScalar_>
 DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const VectorType& d, RealScalar rho,
                                                                     const VectorType& z, int options) {
   const Index n = d.size();
   eigen_assert(z.size() == n && "d and z must have the same size");
-  const bool computeVectors = (options & ComputeEigenvectors) != 0;
-  m_vectorsComputed = computeVectors;
+  eigen_assert((options & ~EigVecMask) == 0 && (options & EigVecMask) != EigVecMask && "invalid option parameter");
+  const bool computeVectors = (options & ComputeEigenvectors) == ComputeEigenvectors;
+  m_vectorsComputed = false;
   m_info = Success;
 
   m_eivalues.resize(n);
   if (computeVectors) m_eivec.setIdentity(n, n);
   if (n == 0) {
+    m_vectorsComputed = computeVectors;
     m_isInitialized = true;
     return *this;
   }
@@ -259,6 +396,10 @@ DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const Vector
   // range, so the clamp never changes which values are representable.
   const numext::int64_t expCap = numext::int64_t(1) << 30;
   const int scaleExp = static_cast<int>(numext::maxi(-expCap, numext::mini(expCap, scaleExpWide)));
+  SpectrumRange spectrumRange = SpectrumRange::Representable;
+  if (scaleExpWide >= numext::int64_t(std::numeric_limits<RealScalar>::max_exponent) - 1) {
+    spectrumRange = classifySpectrumRange(dW, rhoW, z);
+  }
   if (scaleExp != 0)
     for (Index i = 0; i < n; ++i) ds[i] = ldexp(ds[i], -scaleExp);
   // Materialize rho * ||z||^2 only in scaled form: its exponent is <= 0 by the
@@ -480,14 +621,22 @@ DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const Vector
     for (Index i = 0; i < n; ++i) m_eivec(pi[static_cast<std::size_t>(i)], outCol) = wvec[i];
   }
 
-  // Finite input whose spectrum overflows the scalar type (the rescaling by
-  // 2^scaleExp saturated to infinity, e.g. d = rho = z = [max]) violates the
-  // documented representability contract: report it like non-finite input.
-  if (!m_eivalues.allFinite()) {
+  // Range classification uses the original data. The normalized secular
+  // problem can round a root across the maximum-finite boundary before this
+  // rescaling, so finiteness of the rounded result alone is not evidence that
+  // the exact spectrum is (or is not) representable.
+  const Index extreme = negated ? 0 : n - 1;
+  const RealScalar highest = (std::numeric_limits<RealScalar>::max)();
+  if (spectrumRange == SpectrumRange::Overflow) {
     m_eivalues.setConstant(NumTraits<RealScalar>::quiet_NaN());
     m_info = InvalidInput;
+  } else {
+    if (!(numext::isfinite)(m_eivalues[extreme])) m_eivalues[extreme] = negated ? -highest : highest;
+    if (spectrumRange == SpectrumRange::Uncertain && m_info == Success) m_info = NoConvergence;
+    if (!m_eivalues.allFinite() && m_info == Success) m_info = NoConvergence;
   }
 
+  m_vectorsComputed = computeVectors && m_info != InvalidInput;
   m_isInitialized = true;
   return *this;
 }
