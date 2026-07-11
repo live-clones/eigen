@@ -137,8 +137,10 @@ struct imag {};
 // cache sizes nothing in the suite would ever block. Any new architecture-specific
 // blocking heuristic must honor this macro, or the blocking sentinels in
 // product_extra.cpp (compute_block_size) will fail on that target.
-// Unit tests calling Eigen's blas library must preserve the default blocking size
-// to avoid troubles.
+// Exception: tests linking the eigen_blas/eigen_lapack shim libraries (the
+// *_support sparse-solver tests) must opt out via EIGEN_NO_DEBUG_SMALL_PRODUCT_BLOCKS.
+// Those libraries are compiled without this macro, and mixing the two configurations
+// in one binary is an ODR violation on the inline blocking/kernel code.
 #ifndef EIGEN_NO_DEBUG_SMALL_PRODUCT_BLOCKS
 #define EIGEN_DEBUG_SMALL_PRODUCT_BLOCKS
 #endif
