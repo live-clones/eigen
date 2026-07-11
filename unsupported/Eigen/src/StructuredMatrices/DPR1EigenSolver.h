@@ -336,8 +336,7 @@ DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const Vector
   const RealScalar zmax = zs.cwiseAbs().maxCoeff();
   if (zmax > RealScalar(0)) {
     frexp(zmax, &zExp);
-    if (zExp != 0)
-      for (Index i = 0; i < n; ++i) zs[i] = ldexp(zs[i], -zExp);
+    if (zExp != 0) zs.array() = zs.array().ldexp(-zExp);
   }
   const RealScalar znorm = zs.stableNorm();  // in [0.5, sqrt(n)): safe
   int znormExp = 0;
@@ -378,8 +377,7 @@ DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const Vector
   if (scaleExpWide >= numext::int64_t(std::numeric_limits<RealScalar>::max_exponent) - 1) {
     spectrumRange = classifySpectrumRange(dW, rhoW, z);
   }
-  if (scaleExp != 0)
-    for (Index i = 0; i < n; ++i) ds[i] = ldexp(ds[i], -scaleExp);
+  if (scaleExp != 0) ds.array() = ds.array().ldexp(-scaleExp);
   // Materialize rho * ||z||^2 only in scaled form: its exponent is <= 0 by the
   // choice of scaleExp, so this cannot overflow; it can only underflow when
   // the update is negligible against |d|_inf, in which case it deflates below.
@@ -552,19 +550,10 @@ DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const Vector
   std::vector<Index> subSlot(static_cast<std::size_t>(n), -1);
   for (Index a = 0; a < m; ++a) subSlot[static_cast<std::size_t>(sub[static_cast<std::size_t>(a)])] = a;
 
-  // Undo the problem scaling in two exact half-steps: scaleExp can exceed the
-  // scalar's exponent range (rho * ||z||^2 larger than the largest finite
-  // value), where a single-step rescale would fail on scalar types that
-  // implement ldexp as multiplication by 2^scaleExp. The halves keep every
-  // representable result exact and saturate a genuinely overflowing
-  // eigenvalue to infinity (validated below).
-  const int scaleHalf1 = scaleExp / 2;
-  const int scaleHalf2 = scaleExp - scaleHalf1;
-
   for (Index t = 0; t < n; ++t) {
     const Index w = order[static_cast<std::size_t>(t)];
     const Index outCol = negated ? n - 1 - t : t;
-    m_eivalues[outCol] = ldexp(ldexp(negated ? -lambdaW[w] : lambdaW[w], scaleHalf1), scaleHalf2);
+    m_eivalues[outCol] = negated ? -lambdaW[w] : lambdaW[w];
     if (!computeVectors) continue;
 
     VectorType wvec = VectorType::Zero(n);
@@ -584,6 +573,12 @@ DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const Vector
     }
     for (Index i = 0; i < n; ++i) m_eivec(pi[static_cast<std::size_t>(i)], outCol) = wvec[i];
   }
+
+  // Undo the problem scaling in one full-range pass. ArrayBase::ldexp handles
+  // exponents for which 2^scaleExp is not itself representable, preserving
+  // representable results exactly and saturating genuine overflow to infinity
+  // (validated below).
+  if (scaleExp != 0) m_eivalues.array() = m_eivalues.array().ldexp(scaleExp);
 
   // Range classification uses the original data. The normalized secular
   // problem can round a root across the maximum-finite boundary before this
