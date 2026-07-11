@@ -264,6 +264,11 @@ class TridiagonalEigenSolver {
   // re-form T - lambda*I without the caller having to keep diag/subdiag alive.
   VectorType m_diag;
   VectorType m_subdiag;
+  // Narrow scalars only: the unrounded float eigenvalues of the last computeEigenvalues(), kept so
+  // the staged eigenvector pass shifts by them rather than by the Scalar-rounded m_eivalues --
+  // shifts quantized to Scalar collapse neighbouring eigenvalues and yield near-parallel vectors.
+  // Empty whenever m_eivalues did not come from this solver's own bisection.
+  Matrix<ComputeScalar, Dynamic, 1> m_eivaluesc;
   ComputationInfo m_info = InvalidInput;
   bool m_isInitialized = false;
   bool m_eigenvectorsOk = false;
@@ -290,6 +295,7 @@ TridiagonalEigenSolver<Scalar_>& TridiagonalEigenSolver<Scalar_>::computeEigenva
   // semantics may not surface a NaN.
   if (!(m_diag.allFinite() && m_subdiag.allFinite())) {
     m_eivalues.resize(0);
+    m_eivaluesc.resize(0);
     m_info = NoConvergence;
     m_isInitialized = true;
     return *this;
@@ -297,13 +303,14 @@ TridiagonalEigenSolver<Scalar_>& TridiagonalEigenSolver<Scalar_>::computeEigenva
 
   if (internal::is_same<Scalar, ComputeScalar>::value) {
     internal::tridiagonal_bisection(m_diag, m_subdiag, range, RealScalar(0), m_eivalues);
+    m_eivaluesc.resize(0);
   } else {
-    // Narrow scalar: bisect in float and round the eigenvalues back (see ComputeScalar).
+    // Narrow scalar: bisect in float and round the eigenvalues back (see ComputeScalar). The
+    // unrounded values are retained for the staged eigenvector pass (see m_eivaluesc).
     const Matrix<ComputeScalar, Dynamic, 1> cdiag = m_diag.template cast<ComputeScalar>();
     const Matrix<ComputeScalar, Dynamic, 1> csubdiag = m_subdiag.template cast<ComputeScalar>();
-    Matrix<ComputeScalar, Dynamic, 1> cw;
-    internal::tridiagonal_bisection(cdiag, csubdiag, range, ComputeScalar(0), cw);
-    m_eivalues = cw.template cast<Scalar>();
+    internal::tridiagonal_bisection(cdiag, csubdiag, range, ComputeScalar(0), m_eivaluesc);
+    m_eivalues = m_eivaluesc.template cast<Scalar>();
   }
   m_info = Success;
   m_isInitialized = true;
@@ -327,6 +334,7 @@ TridiagonalEigenSolver<Scalar_>& TridiagonalEigenSolver<Scalar_>::computeEigenve
   m_diag = diag;
   m_subdiag = subdiag;
   m_eivalues = eigenvalues;
+  m_eivaluesc.resize(0);  // the caller's Scalar eigenvalues are authoritative here
 
   // Reject non-finite input up front, mirroring computeEigenvalues(): inverse iteration on NaN/Inf
   // data (or NaN shifts) would return NaN vectors with info() == Success.
@@ -356,9 +364,12 @@ void TridiagonalEigenSolver<Scalar_>::computeEigenvectorsImpl() {
     internal::tridiagonal_rayleigh_ritz_refine(m_diag, m_subdiag, m_eivalues, m_eivec);
   } else {
     // Narrow scalar: iterate and refine in float, then round the vectors back (see ComputeScalar).
+    // Shift by the retained unrounded eigenvalues when they exist (the staged path): shifts rounded
+    // to Scalar collapse neighbouring eigenvalues and produce near-parallel vectors.
     const Matrix<ComputeScalar, Dynamic, 1> cdiag = m_diag.template cast<ComputeScalar>();
     const Matrix<ComputeScalar, Dynamic, 1> csubdiag = m_subdiag.template cast<ComputeScalar>();
-    const Matrix<ComputeScalar, Dynamic, 1> cw = m_eivalues.template cast<ComputeScalar>();
+    const Matrix<ComputeScalar, Dynamic, 1> cw =
+        (m_eivaluesc.size() == m) ? m_eivaluesc : m_eivalues.template cast<ComputeScalar>();
     Matrix<ComputeScalar, Dynamic, Dynamic> cvec(n, m);
     nonconv = internal::tridiagonal_inverse_iteration(cdiag, csubdiag, cw, cvec);
     internal::tridiagonal_rayleigh_ritz_refine(cdiag, csubdiag, cw, cvec);

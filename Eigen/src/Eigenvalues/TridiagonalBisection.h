@@ -457,17 +457,28 @@ Index tridiagonal_bisection(const DiagType& diag, const SubdiagType& subdiag, co
     // (the same form as the Gershgorin expansion above, per endpoint magnitude, plus the convergence
     // tolerance) -- a guaranteed superset of [vl, vu) -- converge that superset, and resolve
     // endpoint membership against the *converged* eigenvalues after the bisection (see below).
-    end_tol_lo =
-        RealScalar(2.1) * (RealScalar(n) * eps * numext::maxi(tnorm, numext::abs(vl_n)) + RealScalar(2) * pivmin) +
-        abs_tol;
-    end_tol_hi =
-        RealScalar(2.1) * (RealScalar(n) * eps * numext::maxi(tnorm, numext::abs(vu_n)) + RealScalar(2) * pivmin) +
-        abs_tol;
-    t_lo = tridiagonal_sturm_count_below<RealScalar>(alpha.data(), beta_sq.data(), n, pivmin,
-                                                     vl_n - RealScalar(2) * end_tol_lo);
-    t_hi = tridiagonal_sturm_count_below<RealScalar>(alpha.data(), beta_sq.data(), n, pivmin, vu_n + end_tol_hi);
-    bracket_lo = numext::maxi(lambda_min, vl_n - RealScalar(2) * end_tol_lo);
-    bracket_hi = numext::mini(lambda_max, vu_n + RealScalar(2) * end_tol_hi);
+    // An infinite endpoint (given as such, or a finite long double that narrowed to infinity in
+    // RealScalar) means unbounded on that side: the count is trivial there, and the tolerance
+    // arithmetic must not run (inf - inf = NaN would empty the result).
+    if ((numext::isfinite)(vl_n)) {
+      end_tol_lo =
+          RealScalar(2.1) * (RealScalar(n) * eps * numext::maxi(tnorm, numext::abs(vl_n)) + RealScalar(2) * pivmin) +
+          abs_tol;
+      t_lo = tridiagonal_sturm_count_below<RealScalar>(alpha.data(), beta_sq.data(), n, pivmin,
+                                                       vl_n - RealScalar(2) * end_tol_lo);
+      bracket_lo = numext::maxi(lambda_min, vl_n - RealScalar(2) * end_tol_lo);
+    } else {
+      t_lo = (vl_n < RealScalar(0)) ? 0 : n;
+    }
+    if ((numext::isfinite)(vu_n)) {
+      end_tol_hi =
+          RealScalar(2.1) * (RealScalar(n) * eps * numext::maxi(tnorm, numext::abs(vu_n)) + RealScalar(2) * pivmin) +
+          abs_tol;
+      t_hi = tridiagonal_sturm_count_below<RealScalar>(alpha.data(), beta_sq.data(), n, pivmin, vu_n + end_tol_hi);
+      bracket_hi = numext::mini(lambda_max, vu_n + RealScalar(2) * end_tol_hi);
+    } else {
+      t_hi = (vu_n > RealScalar(0)) ? n : 0;
+    }
     value_filter = true;
   }
 
@@ -532,8 +543,9 @@ Index tridiagonal_bisection(const DiagType& diag, const SubdiagType& subdiag, co
   // either side, as with LAPACK xSTEBZ, whose endpoint counts carry the same rounding ambiguity.
   Index m_out = m;
   if (value_filter) {
-    const RealScalar keep_lo = vl_n - end_tol_lo;
-    const RealScalar keep_hi = vu_n - end_tol_hi;
+    // Infinite endpoints pass through unshifted: every finite eigenvalue satisfies >= -inf / < +inf.
+    const RealScalar keep_lo = (numext::isfinite)(vl_n) ? vl_n - end_tol_lo : vl_n;
+    const RealScalar keep_hi = (numext::isfinite)(vu_n) ? vu_n - end_tol_hi : vu_n;
     Index k = 0;
     for (Index j = 0; j < m; ++j)
       if (out[j] >= keep_lo && out[j] < keep_hi) out[k++] = out[j];
