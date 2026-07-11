@@ -11,6 +11,8 @@ synchronization, numerical behavior, or performance can have a large downstream 
 
 - Prefer additive changes and preserve public header paths. Use `<unsupported/Eigen/Tensor>` and
   `<Eigen/ThreadPool>`; never expose implementation-header includes to users.
+- Paths below `unsupported/Eigen/CXX11/` are backward-compatibility forwarding shims only. New code must use the
+  canonical `unsupported/Eigen/` headers and must not add new headers under `CXX11/`.
 - Preserve `EIGEN_DEVICE_FUNC` on code reachable by CUDA, HIP, or SYCL device evaluation.
 - Treat evaluator flags, layouts, scalar/packet/block paths, zero-sized tensors, aliasing, and asynchronous object
   lifetimes as part of the behavior under test.
@@ -77,6 +79,8 @@ See `unsupported/Eigen/src/Tensor/README.md` and `TensorDeviceThreadPool.h`.
   pending or cancelled work when those paths are affected.
 - Avoid blocking a worker on work that can only run on the same exhausted pool. Make callback and barrier lifetime
   rules explicit in code when they are not self-evident.
+- `DenseBase::Random()` and `setRandom()` use `std::rand` and are not re-entrant. Do not call them concurrently;
+  pre-generate inputs or use thread-local `<random>` generators through `NullaryExpr`.
 - Cost-model and grain-size changes need both small-workload overhead measurements and large-workload throughput
   measurements. Check oversubscription and nested parallelism rather than assuming more threads are faster.
 - Benchmark only on an otherwise idle system, one benchmark process at a time, and report repeated measurements rather

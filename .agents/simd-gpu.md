@@ -15,6 +15,9 @@ interface used by evaluators.
 - Start a new operation with a correct generic fallback when one is possible. Add specializations only for relevant
   backends that support the operation; do not require an implementation in every backend merely because one backend
   gains an intrinsic.
+- Guard each intrinsic with the feature macro that enables it, even inside a broader backend directory. For example,
+  AVX2 or FMA intrinsics in `arch/AVX/` still require `EIGEN_VECTORIZE_AVX2` or `EIGEN_VECTORIZE_FMA`, plus a fallback
+  for narrower configurations. Consult `Eigen/src/Core/util/ConfigureVectorization.h` for the current feature macros.
 - Keep capability flags (`Has*`), packet and half-packet types, alignment, masked access, casts, and cost metadata
   consistent with the implementation. A capability flag must not advertise an unavailable or semantically different
   operation.
