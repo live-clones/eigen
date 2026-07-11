@@ -132,6 +132,11 @@ struct imag {};
 // _res is defined by resolv.h
 #define _res FORBIDDEN_IDENTIFIER
 
+// Shrink the cache model used by computeProductBlockingSizes so that test-sized
+// products (see EIGEN_TEST_MAX_SIZE) exercise multi-pass GEMM blocking; with real
+// cache sizes nothing in the suite would ever block. Any new architecture-specific
+// blocking heuristic must honor this macro, or the blocking sentinels in
+// product_extra.cpp (compute_block_size) will fail on that target.
 // Unit tests calling Eigen's blas library must preserve the default blocking size
 // to avoid troubles.
 #ifndef EIGEN_NO_DEBUG_SMALL_PRODUCT_BLOCKS
