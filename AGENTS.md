@@ -134,8 +134,10 @@ objects by reference rather than by value; see [`doc/PassingByValue.dox`](doc/Pa
 
 Use `eigen_assert` for runtime preconditions that belong to Eigen's public debug behavior and `eigen_internal_assert`
 for internal invariants gated by `EIGEN_INTERNAL_DEBUGGING`. Use the local compile-time assertion style that gives the
-clearest diagnostic. Comments should explain mathematics, invariants, provenance, or a non-obvious decision rather than
-narrating the code.
+clearest diagnostic. Comments should explain non-obvious mathematics, invariants, compatibility constraints, or
+provenance rather than narrating the code. Keep comments concise and proportional to the code's complexity. Avoid
+tutorial-style prose, section-by-section narration, and comments that restate identifiers or control flow. Longer
+comments are justified only when that rationale cannot be expressed clearly in code.
 
 ## Quick build and test
 
