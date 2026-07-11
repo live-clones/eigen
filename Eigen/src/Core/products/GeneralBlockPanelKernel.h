@@ -134,11 +134,20 @@ void evaluateProductBlockingSizesHeuristicForSme(Index& k, Index& m, Index& n) {
   const Index mr = static_cast<Index>(Traits::mr);
   const Index nr = static_cast<Index>(Traits::nr);
 
+#ifdef EIGEN_DEBUG_SMALL_PRODUCT_BLOCKS
+  // Scaled-down budgets so that test-sized products (see EIGEN_TEST_MAX_SIZE)
+  // exercise multi-pass blocking along all three dimensions, mirroring the
+  // l1/l2/l3 reduction applied to the generic heuristic below.
+  constexpr Index sme_max_kc = static_cast<Index>(128);
+  constexpr Index sme_packed_rhs_budget_bytes = static_cast<Index>(128 * 1024);
+  constexpr Index sme_lhs_working_set_budget_bytes = static_cast<Index>(128 * 1024);
+#else
   // Empirically tuned fp32 SME packed-panel budgets for Apple M4. These are
   // heuristic working-set limits, not generic ARM64 cache defaults
   constexpr Index sme_max_kc = static_cast<Index>(2048);
   constexpr Index sme_packed_rhs_budget_bytes = static_cast<Index>(32 * 1024 * 1024);
   constexpr Index sme_lhs_working_set_budget_bytes = static_cast<Index>(7 * 1024 * 1024);
+#endif
 
   // Keep kc large enough to amortize SME setup and accumulation, but cap very
   // deep products to avoid too many result store passes.
