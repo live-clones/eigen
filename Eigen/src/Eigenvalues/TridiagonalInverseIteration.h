@@ -514,26 +514,18 @@ Index tridiagonal_inverse_iteration(const DiagType& diag, const SubdiagType& sub
   const Index m = eivals.size();
   if (n == 0 || m == 0) return 0;
 
-  // Split at negligible couplings (cf. xSTEBZ): |e_k| below round-off relative to its neighbouring
-  // diagonal entries. The criterion is evaluated on the globally normalized matrix, so it is
-  // scale-invariant: a uniformly tiny (even subnormal) but connected matrix does not split, while a
-  // coupling that is negligible relative to the matrix as a whole does. The additive sqrt(safemin)
-  // term only breaks ties at true zero scale.
+  // Split at negligible couplings (cf. xSTEBZ): |e_k| <= eps * sqrt(|d_k|) * sqrt(|d_k+1|). The
+  // geometric-mean form is scale-invariant on its own (both sides scale linearly) and needs no
+  // additive floor: a floor expressed at any single scale falsely splits strongly connected blocks
+  // living far below that scale. Taking square roots before multiplying keeps every intermediate in
+  // range, so the comparison stays exact down to subnormal entries; a zero coupling always splits.
   const RealScalar eps = NumTraits<RealScalar>::epsilon();
-  RealScalar gscale = diag.cwiseAbs().maxCoeff();
-  if (n > 1) gscale = numext::maxi(gscale, subdiag.cwiseAbs().maxCoeff());
-  if (numext::is_exactly_zero(gscale)) gscale = RealScalar(1);
-  const RealScalar sqrt_safemin = numext::sqrt((std::numeric_limits<RealScalar>::min)());
-  const VectorType adiag = diag.cwiseAbs() / gscale;
   Matrix<Index, Dynamic, 1> bstart(n + 1);  // block b spans rows [bstart(b), bstart(b+1))
   Index nblocks = 1;
   bstart(0) = 0;
   if (n > 1) {
-    // (adiag_k * adiag_{k+1}).sqrt(): entries are <= 1, so the product cannot overflow, and where it
-    // underflows the additive sqrt_safemin term dominates the threshold anyway.
-    const Array<bool, Dynamic, 1> split =
-        (subdiag.array().abs() / gscale <=
-         eps * (adiag.head(n - 1).array() * adiag.tail(n - 1).array()).sqrt() + sqrt_safemin);
+    const Array<bool, Dynamic, 1> split = (subdiag.array().abs() <= eps * (diag.head(n - 1).array().abs().sqrt() *
+                                                                           diag.tail(n - 1).array().abs().sqrt()));
     for (Index k = 0; k + 1 < n; ++k)
       if (split(k)) bstart(nblocks++) = k + 1;
   }
@@ -541,10 +533,15 @@ Index tridiagonal_inverse_iteration(const DiagType& diag, const SubdiagType& sub
 
   if (nblocks == 1) return tridiagonal_inverse_iteration_connected(diag, subdiag, eivals, eivecs);
 
-  // Per-block normalized data (block-local scale) for the assignment Sturm counts.
+  // Per-block normalized data (block-local scale) for the assignment Sturm counts, and the
+  // per-block localization tolerance btol: the count's rounding-displacement bound at the block's
+  // own scale. The subset-edge windows below are widened by btol so that a requested value equal to
+  // a block eigenvalue (up to that block's rounding) is found, without a window at any other
+  // block's scale swallowing well-separated foreign eigenvalues -- a tolerance expressed at the
+  // global scale would hand a small block's eigenvalue to whichever block comes first.
   const RealScalar safemin = numext::maxi(RealScalar(1) / NumTraits<RealScalar>::highest(),
                                           (RealScalar(1) + eps) * (std::numeric_limits<RealScalar>::min)());
-  VectorType alpha_all(n), beta_sq_all(n), bscale(nblocks), bpivmin(nblocks);
+  VectorType alpha_all(n), beta_sq_all(n), bscale(nblocks), bpivmin(nblocks), btol(nblocks);
   for (Index b = 0; b < nblocks; ++b) {
     const Index b0 = bstart(b), nb = bstart(b + 1) - b0;
     RealScalar s = diag.segment(b0, nb).cwiseAbs().maxCoeff();
@@ -558,36 +555,31 @@ Index tridiagonal_inverse_iteration(const DiagType& diag, const SubdiagType& sub
       max_bsq = beta_sq_all.segment(b0, nb - 1).maxCoeff();
     }
     bpivmin(b) = safemin * numext::maxi(max_bsq, RealScalar(1));
+    // Normalized block rows are bounded by 3 in magnitude, which bounds the block's infinity norm.
+    btol(b) = RealScalar(2.1) * (RealScalar(3) * RealScalar(nb) * eps + RealScalar(4) * safemin) * s;
   }
-
-  // Localization tolerance for the assignment counts: the bisection's own rounding-displacement
-  // bound, in raw units. It swallows the eigenvalue error of the staged bisection path while
-  // staying far below any numerically resolvable gap, so the localization windows at the subset
-  // edges only ever admit eigenvalues that are degenerate with the requested ones anyway.
-  RealScalar gnorm = adiag(0) + (n > 1 ? numext::abs(subdiag[0]) / gscale : RealScalar(0));
-  if (n > 1) gnorm = numext::maxi(gnorm, adiag(n - 1) + numext::abs(subdiag[n - 2]) / gscale);
-  if (n > 2)
-    gnorm = numext::maxi(
-        gnorm, ((subdiag.head(n - 2).cwiseAbs() + subdiag.tail(n - 2).cwiseAbs()) / gscale + adiag.segment(1, n - 2))
-                   .maxCoeff());
-  const RealScalar locate_tol = RealScalar(2.1) * (RealScalar(n) * eps * gnorm + RealScalar(4) * safemin) * gscale;
 
   // Assign each requested eigenvalue to a block by capacity. Groups are runs of exactly-equal
   // requested values; a block's capacity for a group is its Sturm count over the group's value
-  // interval, bounded by the midpoints to the neighbouring distinct values (widened by locate_tol
-  // at the subset's edges). The intervals partition the requested span and adjacent intervals share
-  // their boundary evaluation, so each block eigenvalue is counted exactly once even at count
-  // knife-edges. A copy its own interval cannot supply is carried into the next interval; copies
-  // left at the end pair up with the blocks holding leftover span capacity (a miscount that let a
-  // block absorb a foreign copy freed exactly one such slot elsewhere).
+  // interval, bounded by the midpoints to the neighbouring distinct values and, at the subset's
+  // edges, widened by a tolerance. The edge tolerance is tiered: the per-block btol first, so that
+  // exactly supplied eigenvalues can only be claimed by the block that owns them, and -- when the
+  // edge group still cannot cover its copies -- the matrix-scale gtol, which admits requested
+  // values whose error is at the scale of the whole matrix (e.g. the staged bisection's output for
+  // a block much smaller than the matrix norm). The intervals partition the requested span and
+  // adjacent intervals share their boundary evaluation, so each block eigenvalue is counted exactly
+  // once even at count knife-edges. A copy its own interval cannot supply is carried into the next
+  // interval; copies left at the end pair up with the blocks holding leftover span capacity (a
+  // miscount that let a block absorb a foreign copy freed exactly one such slot elsewhere).
+  RealScalar gscale = bscale.maxCoeff();
+  const RealScalar gtol = RealScalar(2.1) * (RealScalar(3) * RealScalar(n) * eps + RealScalar(4) * safemin) * gscale;
   Matrix<Index, Dynamic, 1> blockof(m), assigned(nblocks), caps(nblocks), below_prev(nblocks), below_cur(nblocks),
       below_edge(nblocks), carry(m), carry_next(m);
   assigned.setZero();
-  const RealScalar v_lo_edge = eivals[0] - locate_tol;
   for (Index b = 0; b < nblocks; ++b) {
     const Index b0 = bstart(b), nb = bstart(b + 1) - b0;
     below_prev(b) = tridiagonal_sturm_count_below<RealScalar>(alpha_all.data() + b0, beta_sq_all.data() + b0, nb,
-                                                              bpivmin(b), v_lo_edge / bscale(b));
+                                                              bpivmin(b), (eivals[0] - btol(b)) / bscale(b));
   }
   below_edge = below_prev;
   Index ncarry = 0;
@@ -595,14 +587,34 @@ Index tridiagonal_inverse_iteration(const DiagType& diag, const SubdiagType& sub
   while (g_begin < m) {
     Index g_end = g_begin + 1;
     while (g_end < m && !(eivals[g_begin] < eivals[g_end])) ++g_end;
-    // Upper boundary: midpoint to the next distinct value, or the widened subset edge at the end.
-    const RealScalar bound = (g_end < m) ? RealScalar(0.5) * eivals[g_end - 1] + RealScalar(0.5) * eivals[g_end]
-                                         : eivals[m - 1] + locate_tol;
-    for (Index b = 0; b < nblocks; ++b) {
-      const Index b0 = bstart(b), nb = bstart(b + 1) - b0;
-      below_cur(b) = tridiagonal_sturm_count_below<RealScalar>(alpha_all.data() + b0, beta_sq_all.data() + b0, nb,
-                                                               bpivmin(b), bound / bscale(b));
-      caps(b) = numext::maxi(Index(0), below_cur(b) - below_prev(b));
+    // Upper boundary: midpoint to the next distinct value, or the per-block widened edge at the end.
+    const bool first = (g_begin == 0);
+    const bool last = (g_end >= m);
+    const RealScalar mid_bound =
+        last ? RealScalar(0) : RealScalar(0.5) * eivals[g_end - 1] + RealScalar(0.5) * eivals[g_end];
+    bool widened = false;
+    while (true) {
+      Index total = 0;
+      for (Index b = 0; b < nblocks; ++b) {
+        const Index b0 = bstart(b), nb = bstart(b + 1) - b0;
+        const RealScalar bound = last ? eivals[m - 1] + (widened ? gtol : btol(b)) : mid_bound;
+        below_cur(b) = tridiagonal_sturm_count_below<RealScalar>(alpha_all.data() + b0, beta_sq_all.data() + b0, nb,
+                                                                 bpivmin(b), bound / bscale(b));
+        caps(b) = numext::maxi(Index(0), below_cur(b) - below_prev(b));
+        total += caps(b);
+      }
+      // Retry an edge group once with the matrix-scale tolerance if the block-scale windows left it
+      // short; interior deficits are handled by the carry chain instead.
+      if (widened || !(first || last) || total >= g_end - g_begin + (last ? ncarry : 0)) break;
+      widened = true;
+      if (first) {
+        for (Index b = 0; b < nblocks; ++b) {
+          const Index b0 = bstart(b), nb = bstart(b + 1) - b0;
+          below_prev(b) = tridiagonal_sturm_count_below<RealScalar>(alpha_all.data() + b0, beta_sq_all.data() + b0, nb,
+                                                                    bpivmin(b), (eivals[0] - gtol) / bscale(b));
+        }
+        below_edge = below_prev;
+      }
     }
     // The group's own copies first, then the carried ones; whatever finds no capacity carries on.
     Index ncarry_next = 0;

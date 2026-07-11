@@ -131,6 +131,20 @@ void tridiagonal_eigensolver_bisection() {
     VERIFY_IS_EQUAL(bcross.eigenvalues().size(), Index(1));
     VERIFY_IS_APPROX(bcross.eigenvalues()(0), RealScalar(-5));
 
+    // Infinite endpoints mean unbounded on that side; the endpoint-tolerance arithmetic must not
+    // poison the result (inf - inf = NaN used to return an empty spectrum). A finite long double
+    // endpoint that narrows to infinity in RealScalar (1e300 for float) behaves the same way.
+    TridiagonalEigenSolver<RealScalar> binf;
+    binf.computeEigenvalues(d, e,
+                            EigenvalueRange::values(-std::numeric_limits<long double>::infinity(),
+                                                    std::numeric_limits<long double>::infinity()));
+    VERIFY_IS_EQUAL(binf.eigenvalues().size(), Index(3));
+    binf.computeEigenvalues(d, e, EigenvalueRange::values(1.5L, std::numeric_limits<long double>::infinity()));
+    VERIFY_IS_EQUAL(binf.eigenvalues().size(), Index(2));
+    VERIFY_IS_APPROX(binf.eigenvalues()(0), RealScalar(2));
+    binf.computeEigenvalues(d, e, EigenvalueRange::values(1.5L, 1e300L));
+    VERIFY_IS_EQUAL(binf.eigenvalues().size(), Index(2));
+
     // Fixed-size input vectors work, including subset selection (the solver's own storage is
     // dynamic, so a subset shorter than the input is not a problem).
     Matrix<RealScalar, 3, 1> fd;
@@ -396,6 +410,46 @@ void tridiagonal_eigensolver_eigenvectors() {
       blocks.computeEigenvectors(d, e, d);  // the diagonal is the exact (ascending) spectrum
       VERIFY_IS_EQUAL(blocks.info(), Success);
       VERIFY_IS_EQUAL((blocks.eigenvectors() - MatrixType::Identity(5, 5)).cwiseAbs().maxCoeff(), RealScalar(0));
+
+      // Any single requested eigenvalue must select its own block. The localization windows are
+      // expressed at each block's own scale; a window at the global scale (~ eps * 1e16 here) spans
+      // all four small blocks at once and used to hand w = (3) to the first block.
+      for (Index j = 0; j < 5; ++j) {
+        VectorType wone(1);
+        wone << d(j);
+        TridiagonalEigenSolver<RealScalar> one;
+        one.computeEigenvectors(d, e, wone);
+        VERIFY_IS_EQUAL(one.info(), Success);
+        VERIFY_IS_EQUAL((one.eigenvectors().col(0) - MatrixType::Identity(5, 5).col(j)).cwiseAbs().maxCoeff(),
+                        RealScalar(0));
+      }
+    }
+
+    // A huge disconnected block must not force splitting of a strongly connected small block: a
+    // splitting safety floor expressed at the global scale used to break the trailing 2x2 into
+    // singletons, returning coordinate vectors with O(1) local residual.
+    {
+      const RealScalar big = (std::numeric_limits<RealScalar>::max)() / RealScalar(1e10);
+      VectorType d(3), e(2), w(3);
+      d << big, RealScalar(1), RealScalar(2);
+      e << RealScalar(0), RealScalar(0.5);
+      // Exact spectrum: big and (3 -+ sqrt(2))/2 from the trailing 2x2 block.
+      w << RealScalar((3.0 - std::sqrt(2.0)) / 2.0), RealScalar((3.0 + std::sqrt(2.0)) / 2.0), big;
+      TridiagonalEigenSolver<RealScalar> conn;
+      conn.computeEigenvectors(d, e, w);
+      VERIFY_IS_EQUAL(conn.info(), Success);
+      const MatrixType Vc = conn.eigenvectors();
+      MatrixType Tc = MatrixType::Zero(3, 3);
+      Tc.diagonal() = d;
+      Tc.diagonal(-1) = e;
+      Tc.diagonal(1) = e;
+      for (Index j = 0; j < 3; ++j)
+        VERIFY((Tc * Vc.col(j) - w(j) * Vc.col(j)).stableNorm() <=
+               RealScalar(64) * eps * numext::maxi(RealScalar(1), numext::abs(w(j))));
+      // The small-block vectors have no support on the big block, exactly.
+      VERIFY_IS_EQUAL(numext::abs(Vc(0, 0)), RealScalar(0));
+      VERIFY_IS_EQUAL(numext::abs(Vc(0, 1)), RealScalar(0));
+      VERIFY(numext::abs(Vc.col(0).dot(Vc.col(1))) <= RealScalar(8) * eps);
     }
 
     // Non-finite input to the direct eigenvector path is rejected up front and reported via info(),
@@ -481,6 +535,19 @@ void tridiagonal_eigensolver_narrow() {
     VERIFY_IS_EQUAL(numext::abs(V(2, 0)), RealScalar(0));
     VERIFY_IS_EQUAL(numext::abs(V(2, 1)), RealScalar(0));
     VERIFY((V.transpose() * V - MatrixType::Identity(2, 2)).cwiseAbs().maxCoeff() <= RealScalar(8) * eps);
+  }
+
+  // (d) 1-2-1 Toeplitz of dimension 64, staged full solve: the eigenvector pass must shift by the
+  // retained unrounded float eigenvalues. Shifts rounded to RealScalar collapse neighbouring
+  // eigenvalues and used to return near-parallel columns (Gram error ~0.4 in bfloat16).
+  {
+    const Index n = 64;
+    const VectorType d = VectorType::Constant(n, RealScalar(2.0f));
+    const VectorType e = VectorType::Constant(n - 1, RealScalar(1.0f));
+    TridiagonalEigenSolver<RealScalar> es(d, e);
+    VERIFY_IS_EQUAL(es.info(), Success);
+    const MatrixType V = es.eigenvectors();
+    VERIFY((V.transpose() * V - MatrixType::Identity(n, n)).cwiseAbs().maxCoeff() <= RealScalar(16) * eps);
   }
 }
 
