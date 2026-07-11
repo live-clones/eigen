@@ -248,6 +248,14 @@ class TridiagonalEigenSolver {
   }
 
  protected:
+  // Sturm counts, bisection targets, and inverse-iteration thresholds are carried in the scalar type
+  // itself, so scalars narrower than float (half, bfloat16) compute in float internally: their
+  // epsilon cannot represent consecutive integer counts beyond ~1/eps (a 257-element bfloat16
+  // identity would report an eigenvalue of "5.19"), and intermediates such as the coincident-shift
+  // perturbation quantize away. Results are rounded back to Scalar on output.
+  typedef typename std::conditional<(NumTraits<Scalar>::digits() < NumTraits<float>::digits()), float, Scalar>::type
+      ComputeScalar;
+
   void computeEigenvectorsImpl();
 
   VectorType m_eivalues;
@@ -287,7 +295,16 @@ TridiagonalEigenSolver<Scalar_>& TridiagonalEigenSolver<Scalar_>::computeEigenva
     return *this;
   }
 
-  internal::tridiagonal_bisection(m_diag, m_subdiag, range, RealScalar(0), m_eivalues);
+  if (internal::is_same<Scalar, ComputeScalar>::value) {
+    internal::tridiagonal_bisection(m_diag, m_subdiag, range, RealScalar(0), m_eivalues);
+  } else {
+    // Narrow scalar: bisect in float and round the eigenvalues back (see ComputeScalar).
+    const Matrix<ComputeScalar, Dynamic, 1> cdiag = m_diag.template cast<ComputeScalar>();
+    const Matrix<ComputeScalar, Dynamic, 1> csubdiag = m_subdiag.template cast<ComputeScalar>();
+    Matrix<ComputeScalar, Dynamic, 1> cw;
+    internal::tridiagonal_bisection(cdiag, csubdiag, range, ComputeScalar(0), cw);
+    m_eivalues = cw.template cast<Scalar>();
+  }
   m_info = Success;
   m_isInitialized = true;
   return *this;
@@ -310,6 +327,18 @@ TridiagonalEigenSolver<Scalar_>& TridiagonalEigenSolver<Scalar_>::computeEigenve
   m_diag = diag;
   m_subdiag = subdiag;
   m_eivalues = eigenvalues;
+
+  // Reject non-finite input up front, mirroring computeEigenvalues(): inverse iteration on NaN/Inf
+  // data (or NaN shifts) would return NaN vectors with info() == Success.
+  if (!(m_diag.allFinite() && m_subdiag.allFinite() && m_eivalues.allFinite())) {
+    m_eivalues.resize(0);
+    m_eivec.resize(m_diag.size(), 0);
+    m_info = NoConvergence;
+    m_isInitialized = true;
+    m_eigenvectorsOk = false;
+    return *this;
+  }
+
   computeEigenvectorsImpl();
   return *this;
 }
@@ -319,10 +348,22 @@ void TridiagonalEigenSolver<Scalar_>::computeEigenvectorsImpl() {
   const Index n = m_diag.size();
   const Index m = m_eivalues.size();
   m_eivec.resize(n, m);
-  const Index nonconv = internal::tridiagonal_inverse_iteration(m_diag, m_subdiag, m_eivalues, m_eivec);
-  // Refine the eigenvectors of any genuinely degenerate cluster (Rayleigh-Ritz). The eigenvalues are
-  // left unchanged, and a non-degenerate spectrum is untouched.
-  internal::tridiagonal_rayleigh_ritz_refine(m_diag, m_subdiag, m_eivalues, m_eivec);
+  Index nonconv;
+  if (internal::is_same<Scalar, ComputeScalar>::value) {
+    nonconv = internal::tridiagonal_inverse_iteration(m_diag, m_subdiag, m_eivalues, m_eivec);
+    // Refine the eigenvectors of any genuinely degenerate cluster (Rayleigh-Ritz). The eigenvalues
+    // are left unchanged, and a non-degenerate spectrum is untouched.
+    internal::tridiagonal_rayleigh_ritz_refine(m_diag, m_subdiag, m_eivalues, m_eivec);
+  } else {
+    // Narrow scalar: iterate and refine in float, then round the vectors back (see ComputeScalar).
+    const Matrix<ComputeScalar, Dynamic, 1> cdiag = m_diag.template cast<ComputeScalar>();
+    const Matrix<ComputeScalar, Dynamic, 1> csubdiag = m_subdiag.template cast<ComputeScalar>();
+    const Matrix<ComputeScalar, Dynamic, 1> cw = m_eivalues.template cast<ComputeScalar>();
+    Matrix<ComputeScalar, Dynamic, Dynamic> cvec(n, m);
+    nonconv = internal::tridiagonal_inverse_iteration(cdiag, csubdiag, cw, cvec);
+    internal::tridiagonal_rayleigh_ritz_refine(cdiag, csubdiag, cw, cvec);
+    m_eivec = cvec.template cast<Scalar>();
+  }
 
   // Like LAPACK xSTEIN, report NoConvergence if any eigenvector failed the inverse-iteration growth
   // test (the columns are still returned, best effort, so eigenvectors() remains usable).

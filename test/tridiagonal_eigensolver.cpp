@@ -13,6 +13,21 @@
 #include <limits>
 #include <Eigen/Eigenvalues>
 
+// Some SIMD units flush subnormal operands and results to zero regardless of any library-side care
+// (ARMv7 NEON is hard-wired FTZ while its scalar VFP unit honors subnormals). Sections that feed
+// genuinely subnormal data through vectorized kernels cannot even observe their inputs on such
+// hardware, so they are gated on this runtime probe of the packet path. The volatile load keeps the
+// compiler from constant-folding the product with IEEE semantics.
+template <typename RealScalar>
+bool packet_path_flushes_subnormals() {
+  typedef typename internal::packet_traits<RealScalar>::type Packet;
+  volatile RealScalar vtiny = (std::numeric_limits<RealScalar>::min)();
+  const RealScalar tiny = vtiny;
+  const RealScalar half_tiny =
+      internal::pfirst(internal::pmul(internal::pset1<Packet>(tiny), internal::pset1<Packet>(RealScalar(0.5))));
+  return numext::is_exactly_zero(half_tiny);
+}
+
 // Test TridiagonalEigenSolver (SIMD Sturm-sequence spectral bisection) on the full
 // structured-tridiagonal catalog: compare against the implicit-QR path of
 // SelfAdjointEigenSolver::computeFromTridiagonal(), exercise index/value range subset
@@ -103,6 +118,19 @@ void tridiagonal_eigensolver_bisection() {
     VERIFY_IS_EQUAL(blow.eigenvalues().size(), Index(1));  // [1, 2) = {1}: includes the eigenvalue at the closed end 1
     VERIFY_IS_APPROX(blow.eigenvalues()(0), RealScalar(1));
 
+    // The half-open endpoint semantics must survive rounding in the Sturm recurrence, not just the
+    // exact-count diagonal case above: [[-3, 2], [2, -3]] has spectrum {-5, -1} exactly, but the
+    // recurrence rounds through 2/3-type values, so counts taken exactly at an endpoint eigenvalue
+    // are a coin flip (float used to drop -5 entirely, double used to keep -1). The endpoint
+    // resolution against the converged eigenvalues must return exactly {-5}.
+    VectorType dcross(2), ecross(1);
+    dcross << RealScalar(-3), RealScalar(-3);
+    ecross << RealScalar(2);
+    TridiagonalEigenSolver<RealScalar> bcross;
+    bcross.computeEigenvalues(dcross, ecross, EigenvalueRange::values(-5.0L, -1.0L));
+    VERIFY_IS_EQUAL(bcross.eigenvalues().size(), Index(1));
+    VERIFY_IS_APPROX(bcross.eigenvalues()(0), RealScalar(-5));
+
     // Fixed-size input vectors work, including subset selection (the solver's own storage is
     // dynamic, so a subset shorter than the input is not a problem).
     Matrix<RealScalar, 3, 1> fd;
@@ -141,7 +169,8 @@ void tridiagonal_eigensolver_bisection() {
   // A subnormal-magnitude matrix exercises the normalization: dividing entries by the (subnormal) max
   // magnitude keeps the scaled matrix O(1), whereas multiplying by 1/scale would overflow to infinity
   // and return wrong eigenvalues. Compare against the same matrix in a normal range, scaled back down.
-  {
+  // Skipped on flush-to-zero packet hardware, where the subnormal inputs read as zero (see the probe).
+  if (!packet_path_flushes_subnormals<RealScalar>()) {
     const Index nn = 7;
     VectorType bd(nn), be(nn - 1);
     test::tridiag_1_2_1(bd, be);
@@ -326,7 +355,8 @@ void tridiagonal_eigensolver_eigenvectors() {
     // overflows to infinity and would otherwise let the iterate underflow to zero. The eigenvalues are
     // taken from the same matrix in a normal magnitude range (then scaled back down), so this exercises
     // the eigenvector normalization in isolation from the eigenvalue solver.
-    {
+    // Skipped on flush-to-zero packet hardware, where the subnormal inputs read as zero (see the probe).
+    if (!packet_path_flushes_subnormals<RealScalar>()) {
       const Index n = 6;
       VectorType base_d(n), base_e(n - 1);
       test::tridiag_1_2_1(base_d, base_e);
@@ -355,6 +385,34 @@ void tridiagonal_eigensolver_eigenvectors() {
         VERIFY((Tn * V.col(i) - ref.eigenvalues()(i) * V.col(i)).norm() <= RealScalar(256) * RealScalar(n) * eps);
     }
 
+    // Numerically disconnected blocks at wildly different scales: each 1x1 block's eigenvector is
+    // the corresponding unit vector, exactly (components outside the owning block are exact zeros).
+    // Processing the blocks with one global perturbation floor (eps * ||T||) would swamp the pivots
+    // of the small blocks and return arbitrary mixtures of the first four vectors instead.
+    {
+      VectorType d(5), e = VectorType::Zero(4);
+      d << RealScalar(1), RealScalar(2), RealScalar(3), RealScalar(4), RealScalar(1e16);
+      TridiagonalEigenSolver<RealScalar> blocks;
+      blocks.computeEigenvectors(d, e, d);  // the diagonal is the exact (ascending) spectrum
+      VERIFY_IS_EQUAL(blocks.info(), Success);
+      VERIFY_IS_EQUAL((blocks.eigenvectors() - MatrixType::Identity(5, 5)).cwiseAbs().maxCoeff(), RealScalar(0));
+    }
+
+    // Non-finite input to the direct eigenvector path is rejected up front and reported via info(),
+    // mirroring computeEigenvalues(): NaN data or shifts must not produce NaN vectors with Success.
+    {
+      VectorType d = VectorType::Ones(3), e = VectorType::Zero(2), w = VectorType::Ones(3);
+      TridiagonalEigenSolver<RealScalar> bad;
+      VectorType dnan = d;
+      dnan(1) = std::numeric_limits<RealScalar>::quiet_NaN();
+      bad.computeEigenvectors(dnan, e, w);
+      VERIFY_IS_EQUAL(bad.info(), NoConvergence);
+      VectorType wnan = w;
+      wnan(2) = std::numeric_limits<RealScalar>::quiet_NaN();
+      bad.computeEigenvectors(d, e, wnan);
+      VERIFY_IS_EQUAL(bad.info(), NoConvergence);
+    }
+
     // Convergence is reported through info() rather than hard-coded to Success: inverse iteration
     // counts the eigenvectors that fail to converge within its step limit (cf. LAPACK xSTEIN), and a
     // well-conditioned spectrum converges fully, so that count is zero and info() is Success.
@@ -367,11 +425,72 @@ void tridiagonal_eigensolver_eigenvectors() {
   }
 }
 
+// Scalar types narrower than float (half, bfloat16) are computed internally in float (see
+// TridiagonalEigenSolver::ComputeScalar): Sturm counts and bisection targets stay exact past the
+// narrow type's ~1/eps integer ceiling, the start-vector RNG cannot overflow to infinity, and the
+// coincident-shift perturbation (~0.08|x| at bfloat16 precision) cannot jump into a neighbouring
+// eigenspace. Each block below used to fail in the corresponding way.
+template <typename RealScalar>
+void tridiagonal_eigensolver_narrow() {
+  typedef Matrix<RealScalar, Dynamic, 1> VectorType;
+  typedef Matrix<RealScalar, Dynamic, Dynamic> MatrixType;
+  const RealScalar eps = NumTraits<RealScalar>::epsilon();
+
+  // (a) 2x2 [2, 1; 1, 2]: exact eigenpairs (1, 3) with vectors (1, -1)/sqrt(2), (1, 1)/sqrt(2).
+  // With the RNG overflow this returned an all-NaN eigenvector matrix with info() == Success.
+  {
+    VectorType d(2), e(1);
+    d << RealScalar(2), RealScalar(2);
+    e << RealScalar(1);
+    TridiagonalEigenSolver<RealScalar> es(d, e);
+    VERIFY_IS_EQUAL(es.info(), Success);
+    VERIFY(es.eigenvectors().allFinite());
+    VERIFY_IS_APPROX(es.eigenvalues()(0), RealScalar(1));
+    VERIFY_IS_APPROX(es.eigenvalues()(1), RealScalar(3));
+    const MatrixType V = es.eigenvectors();
+    VERIFY((V.transpose() * V - MatrixType::Identity(2, 2)).cwiseAbs().maxCoeff() <= RealScalar(8) * eps);
+    MatrixType T(2, 2);
+    T << d(0), e(0), e(0), d(1);
+    VERIFY((T * V - V * es.eigenvalues().asDiagonal()).cwiseAbs().maxCoeff() <= RealScalar(16) * eps);
+  }
+
+  // (b) Identity of dimension 257 (> 1/eps for bfloat16): every eigenvalue is exactly 1. With the
+  // Sturm counts held in the narrow type this returned eigenvalues as large as 5.19.
+  {
+    const Index n = 257;
+    const VectorType d = VectorType::Constant(n, RealScalar(1));
+    const VectorType e = VectorType::Zero(n - 1);
+    TridiagonalEigenSolver<RealScalar> es;
+    es.computeEigenvalues(d, e);
+    VERIFY_IS_EQUAL(es.info(), Success);
+    VERIFY_IS_EQUAL(es.eigenvalues().size(), n);
+    for (Index i = 0; i < n; ++i) VERIFY_IS_EQUAL(es.eigenvalues()(i), RealScalar(1));
+  }
+
+  // (c) diag (1, 1, 1 + 2^-4), zero off-diagonal: the eigenvectors for the two eigenvalues at 1
+  // must span exactly the first two coordinates. An un-capped shift perturbation at this precision
+  // used to select the third eigenspace for the second vector.
+  {
+    VectorType d(3), e = VectorType::Zero(2), w(2);
+    d << RealScalar(1), RealScalar(1), RealScalar(1.0625f);
+    w << RealScalar(1), RealScalar(1);
+    TridiagonalEigenSolver<RealScalar> es;
+    es.computeEigenvectors(d, e, w);
+    VERIFY_IS_EQUAL(es.info(), Success);
+    const MatrixType V = es.eigenvectors();
+    VERIFY_IS_EQUAL(numext::abs(V(2, 0)), RealScalar(0));
+    VERIFY_IS_EQUAL(numext::abs(V(2, 1)), RealScalar(0));
+    VERIFY((V.transpose() * V - MatrixType::Identity(2, 2)).cwiseAbs().maxCoeff() <= RealScalar(8) * eps);
+  }
+}
+
 EIGEN_DECLARE_TEST(tridiagonal_eigensolver) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(tridiagonal_eigensolver_bisection<double>());
     CALL_SUBTEST_2(tridiagonal_eigensolver_bisection<float>());
     CALL_SUBTEST_3(tridiagonal_eigensolver_eigenvectors<double>());
     CALL_SUBTEST_4(tridiagonal_eigensolver_eigenvectors<float>());
+    CALL_SUBTEST_5(tridiagonal_eigensolver_narrow<Eigen::half>());
+    CALL_SUBTEST_6(tridiagonal_eigensolver_narrow<Eigen::bfloat16>());
   }
 }
