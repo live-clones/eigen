@@ -319,6 +319,11 @@ test:linux:cuda-12.6:clang-19:
     EIGEN_CI_CTEST_ARGS: --timeout 2000
     EIGEN_CI_CTEST_PARALLEL: "4"
     EIGEN_CI_CTEST_EXCLUDE: tensor_thread_pool
+    # Each test binary repeats its whole body 10x with fresh seeds by default,
+    # which puts the slowest binaries past any workable per-test timeout under
+    # TCG. The emulated jobs are here for ISA-specific codegen coverage; seed
+    # diversity is already provided by the native jobs at the default repeat.
+    EIGEN_REPEAT: "2"
   tags:
     - saas-linux-large-amd64
 
@@ -380,6 +385,11 @@ test:linux:arm:clang-14:default:unsupported:
     # Per-test wall time is bound by single-core TCG speed, which swings ~4x
     # across SaaS hosts; double ctest's default 1500s timeout to absorb it.
     EIGEN_CI_CTEST_ARGS: --timeout 3000
+    # Cut the default 10x per-binary repeat: like .test:linux:qemu, these jobs
+    # exist for ISA coverage, and 10 repeats under TCG pushes the slowest
+    # binaries (mixingtypes_3, eigensolver_selfadjoint_5, FFT, ...) past even
+    # the raised 3000s timeout. Seed diversity comes from the native jobs.
+    EIGEN_REPEAT: "2"
   # Inherit the 2xlarge runner from .test:linux (same cost under GitLab's
   # open-source program). The qemu-user run is single-threaded per subtest,
   # so this is about cost-neutral consistency, not speed.
