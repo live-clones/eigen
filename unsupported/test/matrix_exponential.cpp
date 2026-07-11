@@ -108,6 +108,20 @@ void randomTest(const MatrixType& m, double tol) {
   }
 }
 
+template <int Options>
+void testComplexScalingPath() {
+  using Scalar = std::complex<double>;
+  using MatrixType = Matrix<Scalar, 3, 3, Options>;
+  MatrixType A = MatrixType::Zero();
+  A.diagonal() << Scalar(-1.0, 64.0), Scalar(0.5, -32.0), Scalar(-0.25, 16.0);
+
+  MatrixType expected = MatrixType::Zero();
+  for (Index i = 0; i < A.rows(); ++i) expected(i, i) = std::exp(A(i, i));
+
+  const double tol = 100.0 * NumTraits<double>::epsilon();
+  VERIFY(A.exp().isApprox(expected, tol));
+}
+
 EIGEN_DECLARE_TEST(matrix_exponential) {
   CALL_SUBTEST_2(test2dRotation<double>(1e-13));
   CALL_SUBTEST_1(test2dRotation<float>(2e-5));
@@ -120,6 +134,8 @@ EIGEN_DECLARE_TEST(matrix_exponential) {
   CALL_SUBTEST_2(randomTest(Matrix2d(), 1e-13));
   CALL_SUBTEST_7(randomTest(Matrix<double, 3, 3, RowMajor>(), 1e-13));
   CALL_SUBTEST_3(randomTest(Matrix4cd(), 1e-13));
+  CALL_SUBTEST_3((testComplexScalingPath<ColMajor>()));
+  CALL_SUBTEST_3((testComplexScalingPath<RowMajor>()));
   CALL_SUBTEST_4(randomTest(MatrixXd(8, 8), 1e-13));
   CALL_SUBTEST_1(randomTest(Matrix2f(), 1e-4));
   CALL_SUBTEST_5(randomTest(Matrix3cf(), 1e-4));
