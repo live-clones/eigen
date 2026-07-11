@@ -59,7 +59,7 @@ struct traits<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
   // owning temporaries, so Product must nest the operator by value for a
   // delayed-evaluated product expression to keep its left factor alive. The copy
   // is O(N), negligible against the O(N log N) product evaluation.
-  static constexpr int Flags = 0;
+  static constexpr unsigned int Flags = 0;
 };
 
 template <typename Scalar_, int BlockSize_, int NumBlocks_>
@@ -236,12 +236,13 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
     scaledModuli(s, mods, tol);
     ComplexArray sinv(s.rows(), s.cols());
     // Strictly-below-threshold entries are zeroed, matching SVDBase::rank(), so a
-    // smallest-normal 1x1 operator stays invertible. The negated comparison keeps
-    // NaN symbol entries in the inverted set, so a NaN input propagates to the
+    // smallest-normal 1x1 operator stays invertible. A comparison with NaN is
+    // false, so NaN symbol entries stay in the inverted set and propagate to the
     // output instead of being silently zeroed.
-    for (Index k1 = 0; k1 < s.cols(); ++k1)
-      for (Index k2 = 0; k2 < s.rows(); ++k2)
-        sinv(k2, k1) = !(mods(k2, k1) < tol) ? Complex(1) / s(k2, k1) : Complex(0);
+    // Keep the reciprocal behind a scalar branch: select() evaluates both arms,
+    // so it would divide by thresholded zeros and potentially raise floating-point
+    // exceptions even though those coefficients are discarded.
+    for (Index k = 0; k < s.size(); ++k) sinv(k) = mods(k) < tol ? Complex(0) : Complex(1) / s(k);
     Matrix<Scalar, RowsAtCompileTime, Rhs::ColsAtCompileTime> x(N, b.cols());
     if (!b.allFinite()) {
       // A non-finite right-hand side cannot go through the transforms (see
@@ -274,11 +275,7 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
     RealArray mods;
     RealScalar tol;
     scaledModuli(s, mods, tol);
-    Index r = 0;
-    for (Index k1 = 0; k1 < s.cols(); ++k1)
-      for (Index k2 = 0; k2 < s.rows(); ++k2)
-        if (!(mods(k2, k1) < tol)) ++r;  // negated so NaN entries count as non-zero
-    return r;
+    return (!(mods.array() < tol)).count();  // negated so NaN entries count as non-zero
   }
 
   /** \returns the inverse of \c *this, itself a \c Bccb operator: the one
