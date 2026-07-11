@@ -113,6 +113,22 @@ EIGEN_STRONG_INLINE void tridiagonal_sturm_block(const RealScalar* alpha, const 
     c[k] = pand(one_p, mask);
     q[k] = pselect(mask, pmin(q[k], neg_pivmin_p), q[k]);
   }
+  // Convert the in-register lane counts to the exact int64 output: overwrite on the first flush,
+  // add into the previously flushed partials thereafter.
+  auto store_counts = [&](bool accumulate) {
+    EIGEN_UNROLL_LOOP
+    for (int k = 0; k < kUnroll; ++k) {
+      RealScalar buf[kPacketSize];
+      pstoreu(buf, c[k]);
+      EIGEN_UNROLL_LOOP
+      for (int l = 0; l < kPacketSize; ++l) {
+        if (accumulate)
+          cnt[k * kPacketSize + l] += numext::int64_t(buf[l]);
+        else
+          cnt[k * kPacketSize + l] = numext::int64_t(buf[l]);
+      }
+    }
+  };
   bool flushed = false;
   Index i = 1;
   while (true) {
@@ -132,34 +148,13 @@ EIGEN_STRONG_INLINE void tridiagonal_sturm_block(const RealScalar* alpha, const 
     if (i >= n) break;
     // Flush the in-register counts (exact: at most kFlushPeriod + 1 increments so far) into the
     // integer output and restart the accumulators. Only reached for n above the flush period.
+    store_counts(flushed);
     EIGEN_UNROLL_LOOP
-    for (int k = 0; k < kUnroll; ++k) {
-      RealScalar buf[kPacketSize];
-      pstoreu(buf, c[k]);
-      EIGEN_UNROLL_LOOP
-      for (int l = 0; l < kPacketSize; ++l) {
-        if (flushed)
-          cnt[k * kPacketSize + l] += numext::int64_t(buf[l]);
-        else
-          cnt[k * kPacketSize + l] = numext::int64_t(buf[l]);
-      }
-      c[k] = pzero(c[k]);
-    }
+    for (int k = 0; k < kUnroll; ++k) c[k] = pzero(c[k]);
     flushed = true;
   }
   // Final conversion to the exact integer counts (adding any flushed partials).
-  EIGEN_UNROLL_LOOP
-  for (int k = 0; k < kUnroll; ++k) {
-    RealScalar buf[kPacketSize];
-    pstoreu(buf, c[k]);
-    EIGEN_UNROLL_LOOP
-    for (int l = 0; l < kPacketSize; ++l) {
-      if (flushed)
-        cnt[k * kPacketSize + l] += numext::int64_t(buf[l]);
-      else
-        cnt[k * kPacketSize + l] = numext::int64_t(buf[l]);
-    }
-  }
+  store_counts(flushed);
 }
 
 template <typename RealScalar>

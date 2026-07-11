@@ -576,11 +576,14 @@ Index tridiagonal_inverse_iteration(const DiagType& diag, const SubdiagType& sub
   Matrix<Index, Dynamic, 1> blockof(m), assigned(nblocks), caps(nblocks), below_prev(nblocks), below_cur(nblocks),
       below_edge(nblocks), carry(m), carry_next(m);
   assigned.setZero();
-  for (Index b = 0; b < nblocks; ++b) {
+  // Sturm count over block b of its eigenvalues strictly below the unnormalized shift x (normalized
+  // by the block's own scale, as the block's alpha/beta data is).
+  auto count_below = [&](Index b, RealScalar x) -> Index {
     const Index b0 = bstart(b), nb = bstart(b + 1) - b0;
-    below_prev(b) = tridiagonal_sturm_count_below<RealScalar>(alpha_all.data() + b0, beta_sq_all.data() + b0, nb,
-                                                              bpivmin(b), (eivals[0] - btol(b)) / bscale(b));
-  }
+    return tridiagonal_sturm_count_below<RealScalar>(alpha_all.data() + b0, beta_sq_all.data() + b0, nb, bpivmin(b),
+                                                     x / bscale(b));
+  };
+  for (Index b = 0; b < nblocks; ++b) below_prev(b) = count_below(b, eivals[0] - btol(b));
   below_edge = below_prev;
   Index ncarry = 0;
   Index g_begin = 0;
@@ -596,10 +599,8 @@ Index tridiagonal_inverse_iteration(const DiagType& diag, const SubdiagType& sub
     while (true) {
       Index total = 0;
       for (Index b = 0; b < nblocks; ++b) {
-        const Index b0 = bstart(b), nb = bstart(b + 1) - b0;
         const RealScalar bound = last ? eivals[m - 1] + (widened ? gtol : btol(b)) : mid_bound;
-        below_cur(b) = tridiagonal_sturm_count_below<RealScalar>(alpha_all.data() + b0, beta_sq_all.data() + b0, nb,
-                                                                 bpivmin(b), bound / bscale(b));
+        below_cur(b) = count_below(b, bound);
         caps(b) = numext::maxi(Index(0), below_cur(b) - below_prev(b));
         total += caps(b);
       }
@@ -608,11 +609,7 @@ Index tridiagonal_inverse_iteration(const DiagType& diag, const SubdiagType& sub
       if (widened || !(first || last) || total >= g_end - g_begin + (last ? ncarry : 0)) break;
       widened = true;
       if (first) {
-        for (Index b = 0; b < nblocks; ++b) {
-          const Index b0 = bstart(b), nb = bstart(b + 1) - b0;
-          below_prev(b) = tridiagonal_sturm_count_below<RealScalar>(alpha_all.data() + b0, beta_sq_all.data() + b0, nb,
-                                                                    bpivmin(b), (eivals[0] - gtol) / bscale(b));
-        }
+        for (Index b = 0; b < nblocks; ++b) below_prev(b) = count_below(b, eivals[0] - gtol);
         below_edge = below_prev;
       }
     }

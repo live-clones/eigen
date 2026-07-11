@@ -28,6 +28,21 @@ bool packet_path_flushes_subnormals() {
   return numext::is_exactly_zero(half_tiny);
 }
 
+// Dense (n x n) symmetric tridiagonal matrix from its diagonal d and sub-diagonal e, for
+// residual / reconstruction checks against the solver output.
+template <typename DiagType, typename SubType>
+Matrix<typename DiagType::Scalar, Dynamic, Dynamic> dense_symmetric_tridiag(const DiagType& d, const SubType& e) {
+  typedef typename DiagType::Scalar RealScalar;
+  const Index n = d.size();
+  Matrix<RealScalar, Dynamic, Dynamic> T = Matrix<RealScalar, Dynamic, Dynamic>::Zero(n, n);
+  T.diagonal() = d;
+  if (n > 1) {
+    T.diagonal(-1) = e;
+    T.diagonal(1) = e;
+  }
+  return T;
+}
+
 // Test TridiagonalEigenSolver (SIMD Sturm-sequence spectral bisection) on the full
 // structured-tridiagonal catalog: compare against the implicit-QR path of
 // SelfAdjointEigenSolver::computeFromTridiagonal(), exercise index/value range subset
@@ -254,12 +269,7 @@ void tridiagonal_eigensolver_eigenvectors() {
     const Index n = diag.size();
 
     // Dense form of T for residual / reconstruction checks.
-    MatrixType T = MatrixType::Zero(n, n);
-    T.diagonal() = diag;
-    if (n > 1) {
-      T.diagonal(-1) = offdiag;
-      T.diagonal(1) = offdiag;
-    }
+    const MatrixType T = dense_symmetric_tridiag(diag, offdiag);
     RealScalar scale = T.cwiseAbs().maxCoeff();
     if (!(numext::isfinite)(scale)) return;  // skip non-finite inputs, like the eigenvalue path
     if (numext::is_exactly_zero(scale)) scale = RealScalar(1);
@@ -342,10 +352,7 @@ void tridiagonal_eigensolver_eigenvectors() {
     VERIFY_IS_EQUAL(fz.info(), Success);
     VERIFY_IS_EQUAL(fz.eigenvectors().cols(), Index(4));
     {
-      MatrixType Tf = MatrixType::Zero(4, 4);
-      Tf.diagonal() = fdiag;
-      Tf.diagonal(-1) = fsub;
-      Tf.diagonal(1) = fsub;
+      const MatrixType Tf = dense_symmetric_tridiag(fdiag, fsub);
       const MatrixType Vf = fz.eigenvectors();
       VERIFY((Vf.transpose() * Vf - MatrixType::Identity(4, 4)).cwiseAbs().maxCoeff() <= RealScalar(64) * eps);
       VERIFY((Tf * Vf - Vf * fz.eigenvalues().asDiagonal()).cwiseAbs().maxCoeff() <=
@@ -391,10 +398,7 @@ void tridiagonal_eigensolver_eigenvectors() {
       VERIFY((V.transpose() * V - MatrixType::Identity(n, n)).cwiseAbs().maxCoeff() <=
              RealScalar(64) * RealScalar(n) * eps);
       // Residual in normal-range coordinates (the eigenvectors are invariant under the uniform scale).
-      MatrixType Tn = MatrixType::Zero(n, n);
-      Tn.diagonal() = base_d;
-      Tn.diagonal(-1) = base_e;
-      Tn.diagonal(1) = base_e;
+      const MatrixType Tn = dense_symmetric_tridiag(base_d, base_e);
       for (Index i = 0; i < n; ++i)
         VERIFY((Tn * V.col(i) - ref.eigenvalues()(i) * V.col(i)).norm() <= RealScalar(256) * RealScalar(n) * eps);
     }
@@ -439,10 +443,7 @@ void tridiagonal_eigensolver_eigenvectors() {
       conn.computeEigenvectors(d, e, w);
       VERIFY_IS_EQUAL(conn.info(), Success);
       const MatrixType Vc = conn.eigenvectors();
-      MatrixType Tc = MatrixType::Zero(3, 3);
-      Tc.diagonal() = d;
-      Tc.diagonal(-1) = e;
-      Tc.diagonal(1) = e;
+      const MatrixType Tc = dense_symmetric_tridiag(d, e);
       for (Index j = 0; j < 3; ++j)
         VERIFY((Tc * Vc.col(j) - w(j) * Vc.col(j)).stableNorm() <=
                RealScalar(64) * eps * numext::maxi(RealScalar(1), numext::abs(w(j))));
@@ -503,8 +504,7 @@ void tridiagonal_eigensolver_narrow() {
     VERIFY_IS_APPROX(es.eigenvalues()(1), RealScalar(3));
     const MatrixType V = es.eigenvectors();
     VERIFY((V.transpose() * V - MatrixType::Identity(2, 2)).cwiseAbs().maxCoeff() <= RealScalar(8) * eps);
-    MatrixType T(2, 2);
-    T << d(0), e(0), e(0), d(1);
+    const MatrixType T = dense_symmetric_tridiag(d, e);
     VERIFY((T * V - V * es.eigenvalues().asDiagonal()).cwiseAbs().maxCoeff() <= RealScalar(16) * eps);
   }
 
