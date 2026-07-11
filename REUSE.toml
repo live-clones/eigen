@@ -23,6 +23,7 @@ SPDX-License-Identifier = "MPL-2.0"
 
 [[annotations]]
 path = [
+    ".agents/*.md",
     ".clang-format",
     ".clang-tidy",
     ".coderabbit.yaml",
