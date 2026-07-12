@@ -9,6 +9,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "matrix_functions.h"
+#include "CustomComplex.h"
 
 double binom(int n, int k) {
   double res = 1;
@@ -122,6 +123,23 @@ void testComplexScalingPath() {
   VERIFY(A.exp().isApprox(expected, tol));
 }
 
+void testCustomComplexScalingPath() {
+  using Scalar = CustomComplex<double>;
+  using MatrixType = Matrix<Scalar, 3, 3>;
+  static_assert(!internal::complex_array_access<Scalar>::value, "test must exercise the scalar scaling fallback");
+
+  MatrixType A = MatrixType::Zero();
+  A.diagonal() << Scalar(-1.0, 64.0), Scalar(0.5, -32.0), Scalar(-0.25, 16.0);
+
+  const int squarings = 4;
+  const MatrixType scaled = internal::matrix_exp_scale<MatrixType>(A, squarings);
+  for (Index i = 0; i < A.size(); ++i) {
+    using std::ldexp;
+    VERIFY_IS_EQUAL(numext::real(scaled(i)), ldexp(numext::real(A(i)), -squarings));
+    VERIFY_IS_EQUAL(numext::imag(scaled(i)), ldexp(numext::imag(A(i)), -squarings));
+  }
+}
+
 EIGEN_DECLARE_TEST(matrix_exponential) {
   CALL_SUBTEST_2(test2dRotation<double>(1e-13));
   CALL_SUBTEST_1(test2dRotation<float>(2e-5));
@@ -136,6 +154,7 @@ EIGEN_DECLARE_TEST(matrix_exponential) {
   CALL_SUBTEST_3(randomTest(Matrix4cd(), 1e-13));
   CALL_SUBTEST_3((testComplexScalingPath<ColMajor>()));
   CALL_SUBTEST_3((testComplexScalingPath<RowMajor>()));
+  CALL_SUBTEST_3(testCustomComplexScalingPath());
   CALL_SUBTEST_4(randomTest(MatrixXd(8, 8), 1e-13));
   CALL_SUBTEST_1(randomTest(Matrix2f(), 1e-4));
   CALL_SUBTEST_5(randomTest(Matrix3cf(), 1e-4));

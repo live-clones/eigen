@@ -20,19 +20,6 @@
 namespace Eigen {
 namespace internal {
 
-template <typename Scalar>
-struct MatrixExponentialScalingOp {
-  explicit MatrixExponentialScalingOp(int squarings) : m_squarings(squarings) {}
-
-  inline const Scalar operator()(const Scalar& x) const {
-    using std::ldexp;
-    return Scalar(ldexp(numext::real(x), -m_squarings), ldexp(numext::imag(x), -m_squarings));
-  }
-
- private:
-  int m_squarings;
-};
-
 /** \brief Scale a real or complex matrix by \f$ 2^{-s} \f$. */
 template <typename MatrixType,
           bool HasWritableRealView = !NumTraits<typename traits<MatrixType>::Scalar>::IsComplex ||
@@ -51,7 +38,10 @@ struct matrix_exp_scale_impl<MatrixType, false> {
   template <typename ArgType>
   static MatrixType run(const ArgType& arg, int squarings) {
     using Scalar = typename traits<MatrixType>::Scalar;
-    return arg.unaryExpr(MatrixExponentialScalingOp<Scalar>(squarings));
+    return arg.unaryExpr([squarings](const Scalar& x) {
+      using std::ldexp;
+      return Scalar(ldexp(numext::real(x), -squarings), ldexp(numext::imag(x), -squarings));
+    });
   }
 };
 
