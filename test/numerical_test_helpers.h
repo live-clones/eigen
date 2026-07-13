@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: 2006-2008 Benoit Jacob <jacob.benoit.1@gmail.com>
-// SPDX-FileCopyrightText: 2008 Gael Guennebaud <gael.guenbaud@inria.fr>
+// SPDX-FileCopyrightText: 2008 Gael Guennebaud <gael.guennebaud@inria.fr>
 // SPDX-FileCopyrightText: The Eigen Authors
 // SPDX-License-Identifier: MPL-2.0
 
