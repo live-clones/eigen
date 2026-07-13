@@ -13,7 +13,6 @@
 #ifndef EIGEN_CHOLESKY_INVERSE_IMPL_H
 #define EIGEN_CHOLESKY_INVERSE_IMPL_H
 
-// #include <iostream>
 namespace Eigen {
 namespace internal {
 
@@ -24,13 +23,16 @@ namespace internal {
 template<typename MatrixType, typename ResultType, int Size = MatrixType::ColsAtCompileTime>
 struct compute_inverse_cholesky {
   EIGEN_DEVICE_FUNC static inline void run(const MatrixType& matrix, ResultType& result) {
+    using MatrixTypeNested = typename internal::nested_eval<MatrixType, 1>::type;
+    MatrixTypeNested m(matrix);
+
     using T = typename ResultType::Scalar;
     T a[Size][Size];
 
     for (int i = 0; i < Size; ++i) {
-      a[i][i] = matrix.coeff(i, i);
+      a[i][i] = m.coeff(i, i);
       for (int j = i + 1; j < Size; ++j) {
-        a[j][i] = matrix.coeff(i, j);
+        a[j][i] = m.coeff(i, j);
       }
     }
 
@@ -102,8 +104,11 @@ struct compute_inverse_cholesky<MatrixType, ResultType, Eigen::Dynamic> {
 template<typename MatrixType, typename ResultType>
 struct compute_inverse_cholesky<MatrixType, ResultType, 1> {
   EIGEN_DEVICE_FUNC static inline void run(const MatrixType& matrix, ResultType& result) {
-    using F = decltype(matrix.coeff(0, 0));
-    result.coeffRef(0, 0) = F(1.0) / matrix.coeff(0, 0);
+    using MatrixTypeNested = typename internal::nested_eval<MatrixType, 1>::type;
+    MatrixTypeNested m(matrix);
+
+    using F = typename ResultType::Scalar;
+    result.coeffRef(0, 0) = F(1.0) / m.coeff(0, 0);
   }
 };
 
@@ -114,15 +119,18 @@ struct compute_inverse_cholesky<MatrixType, ResultType, 1> {
 template <typename MatrixType, typename ResultType>
 EIGEN_DEVICE_FUNC inline void compute_inverse_cholesky_size2_helper(const MatrixType& matrix,
                                                                     ResultType& result) {
-  using F = decltype(matrix.coeff(0, 0));
-  auto luc0 = F(1.0) / matrix.coeff(0, 0);
-  auto luc1 = matrix.coeff(1, 0) * matrix.coeff(1, 0) * luc0;
-  auto luc2 = F(1.0) / (matrix.coeff(1, 1) - luc1);
+  using MatrixTypeNested = typename internal::nested_eval<MatrixType, 1>::type;
+  MatrixTypeNested m(matrix);
+
+  using F = typename ResultType::Scalar;
+  auto luc0 = F(1.0) / m.coeff(0, 0);
+  auto luc1 = m.coeff(1, 0) * m.coeff(1, 0) * luc0;
+  auto luc2 = F(1.0) / (m.coeff(1, 1) - luc1);
 
   auto li21 = luc1 * luc0 * luc2;
 
   result.coeffRef(0, 0) = li21 + luc0;
-  result.coeffRef(1, 0) = -matrix.coeff(1, 0) * luc0 * luc2;
+  result.coeffRef(1, 0) = -m.coeff(1, 0) * luc0 * luc2;
   result.coeffRef(1, 1) = luc2;
 }
 
@@ -146,14 +154,17 @@ struct compute_inverse_cholesky<MatrixType, ResultType, 2> {
 template <typename MatrixType, typename ResultType>
 EIGEN_DEVICE_FUNC inline void compute_inverse_cholesky_size3_helper(MatrixType const& matrix,
                                                                     ResultType& result) {
-  using F = decltype(matrix.coeff(0, 0));
-  auto luc0 = F(1.0) / matrix.coeff(0, 0);
-  auto luc1 = matrix.coeff(1, 0);
-  auto luc2 = matrix.coeff(1, 1) - luc0 * luc1 * luc1;
+  using MatrixTypeNested = typename internal::nested_eval<MatrixType, 1>::type;
+  MatrixTypeNested m(matrix);
+
+  using F = typename ResultType::Scalar;
+  auto luc0 = F(1.0) / m.coeff(0, 0);
+  auto luc1 = m.coeff(1, 0);
+  auto luc2 = m.coeff(1, 1) - luc0 * luc1 * luc1;
   luc2 = F(1.0) / luc2;
-  auto luc3 = matrix.coeff(2, 0);
-  auto luc4 = (matrix.coeff(2, 1) - luc0 * luc1 * luc3);
-  auto luc5 = matrix.coeff(2, 2) - (luc0 * luc3 * luc3 + (luc2 * luc4) * luc4);
+  auto luc3 = m.coeff(2, 0);
+  auto luc4 = (m.coeff(2, 1) - luc0 * luc1 * luc3);
+  auto luc5 = m.coeff(2, 2) - (luc0 * luc3 * luc3 + (luc2 * luc4) * luc4);
   luc5 = F(1.0) / luc5;
 
   auto li21 = -luc0 * luc1;
@@ -190,19 +201,22 @@ struct compute_inverse_cholesky<MatrixType, ResultType, 3> {
 template <typename MatrixType, typename ResultType>
 EIGEN_DEVICE_FUNC inline void compute_inverse_cholesky_size4_helper(MatrixType const& matrix,
                                                                     ResultType& result) {
-  using F = decltype(matrix.coeff(0, 0));
-  auto luc0 = F(1.0) / matrix.coeff(0, 0);
-  auto luc1 = matrix.coeff(1, 0);
-  auto luc2 = matrix.coeff(1, 1) - luc0 * luc1 * luc1;
+  using MatrixTypeNested = typename internal::nested_eval<MatrixType, 1>::type;
+  MatrixTypeNested m(matrix);
+
+  using F = typename ResultType::Scalar;
+  auto luc0 = F(1.0) / m.coeff(0, 0);
+  auto luc1 = m.coeff(1, 0);
+  auto luc2 = m.coeff(1, 1) - luc0 * luc1 * luc1;
   luc2 = F(1.0) / luc2;
-  auto luc3 = matrix.coeff(2, 0);
-  auto luc4 = (matrix.coeff(2, 1) - luc0 * luc1 * luc3);
-  auto luc5 = matrix.coeff(2, 2) - (luc0 * luc3 * luc3 + luc2 * luc4 * luc4);
+  auto luc3 = m.coeff(2, 0);
+  auto luc4 = (m.coeff(2, 1) - luc0 * luc1 * luc3);
+  auto luc5 = m.coeff(2, 2) - (luc0 * luc3 * luc3 + luc2 * luc4 * luc4);
   luc5 = F(1.0) / luc5;
-  auto luc6 = matrix.coeff(3, 0);
-  auto luc7 = (matrix.coeff(3, 1) - luc0 * luc1 * luc6);
-  auto luc8 = (matrix.coeff(3, 2) - luc0 * luc3 * luc6 - luc2 * luc4 * luc7);
-  auto luc9 = matrix.coeff(3, 3) - (luc0 * luc6 * luc6 + luc2 * luc7 * luc7 + luc8 * (luc8 * luc5));
+  auto luc6 = m.coeff(3, 0);
+  auto luc7 = (m.coeff(3, 1) - luc0 * luc1 * luc6);
+  auto luc8 = (m.coeff(3, 2) - luc0 * luc3 * luc6 - luc2 * luc4 * luc7);
+  auto luc9 = m.coeff(3, 3) - (luc0 * luc6 * luc6 + luc2 * luc7 * luc7 + luc8 * (luc8 * luc5));
   luc9 = F(1.0) / luc9;
 
   auto li21 = -luc1 * luc0;
@@ -247,25 +261,28 @@ struct compute_inverse_cholesky<MatrixType, ResultType, 4> {
 template <typename MatrixType, typename ResultType>
 EIGEN_DEVICE_FUNC inline void compute_inverse_cholesky_size5_helper(MatrixType const& matrix,
                                                                     ResultType& result) {
-  using F = decltype(matrix.coeff(0, 0));
-  auto luc0 = F(1.0) / matrix.coeff(0, 0);
-  auto luc1 = matrix.coeff(1, 0);
-  auto luc2 = matrix.coeff(1, 1) - luc0 * luc1 * luc1;
+  using MatrixTypeNested = typename internal::nested_eval<MatrixType, 1>::type;
+  MatrixTypeNested m(matrix);
+
+  using F = typename ResultType::Scalar;
+  auto luc0 = F(1.0) / m.coeff(0, 0);
+  auto luc1 = m.coeff(1, 0);
+  auto luc2 = m.coeff(1, 1) - luc0 * luc1 * luc1;
   luc2 = F(1.0) / luc2;
-  auto luc3 = matrix.coeff(2, 0);
-  auto luc4 = (matrix.coeff(2, 1) - luc0 * luc1 * luc3);
-  auto luc5 = matrix.coeff(2, 2) - (luc0 * luc3 * luc3 + luc2 * luc4 * luc4);
+  auto luc3 = m.coeff(2, 0);
+  auto luc4 = (m.coeff(2, 1) - luc0 * luc1 * luc3);
+  auto luc5 = m.coeff(2, 2) - (luc0 * luc3 * luc3 + luc2 * luc4 * luc4);
   luc5 = F(1.0) / luc5;
-  auto luc6 = matrix.coeff(3, 0);
-  auto luc7 = (matrix.coeff(3, 1) - luc0 * luc1 * luc6);
-  auto luc8 = (matrix.coeff(3, 2) - luc0 * luc3 * luc6 - luc2 * luc4 * luc7);
-  auto luc9 = matrix.coeff(3, 3) - (luc0 * luc6 * luc6 + luc2 * luc7 * luc7 + luc8 * (luc8 * luc5));
+  auto luc6 = m.coeff(3, 0);
+  auto luc7 = (m.coeff(3, 1) - luc0 * luc1 * luc6);
+  auto luc8 = (m.coeff(3, 2) - luc0 * luc3 * luc6 - luc2 * luc4 * luc7);
+  auto luc9 = m.coeff(3, 3) - (luc0 * luc6 * luc6 + luc2 * luc7 * luc7 + luc8 * (luc8 * luc5));
   luc9 = F(1.0) / luc9;
-  auto luc10 = matrix.coeff(4, 0);
-  auto luc11 = (matrix.coeff(4, 1) - luc0 * luc1 * luc10);
-  auto luc12 = (matrix.coeff(4, 2) - luc0 * luc3 * luc10 - luc2 * luc4 * luc11);
-  auto luc13 = (matrix.coeff(4, 3) - luc0 * luc6 * luc10 - luc2 * luc7 * luc11 - luc5 * luc8 * luc12);
-  auto luc14 = matrix.coeff(4, 4) - (luc0 * luc10 * luc10 + luc2 * luc11 * luc11 + luc5 * luc12 * luc12 + luc9 * luc13 * luc13);
+  auto luc10 = m.coeff(4, 0);
+  auto luc11 = (m.coeff(4, 1) - luc0 * luc1 * luc10);
+  auto luc12 = (m.coeff(4, 2) - luc0 * luc3 * luc10 - luc2 * luc4 * luc11);
+  auto luc13 = (m.coeff(4, 3) - luc0 * luc6 * luc10 - luc2 * luc7 * luc11 - luc5 * luc8 * luc12);
+  auto luc14 = m.coeff(4, 4) - (luc0 * luc10 * luc10 + luc2 * luc11 * luc11 + luc5 * luc12 * luc12 + luc9 * luc13 * luc13);
   luc14 = F(1.0) / luc14;
 
   auto li21 = -luc1 * luc0;
@@ -322,32 +339,35 @@ struct compute_inverse_cholesky<MatrixType, ResultType, 5> {
 template <typename MatrixType, typename ResultType>
 EIGEN_DEVICE_FUNC inline void compute_inverse_cholesky_size6_helper(MatrixType const& matrix,
                                                                     ResultType& result) {
-  using F = decltype(matrix.coeff(0, 0));
-  auto luc0 = F(1.0) / matrix.coeff(0, 0);
-  auto luc1 = matrix.coeff(1, 0);
-  auto luc2 = matrix.coeff(1, 1) - luc0 * luc1 * luc1;
+  using MatrixTypeNested = typename internal::nested_eval<MatrixType, 1>::type;
+  MatrixTypeNested m(matrix);
+
+  using F = typename ResultType::Scalar;
+  auto luc0 = F(1.0) / m.coeff(0, 0);
+  auto luc1 = m.coeff(1, 0);
+  auto luc2 = m.coeff(1, 1) - luc0 * luc1 * luc1;
   luc2 = F(1.0) / luc2;
-  auto luc3 = matrix.coeff(2, 0);
-  auto luc4 = (matrix.coeff(2, 1) - luc0 * luc1 * luc3);
-  auto luc5 = matrix.coeff(2, 2) - (luc0 * luc3 * luc3 + luc2 * luc4 * luc4);
+  auto luc3 = m.coeff(2, 0);
+  auto luc4 = (m.coeff(2, 1) - luc0 * luc1 * luc3);
+  auto luc5 = m.coeff(2, 2) - (luc0 * luc3 * luc3 + luc2 * luc4 * luc4);
   luc5 = F(1.0) / luc5;
-  auto luc6 = matrix.coeff(3, 0);
-  auto luc7 = (matrix.coeff(3, 1) - luc0 * luc1 * luc6);
-  auto luc8 = (matrix.coeff(3, 2) - luc0 * luc3 * luc6 - luc2 * luc4 * luc7);
-  auto luc9 = matrix.coeff(3, 3) - (luc0 * luc6 * luc6 + luc2 * luc7 * luc7 + luc8 * (luc8 * luc5));
+  auto luc6 = m.coeff(3, 0);
+  auto luc7 = (m.coeff(3, 1) - luc0 * luc1 * luc6);
+  auto luc8 = (m.coeff(3, 2) - luc0 * luc3 * luc6 - luc2 * luc4 * luc7);
+  auto luc9 = m.coeff(3, 3) - (luc0 * luc6 * luc6 + luc2 * luc7 * luc7 + luc8 * (luc8 * luc5));
   luc9 = F(1.0) / luc9;
-  auto luc10 = matrix.coeff(4, 0);
-  auto luc11 = (matrix.coeff(4, 1) - luc0 * luc1 * luc10);
-  auto luc12 = (matrix.coeff(4, 2) - luc0 * luc3 * luc10 - luc2 * luc4 * luc11);
-  auto luc13 = (matrix.coeff(4, 3) - luc0 * luc6 * luc10 - luc2 * luc7 * luc11 - luc5 * luc8 * luc12);
-  auto luc14 = matrix.coeff(4, 4) - (luc0 * luc10 * luc10 + luc2 * luc11 * luc11 + luc5 * luc12 * luc12 + luc9 * luc13 * luc13);
+  auto luc10 = m.coeff(4, 0);
+  auto luc11 = (m.coeff(4, 1) - luc0 * luc1 * luc10);
+  auto luc12 = (m.coeff(4, 2) - luc0 * luc3 * luc10 - luc2 * luc4 * luc11);
+  auto luc13 = (m.coeff(4, 3) - luc0 * luc6 * luc10 - luc2 * luc7 * luc11 - luc5 * luc8 * luc12);
+  auto luc14 = m.coeff(4, 4) - (luc0 * luc10 * luc10 + luc2 * luc11 * luc11 + luc5 * luc12 * luc12 + luc9 * luc13 * luc13);
   luc14 = F(1.0) / luc14;
-  auto luc15 = matrix.coeff(5, 0);
-  auto luc16 = (matrix.coeff(5, 1) - luc0 * luc1 * luc15);
-  auto luc17 = (matrix.coeff(5, 2) - luc0 * luc3 * luc15 - luc2 * luc4 * luc16);
-  auto luc18 = (matrix.coeff(5, 3) - luc0 * luc6 * luc15 - luc2 * luc7 * luc16 - luc5 * luc8 * luc17);
-  auto luc19 = (matrix.coeff(5, 4) - luc0 * luc10 * luc15 - luc2 * luc11 * luc16 - luc5 * luc12 * luc17 - luc9 * luc13 * luc18);
-  auto luc20 = matrix.coeff(5, 5) - (luc0 * luc15 * luc15 + luc2 * luc16 * luc16 + luc5 * luc17 * luc17 +
+  auto luc15 = m.coeff(5, 0);
+  auto luc16 = (m.coeff(5, 1) - luc0 * luc1 * luc15);
+  auto luc17 = (m.coeff(5, 2) - luc0 * luc3 * luc15 - luc2 * luc4 * luc16);
+  auto luc18 = (m.coeff(5, 3) - luc0 * luc6 * luc15 - luc2 * luc7 * luc16 - luc5 * luc8 * luc17);
+  auto luc19 = (m.coeff(5, 4) - luc0 * luc10 * luc15 - luc2 * luc11 * luc16 - luc5 * luc12 * luc17 - luc9 * luc13 * luc18);
+  auto luc20 = m.coeff(5, 5) - (luc0 * luc15 * luc15 + luc2 * luc16 * luc16 + luc5 * luc17 * luc17 +
                             luc9 * luc18 * luc18 + luc14 * luc19 * luc19);
   luc20 = F(1.0) / luc20;
 
