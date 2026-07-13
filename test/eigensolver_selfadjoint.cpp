@@ -866,6 +866,17 @@ void direct_2x2_stress() {
   }
 }
 
+void tridiagonalization_block_size_cache_bound() {
+  const Index size = 1024;
+  const std::ptrdiff_t doublePanelBytes = 4 * size * sizeof(double);
+
+  VERIFY_IS_EQUAL(internal::tridiagonalization_block_size<double>(size, doublePanelBytes * 16), 16);
+  VERIFY_IS_EQUAL(internal::tridiagonalization_block_size<double>(size, doublePanelBytes * 16 - 1), 8);
+  VERIFY_IS_EQUAL(internal::tridiagonalization_block_size<double>(size, doublePanelBytes * 8 - 1), 4);
+  VERIFY_IS_EQUAL(internal::tridiagonalization_block_size<double>(size, doublePanelBytes * 4 - 1), 2);
+  VERIFY_IS_EQUAL(internal::tridiagonalization_block_size<std::complex<double>>(size, doublePanelBytes * 16), 8);
+}
+
 EIGEN_DECLARE_TEST(eigensolver_selfadjoint) {
   int s = 0;
   for (int i = 0; i < g_repeat; i++) {
@@ -940,16 +951,15 @@ EIGEN_DECLARE_TEST(eigensolver_selfadjoint) {
     // RowMajor
     CALL_SUBTEST_19(selfadjointeigensolver_rowmajor<0>());
 
-    // Larger matrices to exercise the blocked tridiagonalization path (n >= 96).
+    // Larger matrices to exercise the blocked tridiagonalization path on platforms using the default threshold.
     CALL_SUBTEST_4(selfadjointeigensolver(MatrixXd(256, 256)));
     CALL_SUBTEST_5(selfadjointeigensolver(MatrixXcd(256, 256)));
     CALL_SUBTEST_3(selfadjointeigensolver(MatrixXf(256, 256)));
     CALL_SUBTEST_9(selfadjointeigensolver(Matrix<std::complex<double>, Dynamic, Dynamic, RowMajor>(256, 256)));
 
-    // Deterministic blocked-path stress: clustered + extreme spectra at n=128
-    // (>= the n>=96 blocking threshold). The repeated/near-repeated and high-
-    // dynamic-range cases are the ones most likely to expose a stability
-    // regression in the rank-2k trailing update.
+    // Deterministic blocked-path stress on platforms using the default threshold. The repeated/near-repeated and
+    // high-dynamic-range cases are the ones most likely to expose a stability regression in the rank-2k trailing
+    // update.
     CALL_SUBTEST_4(selfadjointeigensolver_repeated_eigenvalues(MatrixXd(128, 128)));
     CALL_SUBTEST_4(selfadjointeigensolver_extreme_eigenvalues(MatrixXd(128, 128)));
     CALL_SUBTEST_3(selfadjointeigensolver_repeated_eigenvalues(MatrixXf(128, 128)));
@@ -969,6 +979,7 @@ EIGEN_DECLARE_TEST(eigensolver_selfadjoint) {
 
   // Test Inf input handling.
   CALL_SUBTEST_17(selfadjointeigensolver_inf<0>());
+  CALL_SUBTEST_8(tridiagonalization_block_size_cache_bound());
 
   // Test problem size constructors
   s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4);

@@ -372,6 +372,32 @@ EIGEN_DEVICE_FUNC void tridiagonalization_inplace_unblocked(MatrixType& matA, Co
 
 #if !defined(EIGEN_GPU_COMPILE_PHASE)
 /** \internal
+ * Returns a cache-constrained panel width for blocked tridiagonalization.
+ *
+ * V and W each contain n coefficients per panel column. Keep their combined footprint within half of L2, leaving the
+ * other half for the streamed trailing matrix and product-kernel workspace. The preferred width remains an empirical
+ * kernel-tuning parameter; cache capacity only imposes an upper bound.
+ */
+template <typename Scalar>
+Index tridiagonalization_block_size(Index n, std::ptrdiff_t l2CacheSize) {
+  eigen_internal_assert(n > 0);
+  eigen_internal_assert(l2CacheSize > 0);
+  const Index maxBlockSize = static_cast<Index>(l2CacheSize / (4 * sizeof(Scalar))) / n;
+  if (maxBlockSize >= 16) return 16;
+  if (maxBlockSize >= 8) return 8;
+  if (maxBlockSize >= 4) return 4;
+  // The blocked implementation requires at least two columns per panel.
+  return 2;
+}
+
+template <typename Scalar>
+Index tridiagonalization_block_size(Index n) {
+  std::ptrdiff_t l1CacheSize, l2CacheSize, l3CacheSize;
+  manage_caching_sizes(GetAction, &l1CacheSize, &l2CacheSize, &l3CacheSize);
+  return tridiagonalization_block_size<Scalar>(n, l2CacheSize);
+}
+
+/** \internal
  * Blocked tridiagonal decomposition (analogous to LAPACK's dsytrd/dlatrd).
  * Processes columns in panels of BlockSize, accumulating Householder reflectors
  * and deferring the symmetric rank-2k update to use Level 3 BLAS (triangular GEMM).
@@ -515,8 +541,15 @@ EIGEN_DEVICE_FUNC void tridiagonalization_inplace(MatrixType& matA, CoeffVectorT
 
 #if !defined(EIGEN_GPU_COMPILE_PHASE)
   EIGEN_IF_CONSTEXPR (MatrixType::RowsAtCompileTime == Dynamic || MatrixType::ColsAtCompileTime == Dynamic) {
-    if (matA.rows() >= 96) {
-      tridiagonalization_inplace_blocked(matA, hCoeffs);
+#if EIGEN_ARCH_ARM64 && defined(EIGEN_VECTORIZE_NEON)
+    // NEON's triangular GEMM has a higher crossover than the generic kernels, particularly for complex scalars.
+    const Index blockingThreshold = NumTraits<typename MatrixType::Scalar>::IsComplex ? 1024 : 256;
+#else
+    const Index blockingThreshold = 96;
+#endif
+    if (matA.rows() >= blockingThreshold) {
+      const Index blockSize = tridiagonalization_block_size<typename MatrixType::Scalar>(matA.rows());
+      tridiagonalization_inplace_blocked(matA, hCoeffs, blockSize);
       return;
     }
   }
