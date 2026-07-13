@@ -515,7 +515,13 @@ EIGEN_DEVICE_FUNC void tridiagonalization_inplace(MatrixType& matA, CoeffVectorT
 
 #if !defined(EIGEN_GPU_COMPILE_PHASE)
   EIGEN_IF_CONSTEXPR (MatrixType::RowsAtCompileTime == Dynamic || MatrixType::ColsAtCompileTime == Dynamic) {
-    if (matA.rows() >= 96) {
+#if EIGEN_ARCH_ARM64 && defined(EIGEN_VECTORIZE_NEON)
+    // NEON's triangular GEMM has a higher crossover than the generic kernels, particularly for complex scalars.
+    const Index blockingThreshold = NumTraits<typename MatrixType::Scalar>::IsComplex ? 1024 : 256;
+#else
+    const Index blockingThreshold = 96;
+#endif
+    if (matA.rows() >= blockingThreshold) {
       tridiagonalization_inplace_blocked(matA, hCoeffs);
       return;
     }
