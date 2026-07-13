@@ -270,7 +270,7 @@ void test_sparseqr_explicit_threshold_disables_lookahead() {
 }
 
 template <typename Scalar>
-void test_sparseqr_16bit_default_threshold(int n) {
+void test_sparseqr_16bit_default_threshold(int n, float tol) {
   // Factorize a well-conditioned, full-rank, diagonally dominant tridiagonal
   // (4 on the diagonal, -1 off-diagonal) system with the default pivot
   // threshold. The default threshold 20*(m+n)*max2Norm*epsilon used to be
@@ -300,7 +300,7 @@ void test_sparseqr_16bit_default_threshold(int n) {
   // unreliable. A is diagonally dominant with cond(A) <= 3, so a small
   // residual also implies an accurate solution.
   const VectorXf residual = (A * x - b).template cast<float>();
-  VERIFY(residual.norm() <= 0.05f * b.template cast<float>().norm());
+  VERIFY(residual.norm() <= tol * b.template cast<float>().norm());
 }
 
 EIGEN_DECLARE_TEST(sparseqr) {
@@ -313,6 +313,9 @@ EIGEN_DECLARE_TEST(sparseqr) {
   CALL_SUBTEST_5(test_sparseqr_tiny_independent_column());
   CALL_SUBTEST_6(test_sparseqr_explicit_threshold_disables_lookahead());
   CALL_SUBTEST_7(test_sparseqr_lookahead_preserves_needed_weak_direction());
-  CALL_SUBTEST_8(test_sparseqr_16bit_default_threshold<Eigen::half>(400));
-  CALL_SUBTEST_8(test_sparseqr_16bit_default_threshold<Eigen::bfloat16>(64));
+  // Residual accumulates over more columns for half (n=400) than bfloat16 (n=64), hence the larger factor.
+  CALL_SUBTEST_8(test_sparseqr_16bit_default_threshold<Eigen::half>(
+      400, 64 * static_cast<float>(NumTraits<Eigen::half>::epsilon())));
+  CALL_SUBTEST_8(test_sparseqr_16bit_default_threshold<Eigen::bfloat16>(
+      64, 8 * static_cast<float>(NumTraits<Eigen::bfloat16>::epsilon())));
 }

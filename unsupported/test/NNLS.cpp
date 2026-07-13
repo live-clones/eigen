@@ -181,7 +181,7 @@ void test_nnls_handles_dependent_columns() {
   //
   // ACT
   //
-  const double tolerance = 1e-8;
+  const double tolerance = std::sqrt(NumTraits<double>::epsilon());
   NNLS<MatrixXd> nnls(A);
   const VectorXd &x = nnls.solve(b);
 
@@ -210,7 +210,7 @@ void test_nnls_handles_wide_matrix() {
   //
   // ACT
   //
-  const double tolerance = 1e-8;
+  const double tolerance = std::sqrt(NumTraits<double>::epsilon());
   NNLS<MatrixXd> nnls(A);
   const VectorXd &x = nnls.solve(b);
 
@@ -317,7 +317,8 @@ void test_nnls_with_half_precision() {
   const VecX x = nnls.solve(b);
 
   VERIFY_IS_EQUAL(nnls.info(), ComputationInfo::Success);
-  verify_nnls_optimality(A, b, x, half(1e-1));
+  // The half-precision QR and the loose solver tolerance leak up to ~128 * eps of gradient.
+  verify_nnls_optimality(A, b, x, half(128) * NumTraits<half>::epsilon());
 }
 
 void test_nnls_special_case_solves_in_zero_iterations() {

@@ -257,7 +257,8 @@ void bdcsvd_fast_math_regression_1588() {
 
   MatrixXd reconstruction = svd.matrixU() * svd.singularValues().asDiagonal() * svd.matrixV().transpose();
   const double relative_error = (reconstruction - matrix).norm() / matrix.norm();
-  VERIFY(relative_error < 1e-10);
+  // The reconstruction error of an n x n SVD scales with n * eps; the factor gives generous headroom.
+  VERIFY(relative_error < 1024 * n * NumTraits<double>::epsilon());
 }
 #endif
 

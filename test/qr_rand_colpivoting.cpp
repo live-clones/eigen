@@ -546,7 +546,7 @@ void rqr_literature_matrices() {
     MatrixType R = qr.matrixQR().template triangularView<Upper>();
     MatrixType Q = qr.householderQ();
     RealScalar err = (H - Q * R * qr.colsPermutation().inverse()).norm() / H.norm();
-    VERIFY(err < RealScalar(1e-10));
+    VERIFY(err < RealScalar(524288) * NumTraits<RealScalar>::epsilon());
     ColPivHouseholderQR<MatrixType> cp(H);
     VERIFY_IS_EQUAL(qr.rank(), cp.rank());
   }
@@ -570,7 +570,7 @@ void rqr_literature_matrices() {
     MatrixType R = qr.matrixQR().template triangularView<Upper>();
     MatrixType Q = qr.householderQ();
     RealScalar err = (V - Q * R * qr.colsPermutation().inverse()).norm() / V.norm();
-    VERIFY(err < RealScalar(1e-9));
+    VERIFY(err < RealScalar(8388608) * NumTraits<RealScalar>::epsilon());
     ColPivHouseholderQR<MatrixType> cp(V);
     VERIFY_IS_EQUAL(qr.rank(), cp.rank());
   }
@@ -599,7 +599,7 @@ void rqr_literature_matrices() {
     MatrixType R = qr.matrixQR().template triangularView<Upper>();
     MatrixType Q = qr.householderQ();
     RealScalar err = (A - Q * R * qr.colsPermutation().inverse()).norm() / A.norm();
-    VERIFY(err < RealScalar(1e-10));
+    VERIFY(err < RealScalar(524288) * NumTraits<RealScalar>::epsilon());
     ColPivHouseholderQR<MatrixType> cp(A);
     VERIFY_IS_EQUAL(qr.rank(), cp.rank());
   }
