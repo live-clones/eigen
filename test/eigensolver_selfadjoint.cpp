@@ -866,6 +866,17 @@ void direct_2x2_stress() {
   }
 }
 
+void tridiagonalization_block_size_cache_bound() {
+  const Index size = 1024;
+  const std::ptrdiff_t doublePanelBytes = 4 * size * sizeof(double);
+
+  VERIFY_IS_EQUAL(internal::tridiagonalization_block_size<double>(size, doublePanelBytes * 16), 16);
+  VERIFY_IS_EQUAL(internal::tridiagonalization_block_size<double>(size, doublePanelBytes * 16 - 1), 8);
+  VERIFY_IS_EQUAL(internal::tridiagonalization_block_size<double>(size, doublePanelBytes * 8 - 1), 4);
+  VERIFY_IS_EQUAL(internal::tridiagonalization_block_size<double>(size, doublePanelBytes * 4 - 1), 2);
+  VERIFY_IS_EQUAL(internal::tridiagonalization_block_size<std::complex<double>>(size, doublePanelBytes * 16), 8);
+}
+
 EIGEN_DECLARE_TEST(eigensolver_selfadjoint) {
   int s = 0;
   for (int i = 0; i < g_repeat; i++) {
@@ -968,6 +979,7 @@ EIGEN_DECLARE_TEST(eigensolver_selfadjoint) {
 
   // Test Inf input handling.
   CALL_SUBTEST_17(selfadjointeigensolver_inf<0>());
+  CALL_SUBTEST_8(tridiagonalization_block_size_cache_bound());
 
   // Test problem size constructors
   s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4);
