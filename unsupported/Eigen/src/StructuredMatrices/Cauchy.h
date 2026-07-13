@@ -67,38 +67,53 @@ struct traits<CauchyLU<Scalar_>> : traits<Matrix<Scalar_, Dynamic, Dynamic>> {
 /** \internal \returns the Cauchy coefficient \c 1 / (a - b), guarded against a
  * spurious overflow of the difference (internal::structured_guarded_diff): a
  * naively formed coefficient would collapse to 1/Inf = 0, where the true value
- * is a representable (possibly subnormal) number. When the guard fires, the
- * reciprocal of the exactly halved difference is halved again, which rounds
- * correctly into the subnormal range. Every coefficient evaluation -- coeff(),
- * the dense materialization, the product kernel and the CauchyLU recursion --
- * goes through this single helper, so all APIs agree on boundary nodes (and
- * with determinant(), which derives the same quantities through its balanced
- * accumulation). */
+ * is a representable (possibly subnormal) number. When the guard fires, one
+ * half is divided directly by the halved difference, so the subnormal result is
+ * rounded only once. Every coefficient evaluation exposed by Cauchy -- coeff(),
+ * dense materialization and the product kernel -- goes through this helper.
+ * CauchyLU and determinant() use the same guarded difference inside their
+ * balanced accumulations. */
 template <typename Scalar>
 Scalar cauchy_reciprocal_diff(const Scalar& a, const Scalar& b) {
   using RealScalar = typename NumTraits<Scalar>::Real;
   int e;
   const Scalar t = structured_guarded_diff(a, b, e);
-  const Scalar r = Scalar(1) / t;
-  return e == 0 ? r : Scalar(r * RealScalar(0.5));
+  return Scalar(e == 0 ? RealScalar(1) : RealScalar(0.5)) / t;
 }
 
-/** \internal \returns the ratio \c (a - b) / (a - c) of node differences, both
- * guarded (see internal::structured_guarded_diff) with the removed powers of
- * two rebalanced into the quotient -- an exact rescaling [2]. Used by the
- * CauchyLU generator updates, whose numerator and denominator can each overflow
- * on finite nodes (the naive ratio then evaluates to Inf/Inf = NaN or a
- * spurious Inf/0). */
+/** \internal Evaluates a GKO Schur-complement entry from generators stored as
+ * mantissa/exponent pairs. The guarded node difference is balanced before the
+ * division, and the accumulated power of two is applied only to the final
+ * result, so finite entries do not overflow or underflow in intermediate
+ * generator arithmetic. */
 template <typename Scalar>
-Scalar cauchy_diff_ratio(const Scalar& a, const Scalar& b, const Scalar& c) {
-  using RealScalar = typename NumTraits<Scalar>::Real;
-  int en, ed;
-  const Scalar num = structured_guarded_diff(a, b, en);
-  const Scalar den = structured_guarded_diff(a, c, ed);
-  Scalar r = num / den;
-  if (en > ed) r = r + r;                // fold the numerator's power of two back in
-  if (ed > en) r = r * RealScalar(0.5);  // and the denominator's
-  return r;
+Scalar cauchy_scaled_entry(const Scalar& a, Index aExponent, const Scalar& b, Index bExponent, const Scalar& x,
+                           const Scalar& y) {
+  // Preserve the single-rounding coefficient path for the initial generators.
+  if (aExponent == 0 && bExponent == 0 && a == Scalar(1) && b == Scalar(1)) return cauchy_reciprocal_diff(x, y);
+  int guardedExponent;
+  Scalar diff = structured_guarded_diff(x, y, guardedExponent);
+  Index diffExponent = guardedExponent;
+  diff = structured_balance(diff, diffExponent);
+  Index exponent = aExponent + bExponent - diffExponent;
+  const Scalar value = structured_balance(Scalar((a * b) / diff), exponent);
+  return structured_ldexp_clamped(value, exponent);
+}
+
+/** \internal \returns the balanced mantissa of \c (a - b) / (a - c), with its
+ * power of two in \a exponent. Separately balancing both guarded differences
+ * prevents a representable ratio from passing through Inf/Inf or zero. */
+template <typename Scalar>
+Scalar cauchy_balanced_diff_ratio(const Scalar& a, const Scalar& b, const Scalar& c, Index& exponent) {
+  int guardedNumeratorExponent, guardedDenominatorExponent;
+  Scalar numerator = structured_guarded_diff(a, b, guardedNumeratorExponent);
+  Scalar denominator = structured_guarded_diff(a, c, guardedDenominatorExponent);
+  Index numeratorExponent = guardedNumeratorExponent;
+  Index denominatorExponent = guardedDenominatorExponent;
+  numerator = structured_balance(numerator, numeratorExponent);
+  denominator = structured_balance(denominator, denominatorExponent);
+  exponent = numeratorExponent - denominatorExponent;
+  return structured_balance(Scalar(numerator / denominator), exponent);
 }
 
 }  // namespace internal
@@ -150,6 +165,8 @@ class Cauchy : public EigenBase<Cauchy<Scalar_, Rows_, Cols_>> {
   using StorageIndex = int;
   using RowNodeVector = Matrix<Scalar, Rows_, 1>;
   using ColNodeVector = Matrix<Scalar, Cols_, 1>;
+
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW_IF(bool(RowNodeVector::NeedsToAlign || ColNodeVector::NeedsToAlign))
 
   static constexpr int RowsAtCompileTime = Rows_;
   static constexpr int ColsAtCompileTime = Cols_;
@@ -423,6 +440,8 @@ class CauchyLU : public SolverBase<CauchyLU<Scalar_>> {
     const DenseVector y = C.colNodes();
     DenseVector a = DenseVector::Ones(n);
     DenseVector b = DenseVector::Ones(n);
+    Matrix<Index, Dynamic, 1> aExponent = Matrix<Index, Dynamic, 1>::Zero(n);
+    Matrix<Index, Dynamic, 1> bExponent = Matrix<Index, Dynamic, 1>::Zero(n);
     m_lu.resize(n, n);
     m_perm.resize(static_cast<std::size_t>(n));
     m_info = Success;
@@ -433,9 +452,9 @@ class CauchyLU : public SolverBase<CauchyLU<Scalar_>> {
       Index piv = k;
       RealScalar best(-1);
       for (Index i = k; i < n; ++i) {
-        m_lu(i, k) = a[i] * b[k] * internal::cauchy_reciprocal_diff(x[i], y[k]);
+        m_lu(i, k) = internal::cauchy_scaled_entry(a[i], aExponent[i], b[k], bExponent[k], x[i], y[k]);
         const RealScalar mag = numext::abs(m_lu(i, k));
-        if (!(mag <= best)) {  // negated so a NaN candidate is preferred and propagates
+        if ((numext::isnan)(mag) || mag > best) {
           best = mag;
           piv = i;
         }
@@ -444,19 +463,33 @@ class CauchyLU : public SolverBase<CauchyLU<Scalar_>> {
         m_lu.row(piv).head(k + 1).swap(m_lu.row(k).head(k + 1));
         std::swap(x[piv], x[k]);
         std::swap(a[piv], a[k]);
+        std::swap(aExponent[piv], aExponent[k]);
       }
       m_perm[static_cast<std::size_t>(k)] = piv;
       const Scalar pivot = m_lu(k, k);
-      if (pivot == Scalar(0)) {
+      if (pivot == Scalar(0) || !(numext::isfinite)(pivot)) {
         m_info = NumericalIssue;
         m_lu.row(k).tail(n - k - 1).setZero();
         m_lu.col(k).tail(n - k - 1).setZero();
         continue;
       }
       for (Index i = k + 1; i < n; ++i) m_lu(i, k) /= pivot;
-      for (Index j = k + 1; j < n; ++j) m_lu(k, j) = a[k] * b[j] * internal::cauchy_reciprocal_diff(x[k], y[j]);
-      for (Index i = k + 1; i < n; ++i) a[i] *= internal::cauchy_diff_ratio(x[i], x[k], y[k]);
-      for (Index j = k + 1; j < n; ++j) b[j] *= internal::cauchy_diff_ratio(y[j], y[k], x[k]);
+      for (Index j = k + 1; j < n; ++j) {
+        m_lu(k, j) = internal::cauchy_scaled_entry(a[k], aExponent[k], b[j], bExponent[j], x[k], y[j]);
+        if (!(numext::isfinite)(m_lu(k, j))) m_info = NumericalIssue;
+      }
+      for (Index i = k + 1; i < n; ++i) {
+        Index ratioExponent;
+        const Scalar ratio = internal::cauchy_balanced_diff_ratio(x[i], x[k], y[k], ratioExponent);
+        aExponent[i] += ratioExponent;
+        a[i] = internal::structured_balance(Scalar(a[i] * ratio), aExponent[i]);
+      }
+      for (Index j = k + 1; j < n; ++j) {
+        Index ratioExponent;
+        const Scalar ratio = internal::cauchy_balanced_diff_ratio(y[j], y[k], x[k], ratioExponent);
+        bExponent[j] += ratioExponent;
+        b[j] = internal::structured_balance(Scalar(b[j] * ratio), bExponent[j]);
+      }
     }
     m_isInitialized = true;
     return *this;
@@ -465,8 +498,8 @@ class CauchyLU : public SolverBase<CauchyLU<Scalar_>> {
   Index rows() const noexcept { return m_lu.rows(); }
   Index cols() const noexcept { return m_lu.cols(); }
 
-  /** \returns \c Success, or \c NumericalIssue when the matrix is exactly
-   * singular (a zero pivot survived partial pivoting). */
+  /** \returns \c Success, or \c NumericalIssue when the factorization encounters
+   * a zero or non-finite entry that prevents a usable factorization. */
   ComputationInfo info() const {
     eigen_assert(m_isInitialized && "CauchyLU is not initialized.");
     return m_info;

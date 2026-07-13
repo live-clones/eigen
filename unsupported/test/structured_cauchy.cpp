@@ -204,6 +204,47 @@ void test_cauchy_lu_singular() {
   VERIFY(lu.info() == NumericalIssue);
 }
 
+// Generator mantissas can overflow even when every matrix entry and LU factor
+// is finite. Exponent-tracked generators must preserve the cancellation against
+// the node reciprocal, and still expose an exact duplicate-row singularity.
+template <typename Scalar>
+void test_cauchy_lu_scaled_generators() {
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+
+  Vec x(2), y(2), b(2);
+  const RealScalar P = std::ldexp(RealScalar(1), 1000);
+  const RealScalar t = std::ldexp(RealScalar(1), -1000);
+  x << Scalar(0), Scalar(-P);
+  y << Scalar(P), Scalar(-t);
+  b << Scalar(1), Scalar(0.25);
+  Cauchy<Scalar> C(x, y);
+  Mat dense = C;
+  VERIFY(dense.allFinite());
+  CauchyLU<Scalar> lu(C);
+  VERIFY(lu.info() == Success);
+  Vec u = lu.solve(b);
+  VERIFY(u.allFinite());
+  const RealScalar tol = RealScalar(64) * NumTraits<RealScalar>::epsilon();
+  VERIFY((dense * u - b).cwiseAbs().maxCoeff() <= tol * b.cwiseAbs().maxCoeff());
+
+  Vec xs(2);
+  xs << Scalar(0), Scalar(0);
+  Cauchy<Scalar> Cs(xs, y);
+  Mat denseSingular = Cs;
+  VERIFY(denseSingular.allFinite());
+  CauchyLU<Scalar> singularLu(Cs);
+  VERIFY(singularLu.info() == NumericalIssue);
+
+  Vec xi(1), yi(1);
+  xi << Scalar(0);
+  yi << Scalar(-std::numeric_limits<RealScalar>::denorm_min());
+  Cauchy<Scalar> Ci(xi, yi);
+  CauchyLU<Scalar> nonfiniteLu(Ci);
+  VERIFY(nonfiniteLu.info() == NumericalIssue);
+}
+
 // y = -x gives the symmetric generalized Hilbert matrix 1/(x_i + x_j): verify
 // the symmetry closure of the transpose through the node identity C^T = C(-y,-x).
 template <typename Scalar>
@@ -594,6 +635,30 @@ void test_cauchy_boundary_coefficients() {
     VERIFY_IS_EQUAL(u[0], 1.0);
   }
 
+  // A non-power-of-two boundary difference catches double rounding: computing
+  // (1/t)*0.5 is one subnormal ULP above the correctly rounded 0.5/t. MPFR gives
+  // the expected value below for x=1.1777865466541931e308 and
+  // y=-1.7435684109415042e308, represented by their exact double bit patterns.
+  {
+    Vec x(1), y(1);
+    x << numext::bit_cast<double>(numext::uint64_t(0x7fe4f71daafe5a86ull));
+    y << numext::bit_cast<double>(numext::uint64_t(0xffef095b3493b755ull));
+    const double expected = numext::bit_cast<double>(numext::uint64_t(0x00027621a9baa547ull));
+    Cauchy<double> C(x, y);
+    VERIFY_IS_EQUAL(C.coeff(0, 0), expected);
+    Mat dense = C;
+    VERIFY_IS_EQUAL(dense(0, 0), expected);
+    Vec product = C * Vec::Ones(1);
+    VERIFY_IS_EQUAL(product[0], expected);
+    VERIFY_IS_EQUAL(C.determinant(), expected);
+    CauchyLU<double> lu(C);
+    VERIFY(lu.info() == Success);
+    Vec rhs(1);
+    rhs << expected;
+    Vec solution = lu.solve(rhs);
+    VERIFY_IS_EQUAL(solution[0], 1.0);
+  }
+
   // 2x2 with boundary pairs among moderate ones: three of the four differences
   // overflow (2X and two 1.5X), one stays finite (X). All APIs agree with the
   // reference built from the guarded reciprocal; scaled by its magnitude the
@@ -661,7 +726,8 @@ void test_cauchy_fixed() {
   separated_nodes<Scalar>(M, N, xd, yd);
   XVec x = xd;
   YVec y = yd;
-  Cauchy<Scalar, M, N> C(x, y);
+  typedef Cauchy<Scalar, M, N> CauchyType;
+  CauchyType C(x, y);
   STATIC_CHECK((Cauchy<Scalar, M, N>::RowsAtCompileTime == M));
   STATIC_CHECK((Cauchy<Scalar, M, N>::ColsAtCompileTime == N));
   STATIC_CHECK((internal::remove_all_t<decltype(makeCauchy(x, y))>::ColsAtCompileTime == N));
@@ -670,6 +736,18 @@ void test_cauchy_fixed() {
 
   MatMN dense = C;
   VERIFY_IS_APPROX(dense, MatMN(reference_cauchy<Scalar>(xd, yd)));
+
+  CauchyType* heapC = new CauchyType(x, y);
+  VERIFY(std::uintptr_t(heapC) % std::alignment_of<CauchyType>::value == 0);
+  MatMN heapDense = *heapC;
+  delete heapC;
+  VERIFY_IS_APPROX(heapDense, dense);
+
+#if EIGEN_MAX_ALIGN_BYTES > 0 && !EIGEN_HAS_CXX17_OVERALIGN
+  void* raw = (CauchyType::operator new)(sizeof(CauchyType));
+  VERIFY(std::uintptr_t(raw) % std::alignment_of<CauchyType>::value == 0);
+  (CauchyType::operator delete)(raw);
+#endif
 
   YVec v = YVec::Random();
   Matrix<Scalar, M, 1> w = C * v;
@@ -705,6 +783,8 @@ EIGEN_DECLARE_TEST(structured_cauchy) {
     CALL_SUBTEST_2(test_cauchy_hilbert());
     CALL_SUBTEST_2(test_cauchy_lu_pivoting(20));
     CALL_SUBTEST_2(test_cauchy_lu_singular());
+    CALL_SUBTEST_2((test_cauchy_lu_scaled_generators<double>()));
+    CALL_SUBTEST_2((test_cauchy_lu_scaled_generators<std::complex<double>>()));
 
     // Closed-form determinant, symmetric generalized Hilbert, fixed sizes.
     CALL_SUBTEST_3((test_cauchy_determinant<double>(4)));
