@@ -43,7 +43,7 @@ struct traits<Hankel<Scalar_, Rows_, Cols_>> {
   // owning temporaries, so Product must nest the operator by value for a
   // delayed-evaluated product expression to keep its left factor alive. The copy
   // is O(n), negligible against the O(n log n) product evaluation.
-  static constexpr int Flags = 0;
+  static constexpr unsigned int Flags = 0;
 };
 
 template <typename Scalar_, int Rows_, int Cols_>
@@ -295,9 +295,7 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
    * public constructor. Used by transpose(), conjugate() and adjoint(), whose
    * symbols are cheap transformations of the existing one. */
   Hankel(const GeneratorType& h, Index rows, Index cols, const ComplexVector& symbol)
-      : m_rows(rows), m_cols(cols), m_h(h), m_symbol(symbol) {
-    m_fftUsable = computeFftUsable();
-  }
+      : m_rows(rows), m_cols(cols), m_h(h), m_symbol(symbol), m_fftUsable(computeFftUsable()) {}
 
   /** \internal Whether products may take the FFT path: the generating sequence
    * and the cached symbol must be finite. The symbol accumulates up to p addends,
