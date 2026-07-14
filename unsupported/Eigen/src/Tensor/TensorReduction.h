@@ -529,6 +529,26 @@ class TensorReductionOp : public TensorBase<TensorReductionOp<Op, Dims, XprType,
     return result;
   }
 
+#if !defined(EIGEN_PARSED_BY_DOXYGEN)
+  template <typename T>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE friend
+      typename std::enable_if<std::is_convertible<T, Scalar>::value,
+                              const TensorCwiseUnaryOp<internal::bind1st_op<internal::scalar_product_op<Scalar> >,
+                                                       const TensorReductionOp> >::type
+      operator*(const T& lhs, const TensorReductionOp& rhs) {
+    return rhs.unaryExpr(internal::bind1st_op<internal::scalar_product_op<Scalar> >(static_cast<Scalar>(lhs)));
+  }
+
+  template <typename T>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE friend typename std::enable_if<
+      std::is_convertible<T, Scalar>::value,
+      const TensorCwiseUnaryOp<internal::bind2nd_op<internal::scalar_product_op<Scalar, Scalar> >,
+                               const TensorReductionOp> >::type
+  operator*(const TensorReductionOp& lhs, const T& rhs) {
+    return lhs.unaryExpr(internal::bind2nd_op<internal::scalar_product_op<Scalar, Scalar> >(static_cast<Scalar>(rhs)));
+  }
+#endif
+
  protected:
   typename XprType::Nested m_expr;
   const Dims m_dims;

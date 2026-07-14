@@ -632,6 +632,23 @@ static void test_dynamic_innermost_dims() {
   }
 }
 
+template <int DataLayout>
+static void test_mixed_type_multiplication() {
+  Tensor<float, 2, DataLayout> in(2, 2);
+  in.setConstant(1.0f);
+  Tensor<float, 0, DataLayout> result;
+
+  // Mixed type: double * TensorReductionOp<float>
+  result = 0.5 * in.sum();
+
+  VERIFY_IS_EQUAL(result(), 2.0f);
+
+  // Mixed type: TensorReductionOp<float> * double
+  result = in.sum() * 0.5;
+
+  VERIFY_IS_EQUAL(result(), 2.0f);
+}
+
 template <typename ScalarType, int num_elements, int max_mean>
 void test_sum_accuracy() {
   Tensor<double, 1> double_tensor(num_elements);
@@ -701,4 +718,6 @@ EIGEN_DECLARE_TEST(tensor_reduction) {
   // we can reduce without overflow.
   CALL_SUBTEST((test_sum_accuracy<Eigen::half, 4 * 1024, 16>()));
   CALL_SUBTEST((test_sum_accuracy<Eigen::half, 10 * 1024 * 1024, 0>()));
+  CALL_SUBTEST(test_mixed_type_multiplication<ColMajor>());
+  CALL_SUBTEST(test_mixed_type_multiplication<RowMajor>());
 }
