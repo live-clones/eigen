@@ -260,6 +260,11 @@ const typename NNLS<MatrixType>::SolutionVectorType &NNLS<MatrixType>::solve(con
   // Precompute A^T*b
   Atb_.noalias() = A_.transpose() * b;
 
+  if (A_.rows() == 0) {
+    info_ = ComputationInfo::Success;
+    return x_;
+  }
+
   const Index maxIterations = this->maxIterations();
 
   // OUTER LOOP
@@ -270,23 +275,11 @@ const typename NNLS<MatrixType>::SolutionVectorType &NNLS<MatrixType>::solve(con
       return x_;
     }
 
-    // The inactive (passive) set columns are kept linearly independent, so the
-    // set can never hold more than A.rows() of them. Once it is full the
-    // unconstrained least-squares residual is already minimized and the current
-    // iterate is optimal; moving another variable in would drive the rank-1 QR
-    // update past its row capacity (an out-of-bounds Householder reflector). This
-    // only arises for wide systems (cols > rows), where rounding in the
-    // recomputed gradient can otherwise nudge maxGradient just above the
-    // tolerance after the residual has already vanished.
-    if (numInactive_ == A_.rows()) {
-      info_ = ComputationInfo::Success;
-      return x_;
-    }
-
     // Find the maximum element of the gradient in the active set.
     // If it is small or negative, then we have converged.
     // Else, we move that variable to the inactive set.
     gradient_.noalias() = Atb_ - AtA_ * x_;
+    if (!gradient_.allFinite()) return x_;
 
     const Index numActive = A_.cols() - numInactive_;
     Index argmaxGradient = -1;
@@ -295,6 +288,22 @@ const typename NNLS<MatrixType>::SolutionVectorType &NNLS<MatrixType>::solve(con
 
     if (maxGradient < tolerance_) {
       info_ = ComputationInfo::Success;
+      return x_;
+    }
+
+    if (iterations_ >= maxIterations) {
+      info_ = ComputationInfo::NoConvergence;
+      return x_;
+    }
+
+    // In exact arithmetic, a positive gradient guarantees that the candidate
+    // column is independent of the inactive (passive) set, so a row-sized set
+    // would have satisfied the stopping condition above. If it does not,
+    // numerical dependence has invalidated that invariant. Another rank-1 QR
+    // update would exceed the row capacity, but the current iterate cannot be
+    // reported as optimal either.
+    if (numInactive_ == A_.rows()) {
+      info_ = ComputationInfo::NumericalIssue;
       return x_;
     }
 
@@ -314,6 +323,7 @@ const typename NNLS<MatrixType>::SolutionVectorType &NNLS<MatrixType>::solve(con
       // solveInactiveSet_ puts the solution in y_
       solveInactiveSet_(b);
       ++iterations_;  // The solve is expensive, so that is what we count as an iteration.
+      if (!y_.allFinite()) return x_;
 
       // Check feasibility...
       bool feasible = true;
