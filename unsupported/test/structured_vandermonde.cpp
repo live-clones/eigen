@@ -68,7 +68,7 @@ void test_bjorck_pereyra(Index n) {
 
   Vec x(n);
   for (Index i = 0; i < n; ++i)
-    x[i] = Scalar(RealScalar(std::cos(EIGEN_PI * double(2 * i + 1) / double(2 * n))));  // Chebyshev nodes
+    x[i] = Scalar(RealScalar(std::cos(double(EIGEN_PI) * double(2 * i + 1) / double(2 * n))));  // Chebyshev nodes
   Vandermonde<Scalar> V(x);
   Mat dense = reference_vandermonde<Scalar>(x, n);
 
@@ -101,25 +101,52 @@ void test_bjorck_pereyra(Index n) {
   VERIFY_IS_APPROX((dense * A).eval(), F);
 }
 
-// The n-th roots of unity make V/sqrt(n) exactly unitary: the solver must reach
-// full precision, verified against the analytic inverse a = V^H f / n.
+// The n-th roots of unity make V/sqrt(n) exactly unitary. Verify against the
+// analytic inverse a = V^H f / n to catch catastrophic Newton-basis growth.
+template <typename RealScalar>
 void test_bjorck_pereyra_roots_of_unity(Index n) {
-  typedef std::complex<double> Scalar;
+  typedef std::complex<RealScalar> Scalar;
   typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
 
   Vec x(n);
-  for (Index i = 0; i < n; ++i) x[i] = std::polar(1.0, double(2 * EIGEN_PI) * double(i) / double(n));
+  for (Index i = 0; i < n; ++i)
+    x[i] = std::polar(RealScalar(1), RealScalar(2 * EIGEN_PI) * RealScalar(i) / RealScalar(n));
   Vandermonde<Scalar> V(x);
-  Mat dense = reference_vandermonde<Scalar>(x, n);
 
   BjorckPereyra<Scalar> bp(V);
   VERIFY(bp.info() == Success);
 
-  Vec f = Vec::Random(n);
+  // The first cardinal polynomial has every coefficient equal to 1/n. This
+  // deterministic case exposes the severe Newton-basis growth of cyclic node
+  // order while remaining analytically checkable.
+  Vec f = Vec::Zero(n);
+  f[0] = Scalar(1);
   Vec a = bp.solve(f);
-  Vec aRef = dense.adjoint() * f / Scalar(double(n));
-  VERIFY_IS_APPROX(a, aRef);
+  Vec aRef = Vec::Constant(n, Scalar(RealScalar(1) / RealScalar(n)));
+  // The recurrence performs O(n^2) complex operations; the fixed factor also
+  // covers growth in its intermediate Newton coefficients.
+  const RealScalar tol = RealScalar(128) * RealScalar(n) * RealScalar(n) * NumTraits<RealScalar>::epsilon();
+  VERIFY((a - aRef).norm() <= tol * aRef.norm());
+}
+
+// Eigen::half has explicit conversion from the wider type returned by the
+// standard scaling functions. Instantiate both product and solver paths so the
+// range-protection helpers retain support for narrow floating-point scalars.
+void test_vandermonde_half() {
+  typedef Matrix<half, 2, 1> Vec;
+  Vec nodes, coefficients;
+  nodes << half(0), half(2);
+  coefficients << half(3), half(2);
+
+  Vandermonde<half, 2, 2> V(nodes);
+  Vec values = V * coefficients;
+  VERIFY_IS_EQUAL(float(values[0]), 3.0f);
+  VERIFY_IS_EQUAL(float(values[1]), 7.0f);
+
+  BjorckPereyra<half> bp(V);
+  Vec recovered = bp.solve(values);
+  VERIFY_IS_EQUAL(float(recovered[0]), 3.0f);
+  VERIFY_IS_EQUAL(float(recovered[1]), 2.0f);
 }
 
 // Björck-Pereyra's celebrated accuracy property (Higham, ASNA ch. 22): for
@@ -130,7 +157,7 @@ void test_bjorck_pereyra_higham() {
 
   const Index n = 20;
   Vec x(n);
-  for (Index i = 0; i < n; ++i) x[i] = double(i + 1) / double(n);  // monotone in (0,1]
+  for (Index i = 0; i < n; ++i) x[i] = double(i + 1) / 32.0;  // exactly represented, monotone in (0,1)
   Vandermonde<double> V(x);
 
   // f_i = (-1)^i: alternating signs.
@@ -139,15 +166,88 @@ void test_bjorck_pereyra_higham() {
   BjorckPereyra<double> bp(V);
   Vec a = bp.solve(f);
 
-  // Residual check through the operator's O(n^2)-free Horner product: the
-  // interpolant must reproduce the alternating values to near machine precision
-  // relative to the coefficient scale, despite cond(V) >> 1/eps.
-  Vec r = (V * a).eval() - f;
-  const double tol = 5e5 * NumTraits<double>::epsilon();  // ~1e-10
-  VERIFY(r.norm() <= tol * a.norm());
+  // Independent long-double coefficient reference. For equally spaced nodes
+  // with h=1/32, the Newton weights are Delta^k f_0 / (k! h^k) = (-64)^k/k!.
+  // Accumulate weight_k * product_{j<k}(z-x_j) directly in the monomial basis.
+  Matrix<long double, Dynamic, 1> aRef = Matrix<long double, Dynamic, 1>::Zero(n);
+  Matrix<long double, Dynamic, 1> basis = Matrix<long double, Dynamic, 1>::Zero(n);
+  basis[0] = 1.0L;
+  long double weight = 1.0L;
+  for (Index k = 0; k < n; ++k) {
+    aRef += weight * basis;
+    if (k + 1 == n) break;
+    const long double node = static_cast<long double>(x[k]);
+    basis[k + 1] = basis[k];
+    for (Index j = k; j > 0; --j) basis[j] = basis[j - 1] - node * basis[j];
+    basis[0] *= -node;
+    weight *= -64.0L / static_cast<long double>(k + 1);
+  }
+
+  const Vec roundedRef = aRef.cast<double>();
+  const double maxRelativeError = ((a - roundedRef).cwiseAbs().array() / roundedRef.cwiseAbs().array()).maxCoeff();
+  const double coefficientTol = 8.0 * double(n) * double(n) * NumTraits<double>::epsilon();
+  VERIFY(maxRelativeError <= coefficientTol);
 }
 
-// Repeated nodes make the matrix exactly singular and must be reported.
+// The transpose and adjoint recurrences must be distinguished for genuinely
+// complex nodes. A rotated root-of-unity grid keeps both systems well
+// conditioned while avoiding the unrotated grid's extra symmetries.
+void test_bjorck_pereyra_complex_transpose_adjoint(Index n) {
+  typedef std::complex<double> Scalar;
+  typedef Matrix<double, Dynamic, 1> RealVec;
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+
+  Vec x(n);
+  for (Index i = 0; i < n; ++i) x[i] = std::polar(1.0, double(2 * EIGEN_PI) * (double(i) + 0.25) / double(n));
+  Vandermonde<Scalar> V(x);
+  Mat dense = reference_vandermonde<Scalar>(x, n);
+  BjorckPereyra<Scalar> bp(V);
+
+  Vec expected = Vec::Random(n);
+  Vec transposed = bp.transpose().solve(dense.transpose() * expected);
+  Vec adjoint = bp.adjoint().solve(dense.adjoint() * expected);
+  const double tol = 256.0 * double(n) * double(n) * NumTraits<double>::epsilon();
+  const double scale = numext::maxi(1.0, expected.norm());
+  VERIFY((transposed - expected).norm() <= tol * scale);
+  VERIFY((adjoint - expected).norm() <= tol * scale);
+
+  // A real right-hand side is compatible with complex nodes and promotes the
+  // solve result to complex. The rotated Fourier matrix has V^H V = n I, so
+  // all three analytic inverse forms are available without another solver.
+  RealVec realRhs = RealVec::Random(n);
+  Vec primalMixed = bp.solve(realRhs);
+  Vec transposedMixed = bp.transpose().solve(realRhs);
+  Vec adjointMixed = bp.adjoint().solve(realRhs);
+  Vec primalRef = dense.adjoint() * realRhs / Scalar(double(n));
+  Vec transposedRef = dense.conjugate() * realRhs / Scalar(double(n));
+  Vec adjointRef = dense * realRhs / Scalar(double(n));
+  const double mixedScale = numext::maxi(1.0, realRhs.norm());
+  VERIFY((primalMixed - primalRef).norm() <= tol * mixedScale);
+  VERIFY((transposedMixed - transposedRef).norm() <= tol * mixedScale);
+  VERIFY((adjointMixed - adjointRef).norm() <= tol * mixedScale);
+
+  // The reverse promotion direction remains valid as well: real nodes with a
+  // complex right-hand side produce complex work values and output.
+  RealVec realNodes(2);
+  realNodes << -1.0, 1.0;
+  BjorckPereyra<double> realBp{Vandermonde<double>(realNodes)};
+  Vec complexRhs(2), complexExpected(2);
+  complexRhs << Scalar(1.0, 1.0), Scalar(3.0, -2.0);
+  complexExpected << Scalar(2.0, -0.5), Scalar(1.0, -1.5);
+  Vec realNodeMixed = realBp.solve(complexRhs);
+  VERIFY((realNodeMixed - complexExpected).norm() <= 4.0 * NumTraits<double>::epsilon() * complexExpected.norm());
+
+  // Materializing an aliased RHS must precede the internal Leja permutation.
+  Vec aliased = Vec::Random(n);
+  const Vec aliasInput = (aliased + Vec::Ones(n)).eval();
+  const Vec aliasReference = bp.solve(aliasInput);
+  aliased = bp.solve(aliased + Vec::Ones(n));
+  VERIFY((aliased - aliasReference).norm() <= tol * numext::maxi(1.0, aliasReference.norm()));
+}
+
+// Repeated nodes make the matrix exactly singular, while non-finite nodes make
+// the solver input invalid. Both must be reported before solve evaluation.
 void test_bjorck_pereyra_singular() {
   typedef Matrix<double, Dynamic, 1> Vec;
   Vec x(5);
@@ -155,6 +255,10 @@ void test_bjorck_pereyra_singular() {
   Vandermonde<double> V(x);
   BjorckPereyra<double> bp(V);
   VERIFY(bp.info() == NumericalIssue);
+
+  x[3] = std::numeric_limits<double>::quiet_NaN();
+  bp.compute(Vandermonde<double>(x));
+  VERIFY(bp.info() == InvalidInput);
 }
 
 // Aliased products: the products carry the default product tag, so assignment
@@ -593,6 +697,73 @@ void test_vandermonde_fixed() {
   VERIFY_IS_APPROX(y, (dense * a).eval());
 }
 
+// Core rewrites alpha * (V * a) as (alpha * V) * a. Keep the two scaled
+// expression forms together because they share the same structured wrapper.
+void test_vandermonde_expression_regressions() {
+  typedef Matrix<double, 1, 1> Vec1;
+  typedef Matrix<double, 3, 1> Vec3;
+  typedef Matrix<double, 1, 3> Row3;
+  typedef Matrix<double, 3, 3> Mat3;
+  typedef Matrix<double, 3, 2> Mat32;
+
+  Vec1 x;
+  x << 0.5;
+  Vandermonde<double, 1, 3> V(x, 3);
+  Row3 dense = V;
+  Row3 scaledDense = 2.0 * V;
+  VERIFY_IS_APPROX(scaledDense, (2.0 * dense).eval());
+
+  Vec3 a;
+  a << 1.0, 2.0, 3.0;
+  Vec1 scaledProduct = 0.5 * (V * a);
+  VERIFY_IS_APPROX(scaledProduct, (0.5 * (dense * a)).eval());
+
+  // A product on the right must be evaluated before the structured Horner
+  // evaluator asks it for coefficients.
+  Mat3 B = Mat3::Random();
+  Mat32 C = Mat32::Random();
+  VERIFY_IS_APPROX((V * (B * C)).eval(), (dense * (B * C)).eval());
+}
+
+void test_vandermonde_dimension_checks() {
+  VectorXd x(2);
+  x << 0.0, 1.0;
+  VERIFY_RAISES_ASSERT((Vandermonde<double, Dynamic, 3>(x)));
+
+  Vandermonde<double> rectangular(x, 3);
+  VERIFY_RAISES_ASSERT((BjorckPereyra<double>(rectangular)));
+}
+
+// Fixed-size Vandermonde expressions own the operator by value so temporaries
+// returned from factories remain alive. Their node storage must therefore avoid
+// over-alignment: generic Product and cwise wrapper types do not supply aligned
+// operator new under C++14.
+void test_vandermonde_fixed_heap_expressions() {
+  typedef Matrix<double, 4, 1> Vec4;
+  typedef Matrix<double, 4, 4> Mat4;
+
+  Vec4 x;
+  x << -1.0, -0.25, 0.5, 1.0;
+  Vec4 a;
+  a << 1.0, 2.0, 3.0, 4.0;
+
+  typedef decltype(makeVandermonde(x) * a) ProductExpression;
+  typedef decltype(2.0 * makeVandermonde(x)) ScaledExpression;
+  STATIC_CHECK(alignof(ProductExpression) <= alignof(std::max_align_t));
+  STATIC_CHECK(alignof(ScaledExpression) <= alignof(std::max_align_t));
+
+  ProductExpression* delayedProduct = new ProductExpression(makeVandermonde(x) * a);
+  ScaledExpression* delayedScaled = new ScaledExpression(2.0 * makeVandermonde(x));
+
+  const Mat4 dense = reference_vandermonde<double>(Matrix<double, Dynamic, 1>(x), 4);
+  Vec4 y = *delayedProduct;
+  Mat4 scaled = *delayedScaled;
+  VERIFY_IS_APPROX(y, (dense * a).eval());
+  VERIFY_IS_APPROX(scaled, (2.0 * dense).eval());
+  delete delayedProduct;
+  delete delayedScaled;
+}
+
 EIGEN_DECLARE_TEST(structured_vandermonde) {
   for (int i = 0; i < g_repeat; ++i) {
     // Horner products, dense assignment, coefficient access.
@@ -610,9 +781,11 @@ EIGEN_DECLARE_TEST(structured_vandermonde) {
     CALL_SUBTEST_2((test_bjorck_pereyra<double>(10)));
     CALL_SUBTEST_2((test_bjorck_pereyra<double>(14)));
     CALL_SUBTEST_2((test_bjorck_pereyra<std::complex<double>>(10)));
-    CALL_SUBTEST_2(test_bjorck_pereyra_roots_of_unity(16));
-    CALL_SUBTEST_2(test_bjorck_pereyra_roots_of_unity(25));
+    CALL_SUBTEST_2((test_bjorck_pereyra_roots_of_unity<double>(64)));
+    CALL_SUBTEST_2((test_bjorck_pereyra_roots_of_unity<float>(32)));
+    CALL_SUBTEST_2(test_vandermonde_half());
     CALL_SUBTEST_2(test_bjorck_pereyra_higham());
+    CALL_SUBTEST_2(test_bjorck_pereyra_complex_transpose_adjoint(12));
     CALL_SUBTEST_2(test_bjorck_pereyra_singular());
 
     // Closed-form determinant and fixed sizes.
@@ -624,6 +797,8 @@ EIGEN_DECLARE_TEST(structured_vandermonde) {
     CALL_SUBTEST_3((test_vandermonde_fixed<double, 6, 4>()));
     CALL_SUBTEST_3((test_vandermonde_fixed<double, 5, 5>()));
     CALL_SUBTEST_3((test_vandermonde_fixed<std::complex<float>, 4, 4>()));
+    CALL_SUBTEST_3(test_vandermonde_expression_regressions());
+    CALL_SUBTEST_3(test_vandermonde_fixed_heap_expressions());
 
     // Product regressions: aliasing, operand lifetime, mixed scalars.
     CALL_SUBTEST_4((test_vandermonde_aliased_product<double>(8)));
@@ -636,4 +811,6 @@ EIGEN_DECLARE_TEST(structured_vandermonde) {
     CALL_SUBTEST_4((test_vandermonde_mixed_scalar<double>(10, 8)));
     CALL_SUBTEST_4((test_vandermonde_mixed_scalar<float>(7, 9)));
   }
+
+  CALL_SUBTEST_3(test_vandermonde_dimension_checks());
 }
