@@ -34,16 +34,16 @@ namespace Eigen {
  *     O(n^2) with genuine partial pivoting through the displacement structure
  *     (\c CauchyLU, Gohberg-Kailath-Olshevsky).
  *
- * The operator types derive from \c EigenBase and store only their generating
- * vectors together with a precomputed DFT symbol that every product reuses.
+ * The operator types derive from \c EigenBase and store only compact generators.
+ * The FFT-based types also cache DFT symbols that their products reuse.
  * Because they expose \c operator* returning an Eigen product expression, they
  * also plug directly into the matrix-free iterative solvers
  * (\c ConjugateGradient, \c GMRES, \c MINRES, ...) without forming the dense
  * matrix; and since they hook into the evaluator system, they can be assigned
  * to a dense matrix when an explicit representation is needed. Like every
- * matrix-free operator, they carry no coefficient storage the default
- * preconditioners could read, so the iterative solvers must be instantiated
- * with \c IdentityPreconditioner.
+ * matrix-free operator, they expose no coefficient storage to the default
+ * preconditioners, so the iterative solvers must be instantiated with
+ * \c IdentityPreconditioner.
  *
  * All operator types are closed under transposition (\c transpose(),
  * \c conjugate(), \c adjoint() return operators of the same kind, with the

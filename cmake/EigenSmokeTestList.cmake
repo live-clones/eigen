@@ -139,11 +139,11 @@ set(ei_smoke_test_list
   stdvector_1
   stdvector_overload_1
   stl_iterators_1
+  structured_cauchy
   structured_matrices_1
   structured_matrices_5
   swap_1
   symbolic_index_1
-  structured_cauchy
   triangular_1
   tridiagonal_eigensolver_1
   tridiagonal_eigensolver_3
