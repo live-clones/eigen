@@ -13,6 +13,19 @@
 
 using namespace Eigen;
 
+// Dense inverse DFT matrix, used to synthesize generators independently of the
+// FFT implementation under test.
+template <typename RealScalar>
+Matrix<std::complex<RealScalar>, Dynamic, Dynamic> inverse_dft_matrix(Index n) {
+  typedef std::complex<RealScalar> Complex;
+  Matrix<Complex, Dynamic, Dynamic> F(n, n);
+  for (Index a = 0; a < n; ++a)
+    for (Index c = 0; c < n; ++c)
+      F(a, c) =
+          std::polar(RealScalar(1) / RealScalar(n), RealScalar(2 * EIGEN_PI) * RealScalar((a * c) % n) / RealScalar(n));
+  return F;
+}
+
 // Reference dense BCCB built entry-wise from the generating array, independently
 // of the operator under test: entry (i,j) with i = b1*n2+i2, j = c1*n2+j2 is
 // G((i2-j2) mod n2, (b1-c1) mod n1).
@@ -44,6 +57,13 @@ void test_bccb_product(Index n2, Index n1) {
 
   Mat Cd = C;
   VERIFY_IS_APPROX(Cd, dense);
+  Mat accumulated = Mat::Random(N, N);
+  const Mat initial = accumulated;
+  accumulated += C;
+  VERIFY_IS_APPROX(accumulated, (initial + dense).eval());
+  accumulated = initial;
+  accumulated -= C;
+  VERIFY_IS_APPROX(accumulated, (initial - dense).eval());
   for (Index t = 0; t < 5; ++t) {
     Index i = internal::random<Index>(0, N - 1), j = internal::random<Index>(0, N - 1);
     VERIFY_IS_APPROX(C.coeff(i, j), dense(i, j));
@@ -306,17 +326,7 @@ void test_bccb_rank_deficient(Index n2, Index n1, Index defect) {
   S.array() += Complex(2);  // keep the surviving moduli away from the threshold
   for (Index k = 0; k < defect; ++k) S((2 * k + 1) % n2, (3 * k) % n1) = Complex(0);
 
-  // Build the generator by an inverse 2-D DFT of the symbol (row-column, using
-  // the dense DFT matrices for independence from the implementation under test).
-  CMat F2(n2, n2), F1(n1, n1);
-  for (Index a = 0; a < n2; ++a)
-    for (Index c = 0; c < n2; ++c)
-      F2(a, c) = std::polar(RealScalar(1) / RealScalar(n2),
-                            RealScalar(2 * EIGEN_PI) * RealScalar((a * c) % n2) / RealScalar(n2));
-  for (Index a = 0; a < n1; ++a)
-    for (Index c = 0; c < n1; ++c)
-      F1(a, c) = std::polar(RealScalar(1) / RealScalar(n1),
-                            RealScalar(2 * EIGEN_PI) * RealScalar((a * c) % n1) / RealScalar(n1));
+  const CMat F2 = inverse_dft_matrix<RealScalar>(n2), F1 = inverse_dft_matrix<RealScalar>(n1);
   Mat G = (F2 * S * F1.transpose()).eval();  // Scalar is complex here
   Bccb<Scalar> C(G);
   VERIFY_IS_EQUAL(C.rank(), N - defect);
@@ -594,13 +604,7 @@ void test_bccb_determinant_scaled() {
     CMat S(n2, n1);
     for (Index k1 = 0; k1 < n1; ++k1)
       for (Index k2 = 0; k2 < n2; ++k2) S(k2, k1) = Complex(k1 * n2 + k2 < nLead ? lead : rest);
-    CMat F2(n2, n2), F1(n1, n1);
-    for (Index a = 0; a < n2; ++a)
-      for (Index c = 0; c < n2; ++c)
-        F2(a, c) = std::polar(1.0 / double(n2), double(2 * EIGEN_PI) * double((a * c) % n2) / double(n2));
-    for (Index a = 0; a < n1; ++a)
-      for (Index c = 0; c < n1; ++c)
-        F1(a, c) = std::polar(1.0 / double(n1), double(2 * EIGEN_PI) * double((a * c) % n1) / double(n1));
+    const CMat F2 = inverse_dft_matrix<double>(n2), F1 = inverse_dft_matrix<double>(n1);
     return Bccb<Complex>((F2 * S * F1.transpose()).eval());
   };
 
