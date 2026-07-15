@@ -81,6 +81,16 @@ Scalar cauchy_reciprocal_diff(const Scalar& a, const Scalar& b) {
   return Scalar(e == 0 ? RealScalar(1) : RealScalar(0.5)) / t;
 }
 
+/** \internal \returns a guarded node difference as a balanced mantissa, with
+ * its power of two in \a exponent. */
+template <typename Scalar>
+Scalar cauchy_balanced_diff(const Scalar& a, const Scalar& b, Index& exponent) {
+  int guardedExponent;
+  const Scalar difference = structured_guarded_diff(a, b, guardedExponent);
+  exponent = guardedExponent;
+  return structured_balance(difference, exponent);
+}
+
 /** \internal Evaluates a GKO Schur-complement entry from generators stored as
  * mantissa/exponent pairs. The guarded node difference is balanced before the
  * division, and the accumulated power of two is applied only to the final
@@ -91,10 +101,8 @@ Scalar cauchy_scaled_entry(const Scalar& a, Index aExponent, const Scalar& b, In
                            const Scalar& y) {
   // Preserve the single-rounding coefficient path for the initial generators.
   if (aExponent == 0 && bExponent == 0 && a == Scalar(1) && b == Scalar(1)) return cauchy_reciprocal_diff(x, y);
-  int guardedExponent;
-  Scalar diff = structured_guarded_diff(x, y, guardedExponent);
-  Index diffExponent = guardedExponent;
-  diff = structured_balance(diff, diffExponent);
+  Index diffExponent;
+  const Scalar diff = cauchy_balanced_diff(x, y, diffExponent);
   Index exponent = aExponent + bExponent - diffExponent;
   const Scalar value = structured_balance(Scalar((a * b) / diff), exponent);
   return structured_ldexp_clamped(value, exponent);
@@ -105,13 +113,9 @@ Scalar cauchy_scaled_entry(const Scalar& a, Index aExponent, const Scalar& b, In
  * prevents a representable ratio from passing through Inf/Inf or zero. */
 template <typename Scalar>
 Scalar cauchy_balanced_diff_ratio(const Scalar& a, const Scalar& b, const Scalar& c, Index& exponent) {
-  int guardedNumeratorExponent, guardedDenominatorExponent;
-  Scalar numerator = structured_guarded_diff(a, b, guardedNumeratorExponent);
-  Scalar denominator = structured_guarded_diff(a, c, guardedDenominatorExponent);
-  Index numeratorExponent = guardedNumeratorExponent;
-  Index denominatorExponent = guardedDenominatorExponent;
-  numerator = structured_balance(numerator, numeratorExponent);
-  denominator = structured_balance(denominator, denominatorExponent);
+  Index numeratorExponent, denominatorExponent;
+  const Scalar numerator = cauchy_balanced_diff(a, b, numeratorExponent);
+  const Scalar denominator = cauchy_balanced_diff(a, c, denominatorExponent);
   exponent = numeratorExponent - denominatorExponent;
   return structured_balance(Scalar(numerator / denominator), exponent);
 }
@@ -239,18 +243,18 @@ class Cauchy : public EigenBase<Cauchy<Scalar_, Rows_, Cols_>> {
     Index exponent = 0;
     for (Index j = 1; j < n; ++j)
       for (Index i = 0; i < j; ++i) {
-        det = internal::structured_balance(
-            Scalar(det * internal::structured_balance(guardedDiff(m_x.coeff(j), m_x.coeff(i), exponent), exponent)),
-            exponent);
-        det = internal::structured_balance(
-            Scalar(det * internal::structured_balance(guardedDiff(m_y.coeff(i), m_y.coeff(j), exponent), exponent)),
-            exponent);
+        Index factorExponent;
+        const Scalar xDiff = internal::cauchy_balanced_diff(m_x.coeff(j), m_x.coeff(i), factorExponent);
+        exponent += factorExponent;
+        det = internal::structured_balance(Scalar(det * xDiff), exponent);
+        const Scalar yDiff = internal::cauchy_balanced_diff(m_y.coeff(i), m_y.coeff(j), factorExponent);
+        exponent += factorExponent;
+        det = internal::structured_balance(Scalar(det * yDiff), exponent);
       }
     for (Index j = 0; j < n; ++j)
       for (Index i = 0; i < n; ++i) {
         Index denomExponent = 0;
-        const Scalar d =
-            internal::structured_balance(guardedDiff(m_x.coeff(i), m_y.coeff(j), denomExponent), denomExponent);
+        const Scalar d = internal::cauchy_balanced_diff(m_x.coeff(i), m_y.coeff(j), denomExponent);
         exponent -= denomExponent;
         det = internal::structured_balance(Scalar(det / d), exponent);
       }
@@ -264,37 +268,19 @@ class Cauchy : public EigenBase<Cauchy<Scalar_, Rows_, Cols_>> {
    * \c dense = cauchy; */
   template <typename Dest>
   void evalTo(Dest& dst) const {
-    if (m_boundary) {
-      for (Index j = 0; j < cols(); ++j)
-        for (Index i = 0; i < rows(); ++i)
-          dst.coeffRef(i, j) = internal::cauchy_reciprocal_diff(m_x.coeff(i), m_y.coeff(j));
-      return;
-    }
-    for (Index j = 0; j < cols(); ++j) dst.col(j) = (m_x.array() - m_y.coeff(j)).inverse().matrix();
+    applyAssignment(dst, internal::assign_op<typename Dest::Scalar, Scalar>());
   }
 
   /** \internal Computes \c dst += (*this), see evalTo(). */
   template <typename Dest>
   void addTo(Dest& dst) const {
-    if (m_boundary) {
-      for (Index j = 0; j < cols(); ++j)
-        for (Index i = 0; i < rows(); ++i)
-          dst.coeffRef(i, j) += internal::cauchy_reciprocal_diff(m_x.coeff(i), m_y.coeff(j));
-      return;
-    }
-    for (Index j = 0; j < cols(); ++j) dst.col(j) += (m_x.array() - m_y.coeff(j)).inverse().matrix();
+    applyAssignment(dst, internal::add_assign_op<typename Dest::Scalar, Scalar>());
   }
 
   /** \internal Computes \c dst -= (*this), see evalTo(). */
   template <typename Dest>
   void subTo(Dest& dst) const {
-    if (m_boundary) {
-      for (Index j = 0; j < cols(); ++j)
-        for (Index i = 0; i < rows(); ++i)
-          dst.coeffRef(i, j) -= internal::cauchy_reciprocal_diff(m_x.coeff(i), m_y.coeff(j));
-      return;
-    }
-    for (Index j = 0; j < cols(); ++j) dst.col(j) -= (m_x.array() - m_y.coeff(j)).inverse().matrix();
+    applyAssignment(dst, internal::sub_assign_op<typename Dest::Scalar, Scalar>());
   }
 
   /** \returns the product expression \c (*this) * \a v, evaluated directly at
@@ -330,13 +316,18 @@ class Cauchy : public EigenBase<Cauchy<Scalar_, Rows_, Cols_>> {
   }
 
  private:
-  /** \internal Determinant factor \c a - b: internal::structured_guarded_diff
-   * with the removed power of two folded into the running \a exponent. */
-  static Scalar guardedDiff(const Scalar& a, const Scalar& b, Index& exponent) {
-    int e;
-    const Scalar t = internal::structured_guarded_diff(a, b, e);
-    exponent += e;
-    return t;
+  template <typename Dest, typename Assignment>
+  void applyAssignment(Dest& dst, const Assignment& assignment) const {
+    if (m_boundary) {
+      for (Index j = 0; j < cols(); ++j)
+        for (Index i = 0; i < rows(); ++i)
+          assignment.assignCoeff(dst.coeffRef(i, j), internal::cauchy_reciprocal_diff(m_x.coeff(i), m_y.coeff(j)));
+      return;
+    }
+    for (Index j = 0; j < cols(); ++j) {
+      auto dstColumn = dst.col(j);
+      internal::call_assignment_no_alias(dstColumn, (m_x.array() - m_y.coeff(j)).inverse().matrix(), assignment);
+    }
   }
 
   /** \internal Whether some node difference \c x_i - y_j could overflow on
