@@ -39,6 +39,11 @@ constexpr Index structured_direct_threshold() { return 32; }
 // fewer than a couple of packets (measured crossover on AVX2 hardware).
 constexpr Index structured_scalar_threshold() { return 16; }
 
+// Numerical scale exponents are independent of Eigen's configurable dimension
+// index. A 32-bit Index can overflow while accumulating O(n^2) factor
+// exponents for dimensions that are otherwise practical.
+using structured_exponent_type = numext::int64_t;
+
 /** \internal Balanced mantissa*2^e arithmetic shared by the structured
  * operators' determinant-style accumulations (the split fraction/exponent
  * convention of LINPACK's xGEDI; see the per-class references).
@@ -51,34 +56,38 @@ constexpr Index structured_scalar_threshold() { return 16; }
 template <typename Scalar, bool IsComplex = NumTraits<Scalar>::IsComplex>
 struct structured_balance_impl {
   using RealScalar = typename NumTraits<Scalar>::Real;
-  static Scalar run(const Scalar& z, Index& exponent) {
+  template <typename Exponent>
+  static Scalar run(const Scalar& z, Exponent& exponent) {
     const RealScalar mag = numext::maxi(numext::abs(numext::real(z)), numext::abs(numext::imag(z)));
     if (!(mag > RealScalar(0)) || !(numext::isfinite)(mag)) return z;
     int e;
-    std::frexp(mag, &e);
+    EIGEN_USING_STD(frexp);
+    frexp(mag, &e);
     exponent += e;
-    return Scalar(std::ldexp(numext::real(z), -e), std::ldexp(numext::imag(z), -e));
+    return Scalar(numext::ldexp(numext::real(z), -e), numext::ldexp(numext::imag(z), -e));
   }
   static Scalar apply_exponent(const Scalar& z, int e) {
-    return Scalar(std::ldexp(numext::real(z), e), std::ldexp(numext::imag(z), e));
+    return Scalar(numext::ldexp(numext::real(z), e), numext::ldexp(numext::imag(z), e));
   }
 };
 
 template <typename Scalar>
 struct structured_balance_impl<Scalar, false> {
-  static Scalar run(const Scalar& x, Index& exponent) {
+  template <typename Exponent>
+  static Scalar run(const Scalar& x, Exponent& exponent) {
     const Scalar mag = numext::abs(x);
     if (!(mag > Scalar(0)) || !(numext::isfinite)(mag)) return x;
     int e;
-    std::frexp(mag, &e);
+    EIGEN_USING_STD(frexp);
+    frexp(mag, &e);
     exponent += e;
-    return std::ldexp(x, -e);
+    return numext::ldexp(x, -e);
   }
-  static Scalar apply_exponent(const Scalar& x, int e) { return std::ldexp(x, e); }
+  static Scalar apply_exponent(const Scalar& x, int e) { return numext::ldexp(x, e); }
 };
 
-template <typename Scalar>
-Scalar structured_balance(const Scalar& z, Index& exponent) {
+template <typename Scalar, typename Exponent>
+Scalar structured_balance(const Scalar& z, Exponent& exponent) {
   return structured_balance_impl<Scalar>::run(z, exponent);
 }
 
@@ -86,9 +95,9 @@ Scalar structured_balance(const Scalar& z, Index& exponent) {
  * component-wise for complex scalars. ldexp saturates cleanly to zero /
  * infinity (preserving signs) once the exponent leaves the representable
  * range; the clamp only guards the narrowing to int. */
-template <typename Scalar>
-Scalar structured_ldexp_clamped(const Scalar& z, Index exponent) {
-  constexpr Index kMaxExponent = Index(1) << 24;
+template <typename Scalar, typename Exponent>
+Scalar structured_ldexp_clamped(const Scalar& z, Exponent exponent) {
+  constexpr Exponent kMaxExponent = Exponent(1) << 24;
   const int e = static_cast<int>(numext::mini(numext::maxi(exponent, -kMaxExponent), kMaxExponent));
   return structured_balance_impl<Scalar>::apply_exponent(z, e);
 }
@@ -234,7 +243,8 @@ bool structured_exponent_bound_finite(const Xpr& x, int& e) {
   e = 0;
   if (!(numext::isfinite)(m)) return false;
   if (m > RealScalar(0)) {
-    std::frexp(m, &e);
+    EIGEN_USING_STD(frexp);
+    frexp(m, &e);
     if (ScalarTraits::IsComplex) ++e;
   }
   return true;
@@ -314,7 +324,7 @@ void structured_fft_apply(Dest& dst, const Matrix<std::complex<typename NumTrait
 
   int log2p = 0;
   for (Index t = p; t > 0; t /= 2) ++log2p;
-  const int budget = std::numeric_limits<RealScalar>::max_exponent - 2 * log2p - 2;
+  const int budget = NumTraits<RealScalar>::max_exponent() - 2 * log2p - 2;
   const int symbolExp = structured_exponent_bound(symbol);  // max|symbol| < 2^symbolExp
 
   auto&& fft = structured_fft_engine<RealScalar>();
@@ -331,8 +341,10 @@ void structured_fft_apply(Dest& dst, const Matrix<std::complex<typename NumTrait
     // inside the exponent range even when e exceeds it (a huge column applied
     // through a huge symbol); scaling by the two exact factors in sequence is
     // still an exact shift wherever the result is representable.
-    const RealScalar down1 = std::ldexp(RealScalar(1), -(e / 2)), down2 = std::ldexp(RealScalar(1), -(e - e / 2));
-    const RealScalar up1 = std::ldexp(RealScalar(1), e / 2), up2 = std::ldexp(RealScalar(1), e - e / 2);
+    const RealScalar down1 = numext::ldexp(RealScalar(1), -(e / 2));
+    const RealScalar down2 = numext::ldexp(RealScalar(1), -(e - e / 2));
+    const RealScalar up1 = numext::ldexp(RealScalar(1), e / 2);
+    const RealScalar up2 = numext::ldexp(RealScalar(1), e - e / 2);
     xt.head(rhs.rows()) = ((rhs.col(k) * down1) * down2).template cast<Complex>();
     fft.fwd(xf, xt, p);
     xf.array() *= symbol.array();
@@ -370,12 +382,14 @@ struct structured_product_impl : generic_product_impl_base<Op, Rhs, structured_p
   template <typename Dest>
   static void evalTo(Dest& dst, const Op& lhs, const Rhs& rhs) {
     dst.setZero();
-    lhs.addProduct(dst, rhs, Scalar(1));
+    scaleAndAddTo(dst, lhs, rhs, Scalar(1));
   }
 
   template <typename Dest>
   static void scaleAndAddTo(Dest& dst, const Op& lhs, const Rhs& rhs, const Scalar& alpha) {
-    lhs.addProduct(dst, rhs, alpha);
+    using RhsNested = typename nested_eval<Rhs, Op::RowsAtCompileTime>::type;
+    RhsNested actualRhs(rhs);
+    lhs.addProduct(dst, actualRhs, alpha);
   }
 };
 
