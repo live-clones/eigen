@@ -270,6 +270,19 @@ const typename NNLS<MatrixType>::SolutionVectorType &NNLS<MatrixType>::solve(con
       return x_;
     }
 
+    // The inactive (passive) set columns are kept linearly independent, so the
+    // set can never hold more than A.rows() of them. Once it is full the
+    // unconstrained least-squares residual is already minimized and the current
+    // iterate is optimal; moving another variable in would drive the rank-1 QR
+    // update past its row capacity (an out-of-bounds Householder reflector). This
+    // only arises for wide systems (cols > rows), where rounding in the
+    // recomputed gradient can otherwise nudge maxGradient just above the
+    // tolerance after the residual has already vanished.
+    if (numInactive_ == A_.rows()) {
+      info_ = ComputationInfo::Success;
+      return x_;
+    }
+
     // Find the maximum element of the gradient in the active set.
     // If it is small or negative, then we have converged.
     // Else, we move that variable to the inactive set.
