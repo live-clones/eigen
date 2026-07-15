@@ -49,6 +49,14 @@ void test_kron_product(Index m1, Index n1, Index m2, Index n2) {
   Mat X = Mat::Random(n1 * n2, 3);
   VERIFY_IS_APPROX((K * X).eval(), (dense * X).eval());
 
+  // A matrix product on the right must be materialized once before addProduct()
+  // takes column expressions from it. Keep the outer expression alive past the
+  // full expression that created the nested product as a lifetime check too.
+  Mat P = Mat::Random(n1 * n2, 4), Q = Mat::Random(4, 3);
+  auto nestedProduct = K * (P * Q);
+  Mat nestedResult = nestedProduct;
+  VERIFY_IS_APPROX(nestedResult, (dense * (P * Q)).eval());
+
   // Accumulation form exercised by the iterative solvers.
   Vec y = Vec::Random(m1 * m2);
   Vec y0 = y;
@@ -274,7 +282,7 @@ void test_kron_least_squares_rank_deficient(Index m1, Index n1, Index m2, Index 
 // product-level threshold min(rows,cols) * eps * sigma_max(A) * sigma_max(B).
 // The rank is 3 -- matching the dense complete orthogonal decomposition -- and
 // leastSquaresSolve() must truncate the 1e-16 mode instead of inverting it.
-static void test_kron_product_level_rank() {
+void test_kron_product_level_rank() {
   typedef Matrix<double, Dynamic, 1> Vec;
   typedef Matrix<double, Dynamic, Dynamic> Mat;
 
@@ -302,7 +310,7 @@ static void test_kron_product_level_rank() {
 // det(A (x) B) = det(A)^n2 * det(B)^n1 must be accumulated with exponent
 // balancing: det(A)^n2 or det(B)^n1 can overflow or underflow on their own even
 // when the result is representable.
-static void test_kron_determinant_scaling() {
+void test_kron_determinant_scaling() {
   typedef Matrix<double, Dynamic, Dynamic> Mat;
 
   // Reviewer repro: det(A)^2 = 1e400 overflows on its own, yet the determinant
@@ -344,7 +352,7 @@ static void test_kron_determinant_scaling() {
 // B X = 1e400 and returns Inf. The power-of-two pre-scaling must keep every
 // intermediate finite whenever the true result is representable -- and powers of
 // two shift only exponents, so no accuracy may be lost.
-static void test_kron_extreme_scale_product() {
+void test_kron_extreme_scale_product() {
   typedef Matrix<double, Dynamic, 1> Vec;
   typedef Matrix<double, Dynamic, Dynamic> Mat;
 
@@ -360,7 +368,7 @@ static void test_kron_extreme_scale_product() {
 
   // Same magnitudes through solve(): with the factors swapped the operator is
   // still the identity, and the intermediate B^{-1} mat(b) = 1e400 overflows;
-  // the detect-and-rescale retry must return the exact solution.
+  // the normalized-frame solve must return the exact solution.
   KroneckerOperator<Mat, Mat> Ks(B, A);
   Vec b(1);
   b << 1e200;
@@ -401,7 +409,7 @@ static void test_kron_extreme_scale_product() {
 // non-representable modulus, which would silently disable the scaling (and a
 // result with components near the threshold has one too, which must not be
 // destroyed on the way back).
-static void test_kron_extreme_scale_complex() {
+void test_kron_extreme_scale_complex() {
   typedef std::complex<double> Complex;
   typedef Matrix<Complex, Dynamic, 1> Vec;
   typedef Matrix<Complex, Dynamic, Dynamic> Mat;
@@ -435,7 +443,7 @@ static void test_kron_extreme_scale_complex() {
 // multiplication, so every pairwise singular-value product used to pass and
 // rank() returned 8 where the dense SVD says 1. The comparison must happen in
 // ratio space: (sa_i/sa_0) * (sb_j/sb_0) against min(rows,cols) * eps.
-static void test_kron_rank_ratio_threshold() {
+void test_kron_rank_ratio_threshold() {
   typedef Matrix<double, Dynamic, 1> Vec;
   typedef Matrix<double, Dynamic, Dynamic> Mat;
 
@@ -477,7 +485,7 @@ static void test_kron_rank_ratio_threshold() {
 // rank is 0 and the pseudo-inverse is zero, but without the clamp the
 // structured rank was 1 and leastSquaresSolve returned ~9e307. The boundary
 // DBL_MIN itself stays rank one, matching SVDBase::rank()'s >= convention.
-static void test_kron_rank_min_normal_clamp() {
+void test_kron_rank_min_normal_clamp() {
   typedef Matrix<double, Dynamic, 1> Vec;
   typedef Matrix<double, Dynamic, Dynamic> Mat;
   const double mn = (std::numeric_limits<double>::min)();
@@ -511,7 +519,7 @@ static void test_kron_rank_min_normal_clamp() {
 // (a) silent underflow -- the intermediate B^-1 mat(b) flushes to zero, which is
 // finite, so nothing triggered a retry -- and (b) factors whose raw inverse is
 // not representable even against a unit right-hand side.
-static void test_kron_solve_normalized() {
+void test_kron_solve_normalized() {
   typedef Matrix<double, Dynamic, 1> Vec;
   typedef Matrix<double, Dynamic, Dynamic> Mat;
 
