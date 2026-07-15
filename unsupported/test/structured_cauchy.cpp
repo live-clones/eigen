@@ -57,6 +57,12 @@ void test_cauchy_product(Index m, Index n) {
 
   Mat Cd = C;
   VERIFY_IS_APPROX(Cd, dense);
+  Mat accumulated = Mat::Random(m, n);
+  const Mat initial = accumulated;
+  accumulated += C;
+  VERIFY_IS_APPROX(accumulated, initial + dense);
+  accumulated -= C;
+  VERIFY_IS_APPROX(accumulated, initial);
   for (Index t = 0; t < 5; ++t) {
     Index i = internal::random<Index>(0, m - 1), j = internal::random<Index>(0, n - 1);
     VERIFY_IS_APPROX(C.coeff(i, j), dense(i, j));
