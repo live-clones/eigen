@@ -34,8 +34,8 @@ namespace Eigen {
  *     of a 2-D circular convolution), diagonalized by the 2-D DFT, with
  *     closed-form solves, eigendecomposition and SVD.
  *
- * The operator types derive from \c EigenBase and store only their generating
- * vectors together with a precomputed DFT symbol that every product reuses.
+ * The operator types derive from \c EigenBase and store only their compact
+ * generators together with a precomputed DFT symbol that every product reuses.
  * Because they expose \c operator* returning an Eigen product expression, they
  * also plug directly into the matrix-free iterative solvers
  * (\c ConjugateGradient, \c GMRES, \c MINRES, ...) without forming the dense
