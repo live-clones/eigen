@@ -220,8 +220,7 @@ typename DPR1EigenSolver<RealScalar_>::SpectrumRange DPR1EigenSolver<RealScalar_
   int rhoExponent = 0;
   const RealScalar rhoFraction = frexp(rho, &rhoExponent);
   DoubleWord sum{RealScalar(0), RealScalar(0)};
-  RealScalar exactTermSum = RealScalar(0);
-  bool exactTermSumValid = true;
+  bool exactSumValid = true;
   Index active = 0;
 
   for (Index i = 0; i < d.size(); ++i) {
@@ -267,45 +266,40 @@ typename DPR1EigenSolver<RealScalar_>::SpectrumRange DPR1EigenSolver<RealScalar_
     const int termExponent = rhoExponent + 2 * zExponent - denominatorExponent - 1;
     const DoubleWord quotient = divideDoubleWords(numerator, denominator);
     const DoubleWord term = scaleDoubleWord(quotient, termExponent);
+    if (!(numext::isfinite)(term.hi) || term.hi > RealScalar(2)) return SpectrumRange::Overflow;
+
+    const RealScalar previousSum = sum.hi;
+    sum = addDoubleWords(sum, term);
+    if (!(numext::isfinite)(sum.hi) || sum.hi > RealScalar(2)) return SpectrumRange::Overflow;
 
     // Certify an exact endpoint equality only from terms whose division,
     // exponent scaling, and scalar accumulation are all proven exact. This is
     // deliberately stricter than the O(u^2) sign estimate below: a rounded
     // equality must remain Uncertain rather than become a false Success.
-    if (exactTermSumValid) {
+    if (exactSumValid) {
       const RealScalar normalMin = (std::numeric_limits<RealScalar>::min)();
       bool exactTerm = numeratorExact && denominatorExact && denominatorScaleExact && denominator.lo == RealScalar(0) &&
-                       quotient.lo == RealScalar(0) && term.lo == RealScalar(0) && (numext::isfinite)(term.hi) &&
-                       term.hi >= normalMin && ldexp(term.hi, -termExponent) == quotient.hi;
+                       quotient.lo == RealScalar(0) && term.lo == RealScalar(0) && term.hi >= normalMin &&
+                       ldexp(term.hi, -termExponent) == quotient.hi;
       if (exactTerm) {
         DoubleWord recoveredNumerator;
         internal::twoprod(quotient.hi, denominator.hi, recoveredNumerator.hi, recoveredNumerator.lo);
         exactTerm = recoveredNumerator.hi == numerator.hi && recoveredNumerator.lo == numerator.lo;
       }
       if (exactTerm) {
-        const RealScalar larger = numext::maxi(exactTermSum, term.hi);
-        const RealScalar smaller = numext::mini(exactTermSum, term.hi);
-        DoubleWord exactAddition;
-        internal::fast_twosum(larger, smaller, exactAddition.hi, exactAddition.lo);
+        const RealScalar larger = numext::maxi(previousSum, term.hi);
+        const RealScalar smaller = numext::mini(previousSum, term.hi);
         // The reversible subtraction remains a proof if FTZ erases a
-        // subnormal low word from FastTwoSum.
-        if (exactAddition.lo == RealScalar(0) && exactAddition.hi - larger == smaller) {
-          exactTermSum = exactAddition.hi;
-        } else {
-          exactTermSumValid = false;
-        }
+        // subnormal low word from the double-word addition.
+        exactSumValid = sum.lo == RealScalar(0) && sum.hi - larger == smaller;
       } else {
-        exactTermSumValid = false;
+        exactSumValid = false;
       }
     }
-
-    if (!(numext::isfinite)(term.hi) || term.hi > RealScalar(2)) return SpectrumRange::Overflow;
-    sum = addDoubleWords(sum, term);
-    if (!(numext::isfinite)(sum.hi) || sum.hi > RealScalar(2)) return SpectrumRange::Overflow;
   }
 
   if (active == 0) return SpectrumRange::Representable;
-  if (exactTermSumValid && exactTermSum == RealScalar(1)) return SpectrumRange::ExactBoundary;
+  if (exactSumValid && sum.hi == RealScalar(1)) return SpectrumRange::ExactBoundary;
 
   const DoubleWord difference = addDoubleWords(sum, DoubleWord{RealScalar(-1), RealScalar(0)});
   const RealScalar estimate = difference.hi + difference.lo;
