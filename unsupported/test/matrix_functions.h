@@ -51,13 +51,10 @@ struct processTriangularMatrix<MatrixType, 0> {
         // off the branch cut. Checking a single diagonal entry (as before) misses
         // blocks whose real part is negative only because the other entry is.
         if (T.coeff(i, i) + T.coeff(i + 1, i + 1) < Scalar(0)) {
-          T.coeffRef(i, i) = -T.coeff(i, i);
-          T.coeffRef(i + 1, i + 1) = -T.coeff(i + 1, i + 1);
-          T.coeffRef(i, i + 1) = -T.coeff(i, i + 1);
-          T.coeffRef(i + 1, i) = -T.coeff(i + 1, i);
+          T.template block<2, 2>(i, i) *= Scalar(-1);
         }
         // |eigenvalue|^2 equals the block determinant a^2 + b^2.
-        const Scalar det = T.coeff(i, i) * T.coeff(i + 1, i + 1) - T.coeff(i, i + 1) * T.coeff(i + 1, i);
+        const Scalar det = T.template block<2, 2>(i, i).determinant();
         maxMag = (std::max)(maxMag, sqrt(abs(det)));
         ++i;
       }
@@ -72,14 +69,11 @@ struct processTriangularMatrix<MatrixType, 0> {
         if (i == size - 1 || numext::is_exactly_zero(T.coeff(i + 1, i))) {
           if (T.coeff(i, i) < minAllowed) T.coeffRef(i, i) = minAllowed;
         } else {
-          const Scalar det = T.coeff(i, i) * T.coeff(i + 1, i + 1) - T.coeff(i, i + 1) * T.coeff(i + 1, i);
+          const Scalar det = T.template block<2, 2>(i, i).determinant();
           const Scalar mag = sqrt(abs(det));
           if (mag > Scalar(0) && mag < minAllowed) {
             const Scalar s = minAllowed / mag;
-            T.coeffRef(i, i) *= s;
-            T.coeffRef(i + 1, i + 1) *= s;
-            T.coeffRef(i, i + 1) *= s;
-            T.coeffRef(i + 1, i) *= s;
+            T.template block<2, 2>(i, i) *= s;
           }
           ++i;
         }
