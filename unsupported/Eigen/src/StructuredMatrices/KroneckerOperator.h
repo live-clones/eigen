@@ -300,7 +300,7 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
           if (!((sa[j] / sa[0]) * (sb[i] / sb[0]) < tol) && reachesMinNormal(sa[j], sb[i])) {
             int ea, eb;
             const RealScalar ma = std::frexp(sa[j], &ea), mb = std::frexp(sb[i], &eb);
-            M(i, j) = ldexpScalar(M(i, j), -(ea + eb)) / (ma * mb);
+            M(i, j) = internal::structured_ldexp_clamped(M(i, j), Index(-(ea + eb))) / (ma * mb);
           } else {
             M(i, j) = Scalar(0);
           }
@@ -362,12 +362,8 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
                  "KroneckerOperator::determinant requires square factors");
     Index exponent = 0;
     Scalar mant = balancedDetPow(m_A, m_B.cols(), exponent);
-    mant = balance(mant * balancedDetPow(m_B, m_A.cols(), exponent), exponent);
-    // ldexp saturates cleanly to zero / infinity once the accumulated exponent
-    // leaves the representable range; the clamp only guards the narrowing to int.
-    constexpr Index kMaxExponent = Index(1) << 24;
-    const int e = static_cast<int>(numext::mini(numext::maxi(exponent, -kMaxExponent), kMaxExponent));
-    return ldexpScalar(mant, e);
+    mant = internal::structured_balance(mant * balancedDetPow(m_B, m_A.cols(), exponent), exponent);
+    return internal::structured_ldexp_clamped(mant, exponent);
   }
 
   /** \returns the eigenvalues for square factors, in Kronecker order: entry
@@ -497,8 +493,12 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
     using ProductVector = Matrix<ProductScalar, Dynamic, 1>;
     using ProductMatrix = Matrix<ProductScalar, Dynamic, Dynamic, ColMajor>;  // ColMajor: see DenseMatrix
     using ProductReal = typename NumTraits<ProductScalar>::Real;
+    // In particular, materialize a nested matrix product once before taking
+    // per-column expressions from it. Otherwise each column evaluator may
+    // independently evaluate the entire nested product.
+    typename internal::nested_eval<Rhs, 1>::type actualRhs(rhs);
     const Index n1 = m_A.cols(), n2 = m_B.cols();
-    eigen_assert(rhs.rows() == n1 * n2 && "invalid product: dimensions do not match");
+    eigen_assert(actualRhs.rows() == n1 * n2 && "invalid product: dimensions do not match");
     // If max|X| < 2^eX, the two GEMMs are bounded by 2^(eB+eX+bits2) and
     // 2^(eA+eB+eX+bits1+bits2), including dot-product growth.
     const bool factorsFinite = m_A.allFinite() && m_B.allFinite();
@@ -508,8 +508,8 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
     for (Index t = n1; t > 0; t /= 2) ++bits1;
     for (Index t = n2; t > 0; t /= 2) ++bits2;
     const int budget = std::numeric_limits<ProductReal>::max_exponent - 2;
-    for (Index k = 0; k < rhs.cols(); ++k) {
-      ProductVector xc = rhs.col(k).template cast<ProductScalar>();
+    for (Index k = 0; k < actualRhs.cols(); ++k) {
+      ProductVector xc = actualRhs.col(k).template cast<ProductScalar>();
       int e = 0;
       if (factorsFinite && xc.allFinite()) {
         const int expX = internal::structured_exponent_bound(xc);  // 0 for an all-zero column: no scaling
@@ -560,7 +560,7 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
    * multiplication by \c 2^e, whose factor may itself be unrepresentable. */
   template <typename Xpr>
   static typename Xpr::PlainObject ldexpEntries(const Xpr& M, int e) {
-    return M.unaryExpr([e](const Scalar& z) { return ldexpScalar(z, e); });
+    return M.unaryExpr([e](const Scalar& z) { return internal::structured_ldexp_clamped(z, Index(e)); });
   }
 
   /** \internal Whether the pairwise singular-value product \c s1*s2 reaches the
@@ -584,33 +584,6 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
     return e >= std::numeric_limits<RealScalar>::min_exponent;
   }
 
-  template <typename T>
-  static T ldexpImpl(const T& z, int e, std::false_type /*is_complex*/) {
-    return std::ldexp(z, e);
-  }
-  template <typename T>
-  static T ldexpImpl(const T& z, int e, std::true_type /*is_complex*/) {
-    return T(std::ldexp(numext::real(z), e), std::ldexp(numext::imag(z), e));
-  }
-  /** \internal Scales \a z by \c 2^e exactly, componentwise for complex scalars. */
-  static Scalar ldexpScalar(const Scalar& z, int e) {
-    return ldexpImpl(z, e, std::integral_constant<bool, NumTraits<Scalar>::IsComplex != 0>());
-  }
-
-  /** \internal Rescales \a z by the power of two that brings \c max(|re|,|im|)
-   * into [0.5, 1), accumulating the removed exponent into \a exponent. The
-   * rescaling is exact, so no roundoff is introduced. Zeros and non-finite
-   * values, which must propagate exactly through determinant(), are returned
-   * untouched. */
-  static Scalar balance(const Scalar& z, Index& exponent) {
-    const RealScalar mag = numext::maxi(numext::abs(numext::real(z)), numext::abs(numext::imag(z)));
-    if (!(mag > RealScalar(0)) || !(numext::isfinite)(mag)) return z;
-    int e;
-    std::frexp(mag, &e);
-    exponent += e;
-    return ldexpScalar(z, -e);
-  }
-
   /** \internal \returns the mantissa of \c det(M)^power in the balanced form
    * \c m * 2^e, adding \c e into \a exponent. The determinant is accumulated
    * directly from the LU diagonal (times the permutation sign), each entry and
@@ -619,14 +592,16 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
    * semantics for negative real and complex determinants (no exp/log
    * branch-cut roundoff), with the bulk of the magnitude carried exactly on the
    * exponent side. */
-  static Scalar balancedDetPow(const DenseMatrix& M, Index power, Index& exponent) {
-    PartialPivLU<DenseMatrix> lu(M);
+  template <typename MatrixType>
+  static Scalar balancedDetPow(const MatrixType& M, Index power, Index& exponent) {
+    PartialPivLU<MatrixType> lu(M);
     Scalar m = Scalar(RealScalar(lu.permutationP().determinant()));  // +-1
     Index e = 0;
-    for (Index i = 0; i < M.rows(); ++i) m = balance(m * balance(lu.matrixLU().coeff(i, i), e), e);
+    for (Index i = 0; i < M.rows(); ++i)
+      m = internal::structured_balance(m * internal::structured_balance(lu.matrixLU().coeff(i, i), e), e);
     Scalar r(1);
     Index er = 0;
-    for (Index k = 0; k < power; ++k) r = balance(r * m, er);
+    for (Index k = 0; k < power; ++k) r = internal::structured_balance(r * m, er);
     exponent += power * e + er;
     return r;
   }
