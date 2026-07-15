@@ -118,6 +118,11 @@ void test_dplr_solve(Index n, Index k) {
   Mat B = Mat::Random(n, 3);
   Mat X = A.solve(B);
   VERIFY_IS_APPROX(X, dense.partialPivLu().solve(B).eval());
+
+  Mat empty_rhs(n, 0);
+  Mat empty_solution = A.solve(empty_rhs);
+  VERIFY_IS_EQUAL(empty_solution.rows(), n);
+  VERIFY_IS_EQUAL(empty_solution.cols(), 0);
 }
 
 template <typename Scalar>

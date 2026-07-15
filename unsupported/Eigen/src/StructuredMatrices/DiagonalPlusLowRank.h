@@ -79,34 +79,13 @@ struct dplr_ldexp_op {
   Scalar operator()(const Scalar& x) const { return structured_balance_impl<Scalar>::apply_exponent(x, e); }
 };
 
-// An exponent bound e with max_ij |x(i,j)| < 2^e, or 0 when x is empty, zero or
-// holds non-finite values. The bound is derived from the component-wise
-// magnitudes, never from the modulus: a finite complex value near the overflow
-// threshold has a non-representable modulus. Bounding the modulus by twice the
-// largest component costs at most one extra bit.
-template <typename Xpr>
-int dplr_exponent_bound(const Xpr& x) {
-  using RealScalar = typename NumTraits<typename Xpr::Scalar>::Real;
-  if (x.size() == 0) return 0;
-  RealScalar m;
-  if (NumTraits<typename Xpr::Scalar>::IsComplex)
-    m = numext::maxi(x.real().cwiseAbs().maxCoeff(), x.imag().cwiseAbs().maxCoeff());
-  else
-    m = x.cwiseAbs().maxCoeff();
-  int e = 0;
-  if (m > RealScalar(0) && (numext::isfinite)(m)) {
-    std::frexp(m, &e);
-    if (NumTraits<typename Xpr::Scalar>::IsComplex) ++e;
-  }
-  return e;
-}
-
 // The smallest e with n <= 2^e: the inner-dimension term of a product's entry
 // magnitude bound (a length-n dot product of entries below 2^a and 2^b stays
 // below 2^(a + b + e)).
 inline int dplr_index_exponent(Index n) {
+  if (n <= 1) return 0;
   int e = 0;
-  while ((Index(1) << e) < n) ++e;
+  for (Index t = n - 1; t > 0; t /= 2) ++e;
   return e;
 }
 
@@ -118,7 +97,7 @@ inline int dplr_index_exponent(Index n) {
 // bit-identical to the unnormalized evaluation.
 template <typename RealScalar>
 bool dplr_product_fits(int ea, int eb, Index inner) {
-  return ea + eb + dplr_index_exponent(inner) + 1 < std::numeric_limits<RealScalar>::max_exponent;
+  return ea + eb + dplr_index_exponent(inner) + 1 < NumTraits<RealScalar>::max_exponent();
 }
 
 // Compile-time dispatch keeps fixed rank zero from instantiating a 0 x 0 LU;
@@ -133,12 +112,12 @@ struct dplr_capacitance_impl {
   static void subtractSolveCorrection(const Op& op, const Dinv& dinv, Workspace& x) {
     using Scalar = typename Op::Scalar;
     using RealScalar = typename Op::RealScalar;
-    if (op.correctionRank() == 0) return;
+    if (op.correctionRank() == 0 || x.size() == 0) return;
     PartialPivLU<typename Op::CapacitanceType> cap(op.capacitance());
-    const int eu = dplr_exponent_bound(op.factorU());
-    const int ev = dplr_exponent_bound(op.factorV());
-    const int ed = dplr_exponent_bound(dinv);
-    const int ex = dplr_exponent_bound(x);
+    const int eu = structured_exponent_bound(op.factorU());
+    const int ev = structured_exponent_bound(op.factorV());
+    const int ed = structured_exponent_bound(dinv);
+    const int ex = structured_exponent_bound(x);
     if (dplr_product_fits<RealScalar>(ev, ex, op.rows()) && dplr_product_fits<RealScalar>(ed, eu, 1)) {
       x.noalias() -= dinv.asDiagonal() * (op.factorU() * cap.solve(op.factorV().adjoint() * x));
       return;
@@ -158,9 +137,9 @@ struct dplr_capacitance_impl {
     if (op.correctionRank() == 0) return;
     PartialPivLU<typename Op::CapacitanceType> cap(op.capacitance());
     const typename Op::CapacitanceType K = cap.inverse();
-    const int eu = dplr_exponent_bound(op.factorU());
-    const int ed = dplr_exponent_bound(dinv);
-    const int ek = dplr_exponent_bound(K);
+    const int eu = structured_exponent_bound(op.factorU());
+    const int ed = structured_exponent_bound(dinv);
+    const int ek = structured_exponent_bound(K);
     if (dplr_product_fits<RealScalar>(ed, eu, 1) && dplr_product_fits<RealScalar>(ed + eu, ek, op.correctionRank())) {
       Up.noalias() = -(dinv.asDiagonal() * op.factorU() * K);
       return;
@@ -318,9 +297,9 @@ class DiagonalPlusLowRank : public EigenBase<DiagonalPlusLowRank<Scalar_, Size_,
     CapacitanceType c = CapacitanceType::Identity(k, k);
     if (k == 0) return c;
     const DiagonalVector dinv = m_d.cwiseInverse();
-    const int eu = internal::dplr_exponent_bound(m_U);
-    const int ev = internal::dplr_exponent_bound(m_V);
-    const int ed = internal::dplr_exponent_bound(dinv);
+    const int eu = internal::structured_exponent_bound(m_U);
+    const int ev = internal::structured_exponent_bound(m_V);
+    const int ed = internal::structured_exponent_bound(dinv);
     if (internal::dplr_product_fits<RealScalar>(ev, ed, 1) &&
         internal::dplr_product_fits<RealScalar>(ev + ed, eu, rows())) {
       c.noalias() += m_V.adjoint() * dinv.asDiagonal() * m_U;
