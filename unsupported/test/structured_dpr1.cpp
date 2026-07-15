@@ -8,10 +8,36 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
+#include "fp_control.h"
 
 #include <unsupported/Eigen/StructuredMatrices>
 
 using namespace Eigen;
+
+template <typename Scalar>
+EIGEN_DONT_INLINE Scalar dpr1_subnormal_input_probe() {
+  volatile Scalar denorm = (std::numeric_limits<Scalar>::denorm_min)();
+  volatile Scalar highest = (std::numeric_limits<Scalar>::max)();
+  return denorm * highest;
+}
+
+template <typename Scalar>
+EIGEN_DONT_INLINE Scalar dpr1_underflow_probe() {
+  volatile Scalar normalMin = (std::numeric_limits<Scalar>::min)();
+  volatile Scalar oneHalf = Scalar(0.5);
+  return normalMin * oneHalf;
+}
+
+template <typename Scalar>
+bool dpr1_preserves_subnormal_inputs() {
+  return std::numeric_limits<Scalar>::has_denorm == std::denorm_present &&
+         dpr1_subnormal_input_probe<Scalar>() != Scalar(0);
+}
+
+template <typename Scalar>
+bool dpr1_has_gradual_underflow() {
+  return std::numeric_limits<Scalar>::has_denorm == std::denorm_present && dpr1_underflow_probe<Scalar>() != Scalar(0);
+}
 
 // Full quality check of one decomposition: eigenvalues against a dense
 // reference, residual ||A*V - V*Lambda||, and -- the litmus test for the
@@ -210,6 +236,12 @@ void test_dpr1_nonfinite() {
   VERIFY(e2.info() == InvalidInput);
   DPR1EigenSolver<double> e3(d, std::numeric_limits<double>::quiet_NaN(), z);
   VERIFY(e3.info() == InvalidInput);
+
+  const Vec empty;
+  DPR1EigenSolver<double> e4(empty, std::numeric_limits<double>::quiet_NaN(), empty);
+  VERIFY(e4.info() == InvalidInput);
+  DPR1EigenSolver<double> e5(empty, std::numeric_limits<double>::infinity(), empty);
+  VERIFY(e5.info() == InvalidInput);
 }
 
 void test_dpr1_invalid_options() {
@@ -262,6 +294,8 @@ void test_dpr1_full_range_poles() {
 // instead normalize z by an exact power of two, 2^-p z with rho 2^(2p), which
 // leaves the matrix identical -- the same rewrite gives the dense reference.
 void test_dpr1_huge_z_norm() {
+  if (!dpr1_preserves_subnormal_inputs<double>()) return;
+
   typedef Matrix<double, Dynamic, 1> Vec;
   typedef Matrix<double, Dynamic, Dynamic> Mat;
   const double dmax = (std::numeric_limits<double>::max)();
@@ -352,6 +386,48 @@ void test_dpr1_maximum_range_rounding() {
   DPR1EigenSolver<double> overflowNegative(d, -rhoOverflow, z);
   VERIFY(overflowNegative.info() == InvalidInput);
   VERIFY((numext::isnan)(overflowNegative.eigenvalues()[0]));
+}
+
+// Multiple exactly representable endpoint terms must be certifiable together:
+// rho*z_i^2/(max-d_i) = 1/2 for each i, so the spectrum is exactly {0, max}.
+template <typename Scalar>
+void test_dpr1_exact_endpoint_sum() {
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  using std::nextafter;
+  const Scalar highest = (std::numeric_limits<Scalar>::max)();
+  const Scalar boundaryRho = highest / Scalar(2);
+  const Vec d = Vec::Zero(2);
+  const Vec z = Vec::Ones(2);
+
+  DPR1EigenSolver<Scalar> positive(d, boundaryRho, z);
+  VERIFY(positive.info() == Success);
+  VERIFY_IS_EQUAL(positive.eigenvalues()[0], Scalar(0));
+  VERIFY_IS_EQUAL(positive.eigenvalues()[1], highest);
+
+  DPR1EigenSolver<Scalar> negative(d, -boundaryRho, z);
+  VERIFY(negative.info() == Success);
+  VERIFY_IS_EQUAL(negative.eigenvalues()[0], -highest);
+  VERIFY_IS_EQUAL(negative.eigenvalues()[1], Scalar(0));
+
+  const Vec d4 = Vec::Zero(4);
+  const Vec z4 = Vec::Ones(4);
+  DPR1EigenSolver<Scalar> fourTerms(d4, highest / Scalar(4), z4);
+  VERIFY(fourTerms.info() == Success);
+  VERIFY_IS_EQUAL(fourTerms.eigenvalues()[3], highest);
+
+  DPR1EigenSolver<Scalar> below(d, nextafter(boundaryRho, Scalar(0)), z);
+  VERIFY(below.info() == Success);
+  VERIFY(below.eigenvalues().allFinite());
+
+  DPR1EigenSolver<Scalar> above(d, nextafter(boundaryRho, highest), z);
+  VERIFY(above.info() == InvalidInput);
+
+  // The exact top eigenvalue is highest + min. Normalizing the endpoint
+  // denominator drops that tiny difference, so this case must remain
+  // conservatively unresolved instead of reusing the exact-equality path.
+  const Vec minDiagonal = Vec::Constant(2, (std::numeric_limits<Scalar>::min)());
+  DPR1EigenSolver<Scalar> unresolved(minDiagonal, boundaryRho, z);
+  VERIFY(unresolved.info() != Success);
 }
 
 // Regression (MR 2694 review): rho*||z||^2 = 2*max overflows, but the single
@@ -449,16 +525,32 @@ void test_dpr1_tiny_scale() {
   VERIFY((dense * es.eigenvectors() - es.eigenvectors() * lambdaS.asDiagonal()).norm() <=
          tol * scaleS * numext::sqrt(double(n)));
 
-  // Deep-subnormal rank-one update: spectrum {0 x7, rho*||z||^2 = 2^-1065}.
-  // The result is rounded onto the subnormal grid on the way back down, so the
-  // bound is a few subnormal ulps (denorm_min), not a relative one.
-  const double dn = std::numeric_limits<double>::denorm_min();
-  Vec z1 = Vec::Ones(n);
-  const double rho1 = 64 * dn;
-  DPR1EigenSolver<double> sub(Vec(Vec::Zero(n)), rho1, z1);
-  VERIFY(sub.info() == Success);
-  VERIFY(numext::abs(sub.eigenvalues()[n - 1] - double(n) * rho1) <= 8 * dn);
-  VERIFY(sub.eigenvalues().head(n - 1).cwiseAbs().maxCoeff() == 0.0);
+  if (dpr1_preserves_subnormal_inputs<double>() && dpr1_has_gradual_underflow<double>()) {
+    // Deep-subnormal rank-one update: spectrum {0 x7, rho*||z||^2 = 2^-1065}.
+    // The result is rounded onto the subnormal grid on the way back down, so the
+    // bound is a few subnormal ulps (denorm_min), not a relative one.
+    const double dn = (std::numeric_limits<double>::denorm_min)();
+    Vec z1 = Vec::Ones(n);
+    const double rho1 = 64 * dn;
+    DPR1EigenSolver<double> sub(Vec(Vec::Zero(n)), rho1, z1);
+    VERIFY(sub.info() == Success);
+    VERIFY(numext::abs(sub.eigenvalues()[n - 1] - double(n) * rho1) <= 8 * dn);
+    VERIFY(sub.eigenvalues().head(n - 1).cwiseAbs().maxCoeff() == 0.0);
+  }
+}
+
+void test_dpr1_ftz_mode() {
+  const double underflowBefore = dpr1_underflow_probe<double>();
+  bool flushToZeroSupported = false;
+  {
+    ScopedFlushToZero flushToZero;
+    flushToZeroSupported = flushToZero.isSupported();
+    if (flushToZeroSupported) {
+      VERIFY_IS_EQUAL(dpr1_underflow_probe<double>(), 0.0);
+      test_dpr1_edges<double>();
+    }
+  }
+  if (flushToZeroSupported) VERIFY_IS_EQUAL(dpr1_underflow_probe<double>(), underflowBefore);
 }
 
 // A huge diagonal spread makes every z entry individually negligible even though
@@ -481,6 +573,7 @@ EIGEN_DECLARE_TEST(structured_dpr1) {
     CALL_SUBTEST_1((test_dpr1_random<double>(64)));
     CALL_SUBTEST_1((test_dpr1_random<float>(12)));
     CALL_SUBTEST_1((test_dpr1_random<float>(40)));
+    CALL_SUBTEST_1((test_dpr1_random<long double>(12)));
 
     CALL_SUBTEST_2((test_dpr1_clustered<double>(12)));
     CALL_SUBTEST_2((test_dpr1_clustered<double>(30)));
@@ -489,11 +582,15 @@ EIGEN_DECLARE_TEST(structured_dpr1) {
     CALL_SUBTEST_2((test_dpr1_sparse_z<float>(9)));
     CALL_SUBTEST_2((test_dpr1_rank_one<double>(20)));
     CALL_SUBTEST_2((test_dpr1_rank_one<float>(11)));
+    CALL_SUBTEST_2((test_dpr1_clustered<long double>(12)));
+    CALL_SUBTEST_2((test_dpr1_sparse_z<long double>(9)));
 
     CALL_SUBTEST_3((test_dpr1_edges<double>()));
     CALL_SUBTEST_3((test_dpr1_edges<float>()));
     CALL_SUBTEST_3((test_dpr1_unsorted<double>(17)));
     CALL_SUBTEST_3((test_dpr1_scaling<double>(14)));
+    CALL_SUBTEST_3((test_dpr1_edges<long double>()));
+    CALL_SUBTEST_3((test_dpr1_scaling<long double>(14)));
     CALL_SUBTEST_3(test_dpr1_invalid_options());
 
     // Gu-Eisenstat litmus (close but undeflated poles), orthogonality growth at
@@ -501,6 +598,7 @@ EIGEN_DECLARE_TEST(structured_dpr1) {
     CALL_SUBTEST_4((test_dpr1_close_undeflated<double>(24)));
     CALL_SUBTEST_4((test_dpr1_close_undeflated<float>(16)));
     CALL_SUBTEST_4((test_dpr1_random<double>(128)));
+    CALL_SUBTEST_4((test_dpr1_close_undeflated<long double>(16)));
     CALL_SUBTEST_4(test_dpr1_huge_z());
     CALL_SUBTEST_4(test_dpr1_nonfinite());
     CALL_SUBTEST_4(test_dpr1_all_deflated());
@@ -511,9 +609,14 @@ EIGEN_DECLARE_TEST(structured_dpr1) {
     CALL_SUBTEST_5(test_dpr1_near_deflation_root());
     CALL_SUBTEST_5(test_dpr1_overflowing_spectrum());
     CALL_SUBTEST_5(test_dpr1_maximum_range_rounding());
+    CALL_SUBTEST_5((test_dpr1_exact_endpoint_sum<float>()));
+    CALL_SUBTEST_5((test_dpr1_exact_endpoint_sum<double>()));
+    CALL_SUBTEST_5((test_dpr1_exact_endpoint_sum<long double>()));
     CALL_SUBTEST_5((test_dpr1_overflowing_update_representable_spectrum<double>()));
     CALL_SUBTEST_5((test_dpr1_overflowing_update_representable_spectrum<float>()));
+    CALL_SUBTEST_5((test_dpr1_overflowing_update_representable_spectrum<long double>()));
     CALL_SUBTEST_5(test_dpr1_huge_representable_spectrum());
     CALL_SUBTEST_5(test_dpr1_tiny_scale());
+    CALL_SUBTEST_5(test_dpr1_ftz_mode());
   }
 }
