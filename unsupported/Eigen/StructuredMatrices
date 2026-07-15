@@ -11,6 +11,7 @@
 #define EIGEN_STRUCTURED_MATRICES_MODULE_H
 
 #include "../../Eigen/Core"
+#include "../../Eigen/Eigenvalues"
 #include "../../Eigen/LU"
 #include "../../Eigen/SVD"
 #include "../../Eigen/IterativeLinearSolvers"
@@ -22,8 +23,7 @@ namespace Eigen {
  * \defgroup StructuredMatrices_Module StructuredMatrices module
  *
  * This module provides lightweight operator types for displacement-structured
- * matrices together with fast, FFT-based matrix-vector products and direct
- * solvers:
+ * matrices together with fast matrix-vector products and direct solvers:
  *   - \c Circulant : a circulant matrix, diagonalized by the DFT;
  *   - \c Toeplitz  : a (possibly rectangular) Toeplitz matrix, multiplied in
  *     O(n log n) via circulant embedding;
@@ -34,8 +34,9 @@ namespace Eigen {
  *     implicit operator; products, solves, least squares, eigendecomposition,
  *     SVD, inverse and determinant all factor through the operands.
  *
- * The operator types derive from \c EigenBase and store only their generating
- * vectors together with a precomputed DFT symbol that every product reuses.
+ * The operator types derive from \c EigenBase and store only compact generators
+ * or factors. The FFT-backed operators (\c Circulant, \c Toeplitz and \c Hankel)
+ * also keep a precomputed DFT symbol that every product reuses.
  * Because they expose \c operator* returning an Eigen product expression, they
  * also plug directly into the matrix-free iterative solvers
  * (\c ConjugateGradient, \c GMRES, \c MINRES, ...) without forming the dense
