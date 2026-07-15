@@ -73,10 +73,10 @@ namespace Eigen {
  *    technique.
  *  - P. H. Sterbenz, "Floating-Point Computation", Prentice-Hall, 1974.
  *    Scaling by a power of two is exact, the property the frexp/ldexp
- *    problem scaling and the deferred two-half-ldexp unscaling of the
+ *    problem scaling and the full-range ArrayBase::ldexp unscaling of the
  *    eigenvalues rely on.
  *
- * \sa class DiagonalPlusLowRank, class SelfAdjointEigenSolver
+ * \sa class SelfAdjointEigenSolver
  */
 template <typename RealScalar_>
 class DPR1EigenSolver {
@@ -118,8 +118,9 @@ class DPR1EigenSolver {
   }
 
   /** \returns \c Success if the decomposition succeeded, \c NoConvergence if a
-   * secular root could not be fully resolved, \c InvalidInput if the input was
-   * non-finite or its spectrum is not representable in the scalar type. */
+   * secular root or the spectrum's finite-range boundary could not be fully
+   * resolved, \c InvalidInput if the input was non-finite or its spectrum is
+   * not representable in the scalar type. */
   ComputationInfo info() const {
     eigen_assert(m_isInitialized && "DPR1EigenSolver is not initialized.");
     return m_info;
@@ -136,7 +137,7 @@ class DPR1EigenSolver {
     RealScalar hi, lo;
   };
 
-  enum class SpectrumRange { Representable, Overflow, Uncertain };
+  enum class SpectrumRange { Representable, ExactBoundary, Overflow, Uncertain };
 
   static DoubleWord addDoubleWords(const DoubleWord& x, const DoubleWord& y);
   static DoubleWord multiplyDoubleWords(const DoubleWord& x, const DoubleWord& y);
@@ -219,8 +220,9 @@ typename DPR1EigenSolver<RealScalar_>::SpectrumRange DPR1EigenSolver<RealScalar_
   int rhoExponent = 0;
   const RealScalar rhoFraction = frexp(rho, &rhoExponent);
   DoubleWord sum{RealScalar(0), RealScalar(0)};
+  RealScalar exactTermSum = RealScalar(0);
+  bool exactTermSumValid = true;
   Index active = 0;
-  bool exactUnitTerm = false;
 
   for (Index i = 0; i < d.size(); ++i) {
     if (z[i] == RealScalar(0)) continue;
@@ -253,31 +255,63 @@ typename DPR1EigenSolver<RealScalar_>::SpectrumRange DPR1EigenSolver<RealScalar_
     DoubleWord denominator;
     internal::twosum(highestHalf, RealScalar(0), -dHalf, RealScalar(0), denominator.hi, denominator.lo);
     const bool denominatorExact = d[i] == RealScalar(0) || dHalf * RealScalar(2) == d[i];
+    const DoubleWord unscaledDenominator = denominator;
     int denominatorExponent = 0;
-    frexp(denominator.hi, &denominatorExponent);
-    denominator = scaleDoubleWord(denominator, -denominatorExponent);
+    frexp(unscaledDenominator.hi, &denominatorExponent);
+    const RealScalar scaledDenominatorHi = ldexp(unscaledDenominator.hi, -denominatorExponent);
+    const RealScalar scaledDenominatorLo = ldexp(unscaledDenominator.lo, -denominatorExponent);
+    const bool denominatorScaleExact = ldexp(scaledDenominatorHi, denominatorExponent) == unscaledDenominator.hi &&
+                                       ldexp(scaledDenominatorLo, denominatorExponent) == unscaledDenominator.lo;
+    denominator = scaleDoubleWord(unscaledDenominator, -denominatorExponent);
 
     const int termExponent = rhoExponent + 2 * zExponent - denominatorExponent - 1;
-    if (active == 1 && numeratorExact && denominatorExact) {
-      const DoubleWord scaledNumerator = termExponent >= 0 ? scaleDoubleWord(numerator, termExponent) : numerator;
-      const DoubleWord scaledDenominator = termExponent < 0 ? scaleDoubleWord(denominator, -termExponent) : denominator;
-      exactUnitTerm = scaledNumerator.hi == scaledDenominator.hi && scaledNumerator.lo == scaledDenominator.lo;
+    const DoubleWord quotient = divideDoubleWords(numerator, denominator);
+    const DoubleWord term = scaleDoubleWord(quotient, termExponent);
+
+    // Certify an exact endpoint equality only from terms whose division,
+    // exponent scaling, and scalar accumulation are all proven exact. This is
+    // deliberately stricter than the O(u^2) sign estimate below: a rounded
+    // equality must remain Uncertain rather than become a false Success.
+    if (exactTermSumValid) {
+      const RealScalar normalMin = (std::numeric_limits<RealScalar>::min)();
+      bool exactTerm = numeratorExact && denominatorExact && denominatorScaleExact && denominator.lo == RealScalar(0) &&
+                       quotient.lo == RealScalar(0) && term.lo == RealScalar(0) && (numext::isfinite)(term.hi) &&
+                       term.hi >= normalMin && ldexp(term.hi, -termExponent) == quotient.hi;
+      if (exactTerm) {
+        DoubleWord recoveredNumerator;
+        internal::twoprod(quotient.hi, denominator.hi, recoveredNumerator.hi, recoveredNumerator.lo);
+        exactTerm = recoveredNumerator.hi == numerator.hi && recoveredNumerator.lo == numerator.lo;
+      }
+      if (exactTerm) {
+        const RealScalar larger = numext::maxi(exactTermSum, term.hi);
+        const RealScalar smaller = numext::mini(exactTermSum, term.hi);
+        DoubleWord exactAddition;
+        internal::fast_twosum(larger, smaller, exactAddition.hi, exactAddition.lo);
+        // The reversible subtraction remains a proof if FTZ erases a
+        // subnormal low word from FastTwoSum.
+        if (exactAddition.lo == RealScalar(0) && exactAddition.hi - larger == smaller) {
+          exactTermSum = exactAddition.hi;
+        } else {
+          exactTermSumValid = false;
+        }
+      } else {
+        exactTermSumValid = false;
+      }
     }
 
-    DoubleWord term = scaleDoubleWord(divideDoubleWords(numerator, denominator), termExponent);
     if (!(numext::isfinite)(term.hi) || term.hi > RealScalar(2)) return SpectrumRange::Overflow;
     sum = addDoubleWords(sum, term);
     if (!(numext::isfinite)(sum.hi) || sum.hi > RealScalar(2)) return SpectrumRange::Overflow;
   }
 
   if (active == 0) return SpectrumRange::Representable;
-  if (active == 1 && exactUnitTerm) return SpectrumRange::Representable;
+  if (exactTermSumValid && exactTermSum == RealScalar(1)) return SpectrumRange::ExactBoundary;
 
   const DoubleWord difference = addDoubleWords(sum, DoubleWord{RealScalar(-1), RealScalar(0)});
   const RealScalar estimate = difference.hi + difference.lo;
   const RealScalar unitRoundoff = NumTraits<RealScalar>::epsilon() / RealScalar(2);
   // The factor 32 covers two products, corrected division, exponent scaling,
-  // and accumulation per active term. The exact one-term equality is handled
+  // and accumulation per active term. Proven exact endpoint equality is handled
   // above rather than widened into the uncertainty interval.
   const RealScalar error = RealScalar(32) * RealScalar(active + 1) * unitRoundoff * unitRoundoff;
   if (estimate < -error) return SpectrumRange::Representable;
@@ -297,17 +331,17 @@ DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const Vector
 
   m_eivalues.resize(n);
   if (computeVectors) m_eivec.setIdentity(n, n);
-  if (n == 0) {
-    m_vectorsComputed = computeVectors;
-    m_isInitialized = true;
-    return *this;
-  }
 
   // Non-finite input would break the sorting comparator (not a strict weak
   // order under NaN) and silently deflate everything; reject it up front.
   if (!(d.allFinite() && z.allFinite() && (numext::isfinite)(rho))) {
     m_eivalues.setConstant(NumTraits<RealScalar>::quiet_NaN());
     m_info = InvalidInput;
+    m_isInitialized = true;
+    return *this;
+  }
+  if (n == 0) {
+    m_vectorsComputed = computeVectors;
     m_isInitialized = true;
     return *this;
   }
@@ -590,7 +624,11 @@ DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const Vector
     m_eivalues.setConstant(NumTraits<RealScalar>::quiet_NaN());
     m_info = InvalidInput;
   } else {
-    if (!(numext::isfinite)(m_eivalues[extreme])) m_eivalues[extreme] = negated ? -highest : highest;
+    if (spectrumRange == SpectrumRange::ExactBoundary) {
+      m_eivalues[extreme] = negated ? -highest : highest;
+    } else if (!(numext::isfinite)(m_eivalues[extreme])) {
+      m_eivalues[extreme] = negated ? -highest : highest;
+    }
     if (spectrumRange == SpectrumRange::Uncertain && m_info == Success) m_info = NoConvergence;
     if (!m_eivalues.allFinite() && m_info == Success) m_info = NoConvergence;
   }
