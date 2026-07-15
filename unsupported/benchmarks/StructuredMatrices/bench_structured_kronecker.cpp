@@ -57,8 +57,9 @@ static void BM_KroneckerMaterializeDense(benchmark::State& state) {
 BENCHMARK(BM_KroneckerMaterializeDense)->Arg(8)->Arg(16)->Arg(32)->Arg(64);
 
 // --- Direct solve (A (x) B) x = b, n x n invertible factors ---
-// Both sides factorize per iteration: two n x n LUs for the implicit operator
-// against one n^2 x n^2 LU (plus forming the product) for the dense baseline.
+// The dense product is materialized once outside the timed loop. Each iteration
+// then factorizes two n x n matrices for the implicit operator, versus one
+// n^2 x n^2 matrix for the dense baseline.
 static void BM_KroneckerSolveImplicit(benchmark::State& state) {
   const Index n = state.range(0);
   Mat A = Mat::Random(n, n) + 2.0 * double(n) * Mat::Identity(n, n);
