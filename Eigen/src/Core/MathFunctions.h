@@ -671,6 +671,15 @@ struct count_bits_impl {
     }
     return n;
   }
+
+  static EIGEN_DEVICE_FUNC inline int popcount(BitsType bits) {
+    int n = 0;
+    while (bits) {
+      bits &= bits - 1;
+      ++n;
+    }
+    return n;
+  }
 };
 
 // Count leading zeros.
@@ -683,6 +692,12 @@ EIGEN_DEVICE_FUNC inline int clz(BitsType bits) {
 template <typename BitsType>
 EIGEN_DEVICE_FUNC inline int ctz(BitsType bits) {
   return count_bits_impl<BitsType>::ctz(bits);
+}
+
+// Count set bits (population count).
+template <typename BitsType>
+EIGEN_DEVICE_FUNC inline int popcount(BitsType bits) {
+  return count_bits_impl<BitsType>::popcount(bits);
 }
 
 #if EIGEN_COMP_GNUC || EIGEN_COMP_CLANG
@@ -699,6 +714,10 @@ struct count_bits_impl<
   static EIGEN_DEVICE_FUNC inline int ctz(BitsType bits) {
     return bits == 0 ? kNumBits : __builtin_ctz(static_cast<unsigned int>(bits));
   }
+
+  static EIGEN_DEVICE_FUNC inline int popcount(BitsType bits) {
+    return __builtin_popcount(static_cast<unsigned int>(bits));
+  }
 };
 
 template <typename BitsType>
@@ -714,6 +733,10 @@ struct count_bits_impl<BitsType,
   static EIGEN_DEVICE_FUNC inline int ctz(BitsType bits) {
     return bits == 0 ? kNumBits : __builtin_ctzl(static_cast<unsigned long>(bits));
   }
+
+  static EIGEN_DEVICE_FUNC inline int popcount(BitsType bits) {
+    return __builtin_popcountl(static_cast<unsigned long>(bits));
+  }
 };
 
 template <typename BitsType>
@@ -728,6 +751,10 @@ struct count_bits_impl<BitsType,
 
   static EIGEN_DEVICE_FUNC inline int ctz(BitsType bits) {
     return bits == 0 ? kNumBits : __builtin_ctzll(static_cast<unsigned long long>(bits));
+  }
+
+  static EIGEN_DEVICE_FUNC inline int popcount(BitsType bits) {
+    return __builtin_popcountll(static_cast<unsigned long long>(bits));
   }
 };
 
@@ -748,6 +775,10 @@ struct count_bits_impl<
     _BitScanForward(&out, static_cast<unsigned long>(bits));
     return bits == 0 ? kNumBits : static_cast<int>(out);
   }
+
+  static EIGEN_DEVICE_FUNC inline int popcount(BitsType bits) {
+    return static_cast<int>(__popcnt(static_cast<unsigned int>(bits)));
+  }
 };
 
 #ifdef _WIN64
@@ -767,6 +798,10 @@ struct count_bits_impl<BitsType,
     unsigned long out;
     _BitScanForward64(&out, static_cast<unsigned __int64>(bits));
     return bits == 0 ? kNumBits : static_cast<int>(out);
+  }
+
+  static EIGEN_DEVICE_FUNC inline int popcount(BitsType bits) {
+    return static_cast<int>(__popcnt64(static_cast<unsigned __int64>(bits)));
   }
 };
 
