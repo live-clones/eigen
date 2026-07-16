@@ -27,30 +27,11 @@
 #include "./InternalHeaderCheck.h"
 
 #include "./CuBlasSupport.h"
-#include "./FwdDecl.h"
+#include "./type_traits.h"
 
 namespace Eigen {
 namespace gpu {
 namespace internal {
-// Forward declaration — specializations follow below, after the class definitions.
-template <typename Expr>
-struct device_expr_traits;
-
-// Shorthand for the scalar type of a device expression.
-template <typename Expr>
-using scalar_type_t = typename device_expr_traits<Expr>::scalar_type;
-}  // namespace internal
-
-namespace internal {
-// Identifies gpu::DeviceScalar so the generic scalar-times-matrix overloads
-// below can exclude it (DeviceScalar has dedicated device-pointer overloads
-// and is implicitly convertible to its host scalar, which would otherwise
-// make the overload sets ambiguous).
-template <typename T>
-struct is_device_scalar : std::false_type {};
-template <typename S>
-struct is_device_scalar<DeviceScalar<S>> : std::true_type {};
-
 // SFINAE gate for scalar factors: any type convertible to the expression's
 // scalar (so `2 * d_A` and `2.0 * d_cplx` work), except DeviceScalar.
 template <typename T, typename S>
