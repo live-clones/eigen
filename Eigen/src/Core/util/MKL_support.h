@@ -34,6 +34,9 @@
 #ifndef EIGEN_MKL_SUPPORT_H
 #define EIGEN_MKL_SUPPORT_H
 
+/* Eigen/Core includes this header well before Meta.h, so <cstdint> is not yet available for EIGEN_BLAS_INT. */
+#include <cstdint>
+
 #ifdef EIGEN_USE_MKL_ALL
 #ifndef EIGEN_USE_BLAS
 #define EIGEN_USE_BLAS
@@ -116,6 +119,33 @@
 #endif
 #endif
 
+/* Integer width of the external BLAS interface.
+ *
+ * Fortran BLAS passes every dimension and stride by pointer, so a width mismatch between Eigen and the linked library
+ * is invisible to both the compiler and the linker and silently corrupts arguments at run time. Define
+ * EIGEN_64BIT_BLAS to select the 64-bit-integer ("ILP64") interface. It is an ABI-affecting macro and must be
+ * consistent across all translation units.
+ */
+#if defined(EIGEN_64BIT_BLAS)
+#define EIGEN_BLAS_INT std::int64_t
+#else
+#define EIGEN_BLAS_INT int
+#endif
+
+/* Suffix appended to external BLAS symbol names, for libraries that expose the 64-bit interface under decorated names
+ * rather than in a separate library: reference LAPACK built with BUILD_INDEX64_EXT_API and oneMKL >= 2025 use _64
+ * (dgemm_64_), as does OpenBLAS built with SYMBOLSUFFIX=64_. Libraries that keep the undecorated names in a separate
+ * ILP64 build (oneMKL *_ilp64, plain OpenBLAS INTERFACE64=1) need only EIGEN_64BIT_BLAS.
+ */
+#ifndef EIGEN_BLAS_SYMBOL_SUFFIX
+#define EIGEN_BLAS_SYMBOL_SUFFIX
+#endif
+/* EIGEN_BLAS_POSTFIX is the suffix plus the Fortran trailing underscore (_ by default, _64_ for a _64 build).
+ * Both go through EIGEN_CAT rather than bare ##, which would suppress expansion of the argument.
+ */
+#define EIGEN_BLAS_POSTFIX EIGEN_CAT(EIGEN_BLAS_SYMBOL_SUFFIX, _)
+#define EIGEN_BLAS_SYM(NAME) EIGEN_CAT(NAME, EIGEN_BLAS_POSTFIX)
+
 #if defined(EIGEN_USE_BLAS) && !defined(EIGEN_USE_MKL)
 #include "../../misc/blas.h"
 #endif
@@ -130,8 +160,21 @@ typedef std::complex<float> scomplex;
 
 #if defined(EIGEN_USE_MKL)
 typedef MKL_INT BlasIndex;
+/* MKL_INT follows MKL_ILP64, which the user sets on the compile line alongside the *_ilp64 libraries. A plain
+ * static_assert rather than EIGEN_STATIC_ASSERT: this guards against silent argument corruption across the Fortran
+ * ABI, so it must not be suppressible via EIGEN_NO_STATIC_ASSERT.
+ */
+#if defined(EIGEN_64BIT_BLAS)
+static_assert(sizeof(MKL_INT) == 8,
+              "EIGEN_64BIT_BLAS is defined but MKL_INT is 32-bit. Define MKL_ILP64 and link the MKL *_ilp64 "
+              "libraries, or undefine EIGEN_64BIT_BLAS.");
 #else
-typedef int BlasIndex;
+static_assert(sizeof(MKL_INT) == 4,
+              "MKL_INT is 64-bit but EIGEN_64BIT_BLAS is not defined. Define EIGEN_64BIT_BLAS to match MKL_ILP64, or "
+              "link the MKL *_lp64 libraries.");
+#endif
+#else
+typedef EIGEN_BLAS_INT BlasIndex;
 #endif
 
 }  // end namespace Eigen

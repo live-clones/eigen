@@ -163,12 +163,9 @@
 #endif
 #endif
 
-namespace Eigen {
-// AOCL-specific type definitions
-typedef std::complex<double> dcomplex;
-typedef std::complex<float> scomplex;
-typedef int BlasIndex;  // Standard BLAS index type
-}  // namespace Eigen
+/* dcomplex, scomplex, and BlasIndex come from Core/util/MKL_support.h, which Eigen/Core includes just before this
+ * header. Redefining BlasIndex as int here would conflict with the 64-bit interface selected by EIGEN_64BIT_BLAS.
+ */
 
 #endif  // EIGEN_USE_AOCL_ALL || EIGEN_USE_AOCL_MT
 
