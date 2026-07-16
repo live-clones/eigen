@@ -153,6 +153,8 @@ template <int Value = Dynamic>
 class OuterStride;
 template <typename MatrixType, int MapOptions = Unaligned, typename StrideType = Stride<0, 0>>
 class Map;
+template <typename T, int N = Dynamic>
+class Span;
 template <typename Derived>
 class RefBase;
 template <typename PlainObjectType, int Options = 0,

@@ -388,6 +388,7 @@ using std::size_t;
 #include "src/Core/Stride.h"
 #include "src/Core/MapBase.h"
 #include "src/Core/Map.h"
+#include "src/Core/Span.h"
 #include "src/Core/Ref.h"
 #include "src/Core/Block.h"
 #include "src/Core/VectorBlock.h"
