@@ -18,6 +18,14 @@ namespace gpu {
 
 class Context;
 
+enum class GpuOp;
+
+namespace internal {
+class DeviceBuffer;
+template <typename Expr>
+struct device_expr_traits;
+}  // namespace internal
+
 template <typename Scalar_>
 class DeviceMatrix;
 template <typename Scalar_>
@@ -27,6 +35,8 @@ template <typename Scalar_, int UpLo_>
 class LLT;
 template <typename Scalar_>
 class LU;
+template <typename Scalar_>
+class QR;
 
 template <typename Scalar_>
 class AdjointView;
