@@ -1310,6 +1310,10 @@ EIGEN_DEVICE_FUNC constexpr void ignore_unused_variable(const T&) {}
 #define EIGEN_PREDICT_TRUE(x) (x)
 #endif
 
+#define EIGEN_MAKE_CWISE_UNARY_OP(METHOD, FUNCTOR, RETURN_TYPE)     \
+  using RETURN_TYPE = CwiseUnaryOp<FUNCTOR<Scalar>, const Derived>; \
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const RETURN_TYPE METHOD() const { return RETURN_TYPE(derived()); }
+
 // the expression type of a standard coefficient wise binary operation
 #define EIGEN_CWISE_BINARY_RETURN_TYPE(LHS, RHS, OPNAME)                                                       \
   CwiseBinaryOp<EIGEN_CAT(EIGEN_CAT(internal::scalar_, OPNAME), _op) < typename internal::traits<LHS>::Scalar, \
