@@ -11,6 +11,7 @@
 using namespace Eigen;
 
 #ifndef SCALAR
+#define _FLOAT
 #define SCALAR float
 #endif
 
