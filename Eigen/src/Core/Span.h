@@ -31,26 +31,27 @@ namespace internal {
 // traits (e.g. nested_eval).  The critical override that prevents
 // is_eigen_index_expression from firing is the PlainObject typedef on the
 // Span class body itself — see DenseBase.h:203 and IndexedViewHelper.h:131.
-template <typename T, int N>
-struct traits<Span<T, N>> : traits<Matrix<std::remove_const_t<T>, N, 1>> {
+template <typename T, int N, int Align>
+struct traits<Span<T, N, Align>> : traits<Matrix<std::remove_const_t<T>, N, 1>> {
   using TraitsBase = traits<Matrix<std::remove_const_t<T>, N, 1>>;
-  using PlainObject = Span<T, N>;
+  using PlainObject = Span<T, N, Align>;
 
   static constexpr int InnerStrideAtCompileTime = 1;
   static constexpr int OuterStrideAtCompileTime = N;
-  static constexpr int Alignment = 0;
+  static constexpr int Alignment = Align & int(AlignedMask);
   static constexpr unsigned int Flags0 = TraitsBase::Flags & ~NestByRefBit;
   static constexpr unsigned int Flags = std::is_const<T>::value ? (Flags0 & ~LvalueBit) : Flags0;
 };
 
 // evaluator<Span<T,N>> — delegates to mapbase_evaluator just like Map and Ref.
-template <typename T, int N>
-struct evaluator<Span<T, N>> : public mapbase_evaluator<Span<T, N>, Matrix<std::remove_const_t<T>, N, 1>> {
-  using XprType = Span<T, N>;
+template <typename T, int N, int Align>
+struct evaluator<Span<T, N, Align>>
+    : public mapbase_evaluator<Span<T, N, Align>, Matrix<std::remove_const_t<T>, N, 1>> {
+  using XprType = Span<T, N, Align>;
   using PlainObjectType = Matrix<std::remove_const_t<T>, N, 1>;
 
   static constexpr unsigned int Flags = evaluator<PlainObjectType>::Flags;
-  static constexpr int Alignment = 0;
+  static constexpr int Alignment = traits<XprType>::Alignment;
 
   EIGEN_DEVICE_FUNC constexpr explicit evaluator(const XprType& span)
       : mapbase_evaluator<XprType, PlainObjectType>(span) {}
@@ -91,10 +92,11 @@ struct evaluator<Span<T, N>> : public mapbase_evaluator<Span<T, N>, Matrix<std::
  *
  * \sa class Map, class Ref
  */
-template <typename T, int N>
-class Span : public MapBase<Span<T, N>> {
+template <typename T, int N, int Align>
+class Span : public MapBase<Span<T, N, Align>> {
  public:
-  using Base = MapBase<Span<T, N>>;
+  using Base = MapBase<Span>;
+
   EIGEN_DENSE_PUBLIC_INTERFACE(Span)
 
   using PointerType = typename Base::PointerType;
@@ -105,11 +107,7 @@ class Span : public MapBase<Span<T, N>> {
   // on the class, not traits<T>::PlainObject.  By shadowing DenseBase::PlainObject
   // here we make is_eigen_index_expression<Span>::value == false, so Span passed
   // as an IndexedView index is never copied or eval()-ed.
-  using PlainObject = Span<T, N>;
-
-  EIGEN_DEVICE_FUNC constexpr Index innerStride() const noexcept { return 1; }
-
-  EIGEN_DEVICE_FUNC constexpr Index outerStride() const noexcept { return this->size(); }
+  using PlainObject = Span;
 
   /** Constructor in the fixed-size case.
    *
@@ -144,6 +142,10 @@ class Span : public MapBase<Span<T, N>> {
 #endif  // EIGEN_HAS_STD_SPAN
 
   EIGEN_INHERIT_ASSIGNMENT_OPERATORS(Span)
+
+  EIGEN_DEVICE_FUNC constexpr Index innerStride() const noexcept { return 1; }
+
+  EIGEN_DEVICE_FUNC constexpr Index outerStride() const noexcept { return this->size(); }
 };
 
 }  // namespace Eigen
