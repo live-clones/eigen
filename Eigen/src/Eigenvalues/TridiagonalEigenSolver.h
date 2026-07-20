@@ -89,10 +89,10 @@ class TridiagonalEigenSolver {
   typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
 
   /** \brief Default constructor. Call compute() before querying any result. */
-  TridiagonalEigenSolver() = default;
+  constexpr TridiagonalEigenSolver() = default;
 
   /** \brief Constructor pre-allocating room for the full spectrum of a matrix of dimension \a size. */
-  explicit TridiagonalEigenSolver(Index size)
+  explicit constexpr TridiagonalEigenSolver(Index size)
       : m_eivalues(size), m_eivec(size, size), m_diag(size), m_subdiag(size > 1 ? size - 1 : 0) {}
 
   /** \brief Constructor; computes the eigendecomposition of the given tridiagonal matrix.
@@ -100,8 +100,9 @@ class TridiagonalEigenSolver {
    * Equivalent to default construction followed by compute(\a diag, \a subdiag, \a options, \a range).
    */
   template <typename DiagType, typename SubdiagType>
-  TridiagonalEigenSolver(const MatrixBase<DiagType>& diag, const MatrixBase<SubdiagType>& subdiag,
-                         int options = ComputeEigenvectors, const EigenvalueRange& range = EigenvalueRange::all())
+  constexpr TridiagonalEigenSolver(const MatrixBase<DiagType>& diag, const MatrixBase<SubdiagType>& subdiag,
+                                   int options = ComputeEigenvectors,
+                                   const EigenvalueRange& range = EigenvalueRange::all())
       : TridiagonalEigenSolver() {
     compute(diag, subdiag, options, range);
   }
@@ -121,9 +122,9 @@ class TridiagonalEigenSolver {
    * computeEigenvectors().
    */
   template <typename DiagType, typename SubdiagType>
-  TridiagonalEigenSolver& compute(const MatrixBase<DiagType>& diag, const MatrixBase<SubdiagType>& subdiag,
-                                  int options = ComputeEigenvectors,
-                                  const EigenvalueRange& range = EigenvalueRange::all()) {
+  constexpr TridiagonalEigenSolver& compute(const MatrixBase<DiagType>& diag, const MatrixBase<SubdiagType>& subdiag,
+                                            int options = ComputeEigenvectors,
+                                            const EigenvalueRange& range = EigenvalueRange::all()) {
     eigen_assert((options & ~EigVecMask) == 0 && (options & EigVecMask) != EigVecMask && "invalid option parameter");
     computeEigenvalues(diag, subdiag, range);
     if (m_info == Success && (options & ComputeEigenvectors) == ComputeEigenvectors) computeEigenvectors();
@@ -145,8 +146,9 @@ class TridiagonalEigenSolver {
    * not to be required.
    */
   template <typename DiagType, typename SubdiagType>
-  TridiagonalEigenSolver& computeEigenvalues(const MatrixBase<DiagType>& diag, const MatrixBase<SubdiagType>& subdiag,
-                                             const EigenvalueRange& range = EigenvalueRange::all());
+  constexpr TridiagonalEigenSolver& computeEigenvalues(const MatrixBase<DiagType>& diag,
+                                                       const MatrixBase<SubdiagType>& subdiag,
+                                                       const EigenvalueRange& range = EigenvalueRange::all());
 
   /** \brief Computes eigenvectors for the eigenvalues of the preceding compute step, by inverse
    * iteration.
@@ -160,7 +162,7 @@ class TridiagonalEigenSolver {
    *
    * \pre A successful computeEigenvalues() (or compute()) call.
    */
-  TridiagonalEigenSolver& computeEigenvectors() {
+  constexpr TridiagonalEigenSolver& computeEigenvectors() {
     eigen_assert(m_isInitialized && "TridiagonalEigenSolver is not initialized.");
     eigen_assert(m_info == Success && "computeEigenvectors() requires a preceding successful eigenvalue computation");
     computeEigenvectorsImpl();
@@ -208,8 +210,9 @@ class TridiagonalEigenSolver {
    * \sa computeEigenvalues(), eigenvectors()
    */
   template <typename DiagType, typename SubdiagType, typename EivalsType>
-  TridiagonalEigenSolver& computeEigenvectors(const MatrixBase<DiagType>& diag, const MatrixBase<SubdiagType>& subdiag,
-                                              const MatrixBase<EivalsType>& eigenvalues);
+  constexpr TridiagonalEigenSolver& computeEigenvectors(const MatrixBase<DiagType>& diag,
+                                                        const MatrixBase<SubdiagType>& subdiag,
+                                                        const MatrixBase<EivalsType>& eigenvalues);
 
   /** \brief Returns the computed eigenvalues, in non-decreasing order.
    *
@@ -219,7 +222,7 @@ class TridiagonalEigenSolver {
    * vector shorter than the matrix dimension. Eigenvalues are repeated according to their
    * algebraic multiplicity.
    */
-  const VectorType& eigenvalues() const {
+  constexpr const VectorType& eigenvalues() const {
     eigen_assert(m_isInitialized && "TridiagonalEigenSolver is not initialized.");
     return m_eivalues;
   }
@@ -232,7 +235,7 @@ class TridiagonalEigenSolver {
    * Column \c j of the returned \c n x \c m matrix is a unit-norm eigenvector of \f$ T \f$ for
    * eigenvalues()(j); the columns are mutually orthonormal.
    */
-  const MatrixType& eigenvectors() const {
+  constexpr const MatrixType& eigenvectors() const {
     eigen_assert(m_isInitialized && "TridiagonalEigenSolver is not initialized.");
     eigen_assert(m_eigenvectorsOk && "The eigenvectors have not been computed.");
     return m_eivec;
@@ -242,7 +245,7 @@ class TridiagonalEigenSolver {
    *
    * \returns \c Success if the computation was successful, \c NoConvergence otherwise.
    */
-  ComputationInfo info() const {
+  constexpr ComputationInfo info() const {
     eigen_assert(m_isInitialized && "TridiagonalEigenSolver is not initialized.");
     return m_info;
   }
@@ -256,7 +259,7 @@ class TridiagonalEigenSolver {
   typedef typename std::conditional<(NumTraits<Scalar>::digits() < NumTraits<float>::digits()), float, Scalar>::type
       ComputeScalar;
 
-  void computeEigenvectorsImpl();
+  constexpr void computeEigenvectorsImpl();
 
   VectorType m_eivalues;
   MatrixType m_eivec;
@@ -276,7 +279,7 @@ class TridiagonalEigenSolver {
 
 template <typename Scalar_>
 template <typename DiagType, typename SubdiagType>
-TridiagonalEigenSolver<Scalar_>& TridiagonalEigenSolver<Scalar_>::computeEigenvalues(
+constexpr TridiagonalEigenSolver<Scalar_>& TridiagonalEigenSolver<Scalar_>::computeEigenvalues(
     const MatrixBase<DiagType>& diag, const MatrixBase<SubdiagType>& subdiag, const EigenvalueRange& range) {
   static_assert(internal::is_same<typename DiagType::Scalar, Scalar>::value &&
                     internal::is_same<typename SubdiagType::Scalar, Scalar>::value,
@@ -319,7 +322,7 @@ TridiagonalEigenSolver<Scalar_>& TridiagonalEigenSolver<Scalar_>::computeEigenva
 
 template <typename Scalar_>
 template <typename DiagType, typename SubdiagType, typename EivalsType>
-TridiagonalEigenSolver<Scalar_>& TridiagonalEigenSolver<Scalar_>::computeEigenvectors(
+constexpr TridiagonalEigenSolver<Scalar_>& TridiagonalEigenSolver<Scalar_>::computeEigenvectors(
     const MatrixBase<DiagType>& diag, const MatrixBase<SubdiagType>& subdiag,
     const MatrixBase<EivalsType>& eigenvalues) {
   static_assert(internal::is_same<typename DiagType::Scalar, Scalar>::value &&
@@ -352,7 +355,7 @@ TridiagonalEigenSolver<Scalar_>& TridiagonalEigenSolver<Scalar_>::computeEigenve
 }
 
 template <typename Scalar_>
-void TridiagonalEigenSolver<Scalar_>::computeEigenvectorsImpl() {
+constexpr void TridiagonalEigenSolver<Scalar_>::computeEigenvectorsImpl() {
   const Index n = m_diag.size();
   const Index m = m_eivalues.size();
   m_eivec.resize(n, m);
