@@ -65,11 +65,31 @@ class LLT {
   /** Default constructor. Does not factorize; call compute() before solve(). */
   LLT() = default;
 
+  /** Bind to \p ctx: run on its stream with its cuSOLVER/cuBLAS handles, so
+   * solver work chains with other work on the same Context without
+   * cross-stream event waits. \p ctx must outlive this object. */
+  explicit LLT(Context& ctx) : solver_ctx_(ctx) {}
+
   /** Factor A immediately. Equivalent to LLT llt; llt.compute(A). */
   template <typename InputType>
   explicit LLT(const EigenBase<InputType>& A) {
     compute(A);
   }
+
+  /** Factor a device-resident A immediately (D2D copy). */
+  explicit LLT(const DeviceMatrix<Scalar>& d_A) { compute(d_A); }
+
+  /** Factor a device-resident A immediately (adopt, no copy). */
+  explicit LLT(DeviceMatrix<Scalar>&& d_A) { compute(std::move(d_A)); }
+
+  /** Bind to \p ctx and factor A immediately. */
+  template <typename InputType>
+  LLT(Context& ctx, const EigenBase<InputType>& A) : solver_ctx_(ctx) {
+    compute(A);
+  }
+
+  /** Bind to \p ctx and factor a device-resident A (D2D copy). */
+  LLT(Context& ctx, const DeviceMatrix<Scalar>& d_A) : solver_ctx_(ctx) { compute(d_A); }
 
   ~LLT() = default;
 
@@ -155,11 +175,13 @@ class LLT {
   /** Solve A * X = B using the cached Cholesky factor (host → host). */
   template <typename Rhs>
   PlainMatrix solve(const MatrixBase<Rhs>& B) const {
-    solver_ctx_.sync_info();
-    eigen_assert(solver_ctx_.info_ == Success && "LLT::solve called on a failed or uninitialized factorization");
+    // Debug builds verify the factorization (info() synchronizes the stream on
+    // the first call after compute()); release builds skip both the check and
+    // the sync — use info() explicitly when failure must be detected.
+    eigen_assert(solver_ctx_.info() == Success && "LLT::solve called on a failed or uninitialized factorization");
     eigen_assert(B.rows() == n_);
 
-    const PlainMatrix rhs(B);
+    const Ref<const PlainMatrix> rhs(B.derived());
     const int64_t nrhs = static_cast<int64_t>(rhs.cols());
     const int64_t ldb = static_cast<int64_t>(rhs.rows());
     internal::DeviceBuffer d_x(rhsBytes(nrhs, ldb));
@@ -179,13 +201,13 @@ class LLT {
     return X;
   }
 
-  /** Solve A * X = B with device-resident RHS. Returns immediately after enqueuing
-   * the solve; the sync_info()/info_ check at entry forces a host wait on the
-   * factorization status so a singular A causes a clean assert rather than a
-   * silently-bad result. */
+  /** Solve A * X = B with device-resident RHS. Fully asynchronous: returns
+   * immediately after enqueuing the solve. Debug builds verify the
+   * factorization status first (one host sync on the first solve after
+   * compute()); release builds do not — use info() when failure must be
+   * detected. */
   DeviceMatrix<Scalar> solve(const DeviceMatrix<Scalar>& d_B) const {
-    solver_ctx_.sync_info();
-    eigen_assert(solver_ctx_.info_ == Success && "LLT::solve called on a failed or uninitialized factorization");
+    eigen_assert(solver_ctx_.info() == Success && "LLT::solve called on a failed or uninitialized factorization");
     eigen_assert(d_B.rows() == n_);
     d_B.waitReady(solver_ctx_.stream_);
     const int64_t nrhs = static_cast<int64_t>(d_B.cols());
@@ -193,6 +215,18 @@ class LLT {
     internal::DeviceBuffer d_x(rhsBytes(nrhs, ldb));
     EIGEN_CUDA_RUNTIME_CHECK(
         cudaMemcpyAsync(d_x.get(), d_B.data(), rhsBytes(nrhs, ldb), cudaMemcpyDeviceToDevice, solver_ctx_.stream_));
+    return solve_impl(nrhs, ldb, std::move(d_x));
+  }
+
+  /** Solve in place: consumes \p d_B and returns it holding the solution —
+   * no RHS copy and no allocation (potrs overwrites its RHS). */
+  DeviceMatrix<Scalar> solve(DeviceMatrix<Scalar>&& d_B) const {
+    eigen_assert(solver_ctx_.info() == Success && "LLT::solve called on a failed or uninitialized factorization");
+    eigen_assert(d_B.rows() == n_);
+    d_B.waitReady(solver_ctx_.stream_);
+    const int64_t nrhs = static_cast<int64_t>(d_B.cols());
+    const int64_t ldb = static_cast<int64_t>(d_B.rows());
+    internal::DeviceBuffer d_x = internal::DeviceBuffer::adopt(static_cast<void*>(d_B.release()));
     return solve_impl(nrhs, ldb, std::move(d_x));
   }
 
@@ -212,13 +246,7 @@ class LLT {
 
   bool begin_compute(Index rows) {
     n_ = rows;
-    solver_ctx_.info_ = InvalidInput;
-    if (n_ == 0) {
-      solver_ctx_.info_ = Success;
-      solver_ctx_.info_synced_ = true;
-      return false;
-    }
-    return true;
+    return solver_ctx_.begin_compute(n_ != 0);
   }
 
   size_t factorBytes() const { return rhsBytes(n_, lda_); }
@@ -270,8 +298,7 @@ class LLT {
                                           host_ws_bytes > 0 ? solver_ctx_.h_workspace_.data() : nullptr, host_ws_bytes,
                                           solver_ctx_.scratch_info()));
 
-    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(&solver_ctx_.info_word(), solver_ctx_.scratch_info(), sizeof(int),
-                                             cudaMemcpyDeviceToHost, solver_ctx_.stream_));
+    solver_ctx_.enqueue_info_copy();
   }
 };
 
