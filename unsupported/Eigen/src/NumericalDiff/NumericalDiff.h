@@ -87,10 +87,8 @@ class NumericalDiff : public Functor_ {
 
     // Function Body
     for (int j = 0; j < n; ++j) {
-      h = eps * abs(x[j]);
-      if (h == 0.) {
-        h = eps;
-      }
+      Scalar x_abs = abs(x[j]);
+      h = x_abs > Scalar(1) ? eps * x_abs : eps;
       switch (mode) {
         case Forward:
           x[j] += h;
