@@ -11,7 +11,7 @@
 using namespace Eigen;
 
 #ifndef SCALAR
-#define _FLOAT
+#define SCALAR_IS_FLOAT
 #define SCALAR float
 #endif
 
@@ -38,7 +38,7 @@ extern "C" {
 #include <cblas.h>
 }
 
-#ifdef _FLOAT
+#ifdef SCALAR_IS_FLOAT
 #define CBLAS_GEMM cblas_sgemm
 #else
 #define CBLAS_GEMM cblas_dgemm
