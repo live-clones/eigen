@@ -109,6 +109,34 @@ void test_svd_solve(Index m, Index n, Index nrhs) {
   VERIFY((X - X_cpu).norm() / X_cpu.norm() < tol);
 }
 
+// ---- Solve: Context-bound ---------------------------------------------------
+// A Context-bound SVD shares the Context's stream and cuBLASLt plan cache /
+// workspace; its pseudoinverse solve must agree with the standalone solver.
+
+template <typename Scalar>
+void test_svd_solve_context(Index m, Index n, Index nrhs) {
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  Mat A = Mat::Random(m, n);
+  Mat B = Mat::Random(m, nrhs);
+
+  gpu::Context ctx;
+  gpu::SVD<Scalar> svd(ctx, A, ComputeThinU | ComputeThinV);
+  VERIFY_IS_EQUAL(svd.info(), Success);
+  Mat X = svd.solve(B);
+
+  gpu::SVD<Scalar> svd_standalone(A, ComputeThinU | ComputeThinV);
+  Mat X_ref = svd_standalone.solve(B);
+
+  // Same algorithm on both paths; only the cuBLASLt plan selection may
+  // differ, so bound the difference by κ(A)·u as in test_svd_solve.
+  auto S = svd_standalone.singularValues();
+  const RealScalar cond = S(0) / S(S.size() - 1);
+  const RealScalar tol = RealScalar(8) * cond * NumTraits<Scalar>::epsilon();
+  VERIFY((X - X_ref).norm() / X_ref.norm() < tol);
+}
+
 // ---- Solve: truncated -------------------------------------------------------
 
 template <typename Scalar>
@@ -427,6 +455,7 @@ void test_scalar() {
   CALL_SUBTEST(test_svd_solve<Scalar>(64, 64, 4));
   CALL_SUBTEST(test_svd_solve<Scalar>(128, 64, 4));
   CALL_SUBTEST(test_svd_solve<Scalar>(64, 128, 4));  // wide (m < n)
+  CALL_SUBTEST(test_svd_solve_context<Scalar>(64, 48, 3));
 
   // Truncated and regularized solve.
   CALL_SUBTEST(test_svd_solve_truncated<Scalar>(64, 64));
