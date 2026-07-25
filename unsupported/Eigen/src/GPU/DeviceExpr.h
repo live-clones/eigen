@@ -35,6 +35,10 @@ namespace internal {
 // Forward declaration — specializations follow below, after the class definitions.
 template <typename Expr>
 struct device_expr_traits;
+
+// Shorthand for the scalar type of a device expression.
+template <typename Expr>
+using scalar_type_t = typename device_expr_traits<Expr>::scalar_type;
 }  // namespace internal
 
 // Forward declarations.
@@ -95,7 +99,7 @@ class TransposeView {
 template <typename Inner>
 class Scaled {
  public:
-  using Scalar = typename internal::device_expr_traits<Inner>::scalar_type;
+  using Scalar = internal::scalar_type_t<Inner>;
   Scaled(Scalar alpha, const Inner& inner) : alpha_(alpha), inner_(inner) {}
   Scalar scalar() const { return alpha_; }
   const Inner& inner() const { return inner_; }
@@ -111,8 +115,8 @@ class Scaled {
 template <typename Lhs, typename Rhs>
 class GemmExpr {
  public:
-  using Scalar = typename internal::device_expr_traits<Lhs>::scalar_type;
-  static_assert(std::is_same<Scalar, typename internal::device_expr_traits<Rhs>::scalar_type>::value,
+  using Scalar = internal::scalar_type_t<Lhs>;
+  static_assert(std::is_same<Scalar, internal::scalar_type_t<Rhs>>::value,
                 "DeviceMatrix GEMM: LHS and RHS must have the same scalar type");
 
   GemmExpr(const Lhs& lhs, const Rhs& rhs) : lhs_(lhs), rhs_(rhs) {}
@@ -176,16 +180,15 @@ Scaled<TransposeView<S>> operator*(const TransposeView<S>& m, T alpha) {
 }
 
 // Rescale / negate an already-scaled expression: T * (alpha * m), -(alpha * m).
-template <typename T, typename Inner,
-          typename internal::enable_scalar_arg<T, typename internal::device_expr_traits<Inner>::scalar_type>::type = 0>
+template <typename T, typename Inner, typename internal::enable_scalar_arg<T, internal::scalar_type_t<Inner>>::type = 0>
 Scaled<Inner> operator*(T alpha, const Scaled<Inner>& s) {
-  using S = typename internal::device_expr_traits<Inner>::scalar_type;
+  using S = internal::scalar_type_t<Inner>;
   return {static_cast<S>(alpha) * s.scalar(), s.inner()};
 }
 
 template <typename Inner>
 Scaled<Inner> operator-(const Scaled<Inner>& s) {
-  using S = typename internal::device_expr_traits<Inner>::scalar_type;
+  using S = internal::scalar_type_t<Inner>;
   return {S(-1) * s.scalar(), s.inner()};
 }
 
@@ -228,7 +231,7 @@ struct device_expr_traits<TransposeView<Scalar>> {
 
 template <typename Inner>
 struct device_expr_traits<Scaled<Inner>> {
-  using scalar_type = typename device_expr_traits<Inner>::scalar_type;
+  using scalar_type = scalar_type_t<Inner>;
   static constexpr GpuOp op = device_expr_traits<Inner>::op;
   static constexpr bool is_device_expr = true;
   static const DeviceMatrix<scalar_type>& matrix(const Scaled<Inner>& x) {

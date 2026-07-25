@@ -44,11 +44,9 @@ bool aliases_device_memory(const DeviceMatrix<Scalar>& a, const DeviceMatrix<Sca
 // cache and cublasGemmEx fallback).
 
 template <typename Lhs, typename Rhs>
-void dispatch_gemm(
-    Context& ctx, DeviceMatrix<typename device_expr_traits<Lhs>::scalar_type>& dst, const GemmExpr<Lhs, Rhs>& expr,
-    typename device_expr_traits<Lhs>::scalar_type beta_val,
-    typename device_expr_traits<Lhs>::scalar_type alpha_scale = typename device_expr_traits<Lhs>::scalar_type(1)) {
-  using Scalar = typename device_expr_traits<Lhs>::scalar_type;
+void dispatch_gemm(Context& ctx, DeviceMatrix<scalar_type_t<Lhs>>& dst, const GemmExpr<Lhs, Rhs>& expr,
+                   scalar_type_t<Lhs> beta_val, scalar_type_t<Lhs> alpha_scale = scalar_type_t<Lhs>(1)) {
+  using Scalar = scalar_type_t<Lhs>;
   using traits_lhs = device_expr_traits<Lhs>;
   using traits_rhs = device_expr_traits<Rhs>;
 
@@ -103,23 +101,21 @@ void dispatch_gemm(
   dst.recordReady(ctx.stream());
 }
 
-// Debug-build status check shared by the one-shot solver dispatches. Copies
-// the two info words (factorize, solve) to pinned host memory and synchronizes
-// the stream so a numerical failure fires an assert at the failing call site.
-// Release builds (EIGEN_NO_DEBUG) skip the check *and* the synchronization —
-// the one-shot expression form is then fully async and performs no
-// numerical-issue detection; use the cached gpu::LLT / gpu::LU classes and
-// info() when failures must be detected.
-inline void oneshot_check_info(Context& ctx, OneShotSolverScratch& scr, const char* what) {
+// Debug-build status check shared by the one-shot solver dispatches: syncs
+// the stream and asserts on the two info words (factorize, solve). Release
+// builds skip both the check and the sync — one-shot expressions are then
+// fully async with no failure detection; use gpu::LLT / gpu::LU + info()
+// when failures must be detected.
+inline void oneshot_check_info(Context& ctx, OneShotSolverScratch& scratch, const char* what) {
 #ifdef EIGEN_NO_DEBUG
   EIGEN_UNUSED_VARIABLE(ctx);
-  EIGEN_UNUSED_VARIABLE(scr);
+  EIGEN_UNUSED_VARIABLE(scratch);
   EIGEN_UNUSED_VARIABLE(what);
 #else
-  if (!scr.h_info) scr.h_info = PinnedHostBuffer(2 * sizeof(int));
-  int* info_words = static_cast<int*>(scr.h_info.get());
+  if (!scratch.h_info) scratch.h_info = PinnedHostBuffer(2 * sizeof(int));
+  int* info_words = static_cast<int*>(scratch.h_info.get());
   EIGEN_CUDA_RUNTIME_CHECK(
-      cudaMemcpyAsync(info_words, scr.d_info.get(), 2 * sizeof(int), cudaMemcpyDeviceToHost, ctx.stream()));
+      cudaMemcpyAsync(info_words, scratch.d_info.get(), 2 * sizeof(int), cudaMemcpyDeviceToHost, ctx.stream()));
   EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(ctx.stream()));
   eigen_assert(info_words[0] == 0 && "cuSOLVER one-shot factorization failed" && what);
   eigen_assert(info_words[1] == 0 && "cuSOLVER one-shot solve failed" && what);
@@ -155,40 +151,39 @@ void dispatch_llt_solve(Context& ctx, DeviceMatrix<Scalar>& dst, const LltSolveE
   const size_t mat_bytes = static_cast<size_t>(lda) * static_cast<size_t>(n) * sizeof(Scalar);
   const size_t rhs_bytes = static_cast<size_t>(ldb) * static_cast<size_t>(nrhs) * sizeof(Scalar);
 
-  // All scratch lives in the Context (grow-only): no per-call cudaMalloc /
-  // cudaMallocHost, and no end-of-call sync to keep locals alive.
-  OneShotSolverScratch& scr = *ctx.oneshotSolverScratch();
-  OneShotSolverScratch::ensure(scr.d_factor, scr.factor_size, mat_bytes);
+  // Context-owned grow-only scratch: no per-call allocation, no end-of-call sync.
+  OneShotSolverScratch& scratch = *ctx.oneshotSolverScratch();
+  OneShotSolverScratch::ensure(scratch.d_factor, scratch.factor_size, mat_bytes);
   EIGEN_CUDA_RUNTIME_CHECK(
-      cudaMemcpyAsync(scr.d_factor.get(), A.data(), mat_bytes, cudaMemcpyDeviceToDevice, ctx.stream()));
+      cudaMemcpyAsync(scratch.d_factor.get(), A.data(), mat_bytes, cudaMemcpyDeviceToDevice, ctx.stream()));
 
   // Two info slots (potrf, potrs) so both kernels queue back-to-back. If potrf
   // fails, potrs runs on garbage but the debug check catches both at once.
-  if (!scr.d_info) scr.d_info = DeviceBuffer(2 * sizeof(int));
-  int* d_info_potrf = static_cast<int*>(scr.d_info.get());
+  if (!scratch.d_info) scratch.d_info = DeviceBuffer(2 * sizeof(int));
+  int* d_info_potrf = static_cast<int*>(scratch.d_info.get());
   int* d_info_potrs = d_info_potrf + 1;
 
   // thread_local: must outlive the async kernels (no end-of-call sync), and
   // only TUs that instantiate the one-shot path pull in cuSOLVER symbols.
   static thread_local CusolverParams params;
   size_t dev_ws = 0, host_ws = 0;
-  EIGEN_CUSOLVER_CHECK(cusolverDnXpotrf_bufferSize(ctx.cusolverHandle(), params.p, uplo, n, dtype, scr.d_factor.get(),
-                                                   lda, dtype, &dev_ws, &host_ws));
+  EIGEN_CUSOLVER_CHECK(cusolverDnXpotrf_bufferSize(ctx.cusolverHandle(), params.p, uplo, n, dtype,
+                                                   scratch.d_factor.get(), lda, dtype, &dev_ws, &host_ws));
 
-  OneShotSolverScratch::ensure(scr.d_workspace, scr.workspace_size, dev_ws);
-  if (scr.h_workspace.size() < host_ws) scr.h_workspace.resize(host_ws);
+  OneShotSolverScratch::ensure(scratch.d_workspace, scratch.workspace_size, dev_ws);
+  if (scratch.h_workspace.size() < host_ws) scratch.h_workspace.resize(host_ws);
 
-  EIGEN_CUSOLVER_CHECK(cusolverDnXpotrf(ctx.cusolverHandle(), params.p, uplo, n, dtype, scr.d_factor.get(), lda, dtype,
-                                        scr.d_workspace.get(), dev_ws, host_ws > 0 ? scr.h_workspace.data() : nullptr,
-                                        host_ws, d_info_potrf));
+  EIGEN_CUSOLVER_CHECK(cusolverDnXpotrf(ctx.cusolverHandle(), params.p, uplo, n, dtype, scratch.d_factor.get(), lda,
+                                        dtype, scratch.d_workspace.get(), dev_ws,
+                                        host_ws > 0 ? scratch.h_workspace.data() : nullptr, host_ws, d_info_potrf));
 
   dst.resize(n, B.cols());
   EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(dst.data(), B.data(), rhs_bytes, cudaMemcpyDeviceToDevice, ctx.stream()));
 
-  EIGEN_CUSOLVER_CHECK(cusolverDnXpotrs(ctx.cusolverHandle(), params.p, uplo, n, nrhs, dtype, scr.d_factor.get(), lda,
-                                        dtype, dst.data(), static_cast<int64_t>(dst.rows()), d_info_potrs));
+  EIGEN_CUSOLVER_CHECK(cusolverDnXpotrs(ctx.cusolverHandle(), params.p, uplo, n, nrhs, dtype, scratch.d_factor.get(),
+                                        lda, dtype, dst.data(), static_cast<int64_t>(dst.rows()), d_info_potrs));
 
-  oneshot_check_info(ctx, scr, "llt");
+  oneshot_check_info(ctx, scratch, "llt");
 
   dst.recordReady(ctx.stream());
 }
@@ -221,41 +216,41 @@ void dispatch_lu_solve(Context& ctx, DeviceMatrix<Scalar>& dst, const LuSolveExp
   const size_t rhs_bytes = static_cast<size_t>(ldb) * static_cast<size_t>(nrhs) * sizeof(Scalar);
   const size_t ipiv_bytes = static_cast<size_t>(n) * sizeof(int64_t);
 
-  // All scratch lives in the Context (grow-only): no per-call cudaMalloc /
-  // cudaMallocHost, and no end-of-call sync to keep locals alive.
-  OneShotSolverScratch& scr = *ctx.oneshotSolverScratch();
-  OneShotSolverScratch::ensure(scr.d_factor, scr.factor_size, mat_bytes);
+  // Context-owned grow-only scratch: no per-call allocation, no end-of-call sync.
+  OneShotSolverScratch& scratch = *ctx.oneshotSolverScratch();
+  OneShotSolverScratch::ensure(scratch.d_factor, scratch.factor_size, mat_bytes);
   EIGEN_CUDA_RUNTIME_CHECK(
-      cudaMemcpyAsync(scr.d_factor.get(), A.data(), mat_bytes, cudaMemcpyDeviceToDevice, ctx.stream()));
+      cudaMemcpyAsync(scratch.d_factor.get(), A.data(), mat_bytes, cudaMemcpyDeviceToDevice, ctx.stream()));
 
-  OneShotSolverScratch::ensure(scr.d_ipiv, scr.ipiv_size, ipiv_bytes);
+  OneShotSolverScratch::ensure(scratch.d_ipiv, scratch.ipiv_size, ipiv_bytes);
 
-  if (!scr.d_info) scr.d_info = DeviceBuffer(2 * sizeof(int));
-  int* d_info_getrf = static_cast<int*>(scr.d_info.get());
+  if (!scratch.d_info) scratch.d_info = DeviceBuffer(2 * sizeof(int));
+  int* d_info_getrf = static_cast<int*>(scratch.d_info.get());
   int* d_info_getrs = d_info_getrf + 1;
 
   // thread_local: must outlive the async kernels (no end-of-call sync), and
   // only TUs that instantiate the one-shot path pull in cuSOLVER symbols.
   static thread_local CusolverParams params;
   size_t dev_ws = 0, host_ws = 0;
-  EIGEN_CUSOLVER_CHECK(cusolverDnXgetrf_bufferSize(ctx.cusolverHandle(), params.p, n, n, dtype, scr.d_factor.get(), lda,
-                                                   dtype, &dev_ws, &host_ws));
+  EIGEN_CUSOLVER_CHECK(cusolverDnXgetrf_bufferSize(ctx.cusolverHandle(), params.p, n, n, dtype, scratch.d_factor.get(),
+                                                   lda, dtype, &dev_ws, &host_ws));
 
-  OneShotSolverScratch::ensure(scr.d_workspace, scr.workspace_size, dev_ws);
-  if (scr.h_workspace.size() < host_ws) scr.h_workspace.resize(host_ws);
+  OneShotSolverScratch::ensure(scratch.d_workspace, scratch.workspace_size, dev_ws);
+  if (scratch.h_workspace.size() < host_ws) scratch.h_workspace.resize(host_ws);
 
-  EIGEN_CUSOLVER_CHECK(cusolverDnXgetrf(ctx.cusolverHandle(), params.p, n, n, dtype, scr.d_factor.get(), lda,
-                                        static_cast<int64_t*>(scr.d_ipiv.get()), dtype, scr.d_workspace.get(), dev_ws,
-                                        host_ws > 0 ? scr.h_workspace.data() : nullptr, host_ws, d_info_getrf));
+  EIGEN_CUSOLVER_CHECK(cusolverDnXgetrf(ctx.cusolverHandle(), params.p, n, n, dtype, scratch.d_factor.get(), lda,
+                                        static_cast<int64_t*>(scratch.d_ipiv.get()), dtype, scratch.d_workspace.get(),
+                                        dev_ws, host_ws > 0 ? scratch.h_workspace.data() : nullptr, host_ws,
+                                        d_info_getrf));
 
   dst.resize(n, B.cols());
   EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(dst.data(), B.data(), rhs_bytes, cudaMemcpyDeviceToDevice, ctx.stream()));
 
-  EIGEN_CUSOLVER_CHECK(cusolverDnXgetrs(ctx.cusolverHandle(), params.p, CUBLAS_OP_N, n, nrhs, dtype, scr.d_factor.get(),
-                                        lda, static_cast<const int64_t*>(scr.d_ipiv.get()), dtype, dst.data(),
-                                        static_cast<int64_t>(dst.rows()), d_info_getrs));
+  EIGEN_CUSOLVER_CHECK(cusolverDnXgetrs(ctx.cusolverHandle(), params.p, CUBLAS_OP_N, n, nrhs, dtype,
+                                        scratch.d_factor.get(), lda, static_cast<const int64_t*>(scratch.d_ipiv.get()),
+                                        dtype, dst.data(), static_cast<int64_t>(dst.rows()), d_info_getrs));
 
-  oneshot_check_info(ctx, scr, "lu");
+  oneshot_check_info(ctx, scratch, "lu");
 
   dst.recordReady(ctx.stream());
 }
