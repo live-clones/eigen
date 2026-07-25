@@ -263,7 +263,9 @@ d_C = 0.5 * d_C;                                 // in-place rescale (aliasing-s
 
 ### Dense solvers (cuSOLVER)
 
-**One-shot expression syntax** -- Convenient, re-factorizes each time:
+**One-shot expression syntax** -- "one-shot" means factorization and solve
+run as a single fused call with no persistent factorization object; each
+evaluation re-factorizes:
 
 ```cpp
 // Cholesky solve (potrf + potrs)

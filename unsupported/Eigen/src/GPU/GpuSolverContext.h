@@ -33,7 +33,7 @@ struct GpuSolverContext {
   cudaStream_t stream_ = nullptr;
   cusolverDnHandle_t cusolver_ = nullptr;
   cublasHandle_t cublas_ = nullptr;
-  cublasLtHandle_t cublas_lt_ = nullptr;  // lazy: created on first GEMM-via-cublasLt call (always owned)
+  cublasLtHandle_t cublas_lt_ = nullptr;  // lazy: created on first GEMM-via-cublasLt call (standalone mode only)
   CusolverParams params_;
   DeviceBuffer d_scratch_;
   size_t scratch_size_ = 0;
@@ -46,7 +46,11 @@ struct GpuSolverContext {
   ComputationInfo info_ = InvalidInput;
   PinnedHostBuffer pinned_info_{sizeof(int)};  // pinned host memory for async D2H of info word
   bool info_synced_ = true;
-  bool owns_stream_and_handles_ = true;
+  // Non-null when this solver context borrows from a gpu::Context: stream and
+  // cuSOLVER/cuBLAS handles are the Context's, and the cuBLASLt handle, GEMM
+  // plan cache, and GEMM workspace are shared with it rather than duplicated.
+  // Null in standalone mode, where all of the above are owned.
+  Context* bound_ctx_ = nullptr;
 
   int& info_word() { return *static_cast<int*>(pinned_info_.get()); }
   int info_word() const { return *static_cast<const int*>(pinned_info_.get()); }
@@ -63,12 +67,10 @@ struct GpuSolverContext {
   /** Borrow stream and cuSOLVER/cuBLAS handles from a gpu::Context, so solver
    * work runs on the same stream as the caller's other GPU operations (no
    * cross-stream event waits, and the solver creates no stream/handles of its
-   * own). The Context must outlive this solver context. */
+   * own). The cuBLASLt handle, GEMM plan cache, and GEMM workspace are shared
+   * with the Context as well. The Context must outlive this solver context. */
   explicit GpuSolverContext(Context& ctx)
-      : stream_(ctx.stream()),
-        cusolver_(ctx.cusolverHandle()),
-        cublas_(ctx.cublasHandle()),
-        owns_stream_and_handles_(false) {
+      : stream_(ctx.stream()), cusolver_(ctx.cusolverHandle()), cublas_(ctx.cublasHandle()), bound_ctx_(&ctx) {
     ensure_scratch(0);
   }
 
@@ -81,7 +83,7 @@ struct GpuSolverContext {
     // Destroy plan cache before its cublasLt handle (entries hold descriptors).
     gemm_plan_cache_.clear();
     if (cublas_lt_) (void)cublasLtDestroy(cublas_lt_);
-    if (owns_stream_and_handles_) {
+    if (!bound_ctx_) {
       if (cublas_) (void)cublasDestroy(cublas_);
       if (cusolver_) (void)cusolverDnDestroy(cusolver_);
       if (stream_) (void)cudaStreamDestroy(stream_);
@@ -103,7 +105,7 @@ struct GpuSolverContext {
         info_(o.info_),
         pinned_info_(std::move(o.pinned_info_)),
         info_synced_(o.info_synced_),
-        owns_stream_and_handles_(o.owns_stream_and_handles_) {
+        bound_ctx_(o.bound_ctx_) {
     o.stream_ = nullptr;
     o.cusolver_ = nullptr;
     o.cublas_ = nullptr;
@@ -111,7 +113,7 @@ struct GpuSolverContext {
     o.scratch_size_ = 0;
     o.info_ = InvalidInput;
     o.info_synced_ = true;
-    o.owns_stream_and_handles_ = true;
+    o.bound_ctx_ = nullptr;
   }
 
   GpuSolverContext& operator=(GpuSolverContext&& o) noexcept {
@@ -123,7 +125,7 @@ struct GpuSolverContext {
       if (stream_) (void)cudaStreamSynchronize(stream_);
       gemm_plan_cache_.clear();
       if (cublas_lt_) (void)cublasLtDestroy(cublas_lt_);
-      if (owns_stream_and_handles_) {
+      if (!bound_ctx_) {
         if (cublas_) (void)cublasDestroy(cublas_);
         if (cusolver_) (void)cusolverDnDestroy(cusolver_);
         if (stream_) (void)cudaStreamDestroy(stream_);
@@ -142,7 +144,7 @@ struct GpuSolverContext {
       info_ = o.info_;
       pinned_info_ = std::move(o.pinned_info_);
       info_synced_ = o.info_synced_;
-      owns_stream_and_handles_ = o.owns_stream_and_handles_;
+      bound_ctx_ = o.bound_ctx_;
       o.stream_ = nullptr;
       o.cusolver_ = nullptr;
       o.cublas_ = nullptr;
@@ -150,18 +152,27 @@ struct GpuSolverContext {
       o.scratch_size_ = 0;
       o.info_ = InvalidInput;
       o.info_synced_ = true;
-      o.owns_stream_and_handles_ = true;
+      o.bound_ctx_ = nullptr;
     }
     return *this;
   }
 
-  /** cuBLASLt handle (lazy-initialized on first GEMM-via-cublasLt call).
-   * Matches the camelCase accessor on gpu::Context for consistency. */
+  /** cuBLASLt handle: the bound Context's when borrowing, otherwise an owned
+   * handle lazy-initialized on first GEMM-via-cublasLt call. */
   cublasLtHandle_t cublasLtHandle() {
+    if (bound_ctx_) return bound_ctx_->cublasLtHandle();
     if (!cublas_lt_) {
       EIGEN_CUBLAS_CHECK(cublasLtCreate(&cublas_lt_));
     }
     return cublas_lt_;
+  }
+
+  /** GEMM plan cache / workspace / workspace ceiling for cublaslt_gemm —
+   * shared with the bound Context when borrowing, owned otherwise. */
+  CublasLtPlanCache* gemmPlanCache() { return bound_ctx_ ? bound_ctx_->gemmPlanCache() : &gemm_plan_cache_; }
+  DeviceBuffer* gemmWorkspace() { return bound_ctx_ ? bound_ctx_->gemmWorkspace() : &gemm_workspace_; }
+  std::size_t cublasLtMaxWorkspaceBytes() const {
+    return bound_ctx_ ? bound_ctx_->cublasLtMaxWorkspaceBytes() : cublaslt_max_workspace_bytes_;
   }
 
   GpuSolverContext(const GpuSolverContext&) = delete;

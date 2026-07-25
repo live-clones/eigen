@@ -52,19 +52,19 @@ constexpr cusparseOperation_t to_cusparse_op_for_scalar(GpuOp op) {
 // Bind without copying when the input already has the target sparse format
 // and is compressed; otherwise convert/compress into `storage` and return
 // that. Avoids a full host copy + format conversion on the common
-// already-matching path.
-template <typename SpMatType, typename InputType>
-typename std::enable_if<std::is_same<SpMatType, InputType>::value, const SpMatType&>::type bind_sparse(
-    const InputType& A, SpMatType& storage) {
+// already-matching path. The SFINAE split (rather than plain overloading on
+// `const SpMatType&`) is load-bearing: an exact-match overload would bind a
+// converted temporary for other input types and return a dangling reference.
+template <typename SpMatType, typename InputType, std::enable_if_t<std::is_same<SpMatType, InputType>::value, int> = 0>
+const SpMatType& bind_sparse(const InputType& A, SpMatType& storage) {
   if (A.isCompressed()) return A;
   storage = A;
   storage.makeCompressed();
   return storage;
 }
 
-template <typename SpMatType, typename InputType>
-typename std::enable_if<!std::is_same<SpMatType, InputType>::value, const SpMatType&>::type bind_sparse(
-    const InputType& A, SpMatType& storage) {
+template <typename SpMatType, typename InputType, std::enable_if_t<!std::is_same<SpMatType, InputType>::value, int> = 0>
+const SpMatType& bind_sparse(const InputType& A, SpMatType& storage) {
   storage = A;
   storage.makeCompressed();
   return storage;
