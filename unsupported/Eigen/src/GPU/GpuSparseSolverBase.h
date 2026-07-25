@@ -103,8 +103,10 @@ class SparseSolverBase {
     }
 
     // For symmetric solvers, ColMajor CSC can be reinterpreted as CSR with
-    // swapped triangle view (zero copy). For general solvers, we must convert
-    // to actual RowMajor CSR so cuDSS sees the correct matrix, not A^T.
+    // swapped triangle view — zero copy, except that Hermitian matrix types
+    // need the value array conjugated (see csc_upload_values). For general
+    // solvers, we must convert to actual RowMajor CSR so cuDSS sees the
+    // correct matrix, not A^T.
     if (Derived::needs_csr_conversion()) {
       const CsrMat csr(input);
       nnz_ = csr.nonZeros();
@@ -115,7 +117,7 @@ class SparseSolverBase {
       SpMat storage;
       const SpMat& csc = bind_sparse<SpMat>(input, storage);
       nnz_ = csc.nonZeros();
-      upload_compressed(csc.outerIndexPtr(), csc.innerIndexPtr(), csc.valuePtr());
+      upload_compressed(csc.outerIndexPtr(), csc.innerIndexPtr(), csc_upload_values(csc.valuePtr(), nnz_));
     }
     create_cudss_matrix();
 
@@ -150,7 +152,8 @@ class SparseSolverBase {
 
     // Convert to the same format used in analyzePattern. When the input is
     // already a compressed CSC matrix (symmetric solvers), it is bound by
-    // reference — no host copy or conversion on refactorize.
+    // reference — no host copy or conversion on refactorize (Hermitian types
+    // re-conjugate the value array; the pattern stays zero-copy).
     // The temporaries must outlive the async memcpy (pageable H2D is actually
     // synchronous w.r.t. the host, but keep them alive for clarity).
     const InputType& input = A.derived();
@@ -167,7 +170,7 @@ class SparseSolverBase {
       value_nnz = csr_tmp.nonZeros();
     } else {
       const SpMat& csc = bind_sparse<SpMat>(input, csc_storage);
-      value_ptr = csc.valuePtr();
+      value_ptr = csc_upload_values(csc.valuePtr(), csc.nonZeros());
       value_nnz = csc.nonZeros();
     }
     eigen_assert(value_nnz == nnz_);
@@ -267,6 +270,11 @@ class SparseSolverBase {
   DeviceBuffer d_rowPtr_;
   DeviceBuffer d_colIdx_;
   DeviceBuffer d_values_;
+
+  // Host staging for the conjugated value array (Hermitian zero-copy path
+  // only; see csc_upload_values). Kept as a member so it outlives the async
+  // H2D copy.
+  DenseVector conj_values_;
 
   // ---- Cached scratch for solve() (mutable so const solve() can grow them) --
   mutable DeviceBuffer d_b_solve_;
@@ -377,6 +385,22 @@ class SparseSolverBase {
     }
   }
 
+  // The zero-copy CSC-as-CSR reinterpretation hands cuDSS the stored triangle
+  // of A^T. Real symmetric types are unaffected (A^T = A), but the Hermitian
+  // types need the triangle of A, whose entries are the conjugates of A^T's.
+  static constexpr bool needs_value_conjugation() {
+    return Derived::cudss_matrix_type() == CUDSS_MTYPE_HPD || Derived::cudss_matrix_type() == CUDSS_MTYPE_HERMITIAN;
+  }
+
+  // Value array for the zero-copy CSC-as-CSR path: conjugated into
+  // conj_values_ for Hermitian matrix types, passed through otherwise. The
+  // pattern arrays remain zero-copy either way.
+  const Scalar* csc_upload_values(const Scalar* values, Index nnz) {
+    if (!needs_value_conjugation()) return values;
+    conj_values_ = Map<const DenseVector>(values, nnz).conjugate();
+    return conj_values_.data();
+  }
+
   void upload_compressed(const StorageIndex* outer, const StorageIndex* inner, const Scalar* values) {
     const size_t rowptr_bytes = static_cast<size_t>(n_ + 1) * sizeof(StorageIndex);
     const size_t colidx_bytes = static_cast<size_t>(nnz_) * sizeof(StorageIndex);
@@ -411,10 +435,11 @@ class SparseSolverBase {
 #endif
   }
 
-  // TODO: expose a fill-reducing reordering choice. cuDSS's
-  // CUDSS_CONFIG_REORDERING_ALG accepts CUDSS_ALG_1/2/3, but their mapping to
-  // specific algorithms (AMD, METIS, RCM, ...) is not currently documented as
-  // stable across cuDSS releases, so we leave the cuDSS default in place.
+  // TODO: expose a fill-reducing reordering choice. Since cuDSS 0.8,
+  // cudssReorderingAlg_t names the algorithms explicitly
+  // (CUDSS_REORDERING_ALG_{DEFAULT, BTF_COLAMD, COLAMD, AMD,
+  // NESTED_DISSECTION, NONE}), so this is now straightforward to expose; for
+  // now the cuDSS default is left in place.
 
   void create_placeholder_dense() {
     // A new analysis may change n_, so the cached solve descriptors are stale.
