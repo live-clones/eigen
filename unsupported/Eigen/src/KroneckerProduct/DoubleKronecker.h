@@ -38,7 +38,7 @@ struct traits<DoubleKronecker<ArgType> >
   };
 };
 
-}  // namespace internal
+} // end namespace internal
 
 // expression class ======================================================================= 
 template<class ArgType>
@@ -53,7 +53,7 @@ class DoubleKronecker : public Eigen::SparseMatrixBase< DoubleKronecker<ArgType>
     // constructors 
     DoubleKronecker(const ArgType& arg_init, StorageIndex n, StorageIndex m)
       : m_arg(arg_init), m_prod_before(n), m_prod_after(m) 
-    {}
+    { eigen_assert((m>0) && (n>0)); }
     
     // member functions 
     EIGEN_STRONG_INLINE StorageIndex rows() const { return m_prod_before * m_arg.rows() * m_prod_after; }
@@ -97,7 +97,7 @@ struct evaluator< DoubleKronecker<ArgType> > : evaluator_base< DoubleKronecker<A
     EIGEN_STRONG_INLINE void operator++(){ ++m_wrapped_it; }
     EIGEN_STRONG_INLINE StorageIndex row() const { return (traits<DoubleKronecker<ArgType>>::Flags & RowMajorBit) ? m_outer_idx : index(); }
     EIGEN_STRONG_INLINE StorageIndex col() const { return (traits<DoubleKronecker<ArgType>>::Flags & RowMajorBit) ? index() : m_outer_idx; }
-    EIGEN_STRONG_INLINE StorageIndex index() const { return m_offset + m_wrapped_it.index() * m_prod_before; }
+    EIGEN_STRONG_INLINE StorageIndex index() const { return m_offset + m_wrapped_it.index() * m_eval.m_prod_before; }
     EIGEN_STRONG_INLINE Scalar value() const { return m_wrapped_it.value(); }
 
     // member data ------------------------------------------
@@ -130,14 +130,14 @@ struct evaluator< DoubleKronecker<ArgType> > : evaluator_base< DoubleKronecker<A
   StorageIndex m_prod_after; 
 };
 
-}  // namespace internal
+} // end namespace internal
 
 // the entry point ======================================================================= 
-template<class ArgType, class StorageIndex = typename internal::traits<ArgType>::StorageIndex>
-DoubleKronecker<ArgType> make_DoubleKronecker(const SparseMatrixBase<ArgType>& arg, StorageIndex n, StorageIndex m) {
+template<class ArgType>
+DoubleKronecker<ArgType> make_DoubleKronecker(const SparseMatrixBase<ArgType>& arg, typename internal::traits<ArgType>::StorageIndex n, typename internal::traits<ArgType>::StorageIndex m) {
   return DoubleKronecker<ArgType>(arg.derived(), n, m);
 }
 
-}  // namespace Eigen
+} // end namespace Eigen
 
 #endif // DoubleKronecker.hpp
