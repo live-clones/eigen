@@ -18,13 +18,13 @@ namespace Eigen {
 
 // Forward declarations ---------------------------------------------
 template<typename ArgTpe>
-class DoubleKronecker;
+class DoubleKroneckerImpl;
 
 namespace internal {
 
 // type traits =======================================================================
 template<class ArgType>
-struct traits<DoubleKronecker<ArgType> > 
+struct traits<DoubleKroneckerImpl<ArgType> > 
   : public traits<ArgType>
 {
   enum {
@@ -42,16 +42,16 @@ struct traits<DoubleKronecker<ArgType> >
 
 // expression class ======================================================================= 
 template<class ArgType>
-class DoubleKronecker : public Eigen::SparseMatrixBase< DoubleKronecker<ArgType> > 
+class DoubleKroneckerImpl : public Eigen::SparseMatrixBase< DoubleKroneckerImpl<ArgType> > 
 {
   public:
     // typedefs
     typedef typename internal::ref_selector<ArgType>::type ArgTypeNested;
-    using Base = Eigen::SparseMatrixBase< DoubleKronecker<ArgType> >;
-    EIGEN_SPARSE_PUBLIC_INTERFACE(DoubleKronecker<ArgType>)
+    using Base = Eigen::SparseMatrixBase< DoubleKroneckerImpl<ArgType> >;
+    EIGEN_SPARSE_PUBLIC_INTERFACE(DoubleKroneckerImpl<ArgType>)
 
     // constructors 
-    DoubleKronecker(const ArgType& arg_init, StorageIndex n, StorageIndex m)
+    DoubleKroneckerImpl(const ArgType& arg_init, StorageIndex n, StorageIndex m)
       : m_arg(arg_init), m_prod_before(n), m_prod_after(m) 
     { eigen_assert((m>0) && (n>0)); }
     
@@ -69,10 +69,10 @@ namespace internal{
 
 // the evaluator =======================================================================
 template<typename ArgType>
-struct evaluator< DoubleKronecker<ArgType> > : evaluator_base< DoubleKronecker<ArgType> > {
+struct evaluator< DoubleKroneckerImpl<ArgType> > : evaluator_base< DoubleKroneckerImpl<ArgType> > {
 
   // typedefs -------------------------------------------------- 
-  typedef DoubleKronecker<ArgType> XprType;
+  typedef DoubleKroneckerImpl<ArgType> XprType;
   typedef typename nested_eval<ArgType, XprType::ColsAtCompileTime>::type ArgTypeNested;
   typedef typename remove_all<ArgTypeNested>::type ArgTypeNestedCleaned;
   typedef typename XprType::CoeffReturnType CoeffReturnType;
@@ -80,7 +80,7 @@ struct evaluator< DoubleKronecker<ArgType> > : evaluator_base< DoubleKronecker<A
   typedef typename XprType::Scalar Scalar; 
 
   // Flags ------------------------------------------------------
-  enum { CoeffReadCost = evaluator<ArgTypeNestedCleaned>::CoeffReadCost, Flags = traits<DoubleKronecker<ArgType>>::Flags };
+  enum { CoeffReadCost = evaluator<ArgTypeNestedCleaned>::CoeffReadCost, Flags = traits<DoubleKroneckerImpl<ArgType>>::Flags };
 
   // custom InnerIterator ----------------------------------
   struct InnerIterator{
@@ -95,8 +95,8 @@ struct evaluator< DoubleKronecker<ArgType> > : evaluator_base< DoubleKronecker<A
     // Member Funcs ===================================================
     EIGEN_STRONG_INLINE operator bool() const { return m_wrapped_it; }
     EIGEN_STRONG_INLINE void operator++(){ ++m_wrapped_it; }
-    EIGEN_STRONG_INLINE StorageIndex row() const { return (traits<DoubleKronecker<ArgType>>::Flags & RowMajorBit) ? m_outer_idx : index(); }
-    EIGEN_STRONG_INLINE StorageIndex col() const { return (traits<DoubleKronecker<ArgType>>::Flags & RowMajorBit) ? index() : m_outer_idx; }
+    EIGEN_STRONG_INLINE StorageIndex row() const { return (traits<DoubleKroneckerImpl<ArgType>>::Flags & RowMajorBit) ? m_outer_idx : index(); }
+    EIGEN_STRONG_INLINE StorageIndex col() const { return (traits<DoubleKroneckerImpl<ArgType>>::Flags & RowMajorBit) ? index() : m_outer_idx; }
     EIGEN_STRONG_INLINE StorageIndex index() const { return m_offset + m_wrapped_it.index() * m_eval.m_prod_before; }
     EIGEN_STRONG_INLINE Scalar value() const { return m_wrapped_it.value(); }
 
@@ -119,8 +119,8 @@ struct evaluator< DoubleKronecker<ArgType> > : evaluator_base< DoubleKronecker<A
   // Member Functions ========================================================
   EIGEN_STRONG_INLINE StorageIndex rows() const {return m_xpr.rows(); };
   EIGEN_STRONG_INLINE StorageIndex cols() const {return m_xpr.cols(); }; 
-  EIGEN_STRONG_INLINE StorageIndex innerSize() const { return (traits<DoubleKronecker<ArgType>>::Flags & RowMajorBit) ? cols() : rows(); }
-  EIGEN_STRONG_INLINE StorageIndex outerSize() const { return (traits<DoubleKronecker<ArgType>>::Flags & RowMajorBit) ? rows() : cols(); }
+  EIGEN_STRONG_INLINE StorageIndex innerSize() const { return (traits<DoubleKroneckerImpl<ArgType>>::Flags & RowMajorBit) ? cols() : rows(); }
+  EIGEN_STRONG_INLINE StorageIndex outerSize() const { return (traits<DoubleKroneckerImpl<ArgType>>::Flags & RowMajorBit) ? rows() : cols(); }
   EIGEN_STRONG_INLINE StorageIndex nonZerosEstimate() const { return m_xpr.nonZerosEstimate(); }
  
   // Member Data ------------------------------------------------------
@@ -134,10 +134,10 @@ struct evaluator< DoubleKronecker<ArgType> > : evaluator_base< DoubleKronecker<A
 
 // the entry point ======================================================================= 
 template<class ArgType>
-DoubleKronecker<ArgType> make_DoubleKronecker(const SparseMatrixBase<ArgType>& arg, typename internal::traits<ArgType>::StorageIndex n, typename internal::traits<ArgType>::StorageIndex m) {
-  return DoubleKronecker<ArgType>(arg.derived(), n, m);
+DoubleKroneckerImpl<ArgType> DoubleKronecker(const SparseMatrixBase<ArgType>& arg, typename internal::traits<ArgType>::StorageIndex n, typename internal::traits<ArgType>::StorageIndex m) {
+  return DoubleKroneckerImpl<ArgType>(arg.derived(), n, m);
 }
 
 } // end namespace Eigen
 
-#endif // DoubleKronecker.hpp
+#endif // DoubleKroneckerImpl.hpp

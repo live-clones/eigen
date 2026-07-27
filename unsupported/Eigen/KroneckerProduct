@@ -34,6 +34,7 @@ namespace Eigen {
 #include "src/KroneckerProduct/KroneckerTensorProduct.h"
 #include "src/KroneckerProduct/DoubleKronecker.h"
 #include "src/KroneckerProduct/LeftKronecker.h"
+#include "src/KroneckerProduct/RightKronecker.h"
 
 // IWYU pragma: end_exports
 

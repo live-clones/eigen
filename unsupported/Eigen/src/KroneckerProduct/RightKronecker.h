@@ -8,8 +8,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-#ifndef EIGEN_RIGHT_KRONECKER_H
-#define EIGEN_RIGHT_KRONECKER_H
+#ifndef EIGEN_LEFT_KRONECKER_H
+#define EIGEN_LEFT_KRONECKER_H
 
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
@@ -18,13 +18,13 @@ namespace Eigen {
 
 // Forward declarations ---------------------------------------------
 template<typename ArgTpe>
-class LeftKroneckerImpl;
+class RightKroneckerImpl;
 
 namespace internal {
 
 // type traits =======================================================================
 template<class ArgType>
-struct traits<LeftKroneckerImpl<ArgType> > 
+struct traits<RightKroneckerImpl<ArgType> > 
   : public traits<ArgType>
 {
   enum {
@@ -42,36 +42,36 @@ struct traits<LeftKroneckerImpl<ArgType> >
 
 // expression class ======================================================================= 
 template<class ArgType>
-class LeftKroneckerImpl : public Eigen::SparseMatrixBase< LeftKroneckerImpl<ArgType> > 
+class RightKroneckerImpl : public Eigen::SparseMatrixBase< RightKroneckerImpl<ArgType> > 
 {
   public:
     // typedefs
     typedef typename internal::ref_selector<ArgType>::type ArgTypeNested;
-    using Base = Eigen::SparseMatrixBase< LeftKroneckerImpl<ArgType> >;
-    EIGEN_SPARSE_PUBLIC_INTERFACE(LeftKroneckerImpl<ArgType>)
+    using Base = Eigen::SparseMatrixBase< RightKroneckerImpl<ArgType> >;
+    EIGEN_SPARSE_PUBLIC_INTERFACE(RightKroneckerImpl<ArgType>)
 
     // constructors 
-    LeftKroneckerImpl(const ArgType& arg_init, StorageIndex n)
-      : m_arg(arg_init), m_prod_after(n) 
+    RightKroneckerImpl(const ArgType& arg_init, StorageIndex n)
+      : m_arg(arg_init), m_prod_before(n)
     { eigen_assert(n>0); }
     
     // member functions 
-    EIGEN_STRONG_INLINE StorageIndex rows() const { return m_arg.rows() * m_prod_after; }
-    EIGEN_STRONG_INLINE StorageIndex cols() const { return m_arg.cols() * m_prod_after; }
+    EIGEN_STRONG_INLINE StorageIndex rows() const { return m_prod_before * m_arg.rows(); }
+    EIGEN_STRONG_INLINE StorageIndex cols() const { return m_prod_before * m_arg.cols(); }
 
     // member data 
     ArgTypeNested m_arg;
-    StorageIndex m_prod_after; 
+    StorageIndex m_prod_before; 
 };
 
 namespace internal{
 
 // the evaluator =======================================================================
 template<typename ArgType>
-struct evaluator< LeftKroneckerImpl<ArgType> > : evaluator_base< LeftKroneckerImpl<ArgType> > {
+struct evaluator< RightKroneckerImpl<ArgType> > : evaluator_base< RightKroneckerImpl<ArgType> > {
 
   // typedefs -------------------------------------------------- 
-  typedef LeftKroneckerImpl<ArgType> XprType;
+  typedef RightKroneckerImpl<ArgType> XprType;
   typedef typename nested_eval<ArgType, XprType::ColsAtCompileTime>::type ArgTypeNested;
   typedef typename remove_all<ArgTypeNested>::type ArgTypeNestedCleaned;
   typedef typename XprType::CoeffReturnType CoeffReturnType;
@@ -79,7 +79,7 @@ struct evaluator< LeftKroneckerImpl<ArgType> > : evaluator_base< LeftKroneckerIm
   typedef typename XprType::Scalar Scalar; 
 
   // Flags ------------------------------------------------------
-  enum { CoeffReadCost = evaluator<ArgTypeNestedCleaned>::CoeffReadCost, Flags = traits<LeftKroneckerImpl<ArgType>>::Flags };
+  enum { CoeffReadCost = evaluator<ArgTypeNestedCleaned>::CoeffReadCost, Flags = traits<RightKroneckerImpl<ArgType>>::Flags };
 
   // custom InnerIterator ----------------------------------
   struct InnerIterator{
@@ -87,23 +87,23 @@ struct evaluator< LeftKroneckerImpl<ArgType> > : evaluator_base< LeftKroneckerIm
     InnerIterator(const evaluator& eval, Index outer_idx)
       : m_eval(eval), 
       m_outer_idx(outer_idx),
-      m_offset(eval.m_xpr.m_arg.innerSize() * (outer_idx / eval.m_xpr.m_arg.outerSize())),
-      m_wrapped_it(eval.m_argImpl, (outer_idx % eval.m_xpr.m_arg.outerSize()))
+      m_offset(outer_idx % eval.m_prod_before),
+      m_wrapped_it(eval.m_argImpl, outer_idx / eval.m_prod_before)
     {};
 
     // Member Funcs ===================================================
     EIGEN_STRONG_INLINE operator bool() const { return m_wrapped_it; }
     EIGEN_STRONG_INLINE void operator++(){ ++m_wrapped_it; }
-    EIGEN_STRONG_INLINE StorageIndex row() const { return (traits<LeftKroneckerImpl<ArgType>>::Flags & RowMajorBit) ? m_outer_idx : index(); }
-    EIGEN_STRONG_INLINE StorageIndex col() const { return (traits<LeftKroneckerImpl<ArgType>>::Flags & RowMajorBit) ? index() : m_outer_idx; }
-    EIGEN_STRONG_INLINE StorageIndex index() const { return m_offset + m_wrapped_it.index(); }
+    EIGEN_STRONG_INLINE StorageIndex row() const { return (traits<RightKroneckerImpl<ArgType>>::Flags & RowMajorBit) ? m_outer_idx : index(); }
+    EIGEN_STRONG_INLINE StorageIndex col() const { return (traits<RightKroneckerImpl<ArgType>>::Flags & RowMajorBit) ? index() : m_outer_idx; }
+    EIGEN_STRONG_INLINE StorageIndex index() const { return m_offset + m_wrapped_it.index() * m_eval.m_prod_before; }
     EIGEN_STRONG_INLINE Scalar value() const { return m_wrapped_it.value(); }
 
     // member data ------------------------------------------
     const evaluator& m_eval; 
     typename evaluator<ArgTypeNestedCleaned>::InnerIterator m_wrapped_it;
-    StorageIndex m_outer_idx;
-    StorageIndex m_offset;
+    StorageIndex m_outer_idx; 
+    StorageIndex m_offset; 
 
   }; // end InnerIterator 
 
@@ -111,30 +111,30 @@ struct evaluator< LeftKroneckerImpl<ArgType> > : evaluator_base< LeftKroneckerIm
   evaluator(const XprType& xpr) 
     : m_argImpl(xpr.m_arg), 
     m_xpr(xpr), 
-    m_prod_after(xpr.m_prod_after)
+    m_prod_before(xpr.m_prod_before)
   {};
  
   // Member Functions ========================================================
   EIGEN_STRONG_INLINE StorageIndex rows() const {return m_xpr.rows(); };
   EIGEN_STRONG_INLINE StorageIndex cols() const {return m_xpr.cols(); }; 
-  EIGEN_STRONG_INLINE StorageIndex innerSize() const { return (traits<LeftKroneckerImpl<ArgType>>::Flags & RowMajorBit) ? cols() : rows(); }
-  EIGEN_STRONG_INLINE StorageIndex outerSize() const { return (traits<LeftKroneckerImpl<ArgType>>::Flags & RowMajorBit) ? rows() : cols(); }
+  EIGEN_STRONG_INLINE StorageIndex innerSize() const { return (traits<RightKroneckerImpl<ArgType>>::Flags & RowMajorBit) ? cols() : rows(); }
+  EIGEN_STRONG_INLINE StorageIndex outerSize() const { return (traits<RightKroneckerImpl<ArgType>>::Flags & RowMajorBit) ? rows() : cols(); }
   EIGEN_STRONG_INLINE StorageIndex nonZerosEstimate() const { return m_xpr.nonZerosEstimate(); }
  
   // Member Data ------------------------------------------------------
   evaluator<ArgTypeNestedCleaned> m_argImpl;
   const XprType& m_xpr;  
-  StorageIndex m_prod_after; 
+  StorageIndex m_prod_before; 
 };
 
 } // end namespace internal
 
 // the entry point ======================================================================= 
 template<class ArgType>
-LeftKroneckerImpl<ArgType> LeftKronecker(const SparseMatrixBase<ArgType>& arg, typename internal::traits<ArgType>::StorageIndex n) {
-  return LeftKroneckerImpl<ArgType>(arg.derived(), n);
+RightKroneckerImpl<ArgType> LeftKronecker(const SparseMatrixBase<ArgType>& arg, typename internal::traits<ArgType>::StorageIndex n) {
+  return RightKroneckerImpl<ArgType>(arg.derived(), n);
 }
 
 } // end namespace Eigen
 
-#endif // LeftKronecker.hpp
+#endif // RightKronecker.hpp
