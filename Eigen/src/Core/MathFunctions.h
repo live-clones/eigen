@@ -760,6 +760,20 @@ struct count_bits_impl<BitsType,
 
 #elif EIGEN_COMP_MSVC
 
+// `__popcnt`/`__popcnt64` require `POPCNT` hardware support, which MSVC cannot guarantee
+// at its default baseline (unlike `_BitScanReverse`/`_BitScanForward`, which lower to
+// baseline `bsr`/`bsf`).  Fall back to a portable count when building without SSE4.2
+// enabled.
+template <typename BitsType>
+EIGEN_DEVICE_FUNC inline int popcount_fallback(BitsType bits) {
+  int n = 0;
+  while (bits) {
+    bits &= bits - 1;
+    ++n;
+  }
+  return n;
+}
+
 template <typename BitsType>
 struct count_bits_impl<
     BitsType, std::enable_if_t<std::is_integral<BitsType>::value && sizeof(BitsType) <= sizeof(unsigned long)>> {
@@ -777,7 +791,11 @@ struct count_bits_impl<
   }
 
   static EIGEN_DEVICE_FUNC inline int popcount(BitsType bits) {
+#if defined(EIGEN_VECTORIZE_SSE4_2)
     return static_cast<int>(__popcnt(static_cast<unsigned int>(bits)));
+#else
+    return popcount_fallback(bits);
+#endif
   }
 };
 
@@ -801,7 +819,11 @@ struct count_bits_impl<BitsType,
   }
 
   static EIGEN_DEVICE_FUNC inline int popcount(BitsType bits) {
+#if defined(EIGEN_VECTORIZE_SSE4_2)
     return static_cast<int>(__popcnt64(static_cast<unsigned __int64>(bits)));
+#else
+    return popcount_fallback(bits);
+#endif
   }
 };
 
