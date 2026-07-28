@@ -241,3 +241,112 @@ EIGEN_DECLARE_TEST(kronecker_product) {
 }
 
 #endif
+
+#ifdef EIGEN_TEST_PART_3
+
+// check DoubleKronecker, LeftKronecker, and RightKronecker
+#include "main.h"
+#include<Eigen/KroneckerProduct>
+
+auto make_random_sparses(Eigen::Index m, Eigen::Index n)
+{
+  Eigen::SparseMatrix<double, Eigen::ColMajor> A; 
+  Eigen::SparseMatrix<double, Eigen::RowMajor> B; 
+  A = Eigen::MatrixXd::Random(m,n).sparseView();
+  B = Eigen::MatrixXd::Random(m,n).sparseView();
+  std::mt19937 mt(std::random_device{}()); 
+  std::bernoulli_distribution coin_flip(0.5);
+  auto keep = [&](Eigen::Index i, Eigen::Index j, double val){ return coin_flip(mt); };
+  A.prune(keep); 
+  B.prune(keep); 
+  return std::make_pair(A,B);
+}
+
+template<class Derived>
+void test_left_kronecker(const Eigen::SparseMatrixBase<Derived>& sparse, Eigen::Index n)
+{
+  Derived kron = Eigen::LeftKronecker(sparse, n);
+  for(auto h=0; h<n; ++h)
+  {
+    for(auto k=0; k<n; ++k)
+    {
+      for(auto i=0; i<sparse.rows(); ++i)
+      {
+        for(auto j=0; j<sparse.cols(); ++j)
+        {
+          if(h==k)
+          {
+             VERIFY_IS_EQUAL(sparse.derived().coeff(i,j), kron.coeff(h * sparse.rows() + i, k * sparse.cols() + j));
+          }
+          else
+          {
+            VERIFY_IS_EQUAL(0.0, kron.coeff(h * sparse.rows() + i, k * sparse.cols() + j));
+          }
+        }
+      }
+    }
+  }
+}
+
+template<class Derived>
+void test_right_kronecker(const Eigen::SparseMatrixBase<Derived>& sparse, Eigen::Index m)
+{
+  Derived kron = Eigen::RightKronecker(sparse, m);
+  for(auto i=0; i<sparse.rows(); ++i)
+  {
+    for(auto j=0; j<sparse.cols(); ++j)
+    {
+      for(auto h=0; h<m; ++h)
+      {
+        for(auto k=0; k<m; ++k)
+        {
+          if(h == k)
+          {
+            VERIFY_IS_EQUAL(kron.coeff(i * m + h, j * m + k), sparse.derived().coeff(i,j));
+          }
+          else
+          {
+            VERIFY_IS_EQUAL(0.0, kron.coeff(i * m + h, j * m + k));
+          }
+        }
+      }
+    }
+  }
+}
+
+template<class Derived>
+void test_double_kronecker(const Eigen::SparseMatrixBase<Derived>& sparse, Eigen::Index n, Eigen::Index m)
+{
+  Derived double_kron = Eigen::DoubleKronecker(sparse, n, m);
+  Derived by_hand = Eigen::LeftKronecker(Eigen::RightKronecker(sparse,m),n);
+  for(auto i=0; i<double_kron.rows(); ++i)
+  {
+    for(auto j=0; j<double_kron.cols(); ++j)
+    {
+      VERIFY_IS_EQUAL(double_kron.coeff(i,j), by_hand.coeff(i,j));
+    }
+  }
+}
+
+EIGEN_DECLARE_TEST(kronecker_product) {
+
+  std::mt19937 mt(std::random_device{}()); 
+  std::uniform_int_distribution<Eigen::Index> dist(5, 15);
+
+  for(auto i=0; i<g_repeat; ++i)
+  {
+    int m = dist(mt);
+    int n = dist(mt);
+    int l = dist(mt);
+    int r = dist(mt);
+    auto pair = make_random_sparses(m,n);
+    test_left_kronecker(pair.first, l);
+    test_left_kronecker(pair.second, l);
+    test_right_kronecker(pair.first, l);
+    test_right_kronecker(pair.second, l);
+    test_double_kronecker(pair.first, l, r);
+    test_double_kronecker(pair.second, l, r);
+  }
+}
+
+#endif

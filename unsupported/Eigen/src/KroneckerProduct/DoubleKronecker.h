@@ -52,7 +52,7 @@ class DoubleKroneckerImpl : public Eigen::SparseMatrixBase< DoubleKroneckerImpl<
 
     // constructors 
     DoubleKroneckerImpl(const ArgType& arg_init, StorageIndex n, StorageIndex m)
-      : m_arg(arg_init), m_prod_before(n), m_prod_after(m) 
+      : m_arg(arg_init), m_prod_before(m), m_prod_after(n) 
     { eigen_assert((m>0) && (n>0)); }
     
     // member functions 
@@ -102,9 +102,9 @@ struct evaluator< DoubleKroneckerImpl<ArgType> > : evaluator_base< DoubleKroneck
 
     // member data ------------------------------------------
     const evaluator& m_eval; 
-    typename evaluator<ArgTypeNestedCleaned>::InnerIterator m_wrapped_it;
     StorageIndex m_outer_idx; 
     StorageIndex m_offset; 
+    typename evaluator<ArgTypeNestedCleaned>::InnerIterator m_wrapped_it;
 
   }; // end InnerIterator 
 
