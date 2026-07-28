@@ -22,6 +22,7 @@ void linearStructure(const MatrixType& m) {
      CwiseUnaryOp.h, CwiseBinaryOp.h, SelfCwiseBinaryOp.h
   */
   typedef typename MatrixType::Scalar Scalar;
+  typedef typename NumTraits<Scalar>::Real RealScalar;
 
   Index rows = m.rows();
   Index cols = m.cols();
@@ -40,8 +41,17 @@ void linearStructure(const MatrixType& m) {
   VERIFY_IS_APPROX(m1 + m2 - m1, m2);
   VERIFY_IS_APPROX(-m2 + m1 + m2, m1);
   VERIFY_IS_APPROX(m1 * s1, s1 * m1);
-  VERIFY_IS_APPROX((m1 + m2) * s1, s1 * m1 + s1 * m2);
-  VERIFY_IS_APPROX((-m1 + m2) * s1, -s1 * m1 + s1 * m2);
+  if (NumTraits<Scalar>::IsInteger) {
+    // Modular arithmetic is exactly distributive.
+    VERIFY_IS_APPROX((m1 + m2) * s1, s1 * m1 + s1 * m2);
+    VERIFY_IS_APPROX((-m1 + m2) * s1, -s1 * m1 + s1 * m2);
+  } else {
+    // Both forms of the distributive law round to within eps * |s1| * (|m1| + |m2|) of the exact value,
+    // which is unbounded relative to a result formed by cancellation.
+    const RealScalar scale = numext::abs(s1) * (max_abs_coeff(m1) + max_abs_coeff(m2));
+    VERIFY_IS_APPROX_SCALED((m1 + m2) * s1, s1 * m1 + s1 * m2, scale);
+    VERIFY_IS_APPROX_SCALED((-m1 + m2) * s1, -s1 * m1 + s1 * m2, scale);
+  }
   m3 = m2;
   m3 += m1;
   VERIFY_IS_APPROX(m3, m1 + m2);
@@ -160,6 +170,28 @@ void linearStructure_mixed_storage() {
   }
 }
 
+// Regression test for the seed-dependent failure of the distributive law checks above: when m1 and m2
+// agree to all but the last few bits, m1 + m2 (resp. -m1 + m2) is formed by cancellation while the
+// rounding error of s1 * m1 + s1 * m2 stays proportional to |s1| * (|m1| + |m2|).
+template <typename Scalar>
+void linearStructure_cancellation() {
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  typedef Matrix<Scalar, 1, 1> MatrixType;
+
+  const RealScalar close = RealScalar(1) - RealScalar(64) * NumTraits<RealScalar>::epsilon();
+  const Scalar s1 = Scalar(RealScalar(-0.465));
+  MatrixType m1, m2;
+  m1(0, 0) = Scalar(RealScalar(0.35));
+
+  for (int i = 0; i < 2; ++i) {
+    // i == 0 cancels in m1 + m2, i == 1 cancels in -m1 + m2.
+    m2(0, 0) = (i == 0 ? -m1(0, 0) : m1(0, 0)) * close;
+    const RealScalar scale = numext::abs(s1) * (max_abs_coeff(m1) + max_abs_coeff(m2));
+    VERIFY_IS_APPROX_SCALED((m1 + m2) * s1, s1 * m1 + s1 * m2, scale);
+    VERIFY_IS_APPROX_SCALED((-m1 + m2) * s1, -s1 * m1 + s1 * m2, scale);
+  }
+}
+
 template <int>
 void linearstructure_overflow() {
   // make sure that /=scalar and /scalar do not overflow
@@ -199,7 +231,12 @@ EIGEN_DECLARE_TEST(linearstructure) {
   }
   CALL_SUBTEST_4(linearstructure_overflow<0>());
 
-  // Mixed storage order tests (deterministic, outside g_repeat).
+  // Deterministic tests, outside g_repeat.
+  CALL_SUBTEST_12(linearStructure_cancellation<float>());
+  CALL_SUBTEST_12(linearStructure_cancellation<double>());
+  CALL_SUBTEST_12(linearStructure_cancellation<std::complex<float>>());
+
+  // Mixed storage order tests.
   CALL_SUBTEST_12(linearStructure_mixed_storage<float>());
   CALL_SUBTEST_12(linearStructure_mixed_storage<double>());
   CALL_SUBTEST_12(linearStructure_mixed_storage<std::complex<float>>());
