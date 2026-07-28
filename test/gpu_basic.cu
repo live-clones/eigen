@@ -317,6 +317,20 @@ struct eigenvalues {
   }
 };
 
+template <typename T, int UpLo>
+struct selfadjoint_rank2_update {
+  EIGEN_DEVICE_FUNC void operator()(int i, const typename T::Scalar* in, typename T::Scalar* out) const {
+    using namespace Eigen;
+    typedef Matrix<typename T::Scalar, T::RowsAtCompileTime, 1> Vec;
+    T M(in + i);
+    Vec u(in + i + T::MaxSizeAtCompileTime);
+    Vec v(in + i + T::MaxSizeAtCompileTime + Vec::MaxSizeAtCompileTime);
+    Map<T> res(out + i * T::MaxSizeAtCompileTime);
+    res = M;
+    res.template selfadjointView<UpLo>().rankUpdate(u, v, typename T::Scalar(0.25));
+  }
+};
+
 template <typename T>
 struct matrix_inverse {
   EIGEN_DEVICE_FUNC void operator()(int i, const typename T::Scalar* in, typename T::Scalar* out) const {
@@ -340,6 +354,69 @@ struct numeric_limits_test {
   }
 };
 
+struct custom_less_scalar {
+  int value;
+
+  EIGEN_DEVICE_FUNC explicit custom_less_scalar(int x = 0) : value(x) {}
+};
+
+EIGEN_DEVICE_FUNC bool operator<(const custom_less_scalar& x, const custom_less_scalar& y) { return x.value < y.value; }
+
+struct custom_less_scalar_minmax_test {
+  EIGEN_DEVICE_FUNC void operator()(int i, const int* in, int* out) const {
+    EIGEN_UNUSED_VARIABLE(i);
+    const custom_less_scalar x(in[0]);
+    const custom_less_scalar y(in[1]);
+    out[0] = Eigen::numext::mini(x, y).value;
+    out[1] = Eigen::numext::maxi(x, y).value;
+  }
+};
+
+void test_custom_less_scalar_minmax() {
+  Eigen::ArrayXi in(2), out_ref(2), out_gpu(2);
+  in << 1, 2;
+  out_ref.setConstant(-1);
+  out_gpu.setConstant(-1);
+
+  run_on_cpu(custom_less_scalar_minmax_test(), 1, in, out_ref);
+  run_on_gpu(custom_less_scalar_minmax_test(), 1, in, out_gpu);
+
+#if !defined(EIGEN_GPU_COMPILE_PHASE)
+  VERIFY_IS_EQUAL(out_ref(0), out_gpu(0));
+  VERIFY_IS_EQUAL(out_ref(1), out_gpu(1));
+#endif
+}
+
+struct float_nan_minmax_test {
+  EIGEN_DEVICE_FUNC void operator()(int i, const float* in, float* out) const {
+    EIGEN_UNUSED_VARIABLE(i);
+    const float nan = in[0];
+    const float one = in[1];
+    out[0] = Eigen::numext::mini(nan, one);
+    out[1] = Eigen::numext::mini(one, nan);
+    out[2] = Eigen::numext::maxi(nan, one);
+    out[3] = Eigen::numext::maxi(one, nan);
+  }
+};
+
+void test_float_nan_minmax() {
+  Eigen::ArrayXf in(2), out_ref(4), out_gpu(4);
+  in << std::numeric_limits<float>::quiet_NaN(), 1.f;
+  out_ref.setConstant(-1.f);
+  out_gpu.setConstant(-1.f);
+
+  run_on_cpu(float_nan_minmax_test(), 1, in, out_ref);
+  run_on_gpu(float_nan_minmax_test(), 1, in, out_gpu);
+
+#if !defined(EIGEN_GPU_COMPILE_PHASE)
+  VERIFY_IS_CWISE_EQUAL(out_ref, out_gpu);
+  VERIFY((numext::isnan)(out_ref(0)));
+  VERIFY_IS_EQUAL(out_ref(1), 1.f);
+  VERIFY((numext::isnan)(out_ref(2)));
+  VERIFY_IS_EQUAL(out_ref(3), 1.f);
+#endif
+}
+
 template <typename Type1, typename Type2>
 bool verifyIsApproxWithInfsNans(const Type1& a, const Type2& b,
                                 typename Type1::Scalar* = 0)  // Enabled for Eigen's type only
@@ -360,6 +437,31 @@ bool verifyIsApproxWithInfsNans(const Type1& a, const Type2& b,
   }
   return true;
 }
+
+#if defined(EIGEN_HAS_GPU_FP16) && !defined(EIGEN_GPU_COMPILE_PHASE)
+// Host-side check that converting between Eigen::half and the vendor __half type preserves the
+// raw bits. This is a regression test for builds where Eigen::half stores a native fp16 type
+// (e.g. __fp16 on arm64): the host phase used to perform numeric value conversions instead of
+// bit reinterpretations, corrupting every raw-bit constant (NumTraits, numeric_limits, ...).
+void test_half_raw_bit_interop() {
+  const numext::uint16_t raw_bits[] = {0x0000, 0x3c00 /*1*/, 0x7c00 /*inf*/, 0x7e00 /*qNaN*/, 0xfbff /*lowest*/};
+  for (int i = 0; i < 5; ++i) {
+    const numext::uint16_t raw = raw_bits[i];
+    const Eigen::half h = numext::bit_cast<Eigen::half>(raw);
+    // Eigen::half -> __half must preserve the bits (sizeof(__half) == 2 on both CUDA and HIP).
+    // Call the conversion operator explicitly: a static_cast would be ambiguous because
+    // Eigen::half also converts to __half via operator float() and __half(float).
+    const __half v = h.operator __half();
+    VERIFY_IS_EQUAL(numext::bit_cast<numext::uint16_t>(v), raw);
+    // __half -> Eigen::half must preserve the bits as well.
+    const Eigen::half h2(v);
+    VERIFY_IS_EQUAL(numext::bit_cast<numext::uint16_t>(h2), raw);
+  }
+  // Raw-bit constants must survive the host phase of a GPU build.
+  VERIFY((numext::isinf)(NumTraits<Eigen::half>::infinity()));
+  VERIFY((numext::isnan)(NumTraits<Eigen::half>::quiet_NaN()));
+}
+#endif
 
 template <typename Kernel, typename Input, typename Output>
 void test_with_infs_nans(const Kernel& ker, int n, const Input& in, Output& out) {
@@ -433,10 +535,17 @@ EIGEN_DECLARE_TEST(gpu_basic) {
   // numeric_limits
   CALL_SUBTEST(test_with_infs_nans(numeric_limits_test<Vector3f>(), 1, in, out));
 
-  // These tests require dynamic-sized matrix multiplication, which isn't currently
-  // supported on GPU.
+  // Eigen::half <-> __half raw-bit interop on the host.
+#if defined(EIGEN_HAS_GPU_FP16) && !defined(EIGEN_GPU_COMPILE_PHASE)
+  CALL_SUBTEST(test_half_raw_bit_interop());
+#endif
 
-  // CALL_SUBTEST( run_and_compare_to_gpu(eigenvalues<Matrix4f>(), nthreads, in, out) );
-  // typedef Matrix<float,6,6> Matrix6f;
-  // CALL_SUBTEST( run_and_compare_to_gpu(eigenvalues<Matrix6f>(), nthreads, in, out) );
+  CALL_SUBTEST(test_custom_less_scalar_minmax());
+  CALL_SUBTEST(test_float_nan_minmax());
+
+  typedef Matrix<float, 6, 6> Matrix6f;
+  CALL_SUBTEST(run_and_compare_to_gpu(selfadjoint_rank2_update<Matrix4f, Lower>(), nthreads, in, out));
+  CALL_SUBTEST(run_and_compare_to_gpu(selfadjoint_rank2_update<Matrix4f, Upper>(), nthreads, in, out));
+  CALL_SUBTEST(run_and_compare_to_gpu(selfadjoint_rank2_update<Matrix6f, Lower>(), nthreads, in, out));
+  CALL_SUBTEST(run_and_compare_to_gpu(selfadjoint_rank2_update<Matrix6f, Upper>(), nthreads, in, out));
 }
