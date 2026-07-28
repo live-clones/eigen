@@ -348,7 +348,7 @@ void test_double_kronecker(const Eigen::SparseMatrixBase<Derived>& sparse, Eigen
 EIGEN_DECLARE_TEST(kronecker_product) {
 
   std::mt19937 mt(std::random_device{}()); 
-  std::uniform_int_distribution<Eigen::Index> dist(5,100);
+  std::uniform_int_distribution<Eigen::Index> dist(1,17);
 
   for(auto i=0; i<g_repeat; ++i)
   {
