@@ -58,15 +58,10 @@
 #include <cstdint>
 
 #include "./CuSparseSupport.h"
+#include "./FwdDecl.h"
 
 namespace Eigen {
 namespace gpu {
-
-// Forward declarations.
-template <typename Scalar_>
-class SparseContext;
-template <typename Scalar_>
-class DeviceSparseView;
 
 /** Sparse product expression: DeviceSparseView * DeviceMatrix → SpMVExpr.
  * Evaluated by DeviceMatrix::operator=(SpMVExpr): dispatches to cusparseSpMV
@@ -194,7 +189,7 @@ class SparseContext {
     internal::check_storage_index_bounds<StorageIndex>(input.rows(), input.cols(), input.nonZeros());
     SpMat storage;
     const SpMat& mat = internal::bind_sparse<SpMat>(input, storage);
-    multiply_host_impl(mat, x.derived(), y.derived(), alpha, beta, internal::to_cusparse_op_for_scalar<Scalar>(op));
+    multiply_host_impl(mat, x.derived(), y.derived(), alpha, beta, internal::to_cusparse_op<Scalar>(op));
   }
 
   // ---- SpMV: y = A * x (DeviceMatrix, no host roundtrip) -------------------
@@ -247,7 +242,7 @@ class SparseContext {
     const SpMat& mat = internal::bind_sparse<SpMat>(input, storage);
     const DenseMatrix rhs(X.derived());
 
-    const cusparseOperation_t cu_op = internal::to_cusparse_op_for_scalar<Scalar>(op);
+    const cusparseOperation_t cu_op = internal::to_cusparse_op<Scalar>(op);
     const Index m = (op == GpuOp::NoTrans) ? mat.rows() : mat.cols();
     const Index k = (op == GpuOp::NoTrans) ? mat.cols() : mat.rows();
     eigen_assert(k == rhs.rows());
@@ -328,7 +323,7 @@ class SparseContext {
     const SpMat& mat = internal::bind_sparse<SpMat>(input, storage);
     DenseVector y((op == GpuOp::NoTrans) ? mat.rows() : mat.cols());
     y.setZero();
-    multiply_host_impl(mat, x.derived(), y, Scalar(1), Scalar(0), internal::to_cusparse_op_for_scalar<Scalar>(op));
+    multiply_host_impl(mat, x.derived(), y, Scalar(1), Scalar(0), internal::to_cusparse_op<Scalar>(op));
     return y;
   }
 
@@ -389,7 +384,7 @@ class SparseContext {
     // cuSPARSE SpMV: y must not alias x (undefined behavior).
     eigen_assert(d_x.data() != d_y.data() && "SpMV: output aliases input vector");
 
-    const cusparseOperation_t cu_op = internal::to_cusparse_op_for_scalar<Scalar>(op);
+    const cusparseOperation_t cu_op = internal::to_cusparse_op<Scalar>(op);
     const Index m = cached_rows_;
     const Index n = cached_cols_;
     const Index x_size = (cu_op == CUSPARSE_OPERATION_NON_TRANSPOSE) ? n : m;
@@ -429,7 +424,7 @@ class SparseContext {
     eigen_assert(spmat_desc_ && "sparse matrix not uploaded — call deviceView() or multiply() first");
     eigen_assert(d_X.data() != d_Y.data() && "SpMM: output aliases input matrix");
 
-    const cusparseOperation_t cu_op = internal::to_cusparse_op_for_scalar<Scalar>(op);
+    const cusparseOperation_t cu_op = internal::to_cusparse_op<Scalar>(op);
     const bool transposed = (cu_op != CUSPARSE_OPERATION_NON_TRANSPOSE);
     const Index m_op = transposed ? cached_cols_ : cached_rows_;
     const Index k_op = transposed ? cached_rows_ : cached_cols_;

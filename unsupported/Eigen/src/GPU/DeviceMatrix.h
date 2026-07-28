@@ -39,55 +39,11 @@
 
 #include <cstring>
 
+#include "./FwdDecl.h"
 #include "./GpuSupport.h"
 
 namespace Eigen {
 namespace gpu {
-
-// Forward declarations.
-template <typename, int>
-class LLT;
-template <typename>
-class LU;
-template <typename>
-class AdjointView;
-template <typename>
-class TransposeView;
-template <typename>
-class Assignment;
-template <typename, typename>
-class GemmExpr;
-template <typename>
-class Scaled;
-template <typename>
-class SpMVExpr;
-template <typename>
-class DeviceAddExpr;
-template <typename>
-class DeviceScaledDevice;
-template <typename>
-class DeviceScalar;
-template <typename, int>
-class LltSolveExpr;
-template <typename>
-class LuSolveExpr;
-template <typename, int>
-class LLTView;
-template <typename>
-class LUView;
-template <typename, int>
-class TriangularView;
-template <typename, int>
-class SelfAdjointView;
-template <typename, int>
-class ConstSelfAdjointView;
-template <typename, int>
-class TrsmExpr;
-template <typename, int>
-class SymmExpr;
-template <typename, int>
-class SyrkExpr;
-class Context;
 
 // --------------------------------------------------------------------------
 // HostTransfer — future-like wrapper for an async device-to-host transfer.
