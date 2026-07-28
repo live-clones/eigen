@@ -46,7 +46,7 @@ class DoubleKroneckerImpl : public Eigen::SparseMatrixBase< DoubleKroneckerImpl<
 {
   public:
     // typedefs
-    typedef typename internal::ref_selector<ArgType>::type ArgTypeNested;
+    using ArgTypeNested = typename internal::ref_selector<ArgType>::type;
     using Base = Eigen::SparseMatrixBase< DoubleKroneckerImpl<ArgType> >;
     EIGEN_SPARSE_PUBLIC_INTERFACE(DoubleKroneckerImpl<ArgType>)
 
@@ -72,12 +72,12 @@ template<typename ArgType>
 struct evaluator< DoubleKroneckerImpl<ArgType> > : evaluator_base< DoubleKroneckerImpl<ArgType> > {
 
   // typedefs -------------------------------------------------- 
-  typedef DoubleKroneckerImpl<ArgType> XprType;
-  typedef typename nested_eval<ArgType, XprType::ColsAtCompileTime>::type ArgTypeNested;
-  typedef typename remove_all<ArgTypeNested>::type ArgTypeNestedCleaned;
-  typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename XprType::StorageIndex StorageIndex; 
-  typedef typename XprType::Scalar Scalar; 
+  using XprType = DoubleKroneckerImpl<ArgType>;
+  using ArgTypeNested = typename nested_eval<ArgType, XprType::ColsAtCompileTime>::type;
+  using ArgTypeNestedCleaned = typename remove_all<ArgTypeNested>::type;
+  using CoeffReturnType = typename XprType::CoeffReturnType;
+  using StorageIndex = typename XprType::StorageIndex; 
+  using Scalar = typename XprType::Scalar; 
 
   // Flags ------------------------------------------------------
   enum { CoeffReadCost = evaluator<ArgTypeNestedCleaned>::CoeffReadCost, Flags = traits<DoubleKroneckerImpl<ArgType>>::Flags };
@@ -92,7 +92,6 @@ struct evaluator< DoubleKroneckerImpl<ArgType> > : evaluator_base< DoubleKroneck
       m_wrapped_it(eval.m_argImpl, (outer_idx / eval.m_prod_before) % eval.m_xpr.m_arg.outerSize())
     {};
 
-    // Member Funcs ===================================================
     EIGEN_STRONG_INLINE operator bool() const { return m_wrapped_it; }
     EIGEN_STRONG_INLINE void operator++(){ ++m_wrapped_it; }
     EIGEN_STRONG_INLINE StorageIndex row() const { return (traits<DoubleKroneckerImpl<ArgType>>::Flags & RowMajorBit) ? m_outer_idx : index(); }
@@ -100,13 +99,11 @@ struct evaluator< DoubleKroneckerImpl<ArgType> > : evaluator_base< DoubleKroneck
     EIGEN_STRONG_INLINE StorageIndex index() const { return m_offset + m_wrapped_it.index() * m_eval.m_prod_before; }
     EIGEN_STRONG_INLINE Scalar value() const { return m_wrapped_it.value(); }
 
-    // member data ------------------------------------------
     const evaluator& m_eval; 
     StorageIndex m_outer_idx; 
     StorageIndex m_offset; 
     typename evaluator<ArgTypeNestedCleaned>::InnerIterator m_wrapped_it;
-
-  }; // end InnerIterator 
+  };
 
   // Constructors ======================================================== 
   evaluator(const XprType& xpr) 
@@ -124,6 +121,22 @@ struct evaluator< DoubleKroneckerImpl<ArgType> > : evaluator_base< DoubleKroneck
   EIGEN_STRONG_INLINE StorageIndex nonZerosEstimate() const { return m_xpr.nonZerosEstimate(); }
  
   // Member Data ------------------------------------------------------
+  evaluator<ArgTypeNestedCleaned> m_argImpl;
+  const XprType& m_xpr;  
+  StorageIndex m_prod_before; 
+  evaluator(const XprType& xpr) 
+    : m_argImpl(xpr.m_arg), 
+    m_xpr(xpr), 
+    m_prod_before(xpr.m_prod_before), 
+    m_prod_after(xpr.m_prod_after)
+  {};
+ 
+  EIGEN_STRONG_INLINE StorageIndex rows() const {return m_xpr.rows(); };
+  EIGEN_STRONG_INLINE StorageIndex cols() const {return m_xpr.cols(); }; 
+  EIGEN_STRONG_INLINE StorageIndex innerSize() const { return (traits<DoubleKroneckerImpl<ArgType>>::Flags & RowMajorBit) ? cols() : rows(); }
+  EIGEN_STRONG_INLINE StorageIndex outerSize() const { return (traits<DoubleKroneckerImpl<ArgType>>::Flags & RowMajorBit) ? rows() : cols(); }
+  EIGEN_STRONG_INLINE StorageIndex nonZerosEstimate() const { return m_xpr.nonZerosEstimate(); }
+ 
   evaluator<ArgTypeNestedCleaned> m_argImpl;
   const XprType& m_xpr;  
   StorageIndex m_prod_before; 

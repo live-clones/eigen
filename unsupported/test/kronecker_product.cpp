@@ -273,7 +273,7 @@ auto make_random_sparses(Eigen::Index m, Eigen::Index n)
   B = Eigen::MatrixXd::Random(m,n).sparseView();
   std::mt19937 mt(std::random_device{}()); 
   std::bernoulli_distribution coin_flip(0.5);
-  auto keep = [&](Eigen::Index i, Eigen::Index j, double val){ return coin_flip(mt); };
+  auto keep = [&](Eigen::Index, Eigen::Index, double){ return coin_flip(mt); };
   A.prune(keep); 
   B.prune(keep); 
   return std::make_pair(A,B);
