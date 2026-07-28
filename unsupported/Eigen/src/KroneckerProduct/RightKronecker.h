@@ -101,9 +101,9 @@ struct evaluator< RightKroneckerImpl<ArgType> > : evaluator_base< RightKronecker
 
     // member data ------------------------------------------
     const evaluator& m_eval; 
-    typename evaluator<ArgTypeNestedCleaned>::InnerIterator m_wrapped_it;
     StorageIndex m_outer_idx; 
     StorageIndex m_offset; 
+    typename evaluator<ArgTypeNestedCleaned>::InnerIterator m_wrapped_it;
 
   }; // end InnerIterator 
 
@@ -131,7 +131,7 @@ struct evaluator< RightKroneckerImpl<ArgType> > : evaluator_base< RightKronecker
 
 // the entry point ======================================================================= 
 template<class ArgType>
-RightKroneckerImpl<ArgType> LeftKronecker(const SparseMatrixBase<ArgType>& arg, typename internal::traits<ArgType>::StorageIndex n) {
+RightKroneckerImpl<ArgType> RightKronecker(const SparseMatrixBase<ArgType>& arg, typename internal::traits<ArgType>::StorageIndex n) {
   return RightKroneckerImpl<ArgType>(arg.derived(), n);
 }
 

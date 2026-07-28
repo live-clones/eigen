@@ -101,9 +101,9 @@ struct evaluator< LeftKroneckerImpl<ArgType> > : evaluator_base< LeftKroneckerIm
 
     // member data ------------------------------------------
     const evaluator& m_eval; 
-    typename evaluator<ArgTypeNestedCleaned>::InnerIterator m_wrapped_it;
     StorageIndex m_outer_idx;
     StorageIndex m_offset;
+    typename evaluator<ArgTypeNestedCleaned>::InnerIterator m_wrapped_it;
 
   }; // end InnerIterator 
 
