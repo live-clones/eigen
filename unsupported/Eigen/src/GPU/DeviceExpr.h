@@ -27,6 +27,7 @@
 #include "./InternalHeaderCheck.h"
 
 #include "./CuBlasSupport.h"
+#include "./FwdDecl.h"
 
 namespace Eigen {
 namespace gpu {
@@ -41,12 +42,6 @@ template <typename Expr>
 using scalar_type_t = typename device_expr_traits<Expr>::scalar_type;
 }  // namespace internal
 
-// Forward declarations.
-template <typename Scalar_>
-class DeviceMatrix;
-template <typename Scalar_>
-class DeviceScalar;
-
 namespace internal {
 // Identifies gpu::DeviceScalar so the generic scalar-times-matrix overloads
 // below can exclude it (DeviceScalar has dedicated device-pointer overloads
@@ -60,9 +55,10 @@ struct is_device_scalar<DeviceScalar<S>> : std::true_type {};
 // SFINAE gate for scalar factors: any type convertible to the expression's
 // scalar (so `2 * d_A` and `2.0 * d_cplx` work), except DeviceScalar.
 template <typename T, typename S>
-struct enable_scalar_arg
-    : std::enable_if<std::is_convertible<T, S>::value && !is_device_scalar<typename std::decay<T>::type>::value, int> {
-};
+using require_host_scalar_convertible_t =
+    typename std::enable_if<std::is_convertible<T, S>::value && !is_device_scalar<typename std::decay<T>::type>::value,
+                            int>::type;
+
 }  // namespace internal
 
 // ---- AdjointView: marks ConjTrans -------------------------------------------
@@ -139,17 +135,17 @@ class GemmExpr {
 // and double literals included), in either operand order. Division by a
 // scalar and unary minus fold into the same Scaled wrapper.
 
-template <typename T, typename S, typename internal::enable_scalar_arg<T, S>::type = 0>
+template <typename T, typename S, internal::require_host_scalar_convertible_t<T, S> = 0>
 Scaled<DeviceMatrix<S>> operator*(T alpha, const DeviceMatrix<S>& m) {
   return {static_cast<S>(alpha), m};
 }
 
-template <typename T, typename S, typename internal::enable_scalar_arg<T, S>::type = 0>
+template <typename T, typename S, internal::require_host_scalar_convertible_t<T, S> = 0>
 Scaled<DeviceMatrix<S>> operator*(const DeviceMatrix<S>& m, T alpha) {
   return {static_cast<S>(alpha), m};
 }
 
-template <typename T, typename S, typename internal::enable_scalar_arg<T, S>::type = 0>
+template <typename T, typename S, internal::require_host_scalar_convertible_t<T, S> = 0>
 Scaled<DeviceMatrix<S>> operator/(const DeviceMatrix<S>& m, T alpha) {
   return {S(1) / static_cast<S>(alpha), m};
 }
@@ -159,28 +155,29 @@ Scaled<DeviceMatrix<S>> operator-(const DeviceMatrix<S>& m) {
   return {S(-1), m};
 }
 
-template <typename T, typename S, typename internal::enable_scalar_arg<T, S>::type = 0>
+template <typename T, typename S, internal::require_host_scalar_convertible_t<T, S> = 0>
 Scaled<AdjointView<S>> operator*(T alpha, const AdjointView<S>& m) {
   return {static_cast<S>(alpha), m};
 }
 
-template <typename T, typename S, typename internal::enable_scalar_arg<T, S>::type = 0>
+template <typename T, typename S, internal::require_host_scalar_convertible_t<T, S> = 0>
 Scaled<AdjointView<S>> operator*(const AdjointView<S>& m, T alpha) {
   return {static_cast<S>(alpha), m};
 }
 
-template <typename T, typename S, typename internal::enable_scalar_arg<T, S>::type = 0>
+template <typename T, typename S, internal::require_host_scalar_convertible_t<T, S> = 0>
 Scaled<TransposeView<S>> operator*(T alpha, const TransposeView<S>& m) {
   return {static_cast<S>(alpha), m};
 }
 
-template <typename T, typename S, typename internal::enable_scalar_arg<T, S>::type = 0>
+template <typename T, typename S, internal::require_host_scalar_convertible_t<T, S> = 0>
 Scaled<TransposeView<S>> operator*(const TransposeView<S>& m, T alpha) {
   return {static_cast<S>(alpha), m};
 }
 
 // Rescale / negate an already-scaled expression: T * (alpha * m), -(alpha * m).
-template <typename T, typename Inner, typename internal::enable_scalar_arg<T, internal::scalar_type_t<Inner>>::type = 0>
+template <typename T, typename Inner,
+          internal::require_host_scalar_convertible_t<T, internal::scalar_type_t<Inner>> = 0>
 Scaled<Inner> operator*(T alpha, const Scaled<Inner>& s) {
   using S = internal::scalar_type_t<Inner>;
   return {static_cast<S>(alpha) * s.scalar(), s.inner()};
