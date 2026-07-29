@@ -59,9 +59,6 @@ struct global_math_functions_filtering_base<T,
 
 #define EIGEN_MATHFUNC_IMPL(func, scalar) \
   Eigen::internal::func##_impl<typename Eigen::internal::global_math_functions_filtering_base<scalar>::type>
-#define EIGEN_MATHFUNC_RETVAL(func, scalar) \
-  typename Eigen::internal::func##_retval<  \
-      typename Eigen::internal::global_math_functions_filtering_base<scalar>::type>::type
 
 /****************************************************************************
  * Implementation of real                                                 *
@@ -146,11 +143,6 @@ struct real_ref_impl {
   }
 };
 
-template <typename Scalar>
-struct real_ref_retval {
-  typedef typename NumTraits<Scalar>::Real& type;
-};
-
 /****************************************************************************
  * Implementation of imag_ref                                             *
  ****************************************************************************/
@@ -174,38 +166,29 @@ struct imag_ref_default_impl<Scalar, false> {
 template <typename Scalar>
 struct imag_ref_impl : imag_ref_default_impl<Scalar, NumTraits<Scalar>::IsComplex> {};
 
-template <typename Scalar, bool IsComplex = NumTraits<Scalar>::IsComplex>
-struct imag_ref_retval {
-  typedef typename NumTraits<Scalar>::Real& type;
-};
-
-template <typename Scalar>
-struct imag_ref_retval<Scalar, false> {
-  typedef typename NumTraits<Scalar>::Real type;
-};
-
 }  // namespace internal
 
 namespace numext {
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(real, Scalar) real(const Scalar& x) {
+EIGEN_DEVICE_FUNC inline auto real(const Scalar& x) -> decltype(EIGEN_MATHFUNC_IMPL(real, Scalar)::run(x)) {
   return EIGEN_MATHFUNC_IMPL(real, Scalar)::run(x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline internal::add_const_on_value_type_t<EIGEN_MATHFUNC_RETVAL(real_ref, Scalar)> real_ref(
-    const Scalar& x) {
+EIGEN_DEVICE_FUNC inline auto real_ref(const Scalar& x)
+    -> internal::add_const_on_value_type_t<decltype(internal::real_ref_impl<Scalar>::run(x))> {
   return internal::real_ref_impl<Scalar>::run(x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(real_ref, Scalar) real_ref(Scalar& x) {
-  return EIGEN_MATHFUNC_IMPL(real_ref, Scalar)::run(x);
+EIGEN_DEVICE_FUNC inline auto real_ref(Scalar& x)
+    -> decltype(EIGEN_MATHFUNC_IMPL(real_ref, std::remove_const_t<Scalar>)::run(x)) {
+  return EIGEN_MATHFUNC_IMPL(real_ref, std::remove_const_t<Scalar>)::run(x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(imag, Scalar) imag(const Scalar& x) {
+EIGEN_DEVICE_FUNC inline auto imag(const Scalar& x) -> decltype(EIGEN_MATHFUNC_IMPL(imag, Scalar)::run(x)) {
   return EIGEN_MATHFUNC_IMPL(imag, Scalar)::run(x);
 }
 
@@ -306,11 +289,6 @@ struct rsqrt_impl<std::complex<T>> {
   EIGEN_DEVICE_FUNC static EIGEN_ALWAYS_INLINE std::complex<T> run(const std::complex<T>& x) {
     return complex_rsqrt(x);
   }
-};
-
-template <typename Scalar>
-struct rsqrt_retval {
-  typedef Scalar type;
 };
 
 /****************************************************************************
@@ -1205,14 +1183,15 @@ EIGEN_DEVICE_FUNC inline typename NumTraits<Scalar>::Real arg(const Scalar& x) {
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline internal::add_const_on_value_type_t<EIGEN_MATHFUNC_RETVAL(imag_ref, Scalar)> imag_ref(
-    const Scalar& x) {
+EIGEN_DEVICE_FUNC inline auto imag_ref(const Scalar& x)
+    -> internal::add_const_on_value_type_t<decltype(internal::imag_ref_impl<Scalar>::run(x))> {
   return internal::imag_ref_impl<Scalar>::run(x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(imag_ref, Scalar) imag_ref(Scalar& x) {
-  return EIGEN_MATHFUNC_IMPL(imag_ref, Scalar)::run(x);
+EIGEN_DEVICE_FUNC inline auto imag_ref(Scalar& x)
+    -> decltype(EIGEN_MATHFUNC_IMPL(imag_ref, std::remove_const_t<Scalar>)::run(x)) {
+  return EIGEN_MATHFUNC_IMPL(imag_ref, std::remove_const_t<Scalar>)::run(x);
 }
 
 template <typename Scalar>
@@ -1236,7 +1215,7 @@ EIGEN_DEVICE_FUNC inline Scalar negate(const Scalar& x) {
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(abs2, Scalar) abs2(const Scalar& x) {
+EIGEN_DEVICE_FUNC inline auto abs2(const Scalar& x) -> decltype(EIGEN_MATHFUNC_IMPL(abs2, Scalar)::run(x)) {
   return EIGEN_MATHFUNC_IMPL(abs2, Scalar)::run(x);
 }
 
