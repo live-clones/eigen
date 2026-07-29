@@ -90,11 +90,6 @@ struct real_impl<std::complex<T>> {
 };
 #endif
 
-template <typename Scalar>
-struct real_retval {
-  typedef typename NumTraits<Scalar>::Real type;
-};
-
 /****************************************************************************
  * Implementation of imag                                                 *
  ****************************************************************************/
@@ -124,11 +119,6 @@ struct imag_impl<std::complex<T>> {
   EIGEN_DEVICE_FUNC static inline T run(const std::complex<T>& x) { return x.imag(); }
 };
 #endif
-
-template <typename Scalar>
-struct imag_retval {
-  typedef typename NumTraits<Scalar>::Real type;
-};
 
 /****************************************************************************
  * Implementation of real_ref                                             *
@@ -246,11 +236,6 @@ struct abs2_impl {
   EIGEN_DEVICE_FUNC static inline RealScalar run(const Scalar& x) {
     return abs2_impl_default<Scalar, NumTraits<Scalar>::IsComplex>::run(x);
   }
-};
-
-template <typename Scalar>
-struct abs2_retval {
-  typedef typename NumTraits<Scalar>::Real type;
 };
 
 /****************************************************************************

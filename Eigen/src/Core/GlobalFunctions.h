@@ -37,16 +37,10 @@
 #endif  // EIGEN_PARSED_BY_DOXYGEN
 
 #define EIGEN_ARRAY_DECLARE_GLOBAL_EIGEN_UNARY(NAME, FUNCTOR)                                                  \
-                                                                                                               \
-  template <typename Derived>                                                                                  \
-  struct NAME##_retval<ArrayBase<Derived> > {                                                                  \
-    typedef const Eigen::CwiseUnaryOp<Eigen::internal::FUNCTOR<typename Derived::Scalar>, const Derived> type; \
-  };                                                                                                           \
   template <typename Derived>                                                                                  \
   struct NAME##_impl<ArrayBase<Derived> > {                                                                    \
-    static inline typename NAME##_retval<ArrayBase<Derived> >::type run(const Eigen::ArrayBase<Derived>& x) {  \
-      return typename NAME##_retval<ArrayBase<Derived> >::type(x.derived());                                   \
-    }                                                                                                          \
+    using ReturnType = Eigen::CwiseUnaryOp<Eigen::internal::FUNCTOR<typename Derived::Scalar>, const Derived>; \
+    static inline const ReturnType run(const Eigen::ArrayBase<Derived>& x) { return ReturnType(x.derived()); } \
   };
 
 // IWYU pragma: private
