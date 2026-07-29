@@ -126,33 +126,20 @@ struct is_same_gf : std::is_same<a, b> {
 
 /* apply_op to list */
 
-template <bool from_left,  // false
-          template <typename, typename> class op, typename additional_param, typename... values>
-struct h_apply_op_helper {
-  typedef type_list<typename op<values, additional_param>::type...> type;
-};
+template <template <typename, typename> class op, typename additional_param, typename a>
+struct apply_op_from_left;
+
 template <template <typename, typename> class op, typename additional_param, typename... values>
-struct h_apply_op_helper<true, op, additional_param, values...> {
+struct apply_op_from_left<op, additional_param, type_list<values...>> {
   typedef type_list<typename op<additional_param, values>::type...> type;
 };
 
-template <bool from_left, template <typename, typename> class op, typename additional_param>
-struct h_apply_op {
-  template <typename... values>
-  constexpr static typename h_apply_op_helper<from_left, op, additional_param, values...>::type helper(
-      type_list<values...>) {
-    return typename h_apply_op_helper<from_left, op, additional_param, values...>::type();
-  }
-};
-
 template <template <typename, typename> class op, typename additional_param, typename a>
-struct apply_op_from_left {
-  typedef decltype(h_apply_op<true, op, additional_param>::helper(a())) type;
-};
+struct apply_op_from_right;
 
-template <template <typename, typename> class op, typename additional_param, typename a>
-struct apply_op_from_right {
-  typedef decltype(h_apply_op<false, op, additional_param>::helper(a())) type;
+template <template <typename, typename> class op, typename additional_param, typename... values>
+struct apply_op_from_right<op, additional_param, type_list<values...>> {
+  typedef type_list<typename op<values, additional_param>::type...> type;
 };
 
 /* see if an element is in a list */
