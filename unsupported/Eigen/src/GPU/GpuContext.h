@@ -55,23 +55,16 @@ struct OneShotSolverScratch {
   DeviceBuffer d_factor;
   DeviceBuffer d_ipiv;
   DeviceBuffer d_workspace;
-  size_t workspace_size = 0;
   DeviceBuffer d_info{scratch_info_size};      // 2 ints: {factorization, solve}
   PinnedHostBuffer h_info{scratch_info_size};  // lazily created for the debug-build info check
   std::vector<char> h_workspace;
-
-  static void ensure(DeviceBuffer& buf, size_t needed) {
-    if (needed > buf.size()) {
-      // Replacing an in-use buffer is safe: device_free is stream-ordered
-      // (or fully synchronous on the cudaMalloc fallback path), so the free
-      // waits for previously enqueued work touching the old buffer.
-      buf = DeviceBuffer(needed);
-    }
-  }
 };
 
 inline void ensure_sized(DeviceBuffer& buf, size_t needed) {
   if (needed > buf.size()) {
+    // Replacing an in-use buffer is safe: device_free is stream-ordered
+    // (or fully synchronous on the cudaMalloc fallback path), so the free
+    // waits for previously enqueued work touching the old buffer.
     buf = DeviceBuffer(needed);
   }
 }
@@ -160,7 +153,7 @@ class Context {
   }
 
   /** cuBLASLt handle (lazy-initialized on first GEMM call). */
-  cublasLtHandle_t cublasLtHandle() const {
+  cublasLtHandle_t cublasLtHandle() {
     if (!cublas_lt_) {
       EIGEN_CUBLAS_CHECK(cublasLtCreate(&cublas_lt_));
     }
@@ -169,16 +162,16 @@ class Context {
 
   /** Workspace buffer for cublasLtMatmul (grown lazily by cublaslt_gemm).
    * Not thread-safe — all GEMM calls must be on this context's stream. */
-  internal::DeviceBuffer* gemmWorkspace() const { return &gemm_workspace_; }
+  internal::DeviceBuffer* gemmWorkspace() { return &gemm_workspace_; }
 
   /** Plan cache for cublasLtMatmul (caches descriptors and selected algorithm
    * by shape to avoid per-call overhead). Same thread-safety as workspace. */
-  internal::CublasLtPlanCache* gemmPlanCache() const { return &gemm_plan_cache_; }
+  internal::CublasLtPlanCache* gemmPlanCache() { return &gemm_plan_cache_; }
 
   /** Grow-only scratch for the one-shot solver expressions
    * (d_A.llt().solve(d_B), d_A.lu().solve(d_B)). Same thread-safety rules as
    * the GEMM workspace: all uses must be on this context's stream. */
-  internal::OneShotSolverScratch* oneshotSolverScratch() const { return &oneshot_solver_scratch_; }
+  internal::OneShotSolverScratch* oneshotSolverScratch() { return &oneshot_solver_scratch_; }
 
   /** Workspace ceiling passed to the cublasLtMatmul heuristic at plan-creation time.
    * Defaults to internal::kCublasLtMaxWorkspaceBytes (compile-time configurable via
@@ -192,7 +185,7 @@ class Context {
   void setCublasLtMaxWorkspaceBytes(std::size_t bytes) { cublaslt_max_workspace_bytes_ = bytes; }
 
   /** cuSPARSE handle (lazy-initialized on first call). */
-  cusparseHandle_t cusparseHandle() const {
+  cusparseHandle_t cusparseHandle() {
     if (!cusparse_) {
       cusparseStatus_t s1 = cusparseCreate(&cusparse_);
       eigen_assert(s1 == CUSPARSE_STATUS_SUCCESS && "cusparseCreate failed");
@@ -213,12 +206,12 @@ class Context {
   cublasHandle_t cublas_ = nullptr;
   cusolverDnHandle_t cusolver_ = nullptr;
   cusolverStatus_t (*cusolver_destroyer_)(cusolverDnHandle_t) = nullptr;
-  mutable cublasLtHandle_t cublas_lt_ = nullptr;  // lazy
-  mutable cusparseHandle_t cusparse_ = nullptr;   // lazy
-  mutable cusparseStatus_t (*cusparse_destroyer_)(cusparseHandle_t) = nullptr;
-  mutable internal::DeviceBuffer gemm_workspace_;  // lazy
-  mutable internal::CublasLtPlanCache gemm_plan_cache_{internal::kCublasLtPlanCacheCapacity};
-  mutable internal::OneShotSolverScratch oneshot_solver_scratch_;  // grow-only
+  cublasLtHandle_t cublas_lt_ = nullptr;  // lazy
+  cusparseHandle_t cusparse_ = nullptr;   // lazy
+  cusparseStatus_t (*cusparse_destroyer_)(cusparseHandle_t) = nullptr;
+  internal::DeviceBuffer gemm_workspace_;  // lazy
+  internal::CublasLtPlanCache gemm_plan_cache_{internal::kCublasLtPlanCacheCapacity};
+  internal::OneShotSolverScratch oneshot_solver_scratch_;  // grow-only
   std::size_t cublaslt_max_workspace_bytes_ = internal::kCublasLtMaxWorkspaceBytes;
   bool owns_stream_ = true;
 
