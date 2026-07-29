@@ -74,34 +74,25 @@ struct take<0, type_list<>> {
   typedef type_list<> type;
 };
 
-template <int n, typename... tt>
-struct h_skip_helper_type;
-template <int n, typename t, typename... tt>
-struct h_skip_helper_type<n, t, tt...> : h_skip_helper_type<n - 1, tt...> {};
-template <typename t, typename... tt>
-struct h_skip_helper_type<0, t, tt...> {
-  typedef type_list<t, tt...> type;
-};
-template <int n>
-struct h_skip_helper_type<n> {
-  typedef type_list<> type;
-};
-template <>
-struct h_skip_helper_type<0> {
-  typedef type_list<> type;
-};
-
-template <int n>
-struct h_skip {
-  template <typename... tt>
-  constexpr static typename h_skip_helper_type<n, tt...>::type helper(type_list<tt...>) {
-    return typename h_skip_helper_type<n, tt...>::type();
-  }
-};
-
 template <int n, typename a>
-struct skip {
-  typedef decltype(h_skip<n>::helper(a())) type;
+struct skip;
+
+template <int n, typename a, typename... as>
+struct skip<n, type_list<a, as...>> : skip<n - 1, type_list<as...>> {};
+
+template <typename a, typename... as>
+struct skip<0, type_list<a, as...>> {
+  typedef type_list<a, as...> type;
+};
+
+template <int n>
+struct skip<n, type_list<>> {
+  typedef type_list<> type;
+};
+
+template <>
+struct skip<0, type_list<>> {
+  typedef type_list<> type;
 };
 
 template <int start, int count, typename a>
