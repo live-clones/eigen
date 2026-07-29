@@ -404,11 +404,37 @@ class Concat;
 template <typename MatrixType, int Direction = BothDirections>
 class Reverse;
 
-#if defined(EIGEN_USE_LAPACKE) && defined(lapack_int)
+/* EIGEN_HAS_LAPACK_INT: whether the lapack_int type from the LAPACKE headers is available. Most LAPACKE headers
+ * #define lapack_int (so defined(lapack_int) detects it), but some vendors instead expose lapack_int as a typedef
+ * and #define LAPACK_INT to advertise it. A user whose header does neither can predefine EIGEN_HAS_LAPACK_INT to
+ * 0 or 1 by hand.
+ */
+#ifndef EIGEN_HAS_LAPACK_INT
+#if defined(lapack_int) || defined(LAPACK_INT)
+#define EIGEN_HAS_LAPACK_INT 1
+#else
+#define EIGEN_HAS_LAPACK_INT 0
+#endif
+#endif
+
+#if defined(EIGEN_USE_LAPACKE) && EIGEN_HAS_LAPACK_INT
 // Lapacke interface requires StorageIndex to be lapack_int
 typedef lapack_int DefaultPermutationIndex;
 #else
 typedef int DefaultPermutationIndex;
+#endif
+
+/* When both the BLAS and LAPACKE backends are active they reach their external libraries through independent
+ * integer types (Eigen::BlasIndex and lapack_int). A width mismatch -- e.g. an ILP64 BLAS paired with a 32-bit
+ * LAPACKE build -- is a silent misconfiguration, so cross-check the two widths here. A plain static_assert rather
+ * than EIGEN_STATIC_ASSERT: like the MKL_INT guard it protects against silent ABI corruption and must not be
+ * suppressible via EIGEN_NO_STATIC_ASSERT.
+ */
+#if defined(EIGEN_USE_LAPACKE) && defined(EIGEN_USE_BLAS) && EIGEN_HAS_LAPACK_INT
+static_assert(sizeof(lapack_int) == sizeof(BlasIndex),
+              "LAPACKE integer width (lapack_int) does not match the BLAS integer width (Eigen::BlasIndex). Build "
+              "both backends against the same integer interface: pair EIGEN_64BIT_BLAS with an ILP64 LAPACKE "
+              "(lapack_int = 64-bit), or use the 32-bit interface for both.");
 #endif
 
 template <typename MatrixType, typename PermutationIndex = DefaultPermutationIndex>
