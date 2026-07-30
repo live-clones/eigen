@@ -680,6 +680,9 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
 #include EIGEN_PLAINOBJECTBASE_PLUGIN
 #endif
 
+  // NVHPC requires inherited assignment operators to be introduced after the local overloads.
+  using Base::operator=;
+
  protected:
   /** \internal Resizes *this in preparation for assigning \a other to it.
    * Takes care of doing all the checking that's needed.
