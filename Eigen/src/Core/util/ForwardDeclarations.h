@@ -119,8 +119,6 @@ template <typename DiagonalVectorType_>
 class DiagonalWrapper;
 template <typename Scalar_, int SizeAtCompileTime, int MaxSizeAtCompileTime = SizeAtCompileTime>
 class DiagonalMatrix;
-template <typename MatrixType, typename DiagonalType, int ProductOrder>
-class DiagonalProduct;
 template <typename MatrixType, int Index = 0>
 class Diagonal;
 template <typename Derived>
@@ -228,13 +226,6 @@ template <typename T, int ProductTag = internal::product_type<typename T::Lhs, t
           typename RhsScalar = typename traits<typename T::Rhs>::Scalar>
 struct product_evaluator;
 }  // namespace internal
-
-template <typename Lhs, typename Rhs, int ProductType = internal::product_type<Lhs, Rhs>::value>
-struct ProductReturnType;
-
-// this is a workaround for sun CC
-template <typename Lhs, typename Rhs>
-struct LazyProductReturnType;
 
 namespace internal {
 
