@@ -113,6 +113,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
   using Base::MaxSizeAtCompileTime;
   using Base::RowsAtCompileTime;
   using Base::SizeAtCompileTime;
+  using Base::operator=;
 
   typedef Eigen::Map<Derived, Unaligned> MapType;
   typedef const Eigen::Map<const Derived, Unaligned> ConstMapType;

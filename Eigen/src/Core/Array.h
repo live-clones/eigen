@@ -64,30 +64,7 @@ class Array : public PlainObjectBase<Array<Scalar_, Rows_, Cols_, Options_, MaxR
   using Base::base;
   using Base::coeff;
   using Base::coeffRef;
-
-  /**
-   * The usage of
-   *   using Base::operator=;
-   * fails on MSVC. Since the code below is working with GCC and MSVC, we skipped
-   * the usage of 'using'. This should be done only for operator=.
-   */
-  template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Array& operator=(const EigenBase<OtherDerived>& other) {
-    return Base::operator=(other);
-  }
-
-  /** Set all the entries to \a value.
-   * \sa DenseBase::setConstant(), DenseBase::fill()
-   */
-  /* This overload is needed because the usage of
-   *   using Base::operator=;
-   * fails on MSVC. Since the code below is working with GCC and MSVC, we skipped
-   * the usage of 'using'. This should be done only for operator=.
-   */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Array& operator=(const Scalar& value) {
-    Base::setConstant(value);
-    return *this;
-  }
+  using Base::operator=;
 
   /** Copies the value of the expression \a other into \c *this with automatic resizing.
    *
