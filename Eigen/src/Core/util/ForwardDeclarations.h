@@ -424,12 +424,7 @@ typedef lapack_int DefaultPermutationIndex;
 typedef int DefaultPermutationIndex;
 #endif
 
-/* When both the BLAS and LAPACKE backends are active they reach their external libraries through independent
- * integer types (Eigen::BlasIndex and lapack_int). A width mismatch -- e.g. an ILP64 BLAS paired with a 32-bit
- * LAPACKE build -- is a silent misconfiguration, so cross-check the two widths here. A plain static_assert rather
- * than EIGEN_STATIC_ASSERT: like the MKL_INT guard it protects against silent ABI corruption and must not be
- * suppressible via EIGEN_NO_STATIC_ASSERT.
- */
+// Plain static_assert (not EIGEN_STATIC_ASSERT): like the MKL_INT guard it must not be suppressible.
 #if defined(EIGEN_USE_LAPACKE) && defined(EIGEN_USE_BLAS) && EIGEN_HAS_LAPACK_INT
 static_assert(sizeof(lapack_int) == sizeof(BlasIndex),
               "LAPACKE integer width (lapack_int) does not match the BLAS integer width (Eigen::BlasIndex). Build "
