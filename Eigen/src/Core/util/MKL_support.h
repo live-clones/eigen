@@ -153,30 +153,10 @@
 // IWYU pragma: private
 #include "../InternalHeaderCheck.h"
 
-namespace Eigen {
-
-typedef std::complex<double> dcomplex;
-typedef std::complex<float> scomplex;
-
-#if defined(EIGEN_USE_MKL)
-typedef MKL_INT BlasIndex;
-/* MKL_INT follows MKL_ILP64, which the user sets on the compile line alongside the *_ilp64 libraries. A plain
- * static_assert rather than EIGEN_STATIC_ASSERT: this guards against silent argument corruption across the Fortran
- * ABI, so it must not be suppressible via EIGEN_NO_STATIC_ASSERT.
+/* dcomplex, scomplex, and BlasIndex are used by both the BLAS and LAPACKE backends, so they live in a
+ * backend-neutral header. It is included here, after the integer-width macros above are set, because BlasIndex
+ * depends on them.
  */
-#if defined(EIGEN_64BIT_BLAS)
-static_assert(sizeof(MKL_INT) == 8,
-              "EIGEN_64BIT_BLAS is defined but MKL_INT is 32-bit. Define MKL_ILP64 and link the MKL *_ilp64 "
-              "libraries, or undefine EIGEN_64BIT_BLAS.");
-#else
-static_assert(sizeof(MKL_INT) == 4,
-              "MKL_INT is 64-bit but EIGEN_64BIT_BLAS is not defined. Define EIGEN_64BIT_BLAS to match MKL_ILP64, or "
-              "link the MKL *_lp64 libraries.");
-#endif
-#else
-typedef EIGEN_BLAS_INT BlasIndex;
-#endif
-
-}  // end namespace Eigen
+#include "BlasTypes.h"
 
 #endif  // EIGEN_MKL_SUPPORT_H
