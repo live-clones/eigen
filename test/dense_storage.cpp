@@ -51,6 +51,33 @@ static_assert(std::is_trivially_destructible<Array<float, 4, Dynamic, 0, 4, 4>>:
 static_assert(std::is_trivially_copy_constructible<Matrix4f>::value, "Matrix4f not trivially_copy_constructible");
 static_assert(std::is_trivially_copy_constructible<Array4f>::value, "Array4f not trivially_copy_constructible");
 #endif
+// all fixed-size, fixed-dimension plain object types are trivially copy assignable
+static_assert(std::is_trivially_copy_assignable<Matrix4f>::value, "Matrix4f not trivially_copy_assignable");
+static_assert(std::is_trivially_copy_assignable<Array4f>::value, "Array4f not trivially_copy_assignable");
+// all fixed-size, fixed-dimension plain object types are trivially move assignable
+static_assert(std::is_trivially_move_assignable<Matrix4f>::value, "Matrix4f not trivially_move_assignable");
+static_assert(std::is_trivially_move_assignable<Array4f>::value, "Array4f not trivially_move_assignable");
+#if !defined(EIGEN_DENSE_STORAGE_CTOR_PLUGIN)
+// putting the above together: a fixed-size, fixed-dimension plain object is trivially copyable, and -- since it is
+// also trivially default constructible and standard layout -- a trivial type. Note that the trivial default
+// constructor is what EIGEN_TESTING_PLAINOBJECT_CTOR above opts into; outside this test it requires EIGEN_NO_DEBUG,
+// as the alignment and stack-size assertions are otherwise emitted into plain_array's constructor.
+static_assert(std::is_trivially_copyable<Matrix4f>::value, "Matrix4f not trivially_copyable");
+static_assert(std::is_trivially_copyable<Array4f>::value, "Array4f not trivially_copyable");
+static_assert(std::is_trivial<Matrix4f>::value, "Matrix4f not trivial");
+static_assert(std::is_trivial<Array4f>::value, "Array4f not trivial");
+// a dynamically-allocated plain object owns its buffer, so it must NOT be any of those: triviality has to follow the
+// storage, not be granted unconditionally.
+static_assert(!std::is_trivially_copy_assignable<MatrixXf>::value, "MatrixXf is trivially_copy_assignable");
+static_assert(!std::is_trivially_copyable<MatrixXf>::value, "MatrixXf is trivially_copyable");
+static_assert(!std::is_trivially_destructible<MatrixXf>::value, "MatrixXf is trivially_destructible");
+static_assert(!std::is_trivial<MatrixXf>::value, "MatrixXf is trivial");
+static_assert(!std::is_trivially_copyable<ArrayXf>::value, "ArrayXf is trivially_copyable");
+// a fixed-max-size object with dynamic dimensions keeps its storage inline, so it stays trivially destructible (see
+// above) but must not be trivially copyable: the copy has to respect the runtime dimensions.
+static_assert(!std::is_trivially_copyable<Matrix<float, 4, Dynamic, 0, 4, 4>>::value,
+              "Matrix4X44 is trivially_copyable");
+#endif
 
 template <typename T, int Size, int Rows, int Cols>
 void dense_storage_copy(int rows, int cols) {
