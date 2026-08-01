@@ -343,7 +343,7 @@ class TriangularView
 
   EIGEN_DEVICE_FUNC explicit inline TriangularView(MatrixType& matrix) : m_matrix(matrix) {}
 
-  EIGEN_INHERIT_ASSIGNMENT_OPERATORS(TriangularView)
+  EIGEN_INHERIT_ASSIGNMENT_OPERATORS_GENERIC(TriangularView)
 
   /** \returns a const reference to the nested expression */
   EIGEN_DEVICE_FUNC constexpr const NestedExpression& nestedExpression() const noexcept { return m_matrix; }

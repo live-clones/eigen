@@ -104,10 +104,7 @@ class ArrayBase : public DenseBase<Derived> {
   /** Special case of the template operator=, in order to prevent the compiler
    * from generating a default operator= (issue hit with g++ 4.1)
    */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator=(const ArrayBase& other) {
-    internal::call_assignment(derived(), other.derived());
-    return derived();
-  }
+  EIGEN_DEVICE_FUNC constexpr ArrayBase& operator=(const ArrayBase& other) = default;
 
   /** Set all the entries to \a value.
    * \sa DenseBase::setConstant(), DenseBase::fill() */

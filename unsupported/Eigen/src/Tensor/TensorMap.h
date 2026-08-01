@@ -178,7 +178,7 @@ class TensorMap : public TensorBase<TensorMap<PlainObjectType, Options_, MakePoi
     }
   }
 
-  EIGEN_INHERIT_ASSIGNMENT_OPERATORS(TensorMap)
+  EIGEN_INHERIT_ASSIGNMENT_OPERATORS_GENERIC(TensorMap)
 
  private:
   StoragePointerType m_data;

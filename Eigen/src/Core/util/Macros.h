@@ -1233,7 +1233,23 @@ EIGEN_DEVICE_FUNC constexpr void ignore_unused_variable(const T&) {}
 #define EIGEN_USING_STD(FUNC) using std::FUNC;
 #endif
 
+/** \internal Same-type assignment for a dense expression: assigns coefficients, it does not rebind the view.
+ *
+ * The assignment is spelled out rather than delegated to Base::operator=, because the copy-assignment operators of
+ * DenseBase, MatrixBase and ArrayBase are defaulted -- that is what lets a fixed-size plain object be trivially
+ * copyable -- and a defaulted copy-assignment on those empty bases would silently do nothing here.
+ */
 #define EIGEN_INHERIT_ASSIGNMENT_EQUAL_OPERATOR(Derived)                           \
+  using Base::operator=;                                                           \
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator=(const Derived& other) { \
+    internal::call_assignment(this->derived(), other.derived());                   \
+    return *this;                                                                  \
+  }
+
+/** \internal Like EIGEN_INHERIT_ASSIGNMENT_EQUAL_OPERATOR, for classes that are not dense expressions -- those
+ * whose Base is not DenseBase/MatrixBase/ArrayBase, and whose Base::operator= is therefore still the one to call.
+ */
+#define EIGEN_INHERIT_ASSIGNMENT_EQUAL_OPERATOR_GENERIC(Derived)                   \
   using Base::operator=;                                                           \
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator=(const Derived& other) { \
     Base::operator=(other);                                                        \
@@ -1254,6 +1270,11 @@ EIGEN_DEVICE_FUNC constexpr void ignore_unused_variable(const T&) {}
  */
 #define EIGEN_INHERIT_ASSIGNMENT_OPERATORS(Derived) \
   EIGEN_INHERIT_ASSIGNMENT_EQUAL_OPERATOR(Derived)  \
+  EIGEN_DEFAULT_COPY_CONSTRUCTOR(Derived)
+
+/** \internal Like EIGEN_INHERIT_ASSIGNMENT_OPERATORS, for classes that are not dense expressions. */
+#define EIGEN_INHERIT_ASSIGNMENT_OPERATORS_GENERIC(Derived) \
+  EIGEN_INHERIT_ASSIGNMENT_EQUAL_OPERATOR_GENERIC(Derived)  \
   EIGEN_DEFAULT_COPY_CONSTRUCTOR(Derived)
 
 /** \internal

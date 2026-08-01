@@ -83,7 +83,7 @@ class TensorChippingOp : public TensorBase<TensorChippingOp<DimId, XprType> > {
 
   EIGEN_DEVICE_FUNC const internal::remove_all_t<typename XprType::Nested>& expression() const { return m_xpr; }
 
-  EIGEN_INHERIT_ASSIGNMENT_OPERATORS(TensorChippingOp)
+  EIGEN_INHERIT_ASSIGNMENT_OPERATORS_GENERIC(TensorChippingOp)
 
  protected:
   typename XprType::Nested m_xpr;

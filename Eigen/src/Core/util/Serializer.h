@@ -27,9 +27,29 @@ namespace Eigen {
 template <typename T, typename EnableIf = void>
 class Serializer;
 
+namespace internal {
+
+/** \internal Types that get their own Serializer specialization below.
+ *
+ * A fixed-size plain object is trivially copyable and standard-layout, and so are the empty CRTP bases, so without
+ * this they would match the POD specialization as well and the two partial specializations would be ambiguous.
+ * They must keep using their own serializer: it writes a rows/cols header, which the POD one does not.
+ */
+template <typename T>
+struct has_dense_serializer : std::false_type {};
+template <typename Derived>
+struct has_dense_serializer<DenseBase<Derived>> : std::true_type {};
+template <typename Scalar, int Rows, int Cols, int Options, int MaxRows, int MaxCols>
+struct has_dense_serializer<Matrix<Scalar, Rows, Cols, Options, MaxRows, MaxCols>> : std::true_type {};
+template <typename Scalar, int Rows, int Cols, int Options, int MaxRows, int MaxCols>
+struct has_dense_serializer<Array<Scalar, Rows, Cols, Options, MaxRows, MaxCols>> : std::true_type {};
+
+}  // namespace internal
+
 // Specialization for POD types.
 template <typename T>
-class Serializer<T, std::enable_if_t<std::is_trivially_copyable<T>::value && std::is_standard_layout<T>::value>> {
+class Serializer<T, std::enable_if_t<std::is_trivially_copyable<T>::value && std::is_standard_layout<T>::value &&
+                                     !internal::has_dense_serializer<T>::value>> {
  public:
   /**
    * Determines the required size of the serialization buffer for a value.

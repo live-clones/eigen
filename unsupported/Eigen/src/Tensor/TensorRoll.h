@@ -65,7 +65,7 @@ class TensorRollOp : public TensorBase<TensorRollOp<RollDimensions, XprType>, Wr
 
   EIGEN_DEVICE_FUNC const internal::remove_all_t<typename XprType::Nested>& expression() const { return m_xpr; }
 
-  EIGEN_INHERIT_ASSIGNMENT_OPERATORS(TensorRollOp)
+  EIGEN_INHERIT_ASSIGNMENT_OPERATORS_GENERIC(TensorRollOp)
 
  protected:
   typename XprType::Nested m_xpr;

@@ -266,7 +266,7 @@ class DenseBase
   /** Special case of the template operator=, in order to prevent the compiler
    * from generating a default operator= (issue hit with g++ 4.1)
    */
-  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Derived& operator=(const DenseBase& other);
+  EIGEN_DEVICE_FUNC constexpr DenseBase& operator=(const DenseBase& other) = default;
 
   template <typename OtherDerived>
   EIGEN_DEVICE_FUNC constexpr Derived& operator=(const EigenBase<OtherDerived>& other);
