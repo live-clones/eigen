@@ -64,7 +64,7 @@ class Transpose : public TransposeImpl<MatrixType, typename internal::traits<Mat
 
   EIGEN_DEVICE_FUNC constexpr explicit EIGEN_STRONG_INLINE Transpose(MatrixType& matrix) : m_matrix(matrix) {}
 
-  EIGEN_INHERIT_ASSIGNMENT_OPERATORS(Transpose)
+  EIGEN_INHERIT_DENSE_ASSIGNMENT_OPERATORS(Transpose)
 
   EIGEN_DEVICE_FUNC constexpr Index rows() const noexcept { return m_matrix.cols(); }
   EIGEN_DEVICE_FUNC constexpr Index cols() const noexcept { return m_matrix.rows(); }
@@ -109,7 +109,7 @@ class TransposeImpl<MatrixType, Dense> : public internal::TransposeImpl_base<Mat
   typedef typename internal::TransposeImpl_base<MatrixType>::type Base;
   using Base::coeffRef;
   EIGEN_DENSE_PUBLIC_INTERFACE(Transpose<MatrixType>)
-  EIGEN_INHERIT_ASSIGNMENT_OPERATORS(TransposeImpl)
+  EIGEN_INHERIT_DENSE_ASSIGNMENT_OPERATORS(TransposeImpl)
 
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Index innerStride() const {
     return derived().nestedExpression().innerStride();

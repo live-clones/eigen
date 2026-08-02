@@ -427,8 +427,12 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
 
   /** This is a special case of the templated operator=. Its purpose is to
    * prevent a default operator= from hiding the templated operator=.
+   *
+   * Assigning a plain object to another of the very same type is just a copy of the storage, so this is defaulted
+   * rather than routed through _set(): DenseStorage already resizes and copies as needed. Defaulting it is what
+   * makes a fixed-size plain object trivially copyable, since triviality then follows that of the storage.
    */
-  EIGEN_DEVICE_FUNC constexpr Derived& operator=(const PlainObjectBase& other) { return _set(other); }
+  EIGEN_DEVICE_FUNC constexpr PlainObjectBase& operator=(const PlainObjectBase& other) = default;
 
   /** \sa MatrixBase::lazyAssign() */
   template <typename OtherDerived>
@@ -450,10 +454,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
   /** \brief Move constructor */
   EIGEN_DEVICE_FUNC constexpr PlainObjectBase(PlainObjectBase&&) = default;
   /** \brief Move assignment operator */
-  EIGEN_DEVICE_FUNC constexpr PlainObjectBase& operator=(PlainObjectBase&& other) noexcept {
-    m_storage = std::move(other.m_storage);
-    return *this;
-  }
+  EIGEN_DEVICE_FUNC constexpr PlainObjectBase& operator=(PlainObjectBase&& other) = default;
 
   /** Copy constructor */
   EIGEN_DEVICE_FUNC constexpr PlainObjectBase(const PlainObjectBase&) = default;

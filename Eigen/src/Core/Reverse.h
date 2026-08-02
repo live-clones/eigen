@@ -86,7 +86,7 @@ class Reverse : public internal::dense_xpr_base<Reverse<MatrixType, Direction> >
  public:
   EIGEN_DEVICE_FUNC constexpr explicit inline Reverse(const MatrixType& matrix) : m_matrix(matrix) {}
 
-  EIGEN_INHERIT_ASSIGNMENT_OPERATORS(Reverse)
+  EIGEN_INHERIT_DENSE_ASSIGNMENT_OPERATORS(Reverse)
 
   EIGEN_DEVICE_FUNC constexpr Index rows() const noexcept { return m_matrix.rows(); }
   EIGEN_DEVICE_FUNC constexpr Index cols() const noexcept { return m_matrix.cols(); }

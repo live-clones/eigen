@@ -45,7 +45,7 @@ class ArrayWrapper : public ArrayBase<ArrayWrapper<ExpressionType> > {
  public:
   typedef ArrayBase<ArrayWrapper> Base;
   EIGEN_DENSE_PUBLIC_INTERFACE(ArrayWrapper)
-  EIGEN_INHERIT_ASSIGNMENT_OPERATORS(ArrayWrapper)
+  EIGEN_INHERIT_DENSE_ASSIGNMENT_OPERATORS(ArrayWrapper)
   typedef internal::remove_all_t<ExpressionType> NestedExpression;
 
   typedef std::conditional_t<internal::is_lvalue<ExpressionType>::value, Scalar, const Scalar>
@@ -121,7 +121,7 @@ class MatrixWrapper : public MatrixBase<MatrixWrapper<ExpressionType> > {
  public:
   typedef MatrixBase<MatrixWrapper<ExpressionType> > Base;
   EIGEN_DENSE_PUBLIC_INTERFACE(MatrixWrapper)
-  EIGEN_INHERIT_ASSIGNMENT_OPERATORS(MatrixWrapper)
+  EIGEN_INHERIT_DENSE_ASSIGNMENT_OPERATORS(MatrixWrapper)
   typedef internal::remove_all_t<ExpressionType> NestedExpression;
 
   typedef std::conditional_t<internal::is_lvalue<ExpressionType>::value, Scalar, const Scalar>

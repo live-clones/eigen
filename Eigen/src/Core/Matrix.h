@@ -209,7 +209,7 @@ class Matrix : public PlainObjectBase<Matrix<Scalar_, Rows_, Cols_, Options_, Ma
    *
    * \callgraph
    */
-  EIGEN_DEVICE_FUNC constexpr Matrix& operator=(const Matrix& other) { return Base::_set(other); }
+  EIGEN_DEVICE_FUNC constexpr Matrix& operator=(const Matrix& other) = default;
 
   /** \internal
    * \brief Copies the value of the expression \a other into \c *this with automatic resizing.
@@ -260,11 +260,7 @@ class Matrix : public PlainObjectBase<Matrix<Scalar_, Rows_, Cols_, Options_, Ma
   /** \brief Moves the matrix into the other one.
    *
    */
-  EIGEN_DEVICE_FUNC constexpr Matrix& operator=(Matrix&& other) noexcept(
-      std::is_nothrow_move_assignable<Scalar>::value) {
-    Base::operator=(std::move(other));
-    return *this;
-  }
+  EIGEN_DEVICE_FUNC constexpr Matrix& operator=(Matrix&& other) = default;
 
   /** \brief Construct a row or column vector with fixed size from an arbitrary number of coefficients.
    *

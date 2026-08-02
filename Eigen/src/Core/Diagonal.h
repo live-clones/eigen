@@ -77,7 +77,7 @@ class Diagonal : public internal::dense_xpr_base<Diagonal<MatrixType, DiagIndex_
     eigen_assert(a_index <= m_matrix.cols() && -a_index <= m_matrix.rows());
   }
 
-  EIGEN_INHERIT_ASSIGNMENT_OPERATORS(Diagonal)
+  EIGEN_INHERIT_DENSE_ASSIGNMENT_OPERATORS(Diagonal)
 
   EIGEN_DEVICE_FUNC constexpr inline Index rows() const {
     return m_index.value() < 0 ? numext::mini<Index>(m_matrix.cols(), m_matrix.rows() + m_index.value())

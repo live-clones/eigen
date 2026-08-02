@@ -144,7 +144,7 @@ class Map : public MapBase<Map<PlainObjectType, MapOptions, StrideType> > {
                                          const StrideType& stride = StrideType())
       : Base(cast_to_pointer_type(dataPtr), rows, cols), m_stride(stride) {}
 
-  EIGEN_INHERIT_ASSIGNMENT_OPERATORS(Map)
+  EIGEN_INHERIT_DENSE_ASSIGNMENT_OPERATORS(Map)
 
  protected:
   StrideType m_stride;
