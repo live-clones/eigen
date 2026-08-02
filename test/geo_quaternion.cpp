@@ -15,6 +15,38 @@
 #include <Eigen/SVD>
 #include "AnnoyingScalar.h"
 
+// A quaternion is a fixed-size plain object: its coefficients are, so it should be too. Not trivially default
+// constructible outside EIGEN_NO_DEBUG, for the same reason a fixed-size Matrix is not -- the alignment and
+// stack-size assertions in plain_array's constructor.
+static_assert(std::is_trivially_copyable<Quaterniond>::value, "Quaterniond not trivially_copyable");
+static_assert(std::is_trivially_copyable<Quaternionf>::value, "Quaternionf not trivially_copyable");
+static_assert(std::is_trivially_copy_assignable<Quaterniond>::value, "Quaterniond not trivially_copy_assignable");
+static_assert(std::is_trivially_move_assignable<Quaterniond>::value, "Quaterniond not trivially_move_assignable");
+static_assert(std::is_trivially_move_constructible<Quaterniond>::value, "Quaterniond not trivially_move_constructible");
+#ifdef EIGEN_NO_DEBUG
+static_assert(std::is_trivial<Quaterniond>::value, "Quaterniond not trivial");
+#endif
+// The other fixed-size rotation types follow from their coefficients too.
+static_assert(std::is_trivially_copyable<AngleAxisd>::value, "AngleAxisd not trivially_copyable");
+static_assert(std::is_trivially_copyable<Transform<double, 3, Affine>>::value, "Affine3d not trivially_copyable");
+
+// A mapped quaternion must NOT be: its assignment writes coefficients through to the mapped buffer rather than
+// copying the map, so a memberwise copy would rebind it instead.
+static_assert(!std::is_trivially_copy_assignable<Map<Quaterniond>>::value, "Map<Quaterniond> is trivially assignable");
+static_assert(!std::is_trivially_copyable<Map<Quaterniond>>::value, "Map<Quaterniond> is trivially_copyable");
+static_assert(!std::is_trivially_copyable<Map<const Quaterniond>>::value,
+              "Map<const Quaterniond> is trivially_copyable");
+
+// Same-type assignment of a mapped quaternion writes through; it does not rebind the map.
+void check_mapped_quaternion_assignment() {
+  double a[4] = {1, 1, 1, 1}, b[4] = {2, 3, 4, 5};
+  Map<Quaterniond> ma(a), mb(b);
+  ma = mb;
+  VERIFY_IS_APPROX(ma.coeffs(), mb.coeffs());
+  VERIFY_IS_APPROX(Vector4d::Map(a), Vector4d::Map(b));
+  VERIFY(ma.coeffs().data() == a);
+}
+
 template <typename T>
 T bounded_acos(T v) {
   using std::acos;
@@ -444,6 +476,7 @@ EIGEN_DECLARE_TEST(geo_quaternion) {
     CALL_SUBTEST_1((quaternion<float, DontAlign>()));
     CALL_SUBTEST_1((quaternionAlignment<float>()));
     CALL_SUBTEST_1(mapQuaternion<float>());
+    CALL_SUBTEST_1(check_mapped_quaternion_assignment());
 
     CALL_SUBTEST_2((quaternion<double, AutoAlign>()));
     CALL_SUBTEST_2(check_const_correctness(Quaterniond()));

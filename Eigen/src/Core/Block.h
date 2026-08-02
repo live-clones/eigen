@@ -175,7 +175,7 @@ class BlockImpl<XprType, BlockRows, BlockCols, InnerPanel, Dense>
 
  public:
   typedef Impl Base;
-  EIGEN_INHERIT_ASSIGNMENT_OPERATORS(BlockImpl)
+  EIGEN_INHERIT_DENSE_ASSIGNMENT_OPERATORS(BlockImpl)
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE BlockImpl(XprType& xpr, Index i) : Impl(xpr, i) {}
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE BlockImpl(XprType& xpr, Index startRow, Index startCol)
       : Impl(xpr, startRow, startCol) {}
@@ -195,7 +195,7 @@ class BlockImpl_dense : public internal::dense_xpr_base<Block<XprType, BlockRows
  public:
   typedef typename internal::dense_xpr_base<BlockType>::type Base;
   EIGEN_DENSE_PUBLIC_INTERFACE(BlockType)
-  EIGEN_INHERIT_ASSIGNMENT_OPERATORS(BlockImpl_dense)
+  EIGEN_INHERIT_DENSE_ASSIGNMENT_OPERATORS(BlockImpl_dense)
 
   /** Column or Row constructor
    */
@@ -321,7 +321,7 @@ class BlockImpl_dense<XprType, BlockRows, BlockCols, InnerPanel, true>
  public:
   typedef MapBase<BlockType> Base;
   EIGEN_DENSE_PUBLIC_INTERFACE(BlockType)
-  EIGEN_INHERIT_ASSIGNMENT_OPERATORS(BlockImpl_dense)
+  EIGEN_INHERIT_DENSE_ASSIGNMENT_OPERATORS(BlockImpl_dense)
 
   /** Column or Row constructor
    */

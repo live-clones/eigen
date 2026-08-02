@@ -92,7 +92,7 @@ class RefBase : public MapBase<Derived> {
         m_stride(StrideType::OuterStrideAtCompileTime == Dynamic ? 0 : StrideType::OuterStrideAtCompileTime,
                  StrideType::InnerStrideAtCompileTime == Dynamic ? 0 : StrideType::InnerStrideAtCompileTime) {}
 
-  EIGEN_INHERIT_ASSIGNMENT_OPERATORS(RefBase)
+  EIGEN_INHERIT_DENSE_ASSIGNMENT_OPERATORS(RefBase)
 
  protected:
   typedef Stride<StrideType::OuterStrideAtCompileTime, StrideType::InnerStrideAtCompileTime> StrideBase;
@@ -304,7 +304,7 @@ class Ref : public RefBase<Ref<PlainObjectType, Options, StrideType> > {
     eigen_assert(success);
   }
 
-  EIGEN_INHERIT_ASSIGNMENT_OPERATORS(Ref)
+  EIGEN_INHERIT_DENSE_ASSIGNMENT_OPERATORS(Ref)
 };
 
 // this is the const ref version
