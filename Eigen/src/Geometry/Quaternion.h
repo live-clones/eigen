@@ -111,7 +111,9 @@ class QuaternionBase : public RotationBase<Derived, 3> {
   /** \returns a vector expression of the coefficients (x,y,z,w) */
   EIGEN_DEVICE_FUNC inline typename internal::traits<Derived>::Coefficients& coeffs() { return derived().coeffs(); }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE QuaternionBase<Derived>& operator=(const QuaternionBase<Derived>& other);
+  /** QuaternionBase holds no data of its own, so this assigns nothing. Anything deriving from it that needs
+   * coefficients assigned -- Map, notably -- has to say so itself rather than delegate here. */
+  EIGEN_DEVICE_FUNC QuaternionBase& operator=(const QuaternionBase& other) = default;
   template <class OtherDerived>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator=(const QuaternionBase<OtherDerived>& other);
 
@@ -308,14 +310,16 @@ class Quaternion : public QuaternionBase<Quaternion<Scalar_, Options_> > {
 
   typedef Scalar_ Scalar;
 
-  EIGEN_INHERIT_ASSIGNMENT_OPERATORS(Quaternion)
+  using Base::operator=;
+  EIGEN_DEVICE_FUNC Quaternion(const Quaternion&) = default;
+  EIGEN_DEVICE_FUNC Quaternion& operator=(const Quaternion&) = default;
   using Base::operator*=;
 
   typedef typename internal::traits<Quaternion>::Coefficients Coefficients;
   typedef typename Base::AngleAxisType AngleAxisType;
 
   /** Default constructor leaving the quaternion uninitialized. */
-  EIGEN_DEVICE_FUNC inline Quaternion() {}
+  EIGEN_DEVICE_FUNC Quaternion() = default;
 
   /** Constructs and initializes the quaternion \f$ w+xi+yj+zk \f$ from
    * its four coefficients \a w, \a x, \a y and \a z.
@@ -342,7 +346,7 @@ class Quaternion : public QuaternionBase<Quaternion<Scalar_, Options_> > {
   /** Copy constructor */
   template <class Derived>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Quaternion(const QuaternionBase<Derived>& other) {
-    this->Base::operator=(other);
+    m_coeffs = other.coeffs();
   }
 
   /** Constructs and initializes a quaternion from the angle-axis \a aa */
@@ -363,16 +367,9 @@ class Quaternion : public QuaternionBase<Quaternion<Scalar_, Options_> > {
     m_coeffs = other.coeffs().template cast<Scalar>();
   }
 
-  // We define a copy constructor, which means we don't get an implicit move constructor or assignment operator.
-  /** Default move constructor */
-  EIGEN_DEVICE_FUNC inline Quaternion(Quaternion&& other) noexcept(std::is_nothrow_move_constructible<Scalar>::value)
-      : m_coeffs(std::move(other.coeffs())) {}
-
-  /** Default move assignment operator */
-  EIGEN_DEVICE_FUNC Quaternion& operator=(Quaternion&& other) noexcept(std::is_nothrow_move_assignable<Scalar>::value) {
-    m_coeffs = std::move(other.coeffs());
-    return *this;
-  }
+  // Declaring the copy constructor above means the move operations are not implicitly declared.
+  EIGEN_DEVICE_FUNC Quaternion(Quaternion&&) = default;
+  EIGEN_DEVICE_FUNC Quaternion& operator=(Quaternion&&) = default;
 
   EIGEN_DEVICE_FUNC static Quaternion UnitRandom();
 
@@ -457,7 +454,13 @@ class Map<const Quaternion<Scalar_>, Options_> : public QuaternionBase<Map<const
 
   typedef Scalar_ Scalar;
   typedef typename internal::traits<Map>::Coefficients Coefficients;
-  EIGEN_INHERIT_ASSIGNMENT_OPERATORS(Map)
+  using Base::operator=;
+  /** Writes the coefficients through to the mapped buffer; it does not rebind the map. */
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Map& operator=(const Map& other) {
+    coeffs() = other.coeffs();
+    return *this;
+  }
+  EIGEN_DEFAULT_COPY_CONSTRUCTOR(Map)
   using Base::operator*=;
 
   /** Constructs a Mapped Quaternion object from the pointer \a coeffs
@@ -498,7 +501,13 @@ class Map<Quaternion<Scalar_>, Options_> : public QuaternionBase<Map<Quaternion<
 
   typedef Scalar_ Scalar;
   typedef typename internal::traits<Map>::Coefficients Coefficients;
-  EIGEN_INHERIT_ASSIGNMENT_OPERATORS(Map)
+  using Base::operator=;
+  /** Writes the coefficients through to the mapped buffer; it does not rebind the map. */
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Map& operator=(const Map& other) {
+    coeffs() = other.coeffs();
+    return *this;
+  }
+  EIGEN_DEFAULT_COPY_CONSTRUCTOR(Map)
   using Base::operator*=;
 
   /** Constructs a Mapped Quaternion object from the pointer \a coeffs
@@ -593,13 +602,6 @@ QuaternionBase<Derived>::_transformVector(const Vector3& v) const {
   Vector3 uv = this->vec().cross(v);
   uv += uv;
   return v + this->w() * uv + this->vec().cross(uv);
-}
-
-template <class Derived>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE QuaternionBase<Derived>& QuaternionBase<Derived>::operator=(
-    const QuaternionBase<Derived>& other) {
-  coeffs() = other.coeffs();
-  return derived();
 }
 
 template <class Derived>
