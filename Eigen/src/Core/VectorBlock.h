@@ -65,7 +65,7 @@ class VectorBlock : public Block<VectorType, internal::traits<VectorType>::Flags
  public:
   EIGEN_DENSE_PUBLIC_INTERFACE(VectorBlock)
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(VectorBlock)
-  EIGEN_INHERIT_ASSIGNMENT_OPERATORS(VectorBlock)
+  EIGEN_INHERIT_DENSE_ASSIGNMENT_OPERATORS(VectorBlock)
 
   /** Dynamic-size constructor
    */

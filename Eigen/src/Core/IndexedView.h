@@ -130,7 +130,7 @@ class IndexedView
       (internal::traits<IndexedView<XprType, RowIndices, ColIndices>>::Flags & DirectAccessBit) != 0>
       Base;
   EIGEN_GENERIC_PUBLIC_INTERFACE(IndexedView)
-  EIGEN_INHERIT_ASSIGNMENT_OPERATORS(IndexedView)
+  EIGEN_INHERIT_DENSE_ASSIGNMENT_OPERATORS(IndexedView)
 
   template <typename T0, typename T1>
   IndexedView(XprType& xpr, const T0& rowIndices, const T1& colIndices) : Base(xpr, rowIndices, colIndices) {}
@@ -147,7 +147,7 @@ class IndexedViewImpl : public internal::generic_xpr_base<IndexedView<XprType, R
   typedef internal::remove_all_t<XprType> NestedExpression;
   typedef typename XprType::Scalar Scalar;
 
-  EIGEN_INHERIT_ASSIGNMENT_OPERATORS(IndexedViewImpl)
+  EIGEN_INHERIT_DENSE_ASSIGNMENT_OPERATORS(IndexedViewImpl)
 
   template <typename T0, typename T1>
   IndexedViewImpl(XprType& xpr, const T0& rowIndices, const T1& colIndices)
@@ -193,7 +193,7 @@ class IndexedViewImpl<XprType, RowIndices, ColIndices, StorageKind, true>
                                          typename internal::traits<XprType>::StorageKind, false>;
   using Derived = IndexedView<XprType, RowIndices, ColIndices>;
 
-  EIGEN_INHERIT_ASSIGNMENT_OPERATORS(IndexedViewImpl)
+  EIGEN_INHERIT_DENSE_ASSIGNMENT_OPERATORS(IndexedViewImpl)
 
   template <typename T0, typename T1>
   IndexedViewImpl(XprType& xpr, const T0& rowIndices, const T1& colIndices) : Base(xpr, rowIndices, colIndices) {}

@@ -105,7 +105,7 @@ class Reshaped : public ReshapedImpl<XprType, Rows, Cols, Order, typename intern
   // typedef typename Impl::Base Base;
   typedef Impl Base;
   EIGEN_GENERIC_PUBLIC_INTERFACE(Reshaped)
-  EIGEN_INHERIT_ASSIGNMENT_OPERATORS(Reshaped)
+  EIGEN_INHERIT_DENSE_ASSIGNMENT_OPERATORS(Reshaped)
 
   /** Fixed-size constructor
    */
@@ -137,7 +137,7 @@ class ReshapedImpl<XprType, Rows, Cols, Order, Dense>
 
  public:
   typedef Impl Base;
-  EIGEN_INHERIT_ASSIGNMENT_OPERATORS(ReshapedImpl)
+  EIGEN_INHERIT_DENSE_ASSIGNMENT_OPERATORS(ReshapedImpl)
   EIGEN_DEVICE_FUNC constexpr inline ReshapedImpl(XprType& xpr) : Impl(xpr) {}
   EIGEN_DEVICE_FUNC constexpr inline ReshapedImpl(XprType& xpr, Index reshapeRows, Index reshapeCols)
       : Impl(xpr, reshapeRows, reshapeCols) {}
@@ -154,7 +154,7 @@ class ReshapedImpl_dense<XprType, Rows, Cols, Order, false>
  public:
   typedef typename internal::dense_xpr_base<ReshapedType>::type Base;
   EIGEN_DENSE_PUBLIC_INTERFACE(ReshapedType)
-  EIGEN_INHERIT_ASSIGNMENT_OPERATORS(ReshapedImpl_dense)
+  EIGEN_INHERIT_DENSE_ASSIGNMENT_OPERATORS(ReshapedImpl_dense)
 
   typedef typename internal::ref_selector<XprType>::non_const_type MatrixTypeNested;
   typedef internal::remove_all_t<XprType> NestedExpression;
@@ -201,7 +201,7 @@ class ReshapedImpl_dense<XprType, Rows, Cols, Order, true> : public MapBase<Resh
  public:
   typedef MapBase<ReshapedType> Base;
   EIGEN_DENSE_PUBLIC_INTERFACE(ReshapedType)
-  EIGEN_INHERIT_ASSIGNMENT_OPERATORS(ReshapedImpl_dense)
+  EIGEN_INHERIT_DENSE_ASSIGNMENT_OPERATORS(ReshapedImpl_dense)
 
   /** Fixed-size constructor
    */

@@ -63,7 +63,7 @@ class CwiseUnaryViewImpl<ViewOp, MatrixType, StrideType, Dense, false>
   typedef CwiseUnaryView<ViewOp, MatrixType, StrideType> Derived;
   typedef typename dense_xpr_base<CwiseUnaryView<ViewOp, MatrixType, StrideType> >::type Base;
   EIGEN_DENSE_PUBLIC_INTERFACE(Derived)
-  EIGEN_INHERIT_ASSIGNMENT_OPERATORS(CwiseUnaryViewImpl)
+  EIGEN_INHERIT_DENSE_ASSIGNMENT_OPERATORS(CwiseUnaryViewImpl)
 
   EIGEN_DEVICE_FUNC inline const Scalar* data() const { return &(this->coeffRef(0)); }
 
@@ -99,7 +99,7 @@ class CwiseUnaryViewImpl<ViewOp, MatrixType, StrideType, Dense, true>
   typedef CwiseUnaryViewImpl<ViewOp, MatrixType, StrideType, Dense, false> Base;
   typedef CwiseUnaryView<ViewOp, MatrixType, StrideType> Derived;
   EIGEN_DENSE_PUBLIC_INTERFACE(Derived)
-  EIGEN_INHERIT_ASSIGNMENT_OPERATORS(CwiseUnaryViewImpl)
+  EIGEN_INHERIT_DENSE_ASSIGNMENT_OPERATORS(CwiseUnaryViewImpl)
 
   using Base::coeffRef;
   using Base::data;
@@ -145,7 +145,7 @@ class CwiseUnaryView : public internal::CwiseUnaryViewImpl<ViewOp, MatrixType, S
   explicit EIGEN_DEVICE_FUNC constexpr inline CwiseUnaryView(MatrixType& mat, const ViewOp& func = ViewOp())
       : m_matrix(mat), m_functor(func) {}
 
-  EIGEN_INHERIT_ASSIGNMENT_OPERATORS(CwiseUnaryView)
+  EIGEN_INHERIT_DENSE_ASSIGNMENT_OPERATORS(CwiseUnaryView)
 
   EIGEN_DEVICE_FUNC constexpr Index rows() const noexcept { return m_matrix.rows(); }
   EIGEN_DEVICE_FUNC constexpr Index cols() const noexcept { return m_matrix.cols(); }

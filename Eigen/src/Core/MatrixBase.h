@@ -137,7 +137,7 @@ class MatrixBase : public DenseBase<Derived> {
   /** Special case of the template operator=, in order to prevent the compiler
    * from generating a default operator= (issue hit with g++ 4.1)
    */
-  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Derived& operator=(const MatrixBase& other);
+  EIGEN_DEVICE_FUNC constexpr MatrixBase& operator=(const MatrixBase& other) = default;
 
   // We cannot inherit here via Base::operator= since it is causing
   // trouble with MSVC.

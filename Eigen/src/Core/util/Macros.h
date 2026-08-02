@@ -1240,6 +1240,31 @@ EIGEN_DEVICE_FUNC constexpr void ignore_unused_variable(const T&) {}
     return *this;                                                                  \
   }
 
+/** \internal Same-type assignment for a *dense* expression: assigns coefficients, it does not rebind the view.
+ *
+ * Use this only where Base is itself a dense base -- MatrixBase, ArrayBase, MapBase, dense_xpr_base, or an
+ * explicitly Dense-tagged Impl. The copy-assignment operators of DenseBase, MatrixBase and ArrayBase are defaulted
+ * -- that is what lets a fixed-size plain object be trivially copyable -- so delegating to Base::operator= would
+ * resolve to a defaulted copy-assignment on an empty base and silently do nothing.
+ *
+ * What decides it is what the class's Base typedef names, not whether the class is spelled generically over
+ * StorageKind. Block is generic and typedefs Base to BlockImpl<..., StorageKind>, so Base::operator= is what
+ * reaches the sparse implementation; routing it through call_assignment instead lands a sparse block in
+ * assign_sparse_to_sparse, which does not compile. Block therefore keeps EIGEN_INHERIT_ASSIGNMENT_EQUAL_OPERATOR
+ * and the dense BlockImpl it delegates to uses this macro. Transpose is also generic over StorageKind, but
+ * typedefs Base to TransposeImpl<...>::Base -- past the Impl, straight to the dense base -- so for it the generic
+ * form would be the silent no-op and this macro is the correct one.
+ *
+ * Everything else -- TriangularView, Quaternion, the Tensor module -- likewise has a Base whose operator= is still
+ * the one to call, and keeps using EIGEN_INHERIT_ASSIGNMENT_EQUAL_OPERATOR.
+ */
+#define EIGEN_INHERIT_DENSE_ASSIGNMENT_EQUAL_OPERATOR(Derived)                     \
+  using Base::operator=;                                                           \
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator=(const Derived& other) { \
+    internal::call_assignment(this->derived(), other.derived());                   \
+    return *this;                                                                  \
+  }
+
 /**
  * \internal
  * \brief Macro to explicitly define the default copy constructor.
@@ -1254,6 +1279,11 @@ EIGEN_DEVICE_FUNC constexpr void ignore_unused_variable(const T&) {}
  */
 #define EIGEN_INHERIT_ASSIGNMENT_OPERATORS(Derived) \
   EIGEN_INHERIT_ASSIGNMENT_EQUAL_OPERATOR(Derived)  \
+  EIGEN_DEFAULT_COPY_CONSTRUCTOR(Derived)
+
+/** \internal Like EIGEN_INHERIT_ASSIGNMENT_OPERATORS, for dense expressions. See the EQUAL_OPERATOR form above. */
+#define EIGEN_INHERIT_DENSE_ASSIGNMENT_OPERATORS(Derived) \
+  EIGEN_INHERIT_DENSE_ASSIGNMENT_EQUAL_OPERATOR(Derived)  \
   EIGEN_DEFAULT_COPY_CONSTRUCTOR(Derived)
 
 /** \internal
