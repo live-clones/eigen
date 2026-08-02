@@ -22,19 +22,9 @@ namespace Eigen {
 
 namespace internal {
 
-// traits<Span<T,N>>
-//
-// Inheriting from traits<Matrix<Scalar,N,1>> gives XprKind = MatrixXpr so
-// Span participates in the same expression hierarchy as VectorXf/VectorXd.
-//
-// The PlainObject entry here affects parts of Eigen that look it up via
-// traits (e.g. nested_eval).  The critical override that prevents
-// is_eigen_index_expression from firing is the PlainObject typedef on the
-// Span class body itself — see DenseBase.h:203 and IndexedViewHelper.h:131.
 template <typename T, int N, int Align>
-struct traits<Span<T, N, Align>> : traits<Matrix<std::remove_const_t<T>, N, 1>> {
-  using TraitsBase = traits<Matrix<std::remove_const_t<T>, N, 1>>;
-  using PlainObject = Span<T, N, Align>;
+struct traits<Span<T, N, Align>> : traits<Vector<std::remove_const_t<T>, N>> {
+  using TraitsBase = traits<Vector<std::remove_const_t<T>, N>>;
 
   static constexpr int InnerStrideAtCompileTime = 1;
   static constexpr int OuterStrideAtCompileTime = N;
@@ -43,12 +33,10 @@ struct traits<Span<T, N, Align>> : traits<Matrix<std::remove_const_t<T>, N, 1>> 
   static constexpr unsigned int Flags = std::is_const<T>::value ? (Flags0 & ~LvalueBit) : Flags0;
 };
 
-// evaluator<Span<T,N>> — delegates to mapbase_evaluator just like Map and Ref.
 template <typename T, int N, int Align>
-struct evaluator<Span<T, N, Align>>
-    : public mapbase_evaluator<Span<T, N, Align>, Matrix<std::remove_const_t<T>, N, 1>> {
+struct evaluator<Span<T, N, Align>> : public mapbase_evaluator<Span<T, N, Align>, Vector<std::remove_const_t<T>, N>> {
   using XprType = Span<T, N, Align>;
-  using PlainObjectType = Matrix<std::remove_const_t<T>, N, 1>;
+  using PlainObjectType = Vector<std::remove_const_t<T>, N>;
 
   static constexpr unsigned int Flags = evaluator<PlainObjectType>::Flags;
   static constexpr int Alignment = traits<XprType>::Alignment;
@@ -64,33 +52,26 @@ struct evaluator<Span<T, N, Align>>
  *
  * \brief A non-owning view over a contiguous 1-D array of data.
  *
- * \tparam T  Element type.  Use \c const T for a read-only span.
- * \tparam N  Number of elements at compile time, or \c Dynamic (the default)
- *            for a runtime-sized span.
+ * \tparam T  Element type.
+ * \tparam N  Number of elements at compile time.
  *
  * This class wraps a raw pointer and a length without taking ownership of the
- * underlying storage.  It is a fully-fledged Eigen expression: assignments,
- * arithmetic, and SIMD-vectorised operations all work out of the box:
- * \code
- * float buf[8];
- * Eigen::Span<float, 8> s(buf);
- * s = Eigen::VectorXf::Ones(8);  // write into buf
- * VectorXf v = s + s;            // read from buf
- * \endcode
+ * underlying storage.
  *
- * Unlike Map and Ref, Span does not materialise (copy) a buffer passed as an
- * index list to IndexedView's \c operator():
+ * Unlike `Map` and `Ref`, `Span` does not materialize buffers passed as an
+ * index list to `IndexedView`'s `operator()`:
+ *
  * \code
  * int idx[4] = {3, 1, 6, 5};
  * Eigen::Span<int, 4> ispan(idx, 4);
- * auto rows = A(ispan, Eigen::all);  // gather rows 3, 1, 6, 5
- * A(ispan, Eigen::all) = B;         // scatter-write
+ * auto rows = A(ispan, Eigen::all).eval(); // gather rows 3, 1, 6, 5
+ * A(ispan, Eigen::all).noalias() = B;      // scatter-write
  * \endcode
  *
- * When compiled as C++20 and the standard library provides \c <span>, Span
- * can additionally be constructed from \c std::span.
+ * When compiled as C++20 and the standard library provides `<span>`, `Span`
+ * can additionally be constructed from `std::span`.
  *
- * \sa class Map, class Ref
+ * \sa class `Map`, class `Ref`
  */
 template <typename T, int N, int Align>
 class Span : public MapBase<Span<T, N, Align>> {
@@ -101,12 +82,7 @@ class Span : public MapBase<Span<T, N, Align>> {
 
   using PointerType = typename Base::PointerType;
 
-  // Re-declare PlainObject to point back at Span<T,N>.
-  // DenseBase<Span> defines PlainObject as Matrix<Scalar,N,1> (see DenseBase.h:203).
-  // is_eigen_index_expression (IndexedViewHelper.h:131) checks T::PlainObject
-  // on the class, not traits<T>::PlainObject.  By shadowing DenseBase::PlainObject
-  // here we make is_eigen_index_expression<Span>::value == false, so Span passed
-  // as an IndexedView index is never copied or eval()-ed.
+  // NOTE: `IndexedViewHelper` does not materialize `T` when `T == T::PlainObject`.
   using PlainObject = Span;
 
   /** Constructor in the fixed-size case.
@@ -125,14 +101,14 @@ class Span : public MapBase<Span<T, N, Align>> {
   EIGEN_DEVICE_FUNC constexpr Span(PointerType data, Index size) : Base(data, size) {}
 
 #ifdef EIGEN_HAS_STD_SPAN
-  /** Constructor from a mutable std::span (C++20). */
+  /** Constructor from a mutable `std::span` */
   template <std::size_t Extent>
   EIGEN_DEVICE_FUNC constexpr Span(std::span<std::remove_const_t<T>, Extent> s) : Base(s.data(), Index(s.size())) {
     EIGEN_STATIC_ASSERT(N == Dynamic || Extent == std::dynamic_extent || N == Index(Extent),
                         SPAN_STATIC_EXTENT_DOES_NOT_MATCH_STD_SPAN_EXTENT)
   }
 
-  /** Constructor from a const std::span (C++20). */
+  /** Constructor from a constant `std::span` */
   template <std::size_t Extent, typename U = T, typename = std::enable_if_t<std::is_const_v<U>>>
   EIGEN_DEVICE_FUNC constexpr Span(std::span<const std::remove_const_t<T>, Extent> s)
       : Base(s.data(), Index(s.size())) {

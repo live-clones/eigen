@@ -196,6 +196,41 @@ void test_inner_outer_stride() {
   VERIFY_IS_EQUAL(ds.outerStride(), Index(4));
 }
 
+// `Span` data pointer must be aligned to `alignof(Scalar)` regardless of `Align`.
+void test_scalar_alignment_assert() {
+  alignas(float) char buf[3 * sizeof(float)];
+  float* misaligned = reinterpret_cast<float*>(buf + 1);
+  if (std::uintptr_t(misaligned) % alignof(float) != 0) {
+    VERIFY_RAISES_ASSERT((Eigen::Span<float>(misaligned, 1)))
+    VERIFY_RAISES_ASSERT((Eigen::Span<float, 1>(misaligned)))
+  }
+}
+
+#if EIGEN_MAX_ALIGN_BYTES >= 16
+// `Span` with `align > 0` additionally requires pointer aligned to `Align` bytes, except
+// when the mapped buffer is too small for alignment to matter.
+void test_aligned_span_assert() {
+  const Index n = 8;
+  float* array = internal::aligned_new<float>(n + 1);
+  float* misaligned = array + 1;
+
+  // `8 * sizeof(float) == 32 >= 16`, so the size exemption does not apply.
+  VERIFY(std::uintptr_t(misaligned) % 16 != 0);
+  VERIFY_RAISES_ASSERT((Eigen::Span<float, Eigen::Dynamic, Eigen::Aligned16>(misaligned, n)))
+  VERIFY_RAISES_ASSERT((Eigen::Span<float, 8, Eigen::Aligned16>(misaligned)))
+
+  Eigen::Span<float, Eigen::Dynamic, Eigen::Aligned16> ok(array, n);
+  VERIFY_IS_EQUAL(ok.data(), array);
+
+  const Index small_n = 2;
+  Eigen::Span<float, Eigen::Dynamic, Eigen::Aligned16> small_span(misaligned, small_n);
+  // `2 * sizeof(float) == 8 < 16`, so misalignment is tolerated here.
+  VERIFY_IS_EQUAL(small_span.data(), misaligned);
+
+  internal::aligned_delete(array, n + 1);
+}
+#endif  // EIGEN_MAX_ALIGN_BYTES >= 16
+
 #ifdef EIGEN_HAS_STD_SPAN
 void test_std_span_interop() {
   float buf[6] = {1.f, 2.f, 3.f, 4.f, 5.f, 6.f};
@@ -228,7 +263,11 @@ EIGEN_DECLARE_TEST(span) {
   CALL_SUBTEST_5(test_indexedview_dynamic_no_copy());
   CALL_SUBTEST_6(test_arithmetic());
   CALL_SUBTEST_7(test_inner_outer_stride());
+  CALL_SUBTEST_8(test_scalar_alignment_assert());
+#if EIGEN_MAX_ALIGN_BYTES >= 16
+  CALL_SUBTEST_9(test_aligned_span_assert());
+#endif
 #ifdef EIGEN_HAS_STD_SPAN
-  CALL_SUBTEST_8(test_std_span_interop());
+  CALL_SUBTEST_10(test_std_span_interop());
 #endif
 }
