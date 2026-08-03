@@ -78,8 +78,6 @@ class NoAlias;
 template <typename ExpressionType>
 class NestByValue;
 template <typename ExpressionType>
-class ForceAlignedAccess;
-template <typename ExpressionType>
 class SwapWrapper;
 
 template <typename XprType, int BlockRows = Dynamic, int BlockCols = Dynamic, bool InnerPanel = false>
