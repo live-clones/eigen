@@ -14,48 +14,35 @@
 
 using Eigen::placeholders::all;
 
-// ---------------------------------------------------------------------------
 // No-materialization static asserts
 //
-// IvcType<Span<int,N>, Dynamic> must equal Span<int,N> itself (not
-// Matrix<int,N,1>), proving the index buffer is never eval()-led.
-// ---------------------------------------------------------------------------
+// `IvcType<Span<int,N>, Dynamic>` must equal `Span<int,N>` itself (not
+// `Matrix<int,N,1>`), proving the index buffer is never `eval()`-led.
 static_assert(std::is_same<Eigen::internal::IvcType<Eigen::Span<int, 4>, Eigen::Dynamic>, Eigen::Span<int, 4>>::value,
-              "Static-extent Span must not be materialised in IndexedView");
+              "Static-extent `Span` must not be materialised in `IndexedView`");
 
 static_assert(std::is_same<Eigen::internal::IvcType<Eigen::Span<int, Eigen::Dynamic>, Eigen::Dynamic>,
                            Eigen::Span<int, Eigen::Dynamic>>::value,
-              "Dynamic-extent Span must not be materialised in IndexedView");
+              "Dynamic-extent `Span` must not be materialised in `IndexedView`");
 
 static_assert(!Eigen::internal::is_eigen_index_expression<Eigen::Span<int, 4>>::value,
-              "is_eigen_index_expression must be false for Span");
+              "`is_eigen_index_expression` must be false for `Span`");
 
-// ---------------------------------------------------------------------------
 // Compile-time size traits
-// ---------------------------------------------------------------------------
 static_assert(Eigen::internal::array_size<Eigen::Span<float, 4>>::value == 4,
-              "Static-extent Span must report size at compile time");
+              "Static-extent `Span` must report size at compile time");
 static_assert(Eigen::internal::array_size<Eigen::Span<int, Eigen::Dynamic>>::value == Eigen::Dynamic,
-              "Dynamic-extent Span must report Dynamic size");
+              "Dynamic-extent `Span` must report Dynamic size");
+static_assert(bool(Eigen::internal::traits<Eigen::Span<float, 4>>::Flags& Eigen::LvalueBit),
+              "Mutable `Span` must have `LvalueBit`");
+static_assert(!bool(Eigen::internal::traits<Eigen::Span<const float, 4>>::Flags & Eigen::LvalueBit),
+              "Const `Span` must not have `LvalueBit`");
+static_assert(bool(Eigen::internal::traits<Eigen::Span<float, 4>>::Flags& Eigen::DirectAccessBit),
+              "`Span` must have `DirectAccessBit`");
+static_assert(std::is_same<Eigen::Span<int, 4>, Eigen::Span<int, 4>::PlainObject>::value,
+              "`Span::PlainObject` must be `Span` itself");
 
-// LvalueBit set for mutable Span, clear for const Span
-static_assert((Eigen::internal::traits<Eigen::Span<float, 4>>::Flags & Eigen::LvalueBit) != 0,
-              "Mutable Span must have LvalueBit");
-static_assert((Eigen::internal::traits<Eigen::Span<const float, 4>>::Flags & Eigen::LvalueBit) == 0,
-              "Const Span must not have LvalueBit");
-
-// DirectAccessBit always set
-static_assert((Eigen::internal::traits<Eigen::Span<float, 4>>::Flags & Eigen::DirectAccessBit) != 0,
-              "Span must have DirectAccessBit");
-
-// PlainObject redirection: Span::PlainObject must equal Span (not Matrix)
-static_assert(std::is_same<Eigen::Span<int, 4>::PlainObject, Eigen::Span<int, 4>>::value,
-              "Span::PlainObject must be Span itself");
-
-// ---------------------------------------------------------------------------
 // Runtime tests
-// ---------------------------------------------------------------------------
-
 void test_dynamic_span() {
   const Index n = 8;
   VectorXf storage = VectorXf::LinSpaced(n, 1.f, float(n));
@@ -97,7 +84,7 @@ void test_static_span() {
   s = VectorXf::Zero(4);
   for (int i = 0; i < 4; ++i) VERIFY_IS_EQUAL(buf[i], 0.f);
 
-  // Pointer+size constructor also valid for static span (runtime-asserts size == N)
+  // Pointer+size constructor also valid for static span (runtime-asserts `size == N`)
   float arr[4] = {5.f, 6.f, 7.f, 8.f};
   Eigen::Span<float, 4> s2(arr, 4);
   VERIFY_IS_EQUAL(s2[0], 5.f);
@@ -112,15 +99,13 @@ void test_const_span() {
   VERIFY_IS_EQUAL(cs.data(), v.data());
   VERIFY_IS_APPROX(VectorXf(cs), v);
 
-  // Span<const T> constructed from mutable pointer
+  // `Span<const T>` constructed from mutable pointer
   Eigen::Span<const float, 6> cs2(v.data());
   VERIFY_IS_APPROX(VectorXf(cs2), v);
 }
 
 void test_indexedview_no_copy() {
-  // Gather: use Span<int> as row-index list in operator().
-  // The static_asserts at the top prove no copy takes place; here we verify
-  // functional correctness.
+  // Gather: use `Span<int>` as row-index list in operator().
   const Index n = 6;
   MatrixXf A = MatrixXf::Zero(n, n);
   for (Index i = 0; i < n; ++i)
@@ -179,7 +164,7 @@ void test_arithmetic() {
   VectorXf sum = a + b;
   VERIFY_IS_APPROX(sum, VectorXf::Constant(4, 5.f));
 
-  // Coefficient-wise product via .cwiseProduct()
+  // Coefficient-wise product via `.cwiseProduct()`
   float dot = a.dot(b);
   VERIFY_IS_APPROX(dot, 20.f);
 }
@@ -236,13 +221,13 @@ void test_std_span_interop() {
   float buf[6] = {1.f, 2.f, 3.f, 4.f, 5.f, 6.f};
   float* const ptr = buf;
 
-  // Dynamic std::span -> dynamic Eigen::Span
+  // Dynamic `std::span` -> dynamic `Eigen::Span`
   std::span<float> std_dyn(buf, 6);
   Eigen::Span<float> e_dyn(std_dyn);
   VERIFY_IS_EQUAL(e_dyn.size(), Index(6));
   VERIFY_IS_EQUAL(e_dyn.data(), ptr);
 
-  // Static std::span -> static Eigen::Span
+  // Static `std::span` -> static `Eigen::Span`
   std::span<float, 6> std_static(buf);
   Eigen::Span<float, 6> e_static(std_static);
   VERIFY_IS_EQUAL(e_static.size(), Index(6));
