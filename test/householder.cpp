@@ -259,6 +259,35 @@ void householder_blocked_right_regression() {
   VERIFY_IS_APPROX(right_lhs * rhseq.adjoint(), right_lhs * dense_right.adjoint());
 }
 
+void householder_small_tail() {
+  {
+    const float coefficient = 1e-20f;
+    Vector2f vector(0.0f, coefficient);
+    VectorXf essential(1);
+    float tau;
+    float beta;
+
+    vector.makeHouseholder(essential, tau, beta);
+
+    VERIFY_IS_APPROX(tau, 1.0f);
+    VERIFY_IS_APPROX(beta, -coefficient);
+    VERIFY_IS_APPROX(essential[0], 1.0f);
+  }
+
+  constexpr Index size = 65;
+  const float coefficient = 1e-22f;
+  VectorXf vector = VectorXf::Constant(size, coefficient);
+  VectorXf essential(size - 1);
+  float tau;
+  float beta;
+
+  vector.makeHouseholder(essential, tau, beta);
+
+  VERIFY(!numext::is_exactly_zero(tau));
+  VERIFY_IS_APPROX(beta / coefficient, -numext::sqrt(float(size)));
+  VERIFY_IS_APPROX(2.0f * tau, tau * tau * (1.0f + essential.squaredNorm()));
+}
+
 EIGEN_DECLARE_TEST(householder) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(householder(Matrix<double, 2, 2>()));
@@ -281,4 +310,5 @@ EIGEN_DECLARE_TEST(householder) {
 
   CALL_SUBTEST_10(householder_blocked_right_regression<double>());
   CALL_SUBTEST_11(householder_blocked_right_regression<std::complex<double>>());
+  CALL_SUBTEST_12(householder_small_tail());
 }

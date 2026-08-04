@@ -73,20 +73,38 @@ EIGEN_DEVICE_FUNC void MatrixBase<Derived>::makeHouseholder(EssentialPart& essen
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(EssentialPart)
   const VectorBlock<const Derived, EssentialPart::SizeAtCompileTime> tail(derived(), 1, size() - 1);
 
-  RealScalar tailSqNorm = size() == 1 ? RealScalar(0) : tail.unwind().squaredNorm();
+  const RealScalar tailSqNorm = size() == 1 ? RealScalar(0) : tail.unwind().squaredNorm();
   Scalar c0 = coeff(0);
   const RealScalar tol = (std::numeric_limits<RealScalar>::min)();
 
   if (tailSqNorm <= tol && numext::abs2(numext::imag(c0)) <= tol) {
-    tau = RealScalar(0);
-    beta = numext::real(c0);
-    essential.setZero();
+    using Accumulator = typename internal::stable_norm_accumulator<RealScalar>::type;
+    const auto tailView = tail.unwind();
+    const auto tailComponents = tailView.realView().template cast<Accumulator>();
+    // Component maxima cannot underflow when a representable tail is nonzero.
+    const Accumulator tailMax = size() == 1 ? Accumulator(0) : tailComponents.cwiseAbs().maxCoeff();
+    if (numext::is_exactly_zero(tailMax)) {
+      tau = RealScalar(0);
+      beta = numext::real(c0);
+      essential.setZero();
+      return;
+    }
+    Accumulator tailNorm;
+    if (tailMax >= Accumulator(tol)) {
+      const Accumulator invTailMax = Accumulator(1) / tailMax;
+      const Accumulator scaledSqNorm = (tailComponents * invTailMax).squaredNorm();
+      tailNorm = tailMax * numext::sqrt(scaledSqNorm);
+    } else {
+      // A subnormal maximum has an overflowing reciprocal, so reduce it directly.
+      tailNorm = tailComponents.cwiseAbs().redux(internal::scalar_hypot_op<Accumulator>());
+    }
+    beta = RealScalar(numext::hypot(Accumulator(numext::abs(c0)), tailNorm));
   } else {
     beta = numext::sqrt(numext::abs2(c0) + tailSqNorm);
-    if (numext::real(c0) >= RealScalar(0)) beta = -beta;
-    essential = tail.unwind() / (c0 - beta);
-    tau = conj((beta - c0) / beta);
   }
+  if (numext::real(c0) >= RealScalar(0)) beta = -beta;
+  essential = tail.unwind() / (c0 - beta);
+  tau = conj((beta - c0) / beta);
 }
 
 /** Apply the elementary reflector H given by
