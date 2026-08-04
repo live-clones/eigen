@@ -118,7 +118,8 @@ EIGEN_STRONG_INLINE void tridiagonal_sturm_block(const RealScalar* alpha, const 
   auto store_counts = [&](bool accumulate) {
     EIGEN_UNROLL_LOOP
     for (int k = 0; k < kUnroll; ++k) {
-      RealScalar buf[kPacketSize];
+      // MSVC through 19.31 does not accept the enclosing local constexpr as an array bound inside a lambda.
+      RealScalar buf[unpacket_traits<Packet>::size];
       pstoreu(buf, c[k]);
       EIGEN_UNROLL_LOOP
       for (int l = 0; l < kPacketSize; ++l) {
