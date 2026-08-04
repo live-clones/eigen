@@ -26,8 +26,6 @@ template <typename T, int N, int Align>
 struct traits<Span<T, N, Align>> : traits<Vector<std::remove_const_t<T>, N>> {
   using TraitsBase = traits<Vector<std::remove_const_t<T>, N>>;
 
-  static constexpr int InnerStrideAtCompileTime = 1;
-  static constexpr int OuterStrideAtCompileTime = N;
   static constexpr int Alignment = Align & int(AlignedMask);
   static constexpr unsigned int Flags0 = TraitsBase::Flags & ~NestByRefBit;
   static constexpr unsigned int Flags = std::is_const<T>::value ? (Flags0 & ~LvalueBit) : Flags0;
