@@ -18,13 +18,18 @@
 // genuinely subnormal data through vectorized kernels cannot even observe their inputs on such
 // hardware, so they are gated on this runtime probe of the packet path. The volatile load keeps the
 // compiler from constant-folding the product with IEEE semantics.
+template <typename Packet>
+EIGEN_DONT_INLINE Packet packet_product_runtime(const Packet& lhs, const Packet& rhs) {
+  return internal::pmul(lhs, rhs);
+}
+
 template <typename RealScalar>
 bool packet_path_flushes_subnormals() {
   typedef typename internal::packet_traits<RealScalar>::type Packet;
   volatile RealScalar vtiny = (std::numeric_limits<RealScalar>::min)();
   const RealScalar tiny = vtiny;
   const RealScalar half_tiny =
-      internal::pfirst(internal::pmul(internal::pset1<Packet>(tiny), internal::pset1<Packet>(RealScalar(0.5))));
+      internal::pfirst(packet_product_runtime(internal::pset1<Packet>(tiny), internal::pset1<Packet>(RealScalar(0.5))));
   return numext::is_exactly_zero(half_tiny);
 }
 
