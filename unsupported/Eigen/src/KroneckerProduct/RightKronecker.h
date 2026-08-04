@@ -67,7 +67,7 @@ struct evaluator<RightKroneckerImpl<ArgType>> : evaluator_base<RightKroneckerImp
   using StorageIndex = typename XprType::StorageIndex;
   using Scalar = typename XprType::Scalar;
 
-  static constexpr int  CoeffReadCost = evaluator<ArgTypeNestedCleaned>::CoeffReadCost;
+  static constexpr int CoeffReadCost = evaluator<ArgTypeNestedCleaned>::CoeffReadCost;
   static constexpr unsigned int Flags = traits<RightKroneckerImpl<ArgType>>::Flags;
 
   // custom InnerIterator ----------------------------------
