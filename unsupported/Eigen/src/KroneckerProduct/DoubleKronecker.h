@@ -25,15 +25,13 @@ namespace internal {
 // type traits =======================================================================
 template <class ArgType>
 struct traits<DoubleKroneckerImpl<ArgType>> : public traits<ArgType> {
-  enum {
-    RowsAtCompileTime = Dynamic,
-    ColsAtCompileTime = Dynamic,
-    MaxRowsAtCompileTime = Dynamic,
-    MaxColsAtCompileTime = Dynamic,
-    Options = traits<ArgType>::Options,
-    Flags = Options & (~NestByRefBit) & (~LvalueBit),  // remove nest by ref, lvalue
-    SupportedAccessPatterns = InnerRandomAccessPattern
-  };
+  static constexpr int RowsAtCompileTime = Dynamic;
+  static constexpr int ColsAtCompileTime = Dynamic;
+  static constexpr int MaxRowsAtCompileTime = Dynamic;
+  static constexpr int MaxColsAtCompileTime = Dynamic;
+  static constexpr int Options = traits<ArgType>::Options;
+  static constexpr unsigned int Flags = Options & (~NestByRefBit) & (~LvalueBit);  // remove nest by ref, lvalue
+  static constexpr int SupportedAccessPatterns = InnerRandomAccessPattern;
 };
 
 }  // end namespace internal
@@ -75,10 +73,8 @@ struct evaluator<DoubleKroneckerImpl<ArgType>> : evaluator_base<DoubleKroneckerI
   using StorageIndex = typename XprType::StorageIndex;
   using Scalar = typename XprType::Scalar;
 
-  enum {
-    CoeffReadCost = evaluator<ArgTypeNestedCleaned>::CoeffReadCost,
-    Flags = traits<DoubleKroneckerImpl<ArgType>>::Flags
-  };
+  static constexpr int CoeffReadCost = evaluator<ArgTypeNestedCleaned>::CoeffReadCost;
+  static constexpr unsigned int Flags = traits<DoubleKroneckerImpl<ArgType>>::Flags;
 
   // custom InnerIterator ----------------------------------
   struct InnerIterator {
