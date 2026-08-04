@@ -73,16 +73,16 @@ EIGEN_DEVICE_FUNC void MatrixBase<Derived>::makeHouseholder(EssentialPart& essen
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(EssentialPart)
   const VectorBlock<const Derived, EssentialPart::SizeAtCompileTime> tail(derived(), 1, size() - 1);
 
-  RealScalar tailSqNorm = size() == 1 ? RealScalar(0) : tail.unwind().squaredNorm();
+  // Individual squared coefficients may underflow even when their combined norm is significant.
+  RealScalar tailNorm = size() == 1 ? RealScalar(0) : tail.unwind().stableNorm();
   Scalar c0 = coeff(0);
-  const RealScalar tol = (std::numeric_limits<RealScalar>::min)();
 
-  if (tailSqNorm <= tol && numext::abs2(numext::imag(c0)) <= tol) {
+  if (numext::is_exactly_zero(tailNorm) && numext::is_exactly_zero(numext::imag(c0))) {
     tau = RealScalar(0);
     beta = numext::real(c0);
     essential.setZero();
   } else {
-    beta = numext::sqrt(numext::abs2(c0) + tailSqNorm);
+    beta = numext::hypot(numext::abs(c0), tailNorm);
     if (numext::real(c0) >= RealScalar(0)) beta = -beta;
     essential = tail.unwind() / (c0 - beta);
     tau = conj((beta - c0) / beta);
