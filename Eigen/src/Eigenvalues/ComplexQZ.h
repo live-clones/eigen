@@ -175,7 +175,10 @@ class ComplexQZ {
    *
    * \returns \c Success if computation was successful, \c NoConvergence otherwise.
    */
-  ComputationInfo info() const { return m_info; }
+  ComputationInfo info() const {
+    eigen_assert(m_isInitialized && "ComplexQZ is not initialized.");
+    return m_info;
+  }
 
   /** \brief number of performed QZ steps
    */
@@ -187,10 +190,10 @@ class ComplexQZ {
  private:
   Index m_n;
   const unsigned int m_maxIters;
-  unsigned int m_global_iter;
-  bool m_isInitialized;
+  unsigned int m_global_iter = 0;
+  bool m_isInitialized = false;
   bool m_computeQZ;
-  ComputationInfo m_info;
+  ComputationInfo m_info = InvalidInput;
   MatrixType m_S, m_T, m_Q, m_Z;
   RealScalar m_normOfT, m_normOfS;
   Vec m_ws;
@@ -235,6 +238,7 @@ void ComplexQZ<MatrixType_>::compute(const MatrixType& A, const MatrixType& B, b
 
   m_isInitialized = true;
   m_global_iter = 0;
+  m_info = Success;
 
   // This will initialize m_Q and m_Z and bring m_S, m_T to hessenberg-triangular form
   hessenbergTriangular(A, B);
@@ -364,6 +368,7 @@ void ComplexQZ<MatrixType>::computeSparse(const SparseMatrixType_& A, const Spar
   eigen_assert(m_n == B.rows() && m_n == B.cols() && "B is not a square matrix or B is not of the same size as A");
   m_isInitialized = true;
   m_global_iter = 0;
+  m_info = Success;
   hessenbergTriangularSparse(A, B);
 
   // We assume that we already have that A is upper-Hessenberg and B is
@@ -404,7 +409,10 @@ void ComplexQZ<MatrixType_>::reduceHessenbergTriangular() {
     }
   }
 
-  m_info = (local_iter < m_maxIters) ? Success : NoConvergence;
+  // Preserve NumericalIssue if set
+  if (m_info != NumericalIssue) {
+    m_info = (local_iter < m_maxIters) ? Success : NoConvergence;
+  }
 }
 
 template <typename MatrixType_>
