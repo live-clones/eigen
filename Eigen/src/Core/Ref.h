@@ -43,10 +43,7 @@ struct traits<Ref<PlainObjectType_, Options_, StrideType_> >
                          (int(InnerStrideAtCompileTime) == 0 && int(Derived::InnerStrideAtCompileTime) == 1),
       OuterStrideMatch = IsVectorAtCompileTime || int(OuterStrideAtCompileTime) == int(Dynamic) ||
                          int(OuterStrideAtCompileTime) == int(Derived::OuterStrideAtCompileTime),
-      AlignmentMatch =
-          (int(traits<PlainObjectType>::Alignment) == int(Unaligned)) ||
-          (int(evaluator<Derived>::Alignment) >= int(Alignment)),  // FIXME the first condition is not very clear, it
-                                                                   // should be replaced by the required alignment
+      AlignmentMatch = int(evaluator<Derived>::Alignment) >= int(Alignment),
       ScalarTypeMatch = std::is_same<typename PlainObjectType::Scalar, typename Derived::Scalar>::value,
       MatchAtCompileTime = HasDirectAccess && StorageOrderMatch && InnerStrideMatch && OuterStrideMatch &&
                            AlignmentMatch && ScalarTypeMatch
