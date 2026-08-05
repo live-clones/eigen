@@ -109,5 +109,7 @@ test:windows:cross:x86-64:msvc-14.29:smoketest:
     - saas-windows-medium-amd64
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-  allow_failure:
-    exit_codes: 42
+  # Hosted Windows runners are in beta: the fleet goes away for maintenance and
+  # provisioning is slow, neither of which should block a merge request. The
+  # build job above is the part that has to stay green.
+  allow_failure: true

@@ -73,9 +73,12 @@ build:windows:x86-64:cuda-12.2:msvc-14.29:
 
 ######### MSVC cross-compiled on Linux ########################################
 # Builds the Windows unit tests on a Linux runner, driving the real MSVC
-# toolchain (same compiler as the native jobs) through Wine.  This gives merge
-# requests MSVC coverage without occupying the Windows runners; the resulting
-# binaries are run by the matching job in test.windows.gitlab-ci.yml.
+# toolchain through Wine.  This gives merge requests MSVC coverage without
+# occupying the Windows runners; the resulting binaries are run by the matching
+# job in test.windows.gitlab-ci.yml.
+#
+# Note that this is a different MSVC than the nightly Windows jobs use: it
+# matches the hosted Windows runner the tests run on, not EIGEN_CI_MSVC_VER.
 
 .build:windows:cross:
   needs: []
@@ -83,8 +86,12 @@ build:windows:x86-64:cuda-12.2:msvc-14.29:
   image: ${EIGEN_CI_IMAGE_LINUX_AMD64_MSVC_WINE_BUILD}
   variables:
     EIGEN_CI_MSVC_VS_MAJOR: "17"
-    # Visual Studio 16.11 == MSVC 14.29 (v142), matching EIGEN_CI_MSVC_VER.
-    EIGEN_CI_MSVC_VS_VERSION: "16.11"
+    # Visual Studio 17.8 == MSVC 14.38 (v143), which is what the hosted Windows
+    # runners install (visualstudio2022buildtools 117.8.0.0, pinned in
+    # gitlab-org/ci-cd/shared-runners/images/gcp/windows-containers). Keeping
+    # these in step means the binaries run against the runtime they were built
+    # against; check there before changing this.
+    EIGEN_CI_MSVC_VS_VERSION: "17.8"
     EIGEN_CI_TEST_CUSTOM_CXX_FLAGS: "/d2ReducedOptimizeHugeFunctions;/DEIGEN_STRONG_INLINE=inline;/Os"
     EIGEN_CI_ADDITIONAL_ARGS: ""
   script:
