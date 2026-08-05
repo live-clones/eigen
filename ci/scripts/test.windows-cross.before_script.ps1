@@ -36,14 +36,19 @@ $runnerHas = 'unknown'
 $runnerVs = $null
 $vswhere = "${Env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
 if (Test-Path $vswhere) {
-  $vsPath = & $vswhere -latest -property installationPath
-  $versionFile = Join-Path $vsPath 'VC\Auxiliary\Build\Microsoft.VCToolsVersion.default.txt'
-  if ($vsPath -and (Test-Path $versionFile)) {
-    $runnerHas = (Get-Content $versionFile -First 1).Trim()
+  # -products * is required: vswhere defaults to Community/Professional/
+  # Enterprise, and the hosted runners install Build Tools, which it would
+  # otherwise skip.
+  $vsPath = & $vswhere -latest -products * -property installationPath
+  if ($vsPath) {
+    $versionFile = Join-Path $vsPath 'VC\Auxiliary\Build\Microsoft.VCToolsVersion.default.txt'
+    if (Test-Path $versionFile) {
+      $runnerHas = (Get-Content $versionFile -First 1).Trim()
+    }
   }
   # EIGEN_CI_MSVC_VS_VERSION takes the Visual Studio product version, which is
   # what vswhere reports, so the fix can be quoted verbatim below.
-  $installed = & $vswhere -latest -property installationVersion
+  $installed = & $vswhere -latest -products * -property installationVersion
   if ($installed -match '^(\d+\.\d+)') { $runnerVs = $Matches[1] }
 }
 
