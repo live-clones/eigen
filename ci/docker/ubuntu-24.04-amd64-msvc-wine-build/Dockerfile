@@ -5,8 +5,9 @@
 # (Ubuntu 24.04), by running the MSVC toolchain under Wine.
 #
 # Contains Wine and the msvc-wine scripts (ISC licensed), but deliberately not
-# the MSVC toolchain: Visual Studio is not redistributable, so the compiler
-# itself is fetched from Microsoft's installer manifests at job time by
+# the MSVC toolchain: shipping it here would redistribute it, which nobody has
+# established the Visual Studio license terms permit.  The compiler is fetched
+# from Microsoft's installer manifests at job time instead, by
 # ci/scripts/setup.msvc-wine.sh.
 #
 # Packages:
