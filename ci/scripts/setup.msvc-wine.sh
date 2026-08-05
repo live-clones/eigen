@@ -24,11 +24,23 @@ if [ ! -x "${msvc_dir}/bin/x64/cl" ]; then
         "${EIGEN_CI_MSVC_WINE_COMMIT:-514f8ea34842cd6d831804d0e9658d3a32870ae1}"
   fi
 
+  # Resolve from the manifest pinned in the CI image when there is one, so the
+  # serviced compiler build only changes when that image is rebuilt.  Outside
+  # the image, fall back to whatever the release channel currently offers.
+  msvc_manifest="${EIGEN_CI_MSVC_MANIFEST:-/opt/msvc-manifest/vs.manifest}"
+  if [ -f "${msvc_manifest}" ]; then
+    echo "Using pinned installer manifest:" \
+         "$(cat /opt/msvc-manifest/version.txt 2>/dev/null || echo unknown)"
+    channel_args="--manifest ${msvc_manifest}"
+  else
+    channel_args="--major ${EIGEN_CI_MSVC_VS_MAJOR:-17}"
+  fi
+
   # Note: --msvc-version takes the Visual Studio product version, not the
   # toolset version.  16.11 selects the v142 toolset (MSVC 14.29), the same
   # compiler the native Windows jobs pin with -vcvars_ver.
   "${msvc_wine_dir}/vsdownload.py" --accept-license                 \
-      --major "${EIGEN_CI_MSVC_VS_MAJOR:-17}"                       \
+      ${channel_args}                                               \
       --msvc-version "${EIGEN_CI_MSVC_VS_VERSION:-16.11}"           \
       --architecture x64 --with-atl no --with-asan no               \
       --dest "${msvc_dir}"
