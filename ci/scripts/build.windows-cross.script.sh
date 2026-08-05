@@ -27,6 +27,10 @@ CC=cl CXX=cl cmake -G Ninja                                                 \
 # ci/scripts/test.windows-cross.before_script.ps1.
 pwd > .eigen_ci_builddir
 
+# Record the toolset these binaries were built with, so the Windows test job can
+# report it next to the runtime it actually has.
+echo "${EIGEN_CI_MSVC_TOOLSET}" > .eigen_ci_msvc_toolset
+
 target=""
 if [[ ${EIGEN_CI_BUILD_TARGET} ]]; then
   target="--target ${EIGEN_CI_BUILD_TARGET}"
