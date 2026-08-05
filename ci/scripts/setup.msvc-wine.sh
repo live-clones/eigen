@@ -37,8 +37,8 @@ if [ ! -x "${msvc_dir}/bin/x64/cl" ]; then
   fi
 
   # Note: --msvc-version takes the Visual Studio product version, not the
-  # toolset version.  16.11 selects the v142 toolset (MSVC 14.29), the same
-  # compiler the native Windows jobs pin with -vcvars_ver.
+  # toolset version.  17.8 selects the v143 toolset (MSVC 14.38), matching the
+  # hosted Windows runners the cross-compiled tests run on.
   "${msvc_wine_dir}/vsdownload.py" --accept-license                 \
       ${channel_args}                                               \
       --msvc-version "${EIGEN_CI_MSVC_VS_VERSION:-16.11}"           \
