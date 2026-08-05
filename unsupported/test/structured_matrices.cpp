@@ -1344,12 +1344,11 @@ void test_circulant_rank_complex_boundary() {
   Circulant<Complex> C(c);
   VERIFY_IS_EQUAL(C.rank(), 2);
 
-  // The second Fourier mode must be inverted, not zeroed: a product of a small
-  // vector solves back to that vector (the accuracy is limited by the condition
-  // number |s0| / |s1| ~ 2.5e8).
+  // The second Fourier mode must be inverted, not zeroed. Isolating that mode
+  // avoids measuring forward-error amplification by |s0| / |s1| ~ 2.5e8.
   CVec x0(2);
   x0[0] = Complex(1e-10, -2e-10);
-  x0[1] = Complex(-3e-10, 1e-10);
+  x0[1] = -x0[0];
   CVec b = C * x0;
   VERIFY(b.allFinite());
   CVec x = C.solve(b);
