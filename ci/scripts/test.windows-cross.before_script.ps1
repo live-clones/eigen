@@ -33,6 +33,7 @@ if (Test-Path $toolsetStamp) {
 }
 
 $runnerHas = 'unknown'
+$runnerVs = $null
 $vswhere = "${Env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
 if (Test-Path $vswhere) {
   $vsPath = & $vswhere -latest -property installationPath
@@ -40,6 +41,10 @@ if (Test-Path $vswhere) {
   if ($vsPath -and (Test-Path $versionFile)) {
     $runnerHas = (Get-Content $versionFile -First 1).Trim()
   }
+  # EIGEN_CI_MSVC_VS_VERSION takes the Visual Studio product version, which is
+  # what vswhere reports, so the fix can be quoted verbatim below.
+  $installed = & $vswhere -latest -property installationVersion
+  if ($installed -match '^(\d+\.\d+)') { $runnerVs = $Matches[1] }
 }
 
 Write-Host "MSVC toolset: built with ${builtWith}, this runner has ${runnerHas}"
@@ -47,9 +52,9 @@ Write-Host "MSVC toolset: built with ${builtWith}, this runner has ${runnerHas}"
 if ($builtWith -ne 'unknown' -and $runnerHas -ne 'unknown' -and $builtWith -ne $runnerHas) {
   Write-Host "WARNING: the build and the runner have drifted apart."
   if ([version]$builtWith -gt [version]$runnerHas) {
+    $fix = if ($runnerVs) { "`"${runnerVs}`"" } else { "the Visual Studio version this runner reports" }
     Write-Host ("WARNING: the binaries are newer than this runner's runtime, so " +
                 "they will fail to load. Set EIGEN_CI_MSVC_VS_VERSION in " +
-                "ci/build.windows.gitlab-ci.yml to the Visual Studio version " +
-                "this runner reports.")
+                "ci/build.windows.gitlab-ci.yml to ${fix}.")
   }
 }
