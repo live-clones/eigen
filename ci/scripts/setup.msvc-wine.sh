@@ -5,9 +5,11 @@
 # Source (don't execute) this: it puts the MSVC wrappers (cl, link, ...) on PATH.
 #
 # The toolchain is fetched from Microsoft's own installer manifests via
-# msvc-wine (https://github.com/mstorsjo/msvc-wine).  Visual Studio is not
-# redistributable, so it cannot be baked into a public CI image and is
-# downloaded per job instead (~800 MB, ~3 GB unpacked).
+# msvc-wine (https://github.com/mstorsjo/msvc-wine), per job (~800 MB, ~3 GB
+# unpacked).  It is deliberately not baked into the CI image: that would
+# redistribute it, which nobody has established the Visual Studio license terms
+# permit.  Nothing is licensed or activated at run time -- --accept-license is a
+# local flag, and the installed compiler builds with no network access.
 
 # The msvc-wine scripts (ISC licensed) ship in the CI image; fall back to a
 # clone so this also works outside it, e.g. when reproducing a failure locally.
