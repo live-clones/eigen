@@ -85,3 +85,29 @@ test:windows:x86-64:msvc-14.29:avx512dq:unsupported:
 test:windows:x86-64:cuda-12.2:msvc-14.29:
   extends: .test:windows:cuda
   needs: [ build:windows:x86-64:cuda-12.2:msvc-14.29 ]
+
+##### MSVC cross-compiled on Linux #############################################
+# Runs the binaries cross-compiled by build:windows:cross:... on a hosted
+# Windows runner.  Test-only: hosted Windows runners have no Docker executor,
+# and the toolchain lives on the Linux builder.
+
+test:windows:cross:x86-64:msvc-14.29:smoketest:
+  extends: .common:windows
+  stage: test
+  needs: [ build:windows:cross:x86-64:msvc-14.29:smoketest ]
+  variables:
+    EIGEN_CI_CTEST_LABEL: smoketest
+  before_script:
+    - . ci/scripts/common.windows.before_script.ps1
+    # The build tree was configured on Linux; repoint its CTest files here.
+    - ./ci/scripts/test.windows-cross.before_script.ps1
+  script:
+    - ./ci/scripts/test.windows.script.ps1
+  after_script:
+    - ./ci/scripts/test.windows.after_script.ps1
+  tags:
+    - saas-windows-medium-amd64
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  allow_failure:
+    exit_codes: 42
