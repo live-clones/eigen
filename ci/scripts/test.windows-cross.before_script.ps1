@@ -47,7 +47,14 @@ if (Test-Path $vswhere) {
   if ($installed -match '^(\d+\.\d+)') { $runnerVs = $Matches[1] }
 }
 
-Write-Host "MSVC toolset: built with ${builtWith}, this runner has ${runnerHas}"
+$verdict = if ($builtWith -eq 'unknown' -or $runnerHas -eq 'unknown') {
+  ' (cannot compare)'
+} elseif ($builtWith -eq $runnerHas) {
+  ' (match)'
+} else {
+  ' (differ)'
+}
+Write-Host "MSVC toolset: built with ${builtWith}, this runner has ${runnerHas}${verdict}"
 
 if ($builtWith -ne 'unknown' -and $runnerHas -ne 'unknown' -and $builtWith -ne $runnerHas) {
   Write-Host "WARNING: the build and the runner have drifted apart."
