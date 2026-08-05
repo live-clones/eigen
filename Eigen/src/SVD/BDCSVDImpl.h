@@ -386,9 +386,12 @@ typename bdcsvd_impl<RealScalar_>::RealScalar bdcsvd_impl<RealScalar_>::secularE
   RealScalar res = Literal(1);
   for (Index i = 0; i < m; ++i) {
     Index j = perm(i);
-    // The following expression could be rewritten to involve only a single division,
-    // but this would make the expression more sensitive to overflow.
-    res += (col0(j) / (diagShifted(j) - mu)) * (col0(j) / (diag(j) + shift + mu));
+    // Keep the divisions separate: combining their denominators can overflow or underflow.
+    RealScalar leftTerm = col0(j) / (diagShifted(j) - mu);
+    RealScalar rightTerm = col0(j) / (diag(j) + shift + mu);
+    EIGEN_OPTIMIZATION_BARRIER(leftTerm)
+    EIGEN_OPTIMIZATION_BARRIER(rightTerm)
+    res += leftTerm * rightTerm;
   }
   return res;
 }
