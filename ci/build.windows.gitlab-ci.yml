@@ -80,18 +80,13 @@ build:windows:x86-64:cuda-12.2:msvc-14.29:
 .build:windows:cross:
   needs: []
   stage: build
-  image: ubuntu:24.04
+  image: ${EIGEN_CI_IMAGE_LINUX_AMD64_MSVC_WINE_BUILD}
   variables:
-    EIGEN_CI_MSVC_WINE_COMMIT: "514f8ea34842cd6d831804d0e9658d3a32870ae1"
     EIGEN_CI_MSVC_VS_MAJOR: "17"
     # Visual Studio 16.11 == MSVC 14.29 (v142), matching EIGEN_CI_MSVC_VER.
     EIGEN_CI_MSVC_VS_VERSION: "16.11"
     EIGEN_CI_TEST_CUSTOM_CXX_FLAGS: "/d2ReducedOptimizeHugeFunctions;/DEIGEN_STRONG_INLINE=inline;/Os"
     EIGEN_CI_ADDITIONAL_ARGS: ""
-  before_script:
-    - apt-get update -y > /dev/null
-    - apt-get install -y --no-install-recommends
-        ca-certificates cmake git msitools ninja-build python3 winbind wine wine64 > /dev/null
   script:
     - ./ci/scripts/build.windows-cross.script.sh
   tags:
