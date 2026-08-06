@@ -21,12 +21,19 @@ msvc_dir="${EIGEN_CI_MSVC_DIR:-${PWD}/.msvc}"
 
 if [ ! -x "${msvc_dir}/bin/x64/cl" ]; then
   if [ ! -f "${msvc_wine_dir}/vsdownload.py" ]; then
+    # Check out the commit the CI image is built from, read from the one file
+    # both sides use so they cannot drift; the Dockerfile has it in its build
+    # context.
+    msvc_wine_commit="${EIGEN_CI_MSVC_WINE_COMMIT}"
+    if [ -z "${msvc_wine_commit}" ]; then
+      commit_file="$(dirname "${BASH_SOURCE[0]}")/../docker"
+      commit_file="${commit_file}/ubuntu-24.04-amd64-msvc-wine-build"
+      msvc_wine_commit=$(cat "${commit_file}/msvc-wine-commit.txt") || return 1
+    fi
     msvc_wine_dir="${PWD}/.msvc-wine"
     rm -rf "${msvc_wine_dir}"
     git clone -q https://github.com/mstorsjo/msvc-wine.git "${msvc_wine_dir}"
-    # Keep in sync with ci/docker/ubuntu-24.04-amd64-msvc-wine-build/Dockerfile.
-    git -C "${msvc_wine_dir}" checkout -q \
-        "${EIGEN_CI_MSVC_WINE_COMMIT:-514f8ea34842cd6d831804d0e9658d3a32870ae1}"
+    git -C "${msvc_wine_dir}" checkout -q "${msvc_wine_commit}"
   fi
 
   # Resolve from the manifest pinned in the CI image when there is one, so the
