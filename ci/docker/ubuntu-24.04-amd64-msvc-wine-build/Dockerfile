@@ -50,9 +50,14 @@ RUN git clone https://github.com/mstorsjo/msvc-wine.git /opt/msvc-wine && \
 # every job re-resolves the current release channel, so the serviced compiler
 # build can change under an unchanged .gitlab-ci.yml; rebuilding this image is
 # then the deliberate way to move to a newer one.
-RUN mkdir -p /opt/msvc-manifest && cd /tmp && \
-    /opt/msvc-wine/vsdownload.py --accept-license --major ${MSVC_VS_MAJOR} \
+WORKDIR /opt/msvc-manifest
+RUN /opt/msvc-wine/vsdownload.py --accept-license --major ${MSVC_VS_MAJOR} \
         --save-manifest --print-version && \
-    manifest=$(ls *.manifest) && \
-    printf '%s\n' "${manifest%.manifest}" > /opt/msvc-manifest/version.txt && \
-    mv "${manifest}" /opt/msvc-manifest/vs.manifest
+    manifest=$(find . -maxdepth 1 -name '*.manifest' -type f -print -quit) && \
+    test -n "${manifest}" && \
+    manifest=${manifest#./} && \
+    printf '%s\n' "${manifest%.manifest}" > version.txt && \
+    mv "${manifest}" vs.manifest
+
+# Leave the image where it started rather than in the manifest directory.
+WORKDIR /
