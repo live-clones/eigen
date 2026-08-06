@@ -34,8 +34,13 @@ if [ ! -x "${msvc_dir}/bin/x64/cl" ]; then
   # the image, fall back to whatever the release channel currently offers.
   msvc_manifest="${EIGEN_CI_MSVC_MANIFEST:-/opt/msvc-manifest/vs.manifest}"
   if [ -f "${msvc_manifest}" ]; then
-    echo "Using pinned installer manifest:" \
-         "$(cat /opt/msvc-manifest/version.txt 2>/dev/null || echo unknown)"
+    # The version is written next to the manifest, so follow it if the manifest
+    # was overridden rather than reporting the image's version for someone
+    # else's file.
+    msvc_manifest_version=$(cat "$(dirname "${msvc_manifest}")/version.txt" \
+                            2>/dev/null)
+    printf 'Using pinned installer manifest: %s\n' \
+           "${msvc_manifest_version:-unknown}"
     channel_args="--manifest ${msvc_manifest}"
   else
     channel_args="--major ${EIGEN_CI_MSVC_VS_MAJOR:-17}"
