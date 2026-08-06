@@ -24,8 +24,11 @@ CC=cl CXX=cl cmake -G Ninja                                                 \
 # CTest bakes the absolute build directory into every add_test() in
 # CTestTestfile.cmake.  Record it so the Windows test job can rewrite those
 # paths to wherever the artifacts are unpacked; see
-# ci/scripts/test.windows-cross.before_script.ps1.
-pwd > .eigen_ci_builddir
+# ci/scripts/test.windows-cross.before_script.ps1.  That rewrite is a literal
+# string replacement, so this has to be the path CMake used: getcwd(), i.e. the
+# physical one.  Plain `pwd` is the shell's logical path, which keeps any
+# symlink we arrived through and would not match.
+pwd -P > .eigen_ci_builddir
 
 # Record the toolset these binaries were built with, so the Windows test job can
 # report it next to the runtime it actually has.
