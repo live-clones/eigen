@@ -6,10 +6,13 @@
 #
 # The toolchain is fetched from Microsoft's own installer manifests via
 # msvc-wine (https://github.com/mstorsjo/msvc-wine), per job (~800 MB, ~3 GB
-# unpacked).  It is deliberately not baked into the CI image: that would
-# redistribute it, which nobody has established the Visual Studio license terms
-# permit.  Nothing is licensed or activated at run time -- --accept-license is a
-# local flag, and the installed compiler builds with no network access.
+# unpacked).  Eigen is MPL-2.0, an OSI-approved license, so the Visual Studio
+# Community terms cover using MSVC to develop and test it; they do not permit
+# sharing or otherwise distributing it, so it stays out of the CI image and out
+# of the job artifacts, and lives only in this workspace while the job runs.
+#
+# Nothing is licensed or activated at run time -- --accept-license is a local
+# flag, and the installed compiler builds with no network access.
 
 # The msvc-wine scripts (ISC licensed) ship in the CI image; fall back to a
 # clone so this also works outside it, e.g. when reproducing a failure locally.

@@ -5,10 +5,12 @@
 # (Ubuntu 24.04), by running the MSVC toolchain under Wine.
 #
 # Contains Wine and the msvc-wine scripts (ISC licensed), but deliberately not
-# the MSVC toolchain: shipping it here would redistribute it, which nobody has
-# established the Visual Studio license terms permit.  The compiler is fetched
-# from Microsoft's installer manifests at job time instead, by
-# ci/scripts/setup.msvc-wine.sh.
+# the MSVC toolchain.  Eigen is MPL-2.0, an OSI-approved license, so the Visual
+# Studio Community terms cover using MSVC to develop and test it; those same
+# terms do not permit providing the software "combined with any of your
+# applications for others to use", which is what publishing it in this image
+# would be.  The compiler is fetched from Microsoft's installer manifests at job
+# time instead, by ci/scripts/setup.msvc-wine.sh.
 #
 # Packages:
 #   wine, wine64 - runs cl.exe/link.exe
@@ -34,6 +36,8 @@ RUN apt-get update -y && \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+# Keep LICENSE.txt: ISC requires the notice to travel with every copy, and this
+# image is a copy.
 RUN git clone https://github.com/mstorsjo/msvc-wine.git /opt/msvc-wine && \
     git -C /opt/msvc-wine checkout ${MSVC_WINE_COMMIT} && \
     rm -rf /opt/msvc-wine/.git
