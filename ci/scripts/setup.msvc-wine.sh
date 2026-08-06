@@ -42,13 +42,18 @@ if [ ! -x "${msvc_dir}/bin/x64/cl" ]; then
   fi
 
   # Note: --msvc-version takes the Visual Studio product version, not the
-  # toolset version.  17.8 selects the v143 toolset (MSVC 14.38), matching the
+  # toolset version.  17.14 selects the v143 toolset (MSVC 14.44), matching the
   # hosted Windows runners the cross-compiled tests run on.
   "${msvc_wine_dir}/vsdownload.py" --accept-license                 \
       ${channel_args}                                               \
-      --msvc-version "${EIGEN_CI_MSVC_VS_VERSION:-16.11}"           \
+      --msvc-version "${EIGEN_CI_MSVC_VS_VERSION:-17.14}"           \
       --architecture x64 --with-atl no --with-asan no               \
       --dest "${msvc_dir}"
+  # Creating the Wine prefix logs
+  #   wine: failed to open L"C:\windows\syswow64\rundll32.exe": c0000135
+  # because the image installs 64-bit Wine only, so wineboot cannot register the
+  # 32-bit subsystem.  Nothing here needs it -- the compiler, the linker and the
+  # tests they produce are all x64 -- and WINEARCH=win64 does not suppress it.
   "${msvc_wine_dir}/install.sh" "${msvc_dir}"
 fi
 
