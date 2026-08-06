@@ -91,10 +91,10 @@ test:windows:x86-64:cuda-12.2:msvc-14.29:
 # Windows runner.  Test-only: hosted Windows runners have no Docker executor,
 # and the toolchain lives on the Linux builder.
 
-test:windows:cross:x86-64:msvc-14.29:smoketest:
+test:windows:cross:x86-64:msvc-14.44:smoketest:
   extends: .common:windows
   stage: test
-  needs: [ build:windows:cross:x86-64:msvc-14.29:smoketest ]
+  needs: [ build:windows:cross:x86-64:msvc-14.44:smoketest ]
   variables:
     EIGEN_CI_CTEST_LABEL: smoketest
   before_script:

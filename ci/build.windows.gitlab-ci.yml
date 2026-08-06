@@ -116,7 +116,7 @@ build:windows:x86-64:cuda-12.2:msvc-14.29:
       - ${EIGEN_CI_BUILDDIR}/**/Testing/Temporary/**
     expire_in: 2 days
 
-build:windows:cross:x86-64:msvc-14.29:smoketest:
+build:windows:cross:x86-64:msvc-14.44:smoketest:
   extends: .build:windows:cross
   variables:
     EIGEN_CI_BUILD_TARGET: buildsmoketests
