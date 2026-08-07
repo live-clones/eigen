@@ -5,9 +5,9 @@
 # (Ubuntu 24.04), by running the MSVC toolchain under Wine.
 #
 # Contains Wine and the msvc-wine scripts (ISC licensed), but deliberately not
-# the MSVC toolchain: the Visual Studio Community 2022 terms permit installing
-# Build Tools into a container "dedicated solely to your use", but forbid
-# "shar[ing], publish[ing], rent[ing] or leas[ing] the software", and this image
+# the MSVC toolchain: the Visual Studio Community 2022 license permits
+# installing Build Tools into a container "dedicated solely to your use", but
+# says you may not "share, publish, rent or lease the software", and this image
 # is pushed to the registry.  ci/scripts/setup.msvc-wine.sh fetches the compiler
 # at job time instead, and carries the citation.
 #
