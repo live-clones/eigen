@@ -5,12 +5,11 @@
 # (Ubuntu 24.04), by running the MSVC toolchain under Wine.
 #
 # Contains Wine and the msvc-wine scripts (ISC licensed), but deliberately not
-# the MSVC toolchain.  Eigen is MPL-2.0, an OSI-approved license, so the Visual
-# Studio Community terms cover using MSVC to develop and test it; those same
-# terms do not permit providing the software "combined with any of your
-# applications for others to use", which is what publishing it in this image
-# would be.  The compiler is fetched from Microsoft's installer manifests at job
-# time instead, by ci/scripts/setup.msvc-wine.sh.
+# the MSVC toolchain: the Visual Studio Community 2022 terms permit installing
+# Build Tools into a container "dedicated solely to your use", but forbid
+# "shar[ing], publish[ing], rent[ing] or leas[ing] the software", and this image
+# is pushed to the registry.  ci/scripts/setup.msvc-wine.sh fetches the compiler
+# at job time instead, and carries the citation.
 #
 # Packages:
 #   wine, wine64 - runs cl.exe/link.exe
