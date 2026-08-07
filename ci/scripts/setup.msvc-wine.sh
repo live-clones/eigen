@@ -8,15 +8,15 @@
 # msvc-wine (https://github.com/mstorsjo/msvc-wine), per job (~800 MB, ~3 GB
 # unpacked), rather than baked into the CI image.
 #
-# The jobs resolve a 17.x release, so the Visual Studio Community 2022 terms
-# apply: https://visualstudio.microsoft.com/license-terms/vs2022-ga-community/
-# They permit using MSVC to develop and test "applications released under Open
+# The jobs resolve a 17.x release, so the Visual Studio Community 2022 license
+# applies: https://visualstudio.microsoft.com/license-terms/vs2022-ga-community/
+# It permits using MSVC to develop and test "applications released under Open
 # Source Initiative (OSI) approved open source software licenses" -- Eigen's
 # MPL-2.0 -- and installing Build Tools "onto your build devices, including
 # physical devices and virtual machines or containers on those machines" that
-# are "dedicated solely to your use".  They forbid "shar[ing], publish[ing],
-# rent[ing] or leas[ing] the software", which a registry image would be.  Hence
-# per job, and out of the job artifacts too.
+# are "dedicated solely to your use".  It also says you may not "share, publish,
+# rent or lease the software", which a registry image would be.  Hence per job,
+# and out of the job artifacts too.
 #
 # Nothing is licensed or activated at run time -- --accept-license is a local
 # flag, and the installed compiler builds with no network access.
