@@ -21,10 +21,13 @@ hosted Windows runner.  Both use hosted runners and pre-baked images, so they
 also run in forks.
 
 The toolchain is not part of the CI image (see
-`ci/docker/ubuntu-24.04-amd64-msvc-wine-build/`).  Eigen is MPL-2.0, an
-OSI-approved license, so the Visual Studio Community terms cover using MSVC to
-develop and test it; they do not permit sharing or otherwise distributing it, so
-it is downloaded from Microsoft's installer manifests by
+`ci/docker/ubuntu-24.04-amd64-msvc-wine-build/`).  The [Visual Studio Community
+2022 terms](https://visualstudio.microsoft.com/license-terms/vs2022-ga-community/)
+permit using MSVC to develop and test software under an OSI-approved license,
+Eigen's MPL-2.0 among them, and permit installing Build Tools into a container
+"dedicated solely to your use"; they forbid "shar[ing], publish[ing], rent[ing]
+or leas[ing] the software", which a registry image would be.  So it is
+downloaded from Microsoft's installer manifests by
 `ci/scripts/setup.msvc-wine.sh` on each run and never lands in an image layer or
 a job artifact.  Nothing is licensed or activated at run time: the compiler
 builds with no network access once installed.
