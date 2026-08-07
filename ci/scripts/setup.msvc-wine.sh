@@ -6,10 +6,17 @@
 #
 # The toolchain is fetched from Microsoft's own installer manifests via
 # msvc-wine (https://github.com/mstorsjo/msvc-wine), per job (~800 MB, ~3 GB
-# unpacked).  Eigen is MPL-2.0, an OSI-approved license, so the Visual Studio
-# Community terms cover using MSVC to develop and test it; they do not permit
-# sharing or otherwise distributing it, so it stays out of the CI image and out
-# of the job artifacts, and lives only in this workspace while the job runs.
+# unpacked), rather than baked into the CI image.
+#
+# The jobs resolve a 17.x release, so the Visual Studio Community 2022 terms
+# apply: https://visualstudio.microsoft.com/license-terms/vs2022-ga-community/
+# They permit using MSVC to develop and test "applications released under Open
+# Source Initiative (OSI) approved open source software licenses" -- Eigen's
+# MPL-2.0 -- and installing Build Tools "onto your build devices, including
+# physical devices and virtual machines or containers on those machines" that
+# are "dedicated solely to your use".  They forbid "shar[ing], publish[ing],
+# rent[ing] or leas[ing] the software", which a registry image would be.  Hence
+# per job, and out of the job artifacts too.
 #
 # Nothing is licensed or activated at run time -- --accept-license is a local
 # flag, and the installed compiler builds with no network access.
@@ -53,6 +60,9 @@ if [ ! -x "${msvc_dir}/bin/x64/cl" ]; then
     channel_args="--major ${EIGEN_CI_MSVC_VS_MAJOR:-17}"
   fi
 
+  # Installing MSVC is the step that cannot move into the CI image; see the
+  # license note at the top of this file.
+  #
   # Note: --msvc-version takes the Visual Studio product version, not the
   # toolset version.  17.14 selects the v143 toolset (MSVC 14.44), matching the
   # hosted Windows runners the cross-compiled tests run on.
