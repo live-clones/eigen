@@ -1399,6 +1399,10 @@ EIGEN_ALWAYS_INLINE void gebp_micro_panel_impl(GEBPTraits& traits, const DataMap
 #endif
 
   // ---- Peeled k-loop (pk=8 unrolled) ----
+#if EIGEN_COMP_GNUC_STRICT && defined(EIGEN_VECTORIZE_RVV10)
+  // GCC 15 and 16 miscompile scalar packet instantiations when this manually unrolled loop is vectorized.
+#pragma GCC novector
+#endif
   for (Index_ k = 0; k < peeled_kc; k += pk) {
     alignas(RhsPanelType) RhsPanelType rhs_panel;
     alignas(RhsPacketLocal) RhsPacketLocal T0;
