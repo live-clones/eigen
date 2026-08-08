@@ -114,7 +114,7 @@ inline void oneshot_check_info(Context& ctx, OneShotSolverScratch& scratch, cons
 #else
   int* info_words = static_cast<int*>(scratch.h_info.get());
   EIGEN_CUDA_RUNTIME_CHECK(
-      cudaMemcpyAsync(info_words, scratch.d_info.get(), 2 * sizeof(int), cudaMemcpyDeviceToHost, ctx.stream()));
+      cudaMemcpyAsync(info_words, scratch.d_info.get(), kOneShotInfoBytes, cudaMemcpyDeviceToHost, ctx.stream()));
   EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(ctx.stream()));
   eigen_assert(info_words[0] == 0 && "cuSOLVER one-shot factorization failed" && what);
   eigen_assert(info_words[1] == 0 && "cuSOLVER one-shot solve failed" && what);

@@ -244,18 +244,17 @@ class DeviceMatrix {
 
   /** Upload a host Eigen matrix to device memory (synchronous).
    *
-   * Evaluates the expression into a contiguous ColMajor temporary, copies to
-   * device via cudaMemcpyAsync on \p stream, and synchronizes before returning.
+   * Copies to device via cudaMemcpyAsync on \p stream and synchronizes before
+   * returning. Plain contiguous column-major input is transferred directly;
+   * other expressions are first evaluated into a contiguous temporary.
    *
    * \param host   Any Eigen matrix expression.
    * \param stream CUDA stream for the transfer (default: stream 0).
    */
   template <typename Derived>
   static DeviceMatrix fromHost(const MatrixBase<Derived>& host, cudaStream_t stream = nullptr) {
-    // Ref binds in place when the input is already a plain contiguous
-    // column-major matrix (the common case) — no host-side copy. Only genuine
-    // expressions and incompatible layouts are evaluated into the Ref's
-    // internal temporary.
+    // Ref binds plain contiguous column-major input in place (no host copy);
+    // expressions and incompatible layouts evaluate into its temporary.
     const Ref<const PlainMatrix> mat(host.derived());
     DeviceMatrix dm(mat.rows(), mat.cols());
     if (dm.sizeInBytes() > 0) {

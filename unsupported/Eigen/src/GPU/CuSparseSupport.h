@@ -31,6 +31,9 @@ namespace internal {
     EIGEN_UNUSED_VARIABLE(_s);                                                  \
   } while (0)
 
+// cuSPARSE rejects CUSPARSE_OPERATION_CONJUGATE_TRANSPOSE for real scalar
+// types; for real Scalar, ConjTrans is mathematically equivalent to Trans and
+// is silently demoted. Complex Scalar passes through unchanged.
 template <typename Scalar>
 constexpr cusparseOperation_t to_cusparse_op(GpuOp op) {
   const auto op_ = (op == GpuOp::ConjTrans && !NumTraits<Scalar>::IsComplex) ? GpuOp::Trans : op;
