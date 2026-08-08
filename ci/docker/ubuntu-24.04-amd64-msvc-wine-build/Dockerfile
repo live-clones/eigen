@@ -1,0 +1,62 @@
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
+#
+# CI image for cross-compiling the Windows unit tests on an amd64 Linux runner
+# (Ubuntu 24.04), by running the MSVC toolchain under Wine.
+#
+# Contains Wine and the msvc-wine scripts (ISC licensed), but deliberately not
+# the MSVC toolchain: the Visual Studio Community 2022 license permits
+# installing Build Tools into a container "dedicated solely to your use", but
+# says you may not "share, publish, rent or lease the software", and this image
+# is pushed to the registry.  ci/scripts/setup.msvc-wine.sh fetches the compiler
+# at job time instead, and carries the citation.
+#
+# Packages:
+#   wine, wine64 - runs cl.exe/link.exe
+#   winbind      - Wine needs it for the separate-PDB debug info CMake probes with
+#   msitools     - unpacks the MSI/CAB packages vsdownload.py downloads
+#   python3      - runs vsdownload.py
+#
+# Rebuild and push when this file or msvc-wine-commit.txt changes:
+#   docker buildx build --platform linux/amd64 \
+#     -t registry.gitlab.com/libeigen/eigen/ubuntu-24.04-amd64-msvc-wine-build:latest \
+#     --push ci/docker/ubuntu-24.04-amd64-msvc-wine-build/
+
+FROM ubuntu:24.04
+
+ARG DEBIAN_FRONTEND=noninteractive
+ARG MSVC_VS_MAJOR=17
+
+RUN apt-get update -y && \
+    apt-get install -y --no-install-recommends \
+      ca-certificates cmake git ninja-build python3 \
+      msitools winbind wine wine64 \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# The commit to check out.  ci/scripts/setup.msvc-wine.sh reads the same file
+# for the clone it falls back to outside this image, so the two cannot drift.
+# It stays in the image as a record of what is installed here.
+COPY msvc-wine-commit.txt /opt/msvc-wine-commit.txt
+
+# Keep LICENSE.txt: ISC requires the notice to travel with every copy, and this
+# image is a copy.
+RUN git clone https://github.com/mstorsjo/msvc-wine.git /opt/msvc-wine && \
+    git -C /opt/msvc-wine checkout "$(cat /opt/msvc-wine-commit.txt)" && \
+    rm -rf /opt/msvc-wine/.git
+
+# Pin which Visual Studio release the toolchain is resolved from. Without this
+# every job re-resolves the current release channel, so the serviced compiler
+# build can change under an unchanged .gitlab-ci.yml; rebuilding this image is
+# then the deliberate way to move to a newer one.
+WORKDIR /opt/msvc-manifest
+RUN /opt/msvc-wine/vsdownload.py --accept-license --major ${MSVC_VS_MAJOR} \
+        --save-manifest --print-version && \
+    manifest=$(find . -maxdepth 1 -name '*.manifest' -type f -print -quit) && \
+    test -n "${manifest}" && \
+    manifest=${manifest#./} && \
+    printf '%s\n' "${manifest%.manifest}" > version.txt && \
+    mv "${manifest}" vs.manifest
+
+# Leave the image where it started rather than in the manifest directory.
+WORKDIR /
