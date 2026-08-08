@@ -380,8 +380,9 @@ void structured_fft_apply(Dest& dst, const Matrix<std::complex<typename NumTrait
     return;
   }
 
-  int log2p = 0;
-  for (Index t = p; t > 0; t /= 2) ++log2p;
+  // The bit width of p (>= 1 here), an upper bound for the ceil(log2 p) of the
+  // magnitude bound above -- one bit looser at power-of-two transform lengths.
+  const int log2p = log2_floor(static_cast<std::make_unsigned_t<Index>>(p)) + 1;
   const int budget = NumTraits<RealScalar>::max_exponent() - 2 * log2p - 2;
 
   auto&& fft = structured_fft_engine<RealScalar>();
