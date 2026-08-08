@@ -80,14 +80,10 @@ class SelfAdjointEigenSolver {
   SelfAdjointEigenSolver(SelfAdjointEigenSolver&& o) noexcept
       : solver_ctx_(std::move(o.solver_ctx_)),
         d_A_(std::move(o.d_A_)),
-        a_alloc_size_(o.a_alloc_size_),
         d_W_(std::move(o.d_W_)),
-        w_alloc_size_(o.w_alloc_size_),
         compute_eigenvectors_(o.compute_eigenvectors_),
         n_(o.n_),
         lda_(o.lda_) {
-    o.a_alloc_size_ = 0;
-    o.w_alloc_size_ = 0;
     o.compute_eigenvectors_ = true;
     o.n_ = 0;
     o.lda_ = 0;
@@ -97,14 +93,10 @@ class SelfAdjointEigenSolver {
     if (this != &o) {
       solver_ctx_ = std::move(o.solver_ctx_);
       d_A_ = std::move(o.d_A_);
-      a_alloc_size_ = o.a_alloc_size_;
       d_W_ = std::move(o.d_W_);
-      w_alloc_size_ = o.w_alloc_size_;
       compute_eigenvectors_ = o.compute_eigenvectors_;
       n_ = o.n_;
       lda_ = o.lda_;
-      o.a_alloc_size_ = 0;
-      o.w_alloc_size_ = 0;
       o.compute_eigenvectors_ = true;
       o.n_ = 0;
       o.lda_ = 0;
@@ -125,10 +117,7 @@ class SelfAdjointEigenSolver {
     if (!begin_compute(d_A, options)) return *this;
 
     const size_t mat_bytes = static_cast<size_t>(lda_) * static_cast<size_t>(n_) * sizeof(Scalar);
-    if (mat_bytes > a_alloc_size_) {
-      d_A_ = internal::DeviceBuffer(mat_bytes);
-      a_alloc_size_ = mat_bytes;
-    }
+    internal::ensure_sized(d_A_, mat_bytes);
     EIGEN_CUDA_RUNTIME_CHECK(
         cudaMemcpyAsync(d_A_.get(), d_A.data(), mat_bytes, cudaMemcpyDeviceToDevice, solver_ctx_.stream_));
 
@@ -141,8 +130,8 @@ class SelfAdjointEigenSolver {
   SelfAdjointEigenSolver& compute(DeviceMatrix<Scalar>&& d_A, int options = ComputeEigenvectors) {
     if (!begin_compute(d_A, options)) return *this;
 
-    d_A_ = internal::DeviceBuffer::adopt(static_cast<void*>(d_A.release()));
-    a_alloc_size_ = static_cast<size_t>(lda_) * static_cast<size_t>(n_) * sizeof(Scalar);
+    d_A_ = internal::DeviceBuffer::adopt(static_cast<void*>(d_A.release()),
+                                         static_cast<size_t>(lda_) * static_cast<size_t>(n_) * sizeof(Scalar));
 
     factorize();
     return *this;
@@ -210,10 +199,8 @@ class SelfAdjointEigenSolver {
 
  private:
   mutable internal::GpuSolverContext solver_ctx_;
-  internal::DeviceBuffer d_A_;  // overwritten with eigenvectors by syevd
-  size_t a_alloc_size_ = 0;     // grow-only allocation size of d_A_
-  internal::DeviceBuffer d_W_;  // eigenvalues (RealScalar, length n)
-  size_t w_alloc_size_ = 0;     // grow-only allocation size of d_W_
+  internal::DeviceBuffer d_A_;  // grow-only; overwritten with eigenvectors by syevd
+  internal::DeviceBuffer d_W_;  // grow-only; eigenvalues (RealScalar, length n)
   bool compute_eigenvectors_ = true;
   int64_t n_ = 0;
   int64_t lda_ = 0;
@@ -229,8 +216,6 @@ class SelfAdjointEigenSolver {
     if (!solver_ctx_.begin_compute(n_ != 0)) {
       d_A_ = internal::DeviceBuffer();
       d_W_ = internal::DeviceBuffer();
-      a_alloc_size_ = 0;
-      w_alloc_size_ = 0;
       return false;
     }
     lda_ = n_;
@@ -244,11 +229,7 @@ class SelfAdjointEigenSolver {
 
     solver_ctx_.mark_pending();
 
-    const size_t w_bytes = static_cast<size_t>(n_) * sizeof(RealScalar);
-    if (w_bytes > w_alloc_size_) {
-      d_W_ = internal::DeviceBuffer(w_bytes);
-      w_alloc_size_ = w_bytes;
-    }
+    internal::ensure_sized(d_W_, static_cast<size_t>(n_) * sizeof(RealScalar));
 
     const cusolverEigMode_t jobz = compute_eigenvectors_ ? CUSOLVER_EIG_MODE_VECTOR : CUSOLVER_EIG_MODE_NOVECTOR;
 

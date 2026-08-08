@@ -36,7 +36,6 @@ struct GpuSolverContext {
   cublasLtHandle_t cublas_lt_ = nullptr;  // lazy: created on first GEMM-via-cublasLt call (standalone mode only)
   CusolverParams params_;
   DeviceBuffer d_scratch_;
-  size_t scratch_size_ = 0;
   std::vector<char> h_workspace_;
   DeviceBuffer gemm_workspace_;  // grown lazily by cublaslt_gemm
   CublasLtPlanCache gemm_plan_cache_{kCublasLtPlanCacheCapacity};
@@ -97,7 +96,6 @@ struct GpuSolverContext {
         cublas_lt_(o.cublas_lt_),
         params_(std::move(o.params_)),
         d_scratch_(std::move(o.d_scratch_)),
-        scratch_size_(o.scratch_size_),
         h_workspace_(std::move(o.h_workspace_)),
         gemm_workspace_(std::move(o.gemm_workspace_)),
         gemm_plan_cache_(std::move(o.gemm_plan_cache_)),
@@ -110,7 +108,6 @@ struct GpuSolverContext {
     o.cusolver_ = nullptr;
     o.cublas_ = nullptr;
     o.cublas_lt_ = nullptr;
-    o.scratch_size_ = 0;
     o.info_ = InvalidInput;
     o.info_synced_ = true;
     o.bound_ctx_ = nullptr;
@@ -136,7 +133,6 @@ struct GpuSolverContext {
       cublas_lt_ = o.cublas_lt_;
       params_ = std::move(o.params_);
       d_scratch_ = std::move(o.d_scratch_);
-      scratch_size_ = o.scratch_size_;
       h_workspace_ = std::move(o.h_workspace_);
       gemm_workspace_ = std::move(o.gemm_workspace_);
       gemm_plan_cache_ = std::move(o.gemm_plan_cache_);
@@ -149,7 +145,6 @@ struct GpuSolverContext {
       o.cusolver_ = nullptr;
       o.cublas_ = nullptr;
       o.cublas_lt_ = nullptr;
-      o.scratch_size_ = 0;
       o.info_ = InvalidInput;
       o.info_synced_ = true;
       o.bound_ctx_ = nullptr;
@@ -193,18 +188,17 @@ struct GpuSolverContext {
   // avoid freeing memory that async kernels may still be using.
   void ensure_scratch(size_t workspace_bytes) {
     size_t needed = scratchBytesFor(workspace_bytes);
-    if (needed > scratch_size_) {
+    if (needed > d_scratch_.size()) {
       if (d_scratch_) EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream_));
       d_scratch_ = DeviceBuffer(needed);
-      scratch_size_ = needed;
     }
   }
 
   void* scratch_workspace() const { return d_scratch_.get(); }
 
   int* scratch_info() const {
-    eigen_assert(d_scratch_ && scratch_size_ >= kInfoBytes);
-    return reinterpret_cast<int*>(static_cast<char*>(d_scratch_.get()) + scratch_size_ - kInfoBytes);
+    eigen_assert(d_scratch_ && d_scratch_.size() >= kInfoBytes);
+    return reinterpret_cast<int*>(static_cast<char*>(d_scratch_.get()) + d_scratch_.size() - kInfoBytes);
   }
 
   // Mark a factorization as pending (info not yet available).

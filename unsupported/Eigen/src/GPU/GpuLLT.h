@@ -99,12 +99,7 @@ class LLT {
 
   // Movable.
   LLT(LLT&& o) noexcept
-      : solver_ctx_(std::move(o.solver_ctx_)),
-        d_factor_(std::move(o.d_factor_)),
-        factor_alloc_size_(o.factor_alloc_size_),
-        n_(o.n_),
-        lda_(o.lda_) {
-    o.factor_alloc_size_ = 0;
+      : solver_ctx_(std::move(o.solver_ctx_)), d_factor_(std::move(o.d_factor_)), n_(o.n_), lda_(o.lda_) {
     o.n_ = 0;
     o.lda_ = 0;
   }
@@ -113,10 +108,8 @@ class LLT {
     if (this != &o) {
       solver_ctx_ = std::move(o.solver_ctx_);
       d_factor_ = std::move(o.d_factor_);
-      factor_alloc_size_ = o.factor_alloc_size_;
       n_ = o.n_;
       lda_ = o.lda_;
-      o.factor_alloc_size_ = 0;
       o.n_ = 0;
       o.lda_ = 0;
     }
@@ -163,8 +156,7 @@ class LLT {
 
     lda_ = static_cast<int64_t>(d_A.rows());
     d_A.waitReady(solver_ctx_.stream_);
-    d_factor_ = internal::DeviceBuffer::adopt(static_cast<void*>(d_A.release()));
-    factor_alloc_size_ = factorBytes();
+    d_factor_ = internal::DeviceBuffer::adopt(static_cast<void*>(d_A.release()), factorBytes());
 
     factorize();
     return *this;
@@ -226,7 +218,7 @@ class LLT {
     d_B.waitReady(solver_ctx_.stream_);
     const int64_t nrhs = static_cast<int64_t>(d_B.cols());
     const int64_t ldb = static_cast<int64_t>(d_B.rows());
-    internal::DeviceBuffer d_x = internal::DeviceBuffer::adopt(static_cast<void*>(d_B.release()));
+    internal::DeviceBuffer d_x = internal::DeviceBuffer::adopt(static_cast<void*>(d_B.release()), rhsBytes(nrhs, ldb));
     return solve_impl(nrhs, ldb, std::move(d_x));
   }
 
@@ -239,8 +231,7 @@ class LLT {
 
  private:
   mutable internal::GpuSolverContext solver_ctx_;
-  internal::DeviceBuffer d_factor_;
-  size_t factor_alloc_size_ = 0;
+  internal::DeviceBuffer d_factor_;  // grow-only
   int64_t n_ = 0;
   int64_t lda_ = 0;
 
@@ -255,13 +246,7 @@ class LLT {
     return static_cast<size_t>(ld) * static_cast<size_t>(cols) * sizeof(Scalar);
   }
 
-  void allocate_factor_storage() {
-    size_t needed = factorBytes();
-    if (needed > factor_alloc_size_) {
-      d_factor_ = internal::DeviceBuffer(needed);
-      factor_alloc_size_ = needed;
-    }
-  }
+  void allocate_factor_storage() { internal::ensure_sized(d_factor_, factorBytes()); }
 
   // Solve in place on `d_x` (which already holds B), then re-wrap as a typed
   // DeviceMatrix carrying shape and a ready event. The release/adopt hop hands

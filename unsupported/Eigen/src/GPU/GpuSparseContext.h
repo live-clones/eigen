@@ -269,18 +269,12 @@ class SparseContext {
   internal::DeviceBuffer d_outerPtr_;
   internal::DeviceBuffer d_innerIdx_;
   internal::DeviceBuffer d_values_;
-  size_t d_outerPtr_size_ = 0;
-  size_t d_innerIdx_size_ = 0;
-  size_t d_values_size_ = 0;
 
   // Cached device buffers for host-API dense vectors (grow-only).
   internal::DeviceBuffer d_x_;
   internal::DeviceBuffer d_y_;
-  size_t d_x_size_ = 0;
-  size_t d_y_size_ = 0;
 
   mutable internal::DeviceBuffer d_workspace_;
-  mutable size_t d_workspace_size_ = 0;
 
   // Cached cuSPARSE sparse matrix descriptor.
   cusparseSpMatDescr_t spmat_desc_ = nullptr;
@@ -353,14 +347,14 @@ class SparseContext {
 
     upload_sparse(A);
 
-    ensure_buffer(d_x_, d_x_size_, static_cast<size_t>(x_size) * sizeof(Scalar));
+    ensure_buffer(d_x_, static_cast<size_t>(x_size) * sizeof(Scalar));
     // Ref binds in place when x is already a contiguous vector; only genuine
     // expressions are evaluated into the Ref's internal temporary.
     const Ref<const DenseVector> x_ref(x);
     EIGEN_CUDA_RUNTIME_CHECK(
         cudaMemcpyAsync(d_x_.get(), x_ref.data(), x_size * sizeof(Scalar), cudaMemcpyHostToDevice, stream_));
 
-    ensure_buffer(d_y_, d_y_size_, static_cast<size_t>(y_size) * sizeof(Scalar));
+    ensure_buffer(d_y_, static_cast<size_t>(y_size) * sizeof(Scalar));
     if (beta != Scalar(0)) {
       const Ref<const DenseVector> y_ref(y);
       EIGEN_CUDA_RUNTIME_CHECK(
@@ -555,7 +549,7 @@ class SparseContext {
       EIGEN_CUSPARSE_CHECK(cusparseSpMV_bufferSize(handle_, cu_op, &alpha, spmat_desc_, x_vec_desc_, &beta, y_vec_desc_,
                                                    dtype, CUSPARSE_SPMV_ALG_DEFAULT, &ws_size));
     }
-    ensure_buffer(d_workspace_, d_workspace_size_, ws_size);
+    ensure_buffer(d_workspace_, ws_size);
 
     EIGEN_CUSPARSE_CHECK(cusparseSpMV(handle_, cu_op, &alpha, spmat_desc_, x_vec_desc_, &beta, y_vec_desc_, dtype,
                                       CUSPARSE_SPMV_ALG_DEFAULT, d_workspace_.get()));
@@ -577,7 +571,7 @@ class SparseContext {
                                                    spmat_desc_, x_mat_desc_, &beta, y_mat_desc_, dtype, kSpMMAlg,
                                                    &ws_size));
     }
-    ensure_buffer(d_workspace_, d_workspace_size_, ws_size);
+    ensure_buffer(d_workspace_, ws_size);
 
     EIGEN_CUSPARSE_CHECK(cusparseSpMM(handle_, cu_op, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, spmat_desc_,
                                       x_mat_desc_, &beta, y_mat_desc_, dtype, kSpMMAlg, d_workspace_.get()));
@@ -611,8 +605,8 @@ class SparseContext {
     // Upload X to device. X is k_op x n, Y is m_op x n (column-major).
     const size_t x_bytes = static_cast<size_t>(k_op) * static_cast<size_t>(n) * sizeof(Scalar);
     const size_t y_bytes = static_cast<size_t>(m_op) * static_cast<size_t>(n) * sizeof(Scalar);
-    ensure_buffer(d_x_, d_x_size_, x_bytes);
-    ensure_buffer(d_y_, d_y_size_, y_bytes);
+    ensure_buffer(d_x_, x_bytes);
+    ensure_buffer(d_y_, y_bytes);
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_x_.get(), X.data(), x_bytes, cudaMemcpyHostToDevice, stream_));
     if (beta != Scalar(0)) {
       EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_y_.get(), Y.data(), y_bytes, cudaMemcpyHostToDevice, stream_));
@@ -651,7 +645,7 @@ class SparseContext {
     const bool same_structure = (host_outer == cached_outer_host_ && host_inner == cached_inner_host_ &&
                                  m == cached_rows_ && n == cached_cols_ && nnz == cached_nnz_);
 
-    ensure_buffer(d_values_, d_values_size_, val_bytes);
+    ensure_buffer(d_values_, val_bytes);
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_values_.get(), host_values, val_bytes, cudaMemcpyHostToDevice, stream_));
 
     if (same_structure) return;
@@ -660,8 +654,8 @@ class SparseContext {
     cached_outer_host_ = host_outer;
     cached_inner_host_ = host_inner;
 
-    ensure_buffer(d_outerPtr_, d_outerPtr_size_, outer_bytes);
-    ensure_buffer(d_innerIdx_, d_innerIdx_size_, inner_bytes);
+    ensure_buffer(d_outerPtr_, outer_bytes);
+    ensure_buffer(d_innerIdx_, inner_bytes);
     EIGEN_CUDA_RUNTIME_CHECK(
         cudaMemcpyAsync(d_outerPtr_.get(), host_outer, outer_bytes, cudaMemcpyHostToDevice, stream_));
     EIGEN_CUDA_RUNTIME_CHECK(
@@ -715,11 +709,10 @@ class SparseContext {
     invalidate_ws_caches();
   }
 
-  void ensure_buffer(internal::DeviceBuffer& buf, size_t& current_size, size_t needed) const {
-    if (needed > current_size) {
+  void ensure_buffer(internal::DeviceBuffer& buf, size_t needed) const {
+    if (needed > buf.size()) {
       if (buf) EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream_));
       buf = internal::DeviceBuffer(needed);
-      current_size = needed;
     }
   }
 };

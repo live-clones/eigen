@@ -88,13 +88,9 @@ class SVD {
       : solver_ctx_(std::move(o.solver_ctx_)),
         d_A_(std::move(o.d_A_)),
         d_U_(std::move(o.d_U_)),
-        u_alloc_size_(o.u_alloc_size_),
         d_S_(std::move(o.d_S_)),
-        s_alloc_size_(o.s_alloc_size_),
         d_VT_(std::move(o.d_VT_)),
-        vt_alloc_size_(o.vt_alloc_size_),
         d_D_(std::move(o.d_D_)),
-        d_alloc_size_(o.d_alloc_size_),
         cached_diag_kk_(o.cached_diag_kk_),
         cached_diag_lambda_(o.cached_diag_lambda_),
         diag_valid_(o.diag_valid_),
@@ -103,10 +99,6 @@ class SVD {
         n_(o.n_),
         lda_(o.lda_),
         transposed_(o.transposed_) {
-    o.u_alloc_size_ = 0;
-    o.s_alloc_size_ = 0;
-    o.vt_alloc_size_ = 0;
-    o.d_alloc_size_ = 0;
     o.diag_valid_ = false;
     o.options_ = 0;
     o.m_ = 0;
@@ -120,13 +112,9 @@ class SVD {
       solver_ctx_ = std::move(o.solver_ctx_);
       d_A_ = std::move(o.d_A_);
       d_U_ = std::move(o.d_U_);
-      u_alloc_size_ = o.u_alloc_size_;
       d_S_ = std::move(o.d_S_);
-      s_alloc_size_ = o.s_alloc_size_;
       d_VT_ = std::move(o.d_VT_);
-      vt_alloc_size_ = o.vt_alloc_size_;
       d_D_ = std::move(o.d_D_);
-      d_alloc_size_ = o.d_alloc_size_;
       cached_diag_kk_ = o.cached_diag_kk_;
       cached_diag_lambda_ = o.cached_diag_lambda_;
       diag_valid_ = o.diag_valid_;
@@ -135,10 +123,6 @@ class SVD {
       n_ = o.n_;
       lda_ = o.lda_;
       transposed_ = o.transposed_;
-      o.u_alloc_size_ = 0;
-      o.s_alloc_size_ = 0;
-      o.vt_alloc_size_ = 0;
-      o.d_alloc_size_ = 0;
       o.diag_valid_ = false;
       o.options_ = 0;
       o.m_ = 0;
@@ -185,7 +169,8 @@ class SVD {
     if (transposed_) {
       transpose_into_input(d_A);
     } else {
-      d_A_ = internal::DeviceBuffer::adopt(static_cast<void*>(d_A.release()));
+      const size_t a_bytes = d_A.sizeInBytes();
+      d_A_ = internal::DeviceBuffer::adopt(static_cast<void*>(d_A.release()), a_bytes);
     }
 
     factorize();
@@ -395,16 +380,12 @@ class SVD {
 
  private:
   mutable internal::GpuSolverContext solver_ctx_;
-  internal::DeviceBuffer d_A_;  // gesvd input scratch; released after factorize()
-  internal::DeviceBuffer d_U_;
-  size_t u_alloc_size_ = 0;
-  internal::DeviceBuffer d_S_;
-  size_t s_alloc_size_ = 0;
-  internal::DeviceBuffer d_VT_;
-  size_t vt_alloc_size_ = 0;
-  // Cached inverse-diagonal for solve (built lazily, reused across solves).
+  internal::DeviceBuffer d_A_;   // gesvd input scratch; released after factorize()
+  internal::DeviceBuffer d_U_;   // grow-only
+  internal::DeviceBuffer d_S_;   // grow-only
+  internal::DeviceBuffer d_VT_;  // grow-only
+  // Cached inverse-diagonal for solve (built lazily, reused across solves; grow-only).
   mutable internal::DeviceBuffer d_D_;
-  mutable size_t d_alloc_size_ = 0;
   mutable Index cached_diag_kk_ = -1;
   mutable RealScalar cached_diag_lambda_ = RealScalar(-1);
   mutable bool diag_valid_ = false;
@@ -428,7 +409,6 @@ class SVD {
       d_U_ = internal::DeviceBuffer();
       d_S_ = internal::DeviceBuffer();
       d_VT_ = internal::DeviceBuffer();
-      u_alloc_size_ = s_alloc_size_ = vt_alloc_size_ = 0;
       return false;
     }
     transposed_ = (m_ < n_);
@@ -483,11 +463,7 @@ class SVD {
 
     solver_ctx_.mark_pending();
 
-    const size_t s_bytes = static_cast<size_t>(k) * sizeof(RealScalar);
-    if (s_bytes > s_alloc_size_) {
-      d_S_ = internal::DeviceBuffer(s_bytes);
-      s_alloc_size_ = s_bytes;
-    }
+    internal::ensure_sized(d_S_, static_cast<size_t>(k) * sizeof(RealScalar));
 
     const unsigned int int_opts = transposed_ ? swap_uv_options(options_) : options_;
 
@@ -496,15 +472,11 @@ class SVD {
     const int64_t ldu = m_;
     const int64_t ldvt = vtrows > 0 ? vtrows : 1;
 
-    const size_t u_bytes = static_cast<size_t>(m_) * static_cast<size_t>(ucols) * sizeof(Scalar);
-    if (ucols > 0 && u_bytes > u_alloc_size_) {
-      d_U_ = internal::DeviceBuffer(u_bytes);
-      u_alloc_size_ = u_bytes;
+    if (ucols > 0) {
+      internal::ensure_sized(d_U_, static_cast<size_t>(m_) * static_cast<size_t>(ucols) * sizeof(Scalar));
     }
-    const size_t vt_bytes = static_cast<size_t>(vtrows) * static_cast<size_t>(n_) * sizeof(Scalar);
-    if (vtrows > 0 && vt_bytes > vt_alloc_size_) {
-      d_VT_ = internal::DeviceBuffer(vt_bytes);
-      vt_alloc_size_ = vt_bytes;
+    if (vtrows > 0) {
+      internal::ensure_sized(d_VT_, static_cast<size_t>(vtrows) * static_cast<size_t>(n_) * sizeof(Scalar));
     }
 
     eigen_assert(m_ >= n_ && "Internal error: m_ < n_ should have been handled by transpose in compute()");
@@ -561,10 +533,7 @@ class SVD {
     }
 
     const size_t d_bytes = static_cast<size_t>(kk) * sizeof(Scalar);
-    if (d_bytes > d_alloc_size_) {
-      d_D_ = internal::DeviceBuffer(d_bytes);
-      d_alloc_size_ = d_bytes;
-    }
+    internal::ensure_sized(d_D_, d_bytes);
     EIGEN_CUDA_RUNTIME_CHECK(
         cudaMemcpyAsync(d_D_.get(), D.data(), d_bytes, cudaMemcpyHostToDevice, solver_ctx_.stream_));
     cached_diag_kk_ = kk;
