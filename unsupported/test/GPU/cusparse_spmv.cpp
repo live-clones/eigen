@@ -324,10 +324,54 @@ void test_deviceview_overwrite(Index n) {
   VERIFY((y2_gpu - y2_cpu).norm() / (y2_cpu.norm() + RealScalar(1)) < tol);
 }
 
+// ---- Device-resident SpMM + GpuOp device multiply -----------------------------
+
+template <typename Scalar>
+void test_device_spmm(Index n, Index nrhs) {
+  using SpMat = SparseMatrix<Scalar, ColMajor, int>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  SpMat A = make_sparse<Scalar>(n, n);
+  Mat X = Mat::Random(n, nrhs);
+
+  gpu::Context gctx;
+  gpu::SparseContext<Scalar> ctx(gctx);
+  auto view = ctx.deviceView(A);
+  VERIFY(view.generation() == ctx.uploadGeneration());
+
+  auto d_X = gpu::DeviceMatrix<Scalar>::fromHost(X, gctx.stream());
+  gpu::DeviceMatrix<Scalar> d_Y = view * d_X;  // nrhs > 1 -> SpMM
+  Mat Y_ref = A * X;
+  RealScalar tol = RealScalar(10) * RealScalar(n) * NumTraits<Scalar>::epsilon();
+  VERIFY((d_Y.toHost() - Y_ref).norm() / (Y_ref.norm() + RealScalar(1)) < tol);
+}
+
+template <typename Scalar>
+void test_device_multiply_gpuop(Index n) {
+  using SpMat = SparseMatrix<Scalar, ColMajor, int>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  SpMat A = make_sparse<Scalar>(n, n);
+  Vec x = Vec::Random(n);
+
+  gpu::Context gctx;
+  gpu::SparseContext<Scalar> ctx(gctx);
+  auto d_x = gpu::DeviceMatrix<Scalar>::fromHost(x, gctx.stream());
+  gpu::DeviceMatrix<Scalar> d_y;
+  ctx.multiply(A, d_x, d_y, Scalar(1), Scalar(0), gpu::GpuOp::Trans);
+  Vec y_ref = A.transpose() * x;
+  RealScalar tol = RealScalar(10) * RealScalar(n) * NumTraits<Scalar>::epsilon();
+  VERIFY((d_y.toHost() - y_ref).norm() / (y_ref.norm() + RealScalar(1)) < tol);
+}
+
 // ---- Per-scalar driver ------------------------------------------------------
 
 template <typename Scalar>
 void test_scalar() {
+  CALL_SUBTEST(test_device_spmm<Scalar>(64, 5));
+  CALL_SUBTEST(test_device_multiply_gpuop<Scalar>(64));
   CALL_SUBTEST(test_spmv<Scalar>(64, 64));
   CALL_SUBTEST(test_spmv<Scalar>(128, 64));  // non-square
   CALL_SUBTEST(test_spmv<Scalar>(64, 128));  // wide
