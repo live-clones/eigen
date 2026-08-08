@@ -315,10 +315,7 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
    * eigenvector is the Kronecker product of the 1-D Fourier vectors of
    * frequencies \c f1 and \c f2, i.e. column \c f1*n2 + f2 of \ref eigenvectors.
    * Every BCCB matrix is diagonalized by this same 2-D Fourier basis. */
-  ComplexVector eigenvalues() const {
-    const ComplexArray s = symbol();
-    return Map<const ComplexVector>(s.data(), s.size());
-  }
+  ComplexVector eigenvalues() const { return symbol().reshaped(); }
 
   /** \returns the unitary matrix of eigenvectors: column \c f1*n2 + f2 is the
    * 2-D Fourier vector matching \c eigenvalues()[f1*n2 + f2].
@@ -618,14 +615,15 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
       int ex = 0;  // stays 0 for an all-zero column: no scaling
       if (m > RealScalar(0)) {
         std::frexp(m, &ex);
-        if (NumTraits<ProductScalar>::IsComplex) ++ex;
+        EIGEN_IF_CONSTEXPR (NumTraits<ProductScalar>::IsComplex) ++ex;
       }
+      // reshaped() defaults to column-major traversal, the flattening the
+      // two-level structure keys on, regardless of EIGEN_DEFAULT_TO_ROW_MAJOR.
       if (padded) {
         X.setZero();
-        X.topLeftCorner(n2, n1) =
-            Map<const Matrix<ProductScalar, Dynamic, Dynamic, ColMajor>>(xc.data(), n2, n1).template cast<Complex>();
+        X.topLeftCorner(n2, n1) = xc.reshaped(n2, n1).template cast<Complex>();
       } else {
-        X = Map<const Matrix<ProductScalar, Dynamic, Dynamic, ColMajor>>(xc.data(), n2, n1).template cast<Complex>();
+        X = xc.reshaped(n2, n1).template cast<Complex>();
       }
       ldexpInPlace(X, -ex);
       fft2(X);
@@ -634,11 +632,10 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
       if (padded) Xn = X.topLeftCorner(n2, n1);
       ComplexArray& out = padded ? Xn : X;
       ldexpInPlace(out, ex + es);
-      const Map<const ComplexVector> xv(out.data(), N);
       if (accumulate)
-        dst.col(k) += alpha * internal::structured_scalar_part_impl<ProductScalar>::run(xv);
+        dst.col(k) += alpha * internal::structured_scalar_part_impl<ProductScalar>::run(out.reshaped());
       else
-        dst.col(k) = alpha * internal::structured_scalar_part_impl<ProductScalar>::run(xv);
+        dst.col(k) = alpha * internal::structured_scalar_part_impl<ProductScalar>::run(out.reshaped());
     }
   }
 
@@ -647,11 +644,7 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
    * (possibly unrepresentable) scale factor 2^e itself. */
   static void ldexpInPlace(ComplexArray& X, int e) {
     if (e == 0) return;
-    for (Index k1 = 0; k1 < X.cols(); ++k1)
-      for (Index k2 = 0; k2 < X.rows(); ++k2) {
-        Complex& z = X.coeffRef(k2, k1);
-        z = Complex(std::ldexp(numext::real(z), e), std::ldexp(numext::imag(z), e));
-      }
+    X.realView() = X.realView().array().ldexp(e).matrix();
   }
 
   /** \internal In-place forward or inverse 2-D FFT by the row-column algorithm:
@@ -662,25 +655,29 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
   void transform2(ComplexArray& X) const {
     auto&& fft = internal::structured_fft_engine<RealScalar>();
     const Index n2 = X.rows(), n1 = X.cols();
+    // Both passes share one output buffer (resized by the engine) and one packed
+    // input buffer, allocated at most twice for the whole transform. A column of
+    // the column-major grid is already packed and goes to the engine as is; a row
+    // is strided, and the engine would pack it into a fresh temporary per call.
+    ComplexVector tmp, rowv;
     if (n2 > 1) {
-      ComplexVector tmp(n2);
       for (Index k1 = 0; k1 < n1; ++k1) {
-        ComplexVector colv = X.col(k1);
-        if (Inverse)
-          fft.inv(tmp, colv, n2);
-        else
-          fft.fwd(tmp, colv, n2);
+        EIGEN_IF_CONSTEXPR (Inverse) {
+          fft.inv(tmp, X.col(k1), n2);
+        } else {
+          fft.fwd(tmp, X.col(k1), n2);
+        }
         X.col(k1) = tmp;
       }
     }
     if (n1 > 1) {
-      ComplexVector tmp(n1), rowv(n1);
       for (Index k2 = 0; k2 < n2; ++k2) {
         rowv = X.row(k2).transpose();
-        if (Inverse)
+        EIGEN_IF_CONSTEXPR (Inverse) {
           fft.inv(tmp, rowv, n1);
-        else
+        } else {
           fft.fwd(tmp, rowv, n1);
+        }
         X.row(k2) = tmp.transpose();
       }
     }
