@@ -53,12 +53,12 @@ template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
 struct generic_i0e {
   EIGEN_STATIC_ASSERT((std::is_same<T, T>::value == false), THIS_TYPE_IS_NOT_SUPPORTED)
 
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T&) { return ScalarType(0); }
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T run(const T&) { return ScalarType(0); }
 };
 
 template <typename T>
 struct generic_i0e<T, float> {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T& x) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T run(const T& x) {
     /*  i0ef.c
      *
      *  Modified Bessel function of order zero,
@@ -114,7 +114,7 @@ struct generic_i0e<T, float> {
 
 template <typename T>
 struct generic_i0e<T, double> {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T& x) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T run(const T& x) {
     /*  i0e.c
      *
      *  Modified Bessel function of order zero,
@@ -179,7 +179,7 @@ struct generic_i0e<T, double> {
 
 template <typename T>
 struct bessel_i0e_impl {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T x) { return generic_i0e<T>::run(x); }
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T run(const T x) { return generic_i0e<T>::run(x); }
 };
 
 template <typename Scalar>
@@ -189,14 +189,14 @@ struct bessel_i0_retval {
 
 template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
 struct generic_i0 {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T& x) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T run(const T& x) {
     return pmul(pexp(pabs(x)), generic_i0e<T, ScalarType>::run(x));
   }
 };
 
 template <typename T>
 struct bessel_i0_impl {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T x) { return generic_i0<T>::run(x); }
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T run(const T x) { return generic_i0<T>::run(x); }
 };
 
 template <typename Scalar>
@@ -208,12 +208,12 @@ template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
 struct generic_i1e {
   EIGEN_STATIC_ASSERT((std::is_same<T, T>::value == false), THIS_TYPE_IS_NOT_SUPPORTED)
 
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T&) { return ScalarType(0); }
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T run(const T&) { return ScalarType(0); }
 };
 
 template <typename T>
 struct generic_i1e<T, float> {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T& x) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T run(const T& x) {
     /* i1ef.c
      *
      *  Modified Bessel function of order one,
@@ -270,7 +270,7 @@ struct generic_i1e<T, float> {
 
 template <typename T>
 struct generic_i1e<T, double> {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T& x) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T run(const T& x) {
     /*  i1e.c
      *
      *  Modified Bessel function of order one,
@@ -335,7 +335,7 @@ struct generic_i1e<T, double> {
 
 template <typename T>
 struct bessel_i1e_impl {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T x) { return generic_i1e<T>::run(x); }
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T run(const T x) { return generic_i1e<T>::run(x); }
 };
 
 template <typename T>
@@ -345,14 +345,14 @@ struct bessel_i1_retval {
 
 template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
 struct generic_i1 {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T& x) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T run(const T& x) {
     return pmul(pexp(pabs(x)), generic_i1e<T, ScalarType>::run(x));
   }
 };
 
 template <typename T>
 struct bessel_i1_impl {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T x) { return generic_i1<T>::run(x); }
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T run(const T x) { return generic_i1<T>::run(x); }
 };
 
 template <typename T>
@@ -364,12 +364,12 @@ template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
 struct generic_k0e {
   EIGEN_STATIC_ASSERT((std::is_same<T, T>::value == false), THIS_TYPE_IS_NOT_SUPPORTED)
 
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T&) { return ScalarType(0); }
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T run(const T&) { return ScalarType(0); }
 };
 
 template <typename T>
 struct generic_k0e<T, float> {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T& x) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T run(const T& x) {
     /*  k0ef.c
      *	Modified Bessel function, third kind, order zero,
      *	exponentially scaled
@@ -420,7 +420,7 @@ struct generic_k0e<T, float> {
 
 template <typename T>
 struct generic_k0e<T, double> {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T& x) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T run(const T& x) {
     /*  k0e.c
      *	Modified Bessel function, third kind, order zero,
      *	exponentially scaled
@@ -477,7 +477,7 @@ struct generic_k0e<T, double> {
 
 template <typename T>
 struct bessel_k0e_impl {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T x) { return generic_k0e<T>::run(x); }
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T run(const T x) { return generic_k0e<T>::run(x); }
 };
 
 template <typename T>
@@ -489,12 +489,12 @@ template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
 struct generic_k0 {
   EIGEN_STATIC_ASSERT((std::is_same<T, T>::value == false), THIS_TYPE_IS_NOT_SUPPORTED)
 
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T&) { return ScalarType(0); }
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T run(const T&) { return ScalarType(0); }
 };
 
 template <typename T>
 struct generic_k0<T, float> {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T& x) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T run(const T& x) {
     /*  k0f.c
      *	Modified Bessel function, third kind, order zero
      *
@@ -555,7 +555,7 @@ struct generic_k0<T, float> {
 
 template <typename T>
 struct generic_k0<T, double> {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T& x) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T run(const T& x) {
     /*
      *
      *	Modified Bessel function, third kind, order zero,
@@ -611,7 +611,7 @@ struct generic_k0<T, double> {
 
 template <typename T>
 struct bessel_k0_impl {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T x) { return generic_k0<T>::run(x); }
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T run(const T x) { return generic_k0<T>::run(x); }
 };
 
 template <typename T>
@@ -623,12 +623,12 @@ template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
 struct generic_k1e {
   EIGEN_STATIC_ASSERT((std::is_same<T, T>::value == false), THIS_TYPE_IS_NOT_SUPPORTED)
 
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T&) { return ScalarType(0); }
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T run(const T&) { return ScalarType(0); }
 };
 
 template <typename T>
 struct generic_k1e<T, float> {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T& x) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T run(const T& x) {
     /* k1ef.c
      *
      *	Modified Bessel function, third kind, order one,
@@ -682,7 +682,7 @@ struct generic_k1e<T, float> {
 
 template <typename T>
 struct generic_k1e<T, double> {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T& x) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T run(const T& x) {
     /*  k1e.c
      *
      *	Modified Bessel function, third kind, order one,
@@ -741,7 +741,7 @@ struct generic_k1e<T, double> {
 
 template <typename T>
 struct bessel_k1e_impl {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T x) { return generic_k1e<T>::run(x); }
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T run(const T x) { return generic_k1e<T>::run(x); }
 };
 
 template <typename T>
@@ -753,12 +753,12 @@ template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
 struct generic_k1 {
   EIGEN_STATIC_ASSERT((std::is_same<T, T>::value == false), THIS_TYPE_IS_NOT_SUPPORTED)
 
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T&) { return ScalarType(0); }
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T run(const T&) { return ScalarType(0); }
 };
 
 template <typename T>
 struct generic_k1<T, float> {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T& x) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T run(const T& x) {
     /* k1f.c
      *	Modified Bessel function, third kind, order one
      *
@@ -816,7 +816,7 @@ struct generic_k1<T, float> {
 
 template <typename T>
 struct generic_k1<T, double> {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T& x) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T run(const T& x) {
     /*  k1.c
      *	Modified Bessel function, third kind, order one
      *
@@ -878,7 +878,7 @@ struct generic_k1<T, double> {
 
 template <typename T>
 struct bessel_k1_impl {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T x) { return generic_k1<T>::run(x); }
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T run(const T x) { return generic_k1<T>::run(x); }
 };
 
 template <typename T>
@@ -890,12 +890,12 @@ template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
 struct generic_j0 {
   EIGEN_STATIC_ASSERT((std::is_same<T, T>::value == false), THIS_TYPE_IS_NOT_SUPPORTED)
 
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T&) { return ScalarType(0); }
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T run(const T&) { return ScalarType(0); }
 };
 
 template <typename T>
 struct generic_j0<T, float> {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T& x) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T run(const T& x) {
     /* j0f.c
      *	Bessel function of order zero
      *
@@ -968,7 +968,7 @@ struct generic_j0<T, float> {
 
 template <typename T>
 struct generic_j0<T, double> {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T& x) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T run(const T& x) {
     /*  j0.c
      *	Bessel function of order zero
      *
@@ -1052,7 +1052,7 @@ struct generic_j0<T, double> {
 
 template <typename T>
 struct bessel_j0_impl {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T x) { return generic_j0<T>::run(x); }
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T run(const T x) { return generic_j0<T>::run(x); }
 };
 
 template <typename T>
@@ -1064,12 +1064,12 @@ template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
 struct generic_y0 {
   EIGEN_STATIC_ASSERT((std::is_same<T, T>::value == false), THIS_TYPE_IS_NOT_SUPPORTED)
 
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T&) { return ScalarType(0); }
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T run(const T&) { return ScalarType(0); }
 };
 
 template <typename T>
 struct generic_y0<T, float> {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T& x) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T run(const T& x) {
     /* j0f.c
      * 	Bessel function of the second kind, order zero
      *
@@ -1146,7 +1146,7 @@ struct generic_y0<T, float> {
 
 template <typename T>
 struct generic_y0<T, double> {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T& x) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T run(const T& x) {
     /*  j0.c
      *	Bessel function of the second kind, order zero
      *
@@ -1226,7 +1226,7 @@ struct generic_y0<T, double> {
 
 template <typename T>
 struct bessel_y0_impl {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T x) { return generic_y0<T>::run(x); }
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T run(const T x) { return generic_y0<T>::run(x); }
 };
 
 template <typename T>
@@ -1238,12 +1238,12 @@ template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
 struct generic_j1 {
   EIGEN_STATIC_ASSERT((std::is_same<T, T>::value == false), THIS_TYPE_IS_NOT_SUPPORTED)
 
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T&) { return ScalarType(0); }
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T run(const T&) { return ScalarType(0); }
 };
 
 template <typename T>
 struct generic_j1<T, float> {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T& x) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T run(const T& x) {
     /* j1f.c
      *	Bessel function of order one
      *
@@ -1316,7 +1316,7 @@ struct generic_j1<T, float> {
 
 template <typename T>
 struct generic_j1<T, double> {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T& x) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T run(const T& x) {
     /*  j1.c
      *	Bessel function of order one
      *
@@ -1391,7 +1391,7 @@ struct generic_j1<T, double> {
 
 template <typename T>
 struct bessel_j1_impl {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T x) { return generic_j1<T>::run(x); }
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T run(const T x) { return generic_j1<T>::run(x); }
 };
 
 template <typename T>
@@ -1403,12 +1403,12 @@ template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
 struct generic_y1 {
   EIGEN_STATIC_ASSERT((std::is_same<T, T>::value == false), THIS_TYPE_IS_NOT_SUPPORTED)
 
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T&) { return ScalarType(0); }
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T run(const T&) { return ScalarType(0); }
 };
 
 template <typename T>
 struct generic_y1<T, float> {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T& x) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T run(const T& x) {
     /* j1f.c
      *	Bessel function of second kind of order one
      *
@@ -1487,7 +1487,7 @@ struct generic_y1<T, float> {
 
 template <typename T>
 struct generic_y1<T, double> {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T& x) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T run(const T& x) {
     /*  j1.c
      *	Bessel function of second kind of order one
      *
@@ -1565,7 +1565,7 @@ struct generic_y1<T, double> {
 
 template <typename T>
 struct bessel_y1_impl {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T x) { return generic_y1<T>::run(x); }
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T run(const T x) { return generic_y1<T>::run(x); }
 };
 
 }  // end namespace internal
@@ -1573,62 +1573,62 @@ struct bessel_y1_impl {
 namespace numext {
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(bessel_i0, Scalar) bessel_i0(const Scalar& x) {
+EIGEN_DEVICE_FUNC constexpr EIGEN_MATHFUNC_RETVAL(bessel_i0, Scalar) bessel_i0(const Scalar& x) {
   return EIGEN_MATHFUNC_IMPL(bessel_i0, Scalar)::run(x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(bessel_i0e, Scalar) bessel_i0e(const Scalar& x) {
+EIGEN_DEVICE_FUNC constexpr EIGEN_MATHFUNC_RETVAL(bessel_i0e, Scalar) bessel_i0e(const Scalar& x) {
   return EIGEN_MATHFUNC_IMPL(bessel_i0e, Scalar)::run(x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(bessel_i1, Scalar) bessel_i1(const Scalar& x) {
+EIGEN_DEVICE_FUNC constexpr EIGEN_MATHFUNC_RETVAL(bessel_i1, Scalar) bessel_i1(const Scalar& x) {
   return EIGEN_MATHFUNC_IMPL(bessel_i1, Scalar)::run(x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(bessel_i1e, Scalar) bessel_i1e(const Scalar& x) {
+EIGEN_DEVICE_FUNC constexpr EIGEN_MATHFUNC_RETVAL(bessel_i1e, Scalar) bessel_i1e(const Scalar& x) {
   return EIGEN_MATHFUNC_IMPL(bessel_i1e, Scalar)::run(x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(bessel_k0, Scalar) bessel_k0(const Scalar& x) {
+EIGEN_DEVICE_FUNC constexpr EIGEN_MATHFUNC_RETVAL(bessel_k0, Scalar) bessel_k0(const Scalar& x) {
   return EIGEN_MATHFUNC_IMPL(bessel_k0, Scalar)::run(x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(bessel_k0e, Scalar) bessel_k0e(const Scalar& x) {
+EIGEN_DEVICE_FUNC constexpr EIGEN_MATHFUNC_RETVAL(bessel_k0e, Scalar) bessel_k0e(const Scalar& x) {
   return EIGEN_MATHFUNC_IMPL(bessel_k0e, Scalar)::run(x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(bessel_k1, Scalar) bessel_k1(const Scalar& x) {
+EIGEN_DEVICE_FUNC constexpr EIGEN_MATHFUNC_RETVAL(bessel_k1, Scalar) bessel_k1(const Scalar& x) {
   return EIGEN_MATHFUNC_IMPL(bessel_k1, Scalar)::run(x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(bessel_k1e, Scalar) bessel_k1e(const Scalar& x) {
+EIGEN_DEVICE_FUNC constexpr EIGEN_MATHFUNC_RETVAL(bessel_k1e, Scalar) bessel_k1e(const Scalar& x) {
   return EIGEN_MATHFUNC_IMPL(bessel_k1e, Scalar)::run(x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(bessel_j0, Scalar) bessel_j0(const Scalar& x) {
+EIGEN_DEVICE_FUNC constexpr EIGEN_MATHFUNC_RETVAL(bessel_j0, Scalar) bessel_j0(const Scalar& x) {
   return EIGEN_MATHFUNC_IMPL(bessel_j0, Scalar)::run(x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(bessel_y0, Scalar) bessel_y0(const Scalar& x) {
+EIGEN_DEVICE_FUNC constexpr EIGEN_MATHFUNC_RETVAL(bessel_y0, Scalar) bessel_y0(const Scalar& x) {
   return EIGEN_MATHFUNC_IMPL(bessel_y0, Scalar)::run(x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(bessel_j1, Scalar) bessel_j1(const Scalar& x) {
+EIGEN_DEVICE_FUNC constexpr EIGEN_MATHFUNC_RETVAL(bessel_j1, Scalar) bessel_j1(const Scalar& x) {
   return EIGEN_MATHFUNC_IMPL(bessel_j1, Scalar)::run(x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(bessel_y1, Scalar) bessel_y1(const Scalar& x) {
+EIGEN_DEVICE_FUNC constexpr EIGEN_MATHFUNC_RETVAL(bessel_y1, Scalar) bessel_y1(const Scalar& x) {
   return EIGEN_MATHFUNC_IMPL(bessel_y1, Scalar)::run(x);
 }
 

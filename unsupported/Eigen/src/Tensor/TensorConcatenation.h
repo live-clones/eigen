@@ -128,7 +128,7 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
   typedef typename internal::TensorMaterializedBlock<ScalarNoConst, NumDims, Layout, Index> TensorBlock;
   //===--------------------------------------------------------------------===//
 
-  EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device)
+  EIGEN_STRONG_INLINE constexpr TensorEvaluator(const XprType& op, const Device& device)
       : m_leftImpl(op.lhsExpression(), device),
         m_rightImpl(op.rhsExpression(), device),
         m_device(device),
@@ -187,16 +187,16 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
     }
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_dimensions; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const Dimensions& dimensions() const { return m_dimensions; }
 
   // TODO(phli): Add short-circuit memcpy evaluation if underlying data are linear.
-  EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType) {
+  EIGEN_STRONG_INLINE constexpr bool evalSubExprsIfNeeded(EvaluatorPointerType) {
     m_leftImpl.evalSubExprsIfNeeded(NULL);
     m_rightImpl.evalSubExprsIfNeeded(NULL);
     return true;
   }
 
-  EIGEN_STRONG_INLINE void cleanup() {
+  EIGEN_STRONG_INLINE constexpr void cleanup() {
     m_leftImpl.cleanup();
     m_rightImpl.cleanup();
   }
@@ -357,7 +357,7 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
   // Intel Raptor Lake when prototyped for TensorBroadcasting (see the comment
   // on TensorBroadcasting::indexColMajor). Modern x86 hardware div (~20
   // cycles) amortizes well and the mul+shifts don't win back the added state.
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index index) const {
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE CoeffReturnType coeff(Index index) const {
     // Collect dimension-wise indices (subs).
     array<Index, NumDims> subs;
     EIGEN_IF_CONSTEXPR (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
@@ -516,7 +516,7 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
     return rslt;
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorOpCost costPerCoeff(bool vectorized) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorOpCost costPerCoeff(bool vectorized) const {
     const double compute_cost = NumDims * (2 * TensorOpCost::AddCost<Index>() + 2 * TensorOpCost::MulCost<Index>() +
                                            TensorOpCost::DivCost<Index>() + TensorOpCost::ModCost<Index>());
     const double lhs_size = m_leftImpl.dimensions().TotalSize();
@@ -525,7 +525,7 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
            (rhs_size / (lhs_size + rhs_size)) * m_rightImpl.costPerCoeff(vectorized) + TensorOpCost(0, 0, compute_cost);
   }
 
-  EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return NULL; }
+  EIGEN_DEVICE_FUNC constexpr EvaluatorPointerType data() const { return NULL; }
 
  protected:
   Dimensions m_dimensions;
@@ -565,14 +565,14 @@ struct TensorEvaluator<TensorConcatenationOp<Axis, LeftArgType, RightArgType>, D
   // here so that passthrough evaluators (e.g. TensorSlicingOp's) can
   // instantiate this type for RowMajor concat operands without ever calling
   // its lvalue methods.
-  EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device) : Base(op, device) {}
+  EIGEN_STRONG_INLINE constexpr TensorEvaluator(const XprType& op, const Device& device) : Base(op, device) {}
 
   typedef typename XprType::Index Index;
   typedef typename XprType::Scalar Scalar;
   typedef typename XprType::CoeffReturnType CoeffReturnType;
   typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType& coeffRef(Index index) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr CoeffReturnType& coeffRef(Index index) const {
     EIGEN_STATIC_ASSERT((static_cast<int>(Layout) == static_cast<int>(ColMajor)), YOU_MADE_A_PROGRAMMING_MISTAKE);
     // Collect dimension-wise indices (subs).
     array<Index, Base::NumDims> subs;

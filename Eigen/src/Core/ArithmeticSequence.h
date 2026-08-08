@@ -34,9 +34,9 @@ template <typename FirstType = Index, typename SizeType = Index, typename IncrTy
 class ArithmeticSequence;
 
 template <typename FirstType, typename SizeType, typename IncrType>
-ArithmeticSequence<typename internal::cleanup_index_type<FirstType>::type,
-                   typename internal::cleanup_index_type<SizeType>::type,
-                   typename internal::cleanup_seq_incr<IncrType>::type>
+constexpr ArithmeticSequence<typename internal::cleanup_index_type<FirstType>::type,
+                             typename internal::cleanup_index_type<SizeType>::type,
+                             typename internal::cleanup_seq_incr<IncrType>::type>
 seqN(FirstType first, SizeType size, IncrType incr);
 
 /** \class ArithmeticSequence
@@ -98,9 +98,9 @@ class ArithmeticSequence {
  *
  * \sa seqN(FirstType,SizeType), seq(FirstType,LastType,IncrType) */
 template <typename FirstType, typename SizeType, typename IncrType>
-ArithmeticSequence<typename internal::cleanup_index_type<FirstType>::type,
-                   typename internal::cleanup_index_type<SizeType>::type,
-                   typename internal::cleanup_seq_incr<IncrType>::type>
+constexpr ArithmeticSequence<typename internal::cleanup_index_type<FirstType>::type,
+                             typename internal::cleanup_index_type<SizeType>::type,
+                             typename internal::cleanup_seq_incr<IncrType>::type>
 seqN(FirstType first, SizeType size, IncrType incr) {
   return ArithmeticSequence<typename internal::cleanup_index_type<FirstType>::type,
                             typename internal::cleanup_index_type<SizeType>::type,
@@ -111,8 +111,8 @@ seqN(FirstType first, SizeType size, IncrType incr) {
  *
  * \sa seqN(FirstType,SizeType,IncrType), seq(FirstType,LastType) */
 template <typename FirstType, typename SizeType>
-ArithmeticSequence<typename internal::cleanup_index_type<FirstType>::type,
-                   typename internal::cleanup_index_type<SizeType>::type>
+constexpr ArithmeticSequence<typename internal::cleanup_index_type<FirstType>::type,
+                             typename internal::cleanup_index_type<SizeType>::type>
 seqN(FirstType first, SizeType size) {
   return ArithmeticSequence<typename internal::cleanup_index_type<FirstType>::type,
                             typename internal::cleanup_index_type<SizeType>::type>(first, size);
@@ -131,7 +131,7 @@ seqN(FirstType first, SizeType size) {
  * \sa seqN(FirstType,SizeType,IncrType), seq(FirstType,LastType)
  */
 template <typename FirstType, typename LastType, typename IncrType>
-auto seq(FirstType f, LastType l, IncrType incr);
+constexpr auto seq(FirstType f, LastType l, IncrType incr);
 
 /** \returns an ArithmeticSequence starting at \a f, up (or down) to \a l, and unit increment
  *
@@ -143,19 +143,19 @@ auto seq(FirstType f, LastType l, IncrType incr);
  * \sa seqN(FirstType,SizeType), seq(FirstType,LastType,IncrType)
  */
 template <typename FirstType, typename LastType>
-auto seq(FirstType f, LastType l);
+constexpr auto seq(FirstType f, LastType l);
 
 #else  // EIGEN_PARSED_BY_DOXYGEN
 
 template <typename FirstType, typename LastType>
-auto seq(FirstType f, LastType l) {
+constexpr auto seq(FirstType f, LastType l) {
   return seqN(typename internal::cleanup_index_type<FirstType>::type(f),
               (typename internal::cleanup_index_type<LastType>::type(l) -
                typename internal::cleanup_index_type<FirstType>::type(f) + fix<1>()));
 }
 
 template <typename FirstType, typename LastType, typename IncrType>
-auto seq(FirstType f, LastType l, IncrType incr) {
+constexpr auto seq(FirstType f, LastType l, IncrType incr) {
   typedef typename internal::cleanup_seq_incr<IncrType>::type CleanedIncrType;
   return seqN(typename internal::cleanup_index_type<FirstType>::type(f),
               (typename internal::cleanup_index_type<LastType>::type(l) -
@@ -174,7 +174,7 @@ namespace placeholders {
  * \anchor Eigen_placeholders_lastN
  * \sa lastN(SizeType), seqN(FirstType,SizeType), seq(FirstType,LastType,IncrType) */
 template <typename SizeType, typename IncrType>
-auto lastN(SizeType size, IncrType incr) {
+constexpr auto lastN(SizeType size, IncrType incr) {
   return seqN(Eigen::placeholders::last - (size - fix<1>()) * incr, size, incr);
 }
 
@@ -184,7 +184,7 @@ auto lastN(SizeType size, IncrType incr) {
  *
  * \sa lastN(SizeType,IncrType), seqN(FirstType,SizeType), seq(FirstType,LastType) */
 template <typename SizeType>
-auto lastN(SizeType size) {
+constexpr auto lastN(SizeType size) {
   return seqN(Eigen::placeholders::last + fix<1>() - size, size);
 }
 

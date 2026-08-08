@@ -74,10 +74,10 @@ namespace internal {
  *   - 7: the iteration limit was reached.
  */
 template <typename MatrixType, typename Rhs, typename Dest, typename Preconditioner>
-EIGEN_DONT_INLINE Index lsmr(const MatrixType& mat, const Rhs& rhs, Dest& x, const Preconditioner& precond,
-                             Index& iters, typename Dest::RealScalar& tol_error, const typename Dest::RealScalar& atol,
-                             const typename Dest::RealScalar& btol, const typename Dest::RealScalar& lambda,
-                             const typename Dest::RealScalar& conlim) {
+constexpr Index lsmr(const MatrixType& mat, const Rhs& rhs, Dest& x, const Preconditioner& precond, Index& iters,
+                     typename Dest::RealScalar& tol_error, const typename Dest::RealScalar& atol,
+                     const typename Dest::RealScalar& btol, const typename Dest::RealScalar& lambda,
+                     const typename Dest::RealScalar& conlim) {
   using numext::abs;
   using numext::sqrt;
   typedef typename Dest::RealScalar RealScalar;
@@ -374,7 +374,7 @@ class LSMR : public IterativeSolverBase<LSMR<MatrixType_, Preconditioner_> > {
    * matrix A, or modify a copy of A.
    */
   template <typename MatrixDerived>
-  explicit LSMR(const EigenBase<MatrixDerived>& A) : Base(A.derived()) {}
+  constexpr explicit LSMR(const EigenBase<MatrixDerived>& A) : Base(A.derived()) {}
 
   /** Sets the damping parameter \f$ \lambda \ge 0 \f$ for Tikhonov
    * regularization. With \a lambda > 0 the solver minimizes
@@ -385,55 +385,55 @@ class LSMR : public IterativeSolverBase<LSMR<MatrixType_, Preconditioner_> > {
    * \f$ ||Ax-b||^2 + \lambda^2 ||Mx||^2 \f$. With the default
    * IdentityPreconditioner this is exactly \f$ ||Ax-b||^2 + \lambda^2 ||x||^2 \f$.
    */
-  LSMR& setDamping(const RealScalar& lambda) {
+  constexpr LSMR& setDamping(const RealScalar& lambda) {
     m_lambda = lambda;
     return *this;
   }
 
   /** \returns the damping parameter. \sa setDamping() */
-  RealScalar damping() const { return m_lambda; }
+  constexpr RealScalar damping() const { return m_lambda; }
 
   /** Sets an upper limit on the estimated condition number of \a A. The
    * iterations stop as soon as the estimate exceeds \a conlim. The default is
    * 0, which disables the limit (equivalent to 1/epsilon).
    */
-  LSMR& setConditionLimit(const RealScalar& conlim) {
+  constexpr LSMR& setConditionLimit(const RealScalar& conlim) {
     m_conditionLimit = conlim;
     return *this;
   }
 
   /** \returns the condition-number limit. \sa setConditionLimit() */
-  RealScalar conditionLimit() const { return m_conditionLimit; }
+  constexpr RealScalar conditionLimit() const { return m_conditionLimit; }
 
   /** Sets the stopping tolerance \c atol, which bounds the relative error
    * assumed in the entries of \a A. It drives the least-squares stopping rule
    * \f$ ||A^T r|| \le atol\,||A||\,||r|| \f$. If left unset (the default) it
    * falls back to tolerance(). \sa setToleranceB(), setTolerance() */
-  LSMR& setToleranceA(const RealScalar& atol) {
+  constexpr LSMR& setToleranceA(const RealScalar& atol) {
     m_atol = atol;
     return *this;
   }
 
   /** \returns \c atol, or tolerance() if setToleranceA() has not been called.
    * \sa setToleranceA() */
-  RealScalar toleranceA() const { return m_atol >= RealScalar(0) ? m_atol : Base::m_tolerance; }
+  constexpr RealScalar toleranceA() const { return m_atol >= RealScalar(0) ? m_atol : Base::m_tolerance; }
 
   /** Sets the stopping tolerance \c btol, which bounds the relative error
    * assumed in the entries of \a b. It enters the compatible-system stopping
    * rule \f$ ||r|| \le btol\,||b|| + atol\,||A||\,||x|| \f$. If left unset (the
    * default) it falls back to tolerance(). \sa setToleranceA(), setTolerance() */
-  LSMR& setToleranceB(const RealScalar& btol) {
+  constexpr LSMR& setToleranceB(const RealScalar& btol) {
     m_btol = btol;
     return *this;
   }
 
   /** \returns \c btol, or tolerance() if setToleranceB() has not been called.
    * \sa setToleranceB() */
-  RealScalar toleranceB() const { return m_btol >= RealScalar(0) ? m_btol : Base::m_tolerance; }
+  constexpr RealScalar toleranceB() const { return m_btol >= RealScalar(0) ? m_btol : Base::m_tolerance; }
 
   /** \internal */
   template <typename Rhs, typename Dest>
-  void _solve_vector_with_guess_impl(const Rhs& b, Dest& x) const {
+  constexpr void _solve_vector_with_guess_impl(const Rhs& b, Dest& x) const {
     m_iterations = Base::maxIterations();
 
     Index istop = internal::lsmr(matrix(), b, x, Base::m_preconditioner, m_iterations, m_error, toleranceA(),
