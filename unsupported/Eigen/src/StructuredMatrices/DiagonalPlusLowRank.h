@@ -56,7 +56,7 @@ struct traits<DiagonalPlusLowRank<Scalar_, Size_, Rank_>> {
   // and makeDiagonalPlusLowRank() return owning temporaries, so Product must nest
   // the operator by value for a delayed-evaluated product expression to keep its
   // left factor alive. The copy is O(nk), on par with a single product evaluation.
-  static constexpr int Flags = 0;
+  static constexpr unsigned int Flags = 0;
 };
 
 template <typename Scalar_, int Size_, int Rank_>
@@ -82,12 +82,7 @@ struct dplr_ldexp_op {
 // The smallest e with n <= 2^e: the inner-dimension term of a product's entry
 // magnitude bound (a length-n dot product of entries below 2^a and 2^b stays
 // below 2^(a + b + e)).
-inline int dplr_index_exponent(Index n) {
-  if (n <= 1) return 0;
-  int e = 0;
-  for (Index t = n - 1; t > 0; t /= 2) ++e;
-  return e;
-}
+inline int dplr_index_exponent(Index n) { return log2_ceil(static_cast<std::make_unsigned_t<Index>>(n)); }
 
 // True when a product whose operands have entry-magnitude exponent bounds ea
 // and eb over an inner dimension of length \a inner provably cannot overflow
