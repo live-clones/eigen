@@ -79,7 +79,9 @@ static void BM_BccbSolve(benchmark::State& state) {
     benchmark::DoNotOptimize(x.data());
   }
 }
-BENCHMARK(BM_BccbSolve)->Arg(8)->Arg(16)->Arg(32)->Arg(64)->Arg(97)->Arg(128);
+// All 5-smooth: solve transforms at the exact size, so a prime dimension would
+// only time kissfft's generic butterfly instead of the operator.
+BENCHMARK(BM_BccbSolve)->Arg(8)->Arg(16)->Arg(32)->Arg(64)->Arg(96)->Arg(128);
 
 static void BM_DenseSolve(benchmark::State& state) {
   const Index n = state.range(0), N = n * n;
