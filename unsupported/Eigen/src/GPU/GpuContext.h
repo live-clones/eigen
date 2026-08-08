@@ -41,10 +41,15 @@ namespace gpu {
 
 namespace internal {
 
+// cuSOLVER writes the factorization/solve status words to device memory in
+// every build, so d_info must exist even under EIGEN_NO_DEBUG. Only the
+// pinned host mirror is debug-only: it feeds the oneshot_check_info assert,
+// which release builds compile out.
+constexpr size_t kOneShotInfoBytes = 2 * sizeof(int);
 #ifdef EIGEN_NO_DEBUG
-constexpr int scratch_info_size = 0;
+constexpr size_t kOneShotHostInfoBytes = 0;
 #else
-constexpr int scratch_info_size = 2 * sizeof(int);
+constexpr size_t kOneShotHostInfoBytes = kOneShotInfoBytes;
 #endif
 // Grow-only scratch shared by the one-shot solver expressions
 // (d_A.llt().solve(d_B), d_A.lu().solve(d_B)), so repeated one-shot solves on
@@ -55,8 +60,8 @@ struct OneShotSolverScratch {
   DeviceBuffer d_factor;
   DeviceBuffer d_ipiv;
   DeviceBuffer d_workspace;
-  DeviceBuffer d_info{scratch_info_size};      // 2 ints: {factorization, solve}
-  PinnedHostBuffer h_info{scratch_info_size};  // lazily created for the debug-build info check
+  DeviceBuffer d_info{kOneShotInfoBytes};          // 2 ints: {factorization, solve}
+  PinnedHostBuffer h_info{kOneShotHostInfoBytes};  // debug-build info check only
   std::vector<char> h_workspace;
 };
 
