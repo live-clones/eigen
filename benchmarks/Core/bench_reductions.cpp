@@ -1,5 +1,6 @@
-// Benchmarks for full reductions: sum, prod, minCoeff, maxCoeff, mean,
-// norm, squaredNorm, lpNorm<1>, lpNorm<Infinity>.
+// Benchmarks for full reductions: sum, prod, minCoeff, maxCoeff, mean, norm,
+// squaredNorm, lpNorm<1>, lpNorm<Infinity>, plus the scalar reduction paths and
+// the partial-reduction packet-segment tail.
 //
 // These are memory-bandwidth-bound for large vectors, so we report
 // bytes processed rather than FLOPS.
@@ -138,11 +139,63 @@ static void BM_MatrixNorm(benchmark::State& state) {
   state.SetBytesProcessed(state.iterations() * n * n * sizeof(Scalar));
 }
 
+// --- Reductions without a packet path ---
+
+// A user functor has no packetOp, so redux takes a scalar traversal: LinearTraversal
+// with LinearAccessBit, DefaultTraversal without it.
+template <typename Scalar>
+struct UserSumOp {
+  EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a, const Scalar& b) const { return a + b; }
+};
+
+template <typename Scalar>
+static void BM_VectorReduxUserOp(benchmark::State& state) {
+  const Index n = state.range(0);
+  Matrix<Scalar, Dynamic, 1> v = Matrix<Scalar, Dynamic, 1>::Random(n);
+  UserSumOp<Scalar> op;
+  for (auto _ : state) {
+    Scalar s = v.redux(op);
+    benchmark::DoNotOptimize(s);
+  }
+  state.SetBytesProcessed(state.iterations() * n * sizeof(Scalar));
+}
+
+// A block without LinearAccessBit, reduced by outer/inner index.
+template <typename Scalar>
+static void BM_BlockReduxUserOp(benchmark::State& state) {
+  const Index n = state.range(0);
+  Matrix<Scalar, Dynamic, Dynamic> m = Matrix<Scalar, Dynamic, Dynamic>::Random(n + 1, n + 1);
+  UserSumOp<Scalar> op;
+  for (auto _ : state) {
+    Scalar s = m.block(1, 1, n, n).redux(op);
+    benchmark::DoNotOptimize(s);
+  }
+  state.SetBytesProcessed(state.iterations() * n * n * sizeof(Scalar));
+}
+
+// --- Partial reduction with a ragged packet tail ---
+
+// An odd column count leaves a trailing partial packet, so the assignment ends with one
+// packetSegment reduction over the whole outer dimension.
+template <typename Scalar>
+static void BM_ColwiseSumRaggedTail(benchmark::State& state) {
+  const Index rows = state.range(0);
+  const Index cols = state.range(1);
+  Matrix<Scalar, Dynamic, Dynamic, RowMajor> m = Matrix<Scalar, Dynamic, Dynamic, RowMajor>::Random(rows, cols);
+  Matrix<Scalar, 1, Dynamic> r(cols);
+  for (auto _ : state) {
+    r = m.colwise().sum();
+    benchmark::DoNotOptimize(r.data());
+  }
+  state.SetBytesProcessed(state.iterations() * rows * cols * sizeof(Scalar));
+}
+
 // --- Size configurations ---
 
 // clang-format off
 #define VECTOR_SIZES ->Arg(64)->Arg(256)->Arg(1024)->Arg(4096)->Arg(16384)->Arg(65536)->Arg(262144)->Arg(1048576)
 #define MATRIX_SIZES ->Arg(8)->Arg(32)->Arg(64)->Arg(128)->Arg(256)->Arg(512)->Arg(1024)
+#define RAGGED_SIZES ->Args({4096, 5})->Args({4096, 9})->Args({4096, 17})->Args({65536, 5})->Args({65536, 9})->Args({65536, 17})
 
 // --- Register: float ---
 BENCHMARK(BM_VectorSum<float>) VECTOR_SIZES ->Name("VectorSum_float");
@@ -156,6 +209,9 @@ BENCHMARK(BM_VectorLpNorm1<float>) VECTOR_SIZES ->Name("VectorLpNorm1_float");
 BENCHMARK(BM_VectorLpNormInf<float>) VECTOR_SIZES ->Name("VectorLpNormInf_float");
 BENCHMARK(BM_MatrixSum<float>) MATRIX_SIZES ->Name("MatrixSum_float");
 BENCHMARK(BM_MatrixNorm<float>) MATRIX_SIZES ->Name("MatrixNorm_float");
+BENCHMARK(BM_VectorReduxUserOp<float>) VECTOR_SIZES ->Name("VectorReduxUserOp_float");
+BENCHMARK(BM_BlockReduxUserOp<float>) MATRIX_SIZES ->Name("BlockReduxUserOp_float");
+BENCHMARK(BM_ColwiseSumRaggedTail<float>) RAGGED_SIZES ->Name("ColwiseSumRaggedTail_float");
 
 // --- Register: double ---
 BENCHMARK(BM_VectorSum<double>) VECTOR_SIZES ->Name("VectorSum_double");
@@ -169,7 +225,11 @@ BENCHMARK(BM_VectorLpNorm1<double>) VECTOR_SIZES ->Name("VectorLpNorm1_double");
 BENCHMARK(BM_VectorLpNormInf<double>) VECTOR_SIZES ->Name("VectorLpNormInf_double");
 BENCHMARK(BM_MatrixSum<double>) MATRIX_SIZES ->Name("MatrixSum_double");
 BENCHMARK(BM_MatrixNorm<double>) MATRIX_SIZES ->Name("MatrixNorm_double");
+BENCHMARK(BM_VectorReduxUserOp<double>) VECTOR_SIZES ->Name("VectorReduxUserOp_double");
+BENCHMARK(BM_BlockReduxUserOp<double>) MATRIX_SIZES ->Name("BlockReduxUserOp_double");
+BENCHMARK(BM_ColwiseSumRaggedTail<double>) RAGGED_SIZES ->Name("ColwiseSumRaggedTail_double");
 
 #undef VECTOR_SIZES
 #undef MATRIX_SIZES
+#undef RAGGED_SIZES
 // clang-format on
