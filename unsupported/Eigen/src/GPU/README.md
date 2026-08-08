@@ -382,10 +382,6 @@ auto d_b = gpu::DeviceMatrix<double>::fromHost(b, ctx.stream());
 gpu::DeviceMatrix<double> d_x = llt_ctx.solve(d_b);
 ```
 
-Note: with cuDSS 0.8, complex Hermitian (LLT/LDLT) factorizations currently
-produce wrong results through the zero-copy CSC-as-CSR path (a cuDSS 0.8
-behavior change; real scalars and LU are unaffected). Under investigation.
-
 ### FFT (cuFFT)
 
 ```cpp
