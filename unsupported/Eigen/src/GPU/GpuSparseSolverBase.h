@@ -208,8 +208,8 @@ class SparseSolverBase {
 
     // Reuse cached d_b/d_x scratch to avoid cudaMalloc/cudaFree per solve.
     const size_t rhs_bytes = static_cast<size_t>(n_) * static_cast<size_t>(nrhs) * sizeof(Scalar);
-    ensure_solve_buffer(d_b_solve_, d_b_solve_size_, rhs_bytes);
-    ensure_solve_buffer(d_x_solve_, d_x_solve_size_, rhs_bytes);
+    ensure_solve_buffer(d_b_solve_, rhs_bytes);
+    ensure_solve_buffer(d_x_solve_, rhs_bytes);
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_b_solve_.get(), rhs.data(), rhs_bytes, cudaMemcpyHostToDevice, stream_));
 
     update_solve_descriptors(nrhs, d_b_solve_.get(), d_x_solve_.get());
@@ -279,8 +279,6 @@ class SparseSolverBase {
   // ---- Cached scratch for solve() (mutable so const solve() can grow them) --
   mutable DeviceBuffer d_b_solve_;
   mutable DeviceBuffer d_x_solve_;
-  mutable size_t d_b_solve_size_ = 0;
-  mutable size_t d_x_solve_size_ = 0;
 
   // Cached cuDSS dense descriptors for solve, re-pointed per call and
   // recreated only when nrhs changes.
@@ -314,11 +312,10 @@ class SparseSolverBase {
     EIGEN_CUDSS_CHECK(cudssConfigCreate(&config_));
   }
 
-  void ensure_solve_buffer(DeviceBuffer& buf, size_t& current_size, size_t needed) const {
-    if (needed > current_size) {
+  void ensure_solve_buffer(DeviceBuffer& buf, size_t needed) const {
+    if (needed > buf.size()) {
       if (buf) EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream_));
       buf = DeviceBuffer(needed);
-      current_size = needed;
     }
   }
 

@@ -75,15 +75,11 @@ class QR {
   QR(QR&& o) noexcept
       : solver_ctx_(std::move(o.solver_ctx_)),
         d_qr_(std::move(o.d_qr_)),
-        qr_alloc_size_(o.qr_alloc_size_),
         d_tau_(std::move(o.d_tau_)),
-        tau_alloc_size_(o.tau_alloc_size_),
         m_(o.m_),
         n_(o.n_),
         lda_(o.lda_),
         transposed_(o.transposed_) {
-    o.qr_alloc_size_ = 0;
-    o.tau_alloc_size_ = 0;
     o.m_ = 0;
     o.n_ = 0;
     o.lda_ = 0;
@@ -94,15 +90,11 @@ class QR {
     if (this != &o) {
       solver_ctx_ = std::move(o.solver_ctx_);
       d_qr_ = std::move(o.d_qr_);
-      qr_alloc_size_ = o.qr_alloc_size_;
       d_tau_ = std::move(o.d_tau_);
-      tau_alloc_size_ = o.tau_alloc_size_;
       m_ = o.m_;
       n_ = o.n_;
       lda_ = o.lda_;
       transposed_ = o.transposed_;
-      o.qr_alloc_size_ = 0;
-      o.tau_alloc_size_ = 0;
       o.m_ = 0;
       o.n_ = 0;
       o.lda_ = 0;
@@ -146,8 +138,7 @@ class QR {
     if (transposed_) {
       transpose_into_factor(d_A);
     } else {
-      d_qr_ = internal::DeviceBuffer::adopt(static_cast<void*>(d_A.release()));
-      qr_alloc_size_ = factorBytes();
+      d_qr_ = internal::DeviceBuffer::adopt(static_cast<void*>(d_A.release()), factorBytes());
     }
 
     factorize();
@@ -213,10 +204,8 @@ class QR {
 
  private:
   mutable internal::GpuSolverContext solver_ctx_;
-  internal::DeviceBuffer d_qr_;   // QR factors (reflectors below diag, R above)
-  size_t qr_alloc_size_ = 0;      // grow-only allocation size of d_qr_
-  internal::DeviceBuffer d_tau_;  // Householder scalars (length k)
-  size_t tau_alloc_size_ = 0;     // grow-only allocation size of d_tau_
+  internal::DeviceBuffer d_qr_;   // grow-only; QR factors (reflectors below diag, R above)
+  internal::DeviceBuffer d_tau_;  // grow-only; Householder scalars (length k)
   int64_t m_ = 0;                 // original A.rows()
   int64_t n_ = 0;                 // original A.cols()
   int64_t lda_ = 0;               // factor leading dim = max(m_, n_)
@@ -237,8 +226,6 @@ class QR {
     if (!solver_ctx_.begin_compute(m_ != 0 && n_ != 0)) {
       d_qr_ = internal::DeviceBuffer();
       d_tau_ = internal::DeviceBuffer();
-      qr_alloc_size_ = 0;
-      tau_alloc_size_ = 0;
       return false;
     }
     transposed_ = (m_ < n_);
@@ -247,12 +234,7 @@ class QR {
     return true;
   }
 
-  void allocate_factor_storage(size_t mat_bytes) {
-    if (mat_bytes > qr_alloc_size_) {
-      d_qr_ = internal::DeviceBuffer(mat_bytes);
-      qr_alloc_size_ = mat_bytes;
-    }
-  }
+  void allocate_factor_storage(size_t mat_bytes) { internal::ensure_sized(d_qr_, mat_bytes); }
 
   // Wide input (m < n): factor A^H, produced on device via cuBLAS geam.
   void transpose_into_factor(const DeviceMatrix<Scalar>& d_A) {
@@ -269,11 +251,7 @@ class QR {
 
     solver_ctx_.mark_pending();
 
-    const size_t tau_bytes = static_cast<size_t>(k()) * sizeof(Scalar);
-    if (tau_bytes > tau_alloc_size_) {
-      d_tau_ = internal::DeviceBuffer(tau_bytes);
-      tau_alloc_size_ = tau_bytes;
-    }
+    internal::ensure_sized(d_tau_, static_cast<size_t>(k()) * sizeof(Scalar));
 
     const int64_t fm = factor_rows();
     const int64_t fn = factor_cols();

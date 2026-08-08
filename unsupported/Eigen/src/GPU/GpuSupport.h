@@ -229,7 +229,7 @@ class DeviceBuffer {
  public:
   DeviceBuffer() = default;
 
-  explicit DeviceBuffer(size_t bytes) {
+  explicit DeviceBuffer(size_t bytes) : bytes_(bytes) {
     if (bytes > 0) {
       void* p = nullptr;
       // Bypass the pool once its thread_local has been destroyed (allocation
@@ -245,22 +245,42 @@ class DeviceBuffer {
     }
   }
 
+  // Explicit moves so a moved-from buffer reports size() == 0 (callers use
+  // size() for grow-only reuse decisions; a stale size on a null buffer would
+  // suppress the reallocation).
+  DeviceBuffer(DeviceBuffer&& o) noexcept : ptr_(std::move(o.ptr_)), bytes_(o.bytes_) { o.bytes_ = 0; }
+  DeviceBuffer& operator=(DeviceBuffer&& o) noexcept {
+    if (this != &o) {
+      ptr_ = std::move(o.ptr_);
+      bytes_ = o.bytes_;
+      o.bytes_ = 0;
+    }
+    return *this;
+  }
+
   void* get() const noexcept { return ptr_.get(); }
-  void* release() noexcept { return ptr_.release(); }
+  void* release() noexcept {
+    bytes_ = 0;
+    return ptr_.release();
+  }
   explicit operator bool() const noexcept { return static_cast<bool>(ptr_); }
 
-  size_t size() const noexcept { return ptr_.get_deleter().size; }
+  /** Logical allocation size in bytes, tracked for adopted pointers as well. */
+  size_t size() const noexcept { return bytes_; }
 
-  // Adopt an existing device pointer. Caller relinquishes ownership.
-  // Adopted buffers bypass the pool on destruction (deleter size == 0).
-  static DeviceBuffer adopt(void* p) noexcept {
+  // Adopt an existing device pointer of `bytes` usable bytes. Caller
+  // relinquishes ownership. Adopted buffers bypass the pool on destruction
+  // (deleter size == 0).
+  static DeviceBuffer adopt(void* p, size_t bytes) noexcept {
     DeviceBuffer b;
     b.ptr_ = std::unique_ptr<void, PooledCudaFreeDeleter>(p, PooledCudaFreeDeleter{});
+    b.bytes_ = p ? bytes : 0;
     return b;
   }
 
  private:
   std::unique_ptr<void, PooledCudaFreeDeleter> ptr_;
+  size_t bytes_ = 0;
 };
 
 // ---- RAII: pinned host buffer -----------------------------------------------
