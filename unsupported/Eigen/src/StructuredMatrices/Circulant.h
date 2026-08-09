@@ -252,7 +252,7 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
     // smallest-normal 1x1 operator stays invertible. NaN moduli fail the
     // comparison and land in the inverted set, so a NaN input propagates to the
     // output instead of being silently zeroed.
-    const ComplexVector sinv = (mods.array() < tol).select(Complex(0), s.cwiseInverse());
+    const ComplexVector sinv = (mods.array() < tol).select(Complex(0), scaledReciprocal(s));
     Matrix<Scalar, Size_, Rhs::ColsAtCompileTime> x(n, b.cols());
     x.setZero();
     if (!b.allFinite()) {
@@ -296,7 +296,7 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
    * pseudo-inverse solve of a rank-deficient operator. */
   Circulant inverse() const {
     const Index n = rows();
-    const ComplexVector sinv = symbol().cwiseInverse();
+    const ComplexVector sinv = scaledReciprocal(symbol());
     GeneratorType col(n);
     if (n == 1) {
       col = internal::structured_scalar_part_impl<Scalar>::run(sinv);
@@ -512,6 +512,37 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
     mods = (s * down).cwiseAbs();
     tol = numext::maxi(RealScalar(s.size()) * NumTraits<RealScalar>::epsilon() * mods.maxCoeff(),
                        (std::numeric_limits<RealScalar>::min)() * down);
+  }
+
+  /** \internal \returns the entrywise reciprocal of \a s, each entry formed in
+   * its own exactly rescaled frame. The textbook complex reciprocal
+   * conj(z)/|z|^2 overflows whenever |z|^2 is not representable, and Smith's
+   * algorithm does not help for the balanced case (its denominator a + b*(b/a)
+   * overflows just the same), so 1/z collapses to zero for an entry near the
+   * overflow boundary unless the implementation rescales. Standard libraries
+   * differ on that -- libstdc++ recovers the (subnormal) reciprocal, others
+   * return zero -- which silently drops a Fourier mode from solve() and
+   * inverse(). Scaling each entry by 2^-e puts its largest component in
+   * [0.5, 1), where the reciprocal is always representable, and unscaling by
+   * the same exponent is exact. Both steps use ldexp() rather than a
+   * multiplication by 2^-e, which would itself overflow for the tiny entries
+   * whose reciprocals are legitimately huge. Non-finite entries and zeros keep
+   * the unscaled reciprocal so Inf/NaN propagate exactly as before. */
+  static ComplexVector scaledReciprocal(const ComplexVector& s) {
+    const Index n = s.size();
+    ComplexVector inv(n);
+    for (Index k = 0; k < n; ++k) {
+      const Complex z = s.coeff(k);
+      const RealScalar re = numext::real(z), im = numext::imag(z);
+      const RealScalar m = numext::maxi(numext::abs(re), numext::abs(im));
+      int e = 0;
+      if (m > RealScalar(0) && (numext::isfinite)(m)) std::frexp(m, &e);
+      // z = zs * 2^e, hence 1/z = (1/zs) * 2^-e with both scalings exact.
+      const Complex zs(std::ldexp(re, -e), std::ldexp(im, -e));
+      const Complex q = Complex(RealScalar(1)) / zs;
+      inv.coeffRef(k) = Complex(std::ldexp(numext::real(q), -e), std::ldexp(numext::imag(q), -e));
+    }
+    return inv;
   }
 
   /** \internal Writes the unit-norm Fourier eigenvector \c f_k into column
