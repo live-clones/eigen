@@ -41,9 +41,22 @@ const TC &ref_prod(TC &C, const TA &A, const TB &B) {
 // cancels: at bfloat16 precision a 10-term dot product can lose every significant digit, and the
 // apparent relative error then swings by several times the tolerance from one seed to the next
 // while the underlying discrepancy stays around one epsilon of |A|*|B|.
+//
+// The bound is accumulated coefficient-wise in double rather than as (|A| * |B|).maxCoeff(): a
+// tolerance computed with the product under test would inherit that product's defects, and one
+// that overflowed to infinity would admit any result at all. Accumulating in double also keeps the
+// bound itself exact at the precisions this is used for.
 template <typename TA, typename TB>
 typename NumTraits<typename TA::Scalar>::Real prod_error_scale(const TA &A, const TB &B) {
-  return (A.cwiseAbs() * B.cwiseAbs()).maxCoeff();
+  double scale = 0.0;
+  for (Index i = 0; i < A.rows(); ++i)
+    for (Index j = 0; j < B.cols(); ++j) {
+      double sum = 0.0;
+      for (Index k = 0; k < A.cols(); ++k)
+        sum += numext::abs(static_cast<double>(A.coeff(i, k))) * numext::abs(static_cast<double>(B.coeff(k, j)));
+      scale = numext::maxi(scale, sum);
+    }
+  return static_cast<typename NumTraits<typename TA::Scalar>::Real>(scale);
 }
 
 template <typename T, int Rows, int Cols, int Depth, int OC, int OA, int OB>
