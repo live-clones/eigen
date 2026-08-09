@@ -201,12 +201,15 @@ struct functor_traits<scalar_min_op<LhsScalar, RhsScalar, NaNPropagation>> {
   };
 };
 
-// PropagateNumbers and PropagateNaN treat NaN operands symmetrically, so min/max commute for
-// them. PropagateFast leaves NaN results unspecified, and ties between distinct representations
-// (-0.0 vs +0.0) may resolve either way in any mode — reordering stays within the documented
-// contract, and the packet reduction paths already reorder these functors.
+// min/max commute for arithmetic scalars only: PropagateNumbers and PropagateNaN treat NaN
+// operands symmetrically, PropagateFast leaves NaN results unspecified, and -0.0/+0.0 ties may
+// already resolve either way in the packet reduction paths. A custom scalar is excluded even
+// though it compares with operator<, because the generic std::min/std::max keep the first
+// operand when values compare equivalent, and equivalent custom values may be observably
+// distinct (e.g. carry a payload the comparison ignores).
 template <typename Scalar, int NaNPropagation>
-struct functor_is_commutative<scalar_min_op<Scalar, Scalar, NaNPropagation>> : std::true_type {};
+struct functor_is_commutative<scalar_min_op<Scalar, Scalar, NaNPropagation>>
+    : bool_constant<is_arithmetic<Scalar>::value> {};
 
 /** \internal
  * \brief Template functor to compute the max of two scalars
@@ -238,7 +241,8 @@ struct functor_traits<scalar_max_op<LhsScalar, RhsScalar, NaNPropagation>> {
 };
 
 template <typename Scalar, int NaNPropagation>
-struct functor_is_commutative<scalar_max_op<Scalar, Scalar, NaNPropagation>> : std::true_type {};
+struct functor_is_commutative<scalar_max_op<Scalar, Scalar, NaNPropagation>>
+    : bool_constant<is_arithmetic<Scalar>::value> {};
 
 /** \internal
  * \brief Template functors for comparison of two scalars

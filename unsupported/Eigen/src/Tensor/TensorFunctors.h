@@ -27,7 +27,7 @@ struct scalar_mod_op {
   const Scalar m_divisor;
 };
 template <typename Scalar>
-struct functor_traits<scalar_mod_op<Scalar> > {
+struct functor_traits<scalar_mod_op<Scalar>> {
   enum { Cost = scalar_div_cost<Scalar, false>::value, PacketAccess = false };
 };
 
@@ -39,7 +39,7 @@ struct scalar_mod2_op {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a, const Scalar& b) const { return a % b; }
 };
 template <typename Scalar>
-struct functor_traits<scalar_mod2_op<Scalar> > {
+struct functor_traits<scalar_mod2_op<Scalar>> {
   enum { Cost = scalar_div_cost<Scalar, false>::value, PacketAccess = false };
 };
 
@@ -50,7 +50,7 @@ struct scalar_fmod_op {
   }
 };
 template <typename Scalar>
-struct functor_traits<scalar_fmod_op<Scalar> > {
+struct functor_traits<scalar_fmod_op<Scalar>> {
   enum {
     Cost = 13,  // Reciprocal throughput of FPREM on Haswell.
     PacketAccess = false
@@ -61,6 +61,14 @@ template <typename Reducer, typename Device>
 struct reducer_traits {
   enum { Cost = 1, PacketAccess = false, IsStateful = false, IsExactlyAssociative = true };
 };
+
+// Marks reducers whose reduce(value, accum) is a pure combine, so a partial accumulator may be
+// fed back through reduce() to merge it into another. Not implied by PacketAccess: a reducer may
+// support packets yet transform each value it accepts (e.g. a sum-of-squares reducer), in which
+// case merging through reduce() is wrong. Conservative default; built-in combines opt in below,
+// gated on scalar categories whose semantics Eigen controls.
+template <typename Reducer>
+struct reducer_can_merge_accumulators : std::false_type {};
 
 // Standard reduction functors
 template <typename T>
@@ -316,6 +324,25 @@ struct reducer_traits<OrReducer, Device> {
   enum { Cost = 1, PacketAccess = false, IsStateful = false, IsExactlyAssociative = true };
 };
 
+// Sum/prod merge for scalars whose + and * commute; min/max additionally exclude custom scalars,
+// whose generic std::min/std::max keep the first operand when values compare equivalent.
+template <typename T>
+struct reducer_can_merge_accumulators<SumReducer<T>>
+    : bool_constant<internal::is_arithmetic<T>::value || NumTraits<T>::IsComplex> {};
+template <typename T>
+struct reducer_can_merge_accumulators<ProdReducer<T>>
+    : bool_constant<internal::is_arithmetic<T>::value || NumTraits<T>::IsComplex> {};
+template <typename T, int NaNPropagation>
+struct reducer_can_merge_accumulators<MinReducer<T, NaNPropagation>>
+    : bool_constant<internal::is_arithmetic<T>::value> {};
+template <typename T, int NaNPropagation>
+struct reducer_can_merge_accumulators<MaxReducer<T, NaNPropagation>>
+    : bool_constant<internal::is_arithmetic<T>::value> {};
+template <>
+struct reducer_can_merge_accumulators<AndReducer> : std::true_type {};
+template <>
+struct reducer_can_merge_accumulators<OrReducer> : std::true_type {};
+
 // Argmin/Argmax reducers.  Returns the first occurrence if multiple locations
 // contain the same min/max value.
 template <typename T>
@@ -387,11 +414,11 @@ class GaussianGenerator {
 };
 
 template <typename T, typename Index, size_t NumDims>
-struct functor_traits<GaussianGenerator<T, Index, NumDims> > {
+struct functor_traits<GaussianGenerator<T, Index, NumDims>> {
   enum {
-    Cost = NumDims *
-               (2 * NumTraits<T>::AddCost + NumTraits<T>::MulCost + functor_traits<scalar_quotient_op<T, T> >::Cost) +
-           functor_traits<scalar_exp_op<T> >::Cost,
+    Cost =
+        NumDims * (2 * NumTraits<T>::AddCost + NumTraits<T>::MulCost + functor_traits<scalar_quotient_op<T, T>>::Cost) +
+        functor_traits<scalar_exp_op<T>>::Cost,
     PacketAccess = GaussianGenerator<T, Index, NumDims>::PacketAccess
   };
 };
@@ -410,7 +437,7 @@ struct scalar_clamp_op {
   const Scalar m_max;
 };
 template <typename Scalar>
-struct functor_traits<scalar_clamp_op<Scalar> > {
+struct functor_traits<scalar_clamp_op<Scalar>> {
   enum {
     Cost = 2 * NumTraits<Scalar>::AddCost,
     PacketAccess = (packet_traits<Scalar>::HasMin && packet_traits<Scalar>::HasMax)
