@@ -252,7 +252,8 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
     // smallest-normal 1x1 operator stays invertible. NaN moduli fail the
     // comparison and land in the inverted set, so a NaN input propagates to the
     // output instead of being silently zeroed.
-    const ComplexVector sinv = (mods.array() < tol).select(Complex(0), s.cwiseInverse());
+    const ComplexVector sinv =
+        (mods.array() < tol).select(Complex(0), s.unaryExpr(&internal::structured_scaled_reciprocal<Complex>));
     Matrix<Scalar, Size_, Rhs::ColsAtCompileTime> x(n, b.cols());
     x.setZero();
     if (!b.allFinite()) {
@@ -296,7 +297,7 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
    * pseudo-inverse solve of a rank-deficient operator. */
   Circulant inverse() const {
     const Index n = rows();
-    const ComplexVector sinv = symbol().cwiseInverse();
+    const ComplexVector sinv = symbol().unaryExpr(&internal::structured_scaled_reciprocal<Complex>);
     GeneratorType col(n);
     if (n == 1) {
       col = internal::structured_scalar_part_impl<Scalar>::run(sinv);

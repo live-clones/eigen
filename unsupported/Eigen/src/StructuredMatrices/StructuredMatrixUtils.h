@@ -93,6 +93,21 @@ Scalar structured_ldexp_clamped(const Scalar& z, Index exponent) {
   return structured_balance_impl<Scalar>::apply_exponent(z, e);
 }
 
+/** \internal \returns 1 / \a z, formed in the balanced frame. Reciprocating a
+ * complex value directly is unreliable near the representable boundary: both
+ * conj(z)/|z|^2 and Smith's algorithm (internal::complex_divide_fast and
+ * _smith) overflow to zero when |Re z| and |Im z| are each around half the
+ * largest finite value. Balancing first puts the larger component in [0.5, 1),
+ * where the reciprocal is always representable, and both rescalings are exact.
+ * Zeros and non-finite values pass through structured_balance() untouched, so
+ * they reciprocate exactly as they would unscaled. */
+template <typename Scalar>
+Scalar structured_scaled_reciprocal(const Scalar& z) {
+  Index e = 0;
+  const Scalar zs = structured_balance(z, e);
+  return structured_ldexp_clamped(Scalar(1) / zs, -e);
+}
+
 /** \internal \returns the indices sorted by decreasing precomputed modulus
  * \a mods (each modulus is computed once, not on every comparison); the shared
  * ordering of the operators' singularValues()/matrixU()/matrixV(). The sort is
