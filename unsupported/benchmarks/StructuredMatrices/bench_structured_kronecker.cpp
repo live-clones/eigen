@@ -56,6 +56,35 @@ static void BM_KroneckerMaterializeDense(benchmark::State& state) {
 }
 BENCHMARK(BM_KroneckerMaterializeDense)->Arg(8)->Arg(16)->Arg(32)->Arg(64);
 
+// --- Multiple right-hand sides ---
+// Both the product and the direct solve walk the right-hand side column by
+// column through the vec identity, so these cover the path where the per-column
+// vec-trick workspaces are reused instead of reallocated.
+static void BM_KroneckerProductImplicitMultiRhs(benchmark::State& state) {
+  const Index n = state.range(0), nrhs = state.range(1);
+  Mat A = Mat::Random(n, n), B = Mat::Random(n, n);
+  KroneckerOperator<Mat, Mat> K(A, B);
+  Mat X = Mat::Random(n * n, nrhs), Y(n * n, nrhs);
+  for (auto _ : state) {
+    Y.noalias() = K * X;
+    benchmark::DoNotOptimize(Y.data());
+  }
+}
+BENCHMARK(BM_KroneckerProductImplicitMultiRhs)->ArgsProduct({{8, 16, 32}, {8, 64}});
+
+static void BM_KroneckerSolveImplicitMultiRhs(benchmark::State& state) {
+  const Index n = state.range(0), nrhs = state.range(1);
+  Mat A = Mat::Random(n, n) + 2.0 * double(n) * Mat::Identity(n, n);
+  Mat B = Mat::Random(n, n) + 2.0 * double(n) * Mat::Identity(n, n);
+  KroneckerOperator<Mat, Mat> K(A, B);
+  Mat rhs = Mat::Random(n * n, nrhs), X(n * n, nrhs);
+  for (auto _ : state) {
+    X = K.solve(rhs);
+    benchmark::DoNotOptimize(X.data());
+  }
+}
+BENCHMARK(BM_KroneckerSolveImplicitMultiRhs)->ArgsProduct({{8, 16, 32}, {8, 64}});
+
 // --- Direct solve (A (x) B) x = b, n x n invertible factors ---
 // The dense product is materialized once outside the timed loop. Each iteration
 // then factorizes two n x n matrices for the implicit operator, versus one

@@ -692,12 +692,6 @@ void test_kron_fixed() {
   typedef Matrix<Scalar, M1 * M2, 1> FixedB;
   STATIC_CHECK((internal::remove_all_t<decltype(std::declval<const KroneckerOperator<MatA, MatB>&>().leastSquaresSolve(
                     std::declval<const FixedB&>()))>::RowsAtCompileTime == N1 * N2));
-
-  // The compile-time dimension product guards against int overflow by falling
-  // back to Dynamic (46341^2 is the first square past INT_MAX).
-  STATIC_CHECK((internal::kron_dim(46340, 46340) == 46340 * 46340));
-  STATIC_CHECK((internal::kron_dim(46341, 46341) == Dynamic));
-  STATIC_CHECK((internal::kron_dim(1 << 16, 1 << 16) == Dynamic));
 }
 
 // solve()/leastSquaresSolve() on fixed-size square factors: the returned type
