@@ -37,27 +37,18 @@ class KroneckerOperator;
 
 namespace internal {
 
-/** \internal Compile-time product of two dimensions: Dynamic when either factor
- * is unknown, and also when the product would not fit in \c int -- no fixed-size
- * dimension that large is usable anyway, and the overflowing multiplication
- * would be ill-formed in a constant expression. */
-constexpr int kron_dim(int a, int b) {
-  return (a == 0 || b == 0)                            ? 0
-         : (a == Dynamic || b == Dynamic)              ? Dynamic
-         : (a > (std::numeric_limits<int>::max)() / b) ? Dynamic
-                                                       : a * b;
-}
-
 template <typename LhsMatrix, typename RhsMatrix>
 struct traits<KroneckerOperator<LhsMatrix, RhsMatrix>> {
   using Scalar = typename LhsMatrix::Scalar;
   using StorageKind = Dense;
   using XprKind = MatrixXpr;
   using StorageIndex = int;
+  // size_at_compile_time is the compile-time dimension product, Dynamic when a
+  // factor is unknown or the product would overflow int.
   static constexpr int RowsAtCompileTime =
-      kron_dim(traits<LhsMatrix>::RowsAtCompileTime, traits<RhsMatrix>::RowsAtCompileTime);
+      size_at_compile_time(traits<LhsMatrix>::RowsAtCompileTime, traits<RhsMatrix>::RowsAtCompileTime);
   static constexpr int ColsAtCompileTime =
-      kron_dim(traits<LhsMatrix>::ColsAtCompileTime, traits<RhsMatrix>::ColsAtCompileTime);
+      size_at_compile_time(traits<LhsMatrix>::ColsAtCompileTime, traits<RhsMatrix>::ColsAtCompileTime);
   static constexpr int MaxRowsAtCompileTime = RowsAtCompileTime;
   static constexpr int MaxColsAtCompileTime = ColsAtCompileTime;
   // Deliberately no NestByRefBit: transpose(), conjugate(), adjoint(), inverse(),
@@ -146,9 +137,9 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
                 "KroneckerOperator requires both factors to have the same scalar type");
 
   static constexpr int RowsAtCompileTime =
-      internal::kron_dim(LhsMatrix::RowsAtCompileTime, RhsMatrix::RowsAtCompileTime);
+      internal::size_at_compile_time(LhsMatrix::RowsAtCompileTime, RhsMatrix::RowsAtCompileTime);
   static constexpr int ColsAtCompileTime =
-      internal::kron_dim(LhsMatrix::ColsAtCompileTime, RhsMatrix::ColsAtCompileTime);
+      internal::size_at_compile_time(LhsMatrix::ColsAtCompileTime, RhsMatrix::ColsAtCompileTime);
   static constexpr int MaxRowsAtCompileTime = RowsAtCompileTime;
   static constexpr int MaxColsAtCompileTime = ColsAtCompileTime;
   static constexpr int SizeAtCompileTime = internal::size_at_compile_time(RowsAtCompileTime, ColsAtCompileTime);
@@ -230,18 +221,23 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
     const int eb = internal::structured_exponent_bound(m_B);
     PartialPivLU<DenseMatrix> luA(ldexpEntries(m_A, -ea)), luB(ldexpEntries(m_B, -eb));
     Matrix<Scalar, ColsAtCompileTime, Rhs::ColsAtCompileTime> x(n1 * n2, b.cols());
+    DenseVector bc(n1 * n2);
+    DenseMatrix X(n2, n1);
     for (Index k = 0; k < b.cols(); ++k) {
-      DenseVector bc = b.col(k);
+      bc = b.col(k);
       const int ec = internal::structured_exponent_bound(bc);
       if (ec != 0) bc = ldexpEntries(bc, -ec);
-      const Map<const DenseMatrix> Bmat(bc.data(), n2, n1);
-      DenseMatrix X = luA.solve(luB.solve(Bmat).transpose()).transpose();
+      X = luA.solve(luB.solve(bc.reshaped(n2, n1)).transpose()).transpose();
       // Fold the combined exponent back. The entrywise ldexp saturates exactly
       // where the true solution over- or underflows; a multiplicative fold could
       // not (the combined exponent can exceed the representable range of any
       // fixed number of power-of-two factors).
       const int e = ec - ea - eb;
       if (e != 0) X = ldexpEntries(X, e);
+      // Map, not reshaped(): evaluator<Reshaped>::Flags drops PacketAccessBit
+      // even in its direct-access specialization, so a Reshaped source puts this
+      // copy on the scalar path. reshaped() is free above, where the operand
+      // reaches the decomposition through blas_traits rather than the evaluator.
       x.col(k) = Map<const DenseVector>(X.data(), X.size());
     }
     return x;
@@ -281,11 +277,12 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
       x.setZero();
       return x;
     }
+    DenseVector bc(m1 * m2);
+    DenseMatrix M(kB, kA), X(m_B.cols(), m_A.cols());
     for (Index k = 0; k < b.cols(); ++k) {
-      const DenseVector bc = b.col(k);
-      const Map<const DenseMatrix> Bmat(bc.data(), m2, m1);
+      bc = b.col(k);
       // By [1], M = U_B^H mat(b) conj(U_A) matricizes (U_A (x) U_B)^H b.
-      DenseMatrix M = svdB.matrixU().adjoint() * Bmat * svdA.matrixU().conjugate();
+      M.noalias() = svdB.matrixU().adjoint() * bc.reshaped(m2, m1) * svdA.matrixU().conjugate();
       // Invert only the pairwise products at/above the product-level threshold
       // and the smallest normal number, both decided like in rank(). The negated
       // ratio comparison keeps NaN ratios in the inverted set, so a NaN input
@@ -305,8 +302,8 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
             M(i, j) = Scalar(0);
           }
         }
-      const DenseMatrix X = svdB.matrixV() * M * svdA.matrixV().transpose();
-      x.col(k) = Map<const DenseVector>(X.data(), X.size());
+      X.noalias() = svdB.matrixV() * M * svdA.matrixV().transpose();
+      x.col(k) = Map<const DenseVector>(X.data(), X.size());  // Map, not reshaped(): see solve()
     }
     return x;
   }
@@ -377,11 +374,9 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
     ComplexEigenSolver<ComplexMatrix> esA(m_A.template cast<ComplexScalar>(), /*computeEigenvectors=*/false);
     ComplexEigenSolver<ComplexMatrix> esB(m_B.template cast<ComplexScalar>(), /*computeEigenvectors=*/false);
     eigen_assert(esA.info() == Success && esB.info() == Success);
-    const Index nA = m_A.cols(), nB = m_B.cols();
-    ComplexVector lambda(nA * nB);
-    for (Index i = 0; i < nA; ++i)
-      for (Index j = 0; j < nB; ++j) lambda[i * nB + j] = esA.eigenvalues()[i] * esB.eigenvalues()[j];
-    return lambda;
+    // Column-major stacking of the nB x nA outer product puts mu_j(B) lambda_i(A)
+    // at index i*nB + j, the Kronecker order.
+    return (esB.eigenvalues() * esA.eigenvalues().transpose()).reshaped();
   }
 
   /** \returns the matrix of eigenvectors \f$ V_A \otimes V_B \f$ for square
@@ -406,11 +401,9 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
    * \c min(rows(),cols()) - k_A*k_B structural zeros. */
   RealVector singularValues() const {
     JacobiSVD<DenseMatrix> svdA(m_A), svdB(m_B);
-    const Index kA = svdA.singularValues().size(), kB = svdB.singularValues().size();
-    RealVector sv(kA * kB);
-    for (Index i = 0; i < kA; ++i)
-      for (Index j = 0; j < kB; ++j) sv[i * kB + j] = svdA.singularValues()[i] * svdB.singularValues()[j];
-    return sv;
+    // Column-major stacking of the kB x kA outer product puts sigma_j(B) sigma_i(A)
+    // at index i*kB + j, the Kronecker order.
+    return (svdB.singularValues() * svdA.singularValues().transpose()).reshaped();
   }
 
   /** \returns the left singular vectors \f$ U_A \otimes U_B \f$ of the thin SVD,
@@ -504,12 +497,14 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
     const bool factorsFinite = m_A.allFinite() && m_B.allFinite();
     const int expA = internal::structured_exponent_bound(m_A);
     const int expB = internal::structured_exponent_bound(m_B);
-    int bits1 = 0, bits2 = 0;
-    for (Index t = n1; t > 0; t /= 2) ++bits1;
-    for (Index t = n2; t > 0; t /= 2) ++bits2;
+    // Bit widths of the contracted dimensions, i.e. the dot-product growth bound.
+    const int bits1 = internal::log2_floor(static_cast<numext::uint64_t>(n1)) + 1;
+    const int bits2 = internal::log2_floor(static_cast<numext::uint64_t>(n2)) + 1;
     const int budget = std::numeric_limits<ProductReal>::max_exponent - 2;
+    ProductVector xc(n1 * n2);
+    ProductMatrix Y(m_B.rows(), m_A.rows());
     for (Index k = 0; k < actualRhs.cols(); ++k) {
-      ProductVector xc = actualRhs.col(k).template cast<ProductScalar>();
+      xc = actualRhs.col(k).template cast<ProductScalar>();
       int e = 0;
       if (factorsFinite && xc.allFinite()) {
         const int expX = internal::structured_exponent_bound(xc);  // 0 for an all-zero column: no scaling
@@ -526,8 +521,8 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
         const ProductReal down2 = ProductReal(std::ldexp(ProductReal(1), -(e - e / 2)));
         xc = (xc * down1) * down2;
       }
-      const Map<const ProductMatrix> X(xc.data(), n2, n1);
-      const ProductMatrix Y = m_B * X * m_A.transpose();
+      Y.noalias() = m_B * xc.reshaped(n2, n1) * m_A.transpose();
+      // Map, not reshaped(), for the accumulation: see solve().
       if (e > 0) {
         const ProductReal up1 = ProductReal(std::ldexp(ProductReal(1), e / 2));
         const ProductReal up2 = ProductReal(std::ldexp(ProductReal(1), e - e / 2));
@@ -554,12 +549,15 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
     return RealScalar(numext::mini(rows(), cols())) * NumTraits<RealScalar>::epsilon();
   }
 
-  /** \internal \returns \a M rescaled by \c 2^e entrywise (componentwise for
-   * complex scalars): exact where the result is representable [3], with correct
-   * saturation to 0/Inf and correctly rounded subnormals beyond -- unlike a
-   * multiplication by \c 2^e, whose factor may itself be unrepresentable. */
+  /** \internal \returns the expression of \a M rescaled by \c 2^e entrywise
+   * (componentwise for complex scalars): exact where the result is representable
+   * [3], with correct saturation to 0/Inf and correctly rounded subnormals beyond
+   * -- unlike a multiplication by \c 2^e, whose factor may itself be
+   * unrepresentable. Coefficient-wise, hence safe to assign onto \a M itself.
+   * The expression holds \a M by reference: consume it within the full
+   * expression that builds it. */
   template <typename Xpr>
-  static typename Xpr::PlainObject ldexpEntries(const Xpr& M, int e) {
+  static auto ldexpEntries(const Xpr& M, int e) {
     return M.unaryExpr([e](const Scalar& z) { return internal::structured_ldexp_clamped(z, Index(e)); });
   }
 
