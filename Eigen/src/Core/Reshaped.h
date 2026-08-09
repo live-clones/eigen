@@ -353,15 +353,15 @@ struct reshaped_evaluator<ArgType, Rows, Cols, Order, /* HasDirectAccess */ fals
 
   EIGEN_DEVICE_FUNC constexpr inline Scalar& coeffRef(Index index) {
     EIGEN_STATIC_ASSERT_LVALUE(XprType)
-    return coeffRef_impl(vector_row(index), vector_col(index), bool_constant<ForwardLinearAccess>());
+    return coeffRef_impl(index, bool_constant<ForwardLinearAccess>());
   }
 
   EIGEN_DEVICE_FUNC constexpr inline const Scalar& coeffRef(Index index) const {
-    return coeffRef_impl(vector_row(index), vector_col(index), bool_constant<ForwardLinearAccess>());
+    return coeffRef_impl(index, bool_constant<ForwardLinearAccess>());
   }
 
   EIGEN_DEVICE_FUNC constexpr inline const CoeffReturnType coeff(Index index) const {
-    return coeff_impl(vector_row(index), vector_col(index), bool_constant<ForwardLinearAccess>());
+    return coeff_impl(index, bool_constant<ForwardLinearAccess>());
   }
 
   // The packet paths are advertised only under ForwardLinearAccess (see evaluator<Reshaped>), so
@@ -415,6 +415,17 @@ struct reshaped_evaluator<ArgType, Rows, Cols, Order, /* HasDirectAccess */ fals
   EIGEN_DEVICE_FUNC static constexpr Index vector_col(Index index) { return Rows == 1 ? index : 0; }
 
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const CoeffReturnType
+  coeff_impl(Index index, std::true_type /* ForwardLinearAccess */) const {
+    // The one-dimensional index already follows the nested evaluator's linear enumeration.
+    return m_argImpl.coeff(index);
+  }
+
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const CoeffReturnType
+  coeff_impl(Index index, std::false_type /* not ForwardLinearAccess */) const {
+    return coeff_impl(vector_row(index), vector_col(index), std::false_type());
+  }
+
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const CoeffReturnType
   coeff_impl(Index rowId, Index colId, std::true_type /* ForwardLinearAccess */) const {
     return m_argImpl.coeff(linear_index(rowId, colId));
   }
@@ -423,6 +434,14 @@ struct reshaped_evaluator<ArgType, Rows, Cols, Order, /* HasDirectAccess */ fals
   coeff_impl(Index rowId, Index colId, std::false_type /* not ForwardLinearAccess */) const {
     const RowCol row_col = index_remap(rowId, colId);
     return m_argImpl.coeff(row_col.first, row_col.second);
+  }
+
+  EIGEN_DEVICE_FUNC constexpr inline Scalar& coeffRef_impl(Index index, std::true_type /* ForwardLinearAccess */) {
+    return m_argImpl.coeffRef(index);
+  }
+
+  EIGEN_DEVICE_FUNC constexpr inline Scalar& coeffRef_impl(Index index, std::false_type /* not ForwardLinearAccess */) {
+    return coeffRef_impl(vector_row(index), vector_col(index), std::false_type());
   }
 
   EIGEN_DEVICE_FUNC constexpr inline Scalar& coeffRef_impl(Index rowId, Index colId,
@@ -434,6 +453,16 @@ struct reshaped_evaluator<ArgType, Rows, Cols, Order, /* HasDirectAccess */ fals
                                                            std::false_type /* not ForwardLinearAccess */) {
     const RowCol row_col = index_remap(rowId, colId);
     return m_argImpl.coeffRef(row_col.first, row_col.second);
+  }
+
+  EIGEN_DEVICE_FUNC constexpr inline const Scalar& coeffRef_impl(Index index,
+                                                                 std::true_type /* ForwardLinearAccess */) const {
+    return m_argImpl.coeffRef(index);
+  }
+
+  EIGEN_DEVICE_FUNC constexpr inline const Scalar& coeffRef_impl(Index index,
+                                                                 std::false_type /* not ForwardLinearAccess */) const {
+    return coeffRef_impl(vector_row(index), vector_col(index), std::false_type());
   }
 
   EIGEN_DEVICE_FUNC constexpr inline const Scalar& coeffRef_impl(Index rowId, Index colId,

@@ -277,10 +277,25 @@ void reshape_copies(Index rows, Index cols) {
 
   VERIFY_IS_APPROX((a + b).reshaped().sum(), s.sum());
 
+  // Linear scalar accesses into a matrix-shaped row-major reshape must forward the index as-is.
+  RowMat ra = RowMat::Random(rows, cols), rb = RowMat::Random(rows, cols);
+  RowMat rer = (ra + rb).template reshaped<RowMajor>(cols, rows);
+  for (Index k = 0; k < rer.size(); ++k) {
+    VERIFY_IS_EQUAL(rer(k / rows, k % rows), ra(k / cols, k % cols) + rb(k / cols, k % cols));
+  }
+
   // A reshaped lvalue expression without direct access exercises the forwarded packet writes.
   Vec vr(m.size());
   vr.reverse().reshaped(rows, cols) = m;
   for (Index k = 0; k < m.size(); ++k) VERIFY_IS_EQUAL(vr(m.size() - 1 - k), m(k % rows, k / rows));
+
+  RowMat rvr(rows, cols);
+  RowMat rw = RowMat::Random(cols, rows);
+  rvr.reverse().template reshaped<RowMajor>(cols, rows) = rw;
+  for (Index k = 0; k < rw.size(); ++k) {
+    const Index reversed = rw.size() - 1 - k;
+    VERIFY_IS_EQUAL(rvr(reversed / cols, reversed % cols), rw(k / rows, k % rows));
+  }
 }
 
 template <typename BlockType>
