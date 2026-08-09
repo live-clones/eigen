@@ -35,29 +35,13 @@ const TC &ref_prod(TC &C, const TA &A, const TB &B) {
   return C;
 }
 
-// Error scale for comparing a product against ref_prod(). Both accumulate k terms in the working
-// precision, so each carries O(k) rounding proportional to the magnitude of the summands, i.e. to
-// |A|*|B| -- not to the result. Measuring relative to the result is meaningless once the sum
-// cancels: at bfloat16 precision a 10-term dot product can lose every significant digit, and the
-// apparent relative error then swings by several times the tolerance from one seed to the next
-// while the underlying discrepancy stays around one epsilon of |A|*|B|.
-//
-// The bound is accumulated coefficient-wise in double rather than as (|A| * |B|).maxCoeff(): a
-// tolerance computed with the product under test would inherit that product's defects, and one
-// that overflowed to infinity would admit any result at all. Accumulating in double also keeps the
-// bound itself exact at the precisions this is used for.
-template <typename TA, typename TB>
-typename NumTraits<typename TA::Scalar>::Real prod_error_scale(const TA &A, const TB &B) {
-  double scale = 0.0;
-  for (Index i = 0; i < A.rows(); ++i)
-    for (Index j = 0; j < B.cols(); ++j) {
-      double sum = 0.0;
-      for (Index k = 0; k < A.cols(); ++k)
-        sum += numext::abs(static_cast<double>(A.coeff(i, k))) * numext::abs(static_cast<double>(B.coeff(k, j)));
-      scale = numext::maxi(scale, sum);
-    }
-  return static_cast<typename NumTraits<typename TA::Scalar>::Real>(scale);
-}
+// The sweeps below compare an optimized product against ref_prod() with verifyProduct() rather than
+// VERIFY_IS_APPROX. Both sides accumulate k terms in the working precision, so each carries rounding
+// proportional to the magnitude of the summands, i.e. to |A|*|B| -- not to the result. Measuring the
+// error relative to the result, as VERIFY_IS_APPROX does, is meaningless once the sum cancels: at
+// bfloat16 precision a 10-term dot product can lose every significant digit, and the apparent
+// relative error then swings by several times the tolerance from one seed to the next while the
+// underlying discrepancy stays around one epsilon of |A|*|B|.
 
 template <typename T, int Rows, int Cols, int Depth, int OC, int OA, int OB>
 std::enable_if_t<!((Rows == 1 && Depth != 1 && OA == ColMajor) || (Depth == 1 && Rows != 1 && OA == RowMajor) ||
@@ -355,7 +339,7 @@ void product_transition_sizes() {
         C = A * B;
         Cref.setZero();
         ref_prod(Cref, A, B);
-        VERIFY_IS_APPROX_SCALED(C, Cref, prod_error_scale(A, B));
+        VERIFY(verifyProduct(C, Cref, A, B));
       }
     }
   }
@@ -374,7 +358,7 @@ void product_sweep(int max_m, int max_k, int max_n) {
         C = A * B;
         Cref.setZero();
         ref_prod(Cref, A, B);
-        VERIFY_IS_APPROX_SCALED(C, Cref, prod_error_scale(A, B));
+        VERIFY(verifyProduct(C, Cref, A, B));
       }
     }
   }
