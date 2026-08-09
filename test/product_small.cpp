@@ -35,6 +35,17 @@ const TC &ref_prod(TC &C, const TA &A, const TB &B) {
   return C;
 }
 
+// Error scale for comparing a product against ref_prod(). Both accumulate k terms in the working
+// precision, so each carries O(k) rounding proportional to the magnitude of the summands, i.e. to
+// |A|*|B| -- not to the result. Measuring relative to the result is meaningless once the sum
+// cancels: at bfloat16 precision a 10-term dot product can lose every significant digit, and the
+// apparent relative error then swings by several times the tolerance from one seed to the next
+// while the underlying discrepancy stays around one epsilon of |A|*|B|.
+template <typename TA, typename TB>
+typename NumTraits<typename TA::Scalar>::Real prod_error_scale(const TA &A, const TB &B) {
+  return (A.cwiseAbs() * B.cwiseAbs()).maxCoeff();
+}
+
 template <typename T, int Rows, int Cols, int Depth, int OC, int OA, int OB>
 std::enable_if_t<!((Rows == 1 && Depth != 1 && OA == ColMajor) || (Depth == 1 && Rows != 1 && OA == RowMajor) ||
                    (Cols == 1 && Depth != 1 && OB == RowMajor) || (Depth == 1 && Cols != 1 && OB == ColMajor) ||
@@ -331,7 +342,7 @@ void product_transition_sizes() {
         C = A * B;
         Cref.setZero();
         ref_prod(Cref, A, B);
-        VERIFY_IS_APPROX(C, Cref);
+        VERIFY_IS_APPROX_SCALED(C, Cref, prod_error_scale(A, B));
       }
     }
   }
@@ -350,7 +361,7 @@ void product_sweep(int max_m, int max_k, int max_n) {
         C = A * B;
         Cref.setZero();
         ref_prod(Cref, A, B);
-        VERIFY_IS_APPROX(C, Cref);
+        VERIFY_IS_APPROX_SCALED(C, Cref, prod_error_scale(A, B));
       }
     }
   }
