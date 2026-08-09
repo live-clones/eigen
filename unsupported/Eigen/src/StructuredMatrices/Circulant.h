@@ -247,12 +247,14 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
     const ComplexVector s = symbol();
     RealVector mods;
     RealScalar tol;
-    scaledModuli(s, mods, tol);
+    int es = 0;
+    scaledModuli(s, mods, tol, &es);
     // Strictly-below-threshold entries are zeroed, matching SVDBase::rank(), so a
     // smallest-normal 1x1 operator stays invertible. NaN moduli fail the
     // comparison and land in the inverted set, so a NaN input propagates to the
     // output instead of being silently zeroed.
-    const ComplexVector sinv = (mods.array() < tol).select(Complex(0), s.cwiseInverse());
+    const ComplexVector sinv =
+        (mods.array() < tol).select(Complex(0), s.unaryExpr(&internal::structured_scaled_reciprocal<Complex>));
     Matrix<Scalar, Size_, Rhs::ColsAtCompileTime> x(n, b.cols());
     x.setZero();
     if (!b.allFinite()) {
@@ -272,7 +274,29 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
       Circulant(pcol, ComplexVector(), ComplexVector()).directProduct(x, b.derived(), Scalar(1));
       return x;
     }
-    internal::structured_fft_apply(x, sinv, n, b.derived(), Scalar(1));
+    // The reciprocal of the largest symbol entry is about 2^-es; once that falls
+    // below the smallest normal it is subnormal, and multiplying by it drops the
+    // mode wherever denormals are flushed, however carefully it was formed. Only
+    // then is it worth dividing by the symbol instead: the quotient stays normal,
+    // but a complex division costs several times a multiply on every entry. An
+    // ordinary operator keeps the reciprocal path.
+    constexpr Index kSubnormalReciprocal = -(Index(std::numeric_limits<RealScalar>::min_exponent) - 1) - 2;
+    if (es <= kSubnormalReciprocal) {
+      internal::structured_fft_apply(x, sinv, n, b.derived(), Scalar(1));
+      return x;
+    }
+    // Balance the symbol to O(1) and hand its exponent to the apply, which folds
+    // it into the output scaling. The balancing uses ldexp per component rather
+    // than a multiply by 2^-es: for a near-boundary symbol that constant is
+    // itself subnormal, and would be read as zero wherever denormal operands are
+    // flushed.
+    const ComplexVector sb = s.unaryExpr([es](const Complex& z) { return internal::structured_ldexp_clamped(z, -es); });
+    // mods and tol are already evaluated in a balanced frame, so the threshold
+    // comparison is unaffected by the rebalancing of the symbol above.
+    internal::structured_symbol_divide<RealVector, RealScalar> divide{&mods, tol};
+    internal::structured_fft_apply(
+        x, sb, n, b.derived(), Scalar(1),
+        [](Index) { eigen_assert(false && "non-finite column requires a direct kernel"); }, divide, es);
     return x;
   }
 
@@ -296,7 +320,7 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
    * pseudo-inverse solve of a rank-deficient operator. */
   Circulant inverse() const {
     const Index n = rows();
-    const ComplexVector sinv = symbol().cwiseInverse();
+    const ComplexVector sinv = symbol().unaryExpr(&internal::structured_scaled_reciprocal<Complex>);
     GeneratorType col(n);
     if (n == 1) {
       col = internal::structured_scalar_part_impl<Scalar>::run(sinv);
@@ -506,8 +530,9 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
    * of such a symbol can sit below the smallest normal number. Entries at or
    * above the threshold, in particular a smallest-normal entry of a moderate
    * symbol, are inverted (their reciprocals are finite). */
-  static void scaledModuli(const ComplexVector& s, RealVector& mods, RealScalar& tol) {
+  static void scaledModuli(const ComplexVector& s, RealVector& mods, RealScalar& tol, int* frameExp = nullptr) {
     const int e = numext::maxi(internal::structured_exponent_bound(s), 0);
+    if (frameExp) *frameExp = e;
     const RealScalar down = std::ldexp(RealScalar(1), -e);
     mods = (s * down).cwiseAbs();
     tol = numext::maxi(RealScalar(s.size()) * NumTraits<RealScalar>::epsilon() * mods.maxCoeff(),
