@@ -1325,6 +1325,17 @@ void test_circulant_rank_boundaries() {
   }
 }
 
+// True where a subnormal result survives. Flush-to-zero modes -- NVHPC's default
+// -fast, for one -- turn one into an exact zero, so a value that is only
+// representable as a subnormal cannot be observed at all there. The volatile
+// operands keep the compiler from folding the probe under IEEE semantics the run
+// time does not use.
+bool subnormals_survive() {
+  volatile double vtiny = (std::numeric_limits<double>::min)();
+  volatile double vhalf = 0.5;
+  return !numext::is_exactly_zero(vtiny * vhalf);
+}
+
 // A finite complex symbol entry near the overflow threshold has a
 // non-representable modulus. The rank threshold used to be computed from the raw
 // moduli, turning it into infinity: the rank was under-reported and solve()
@@ -1354,6 +1365,20 @@ void test_circulant_rank_complex_boundary() {
   VERIFY(b.allFinite());
   CVec x = C.solve(b);
   VERIFY(((x - x0).cwiseAbs().maxCoeff() / x0.cwiseAbs().maxCoeff()) <= 1e-6);
+
+  // Pin the invariant the accuracy check above only measures indirectly: the
+  // reciprocal of an entry near the overflow boundary is subnormal but
+  // representable, and must not collapse to zero. Forming it as conj(z)/|z|^2
+  // -- or by Smith's algorithm -- overflows and yields exactly zero, which
+  // drops the mode from both inverse() and solve(); whether the unscaled
+  // 1/z survives depends on how the standard library rescales, so the
+  // reciprocal is taken in a rescaled frame instead. Under flush-to-zero that
+  // entry is not representable at all -- which is why solve() divides by the
+  // symbol rather than multiplying by the reciprocal, and why the accuracy
+  // check above holds in both modes while this one is gated.
+  const CVec sinv = C.inverse().symbol();
+  VERIFY(sinv.allFinite());
+  if (subnormals_survive()) VERIFY_IS_EQUAL((sinv.array() == Complex(0)).count(), 0);
 
   // A genuinely negligible second entry still truncates in the scaled frame.
   CVec c2(2);
