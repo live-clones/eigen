@@ -2,10 +2,11 @@
 //
 // Covers the direct-access paths where the Reshaped evaluator serves packets:
 // flatten reads, accumulation from a flattened view, reshaped destinations,
-// and the AutoOrder flatten of a row-major matrix. The Map variants perform
-// the same memory operation through Map and serve as an upper-bound reference.
-// Each Reshaped benchmark checks its result against the Map reference after
-// the timed loop and reports an error on mismatch.
+// and the AutoOrder flatten of a row-major matrix; plus the expression-sourced
+// (non-direct) reshapes that forward the nested evaluator's linear accesses.
+// The Map variants perform the same memory operation through Map and serve as
+// an upper-bound reference. Each Reshaped benchmark checks its result against
+// the Map reference after the timed loop and reports an error on mismatch.
 // SPDX-FileCopyrightText: The Eigen Authors
 // SPDX-License-Identifier: MPL-2.0
 
@@ -192,6 +193,76 @@ static void BM_MapCwiseExp(benchmark::State& state) {
   state.SetBytesProcessed(state.iterations() * n * n * sizeof(Scalar));
 }
 
+// Flatten an expression source: dst = (a + b).reshaped(). The reshape has no direct access
+// and forwards the nested evaluator's linear packets.
+template <typename Scalar>
+static void BM_ReshapedExprFlattenRead(benchmark::State& state) {
+  const Index n = state.range(0);
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  Mat a = Mat::Random(n, n), b = Mat::Random(n, n);
+  Vec dst(n * n);
+  for (auto _ : state) {
+    dst = (a + b).reshaped();
+    benchmark::DoNotOptimize(dst.data());
+  }
+  // Elementwise additions match exactly between the packet and scalar paths.
+  if (dst != Map<const Vec>(a.data(), a.size()) + Map<const Vec>(b.data(), b.size()))
+    state.SkipWithError("reshaped expression flatten differs from Map");
+  state.SetBytesProcessed(state.iterations() * n * n * sizeof(Scalar));
+}
+
+// Same operation through flat Maps: upper-bound reference for BM_ReshapedExprFlattenRead.
+template <typename Scalar>
+static void BM_MapExprFlattenRead(benchmark::State& state) {
+  const Index n = state.range(0);
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  Mat a = Mat::Random(n, n), b = Mat::Random(n, n);
+  Vec dst(n * n);
+  for (auto _ : state) {
+    dst = Map<const Vec>(a.data(), a.size()) + Map<const Vec>(b.data(), b.size());
+    benchmark::DoNotOptimize(dst.data());
+  }
+  state.SetBytesProcessed(state.iterations() * n * n * sizeof(Scalar));
+}
+
+// Sum-reduce a flattened expression: like BM_ReshapedSum this isolates Eigen's packet path,
+// but through the non-direct evaluator, which previously also paid a div/mod index remap per
+// coefficient.
+template <typename Scalar>
+static void BM_ReshapedExprSum(benchmark::State& state) {
+  const Index n = state.range(0);
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  Mat a = Mat::Random(n, n), b = Mat::Random(n, n);
+  Scalar acc(0);
+  for (auto _ : state) {
+    acc += (a + b).reshaped().sum();
+    benchmark::DoNotOptimize(acc);
+  }
+  // Like BM_ReshapedSum, but the summands a+b lie in [-2, 2], so double the tolerance.
+  const Scalar sum = (a + b).reshaped().sum();
+  const Scalar ref = (a + b).sum();
+  if (numext::abs(sum - ref) > Scalar(32 * n * n) * NumTraits<Scalar>::epsilon()) {
+    state.SkipWithError("reshaped expression sum differs from reference");
+  }
+  state.SetBytesProcessed(state.iterations() * n * n * sizeof(Scalar));
+}
+
+// Same reduction without the reshape: upper-bound reference for BM_ReshapedExprSum.
+template <typename Scalar>
+static void BM_ExprSum(benchmark::State& state) {
+  const Index n = state.range(0);
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  Mat a = Mat::Random(n, n), b = Mat::Random(n, n);
+  Scalar acc(0);
+  for (auto _ : state) {
+    acc += (a + b).sum();
+    benchmark::DoNotOptimize(acc);
+  }
+  state.SetBytesProcessed(state.iterations() * n * n * sizeof(Scalar));
+}
+
 // (matrix dimension n; the reshaped view has n*n elements)
 // clang-format off
 #define RESHAPED_SIZES ->RangeMultiplier(4)->Range(16, 1024)
@@ -211,6 +282,14 @@ BENCHMARK(BM_ReshapedSum<float>) RESHAPED_SIZES ->Name("ReshapedSum_float");
 BENCHMARK(BM_ReshapedSum<double>) RESHAPED_SIZES ->Name("ReshapedSum_double");
 BENCHMARK(BM_MapSum<float>) RESHAPED_SIZES ->Name("MapSum_float");
 BENCHMARK(BM_MapSum<double>) RESHAPED_SIZES ->Name("MapSum_double");
+BENCHMARK(BM_ReshapedExprFlattenRead<float>) RESHAPED_SIZES ->Name("ReshapedExprFlattenRead_float");
+BENCHMARK(BM_ReshapedExprFlattenRead<double>) RESHAPED_SIZES ->Name("ReshapedExprFlattenRead_double");
+BENCHMARK(BM_MapExprFlattenRead<float>) RESHAPED_SIZES ->Name("MapExprFlattenRead_float");
+BENCHMARK(BM_MapExprFlattenRead<double>) RESHAPED_SIZES ->Name("MapExprFlattenRead_double");
+BENCHMARK(BM_ReshapedExprSum<float>) RESHAPED_SIZES ->Name("ReshapedExprSum_float");
+BENCHMARK(BM_ReshapedExprSum<double>) RESHAPED_SIZES ->Name("ReshapedExprSum_double");
+BENCHMARK(BM_ExprSum<float>) RESHAPED_SIZES ->Name("ExprSum_float");
+BENCHMARK(BM_ExprSum<double>) RESHAPED_SIZES ->Name("ExprSum_double");
 BENCHMARK(BM_ReshapedCwiseExp<float>) RESHAPED_SIZES ->Name("ReshapedCwiseExp_float");
 BENCHMARK(BM_ReshapedCwiseExp<double>) RESHAPED_SIZES ->Name("ReshapedCwiseExp_double");
 BENCHMARK(BM_MapCwiseExp<float>) RESHAPED_SIZES ->Name("MapCwiseExp_float");
