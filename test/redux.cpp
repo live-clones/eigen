@@ -455,6 +455,49 @@ void redux_minmax_nan() {
   }
 }
 
+// A custom scalar whose comparison ignores its tag, so equivalent values are observably
+// distinct. The generic std::min/std::max keep the first operand of a tie, and custom scalars
+// are excluded from the min/max commutativity opt-in, so minCoeff()/maxCoeff() must return the
+// first extremum in traversal order.
+struct TaggedScalar {
+  double v;
+  int tag;
+  TaggedScalar() : v(0), tag(0) {}
+  TaggedScalar(double v_, int tag_) : v(v_), tag(tag_) {}
+  bool operator<(const TaggedScalar& other) const { return v < other.v; }
+};
+
+namespace Eigen {
+template <>
+struct NumTraits<TaggedScalar> : GenericNumTraits<TaggedScalar> {};
+}  // namespace Eigen
+
+void redux_custom_scalar_min_ties() {
+  typedef Matrix<TaggedScalar, Dynamic, 1> Vec;
+  STATIC_CHECK(
+      !(internal::functor_is_commutative<internal::scalar_min_op<TaggedScalar, TaggedScalar, PropagateFast>>::value));
+  // Sizes on both sides of the ordered-tree cutoff, extrema in different unroll regions.
+  const Index sizes[] = {10, 33, 250, 1000};
+  for (int si = 0; si < 4; ++si) {
+    const Index n = sizes[si];
+    Vec x(n);
+    for (Index i = 0; i < n; ++i) x.coeffRef(i) = TaggedScalar(double(i % 17), int(i));
+    // Two equal minima (v == -1): the first in traversal order must win.
+    x.coeffRef(2) = TaggedScalar(-1.0, 2);
+    x.coeffRef(n - 2) = TaggedScalar(-1.0, int(n - 2));
+    VERIFY_IS_EQUAL(x.minCoeff().tag, 2);
+    // Two equal maxima (v == 100).
+    x.coeffRef(3) = TaggedScalar(100.0, 3);
+    x.coeffRef(n - 3) = TaggedScalar(100.0, int(n - 3));
+    VERIFY_IS_EQUAL(x.maxCoeff().tag, 3);
+    // All coefficients equivalent: the very first must win.
+    Vec y(n);
+    for (Index i = 0; i < n; ++i) y.coeffRef(i) = TaggedScalar(5.0, int(i));
+    VERIFY_IS_EQUAL(y.minCoeff().tag, 0);
+    VERIFY_IS_EQUAL(y.maxCoeff().tag, 0);
+  }
+}
+
 // Test reductions on expressions whose inner stride is NOT statically 1 (so they lose
 // compile-time vectorization) but ARE contiguous at runtime: a dynamic-inner-stride Map with
 // runtime stride 1, a row of a 1xN dynamic matrix, and a fully-packed dynamic-stride matrix Ref.
@@ -628,6 +671,9 @@ EIGEN_DECLARE_TEST(redux) {
   // min/max NaN contracts must survive reordered scalar reductions.
   CALL_SUBTEST_13(redux_minmax_nan<float>());
   CALL_SUBTEST_13(redux_minmax_nan<double>());
+
+  // Custom scalars stay on the order-preserving path: first extremum wins ties.
+  CALL_SUBTEST_13(redux_custom_scalar_min_ties());
 
   // Runtime unit-stride fast path (redux_dispatch in Redux.h).
   CALL_SUBTEST_13(redux_runtime_contiguous<float>());
