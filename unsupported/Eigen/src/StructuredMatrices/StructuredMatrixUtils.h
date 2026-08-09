@@ -93,6 +93,26 @@ Scalar structured_ldexp_clamped(const Scalar& z, Index exponent) {
   return structured_balance_impl<Scalar>::apply_exponent(z, e);
 }
 
+/** \internal \returns 1 / \a z, formed in a balanced frame where the direct
+ * reciprocal is unreliable: near the representable boundary both conj(z)/|z|^2
+ * and Smith's algorithm (internal::complex_divide_fast and _smith) overflow to
+ * zero when |Re z| and |Im z| are each around half the largest finite value.
+ * Balancing puts the larger component in [0.5, 1), where the reciprocal is
+ * always representable, and both rescalings are exact. Zeros and non-finite
+ * values pass through structured_balance() untouched. */
+template <typename Scalar>
+Scalar structured_scaled_reciprocal(const Scalar& z) {
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  const RealScalar mag = numext::maxi(numext::abs(numext::real(z)), numext::abs(numext::imag(z)));
+  const RealScalar m2 = mag * mag;
+  // Where |z|^2 <= 2*mag^2 is normal, no implementation of the reciprocal can
+  // overflow or underflow, so only the remaining entries pay for the balancing.
+  if (m2 >= (std::numeric_limits<RealScalar>::min)() && (numext::isfinite)(m2 + m2)) return Scalar(1) / z;
+  Index e = 0;
+  const Scalar zs = structured_balance(z, e);
+  return structured_ldexp_clamped(Scalar(1) / zs, -e);
+}
+
 /** \internal \returns the indices sorted by decreasing precomputed modulus
  * \a mods (each modulus is computed once, not on every comparison); the shared
  * ordering of the operators' singularValues()/matrixU()/matrixV(). The sort is
@@ -244,6 +264,14 @@ ComplexVectorType structured_reverse_symbol(const ComplexVectorType& symbol) {
   return reversed;
 }
 
+/** \internal Default pointwise step: multiply the transformed column by the symbol. */
+struct structured_symbol_multiply {
+  template <typename XfType, typename SymbolType>
+  void operator()(XfType& xf, const SymbolType& symbol) const {
+    xf.array() *= symbol.array();
+  }
+};
+
 /** \internal
  * Computes \c dst.col(k) += alpha * ifft( symbol .* fft(rhs.col(k)) ) for every
  * column of \a rhs, i.e. applies the circulant operator whose eigenvalues are
@@ -274,9 +302,11 @@ ComplexVectorType structured_reverse_symbol(const ComplexVectorType& symbol) {
  * derives its scaling exponent -- and handed to \a directColumn, the caller's
  * per-column direct kernel, so the remaining columns keep the fast path.
  */
-template <typename Scalar, typename Dest, typename Rhs, typename DirectColumn>
+template <typename Scalar, typename Dest, typename Rhs, typename DirectColumn,
+          typename Pointwise = structured_symbol_multiply>
 void structured_fft_apply(Dest& dst, const Matrix<std::complex<typename NumTraits<Scalar>::Real>, Dynamic, 1>& symbol,
-                          Index outSize, const Rhs& rhs, const Scalar& alpha, DirectColumn&& directColumn) {
+                          Index outSize, const Rhs& rhs, const Scalar& alpha, DirectColumn&& directColumn,
+                          Pointwise pointwise = Pointwise(), Index outExpAdjust = 0) {
   using RealScalar = typename NumTraits<Scalar>::Real;
   using Complex = std::complex<RealScalar>;
   using ComplexVector = Matrix<Complex, Dynamic, 1>;
@@ -285,9 +315,16 @@ void structured_fft_apply(Dest& dst, const Matrix<std::complex<typename NumTrait
   eigen_assert(rhs.rows() <= p && outSize <= p);
 
   if (p == 1) {
-    // The length-one DFT is the identity and is unsupported by kissfft.
-    dst.row(0) +=
-        alpha * structured_scalar_part_impl<Scalar>::run(symbol.coeff(0) * rhs.row(0).template cast<Complex>());
+    // The length-one DFT is the identity and is unsupported by kissfft. The
+    // pointwise step still has to run here, so a caller that divides by the
+    // symbol is not silently given a multiply.
+    ComplexVector xf(1);
+    for (Index k = 0; k < rhs.cols(); ++k) {
+      xf.coeffRef(0) = static_cast<Complex>(rhs.coeff(0, k));
+      pointwise(xf, symbol);
+      dst.coeffRef(0, k) +=
+          alpha * structured_scalar_part_impl<Scalar>::run_scalar(structured_ldexp_clamped(xf.coeff(0), -outExpAdjust));
+    }
     return;
   }
 
@@ -311,10 +348,14 @@ void structured_fft_apply(Dest& dst, const Matrix<std::complex<typename NumTrait
     // through a huge symbol); scaling by the two exact factors in sequence is
     // still an exact shift wherever the result is representable.
     const RealScalar down1 = std::ldexp(RealScalar(1), -(e / 2)), down2 = std::ldexp(RealScalar(1), -(e - e / 2));
-    const RealScalar up1 = std::ldexp(RealScalar(1), e / 2), up2 = std::ldexp(RealScalar(1), e - e / 2);
+    // A caller that pre-balanced the symbol passes its exponent in outExpAdjust,
+    // so the pointwise step sees an O(1) symbol whose result never passes through
+    // a subnormal; the exponent is folded back into the output here.
+    const int eo = e - static_cast<int>(outExpAdjust);
+    const RealScalar up1 = std::ldexp(RealScalar(1), eo / 2), up2 = std::ldexp(RealScalar(1), eo - eo / 2);
     xt.head(rhs.rows()) = ((rhs.col(k) * down1) * down2).template cast<Complex>();
     fft.fwd(xf, xt, p);
-    xf.array() *= symbol.array();
+    pointwise(xf, symbol);
     fft.inv(yt, xf, p);
     dst.col(k) += alpha * structured_scalar_part_impl<Scalar>::run((yt.head(outSize) * up1) * up2);
   }
@@ -330,6 +371,22 @@ void structured_fft_apply(Dest& dst, const Matrix<std::complex<typename NumTrait
   structured_fft_apply(dst, symbol, outSize, rhs, alpha,
                        [](Index) { eigen_assert(false && "non-finite column requires a direct kernel"); });
 }
+
+/** \internal Pointwise step for the pseudo-inverse solve: divides by the symbol
+ * instead of multiplying by its reciprocal, since the reciprocal of an entry near
+ * the representable boundary is subnormal -- and lost under flush-to-zero -- while
+ * the quotient stays normal. Entries below the rank threshold are zeroed, matching
+ * the pseudo-inverse convention. */
+template <typename ModsType, typename RealScalar>
+struct structured_symbol_divide {
+  const ModsType* mods;
+  RealScalar tol;
+  template <typename XfType, typename SymbolType>
+  void operator()(XfType& xf, const SymbolType& symbol) const {
+    using Complex = std::complex<RealScalar>;
+    xf.array() = (mods->array() < tol).select(Complex(0), xf.array() / symbol.array());
+  }
+};
 
 /** \internal Shared product implementation for the structured operator types.
  * Forwards to the operator's \c addProduct member, which performs the fast
