@@ -4,6 +4,8 @@
 // flatten reads, accumulation from a flattened view, reshaped destinations,
 // and the AutoOrder flatten of a row-major matrix. The Map variants perform
 // the same memory operation through Map and serve as an upper-bound reference.
+// Each Reshaped benchmark checks its result against the Map reference after
+// the timed loop and reports an error on mismatch.
 // SPDX-FileCopyrightText: The Eigen Authors
 // SPDX-License-Identifier: MPL-2.0
 
@@ -24,6 +26,7 @@ static void BM_ReshapedFlattenRead(benchmark::State& state) {
     dst = src.reshaped();
     benchmark::DoNotOptimize(dst.data());
   }
+  if (dst != Map<const Vec>(src.data(), src.size())) state.SkipWithError("reshaped flatten differs from Map");
   state.SetBytesProcessed(state.iterations() * n * n * sizeof(Scalar));
 }
 
@@ -55,6 +58,13 @@ static void BM_ReshapedFlattenAccumulate(benchmark::State& state) {
     dst += alpha * src.reshaped();
     benchmark::DoNotOptimize(dst.data());
   }
+  // The timed dst depends on the iteration count, so check one application from a zero start
+  // instead; alpha is a power of two, so both paths are exact.
+  Vec chk = Vec::Zero(n * n);
+  Vec ref = Vec::Zero(n * n);
+  chk += alpha * src.reshaped();
+  ref += alpha * Map<const Vec>(src.data(), src.size());
+  if (chk != ref) state.SkipWithError("reshaped accumulate differs from Map");
   state.SetBytesProcessed(state.iterations() * n * n * sizeof(Scalar));
 }
 
@@ -86,6 +96,7 @@ static void BM_ReshapedWrite(benchmark::State& state) {
     dst.reshaped() = src;
     benchmark::DoNotOptimize(dst.data());
   }
+  if (Map<const Vec>(dst.data(), dst.size()) != src) state.SkipWithError("reshaped write differs from Map");
   state.SetBytesProcessed(state.iterations() * n * n * sizeof(Scalar));
 }
 
@@ -102,6 +113,8 @@ static void BM_ReshapedRowMajorFlatten(benchmark::State& state) {
     dst = src.template reshaped<AutoOrder>();
     benchmark::DoNotOptimize(dst.data());
   }
+  // AutoOrder flattens in storage order, so dst is the row-major buffer verbatim.
+  if (dst != Map<const Vec>(src.data(), src.size())) state.SkipWithError("reshaped flatten differs from Map");
   state.SetBytesProcessed(state.iterations() * n * n * sizeof(Scalar));
 }
 
@@ -112,11 +125,20 @@ template <typename Scalar>
 static void BM_ReshapedSum(benchmark::State& state) {
   const Index n = state.range(0);
   using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
   Mat src = Mat::Random(n, n);
   Scalar acc(0);
   for (auto _ : state) {
     acc += src.reshaped().sum();
     benchmark::DoNotOptimize(acc);
+  }
+  // The two paths may sum in different orders (packet vs. scalar redux), so allow rounding
+  // noise on the order of n*n additions of values in [-1, 1]. This catches garbage results,
+  // not last-ulp deviations.
+  const Scalar sum = src.reshaped().sum();
+  const Scalar ref = Map<const Vec>(src.data(), src.size()).sum();
+  if (numext::abs(sum - ref) > Scalar(16 * n * n) * NumTraits<Scalar>::epsilon()) {
+    state.SkipWithError("reshaped sum differs from Map");
   }
   state.SetBytesProcessed(state.iterations() * n * n * sizeof(Scalar));
 }
@@ -149,6 +171,9 @@ static void BM_ReshapedCwiseExp(benchmark::State& state) {
     dst = src.reshaped().array().exp();
     benchmark::DoNotOptimize(dst.data());
   }
+  // Scalar libm exp and packet exp may differ by a few ulps, so compare approximately.
+  const Vec ref = Map<const Vec>(src.data(), src.size()).array().exp();
+  if (!dst.isApprox(ref)) state.SkipWithError("reshaped exp differs from Map");
   state.SetBytesProcessed(state.iterations() * n * n * sizeof(Scalar));
 }
 
