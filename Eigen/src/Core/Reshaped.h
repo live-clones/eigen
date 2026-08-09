@@ -66,8 +66,11 @@ struct traits<Reshaped<XprType, Rows, Cols, Order> > : traits<XprType> {
                                                                                 : XprStorageOrder,
     HasSameStorageOrderAsXprType = (ReshapedStorageOrder == XprStorageOrder),
     InnerSize = (ReshapedStorageOrder == int(RowMajor)) ? int(ColsAtCompileTime) : int(RowsAtCompileTime),
-    InnerStrideAtCompileTime =
-        HasSameStorageOrderAsXprType ? int(inner_stride_at_compile_time<XprType>::value) : Dynamic,
+    // A mismatched ReshapedStorageOrder only happens for vector shapes, where the storage order is
+    // immaterial: the runtime innerStride() is the nested expression's in all cases (see below).
+    InnerStrideAtCompileTime = (HasSameStorageOrderAsXprType || RowsAtCompileTime == 1 || ColsAtCompileTime == 1)
+                                   ? int(inner_stride_at_compile_time<XprType>::value)
+                                   : Dynamic,
     OuterStrideAtCompileTime = Dynamic,
 
     HasDirectAccess = internal::has_direct_access<XprType>::value && (Order == int(XprStorageOrder)) &&
@@ -260,10 +263,14 @@ struct evaluator<Reshaped<ArgType, Rows, Cols, Order> >
             : 0,
     FlagsRowMajorBit = (traits<XprType>::ReshapedStorageOrder == int(RowMajor)) ? RowMajorBit : 0,
     FlagsDirectAccessBit = HasDirectAccess ? DirectAccessBit : 0,
-    Flags0 = evaluator<ArgType>::Flags & (HereditaryBits & ~RowMajorBit),
+    // A direct-access reshape with unit inner stride is the nested expression's buffer, contiguous
+    // from data(), so the mapbase_evaluator packet paths apply whenever the nested evaluator's do.
+    MaskPacketAccessBit = HasDirectAccess && (traits<XprType>::InnerStrideAtCompileTime == 1) ? PacketAccessBit : 0,
+    Flags0 = evaluator<ArgType>::Flags & ((HereditaryBits & ~RowMajorBit) | MaskPacketAccessBit),
     Flags = Flags0 | FlagsLinearAccessBit | FlagsRowMajorBit | FlagsDirectAccessBit,
 
     PacketAlignment = unpacket_traits<PacketScalar>::alignment,
+    // The view starts at the nested data() with no offset, so its alignment carries over.
     Alignment = evaluator<ArgType>::Alignment
   };
   typedef reshaped_evaluator<ArgType, Rows, Cols, Order, HasDirectAccess> reshaped_evaluator_type;
