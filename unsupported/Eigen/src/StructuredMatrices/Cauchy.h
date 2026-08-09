@@ -46,7 +46,7 @@ struct traits<Cauchy<Scalar_, Rows_, Cols_>> {
   // owning temporaries, so Product must nest the operator by value for a
   // delayed-evaluated product expression to keep its left factor alive. The copy
   // is O(m+n), negligible against the O(mn) product evaluation.
-  static constexpr int Flags = 0;
+  static constexpr unsigned int Flags = 0;
 };
 
 template <typename Scalar_, int Rows_, int Cols_>
@@ -61,7 +61,8 @@ struct traits<CauchyLU<Scalar_>> : traits<Matrix<Scalar_, Dynamic, Dynamic>> {
   using StorageKind = SolverStorage;
   using StorageIndex = int;
   using BaseTraits = traits<Matrix<Scalar_, Dynamic, Dynamic>>;
-  enum { Flags = BaseTraits::Flags & RowMajorBit, CoeffReadCost = Dynamic };
+  static constexpr unsigned int Flags = BaseTraits::Flags & RowMajorBit;
+  static constexpr int CoeffReadCost = Dynamic;
 };
 
 /** \internal \returns the Cauchy coefficient \c 1 / (a - b), guarded against a
@@ -340,7 +341,7 @@ class Cauchy : public EigenBase<Cauchy<Scalar_, Rows_, Cols_>> {
    * node near the overflow threshold is not representable. */
   bool computeBoundary() const {
     RealScalar mx, my;
-    if (NumTraits<Scalar>::IsComplex) {
+    EIGEN_IF_CONSTEXPR (NumTraits<Scalar>::IsComplex) {
       mx = numext::maxi(m_x.real().cwiseAbs().maxCoeff(), m_x.imag().cwiseAbs().maxCoeff());
       my = numext::maxi(m_y.real().cwiseAbs().maxCoeff(), m_y.imag().cwiseAbs().maxCoeff());
     } else {
@@ -406,6 +407,7 @@ class CauchyLU : public SolverBase<CauchyLU<Scalar_>> {
   EIGEN_GENERIC_PUBLIC_INTERFACE(CauchyLU)
   using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic>;
   using DenseVector = Matrix<Scalar, Dynamic, 1>;
+  using IndexVector = Matrix<Index, Dynamic, 1>;
 
   /** Default constructor; call \ref compute before \ref solve. */
   CauchyLU() : m_isInitialized(false), m_info(InvalidInput) {}
@@ -431,8 +433,8 @@ class CauchyLU : public SolverBase<CauchyLU<Scalar_>> {
     const DenseVector y = C.colNodes();
     DenseVector a = DenseVector::Ones(n);
     DenseVector b = DenseVector::Ones(n);
-    Matrix<Index, Dynamic, 1> aExponent = Matrix<Index, Dynamic, 1>::Zero(n);
-    Matrix<Index, Dynamic, 1> bExponent = Matrix<Index, Dynamic, 1>::Zero(n);
+    IndexVector aExponent = IndexVector::Zero(n);
+    IndexVector bExponent = IndexVector::Zero(n);
     m_lu.resize(n, n);
     m_perm.resize(static_cast<std::size_t>(n));
     m_info = Success;
@@ -464,7 +466,7 @@ class CauchyLU : public SolverBase<CauchyLU<Scalar_>> {
         m_lu.col(k).tail(n - k - 1).setZero();
         continue;
       }
-      for (Index i = k + 1; i < n; ++i) m_lu(i, k) /= pivot;
+      m_lu.col(k).tail(n - k - 1) /= pivot;
       for (Index j = k + 1; j < n; ++j) {
         m_lu(k, j) = internal::cauchy_scaled_entry(a[k], aExponent[k], b[j], bExponent[j], x[k], y[j]);
         if (!(numext::isfinite)(m_lu(k, j))) m_info = NumericalIssue;
