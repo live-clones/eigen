@@ -25,6 +25,59 @@ cmake -G Ninja                                                   \
   ${launchers}                                                   \
   ${EIGEN_CI_ADDITIONAL_ARGS} ${rootdir}
 
+# The affected-tests tier (see scripts/affected_tests.py) passes its selection
+# as a file rather than a variable so the list is not bounded by CI variable
+# limits.  The file holds either "buildtests", "NONE", or one target per line.
+# Targets that this configuration did not register (optional dependencies such
+# as CHOLMOD or SYCL) are dropped here: ninja aborts on an unknown target, and
+# this is the first point that knows what CMake actually configured.
+selected_targets=""
+if [[ -n "${EIGEN_CI_BUILD_TARGET_FILE}" ]]; then
+  target_file="${EIGEN_CI_BUILD_TARGET_FILE}"
+  [[ "${target_file}" = /* ]] || target_file="${rootdir}/${target_file}"
+  # Fail loudly rather than falling through to the default target: a missing
+  # selection would otherwise silently build the entire test suite.
+  if [[ ! -f "${target_file}" ]]; then
+    echo "EIGEN_CI_BUILD_TARGET_FILE=${EIGEN_CI_BUILD_TARGET_FILE} does not exist." >&2
+    echo "The select:tests artifact is missing; refusing to guess a build target." >&2
+    exit 1
+  fi
+  requested=$(cat "${target_file}")
+  if [[ "${requested}" == "NONE" ]]; then
+    echo "No tests are affected by this merge request; nothing to build."
+    cd ${rootdir}
+    set +x
+    return 0 2>/dev/null || exit 0
+  elif [[ "${requested}" == "buildtests" ]]; then
+    EIGEN_CI_BUILD_TARGET="buildtests"
+  else
+    { set +x; } 2>/dev/null
+    configured=$(ninja -t targets all 2>/dev/null | sed -n 's/^\([A-Za-z_0-9]*\): phony$/\1/p' | sort -u)
+    # An empty query means ninja is unusable, not that nothing is configured.
+    # Without this the intersection below would be empty and the job would
+    # trivially "succeed" having built nothing.
+    if [[ -z "${configured}" ]]; then
+      echo "Could not enumerate configured targets via 'ninja -t targets'." >&2
+      exit 1
+    fi
+    selected_targets=$(echo "${requested}" | sort -u | comm -12 - <(echo "${configured}"))
+    nrequested=$(echo "${requested}" | grep -c .)
+    nselected=$(echo "${selected_targets}" | grep -c .)
+    echo "Affected tests: ${nselected} of ${nrequested} requested targets are configured here."
+    if [[ ${nselected} -lt ${nrequested} ]]; then
+      echo "Not configured in this build: $(comm -23 <(echo "${requested}" | sort -u) <(echo "${configured}") | tr '\n' ' ')"
+    fi
+    set -x
+    if [[ ${nselected} -eq 0 ]]; then
+      echo "None of the affected tests exist in this configuration; nothing to build."
+      cd ${rootdir}
+      set +x
+      return 0 2>/dev/null || exit 0
+    fi
+    EIGEN_CI_BUILD_TARGET=$(echo "${selected_targets}" | tr '\n' ' ')
+  fi
+fi
+
 target=""
 if [[ ${EIGEN_CI_BUILD_TARGET} ]]; then
   target="--target ${EIGEN_CI_BUILD_TARGET}"
@@ -75,7 +128,15 @@ shuffled=false
 # passed as one bogus name and make the query fail, aborting the job before any
 # build runs.  Skip batching for a list and let the plain `cmake --build
 # --target t1 t2 ...` below build it directly (it handles multiple targets).
-if [[ -n "${EIGEN_CI_BUILD_TARGET}" && "${EIGEN_CI_BUILD_TARGET}" != *[[:space:]]* ]] && command -v ninja >/dev/null 2>&1; then
+#
+# An affected-tests selection is already an explicit target list, so it feeds
+# the batch loop directly and keeps the same memory-pressure protection that
+# the meta-targets get.
+deps=""
+if [[ -n "${selected_targets}" ]] && command -v ninja >/dev/null 2>&1; then
+  { set +x; } 2>/dev/null
+  deps="${selected_targets}"
+elif [[ -n "${EIGEN_CI_BUILD_TARGET}" && "${EIGEN_CI_BUILD_TARGET}" != *[[:space:]]* ]] && command -v ninja >/dev/null 2>&1; then
   # Suppress xtrace while extracting and shuffling the target list
   # to avoid dumping ~1200 lines to the CI log.
   { set +x; } 2>/dev/null
@@ -91,6 +152,9 @@ if [[ -n "${EIGEN_CI_BUILD_TARGET}" && "${EIGEN_CI_BUILD_TARGET}" != *[[:space:]
       deps="$inner"
     fi
   fi
+fi
+
+if [[ -n "${deps}" ]]; then
   # Deterministic shuffle: hash each target name and sort by hash.
   # Stable across runs (helps ninja's .ninja_log and build caches),
   # portable (no shuf dependency), and spreads same-family targets apart.
