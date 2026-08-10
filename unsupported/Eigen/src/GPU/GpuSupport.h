@@ -18,7 +18,6 @@
 #include "./InternalHeaderCheck.h"
 
 #include <cuda_runtime.h>
-#include <vector>
 
 #include <limits>
 #include <memory>
@@ -124,83 +123,10 @@ struct CudaFreeHostDeleter {
   }
 };
 
-// Recycles allocations up to kSmallBufferThreshold bytes (e.g. DeviceScalar) to
-// avoid cudaMalloc/cudaFree overhead. Larger allocations bypass the pool.
-template <size_t SmallBufferThreshold = 256, size_t MaxPoolSize = 64>
-struct DeviceBufferPool {
-  static constexpr size_t kSmallBufferThreshold = SmallBufferThreshold;
-  static constexpr size_t kMaxPoolSize = MaxPoolSize;
-
-  struct Entry {
-    void* ptr;
-    size_t bytes;
-  };
-
-  // Lifetime marker for the thread-local pool. thread_local destruction runs
-  // in reverse construction order, so a long-lived object holding pooled
-  // buffers (e.g. the thread-local gpu::Context, or a static) can be
-  // destroyed *after* the pool. The marker is trivially destructible — it
-  // stays readable during TLS teardown — letting the deleter fall back to a
-  // direct device_free once the pool is gone instead of touching a destroyed
-  // vector.
-  enum class State : signed char { kNotConstructed = 0, kAlive = 1, kDestroyed = 2 };
-
-  static State& threadState() {
-    thread_local State state = State::kNotConstructed;
-    return state;
-  }
-
-  DeviceBufferPool() { threadState() = State::kAlive; }
-
-  ~DeviceBufferPool() {
-    for (auto& e : free_list_) device_free(e.ptr);
-    threadState() = State::kDestroyed;
-  }
-
-  void* allocate(size_t bytes) {
-    for (size_t i = 0; i < free_list_.size(); ++i) {
-      if (free_list_[i].bytes >= bytes) {
-        void* p = free_list_[i].ptr;
-        free_list_[i] = free_list_.back();
-        free_list_.pop_back();
-        return p;
-      }
-    }
-    return device_malloc(bytes);
-  }
-
-  void deallocate(void* p, size_t bytes) {
-    if (free_list_.size() < kMaxPoolSize) {
-      free_list_.push_back({p, bytes});
-    } else {
-      device_free(p);
-    }
-  }
-
-  static DeviceBufferPool& threadLocal() {
-    thread_local DeviceBufferPool pool;
-    return pool;
-  }
-
- private:
-  std::vector<Entry> free_list_;
-};
-
-// Stateful deleter that returns small buffers to the thread-local pool and
-// device_free's larger ones. size==0 means "always device_free" (adopted ptrs).
-struct PooledCudaFreeDeleter {
-  size_t size = 0;
-
-  void operator()(void* p) const noexcept {
-    if (!p) return;
-    if (size > 0 && size <= DeviceBufferPool<>::kSmallBufferThreshold &&
-        DeviceBufferPool<>::threadState() == DeviceBufferPool<>::State::kAlive) {
-      DeviceBufferPool<>::threadLocal().deallocate(p, size);
-    } else {
-      device_free(p);
-    }
-  }
-};
+// All allocations, including DeviceScalar-sized ones, go through the
+// stream-ordered device_malloc / device_free: freeing is ordered after
+// previously enqueued work, so a recycled block can never be handed out while
+// an earlier kernel still reads it.
 
 class DeviceBuffer {
  public:
@@ -208,17 +134,7 @@ class DeviceBuffer {
 
   explicit DeviceBuffer(size_t bytes) : bytes_(bytes) {
     if (bytes > 0) {
-      void* p = nullptr;
-      // Bypass the pool once its thread_local has been destroyed (allocation
-      // from a static/TLS destructor); the matching deleter then also takes
-      // the direct device_free path.
-      if (bytes <= DeviceBufferPool<>::kSmallBufferThreshold &&
-          DeviceBufferPool<>::threadState() != DeviceBufferPool<>::State::kDestroyed) {
-        p = DeviceBufferPool<>::threadLocal().allocate(bytes);
-      } else {
-        p = device_malloc(bytes);
-      }
-      ptr_ = std::unique_ptr<void, PooledCudaFreeDeleter>(p, PooledCudaFreeDeleter{bytes});
+      ptr_.reset(device_malloc(bytes));
     }
   }
 
@@ -246,17 +162,16 @@ class DeviceBuffer {
   size_t size() const noexcept { return bytes_; }
 
   // Adopt an existing device pointer of `bytes` usable bytes. Caller
-  // relinquishes ownership. Adopted buffers bypass the pool on destruction
-  // (deleter size == 0).
+  // relinquishes ownership.
   static DeviceBuffer adopt(void* p, size_t bytes) noexcept {
     DeviceBuffer b;
-    b.ptr_ = std::unique_ptr<void, PooledCudaFreeDeleter>(p, PooledCudaFreeDeleter{});
+    b.ptr_.reset(p);
     b.bytes_ = p ? bytes : 0;
     return b;
   }
 
  private:
-  std::unique_ptr<void, PooledCudaFreeDeleter> ptr_;
+  std::unique_ptr<void, CudaFreeDeleter> ptr_;
   size_t bytes_ = 0;
 };
 

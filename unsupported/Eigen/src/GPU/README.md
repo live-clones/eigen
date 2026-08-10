@@ -136,13 +136,11 @@ d_x += alpha * d_p;                    // host scalar * DeviceMatrix (axpy)
 ```
 
 Division between `DeviceScalar` values (real types only) is performed on
-device via NPP, avoiding extra synchronizations. Small device allocations
-(including `DeviceScalar`) are recycled through a thread-local
-`DeviceBufferPool` to avoid `cudaMalloc`/`cudaFree` overhead in tight loops.
-Pool contract: recycled pointers are safe for same-thread, same-stream reuse
-(the typical iterative-solver pattern, where one `gpu::Context` drives all
-work). Mixing pooled buffers across threads or CUDA streams without external
-synchronization is not supported.
+device via NPP, avoiding extra synchronizations. All device allocations
+(including `DeviceScalar`) are stream-ordered (`cudaMallocAsync` /
+`cudaFreeAsync`; see "Device memory allocation is stream-ordered" below): the
+CUDA memory pool recycles freed blocks without breaking stream ordering, so
+buffers are safe to use across streams without external synchronization.
 
 ### `gpu::Context`
 
@@ -1029,7 +1027,7 @@ template compatibility.
 
 | File | Depends on | Contents |
 |------|-----------|----------|
-| `GpuSupport.h` | `<cuda_runtime.h>` | Error macro, `DeviceBuffer`, `DeviceBufferPool`, `cuda_data_type<>` |
+| `GpuSupport.h` | `<cuda_runtime.h>` | Error macro, `DeviceBuffer`, `cuda_data_type<>` |
 | `DeviceMatrix.h` | `GpuSupport.h` | `gpu::DeviceMatrix<>`, `gpu::HostTransfer<>` |
 | `DeviceExpr.h` | `DeviceMatrix.h` | GEMM, geam, and device-scalar expression wrappers |
 | `DeviceBlasExpr.h` | `DeviceMatrix.h` | TRSM, SYMM, SYRK expression wrappers |
