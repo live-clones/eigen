@@ -266,6 +266,10 @@ ComplexVectorType structured_reverse_symbol(const ComplexVectorType& symbol) {
 
 /** \internal Default pointwise step: multiply the transformed column by the symbol. */
 struct structured_symbol_multiply {
+  template <typename SymbolType>
+  int exponent_growth(const SymbolType& symbol) const {
+    return structured_exponent_bound(symbol);
+  }
   template <typename XfType, typename SymbolType>
   void operator()(XfType& xf, const SymbolType& symbol) const {
     xf.array() *= symbol.array();
@@ -273,9 +277,11 @@ struct structured_symbol_multiply {
 };
 
 /** \internal
- * Computes \c dst.col(k) += alpha * ifft( symbol .* fft(rhs.col(k)) ) for every
- * column of \a rhs, i.e. applies the circulant operator whose eigenvalues are
- * \a symbol. The leading \a outSize entries of each back-transform form the
+ * By default computes
+ * \c dst.col(k) += alpha * ifft( symbol .* fft(rhs.col(k)) ) for every column of
+ * \a rhs, i.e. applies the circulant operator whose eigenvalues are \a symbol.
+ * A caller may supply another pointwise operation with its matching exponent
+ * growth bound. The leading \a outSize entries of each back-transform form the
  * corresponding output column. All workspace is allocated once outside the
  * per-column loop; right-hand sides shorter than the transform length are
  * zero-padded into the preallocated buffer so the FFT never re-allocates.
@@ -284,14 +290,14 @@ struct structured_symbol_multiply {
  * overflow threshold (or one applied through a symbol of huge magnitude) would
  * overflow inside the FFT and turn a representable result into Inf/NaN. Each
  * column is therefore scaled down by a power of two -- an exact shift, no
- * roundoff -- derived from the column's and the symbol's largest component-wise
- * exponents (see structured_exponent_bound()), and the exponent is folded back
- * into the output after the back-transform. The scale is one whenever the
- * conservative intermediate bound cannot overflow, so results are bit-identical
- * for inputs of moderate magnitude; zero columns are never scaled.
- * If \f$|x_i|<2^c\f$ and \f$|s_i|<2^s\f$, both transforms and the pointwise
- * symbol product are bounded by
- * \f[ 2^{c+s+2\lceil\log_2 p\rceil+1}. \f]
+ * roundoff -- derived from the column's exponent and the pointwise operation's
+ * maximum exponent growth, and the exponent is folded back into the output after
+ * the back-transform. The scale is one whenever the conservative intermediate
+ * bound cannot overflow, so results are bit-identical for inputs of moderate
+ * magnitude; zero columns are never scaled. If \f$|x_i|<2^c\f$ and the pointwise
+ * operation magnifies by less than \f$2^g\f$, its result and both transforms are
+ * bounded by
+ * \f[ 2^{c+g+2\lceil\log_2 p\rceil+1}. \f]
  *
  * Genuinely non-finite data must not go through the transforms: they mix every
  * input entry into every output entry, so a single special value would
@@ -314,16 +320,30 @@ void structured_fft_apply(Dest& dst, const Matrix<std::complex<typename NumTrait
   const Index p = symbol.size();
   eigen_assert(rhs.rows() <= p && outSize <= p);
 
+  // Growth of the pointwise step -- max|symbol| for a multiply, the largest
+  // retained reciprocal for a divide -- included in the pre-scaling so a
+  // representable result cannot overflow before the output rescaling.
+  const int pointwiseExp = pointwise.exponent_growth(symbol);
+
   if (p == 1) {
     // The length-one DFT is the identity and is unsupported by kissfft. The
-    // pointwise step still has to run here, so a caller that divides by the
-    // symbol is not silently given a multiply.
+    // pointwise step still runs, scaled around just as the transforms are on the
+    // general path.
+    const int budget = std::numeric_limits<RealScalar>::max_exponent - 2;
     ComplexVector xf(1);
     for (Index k = 0; k < rhs.cols(); ++k) {
-      xf.coeffRef(0) = static_cast<Complex>(rhs.coeff(0, k));
+      int colExp;
+      if (!structured_exponent_bound_finite(rhs.col(k), colExp)) {
+        directColumn(k);
+        continue;
+      }
+      const int e = numext::maxi(colExp + pointwiseExp - budget, 0);
+      const RealScalar down1 = std::ldexp(RealScalar(1), -(e / 2)), down2 = std::ldexp(RealScalar(1), -(e - e / 2));
+      const int eo = e - static_cast<int>(outExpAdjust);
+      const RealScalar up1 = std::ldexp(RealScalar(1), eo / 2), up2 = std::ldexp(RealScalar(1), eo - eo / 2);
+      xf.coeffRef(0) = static_cast<Complex>((rhs.coeff(0, k) * down1) * down2);
       pointwise(xf, symbol);
-      dst.coeffRef(0, k) +=
-          alpha * structured_scalar_part_impl<Scalar>::run_scalar(structured_ldexp_clamped(xf.coeff(0), -outExpAdjust));
+      dst.coeffRef(0, k) += alpha * structured_scalar_part_impl<Scalar>::run_scalar((xf.coeff(0) * up1) * up2);
     }
     return;
   }
@@ -331,7 +351,6 @@ void structured_fft_apply(Dest& dst, const Matrix<std::complex<typename NumTrait
   int log2p = 0;
   for (Index t = p; t > 0; t /= 2) ++log2p;
   const int budget = std::numeric_limits<RealScalar>::max_exponent - 2 * log2p - 2;
-  const int symbolExp = structured_exponent_bound(symbol);  // max|symbol| < 2^symbolExp
 
   auto&& fft = structured_fft_engine<RealScalar>();
   ComplexVector xt = ComplexVector::Zero(p);
@@ -342,7 +361,7 @@ void structured_fft_apply(Dest& dst, const Matrix<std::complex<typename NumTrait
       directColumn(k);
       continue;
     }
-    const int e = numext::maxi(colExp + symbolExp - budget, 0);
+    const int e = numext::maxi(colExp + pointwiseExp - budget, 0);
     // Each power of two is split in halves so that the factors themselves stay
     // inside the exponent range even when e exceeds it (a huge column applied
     // through a huge symbol); scaling by the two exact factors in sequence is
@@ -381,6 +400,21 @@ template <typename ModsType, typename RealScalar>
 struct structured_symbol_divide {
   const ModsType* mods;
   RealScalar tol;
+  template <typename SymbolType>
+  int exponent_growth(const SymbolType&) const {
+    int reciprocalExp = 0;
+    for (Index k = 0; k < mods->size(); ++k) {
+      const RealScalar mod = mods->coeff(k);
+      if (!(mod < tol) && mod > RealScalar(0) && (numext::isfinite)(mod)) {
+        int modExp;
+        std::frexp(mod, &modExp);
+        // mod = fraction * 2^modExp with fraction in [0.5, 1), so 1/mod <=
+        // 2^(1-modExp); one more bit keeps the bound strict.
+        reciprocalExp = numext::maxi(reciprocalExp, 2 - modExp);
+      }
+    }
+    return reciprocalExp;
+  }
   template <typename XfType, typename SymbolType>
   void operator()(XfType& xf, const SymbolType& symbol) const {
     using Complex = std::complex<RealScalar>;

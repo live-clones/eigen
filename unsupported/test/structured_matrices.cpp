@@ -1341,8 +1341,19 @@ bool subnormals_survive() {
 // frame.
 void test_circulant_rank_complex_boundary() {
   typedef std::complex<double> Complex;
+  typedef Matrix<double, Dynamic, 1> Vec;
   typedef Matrix<Complex, Dynamic, 1> CVec;
   const double mx = (std::numeric_limits<double>::max)();
+
+  // The length-one shortcut has no FFTs, but its pointwise division still needs
+  // scaling: a huge right-hand side over the balanced O(1) symbol overflows before
+  // the symbol exponent is folded back, though the result itself is moderate.
+  const Vec oneCol = Vec::Constant(1, 0.75 * mx);
+  const Vec oneB = Vec::Constant(1, 0.25 * mx);
+  const Vec oneX = Circulant<double>(oneCol).solve(oneB);
+  const double oneExpected = oneB[0] / oneCol[0];
+  VERIFY(oneX.allFinite());
+  VERIFY(numext::abs(oneX[0] / oneExpected - 1.0) <= 16 * NumTraits<double>::epsilon());
 
   // n = 2: the symbol is exactly [c0 + c1, c0 - c1], so pick the generator from
   // the desired spectrum. |s0| overflows while both of its components are finite.
@@ -1363,6 +1374,19 @@ void test_circulant_rank_complex_boundary() {
   VERIFY(b.allFinite());
   CVec x = C.solve(b);
   VERIFY(((x - x0).cwiseAbs().maxCoeff() / x0.cwiseAbs().maxCoeff()) <= 1e-6);
+
+  // A large right-hand side in the smaller retained mode must be scaled for the
+  // division's amplification as well as for the transforms: the quotient is
+  // moderate, but the balanced-frame division overflows without it.
+  const double h = 0.25 * mx;
+  CVec largeB(2);
+  largeB << Complex(h), Complex(-h);
+  const CVec largeX = C.solve(largeB);
+  const double expected = h / numext::real(C.symbol()[1]);
+  CVec expectedX(2);
+  expectedX << Complex(expected), Complex(-expected);
+  VERIFY(largeX.allFinite());
+  VERIFY(((largeX - expectedX).cwiseAbs().maxCoeff() / expected) <= 32 * NumTraits<double>::epsilon());
 
   // The reciprocal of an entry near the overflow boundary is subnormal but
   // representable, and must not collapse to zero: formed as conj(z)/|z|^2, or by
