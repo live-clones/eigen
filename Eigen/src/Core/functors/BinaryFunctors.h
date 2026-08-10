@@ -208,8 +208,7 @@ struct functor_traits<scalar_min_op<LhsScalar, RhsScalar, NaNPropagation>> {
 // operand when values compare equivalent, and equivalent custom values may be observably
 // distinct (e.g. carry a payload the comparison ignores).
 template <typename Scalar, int NaNPropagation>
-struct functor_is_commutative<scalar_min_op<Scalar, Scalar, NaNPropagation>>
-    : bool_constant<is_arithmetic<Scalar>::value> {};
+struct functor_is_commutative<scalar_min_op<Scalar, Scalar, NaNPropagation>> : is_arithmetic<Scalar> {};
 
 /** \internal
  * \brief Template functor to compute the max of two scalars
@@ -241,8 +240,7 @@ struct functor_traits<scalar_max_op<LhsScalar, RhsScalar, NaNPropagation>> {
 };
 
 template <typename Scalar, int NaNPropagation>
-struct functor_is_commutative<scalar_max_op<Scalar, Scalar, NaNPropagation>>
-    : bool_constant<is_arithmetic<Scalar>::value> {};
+struct functor_is_commutative<scalar_max_op<Scalar, Scalar, NaNPropagation>> : is_arithmetic<Scalar> {};
 
 /** \internal
  * \brief Template functors for comparison of two scalars

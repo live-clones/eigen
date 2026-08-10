@@ -167,9 +167,10 @@ struct InnerMostDimReducer {
     using Index = typename Self::Index;
     typename Self::CoeffReturnType accum0 = reducer.initialize();
     Index j = 0;
-    // Merging partial accumulators feeds one back through reduce(), which only holds for a pure
-    // combine; reducer_can_merge_accumulators marks the reducers that guarantee it.
-    EIGEN_IF_CONSTEXPR (reducer_can_merge_accumulators<Op>::value) {
+    // The accumulators take interleaved operands and are merged by feeding one back through
+    // reduce(), so this needs a pure combine that is also associative and commutative;
+    // reducer_can_reorder_accumulators marks the reducers that guarantee both.
+    EIGEN_IF_CONSTEXPR (reducer_can_reorder_accumulators<Op>::value) {
       if (numValuesToReduce >= 8) {
         typename Self::CoeffReturnType accum1 = reducer.initialize(), accum2 = reducer.initialize();
         typename Self::CoeffReturnType accum3 = reducer.initialize(), accum4 = reducer.initialize();

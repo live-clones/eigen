@@ -62,13 +62,18 @@ struct reducer_traits {
   enum { Cost = 1, PacketAccess = false, IsStateful = false, IsExactlyAssociative = true };
 };
 
-// Marks reducers whose reduce(value, accum) is a pure combine, so a partial accumulator may be
-// fed back through reduce() to merge it into another. Not implied by PacketAccess: a reducer may
-// support packets yet transform each value it accepts (e.g. a sum-of-squares reducer), in which
-// case merging through reduce() is wrong. Conservative default; built-in combines opt in below,
-// gated on scalar categories whose semantics Eigen controls.
+// Marks reducers whose partial accumulators may be accumulated independently and combined in any
+// order. That requires reduce(value, accum) to be a pure combine -- so a partial accumulator may
+// be fed back through it -- and that combine to be associative and commutative with initialize()
+// as its identity, since the accumulators receive interleaved, not contiguous, operands.
+//
+// Neither property is implied by PacketAccess: a reducer may support packets yet transform each
+// value it accepts (e.g. a sum-of-squares reducer), in which case merging through reduce() is
+// wrong; and a pure combine may still be order-dependent (e.g. composition). Conservative
+// default; built-in combines opt in below, gated on scalar categories whose semantics Eigen
+// controls.
 template <typename Reducer>
-struct reducer_can_merge_accumulators : std::false_type {};
+struct reducer_can_reorder_accumulators : std::false_type {};
 
 // Standard reduction functors
 template <typename T>
@@ -324,24 +329,22 @@ struct reducer_traits<OrReducer, Device> {
   enum { Cost = 1, PacketAccess = false, IsStateful = false, IsExactlyAssociative = true };
 };
 
-// Sum/prod merge for scalars whose + and * commute; min/max additionally exclude custom scalars,
+// Sum/prod reorder for scalars whose + and * commute; min/max additionally exclude custom scalars,
 // whose generic std::min/std::max keep the first operand when values compare equivalent.
 template <typename T>
-struct reducer_can_merge_accumulators<SumReducer<T>>
+struct reducer_can_reorder_accumulators<SumReducer<T>>
     : bool_constant<internal::is_arithmetic<T>::value || NumTraits<T>::IsComplex> {};
 template <typename T>
-struct reducer_can_merge_accumulators<ProdReducer<T>>
+struct reducer_can_reorder_accumulators<ProdReducer<T>>
     : bool_constant<internal::is_arithmetic<T>::value || NumTraits<T>::IsComplex> {};
 template <typename T, int NaNPropagation>
-struct reducer_can_merge_accumulators<MinReducer<T, NaNPropagation>>
-    : bool_constant<internal::is_arithmetic<T>::value> {};
+struct reducer_can_reorder_accumulators<MinReducer<T, NaNPropagation>> : internal::is_arithmetic<T> {};
 template <typename T, int NaNPropagation>
-struct reducer_can_merge_accumulators<MaxReducer<T, NaNPropagation>>
-    : bool_constant<internal::is_arithmetic<T>::value> {};
+struct reducer_can_reorder_accumulators<MaxReducer<T, NaNPropagation>> : internal::is_arithmetic<T> {};
 template <>
-struct reducer_can_merge_accumulators<AndReducer> : std::true_type {};
+struct reducer_can_reorder_accumulators<AndReducer> : std::true_type {};
 template <>
-struct reducer_can_merge_accumulators<OrReducer> : std::true_type {};
+struct reducer_can_reorder_accumulators<OrReducer> : std::true_type {};
 
 // Argmin/Argmax reducers.  Returns the first occurrence if multiple locations
 // contain the same min/max value.

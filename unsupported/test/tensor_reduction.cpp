@@ -416,7 +416,7 @@ struct UserReducer {
 // A reducer that transforms each value it accepts (sum of squares), with reducer_traits
 // declaring PacketAccess. Its reduce() cannot merge two partial accumulators — feeding a partial
 // sum back through reduce() would square it — so the scalar unrolled path must not engage: the
-// gate is reducer_can_merge_accumulators, which such a reducer does not opt into, not
+// gate is reducer_can_reorder_accumulators, which such a reducer does not opt into, not
 // PacketAccess. long double has no packets, which forces the scalar path while the declared
 // PacketAccess stays true.
 struct SquaredSumReducer {
@@ -436,6 +436,14 @@ struct reducer_traits<SquaredSumReducer, Device> {
 
 template <int DataLayout>
 static void test_value_transforming_reducer() {
+  // The opt-ins that let the unrolled path interleave operands, pinned at both ends: a reducer
+  // that transforms each value, and one that carries state, must stay out however they declare
+  // PacketAccess.
+  STATIC_CHECK((internal::reducer_can_reorder_accumulators<internal::SumReducer<float>>::value));
+  STATIC_CHECK((internal::reducer_can_reorder_accumulators<internal::MinReducer<float>>::value));
+  STATIC_CHECK((!internal::reducer_can_reorder_accumulators<SquaredSumReducer>::value));
+  STATIC_CHECK((!internal::reducer_can_reorder_accumulators<internal::MeanReducer<float>>::value));
+
   Tensor<long double, 1, DataLayout> t(12);
   long double expected = 0;
   for (int i = 0; i < 12; ++i) {
