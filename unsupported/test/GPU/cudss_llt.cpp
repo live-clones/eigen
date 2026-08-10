@@ -157,6 +157,47 @@ void test_refactorize(Index n) {
   VERIFY((x1 - x2).norm() > RealScalar(0.01) * x1.norm());
 }
 
+// ---- Solver configuration ---------------------------------------------------
+
+template <typename Scalar>
+void test_config(Index n) {
+  using SpMat = SparseMatrix<Scalar, ColMajor, int>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  SpMat A = make_spd<Scalar>(n);
+  Vec b = Vec::Random(n);
+  const RealScalar tol = RealScalar(100) * RealScalar(n) * NumTraits<Scalar>::epsilon();
+
+  // Every reordering algorithm valid for symmetric matrices must yield a
+  // correct factorization.
+  const gpu::SparseReordering orderings[] = {gpu::SparseReordering::Default, gpu::SparseReordering::Amd,
+                                             gpu::SparseReordering::NestedDissection, gpu::SparseReordering::Natural};
+  for (gpu::SparseReordering r : orderings) {
+    gpu::SparseSolverConfig cfg;
+    cfg.reordering = r;
+    gpu::SparseLLT<Scalar> llt;
+    llt.setConfig(cfg);
+    VERIFY(llt.config().reordering == r);
+    llt.compute(A);
+    VERIFY_IS_EQUAL(llt.info(), Success);
+    Vec x = llt.solve(b);
+    VERIFY((A * x - b).norm() / b.norm() < tol);
+  }
+
+  // Iterative refinement during solve().
+  {
+    gpu::SparseSolverConfig cfg;
+    cfg.refinementSteps = 2;
+    gpu::SparseLLT<Scalar> llt;
+    llt.setConfig(cfg);
+    llt.compute(A);
+    VERIFY_IS_EQUAL(llt.info(), Success);
+    Vec x = llt.solve(b);
+    VERIFY((A * x - b).norm() / b.norm() < tol);
+  }
+}
+
 // ---- Empty matrix -----------------------------------------------------------
 
 template <typename Scalar>
@@ -200,6 +241,7 @@ void test_scalar() {
   CALL_SUBTEST(test_multiple_rhs<Scalar>(64, 4));
   CALL_SUBTEST(test_refactorize<Scalar>(64));
   CALL_SUBTEST(test_upper<Scalar>(64));
+  CALL_SUBTEST(test_config<Scalar>(64));
 }
 
 // ---- Device-resident solve + Context binding -----------------------------------
