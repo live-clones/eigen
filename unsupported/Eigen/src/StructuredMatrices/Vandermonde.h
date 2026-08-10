@@ -45,18 +45,16 @@ struct traits<Vandermonde<Scalar_, Rows_, Cols_>> {
   using StorageKind = Dense;
   using XprKind = MatrixXpr;
   using StorageIndex = int;
-  enum {
-    RowsAtCompileTime = Rows_,
-    ColsAtCompileTime = Cols_,
-    MaxRowsAtCompileTime = Rows_,
-    MaxColsAtCompileTime = Cols_,
-    Flags = Rows_ == 1 && Cols_ != 1 ? RowMajorBit : 0
-  };
+  static constexpr int RowsAtCompileTime = Rows_;
+  static constexpr int ColsAtCompileTime = Cols_;
+  static constexpr int MaxRowsAtCompileTime = Rows_;
+  static constexpr int MaxColsAtCompileTime = Cols_;
   // Deliberately no NestByRefBit: the makeVandermonde() factories (and any
   // function returning the operator by value) produce owning temporaries, so
   // Product must nest the operator by value for a delayed-evaluated product
   // expression to keep its left factor alive. The copy is O(m), negligible
   // against the O(mn) product evaluation.
+  static constexpr int Flags = Rows_ == 1 && Cols_ != 1 ? RowMajorBit : 0;
 };
 
 template <typename Scalar_, int Rows_, int Cols_>
@@ -72,7 +70,9 @@ template <typename Scalar_, int Rows_, int Cols_>
 struct evaluator<Vandermonde<Scalar_, Rows_, Cols_>> : evaluator_base<Vandermonde<Scalar_, Rows_, Cols_>> {
   using XprType = Vandermonde<Scalar_, Rows_, Cols_>;
   using Scalar = Scalar_;
-  enum { CoeffReadCost = HugeCost, Flags = traits<XprType>::Flags, Alignment = 0 };
+  static constexpr int CoeffReadCost = HugeCost;
+  static constexpr int Flags = traits<XprType>::Flags;
+  static constexpr int Alignment = 0;
 
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE explicit evaluator(const XprType& xpr) : m_xpr(xpr) {}
 
@@ -89,15 +89,13 @@ struct blas_traits<Vandermonde<Scalar_, Rows_, Cols_>> {
   using ExtractType = const XprType&;
   using ExtractType_ = XprType;
   using DirectLinearAccessType = XprType;
-  enum {
-    IsComplex = NumTraits<Scalar>::IsComplex,
-    IsTransposed = false,
-    NeedToConjugate = false,
-    HasUsableDirectAccess = false,
-    HasScalarFactor = false
-  };
-  EIGEN_DEVICE_FUNC static inline ExtractType extract(const XprType& x) { return x; }
-  EIGEN_DEVICE_FUNC static inline Scalar extractScalarFactor(const XprType&) { return Scalar(1); }
+  static constexpr bool IsComplex = NumTraits<Scalar>::IsComplex;
+  static constexpr bool IsTransposed = false;
+  static constexpr bool NeedToConjugate = false;
+  static constexpr bool HasUsableDirectAccess = false;
+  static constexpr bool HasScalarFactor = false;
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE ExtractType extract(const XprType& x) { return x; }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar extractScalarFactor(const XprType&) { return Scalar(1); }
 };
 
 template <typename Scalar_>
@@ -106,7 +104,8 @@ struct traits<BjorckPereyra<Scalar_>> : traits<Matrix<Scalar_, Dynamic, Dynamic>
   using StorageKind = SolverStorage;
   using StorageIndex = int;
   using BaseTraits = traits<Matrix<Scalar_, Dynamic, Dynamic>>;
-  enum { Flags = BaseTraits::Flags & RowMajorBit, CoeffReadCost = Dynamic };
+  static constexpr int Flags = BaseTraits::Flags & RowMajorBit;
+  static constexpr int CoeffReadCost = Dynamic;
 };
 
 }  // namespace internal
@@ -163,20 +162,18 @@ class Vandermonde : public EigenBase<Vandermonde<Scalar_, Rows_, Cols_>> {
   using Scalar = Scalar_;
   using RealScalar = typename NumTraits<Scalar>::Real;
   using StorageIndex = int;
-  enum { NodeOptions = Rows_ == Dynamic ? AutoAlign : DontAlign };
+  static constexpr int NodeOptions = Rows_ == Dynamic ? AutoAlign : DontAlign;
   using NodeVector = Matrix<Scalar, Rows_, 1, NodeOptions>;
   using Nested = Vandermonde;
 
-  enum {
-    RowsAtCompileTime = Rows_,
-    ColsAtCompileTime = Cols_,
-    MaxRowsAtCompileTime = Rows_,
-    MaxColsAtCompileTime = Cols_,
-    SizeAtCompileTime = internal::size_at_compile_time(Rows_, Cols_),
-    MaxSizeAtCompileTime = SizeAtCompileTime,
-    Flags = internal::traits<Vandermonde>::Flags,
-    IsRowMajor = (Flags & RowMajorBit) != 0
-  };
+  static constexpr int RowsAtCompileTime = Rows_;
+  static constexpr int ColsAtCompileTime = Cols_;
+  static constexpr int MaxRowsAtCompileTime = Rows_;
+  static constexpr int MaxColsAtCompileTime = Cols_;
+  static constexpr int SizeAtCompileTime = internal::size_at_compile_time(Rows_, Cols_);
+  static constexpr int MaxSizeAtCompileTime = SizeAtCompileTime;
+  static constexpr int Flags = internal::traits<Vandermonde>::Flags;
+  static constexpr bool IsRowMajor = (Flags & RowMajorBit) != 0;
   // Deliberately no IsVectorAtCompileTime: Ref<const Vandermonde>'s default
   // StrideType argument reads it, so its absence makes internal::is_ref_compatible
   // SFINAE to false and keeps the iterative solvers on their matrix-free path.
@@ -534,8 +531,7 @@ class BjorckPereyra : public SolverBase<BjorckPereyra<Scalar_>> {
     m_order.clear();
     m_info = Success;
     const Index n = m_x.size();
-    for (Index i = 0; i < n; ++i)
-      if (!(numext::isfinite)(m_x[i])) m_info = InvalidInput;
+    if (!m_x.allFinite()) m_info = InvalidInput;
     for (Index j = 1; j < n && m_info == Success; ++j)
       for (Index i = 0; i < j; ++i) {
         if (m_x[i] == m_x[j]) {
@@ -614,7 +610,7 @@ class BjorckPereyra : public SolverBase<BjorckPereyra<Scalar_>> {
       for (Index j = 0; j < n - 1; ++j)
         for (Index i = n - 1; i > j; --i) w[i] -= m_x[j] * w[i - 1];
       for (Index j = n - 2; j >= 0; --j) {
-        for (Index i = j + 1; i < n; ++i) w[i] /= m_x[i] - m_x[i - j - 1];
+        w.tail(n - j - 1).array() /= (m_x.tail(n - j - 1) - m_x.head(n - j - 1)).array();
         for (Index i = j; i < n - 1; ++i) w[i] -= w[i + 1];
       }
 
@@ -658,15 +654,8 @@ class BjorckPereyra : public SolverBase<BjorckPereyra<Scalar_>> {
     m_order.resize(static_cast<std::size_t>(n));
     std::vector<char> selected(static_cast<std::size_t>(n), 0);
     std::vector<RealScalar> scores(static_cast<std::size_t>(n), RealScalar(0));
-    Index next = 0;
-    RealScalar best = lejaLogAbs(original[0]);
-    for (Index i = 1; i < n; ++i) {
-      const RealScalar candidate = lejaLogAbs(original[i]);
-      if (candidate > best) {
-        best = candidate;
-        next = i;
-      }
-    }
+    Index next;  // the Leja sequence starts at a node of largest modulus
+    original.unaryExpr(&lejaLogAbs).maxCoeff(&next);
 
     for (Index position = 0; position < n; ++position) {
       m_order[static_cast<std::size_t>(position)] = next;
