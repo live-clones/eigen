@@ -608,3 +608,98 @@ build:linux:aarch64:clang-14:default:smoketest:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   tags:
     - saas-linux-large-amd64
+
+######## MR Affected Tests #####################################################
+# Opt-in via the `affected-tests` label: build every test the merge request diff
+# can reach.  The target list comes from the select:tests job; see
+# scripts/affected_tests.py.
+#
+# Two jobs always run under the label and give generic coverage.  The rest are
+# gated on `changes:` as well, so a backend change also builds on the ISA it
+# targets -- coverage the default smoke matrix has no job for at all, since
+# every smoke build is at baseline ISA.  A wider x86 config compiles the
+# narrower backends' headers, so an SSE change triggers the AVX and AVX-512
+# builds too.
+
+.affected:build:
+  needs:
+    - job: select:tests
+      artifacts: true
+  variables:
+    EIGEN_CI_BUILD_TARGET_FILE: affected/targets.txt
+
+##### Always, under the label ##################################################
+
+build:linux:cross:x86-64:gcc-10:avx2:affected:
+  extends: [ build:linux:cross:x86-64:gcc-10:avx2, .affected:build ]
+  rules: !reference [.rules:libeigen:affected-tests, rules]
+
+build:linux:cross:aarch64:gcc-10:default:affected:
+  extends: [ build:linux:cross:aarch64:gcc-10:default, .affected:build ]
+  rules: !reference [.rules:libeigen:affected-tests, rules]
+
+##### Backend-triggered ########################################################
+
+build:linux:cross:x86-64:gcc-10:default:affected:
+  extends: [ build:linux:cross:x86-64:gcc-10:default, .affected:build ]
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/"
+      changes:
+        - Eigen/src/Core/arch/SSE/**/*
+
+build:linux:cross:x86-64:gcc-10:avx:affected:
+  extends: [ build:linux:cross:x86-64:gcc-10:avx, .affected:build ]
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/"
+      changes:
+        - Eigen/src/Core/arch/SSE/**/*
+        - Eigen/src/Core/arch/AVX/**/*
+
+build:linux:cross:x86-64:gcc-10:avx512dq:affected:
+  extends: [ build:linux:cross:x86-64:gcc-10:avx512dq, .affected:build ]
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/"
+      changes:
+        - Eigen/src/Core/arch/SSE/**/*
+        - Eigen/src/Core/arch/AVX/**/*
+        - Eigen/src/Core/arch/AVX512/**/*
+
+# 32-bit arm: a distinct NEON code path from the aarch64 job above.
+build:linux:cross:arm:gcc-10:default:affected:
+  extends: [ build:linux:cross:arm:gcc-10:default, .affected:build ]
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/"
+      changes:
+        - Eigen/src/Core/arch/NEON/**/*
+
+build:linux:cross:ppc64le:gcc-14:default:affected:
+  extends: [ build:linux:cross:ppc64le:gcc-14:default, .affected:build ]
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/"
+      changes:
+        - Eigen/src/Core/arch/AltiVec/**/*
+
+build:linux:cross:loongarch64:gcc-14:default:affected:
+  extends: [ build:linux:cross:loongarch64:gcc-14:default, .affected:build ]
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/"
+      changes:
+        - Eigen/src/Core/arch/LSX/**/*
+
+build:linux:riscv64:gcc-15:default:affected:
+  extends: [ build:linux:riscv64:gcc-15:default, .affected:build ]
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/"
+      changes:
+        - Eigen/src/Core/arch/RVV10/**/*
+
+# SVE and SME get compile coverage of the whole suite under the streaming-mode
+# flags rather than a selection: the per-SVL test jobs run a curated target
+# subset through EIGEN_CI_CTEST_REGEX, which a selection would conflict with.
+build:linux:cross:sme:gcc-14:full:affected:
+  extends: build:linux:cross:sme:gcc-14:full
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/"
+      changes:
+        - Eigen/src/Core/arch/SVE/**/*
+        - Eigen/src/Core/arch/SME/**/*
