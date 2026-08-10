@@ -18,14 +18,16 @@
 // Can borrow a Context for same-stream execution with BLAS-1 ops (zero
 // event overhead in iterative solvers like CG).
 //
-// Caching: host-input calls re-upload the values *and* index arrays on every
-// call. Host pointer identity cannot detect a sparsity pattern rewritten in
-// place or assigned into the same allocations (SparseMatrix reuses them for
-// same-shape assignments), so the structure is never assumed unchanged. What
-// is cached are the cuSPARSE descriptors (sparse descriptor keyed on
-// dimensions + nonzero count, dense descriptors keyed on shape) and the
-// SpMV/SpMM workspace-size queries. For repeated products with no re-upload
-// at all, use deviceView().
+// Caching: the sparse matrix structure (outer/inner index arrays) is cached
+// on device, identified by a 128-bit content fingerprint of the arrays plus
+// the shape and nonzero count — not by host pointer identity, which cannot
+// detect a pattern rewritten in place or assigned into the same allocations
+// (SparseMatrix reuses them for same-shape assignments). Index arrays are
+// re-uploaded only when the fingerprint changes; values are re-uploaded on
+// every host-input call so in-place value updates are always picked up.
+// Dense-vector/matrix descriptors and SpMV/SpMM workspace-size queries are
+// cached across calls with matching shapes. For repeated products with no
+// per-call upload at all, use deviceView().
 //
 // Thread safety: not thread-safe. Concurrent multiply* calls on a single
 // SparseContext race on the cuSPARSE handle, the bound stream, and the
@@ -58,12 +60,93 @@
 #include "./InternalHeaderCheck.h"
 
 #include <cstdint>
+#include <cstring>
 
 #include "./CuSparseSupport.h"
 #include "./FwdDecl.h"
 
 namespace Eigen {
 namespace gpu {
+
+namespace internal {
+
+/** 128-bit content fingerprint of the sparse structure arrays. Detects
+ * pattern changes that host pointer identity cannot: a same-shape/same-nnz
+ * pattern rewritten in place or assigned into the same allocations
+ * (SparseMatrix reuses them) leaves every previously seen pointer unchanged
+ * but changes the fingerprint.
+ *
+ * Construction: two independent xor-rotate-multiply accumulator lanes over
+ * 64-bit words, each finalized with the splitmix64 avalanche (constants from
+ * Vigna's public-domain splitmix64; implemented independently). Hashing is a
+ * single streaming host read, cheaper than staging + PCIe transfer of the
+ * same bytes. Non-cryptographic: the guard is against accidental staleness,
+ * not adversarial inputs. A false "unchanged" requires a simultaneous 64-bit
+ * collision in both lanes (~2^-128 per pattern pair), far below hardware
+ * soft-error rates. */
+struct SparseStructureFingerprint {
+  uint64_t lane0;
+  uint64_t lane1;
+
+  friend bool operator==(const SparseStructureFingerprint& a, const SparseStructureFingerprint& b) {
+    return a.lane0 == b.lane0 && a.lane1 == b.lane1;
+  }
+};
+
+inline uint64_t fingerprint_rotl(uint64_t x, unsigned r) { return (x << r) | (x >> (64 - r)); }
+
+inline uint64_t fingerprint_avalanche(uint64_t x) {
+  x ^= x >> 30;
+  x *= 0xbf58476d1ce4e5b9ULL;
+  x ^= x >> 27;
+  x *= 0x94d049bb133111ebULL;
+  x ^= x >> 31;
+  return x;
+}
+
+inline void fingerprint_append(uint64_t& h0, uint64_t& h1, const void* data, size_t bytes) {
+  // Odd multipliers keep the per-word step a bijection of the lane state; the
+  // rotation moves high-bit differences into carry-propagating positions
+  // before the multiply. The lanes use unrelated multipliers so a collision
+  // must occur in both independently.
+  constexpr uint64_t kMul0 = 0x9e3779b97f4a7c15ULL;  // 2^64 / golden ratio
+  constexpr uint64_t kMul1 = 0xff51afd7ed558ccdULL;  // MurmurHash3 finalizer constant (public domain)
+  const unsigned char* p = static_cast<const unsigned char*>(data);
+  for (size_t i = bytes / 16; i > 0; --i, p += 16) {
+    uint64_t w0, w1;
+    std::memcpy(&w0, p, 8);
+    std::memcpy(&w1, p + 8, 8);
+    h0 = fingerprint_rotl(h0 ^ w0, 27) * kMul0;
+    h1 = fingerprint_rotl(h1 ^ w1, 31) * kMul1;
+  }
+  const size_t rem = bytes % 16;
+  if (rem > 0) {
+    unsigned char tail[16] = {};
+    std::memcpy(tail, p, rem);
+    uint64_t w0, w1;
+    std::memcpy(&w0, tail, 8);
+    std::memcpy(&w1, tail + 8, 8);
+    h0 = fingerprint_rotl(h0 ^ w0, 27) * kMul0;
+    h1 = fingerprint_rotl(h1 ^ w1, 31) * kMul1;
+  }
+}
+
+inline SparseStructureFingerprint sparse_structure_fingerprint(const void* outer, size_t outer_bytes, const void* inner,
+                                                               size_t inner_bytes) {
+  // Distinct arbitrary seeds per lane (first 128 fractional bits of pi).
+  uint64_t h0 = 0x243f6a8885a308d3ULL;
+  uint64_t h1 = 0x13198a2e03707344ULL;
+  fingerprint_append(h0, h1, outer, outer_bytes);
+  fingerprint_append(h0, h1, inner, inner_bytes);
+  // Folding both byte counts into both lanes separates concatenations that
+  // move bytes across the outer/inner boundary (zero-padded tails included).
+  SparseStructureFingerprint fp;
+  fp.lane0 = fingerprint_avalanche(h0 ^ (static_cast<uint64_t>(outer_bytes) << 1) ^ inner_bytes);
+  fp.lane1 = fingerprint_avalanche(h1 ^ (static_cast<uint64_t>(inner_bytes) << 1) ^ outer_bytes);
+  return fp;
+}
+
+}  // namespace internal
 
 /** Sparse product expression: DeviceSparseView * DeviceMatrix → SpMVExpr.
  * Evaluated by DeviceMatrix::operator=(SpMVExpr): dispatches to cusparseSpMV
@@ -84,12 +167,14 @@ class SpMVExpr {
 /** Device-resident sparse matrix view. Returned by SparseContext::deviceView().
  * Lightweight handle referencing the context's cached device data.
  *
- * \warning One SparseContext caches one sparse matrix at a time. Any later
- * upload through the same context — a second deviceView() or any host-input
- * multiply — replaces the cached data and invalidates earlier views; a stale
- * view is caught by an assert at evaluation time via a generation counter.
- * For multiple simultaneous sparse matrices, use separate SparseContext
- * instances (they can share a Context for same-stream execution).
+ * \warning One SparseContext caches one sparse matrix at a time. Uploading a
+ * structurally different matrix through the same context — via deviceView()
+ * or a host-input multiply — replaces the cached data and invalidates earlier
+ * views; a stale view is caught by an assert at evaluation time via a
+ * generation counter. Same-structure host-input calls refresh the cached
+ * values in place; outstanding views see the new values. For multiple
+ * simultaneous sparse matrices, use separate SparseContext instances (they
+ * can share a Context for same-stream execution).
  *
  * Supports `d_y = d_A * d_x` (SpMV) and `d_Y = d_A * d_X` (SpMM). */
 template <typename Scalar_>
@@ -159,11 +244,11 @@ class SparseContext {
    * The returned view can be used for repeated SpMV/SpMM without re-uploading.
    * If the matrix values change, call deviceView() again to re-upload.
    *
-   * \warning One context caches one matrix. Any later upload — another
-   * deviceView() or any host-input multiply — overwrites the previous upload
-   * and invalidates earlier views (asserted at evaluation time). For multiple
-   * simultaneous matrices, use separate SparseContext instances sharing the
-   * same Context.
+   * \warning One context caches one matrix. Uploading a structurally
+   * different matrix — via deviceView() or a host-input multiply — overwrites
+   * the previous upload and invalidates earlier views (asserted at evaluation
+   * time). For multiple simultaneous matrices, use separate SparseContext
+   * instances sharing the same Context.
    *
    * Supports `d_y = d_A * d_x` (SpMV) and `d_Y = d_A * d_X` (SpMM). */
   DeviceSparseView<Scalar> deviceView(const SpMat& A) {
@@ -172,8 +257,9 @@ class SparseContext {
     return DeviceSparseView<Scalar>(*this, A.rows(), A.cols(), generation_);
   }
 
-  /** Generation counter of the currently cached sparse matrix. Bumped on
-   * every sparse upload (deviceView() or a host-input multiply). */
+  /** Generation counter of the currently cached sparse matrix. Bumped when a
+   * structurally different matrix (changed content fingerprint or shape) is
+   * uploaded. */
   uint64_t uploadGeneration() const { return generation_; }
 
   // ---- SpMV: y = A * x (host vectors) --------------------------------------
@@ -198,8 +284,9 @@ class SparseContext {
   // ---- SpMV: y = A * x (DeviceMatrix, no host roundtrip) -------------------
 
   /** Compute d_y = A * d_x. Device-resident dense vectors, no host transfer
-   * for x/y. The sparse matrix (values and index arrays) is re-uploaded on
-   * each call; for a fully device-resident sparse matrix use deviceView(). */
+   * for x/y. The sparse values are re-uploaded on each call, the index arrays
+   * only when their content fingerprint changes; for a fully device-resident
+   * sparse matrix use deviceView(). */
   template <typename InputType>
   void multiply(const SparseMatrixBase<InputType>& A, const DeviceMatrix<Scalar>& d_x, DeviceMatrix<Scalar>& d_y) {
     multiply(A, d_x, d_y, Scalar(1), Scalar(0), GpuOp::NoTrans);
@@ -284,8 +371,13 @@ class SparseContext {
   Index cached_cols_ = -1;
   Index cached_nnz_ = -1;
 
-  // Bumped on every sparse upload; DeviceSparseViews record it at creation so
-  // a stale view (its data replaced by a later upload) asserts at evaluation.
+  // Content identity of the currently cached structure arrays; valid only
+  // while a matching descriptor exists. Compared before every host-input
+  // upload to decide whether the index arrays must be re-uploaded.
+  internal::SparseStructureFingerprint structure_fp_ = {0, 0};
+  bool structure_fp_valid_ = false;
+  // Bumped when a structurally different matrix is uploaded; DeviceSparseViews
+  // record it at creation so stale views assert at evaluation.
   uint64_t generation_ = 0;
 
   // Cached dense-vector/matrix descriptors, re-pointed per call and recreated
@@ -635,46 +727,58 @@ class SparseContext {
     const size_t inner_bytes = static_cast<size_t>(nnz) * sizeof(StorageIndex);
     const size_t val_bytes = static_cast<size_t>(nnz) * sizeof(Scalar);
 
-    // Values *and* index arrays are re-uploaded unconditionally: host pointer
-    // identity cannot detect a same-shape/same-nnz pattern rewritten in place
-    // or assigned into the same allocations (SparseMatrix reuses them), so a
-    // structure cache keyed on pointers would silently serve stale indices.
-    // Only the cuSPARSE descriptor and the workspace-size queries are cached,
-    // keyed on (rows, cols, nnz). Every upload invalidates outstanding
-    // DeviceSparseViews via the generation counter.
-    ++generation_;
+    // Values are always re-uploaded so in-place value updates are picked up;
+    // the upload is launched first so the DMA overlaps the host-side hashing.
     ensure_buffer(d_values_, val_bytes);
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_values_.get(), host_values, val_bytes, cudaMemcpyHostToDevice, stream_));
+
+    // Structure cache: skip the outer/inner uploads when the shape and the
+    // content fingerprint of the index arrays match the cached upload. Host
+    // pointer identity is unusable as the cache key — a same-shape pattern
+    // rewritten in place or assigned into the same allocations (SparseMatrix
+    // reuses them) leaves every previously seen pointer unchanged — so
+    // identity is derived from the array contents instead.
+    const internal::SparseStructureFingerprint fp =
+        internal::sparse_structure_fingerprint(host_outer, outer_bytes, host_inner, inner_bytes);
+    if (structure_fp_valid_ && fp == structure_fp_ && m == cached_rows_ && n == cached_cols_ && nnz == cached_nnz_) {
+      return;
+    }
+
+    ++generation_;
     ensure_buffer(d_outerPtr_, outer_bytes);
     ensure_buffer(d_innerIdx_, inner_bytes);
-    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_values_.get(), host_values, val_bytes, cudaMemcpyHostToDevice, stream_));
     EIGEN_CUDA_RUNTIME_CHECK(
         cudaMemcpyAsync(d_outerPtr_.get(), host_outer, outer_bytes, cudaMemcpyHostToDevice, stream_));
     EIGEN_CUDA_RUNTIME_CHECK(
         cudaMemcpyAsync(d_innerIdx_.get(), host_inner, inner_bytes, cudaMemcpyHostToDevice, stream_));
 
-    // Same shape and nnz: the grow-only device buffers cannot have been
-    // reallocated, so the existing descriptor still points at the freshly
-    // written data.
-    if (m == cached_rows_ && n == cached_cols_ && nnz == cached_nnz_) return;
+    if (m != cached_rows_ || n != cached_cols_ || nnz != cached_nnz_) {
+      destroy_spmat_descriptor(/*checked=*/true);
 
-    destroy_spmat_descriptor(/*checked=*/true);
+      constexpr cusparseIndexType_t idx_type = (sizeof(StorageIndex) == 4) ? CUSPARSE_INDEX_32I : CUSPARSE_INDEX_64I;
+      constexpr cudaDataType_t val_type = internal::cuda_data_type<Scalar>::value;
 
-    constexpr cusparseIndexType_t idx_type = (sizeof(StorageIndex) == 4) ? CUSPARSE_INDEX_32I : CUSPARSE_INDEX_64I;
-    constexpr cudaDataType_t val_type = internal::cuda_data_type<Scalar>::value;
-
-    EIGEN_IF_CONSTEXPR (kUseCsrOfTranspose) {
-      // cuSPARSE 11.x: cusparseSpMM rejects CSC for matA. CSC of A and CSR of
-      // A^T share the same buffers, so register the data as CSR-of-A^T (dims
-      // swapped) and invert the op in exec_spmv / spmm_impl via descriptor_op.
-      EIGEN_CUSPARSE_CHECK(cusparseCreateCsr(&spmat_desc_, n, m, nnz, d_outerPtr_.get(), d_innerIdx_.get(),
-                                             d_values_.get(), idx_type, idx_type, CUSPARSE_INDEX_BASE_ZERO, val_type));
-    } else {
-      EIGEN_CUSPARSE_CHECK(cusparseCreateCsc(&spmat_desc_, m, n, nnz, d_outerPtr_.get(), d_innerIdx_.get(),
-                                             d_values_.get(), idx_type, idx_type, CUSPARSE_INDEX_BASE_ZERO, val_type));
+      EIGEN_IF_CONSTEXPR (kUseCsrOfTranspose) {
+        // cuSPARSE 11.x: cusparseSpMM rejects CSC for matA. CSC of A and CSR of
+        // A^T share the same buffers, so register the data as CSR-of-A^T (dims
+        // swapped) and invert the op in exec_spmv / spmm_impl via descriptor_op.
+        EIGEN_CUSPARSE_CHECK(cusparseCreateCsr(&spmat_desc_, n, m, nnz, d_outerPtr_.get(), d_innerIdx_.get(),
+                                               d_values_.get(), idx_type, idx_type, CUSPARSE_INDEX_BASE_ZERO,
+                                               val_type));
+      } else {
+        EIGEN_CUSPARSE_CHECK(cusparseCreateCsc(&spmat_desc_, m, n, nnz, d_outerPtr_.get(), d_innerIdx_.get(),
+                                               d_values_.get(), idx_type, idx_type, CUSPARSE_INDEX_BASE_ZERO,
+                                               val_type));
+      }
+      cached_rows_ = m;
+      cached_cols_ = n;
+      cached_nnz_ = nnz;
     }
-    cached_rows_ = m;
-    cached_cols_ = n;
-    cached_nnz_ = nnz;
+    // On a same-shape structure change the grow-only device buffers were not
+    // reallocated (byte sizes unchanged), so the existing descriptor already
+    // points at the freshly written index data — no rebuild needed.
+    structure_fp_ = fp;
+    structure_fp_valid_ = true;
   }
 
   // Destroy the sparse-matrix descriptor and reset the cache identity.
@@ -691,6 +795,7 @@ class SparseContext {
     cached_rows_ = -1;
     cached_cols_ = -1;
     cached_nnz_ = -1;
+    structure_fp_valid_ = false;
     invalidate_ws_caches();
   }
 
@@ -709,9 +814,9 @@ template <typename Scalar_>
 DeviceMatrix<Scalar_>& DeviceMatrix<Scalar_>::operator=(const SpMVExpr<Scalar_>& expr) {
   // Uses the sparse matrix already uploaded by deviceView() — no re-upload on
   // repeated products with the same view. A stale view (the context has since
-  // uploaded again, replacing the cached data) is caught here.
+  // cached a structurally different matrix) is caught here.
   eigen_assert(expr.view().generation() == expr.view().context().uploadGeneration() &&
-               "DeviceSparseView is stale: its SparseContext has since uploaded another sparse matrix");
+               "DeviceSparseView is stale: its SparseContext has since cached a different sparse matrix");
   if (expr.x().cols() <= 1) {
     expr.view().context().spmv_device_exec(expr.x(), *this, Scalar_(1), Scalar_(0), GpuOp::NoTrans);
   } else {
