@@ -211,18 +211,21 @@ void test_pattern_replacement(Index n) {
   Vec y1 = ctx.multiply(A, x);
   RealScalar tol = NumTraits<Scalar>::epsilon();
   VERIFY((y1 - x).norm() < tol);
+  const uint64_t gen0 = ctx.uploadGeneration();
 
-  // Warm-up repeat: arms any structure cache keyed on the host arrays before
-  // the pattern is replaced.
+  // Unchanged matrix: structure-cache hit (fingerprint match), no view
+  // invalidation.
   Vec y1b = ctx.multiply(A, x);
   VERIFY((y1b - x).norm() < tol);
+  VERIFY_IS_EQUAL(ctx.uploadGeneration(), gen0);
 
   // Value-only update at unchanged structure is picked up (values are
-  // re-uploaded on every host-input call).
+  // re-uploaded on every host-input call); still a structure-cache hit.
   A.coeffRef(0, 0) = Scalar(2);
   Vec y1c = ctx.multiply(A, x);
   Vec y1c_ref = A * x;
   VERIFY((y1c - y1c_ref).norm() < tol);
+  VERIFY_IS_EQUAL(ctx.uploadGeneration(), gen0);
 
   // Replace the pattern with a cyclic permutation: one entry per column at
   // row (j+1) % n, all values 1, so shape and nnz match the identity and the
@@ -241,6 +244,7 @@ void test_pattern_replacement(Index n) {
   Vec y2 = ctx.multiply(A, x);
   Vec y2_ref = A * x;
   VERIFY((y2 - y2_ref).norm() < tol);
+  VERIFY(ctx.uploadGeneration() != gen0);
 }
 
 // ---- Context reuse ----------------------------------------------------------

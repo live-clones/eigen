@@ -442,13 +442,16 @@ d_y = d_A * d_x;                            // SpMV, stays on device
 d_Y = d_A * d_X;                            // SpMM when the RHS has > 1 column
 ```
 
-Host-input calls re-upload the sparse values *and* index arrays on every call
-(host pointer identity cannot detect a pattern rewritten in place or assigned
-into the same allocations, so the structure is never assumed unchanged). The
-cuSPARSE descriptors and workspace-size queries are cached across calls with
-matching shapes; `deviceView()` is the upload-once path. A `DeviceSparseView`
-carries a generation counter — using a view after any later upload through its
-context asserts instead of silently multiplying by the wrong matrix.
+The sparse matrix *structure* (index arrays) is cached on device, identified
+by a 128-bit content fingerprint of the index arrays plus shape and nonzero
+count — not by host pointers, which a pattern rewritten in place or assigned
+into the same allocations leaves unchanged. Index arrays are re-uploaded only
+when the fingerprint changes; values are re-uploaded on each host-input call
+so in-place value updates are picked up. Descriptors and workspace-size
+queries are cached across calls with matching shapes; `deviceView()` is the
+upload-once path. A `DeviceSparseView` carries a generation counter — using a
+view after its context cached a structurally different matrix asserts instead
+of silently multiplying by the wrong matrix.
 
 ### Eigen algorithm interop (example: Conjugate gradient)
 
@@ -955,7 +958,7 @@ DenseVector        multiplyT(A, x)                                      // y = A
 DenseVector        multiplyAdjoint(A, x)                                // y = A^H * x
 DenseMatrix        multiplyMat(A, X, op=GpuOp::NoTrans)                 // Y = op(A) * X (SpMM)
 
-// DeviceMatrix in/out (sparse matrix re-uploaded per call)
+// DeviceMatrix in/out (values re-uploaded per call; structure cached by fingerprint)
 void               multiply(A, d_x, d_y)                                // SpMV with device vectors
 void               multiply(A, d_x, d_y, alpha, beta, op=GpuOp::NoTrans)
 
