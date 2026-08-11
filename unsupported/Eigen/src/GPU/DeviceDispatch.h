@@ -140,7 +140,7 @@ void dispatch_llt_solve(Context& ctx, DeviceMatrix<Scalar>& dst, const LltSolveE
   {
     const size_t mat_bytes = A.sizeInBytes();
     // Context-owned grow-only scratch: no per-call allocation, no end-of-call sync.
-    ensure_sized(scratch.d_factor, mat_bytes);
+    ensure_sized(scratch.d_factor, mat_bytes, ctx.stream());
     EIGEN_CUDA_RUNTIME_CHECK(
         cudaMemcpyAsync(scratch.d_factor.get(), A.data(), mat_bytes, cudaMemcpyDeviceToDevice, ctx.stream()));
   }
@@ -149,7 +149,7 @@ void dispatch_llt_solve(Context& ctx, DeviceMatrix<Scalar>& dst, const LltSolveE
   size_t host_ws = 0;
   EIGEN_CUSOLVER_CHECK(cusolverDnXpotrf_bufferSize(ctx.cusolverHandle(), params.p, uplo, n, dtype,
                                                    scratch.d_factor.get(), lda, dtype, &dev_ws, &host_ws));
-  ensure_sized(scratch.d_workspace, dev_ws);
+  ensure_sized(scratch.d_workspace, dev_ws, ctx.stream());
   if (scratch.h_workspace.size() < host_ws) scratch.h_workspace.resize(host_ws);
   // Two info slots (potrf, potrs) so both kernels queue back-to-back. If potrf
   // fails, potrs runs on garbage but the debug check catches both at once.
@@ -197,17 +197,17 @@ void dispatch_lu_solve(Context& ctx, DeviceMatrix<Scalar>& dst, const LuSolveExp
   {
     const size_t mat_bytes = A.sizeInBytes();
     // Context-owned grow-only scratch: no per-call allocation, no end-of-call sync.
-    ensure_sized(scratch.d_factor, mat_bytes);
+    ensure_sized(scratch.d_factor, mat_bytes, ctx.stream());
     EIGEN_CUDA_RUNTIME_CHECK(
         cudaMemcpyAsync(scratch.d_factor.get(), A.data(), mat_bytes, cudaMemcpyDeviceToDevice, ctx.stream()));
   }
-  ensure_sized(scratch.d_ipiv, static_cast<size_t>(n) * sizeof(int64_t));
+  ensure_sized(scratch.d_ipiv, static_cast<size_t>(n) * sizeof(int64_t), ctx.stream());
   const int64_t lda = static_cast<int64_t>(A.rows());
   size_t dev_ws = 0;
   size_t host_ws = 0;
   EIGEN_CUSOLVER_CHECK(cusolverDnXgetrf_bufferSize(ctx.cusolverHandle(), params.p, n, n, dtype, scratch.d_factor.get(),
                                                    lda, dtype, &dev_ws, &host_ws));
-  ensure_sized(scratch.d_workspace, dev_ws);
+  ensure_sized(scratch.d_workspace, dev_ws, ctx.stream());
   if (scratch.h_workspace.size() < host_ws) scratch.h_workspace.resize(host_ws);
   int* d_info_getrf = static_cast<int*>(scratch.d_info.get());
   int* d_info_getrs = d_info_getrf + 1;

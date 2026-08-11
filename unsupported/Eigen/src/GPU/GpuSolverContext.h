@@ -73,12 +73,11 @@ struct GpuSolverContext {
   ~GpuSolverContext() {
     // Ignore errors here: dtors are noexcept, and EIGEN_CU{BLAS,SOLVER,DA_RUNTIME}_CHECK
     // are eigen_assert-based — firing one from a noexcept dtor terminates the program.
-    // The trailing free of the device buffers (via DeviceBuffer::~DeviceBuffer) is
-    // stream-ordered (or synchronous on the cudaMalloc fallback), so it waits
-    // for any in-flight kernel touching the buffer.
     // Destroy plan cache before its cublasLt handle (entries hold descriptors).
     gemm_plan_cache_.clear();
     if (cublas_lt_) (void)cublasLtDestroy(cublas_lt_);
+    d_scratch_ = DeviceBuffer();
+    gemm_workspace_ = DeviceBuffer();
     if (!bound_ctx_) {
       if (cublas_) (void)cublasDestroy(cublas_);
       if (cusolver_) (void)cusolverDnDestroy(cusolver_);
@@ -113,12 +112,13 @@ struct GpuSolverContext {
   GpuSolverContext& operator=(GpuSolverContext&& o) noexcept {
     if (this != &o) {
       // Mirror the dtor: noexcept context, can't propagate. Drain the old stream
-      // first so the upcoming move of d_scratch_ doesn't free buffers an in-flight
-      // kernel is still touching; then swallow destroy errors (the EIGEN_CU*_CHECK
-      // macros are eigen_assert-based and would terminate from a noexcept body).
+      // first, then swallow destroy errors (the EIGEN_CU*_CHECK macros are
+      // eigen_assert-based and would terminate from a noexcept body).
       if (stream_) (void)cudaStreamSynchronize(stream_);
       gemm_plan_cache_.clear();
       if (cublas_lt_) (void)cublasLtDestroy(cublas_lt_);
+      d_scratch_ = DeviceBuffer();
+      gemm_workspace_ = DeviceBuffer();
       if (!bound_ctx_) {
         if (cublas_) (void)cublasDestroy(cublas_);
         if (cusolver_) (void)cusolverDnDestroy(cusolver_);
@@ -180,14 +180,12 @@ struct GpuSolverContext {
     return workspace_bytes + kInfoBytes;
   }
 
-  // Ensure d_scratch_ holds at least `workspace_bytes` of scratch plus the trailing
-  // info word. Grows but never shrinks. Syncs the stream before reallocating to
-  // avoid freeing memory that async kernels may still be using.
+  // Ensure d_scratch_ holds at least `workspace_bytes` of scratch plus the
+  // trailing info word. Grows but never shrinks.
   void ensure_scratch(size_t workspace_bytes) {
     size_t needed = scratchBytesFor(workspace_bytes);
     if (needed > d_scratch_.size()) {
-      if (d_scratch_) EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream_));
-      d_scratch_ = DeviceBuffer(needed);
+      d_scratch_ = DeviceBuffer(needed, stream_);
     }
   }
 
