@@ -19,7 +19,13 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from check_style import added_lines_from_diff, find_findings, run_diff_mode
+from check_style import (
+    added_from_structured_patch,
+    added_lines_from_diff,
+    find_findings,
+    hook_added_line_numbers,
+    run_diff_mode,
+)
 
 
 def messages(rel_path, text, added=None):
@@ -111,6 +117,45 @@ def test_comment_verbosity():
     # Six added lines inside an existing non-Doxygen block are reported.
     block = "// old line\n" + "\n".join("// new %d" % i for i in range(6)) + "\nint x = 1;\n"
     assert_flags("Eigen/src/Core/Foo.h", block, "non-Doxygen comment", added=set(range(2, 8)))
+
+
+def test_multiline_literals():
+    # Contents of a raw string spanning lines are literal, not code.
+    raw = 'const char* prog = R"cl(\nif constexpr (true) { std::optional<int> x; }\n)cl";\nint y = 1;\n'
+    assert_clean("Eigen/src/Core/Foo.h", raw)
+    # Code after the raw string closes is lexed again.
+    raw_then_code = 'auto s = R"(\ntext\n)"; const char* p = NULL;\n'
+    assert_flags("Eigen/src/Core/Foo.h", raw_then_code, "nullptr")
+    # A backslash-spliced ordinary string stays a literal on its continuation lines.
+    spliced = 'const char* s = "first \\\nif constexpr (x) \\\nlast";\nint z = 1;\n'
+    assert_clean("Eigen/src/Core/Foo.h", spliced)
+    # A raw-string-looking suffix of an identifier is an ordinary string.
+    assert_clean("Eigen/src/Core/Foo.h", 'auto v = myR"(not raw)";\n')
+    # Single-line raw strings close on the same line.
+    assert_clean("Eigen/src/Core/Foo.h", 'auto s = R"(if constexpr NULL typedef)";\n')
+
+
+def test_hook_line_mapping():
+    content = "int x;\nint changed;\nconst char* p = NULL;\n"
+    # A snippet with a trailing newline covers only its own line, not the next.
+    assert hook_added_line_numbers(content, ["int changed;\n"]) == {2}
+    assert hook_added_line_numbers(content, ["int changed;"]) == {2}
+    # Multi-line snippets cover their span.
+    assert hook_added_line_numbers(content, ["int x;\nint changed;\n"]) == {1, 2}
+    # An ambiguous snippet cannot be located; the caller must fall back.
+    assert hook_added_line_numbers("true\nif constexpr (true)\n", ["true"]) is None
+    # An absent snippet likewise.
+    assert hook_added_line_numbers(content, ["not present"]) is None
+
+
+def test_structured_patch():
+    response = {"structuredPatch": [
+        {"oldStart": 4, "oldLines": 2, "newStart": 5, "newLines": 3,
+         "lines": [" context", "-old line", "+new one", "+new two", " context"]},
+    ]}
+    assert added_from_structured_patch(response) == {6, 7}
+    assert added_from_structured_patch({}) is None
+    assert added_from_structured_patch({"structuredPatch": "bogus"}) is None
 
 
 def test_diff_parser():
