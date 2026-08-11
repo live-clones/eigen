@@ -112,10 +112,12 @@ that is impractical, that it reaches the new code by construction.
 
 ## Configurations The Test Suite Cannot See
 
-- `test/main.h` undefines `NDEBUG`, and `Macros.h` derives `EIGEN_NO_DEBUG` from it, so no test in the suite compiles
-  an `EIGEN_NO_DEBUG` code path; behavior that depends on that macro needs a standalone `-DNDEBUG` check. Conversely,
-  an `eigen_assert` body is only type-checked where assertions are enabled, so it can call members its argument type
-  does not have and still compile in every release build.
+- In the default host-test configuration, no test compiles an `EIGEN_NO_DEBUG` code path: `test/main.h` undefines
+  `NDEBUG`, and `Macros.h` derives `EIGEN_NO_DEBUG` from it. (HIP/SYCL device compilation and an explicit
+  `-DEIGEN_NO_DEBUG` define it independently.) Behavior that depends on the macro needs a dedicated `-DEIGEN_NO_DEBUG`
+  test target or a standalone `-DNDEBUG` check. Conversely, an `eigen_assert` body is only type-checked where
+  assertions are enabled, so it can call members its argument type does not have and still compile in every release
+  build.
 - Run an `EIGEN_DEFAULT_TO_ROW_MAJOR` build when layout is in play, and pin the layout explicitly where a test aliases
   one object's storage through a view whose default layout is fixed.
 - Cover `EIGEN_TEST_NO_EXPLICIT_VECTORIZATION`, `EIGEN_UNALIGNED_VECTORIZE=0`, or a narrower

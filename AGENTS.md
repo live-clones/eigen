@@ -58,7 +58,8 @@ default.
 7. **Ship verification with behavior.** New functionality includes focused tests. Bug fixes include a regression test
    that fails without the fix when practical. Performance-sensitive changes include an appropriate benchmark. Scale
    broader coverage to the affected scalar types, storage orders, backends, and public contracts. Confirm the new test
-   exercises the new path and fails at the parent commit; see [`.agents/testing.md`](.agents/testing.md).
+   fails at the parent commit when practical; otherwise demonstrate that it reaches the changed path by construction.
+   See [`.agents/testing.md`](.agents/testing.md).
 8. **Treat external writes as deliberate actions.** Unless the user already asked for them, pause after the local commit
    before pushing, opening or updating a merge request, commenting on an issue, or making another external-system write.
 

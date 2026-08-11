@@ -12,8 +12,10 @@ current form, and a file being edited heavily should come out uniform rather tha
 - Prefer `using` to `typedef`, `nullptr` to `NULL`, `= default` and default member initializers to empty constructor
   bodies that assign each member.
 - Use `numext::` math functions rather than `std::` in library code, and Eigen's metaprogramming aliases
-  (`bool_constant`, `void_t`, `remove_all_t`, `internal::is_arithmetic`; see `Eigen/src/Core/util/Meta.h`) rather than
-  spelling out the standard forms.
+  (`bool_constant`, `void_t`, `remove_all_t`; see `Eigen/src/Core/util/Meta.h`) rather than spelling out the standard
+  forms. `internal::is_arithmetic` is not a spelling of `std::is_arithmetic`: it is deliberately specialized for
+  packet and Eigen scalar types and differs on `long double` during GPU compilation, so use it only when Eigen's
+  extended arithmetic category is specifically intended.
 - Put SFINAE in a defaulted template parameter rather than the return type. When an overload set needs the negative
   case too, constrain both overloads: an exact-match overload next to an unconstrained one can bind a converted
   temporary and return a dangling reference.
