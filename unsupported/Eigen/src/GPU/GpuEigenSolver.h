@@ -107,7 +107,7 @@ class SelfAdjointEigenSolver {
     if (!begin_compute(d_A, options)) return *this;
 
     const size_t mat_bytes = static_cast<size_t>(lda_) * static_cast<size_t>(n_) * sizeof(Scalar);
-    internal::ensure_sized(d_A_, mat_bytes);
+    internal::ensure_sized(d_A_, mat_bytes, solver_ctx_.stream());
     EIGEN_CUDA_RUNTIME_CHECK(
         cudaMemcpyAsync(d_A_.get(), d_A.data(), mat_bytes, cudaMemcpyDeviceToDevice, solver_ctx_.stream()));
 
@@ -121,7 +121,8 @@ class SelfAdjointEigenSolver {
     if (!begin_compute(d_A, options)) return *this;
 
     d_A_ = internal::DeviceBuffer::adopt(static_cast<void*>(d_A.release()),
-                                         static_cast<size_t>(lda_) * static_cast<size_t>(n_) * sizeof(Scalar));
+                                         static_cast<size_t>(lda_) * static_cast<size_t>(n_) * sizeof(Scalar),
+                                         solver_ctx_.stream());
 
     factorize();
     return *this;
@@ -216,7 +217,7 @@ class SelfAdjointEigenSolver {
 
     solver_ctx_.mark_pending();
 
-    internal::ensure_sized(d_W_, static_cast<size_t>(n_) * sizeof(RealScalar));
+    internal::ensure_sized(d_W_, static_cast<size_t>(n_) * sizeof(RealScalar), solver_ctx_.stream());
 
     const cusolverEigMode_t jobz = compute_eigenvectors_ ? CUSOLVER_EIG_MODE_VECTOR : CUSOLVER_EIG_MODE_NOVECTOR;
 

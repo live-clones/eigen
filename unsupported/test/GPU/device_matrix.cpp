@@ -16,7 +16,24 @@
 #include <Eigen/Sparse>
 #include <unsupported/Eigen/GPU>
 
+#include <atomic>
+#include <chrono>
+#include <thread>
+
 using namespace Eigen;
+
+namespace {
+
+struct StreamGate {
+  std::atomic<bool> open{false};
+};
+
+void CUDART_CB wait_for_stream_gate(void* user_data) {
+  auto* gate = static_cast<StreamGate*>(user_data);
+  while (!gate->open.load(std::memory_order_acquire)) std::this_thread::yield();
+}
+
+}  // namespace
 
 // ---- Default construction ---------------------------------------------------
 
@@ -221,6 +238,88 @@ void test_empty() {
   MatrixType result = dm.toHost();
   VERIFY_IS_EQUAL(result.rows(), 0);
   VERIFY_IS_EQUAL(result.cols(), 0);
+}
+
+// ---- DeviceBuffer stream ordering -----------------------------------------
+
+void test_device_buffer_uses_owner_stream() {
+  if (!gpu::internal::device_supports_memory_pools()) return;
+
+  cudaStream_t allocation_stream = nullptr;
+  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&allocation_stream));
+
+  cudaGraph_t graph = nullptr;
+  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamBeginCapture(allocation_stream, cudaStreamCaptureModeThreadLocal));
+  {
+    gpu::internal::DeviceBuffer buffer(1024, allocation_stream);
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(buffer.get(), 0, buffer.size(), allocation_stream));
+  }
+  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamEndCapture(allocation_stream, &graph));
+
+  cudaGraphExec_t graph_exec = nullptr;
+  EIGEN_CUDA_RUNTIME_CHECK(cudaGraphInstantiate(&graph_exec, graph, nullptr, nullptr, 0));
+  EIGEN_CUDA_RUNTIME_CHECK(cudaGraphLaunch(graph_exec, allocation_stream));
+  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(allocation_stream));
+
+  EIGEN_CUDA_RUNTIME_CHECK(cudaGraphExecDestroy(graph_exec));
+  EIGEN_CUDA_RUNTIME_CHECK(cudaGraphDestroy(graph));
+  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamDestroy(allocation_stream));
+}
+
+void test_fallback_pool_cross_stream_reuse() {
+  using Pool = gpu::internal::FallbackDeviceBufferPool<64, 4>;
+  Pool& pool = Pool::threadLocal();
+
+  cudaStream_t producer_stream = nullptr;
+  cudaStream_t consumer_stream = nullptr;
+  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&producer_stream));
+  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&consumer_stream));
+
+  float* observed = nullptr;
+  EIGEN_CUDA_RUNTIME_CHECK(cudaMallocHost(&observed, sizeof(float)));
+  *observed = 0.0f;
+
+  float* inputs = nullptr;
+  EIGEN_CUDA_RUNTIME_CHECK(cudaMallocHost(&inputs, 2 * sizeof(float)));
+  inputs[0] = 1.0f;
+  inputs[1] = 2.0f;
+
+  constexpr size_t bytes = sizeof(float);
+  void* first_ptr = pool.allocate(bytes, producer_stream);
+  EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(first_ptr, &inputs[0], bytes, cudaMemcpyHostToDevice, producer_stream));
+
+  StreamGate gate;
+  EIGEN_CUDA_RUNTIME_CHECK(cudaLaunchHostFunc(producer_stream, wait_for_stream_gate, &gate));
+  EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(observed, first_ptr, bytes, cudaMemcpyDeviceToHost, producer_stream));
+  pool.deallocate(first_ptr, bytes, producer_stream);
+
+  void* reused_ptr = pool.allocate(bytes, consumer_stream);
+  EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(reused_ptr, &inputs[1], bytes, cudaMemcpyHostToDevice, consumer_stream));
+
+  std::thread release_gate([&gate] {
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    gate.open.store(true, std::memory_order_release);
+  });
+  const cudaError_t consumer_status = cudaStreamSynchronize(consumer_stream);
+  const cudaError_t producer_status = cudaStreamSynchronize(producer_stream);
+  release_gate.join();
+
+  const float observed_value = *observed;
+  const cudaError_t free_status = cudaFree(reused_ptr);
+  const cudaError_t inputs_free_status = cudaFreeHost(inputs);
+  const cudaError_t host_free_status = cudaFreeHost(observed);
+  const cudaError_t consumer_destroy_status = cudaStreamDestroy(consumer_stream);
+  const cudaError_t producer_destroy_status = cudaStreamDestroy(producer_stream);
+
+  VERIFY(first_ptr == reused_ptr);
+  VERIFY_IS_EQUAL(observed_value, 1.0f);
+  VERIFY_IS_EQUAL(consumer_status, cudaSuccess);
+  VERIFY_IS_EQUAL(producer_status, cudaSuccess);
+  VERIFY_IS_EQUAL(free_status, cudaSuccess);
+  VERIFY_IS_EQUAL(inputs_free_status, cudaSuccess);
+  VERIFY_IS_EQUAL(host_free_status, cudaSuccess);
+  VERIFY_IS_EQUAL(consumer_destroy_status, cudaSuccess);
+  VERIFY_IS_EQUAL(producer_destroy_status, cudaSuccess);
 }
 
 // ---- Per-scalar driver ------------------------------------------------------
@@ -459,6 +558,8 @@ void test_cwiseProduct() {
 EIGEN_DECLARE_TEST(gpu_device_matrix) {
   CALL_SUBTEST(test_default_construct());
   CALL_SUBTEST(test_empty());
+  CALL_SUBTEST(test_device_buffer_uses_owner_stream());
+  CALL_SUBTEST(test_fallback_pool_cross_stream_reuse());
   CALL_SUBTEST(test_resize());
   CALL_SUBTEST(test_host_transfer_ready());
   CALL_SUBTEST(test_host_transfer_move());

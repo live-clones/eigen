@@ -46,17 +46,21 @@ struct OneShotSolverScratch {
   DeviceBuffer d_factor;
   DeviceBuffer d_ipiv;
   DeviceBuffer d_workspace;
-  DeviceBuffer d_info{kOneShotInfoBytes};          // 2 ints: {factorization, solve}
+  DeviceBuffer d_info;                             // 2 ints: {factorization, solve}
   PinnedHostBuffer h_info{kOneShotHostInfoBytes};  // debug-build info check only
   std::vector<char> h_workspace;
+
+  void clearDeviceBuffers() {
+    d_factor = DeviceBuffer();
+    d_ipiv = DeviceBuffer();
+    d_workspace = DeviceBuffer();
+    d_info = DeviceBuffer();
+  }
 };
 
-inline void ensure_sized(DeviceBuffer& buf, size_t needed) {
+inline void ensure_sized(DeviceBuffer& buf, size_t needed, cudaStream_t stream) {
   if (needed > buf.size()) {
-    // Replacing an in-use buffer is safe: device_free is stream-ordered
-    // (or fully synchronous on the cudaMalloc fallback path), so the free
-    // waits for previously enqueued work touching the old buffer.
-    buf = DeviceBuffer(needed);
+    buf = DeviceBuffer(needed, stream);
   }
 }
 }  // namespace internal
@@ -83,12 +87,14 @@ class Context {
     cudaStream_t s = nullptr;
     EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&s));
     stream_ = internal::UniqueStream(s);
+    oneshot_solver_scratch_.d_info = internal::DeviceBuffer(internal::kOneShotInfoBytes, s);
     init_cublas();
   }
 
   /** Create a context on an existing stream (e.g., stream 0 = nullptr).
    * The caller retains ownership of the stream — this context will not destroy it. */
   explicit Context(cudaStream_t stream) : stream_(stream, internal::CudaStreamDeleter{/*owns=*/false}) {
+    oneshot_solver_scratch_.d_info = internal::DeviceBuffer(internal::kOneShotInfoBytes, stream);
     init_cublas();
   }
 
