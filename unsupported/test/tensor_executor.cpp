@@ -102,6 +102,46 @@ void test_execute_nullary_expr(Device d) {
   }
 }
 
+template <typename RandomGenerator>
+void test_stateful_random_thread_pool_capabilities(const RandomGenerator& generator) {
+  Tensor<float, 2> src(128, 128);
+  Tensor<float, 2> dst(128, 128);
+  src.setZero();
+
+  array<Index, 2> shuffle{{1, 0}};
+  const auto random = src.random(generator);
+  const auto expr = src.shuffle(shuffle) + random;
+
+  using RandomExpr = decltype(random);
+  using DefaultRandomEvaluator = TensorEvaluator<const RandomExpr, DefaultDevice>;
+  using ThreadPoolRandomEvaluator = TensorEvaluator<const RandomExpr, ThreadPoolDevice>;
+  static_assert(DefaultRandomEvaluator::BlockAccess, "DefaultDevice random expressions must retain block access");
+  static_assert(!ThreadPoolRandomEvaluator::BlockAccess,
+                "ThreadPoolDevice random expressions must not share state across block tasks");
+  static_assert(ThreadPoolRandomEvaluator::PacketAccess,
+                "Disabling ThreadPoolDevice block access must preserve packet access");
+
+  using Assign = TensorAssignOp<decltype(dst), const decltype(expr)>;
+  static_assert(internal::IsVectorizable<ThreadPoolDevice, const Assign>::value ==
+                    (PacketType<float, ThreadPoolDevice>::size > 1),
+                "ThreadPoolDevice random expressions must use packets when vectorization is available");
+  static_assert(internal::IsTileable<DefaultDevice, const Assign>::value == TiledEvaluation::On,
+                "DefaultDevice expressions containing random leaves must remain tileable");
+  static_assert(internal::IsTileable<ThreadPoolDevice, const Assign>::value == TiledEvaluation::Off,
+                "ThreadPoolDevice expressions containing random leaves must use coefficient evaluation");
+
+  Eigen::ThreadPool tp(4);
+  ThreadPoolDevice device(&tp, 4);
+  dst.device(device) = expr;
+
+  bool all_equal = true;
+  for (Index i = 0; i < dst.size(); ++i) {
+    VERIFY((numext::isfinite)(dst.coeff(i)));
+    all_equal = all_equal && dst.coeff(i) == dst.coeff(0);
+  }
+  VERIFY(!all_equal);
+}
+
 template <typename T, int NumDims, typename Device, bool Vectorizable, TiledEvaluation Tiling, int Layout>
 void test_execute_binary_expr(Device d) {
   static constexpr int Options = 0 | Layout;
@@ -728,6 +768,9 @@ EIGEN_DECLARE_TEST(tensor_executor) {
   CALL_SUBTEST_COMBINATIONS(7, test_execute_shuffle_lvalue, float, 3);
   CALL_SUBTEST_COMBINATIONS(7, test_execute_shuffle_lvalue, float, 4);
   CALL_SUBTEST_COMBINATIONS(7, test_execute_shuffle_lvalue, float, 5);
+
+  CALL_SUBTEST_8(test_stateful_random_thread_pool_capabilities(internal::UniformRandomGenerator<float>(123)));
+  CALL_SUBTEST_8(test_stateful_random_thread_pool_capabilities(internal::NormalRandomGenerator<float>(123)));
 
   CALL_SUBTEST_COMBINATIONS(9, test_execute_reshape, float, 2);
   CALL_SUBTEST_COMBINATIONS(9, test_execute_reshape, float, 3);

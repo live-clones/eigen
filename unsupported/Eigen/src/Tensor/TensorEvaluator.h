@@ -16,6 +16,17 @@
 
 namespace Eigen {
 
+namespace internal {
+
+template <typename Functor, typename = void>
+struct tensor_functor_is_stateful : std::false_type {};
+
+template <typename Functor>
+struct tensor_functor_is_stateful<Functor, void_t<decltype(functor_traits<Functor>::IsStateful)>>
+    : std::integral_constant<bool, functor_traits<Functor>::IsStateful> {};
+
+}  // namespace internal
+
 // Generic evaluator
 /**
  * \ingroup Tensor_Module
@@ -326,6 +337,10 @@ struct TensorEvaluator<const TensorCwiseNullaryOp<NullaryOp, ArgType>, Device> {
   typedef StorageMemory<CoeffReturnType, Device> Storage;
   typedef typename Storage::Type EvaluatorPointerType;
   static constexpr int NumDims = internal::array_size<Dimensions>::value;
+  typedef std::remove_const_t<CoeffReturnType> ScalarNoConst;
+
+  static constexpr bool IsStatefulThreadPoolOp = std::is_same<std::remove_cv_t<Device>, ThreadPoolDevice>::value &&
+                                                 internal::tensor_functor_is_stateful<NullaryOp>::value;
 
   static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
   enum {
@@ -337,14 +352,14 @@ struct TensorEvaluator<const TensorCwiseNullaryOp<NullaryOp, ArgType>, Device> {
         ,
     // A nullary leaf can serve any block; without this, a single constant()
     // in an expression disables tiled evaluation for the whole tree. Never
-    // *prefer* block access on its own account, though.
-    BlockAccess = NumDims > 0 && internal::is_arithmetic<std::remove_const_t<CoeffReturnType>>::value,
+    // *prefer* block access on its own account, though. ThreadPool block tasks
+    // share an evaluator, so stateful functors stay on the packet-capable
+    // coefficient path, which copies the evaluator for each task.
+    BlockAccess = NumDims > 0 && internal::is_arithmetic<ScalarNoConst>::value && !IsStatefulThreadPoolOp,
     PreferBlockAccess = false,
     CoordAccess = false,  // to be implemented
     RawAccess = false
   };
-
-  typedef std::remove_const_t<CoeffReturnType> ScalarNoConst;
 
   // An index-independent functor (a functor with a nullary operator(), e.g.
   // the scalar_constant_op behind constant(), cwiseMax(Scalar) and clip())
