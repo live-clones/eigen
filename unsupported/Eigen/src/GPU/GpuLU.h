@@ -133,7 +133,7 @@ class LU {
 
     lda_ = static_cast<int64_t>(d_A.rows());
     d_A.waitReady(solver_ctx_.stream_);
-    d_lu_ = internal::DeviceBuffer::adopt(static_cast<void*>(d_A.release()), matrixBytes());
+    d_lu_ = internal::DeviceBuffer::adopt(static_cast<void*>(d_A.release()), matrixBytes(), solver_ctx_.stream_);
 
     factorize();
     return *this;
@@ -155,7 +155,7 @@ class LU {
     const Ref<const PlainMatrix> rhs(B.derived());
     const int64_t nrhs = static_cast<int64_t>(rhs.cols());
     const int64_t ldb = static_cast<int64_t>(rhs.rows());
-    internal::DeviceBuffer d_x(matrixBytes(nrhs, ldb));
+    internal::DeviceBuffer d_x(matrixBytes(nrhs, ldb), solver_ctx_.stream_);
     EIGEN_CUDA_RUNTIME_CHECK(
         cudaMemcpyAsync(d_x.get(), rhs.data(), matrixBytes(nrhs, ldb), cudaMemcpyHostToDevice, solver_ctx_.stream_));
     DeviceMatrix<Scalar> d_X = solve_impl(nrhs, ldb, op, std::move(d_x));
@@ -183,7 +183,7 @@ class LU {
     d_B.waitReady(solver_ctx_.stream_);
     const int64_t nrhs = static_cast<int64_t>(d_B.cols());
     const int64_t ldb = static_cast<int64_t>(d_B.rows());
-    internal::DeviceBuffer d_x(matrixBytes(nrhs, ldb));
+    internal::DeviceBuffer d_x(matrixBytes(nrhs, ldb), solver_ctx_.stream_);
     EIGEN_CUDA_RUNTIME_CHECK(
         cudaMemcpyAsync(d_x.get(), d_B.data(), matrixBytes(nrhs, ldb), cudaMemcpyDeviceToDevice, solver_ctx_.stream_));
     return solve_impl(nrhs, ldb, op, std::move(d_x));
@@ -198,7 +198,7 @@ class LU {
     const int64_t nrhs = static_cast<int64_t>(d_B.cols());
     const int64_t ldb = static_cast<int64_t>(d_B.rows());
     internal::DeviceBuffer d_x =
-        internal::DeviceBuffer::adopt(static_cast<void*>(d_B.release()), matrixBytes(nrhs, ldb));
+        internal::DeviceBuffer::adopt(static_cast<void*>(d_B.release()), matrixBytes(nrhs, ldb), solver_ctx_.stream_);
     return solve_impl(nrhs, ldb, op, std::move(d_x));
   }
 
@@ -225,7 +225,7 @@ class LU {
     return static_cast<size_t>(ld) * static_cast<size_t>(cols) * sizeof(Scalar);
   }
 
-  void allocate_lu_storage() { internal::ensure_sized(d_lu_, matrixBytes()); }
+  void allocate_lu_storage() { internal::ensure_sized(d_lu_, matrixBytes(), solver_ctx_.stream_); }
 
   // Solve in place on `d_x` (which already holds B), then re-wrap as a typed
   // DeviceMatrix carrying shape and a ready event. The release/adopt hop hands
@@ -251,7 +251,7 @@ class LU {
 
     solver_ctx_.mark_pending();
 
-    internal::ensure_sized(d_ipiv_, ipiv_bytes);
+    internal::ensure_sized(d_ipiv_, ipiv_bytes, solver_ctx_.stream_);
 
     size_t dev_ws_bytes = 0, host_ws_bytes = 0;
     EIGEN_CUSOLVER_CHECK(cusolverDnXgetrf_bufferSize(solver_ctx_.cusolver_, solver_ctx_.params_.p, n_, n_, dtype,

@@ -61,6 +61,11 @@ class SparseSolverBase {
   ~SparseSolverBase() {
     destroy_cudss_objects();
     if (handle_) (void)cudssDestroy(handle_);
+    d_rowPtr_ = DeviceBuffer();
+    d_colIdx_ = DeviceBuffer();
+    d_values_ = DeviceBuffer();
+    d_b_solve_ = DeviceBuffer();
+    d_x_solve_ = DeviceBuffer();
     if (owns_stream_ && stream_) (void)cudaStreamDestroy(stream_);
   }
 
@@ -300,8 +305,7 @@ class SparseSolverBase {
 
   void ensure_solve_buffer(DeviceBuffer& buf, size_t needed) const {
     if (needed > buf.size()) {
-      if (buf) EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream_));
-      buf = DeviceBuffer(needed);
+      buf = DeviceBuffer(needed, stream_);
     }
   }
 
@@ -389,9 +393,9 @@ class SparseSolverBase {
     const size_t colidx_bytes = static_cast<size_t>(nnz_) * sizeof(StorageIndex);
     const size_t values_bytes = static_cast<size_t>(nnz_) * sizeof(Scalar);
 
-    d_rowPtr_ = DeviceBuffer(rowptr_bytes);
-    d_colIdx_ = DeviceBuffer(colidx_bytes);
-    d_values_ = DeviceBuffer(values_bytes);
+    d_rowPtr_ = DeviceBuffer(rowptr_bytes, stream_);
+    d_colIdx_ = DeviceBuffer(colidx_bytes, stream_);
+    d_values_ = DeviceBuffer(values_bytes, stream_);
 
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_rowPtr_.get(), outer, rowptr_bytes, cudaMemcpyHostToDevice, stream_));
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_colIdx_.get(), inner, colidx_bytes, cudaMemcpyHostToDevice, stream_));

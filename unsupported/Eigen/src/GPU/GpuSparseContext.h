@@ -123,6 +123,12 @@ class SparseContext {
     destroy_spmat_descriptor(/*checked=*/false);
     destroy_dense_descriptors();
     if (owns_handle_ && handle_) (void)cusparseDestroy(handle_);
+    d_outerPtr_ = internal::DeviceBuffer();
+    d_innerIdx_ = internal::DeviceBuffer();
+    d_values_ = internal::DeviceBuffer();
+    d_x_ = internal::DeviceBuffer();
+    d_y_ = internal::DeviceBuffer();
+    d_workspace_ = internal::DeviceBuffer();
     if (owns_stream_ && stream_) (void)cudaStreamDestroy(stream_);
   }
 
@@ -645,8 +651,7 @@ class SparseContext {
 
   void ensure_buffer(internal::DeviceBuffer& buf, size_t needed) const {
     if (needed > buf.size()) {
-      if (buf) EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream_));
-      buf = internal::DeviceBuffer(needed);
+      buf = internal::DeviceBuffer(needed, stream_);
     }
   }
 };
