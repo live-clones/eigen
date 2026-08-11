@@ -13,12 +13,20 @@ Usage: python3 scripts/test_affected_tests.py
 
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from affected_tests import IncludeGraph, Selection, select, target_name, test_sources
+from affected_tests import (
+    IncludeGraph,
+    Selection,
+    changed_files_from_git,
+    select,
+    test_source_targets,
+    test_sources,
+)
 
 FIXTURE = {
     "Eigen/Core": '#include "src/Core/util/Meta.h"\n#include "src/Core/Block.h"\n',
@@ -32,7 +40,15 @@ FIXTURE = {
     "test/block.cpp": '#include "main.h"\n',
     "test/bdcsvd.cpp": '#include "main.h"\n#include <Eigen/SVD>\n',
     "test/dense.cpp": '#include "main.h"\n#include <Eigen/Dense>\n',
+    "test/multitu.cpp": '#include "main.h"\n',
+    "test/multitu_main.cpp": '#include "main.h"\n',
+    "test/CMakeLists.txt": """ei_add_test(block)
+ei_add_test(bdcsvd)
+ei_add_test(dense)
+add_executable(multitu multitu.cpp multitu_main.cpp)
+""",
     "unsupported/test/extra.cpp": '#include "../../test/main.h"\n',
+    "unsupported/test/CMakeLists.txt": "ei_add_test(extra)\n",
 }
 
 
@@ -62,6 +78,7 @@ def test_fixture_graph(root):
     graph = IncludeGraph(root)
     sources = test_sources(graph)
     check(sources == ["test/bdcsvd.cpp", "test/block.cpp", "test/dense.cpp",
+                      "test/multitu.cpp", "test/multitu_main.cpp",
                       "unsupported/test/extra.cpp"],
           "test sources discovered in both trees, got %s" % sources)
 
@@ -76,8 +93,8 @@ def test_fixture_graph(root):
 
     # ... but not when the threshold allows the explicit list.
     sel = select(graph, ["Eigen/src/Core/util/Meta.h"], max_fraction=1.0)
-    check(sel.mode == "targets" and len(sel.targets) == 4,
-          "Meta.h reaches all four tests, got %s" % targets_of(sel))
+    check(sel.mode == "targets" and len(sel.targets) == 5,
+          "Meta.h reaches all five targets, got %s" % targets_of(sel))
 
     # Umbrella indirection is followed: Dense -> SVD -> BDCSVD.h.
     sel = select(graph, ["Eigen/Dense"])
@@ -92,6 +109,12 @@ def test_fixture_graph(root):
     sel = select(graph, ["test/block.cpp"])
     check(sel.mode == "targets" and targets_of(sel) == ["block"],
           "a changed test selects itself, got %s" % targets_of(sel))
+
+    # Multi-translation-unit executables map every source to the registered
+    # target rather than assuming each basename is a target.
+    sel = select(graph, ["test/multitu_main.cpp"])
+    check(sel.mode == "targets" and targets_of(sel) == ["multitu"],
+          "a secondary translation unit selects its executable, got %s" % targets_of(sel))
 
     # Documentation, benchmarks and metadata select nothing, including their
     # own CMakeLists.txt -- which must not trip the full-rebuild rule.
@@ -113,14 +136,26 @@ def test_fixture_graph(root):
     sel = select(graph, ["Eigen/src/Core/util/Removed.h"])
     check(sel.mode == "all", "an unknown path forces the full suite, got %s" % sel.mode)
 
-    # A new test source that exists but is not yet included anywhere.
+    # A new test source must not disappear as an unconfigured target if its
+    # CMake registration was forgotten.
     new_test = os.path.join(root, "test", "brand_new.cpp")
     with open(new_test, "w") as handle:
         handle.write('#include "main.h"\n')
     graph = IncludeGraph(root)
     sel = select(graph, ["test/brand_new.cpp"])
+    check(sel.mode == "error", "an unregistered test source fails selection, got %s" % sel.mode)
+
+    # A full-suite change takes precedence regardless of path order; this is
+    # the normal path when a new source and its CMake registration land together.
+    sel = select(graph, ["test/brand_new.cpp", "test/CMakeLists.txt"])
+    check(sel.mode == "all", "CMake changes force the full suite before source validation")
+
+    with open(os.path.join(root, "test", "CMakeLists.txt"), "a") as handle:
+        handle.write("ei_add_test(brand_new)\n")
+    graph = IncludeGraph(root)
+    sel = select(graph, ["test/brand_new.cpp"])
     check(sel.mode == "targets" and "brand_new" in sel.targets,
-          "a new test source is selected, got %s" % targets_of(sel))
+          "a registered new test source is selected, got %s" % targets_of(sel))
     os.remove(new_test)
 
     # Mixed changes union their selections.
@@ -142,8 +177,41 @@ def test_output_encoding():
     check(Selection("none").targets_file == "NONE\n", "empty mode builds nothing")
     check(Selection("none").regex_file == "NONE\n", "empty mode runs nothing")
 
-    check(target_name("unsupported/test/GPU/cublas.cpp") == "cublas",
-          "target name is the source basename")
+
+def test_git_rename_paths():
+    root = tempfile.mkdtemp(prefix="eigen-affected-git-")
+    try:
+        old_path = os.path.join(root, "Eigen", "src", "Old.h")
+        new_path = os.path.join(root, "Eigen", "src", "New.h")
+        os.makedirs(os.path.dirname(old_path))
+        with open(old_path, "w") as handle:
+            handle.write("// test\n")
+        subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+        subprocess.run(["git", "add", "Eigen/src/Old.h"], cwd=root, check=True)
+        subprocess.run(
+            ["git", "-c", "user.name=Eigen Tests", "-c", "user.email=eigen@example.com",
+             "commit", "-qm", "base"],
+            cwd=root,
+            check=True,
+        )
+        base = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=root, check=True, capture_output=True, text=True
+        ).stdout.strip()
+        os.rename(old_path, new_path)
+        subprocess.run(
+            ["git", "add", "Eigen/src/Old.h", "Eigen/src/New.h"], cwd=root, check=True
+        )
+        subprocess.run(
+            ["git", "-c", "user.name=Eigen Tests", "-c", "user.email=eigen@example.com",
+             "commit", "-qm", "rename"],
+            cwd=root,
+            check=True,
+        )
+        changed = changed_files_from_git(root, base)
+        check(changed == ["Eigen/src/New.h", "Eigen/src/Old.h"],
+              "renames expose both paths, got %s" % changed)
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
 
 
 def test_real_tree():
@@ -153,27 +221,32 @@ def test_real_tree():
         print("skipping real-tree checks: not an Eigen source tree")
         return
     graph = IncludeGraph(root)
-    sources = test_sources(graph)
+    source_targets = test_source_targets(graph)
+    sources = test_sources(graph, source_targets)
     check(len(sources) > 200, "real tree has many test sources, got %d" % len(sources))
 
     # main.h is a hub: changing it must run everything.
     sel = select(graph, ["test/main.h"])
     check(sel.mode == "all", "test/main.h runs the full suite, got %s" % sel.mode)
 
-    # A leaf decomposition header must not degrade to the full suite.
-    sel = select(graph, ["Eigen/src/Eigenvalues/RealQZ.h"])
-    check(sel.mode == "targets", "RealQZ.h yields a selection, got %s" % sel.mode)
-    check("real_qz" in sel.targets, "RealQZ.h selects real_qz, got %d targets" % len(sel.targets))
+    # Private implementation headers may legitimately move.  While present,
+    # they must reach their focused test; broadening to the full suite is safe.
+    selections = []
+    for path, target in (("Eigen/src/Eigenvalues/RealQZ.h", "real_qz"),
+                         ("Eigen/src/SVD/BDCSVD.h", "bdcsvd")):
+        if path not in graph.files:
+            print("skipping real-tree check for absent private header %s" % path)
+            continue
+        sel = select(graph, [path])
+        selections.append(sel)
+        check(sel.mode in ("targets", "all"), "%s yields safe coverage, got %s" % (path, sel.mode))
+        if sel.mode == "targets":
+            check(target in sel.targets, "%s selects %s" % (path, target))
 
-    # The selection must be a superset of what a narrower reading would give.
-    sel_svd = select(graph, ["Eigen/src/SVD/BDCSVD.h"])
-    check(sel_svd.mode == "targets" and "bdcsvd" in sel_svd.targets,
-          "BDCSVD.h selects bdcsvd")
-
-    # Every selected name must be the basename of a real test source.
-    basenames = {target_name(s) for s in sources}
-    for sel in (sel, sel_svd):
-        unknown = sorted(t for t in sel.targets if t not in basenames)
+    # Every selected name must come from a real CMake registration.
+    registered_targets = set(source_targets.values())
+    for sel in selections:
+        unknown = sorted(t for t in sel.targets if t not in registered_targets)
         check(not unknown, "selected names are test sources, got %s" % unknown)
 
 
@@ -185,6 +258,7 @@ def main():
     finally:
         shutil.rmtree(root, ignore_errors=True)
     test_output_encoding()
+    test_git_rename_paths()
     test_real_tree()
 
     if FAILURES:

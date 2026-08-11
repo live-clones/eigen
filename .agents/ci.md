@@ -39,10 +39,11 @@ a change under `Eigen/src/Core` typically reaches every test and the selector de
 correct answer, not a failure. Changes to CMake, `ci/`, or the BLAS/LAPACK shims also force the full suite, since they
 invalidate the mapping itself.
 
-Two properties are easy to break when editing this path. Targets absent from a configuration (optional dependencies
-such as CHOLMOD or SYCL) must be filtered against `ninja -t targets` after cmake configure, because ninja aborts on an
-unknown target. And a missing selection artifact must fail the job rather than fall through to the default target,
-which would silently build everything.
+The selector derives source-to-target mappings from test CMake registration, including multi-translation-unit
+executables. A changed test source without a registration is an error rather than an unconfigured target to drop.
+Targets absent from one configuration (optional dependencies such as CHOLMOD or SYCL) are still filtered against
+`ninja -t targets` after cmake configure, because ninja aborts on an unknown target. A missing selection artifact must
+also fail the job rather than fall through to the default target, which would silently build everything.
 
 ### Backend-Triggered Configurations
 
@@ -54,7 +55,7 @@ configuration that targets the backend the diff touches, through `rules:changes:
 |---|---|
 | `arch/SSE` | x86-64 gcc-10 baseline, AVX, and AVX-512DQ |
 | `arch/AVX` | x86-64 gcc-10 AVX and AVX-512DQ |
-| `arch/AVX512` | x86-64 gcc-10 AVX-512DQ |
+| `arch/AVX512` | x86-64 gcc-10 AVX-512DQ; `*FP16*` files also get the split gcc-13 AVX512-FP16 compile builds |
 | `arch/NEON` | 32-bit arm (aarch64 already runs unconditionally) |
 | `arch/AltiVec` | ppc64le gcc-14 |
 | `arch/LSX` | loongarch64 gcc-14 |
@@ -64,6 +65,10 @@ configuration that targets the backend the diff touches, through `rules:changes:
 A wider x86 configuration compiles the narrower backends' headers, which is why SSE fans out to three builds. SVE and
 SME get compile coverage rather than a selection because their per-SVL test jobs already filter to a curated target
 subset through `EIGEN_CI_CTEST_REGEX`, which a selection would fight with.
+
+AVX512-FP16 headers are guarded by `EIGEN_VECTORIZE_AVX512FP16`, so an AVX512DQ build does not parse them. Changes to
+files matching `arch/AVX512/*FP16*` therefore also trigger the existing gcc-13 AVX512-FP16 official and unsupported
+builds. Those jobs are compile-only because no current runner can execute AVX512-FP16 instructions.
 
 `arch/ZVector`, `arch/MSA`, `arch/HVX` and the `arch/GPU`, `arch/HIP` and `arch/SYCL` backends have no matching test
 configuration, so a change there gets only the two unconditional jobs. The GPU backends have their own `gpu-tests`
