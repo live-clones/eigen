@@ -359,12 +359,10 @@ struct TensorEvaluator<const TensorCwiseNullaryOp<NullaryOp, ArgType>, Device> {
   // extent with a copy of the functor, so it is only correct for repeatable
   // functors evaluated through the zero-argument overload: an index-dependent
   // functor would see indices restart at the block origin, and a
-  // non-repeatable one would restart its state per block. Other block-served
-  // functors are materialized with their true tensor-linear indices.
+  // non-repeatable one would restart its state per block. Repeatable indexed
+  // functors are instead materialized with their true tensor-linear indices.
   static constexpr bool IndexIndependentFunctor =
       RepeatableFunctor && !IndexDependentFunctor && internal::has_nullary_operator<NullaryOp, Index>::value;
-
-  static constexpr bool IsThreadPoolDevice = std::is_same<std::remove_cv_t<Device>, ThreadPoolDevice>::value;
 
   static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
   enum {
@@ -377,14 +375,12 @@ struct TensorEvaluator<const TensorCwiseNullaryOp<NullaryOp, ArgType>, Device> {
     // A nullary leaf can serve any block; without this, a single constant()
     // in an expression disables tiled evaluation for the whole tree. Never
     // *prefer* block access on its own account, though. Blocks are declined
-    // when they could change behavior relative to coefficient evaluation:
-    // ThreadPool block tasks share one evaluator -- and one functor instance
-    // -- so non-repeatable functors stay on the packet-capable coefficient
-    // path there, which copies the evaluator per task. A non-repeatable
-    // functor without an indexed overload never serves blocks, since block
-    // traversal would permute its call sequence relative to linear order.
+    // when they could change behavior relative to coefficient evaluation. In
+    // particular, non-repeatable functors never serve blocks: even on a
+    // single-threaded device, block traversal permutes their call sequence
+    // relative to linear coefficient order.
     BlockAccess = NumDims > 0 && internal::is_arithmetic<ScalarNoConst>::value &&
-                  (IndexIndependentFunctor || (IndexDependentFunctor && (RepeatableFunctor || !IsThreadPoolDevice))),
+                  (IndexIndependentFunctor || (IndexDependentFunctor && RepeatableFunctor)),
     PreferBlockAccess = false,
     CoordAccess = false,  // to be implemented
     RawAccess = false

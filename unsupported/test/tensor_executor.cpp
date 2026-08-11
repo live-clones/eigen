@@ -104,7 +104,7 @@ void test_execute_nullary_expr(Device d) {
 }
 
 template <typename RandomGenerator>
-void test_stateful_random_thread_pool_capabilities(const RandomGenerator& generator) {
+void test_stateful_random_capabilities(const RandomGenerator& generator) {
   Tensor<float, 2> src(128, 128);
   Tensor<float, 2> dst(128, 128);
   src.setZero();
@@ -116,18 +116,24 @@ void test_stateful_random_thread_pool_capabilities(const RandomGenerator& genera
   using RandomExpr = decltype(random);
   using DefaultRandomEvaluator = TensorEvaluator<const RandomExpr, DefaultDevice>;
   using ThreadPoolRandomEvaluator = TensorEvaluator<const RandomExpr, ThreadPoolDevice>;
-  static_assert(DefaultRandomEvaluator::BlockAccess, "DefaultDevice random expressions must retain block access");
+  static_assert(!DefaultRandomEvaluator::BlockAccess,
+                "DefaultDevice random expressions must preserve their linear call order");
   static_assert(!ThreadPoolRandomEvaluator::BlockAccess,
                 "ThreadPoolDevice random expressions must not share state across block tasks");
+  static_assert(DefaultRandomEvaluator::PacketAccess,
+                "Disabling DefaultDevice block access must preserve packet access");
   static_assert(ThreadPoolRandomEvaluator::PacketAccess,
                 "Disabling ThreadPoolDevice block access must preserve packet access");
 
   using Assign = TensorAssignOp<decltype(dst), const decltype(expr)>;
+  static_assert(
+      internal::IsVectorizable<DefaultDevice, const Assign>::value == (PacketType<float, DefaultDevice>::size > 1),
+      "DefaultDevice random expressions must use packets when vectorization is available");
   static_assert(internal::IsVectorizable<ThreadPoolDevice, const Assign>::value ==
                     (PacketType<float, ThreadPoolDevice>::size > 1),
                 "ThreadPoolDevice random expressions must use packets when vectorization is available");
-  static_assert(internal::IsTileable<DefaultDevice, const Assign>::value == TiledEvaluation::On,
-                "DefaultDevice expressions containing random leaves must remain tileable");
+  static_assert(internal::IsTileable<DefaultDevice, const Assign>::value == TiledEvaluation::Off,
+                "DefaultDevice expressions containing random leaves must use coefficient evaluation");
   static_assert(internal::IsTileable<ThreadPoolDevice, const Assign>::value == TiledEvaluation::Off,
                 "ThreadPoolDevice expressions containing random leaves must use coefficient evaluation");
 
@@ -144,10 +150,9 @@ void test_stateful_random_thread_pool_capabilities(const RandomGenerator& genera
 }
 
 // Custom nullary functors carry no functor_traits, so they must default to
-// the conservative non-repeatable classification: materialized with true
-// tensor-linear indices on DefaultDevice, and excluded from ThreadPoolDevice
-// tiling, whose block tasks share one evaluator (and functor instance).
-// Declaring IsRepeatable in functor_traits opts back in.
+// the conservative non-repeatable classification and remain on the
+// coefficient path on every device. Declaring IsRepeatable in functor_traits
+// opts back into block evaluation.
 struct UnannotatedIndexedFunctor {
   float operator()() const { return -1.0f; }
   float operator()(Index i) const { return static_cast<float>(i); }
@@ -155,6 +160,14 @@ struct UnannotatedIndexedFunctor {
 
 struct UnannotatedNullaryFunctor {
   float operator()() const { return 1.0f; }
+};
+
+struct StatefulIndexedFunctor {
+  StatefulIndexedFunctor() : next(0) {}
+
+  float operator()(Index i) const { return static_cast<float>(i + next++); }
+
+  mutable Index next;
 };
 
 struct RepeatableIndexedFunctor {
@@ -171,14 +184,14 @@ struct functor_traits<RepeatableIndexedFunctor> {
 }  // namespace Eigen
 
 void test_custom_nullary_functor_block_access() {
-  Tensor<float, 2> src(64, 64);
-  Tensor<float, 2> dst(64, 64);
+  Tensor<float, 2> src(512, 512);
+  Tensor<float, 2> dst(512, 512);
   src.setZero();
 
   const auto indexed = src.nullaryExpr(UnannotatedIndexedFunctor());
   using IndexedExpr = decltype(indexed);
-  static_assert(TensorEvaluator<const IndexedExpr, DefaultDevice>::BlockAccess,
-                "Unannotated indexed functors must serve materialized blocks on DefaultDevice");
+  static_assert(!TensorEvaluator<const IndexedExpr, DefaultDevice>::BlockAccess,
+                "Unannotated indexed functors must preserve their linear call order");
   static_assert(!TensorEvaluator<const IndexedExpr, ThreadPoolDevice>::BlockAccess,
                 "Unannotated functors must not opt into ThreadPoolDevice shared-evaluator tiling");
 
@@ -186,7 +199,10 @@ void test_custom_nullary_functor_block_access() {
   static_assert(!TensorEvaluator<const NullaryOnlyExpr, DefaultDevice>::BlockAccess,
                 "Unannotated zero-argument functors must keep their linear call order");
 
-  using RepeatableExpr = decltype(src.nullaryExpr(RepeatableIndexedFunctor()));
+  const auto repeatable = src.nullaryExpr(RepeatableIndexedFunctor());
+  using RepeatableExpr = decltype(repeatable);
+  static_assert(TensorEvaluator<const RepeatableExpr, DefaultDevice>::BlockAccess,
+                "IsRepeatable indexed functors must serve materialized blocks on DefaultDevice");
   static_assert(TensorEvaluator<const RepeatableExpr, ThreadPoolDevice>::BlockAccess,
                 "IsRepeatable functors may serve blocks from a shared ThreadPoolDevice evaluator");
 
@@ -195,19 +211,28 @@ void test_custom_nullary_functor_block_access() {
                 "Constants must remain tileable on ThreadPoolDevice");
 
   array<Index, 2> shuffle{{1, 0}};
-  const auto expr = src.shuffle(shuffle) + indexed;
-  using Assign = TensorAssignOp<decltype(dst), const decltype(expr)>;
-  static_assert(internal::IsTileable<DefaultDevice, const Assign>::value == TiledEvaluation::On,
-                "DefaultDevice expressions with unannotated indexed functors must remain tileable");
-  static_assert(internal::IsTileable<ThreadPoolDevice, const Assign>::value == TiledEvaluation::Off,
-                "ThreadPoolDevice expressions with unannotated functors must use coefficient evaluation");
+  const auto repeatable_expr = src.shuffle(shuffle) + repeatable;
+  using RepeatableAssign = TensorAssignOp<decltype(dst), const decltype(repeatable_expr)>;
+  static_assert(internal::IsTileable<DefaultDevice, const RepeatableAssign>::value == TiledEvaluation::On,
+                "DefaultDevice expressions with repeatable indexed functors must remain tileable");
 
   // Tiled evaluation must feed the functor true tensor-linear indices; a lazy
   // block would restart them at each block origin.
   DefaultDevice d;
-  dst.device(d) = expr;
+  dst.device(d) = repeatable_expr;
   for (Index i = 0; i < dst.size(); ++i) {
     VERIFY_IS_EQUAL(dst.coeff(i), static_cast<float>(i));
+  }
+
+  const auto stateful = src.nullaryExpr(StatefulIndexedFunctor());
+  const auto stateful_expr = src.shuffle(shuffle) + stateful;
+  using StatefulAssign = TensorAssignOp<decltype(dst), const decltype(stateful_expr)>;
+  static_assert(internal::IsTileable<DefaultDevice, const StatefulAssign>::value == TiledEvaluation::Off,
+                "Non-repeatable indexed functors must preserve linear invocation order");
+
+  dst.device(d) = stateful_expr;
+  for (Index i = 0; i < dst.size(); ++i) {
+    VERIFY_IS_EQUAL(dst.coeff(i), static_cast<float>(2 * i));
   }
 }
 
@@ -879,8 +904,8 @@ EIGEN_DECLARE_TEST(tensor_executor) {
 
   CALL_SUBTEST_8((test_execute_ternary_tiled<ColMajor>(default_device, tp_device)));
   CALL_SUBTEST_8((test_execute_ternary_tiled<RowMajor>(default_device, tp_device)));
-  CALL_SUBTEST_8(test_stateful_random_thread_pool_capabilities(internal::UniformRandomGenerator<float>(123)));
-  CALL_SUBTEST_8(test_stateful_random_thread_pool_capabilities(internal::NormalRandomGenerator<float>(123)));
+  CALL_SUBTEST_8(test_stateful_random_capabilities(internal::UniformRandomGenerator<float>(123)));
+  CALL_SUBTEST_8(test_stateful_random_capabilities(internal::NormalRandomGenerator<float>(123)));
   CALL_SUBTEST_8(test_custom_nullary_functor_block_access());
 
   CALL_SUBTEST_COMBINATIONS(9, test_execute_reshape, float, 2);
