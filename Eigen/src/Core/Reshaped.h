@@ -300,13 +300,11 @@ struct reshaped_evaluator<ArgType, Rows, Cols, Order, /* HasDirectAccess */ fals
     // vector-shaped so the order is immaterial -- the n-th reshaped element is the n-th nested
     // element and every access forwards linearly, with no division/modulo index remapping.
     NestedRowMajor = (int(evaluator<ArgType>::Flags) & RowMajorBit) != 0,
-    OrderMatchesNested = (Order == int(ColMajor)) ? !NestedRowMajor : NestedRowMajor,
+    OrderMatchesNested = (Order == int(ColMajor)) != NestedRowMajor,
     ForwardLinearAccess = (OrderMatchesNested || ArgType::RowsAtCompileTime == 1 || ArgType::ColsAtCompileTime == 1) &&
-                          ((int(evaluator<ArgType>::Flags) & LinearAccessBit) != 0),
+                          ((int(evaluator<ArgType>::Flags) & LinearAccessBit) != 0)
 
-    Flags = (evaluator<ArgType>::Flags & (HereditaryBits /*| LinearAccessBit | DirectAccessBit*/)),
-
-    Alignment = 0
+    // Flags and Alignment are defined by evaluator<Reshaped>, which derives from this evaluator.
   };
 
   EIGEN_DEVICE_FUNC constexpr explicit reshaped_evaluator(const XprType& xpr)
@@ -321,7 +319,7 @@ struct reshaped_evaluator<ArgType, Rows, Cols, Order, /* HasDirectAccess */ fals
 
   // The n-th element of the reshape in `Order` enumeration; under ForwardLinearAccess this is also
   // the nested evaluator's linear index of that element.
-  EIGEN_DEVICE_FUNC constexpr inline Index linear_index(Index rowId, Index colId) const {
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Index linear_index(Index rowId, Index colId) const {
     EIGEN_IF_CONSTEXPR (Order == ColMajor) {
       return colId * m_xpr.rows() + rowId;
     } else {
@@ -436,42 +434,44 @@ struct reshaped_evaluator<ArgType, Rows, Cols, Order, /* HasDirectAccess */ fals
     return m_argImpl.coeff(row_col.first, row_col.second);
   }
 
-  EIGEN_DEVICE_FUNC constexpr inline Scalar& coeffRef_impl(Index index, std::true_type /* ForwardLinearAccess */) {
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Scalar& coeffRef_impl(Index index,
+                                                                        std::true_type /* ForwardLinearAccess */) {
     return m_argImpl.coeffRef(index);
   }
 
-  EIGEN_DEVICE_FUNC constexpr inline Scalar& coeffRef_impl(Index index, std::false_type /* not ForwardLinearAccess */) {
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Scalar& coeffRef_impl(Index index,
+                                                                        std::false_type /* not ForwardLinearAccess */) {
     return coeffRef_impl(vector_row(index), vector_col(index), std::false_type());
   }
 
-  EIGEN_DEVICE_FUNC constexpr inline Scalar& coeffRef_impl(Index rowId, Index colId,
-                                                           std::true_type /* ForwardLinearAccess */) {
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Scalar& coeffRef_impl(Index rowId, Index colId,
+                                                                        std::true_type /* ForwardLinearAccess */) {
     return m_argImpl.coeffRef(linear_index(rowId, colId));
   }
 
-  EIGEN_DEVICE_FUNC constexpr inline Scalar& coeffRef_impl(Index rowId, Index colId,
-                                                           std::false_type /* not ForwardLinearAccess */) {
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Scalar& coeffRef_impl(Index rowId, Index colId,
+                                                                        std::false_type /* not ForwardLinearAccess */) {
     const RowCol row_col = index_remap(rowId, colId);
     return m_argImpl.coeffRef(row_col.first, row_col.second);
   }
 
-  EIGEN_DEVICE_FUNC constexpr inline const Scalar& coeffRef_impl(Index index,
-                                                                 std::true_type /* ForwardLinearAccess */) const {
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const Scalar& coeffRef_impl(
+      Index index, std::true_type /* ForwardLinearAccess */) const {
     return m_argImpl.coeffRef(index);
   }
 
-  EIGEN_DEVICE_FUNC constexpr inline const Scalar& coeffRef_impl(Index index,
-                                                                 std::false_type /* not ForwardLinearAccess */) const {
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const Scalar& coeffRef_impl(
+      Index index, std::false_type /* not ForwardLinearAccess */) const {
     return coeffRef_impl(vector_row(index), vector_col(index), std::false_type());
   }
 
-  EIGEN_DEVICE_FUNC constexpr inline const Scalar& coeffRef_impl(Index rowId, Index colId,
-                                                                 std::true_type /* ForwardLinearAccess */) const {
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const Scalar& coeffRef_impl(
+      Index rowId, Index colId, std::true_type /* ForwardLinearAccess */) const {
     return m_argImpl.coeffRef(linear_index(rowId, colId));
   }
 
-  EIGEN_DEVICE_FUNC constexpr inline const Scalar& coeffRef_impl(Index rowId, Index colId,
-                                                                 std::false_type /* not ForwardLinearAccess */) const {
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const Scalar& coeffRef_impl(
+      Index rowId, Index colId, std::false_type /* not ForwardLinearAccess */) const {
     const RowCol row_col = index_remap(rowId, colId);
     return m_argImpl.coeffRef(row_col.first, row_col.second);
   }
