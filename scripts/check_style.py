@@ -42,11 +42,16 @@ CXX_EXT = {".h", ".hpp", ".hxx", ".cpp", ".cc", ".cxx", ".cu", ".cuh", ".inc"}
 # Trees whose headers and tests must compile as C++14 (see AGENTS.md rule 3).
 CXX14_TREES = ("Eigen/", "unsupported/Eigen/", "test/", "unsupported/test/", "failtest/", "blas/", "lapack/")
 # Guarded exceptions with a documented newer requirement: SYCL sources build
-# only in the C++17 SYCL configurations (cmake/SyclConfigureTesting.cmake,
-# cmake/FindDPCPP.cmake), and duccfft is set to C++17 in
-# unsupported/test/CMakeLists.txt.
-CXX17_PATHS = re.compile(r"sycl", re.I)
-CXX17_FILES = {"unsupported/test/duccfft.cpp"}
+# only in the C++17 SYCL configurations, while duccfft and the structured-
+# binding failtests explicitly select C++17 in their test CMakeLists files.
+CXX17_PREFIXES = ("Eigen/src/Core/arch/SYCL/",)
+CXX17_FILES = {
+    "test/sycl_basic.cpp",
+    "unsupported/test/duccfft.cpp",
+    "failtest/structured_bindings_dynamic_matrix.cpp",
+    "failtest/structured_bindings_dynamic_array.cpp",
+    "failtest/structured_bindings_rowmajor.cpp",
+}
 # Library implementation headers, where numext:: is required over std:: math.
 LIBRARY_SRC_TREES = ("Eigen/src/", "unsupported/Eigen/src/")
 
@@ -221,7 +226,13 @@ def check_designated_initializer(code_lines, line_no, findings):
 
 def check_conventions(rel_path, code_lines, added, findings):
     checks = list(CODE_CHECKS)
-    if rel_path.startswith(CXX14_TREES) and rel_path not in CXX17_FILES and not CXX17_PATHS.search(rel_path):
+    cxx17_path = (
+        rel_path in CXX17_FILES
+        or rel_path.startswith(CXX17_PREFIXES)
+        or (rel_path.startswith("unsupported/Eigen/src/Tensor/") and rel_path.endswith("Sycl.h"))
+        or (rel_path.startswith("unsupported/test/") and rel_path.endswith("_sycl.cpp"))
+    )
+    if rel_path.startswith(CXX14_TREES) and not cxx17_path:
         checks += CXX14_CHECKS
     if rel_path.startswith(LIBRARY_SRC_TREES):
         checks.append((r"\bstd::(%s)\s*\(" % STD_MATH,
@@ -316,8 +327,8 @@ def run_diff_mode(base, root=REPO_ROOT):
 
 def added_from_structured_patch(tool_response):
     """Derive added line numbers from the tool response's structured patch,
-    which records the exact edited hunks.  Returns None when absent or of an
-    unexpected shape, so callers fall through to the heuristics."""
+    which records the exact edited hunks.  A valid deletion-only patch returns
+    an empty set; None means absent or malformed data and enables fallback."""
     try:
         added = set()
         for hunk in tool_response["structuredPatch"]:
@@ -329,7 +340,7 @@ def added_from_structured_patch(tool_response):
                 elif not entry.startswith("-") and not entry.startswith("\\"):
                     # "\ No newline at end of file" is a marker, not a context line.
                     line_no += 1
-        return added or None
+        return added
     except Exception:
         return None
 
