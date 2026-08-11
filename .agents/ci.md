@@ -37,7 +37,12 @@ Run checks relevant to the changed files and report unavailable tools:
 ```bash
 codespell --config setup.cfg path/to/changed-file
 reuse lint
+python3 scripts/check_style.py --diff <base-sha>
 ```
+
+`check_style.py` reports review-recurrent style problems in the lines a change adds (comment verbosity and the
+superseded declaration forms review keeps flagging); its findings are advisory. Claude Code sessions run it
+automatically through the hook registered in `.claude/settings.json`.
 
 The whole-tree codespell invocation used by CI can expose pre-existing findings. Do not modify unrelated files merely
 to make a local broad scan clean. In the current CI configuration, clang-format, codespell, and clang-tidy jobs are
