@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
+
+ei_add_test(sparse_basic)
+ei_add_test(sparse_basic_extra)
+ei_add_test(sparse_block)
+ei_add_test(sparse_vector)
+ei_add_test(sparse_product)
+ei_add_test(sparse_product_complex)
+ei_add_test(sparse_ref)
+ei_add_test(sparse_solvers)
+ei_add_test(sparse_permutations)
+ei_add_test(block_sparse_matrix)
+ei_add_test(sparse_ordering)
+ei_add_test(sparse_threaded_product "-pthread" "${CMAKE_THREAD_LIBS_INIT}")

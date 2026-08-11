@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
+
+ei_add_test(geo_orthomethods)
+ei_add_test(geo_quaternion)
+ei_add_test(geo_eulerangles)
+ei_add_test(geo_parametrizedline)
+ei_add_test(geo_alignedbox)
+ei_add_test(geo_hyperplane)
+ei_add_test(geo_transformations)
+ei_add_test(geo_transformations_projective)
+ei_add_test(geo_transformations_projective_misc)
+ei_add_test(geo_homogeneous)
+ei_add_test(geo_misc)
+ei_add_test(umeyama)
