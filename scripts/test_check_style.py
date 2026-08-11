@@ -49,15 +49,26 @@ def assert_clean(rel_path, text, added=None):
 def test_conventions_flagged():
     assert_flags("Eigen/src/Core/Foo.h", "const char* p = NULL;\n", "nullptr")
     assert_flags("Eigen/src/Core/Foo.h", "typedef int MyInt;\n", "typedef")
+    assert_flags("Eigen/src/Core/Foo.h", "EIGEN_UNUSED typedef int MyInt;\n", "typedef")
     assert_flags("Eigen/src/Core/Foo.h", "std::integral_constant<bool, true> b;\n", "bool_constant")
     assert_flags("Eigen/src/Core/Foo.h", "enum { Flags = 0 };\n", "static constexpr")
+    assert_flags("Eigen/src/Core/Foo.h", "enum : unsigned int { Flags = 0 };\n", "static constexpr")
+    assert_flags("Eigen/src/Core/Foo.h", "enum : std::uint32_t { Flags = 0 };\n", "static constexpr")
     assert_flags("Eigen/src/Core/Foo.h", "S s = {.size = 3};\n", "designated initializer")
     assert_flags("Eigen/src/Core/Foo.h", "if constexpr (kSize > 4) {}\n", "EIGEN_IF_CONSTEXPR")
-    assert_flags("test/foo.cpp", "std::optional<int> x;\n", "C++17/20 library type")
+    assert_flags("test/foo.cpp", "std::optional<int> x;\n", "C++17/20 library facility")
+    assert_flags("test/foo.cpp", "std::any x;\n", "C++17/20 library facility")
+    assert_flags("test/foo.cpp", "std::filesystem::path p;\n", "C++17/20 library facility")
     assert_flags("Eigen/src/Core/Foo.h", "double x = std::sqrt(2.0);\n", "numext::")
+    assert_flags("Eigen/src/Core/Foo.h", "double x = (std::sqrt)(2.0);\n", "numext::")
+    assert_flags("Eigen/src/Core/Foo.h", "double x = std::exp2(2.0);\n", "numext::")
+    assert_flags("Eigen/src/Core/Foo.h", "double x = std::cbrt(2.0);\n", "numext::")
 
 
 def test_scoping():
+    # Eigen's public module headers are C++ despite having no extension.
+    assert_flags("Eigen/Core", "const char* p = NULL;\n", "nullptr")
+    assert_flags("unsupported/Eigen/FFT", "if constexpr (kSize > 4) {}\n", "EIGEN_IF_CONSTEXPR")
     # std:: math is only flagged in library implementation headers.
     assert_clean("test/foo.cpp", "double x = std::sqrt(2.0);\n")
     # C++14 checks do not apply outside the C++14 trees.
@@ -71,12 +82,14 @@ def test_scoping():
     assert_clean("Eigen/src/Core/arch/SYCL/PacketMath.h", "if constexpr (kSize > 4) {}\n")
     assert_clean("unsupported/Eigen/src/Tensor/TensorDeviceSycl.h", "if constexpr (kSize > 4) {}\n")
     assert_clean("unsupported/test/tensor_sycl.cpp", "if constexpr (kSize > 4) {}\n")
+    assert_clean("unsupported/Eigen/src/FFT/duccfft_impl.h", "if constexpr (kSize > 4) {}\n")
     assert_clean("unsupported/test/duccfft.cpp", "if constexpr (kSize > 4) {}\n")
     assert_clean("failtest/structured_bindings_dynamic_matrix.cpp", "if constexpr (kSize > 4) {}\n")
     assert_clean("failtest/structured_bindings_dynamic_array.cpp", "if constexpr (kSize > 4) {}\n")
     assert_clean("failtest/structured_bindings_rowmajor.cpp", "if constexpr (kSize > 4) {}\n")
     # A coincidental substring is not a documented C++17 requirement.
     assert_flags("test/not_sycl_related.cpp", "if constexpr (kSize > 4) {}\n", "EIGEN_IF_CONSTEXPR")
+    assert_flags("unsupported/Eigen/src/FFT/kissfft_impl.h", "if constexpr (kSize > 4) {}\n", "EIGEN_IF_CONSTEXPR")
     # ...but not from the other conventions.
     assert_flags("test/sycl_basic.cpp", "const char* p = NULL;\n", "nullptr")
 
@@ -85,8 +98,15 @@ def test_false_positive_probes():
     assert_clean("Eigen/src/Core/Foo.h", "opts.size = 4;\nfoo(a.b, c.d);\n")           # member access, not init
     assert_clean("Eigen/src/Core/Foo.h", "double v[] = {.5, 1.5};\n")                  # float literal, not init
     assert_clean("Eigen/src/Core/Foo.h", "enum class Kind { A, B };\n")                # scoped enums are fine
+    assert_clean("Eigen/src/Core/Foo.h", "enum Kind : unsigned int { A, B };\n")       # named enums are fine
     assert_clean("Eigen/src/Core/Foo.h", 'const char* s = "NULL typedef enum {";\n')   # inside a string
+    assert_clean("Eigen/src/Core/Foo.h", "const char c = 'N';\n")                      # character literal
+    assert_clean("Eigen/src/Core/Foo.h", "const wchar_t c = L'N';\n")                  # prefixed character literal
     assert_clean("Eigen/src/Core/Foo.h", "// NULL and typedef discussed in a comment\nint x = 1;\n")
+    # A C++14 digit separator is not the start of a character literal; code
+    # later on the same line must remain visible to convention checks.
+    assert_flags("Eigen/src/Core/Foo.h", "auto n = 1'000; const char* p = NULL;\n", "nullptr")
+    assert_flags("Eigen/src/Core/Foo.h", "auto n = 0xFF'00; const char* p = NULL;\n", "nullptr")
     assert_clean("Eigen/src/Core/Foo.h", "using MyInt = int;\nstatic constexpr unsigned int Flags = 0;\n"
                                          "const char* p = nullptr;\nEIGEN_IF_CONSTEXPR (kSize > 4) {}\n"
                                          "double x = numext::sqrt(2.0);\n")
@@ -130,6 +150,14 @@ def test_comment_verbosity():
     # Six added lines inside an existing non-Doxygen block are reported.
     block = "// old line\n" + "\n".join("// new %d" % i for i in range(6)) + "\nint x = 1;\n"
     assert_flags("Eigen/src/Core/Foo.h", block, "non-Doxygen comment", added=set(range(2, 8)))
+    # Blank physical lines and a closing line without a leading `*` remain
+    # inside their lexical block, but the blank line does not count as prose.
+    block = "/* first\nsecond\nthird\n\nfourth\nfifth\nsixth */\nint x = 1;\n"
+    assert_flags("Eigen/src/Core/Foo.h", block, "non-Doxygen comment")
+    # A blank line inside Doxygen must not split off the remaining lines and
+    # lose the exemption inherited from the opening delimiter.
+    doxy = "/** docs\n\nline one\nline two\nline three\nline four\nline five\nline six */\nint x = 1;\n"
+    assert_clean("Eigen/src/Core/Foo.h", doxy)
 
 
 def test_multiline_literals():
@@ -255,11 +283,13 @@ def test_diff_mode_merge_base_and_untracked():
         sh("git", "checkout", "-q", "main")
         # An untracked new file must be scanned even though git diff omits it.
         write("Eigen/src/Core/Untracked.h", "std::integral_constant<bool, true> b;\n")
+        write("Eigen/NewModule", "typedef int NewAlias;\n")
 
         results = run_diff_mode("target", root=tmp)
         paths = {rel_path for rel_path, _, _ in results}
         assert "Eigen/src/Core/Added.h" in paths, results
         assert "Eigen/src/Core/Untracked.h" in paths, results
+        assert "Eigen/NewModule" in paths, results
         assert "Eigen/src/Core/TargetOnly.h" not in paths, results
         # The unterminated replacement maps to line 1 despite the markers.
         noeol = [(l, m) for p, l, m in results if p == "Eigen/src/Core/NoEol.h"]

@@ -38,6 +38,7 @@ import sys
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CXX_EXT = {".h", ".hpp", ".hxx", ".cpp", ".cc", ".cxx", ".cu", ".cuh", ".inc"}
+EXTENSIONLESS_HEADER_TREES = ("Eigen/", "unsupported/Eigen/")
 
 # Trees whose headers and tests must compile as C++14 (see AGENTS.md rule 3).
 CXX14_TREES = ("Eigen/", "unsupported/Eigen/", "test/", "unsupported/test/", "failtest/", "blas/", "lapack/")
@@ -47,6 +48,7 @@ CXX14_TREES = ("Eigen/", "unsupported/Eigen/", "test/", "unsupported/test/", "fa
 CXX17_PREFIXES = ("Eigen/src/Core/arch/SYCL/",)
 CXX17_FILES = {
     "test/sycl_basic.cpp",
+    "unsupported/Eigen/src/FFT/duccfft_impl.h",
     "unsupported/test/duccfft.cpp",
     "failtest/structured_bindings_dynamic_matrix.cpp",
     "failtest/structured_bindings_dynamic_array.cpp",
@@ -58,27 +60,47 @@ LIBRARY_SRC_TREES = ("Eigen/src/", "unsupported/Eigen/src/")
 DOXYGEN = re.compile(r"^\s*(/\*\*|/\*!|///|//!)")
 LICENSE = re.compile(r"SPDX|Copyright|License|Mozilla Public", re.I)
 STD_MATH = (
-    r"abs|sqrt|isnan|isinf|isfinite|exp|expm1|log|log1p|log2|pow|sin|cos|tan|asin|acos|atan|atan2|"
-    r"sinh|cosh|tanh|hypot|fma|ldexp|frexp|floor|ceil|round|rint|trunc|fmod"
+    r"abs|sqrt|cbrt|isnan|isinf|isfinite|signbit|exp|exp2|expm1|log|log1p|log2|pow|sin|cos|tan|"
+    r"asin|acos|atan|atan2|sinh|cosh|tanh|hypot|fma|copysign|ldexp|frexp|floor|ceil|round|rint|trunc|fmod"
 )
 
 # Convention checks applied per added code line (comments and literals blanked).
 CODE_CHECKS = [
     (r"\bNULL\b", "NULL: new code uses nullptr"),
-    (r"^\s*typedef\b", "typedef: prefer `using` in new aliases unless the file is uniformly typedef"),
+    (r"\btypedef\b", "typedef: prefer `using` in new aliases unless the file is uniformly typedef"),
     (r"std::integral_constant<\s*bool\b", "std::integral_constant<bool,...>: use Eigen's bool_constant (Meta.h)"),
-    (r"^\s*enum\s*(:\s*\w+\s*)?\{", "enum constant block: trait/evaluator constants are static constexpr in new "
-                                    "code; Flags is `unsigned int`"),
+    (r"^\s*enum\s*(?::[^{}]+)?\{", "enum constant block: trait/evaluator constants are static constexpr in new "
+                                   "code; Flags is `unsigned int`"),
 ]
 CXX14_CHECKS = [
     (r"\bif\s+constexpr\b", "if constexpr: supported code compiles as C++14; use EIGEN_IF_CONSTEXPR(...) with a "
                             "condition that is valid either way"),
-    (r"\bstd::(span|optional|variant|string_view|byte)\b", "C++17/20 library type: the supported baseline is C++14"),
+    (r"\bstd::(any|span|optional|variant|string_view|byte|filesystem|void_t)\b",
+     "C++17/20 library facility: the supported baseline is C++14"),
 ]
 DESIGNATED_MSG = "designated initializer: C++20-only; use aggregate assignment with /*name=*/ comments"
 
 
 RAW_PREFIX = re.compile(r"(?:^|[^0-9A-Za-z_])(?:u8|u|U|L)?R$")
+
+
+def is_cxx_path(rel_path):
+    """Return whether ``rel_path`` is C++ source, including Eigen's
+    extensionless public module headers such as ``Eigen/Core``."""
+    return (os.path.splitext(rel_path)[1].lower() in CXX_EXT
+            or (not os.path.splitext(os.path.basename(rel_path))[1]
+                and rel_path.startswith(EXTENSIONLESS_HEADER_TREES)))
+
+
+def is_digit_separator(line, i):
+    """Return whether the apostrophe at ``i`` belongs to a C++ number."""
+    if i + 1 >= len(line) or not line[i + 1].isalnum():
+        return False
+    start = i
+    while start > 0 and (line[start - 1].isalnum() or line[start - 1] in "._'"):
+        start -= 1
+    token = line[start:i]
+    return bool(token) and (token[0].isdigit() or (len(token) > 1 and token[0] == "." and token[1].isdigit()))
 
 
 def scan_quoted(line, j, quote):
@@ -117,6 +139,7 @@ def lex_lines(lines):
     for line in lines:
         out, i, n = [], 0, len(line)
         had_code = False
+        had_comment = in_block
         literal_at_start = raw_terminator is not None or open_quote is not None
         while i < n:
             if in_block:
@@ -142,8 +165,10 @@ def lex_lines(lines):
                 continue
             c = line[i]
             if c == "/" and i + 1 < n and line[i + 1] == "/":
+                had_comment = True
                 break
             if c == "/" and i + 1 < n and line[i + 1] == "*":
+                had_comment = True
                 in_block = True
                 i += 2
                 continue
@@ -161,6 +186,13 @@ def lex_lines(lines):
                         i = j + len(raw_terminator)
                         raw_terminator = None
                     continue
+            if c == "'" and is_digit_separator(line, i):
+                # C++14 digit separator inside a preprocessing-number, not a
+                # character-literal delimiter (for example 1'000 or 0xFF'00).
+                out.append(c)
+                had_code = True
+                i += 1
+                continue
             if c in "\"'":
                 out.append(c + c)
                 had_code = True
@@ -173,8 +205,7 @@ def lex_lines(lines):
                 had_code = True
             i += 1
         stripped = line.strip()
-        is_comment = (not had_code) and stripped != "" and not literal_at_start and (
-            stripped.startswith("//") or stripped.startswith("/*") or stripped.startswith("*") or in_block)
+        is_comment = (not had_code) and had_comment and not literal_at_start
         code_lines.append("".join(out))
         comment_only.append(stripped if is_comment else None)
     return code_lines, comment_only
@@ -235,7 +266,7 @@ def check_conventions(rel_path, code_lines, added, findings):
     if rel_path.startswith(CXX14_TREES) and not cxx17_path:
         checks += CXX14_CHECKS
     if rel_path.startswith(LIBRARY_SRC_TREES):
-        checks.append((r"\bstd::(%s)\s*\(" % STD_MATH,
+        checks.append((r"(?:\(\s*)?\bstd::(?:%s)\s*(?:\)\s*)?\(" % STD_MATH,
                        "std:: math call in a library header: use the numext:: equivalent "
                        "(device- and custom-scalar-aware)"))
     added_sorted = sorted(added)
@@ -253,7 +284,7 @@ def check_conventions(rel_path, code_lines, added, findings):
 def find_findings(rel_path, lines, added):
     """Check one file: ``lines`` is the complete post-image, ``added`` the set
     of 1-based line numbers the change added.  Returns [(line_no, message)]."""
-    if os.path.splitext(rel_path)[1].lower() not in CXX_EXT:
+    if not is_cxx_path(rel_path):
         return []
     added = {n for n in added if 1 <= n <= len(lines) and lines[n - 1].strip()}
     if not added:
@@ -311,7 +342,7 @@ def run_diff_mode(base, root=REPO_ROOT):
     per_file = added_lines_from_diff(diff.stdout)
     untracked = git(root, "ls-files", "--others", "--exclude-standard")
     for rel_path in untracked.stdout.splitlines():
-        if os.path.splitext(rel_path)[1].lower() in CXX_EXT:
+        if is_cxx_path(rel_path):
             text = read_post_image(root, rel_path)
             if text is not None:
                 per_file.setdefault(rel_path, set()).update(range(1, len(text.splitlines()) + 1))
