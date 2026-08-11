@@ -59,3 +59,7 @@ TEST(ConjugateGradientTest, Basic) {
   (test_conjugate_gradient_T<std::complex<double>, int>());
   (test_conjugate_gradient_T<double, long int>());
 }
+
+TEST(ConjugateGradientTest, TestConjugateGradientExtremeRhs) { test_conjugate_gradient_extreme_rhs(); }
+
+TEST(ConjugateGradientTest, TestDefaultConstructFixedSize) { test_default_construct_fixed_size<Matrix3d>(); }

@@ -261,3 +261,9 @@ TEST(LinearStructureTest, MixedStorage) {
   linearStructure_mixed_storage<double>();
   linearStructure_mixed_storage<std::complex<float>>();
 }
+
+TEST(LinearStructureTest, LinearStructureCancellation) {
+  linearStructure_cancellation<float>();
+  linearStructure_cancellation<double>();
+  linearStructure_cancellation<std::complex<float>>();
+}

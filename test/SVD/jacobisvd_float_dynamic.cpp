@@ -8,7 +8,7 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/
 // SPDX-License-Identifier: MPL-2.0
 
-// jacobisvd split: thin/full option checks for MatrixXf dynamic type.
+// jacobisvd split: thin/full option checks for float dynamic matrices.
 
 #include "jacobisvd_helpers.h"
 
@@ -19,7 +19,6 @@ TEST(JacobisvdFloatDynamicTest, Basic) {
     TEST_SET_BUT_UNUSED_VARIABLE(r);
     TEST_SET_BUT_UNUSED_VARIABLE(c);
 
-    (jacobisvd_thin_options<MatrixXf>(MatrixXf(r, c)));
-    (jacobisvd_full_options<MatrixXf>(MatrixXf(r, c)));
+    (jacobisvd_thin_full_options<MatrixXf>(MatrixXf(r, c)));
   }
 }

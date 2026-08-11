@@ -29,3 +29,23 @@ TEST(UpperbidiagonalizationTest, Real) {
     upperbidiag(MatrixXf(1000, 50));
   }
 }
+
+template <typename MatrixType>
+void upperbidiag_default_construct() {
+  internal::UpperBidiagonalization<MatrixType> bidiag;
+  VERIFY_IS_EQUAL(bidiag.householder().rows(),
+                  MatrixType::RowsAtCompileTime == Dynamic ? 0 : MatrixType::RowsAtCompileTime);
+  VERIFY_IS_EQUAL(bidiag.householder().cols(),
+                  MatrixType::ColsAtCompileTime == Dynamic ? 0 : MatrixType::ColsAtCompileTime);
+  VERIFY_IS_EQUAL(bidiag.bidiagonal().rows(),
+                  MatrixType::ColsAtCompileTime == Dynamic ? 0 : MatrixType::ColsAtCompileTime);
+  VERIFY_IS_EQUAL(bidiag.bidiagonal().cols(),
+                  MatrixType::ColsAtCompileTime == Dynamic ? 0 : MatrixType::ColsAtCompileTime);
+}
+
+TEST(UpperbidiagonalizationTest, UpperbidiagDefaultConstruct) {
+  for (int i = 0; i < g_repeat; i++) {
+    upperbidiag_default_construct<MatrixXd>();
+    upperbidiag_default_construct<Matrix3d>();
+  }
+}

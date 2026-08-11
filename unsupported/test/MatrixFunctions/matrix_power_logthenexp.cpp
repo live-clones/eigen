@@ -10,6 +10,10 @@
 
 #include "matrix_functions_logthenexp.h"
 
+typedef Matrix<double, 3, 3, RowMajor> Matrix3dRowMajor;
+typedef Matrix<long double, 3, 3> Matrix3e;
+typedef Matrix<long double, Dynamic, Dynamic> MatrixXe;
+
 // Fast-path codegen coverage of MatrixPower / MatrixLog / MatrixExp on
 // fixed-size matrices is exercised by matrix_power_general /
 // matrix_power_singular / matrix_function_* / matrix_exponential_*. This
@@ -22,4 +26,19 @@ TEST(MatrixPowerTest, LogThenExp) {
   testLogThenExpDynamic(MatrixXd(3, 3), 1e-13);
   testLogThenExpDynamic(MatrixXd(8, 8), 3e-12);
   testLogThenExpDynamic(Matrix<std::complex<double>, Dynamic, Dynamic>(4, 4), 1e-13);
+}
+
+TEST(MatrixPowerTest, TestLogThenExp) {
+  testLogThenExp(Matrix2d(), 2e-13);
+  testLogThenExp(Matrix3dRowMajor(), 1e-13);
+  testLogThenExp(Matrix4cd(), 1e-13);
+  testLogThenExp(MatrixXd(8, 8), 3e-12);
+  testLogThenExp(Matrix2f(), 1e-4f);
+  testLogThenExp(Matrix3cf(), 1e-4f);
+  testLogThenExp(Matrix4f(), 1e-4f);
+  testLogThenExp(MatrixXf(2, 2), 1e-3f);
+  testLogThenExp(MatrixXe(7, 7), 1e-12L);
+  testLogThenExp(Matrix3d(), 2e-13);
+  testLogThenExp(Matrix3f(), 1e-4f);
+  testLogThenExp(Matrix3e(), 1e-13L);
 }

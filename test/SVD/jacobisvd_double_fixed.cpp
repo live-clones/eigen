@@ -8,13 +8,14 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/
 // SPDX-License-Identifier: MPL-2.0
 
-// jacobisvd split: thin/full option checks for square fixed-size double types.
+// jacobisvd split: thin/full option checks for double fixed-size square matrices.
 
 #include "jacobisvd_helpers.h"
 
 TEST(JacobisvdDoubleFixedTest, Square) {
   for (int i = 0; i < g_repeat; i++) {
-    (jacobisvd_thin_options<Matrix4d>());
-    (jacobisvd_full_options<Matrix4d>());
+    (jacobisvd_thin_full_options<Matrix4d>());
   }
+
+  (jacobisvd_thin_full_options<Matrix2d>());
 }

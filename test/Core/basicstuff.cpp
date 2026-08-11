@@ -414,3 +414,12 @@ TEST(Eigen, basicstuff_casting) {
     casting_all();
   }
 }
+
+TEST(FixedSizeConstructionTest, BasicStuffRealImag) {
+  for (int i = 0; i < g_repeat; i++) {
+    basicStuffRealImag(Matrix<float, 1, 1>());
+    basicStuffRealImag(Matrix4d());
+    basicStuffRealImag(
+        MatrixXd(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
+  }
+}

@@ -434,3 +434,77 @@ TEST(ProductExtraTest, Basic) {
   product_custom_scalar_types<0>();
   test_small_block_correctness<0>();
 }
+
+template <typename Scalar>
+void alpha_zero_skips_kernel() {
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  typedef Matrix<Scalar, Dynamic, Dynamic, ColMajor> ColMat;
+  typedef Matrix<Scalar, Dynamic, Dynamic, RowMajor> RowMat;
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+
+  const Index m = 17, k = 13, n = 11;
+  const Scalar inf = Scalar(NumTraits<RealScalar>::infinity());
+  const Scalar nan = Scalar(NumTraits<RealScalar>::quiet_NaN());
+  const Scalar pos_zero = Scalar(0);
+  const Scalar neg_zero = Scalar(-RealScalar(0));
+
+  // GEMM (col-major).
+  {
+    ColMat A = ColMat::Random(m, k);
+    ColMat B = ColMat::Random(k, n);
+    A(0, 0) = inf;
+    B(1, 1) = nan;
+
+    ColMat C = ColMat::Random(m, n);
+    const ColMat C_ref = C;
+
+    C.noalias() += pos_zero * A * B;
+    VERIFY_IS_CWISE_EQUAL(C, C_ref);
+
+    C.noalias() += neg_zero * A * B;
+    VERIFY_IS_CWISE_EQUAL(C, C_ref);
+  }
+
+  // GEMV col-major.
+  {
+    ColMat A = ColMat::Random(m, k);
+    Vec x = Vec::Random(k);
+    A(0, 0) = inf;
+    x(1) = nan;
+
+    Vec y = Vec::Random(m);
+    const Vec y_ref = y;
+
+    y.noalias() += pos_zero * (A * x);
+    VERIFY_IS_CWISE_EQUAL(y, y_ref);
+
+    y.noalias() += neg_zero * (A * x);
+    VERIFY_IS_CWISE_EQUAL(y, y_ref);
+  }
+
+  // GEMV row-major.
+  {
+    RowMat A = RowMat::Random(m, k);
+    Vec x = Vec::Random(k);
+    A(0, 0) = inf;
+    x(1) = nan;
+
+    Vec y = Vec::Random(m);
+    const Vec y_ref = y;
+
+    y.noalias() += pos_zero * (A * x);
+    VERIFY_IS_CWISE_EQUAL(y, y_ref);
+
+    y.noalias() += neg_zero * (A * x);
+    VERIFY_IS_CWISE_EQUAL(y, y_ref);
+  }
+}
+
+TEST(ProductExtraTest, AlphaZeroSkipsKernel) {
+  alpha_zero_skips_kernel<float>();
+  alpha_zero_skips_kernel<double>();
+  alpha_zero_skips_kernel<std::complex<float> >();
+  alpha_zero_skips_kernel<std::complex<double> >();
+}
+
+TEST(ProductExtraTest, TriangularProductAssignmentSizeMismatch) { triangular_product_assignment_size_mismatch<0>(); }

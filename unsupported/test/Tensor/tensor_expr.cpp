@@ -535,3 +535,7 @@ TEST(TensorExprTest, Basic) {
   test_clip();
   test_minmax_nan_propagation();
 }
+
+TEST(TensorExprTest, TestMixedScalarArithmetic) { test_mixed_scalar_arithmetic(); }
+
+TEST(TensorExprTest, TestScalarLhsComparison) { test_scalar_lhs_comparison(); }

@@ -9,11 +9,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "sparse_solver.h"
-<<<<<<<< HEAD:test/idrstabl.cpp
 #include <Eigen/IterativeLinearSolvers>
-========
-#include <unsupported/Eigen/IterativeSolvers>
->>>>>>>> c57243a37 (Migrate Eigen test framework from custom to Google Test (gtest)):unsupported/test/IterativeSolvers/idrstabl_complex.cpp
 
 template <typename T>
 void test_idrstabl_T() {
@@ -23,8 +19,11 @@ void test_idrstabl_T() {
   idrstabl_colmajor_diag.setTolerance(NumTraits<T>::epsilon() * 4);
   idrstabl_colmajor_ilut.setTolerance(NumTraits<T>::epsilon() * 4);
 
-  check_sparse_square_solving(idrstabl_colmajor_diag);
-  check_sparse_square_solving(idrstabl_colmajor_ilut);
+  CALL_SUBTEST(check_sparse_square_solving(idrstabl_colmajor_diag));
+  CALL_SUBTEST(check_sparse_square_solving(idrstabl_colmajor_ilut));
 }
 
-TEST(IdrstablTest, Complex) { (test_idrstabl_T<std::complex<double> >()); }
+EIGEN_DECLARE_TEST(idrstabl) {
+  CALL_SUBTEST_1((test_idrstabl_T<double>()));
+  CALL_SUBTEST_2((test_idrstabl_T<std::complex<double> >()));
+}

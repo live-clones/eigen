@@ -475,3 +475,9 @@ TEST(SparseBlockTest, Basic) {
     (sparse_block(SparseMatrix<AnnoyingScalar>(r, c)));
   }
 }
+
+TEST(SparseBlockTest, CheckInnerPanelCompressedApi) {
+  for (int i = 0; i < g_repeat; i++) {
+    check_inner_panel_compressed_api();
+  }
+}

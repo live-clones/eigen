@@ -124,3 +124,6 @@ endif()
 
 add_subdirectory(Arch)
 add_subdirectory(Products)
+ei_add_test(lru_cache)
+ei_add_test(special_members)
+ei_add_test(stable_norm_fastmath "${EIGEN_FASTMATH_FLAGS}")

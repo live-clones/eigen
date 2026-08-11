@@ -389,3 +389,21 @@ TEST(SparseRefTest, Basic) {
     check_const_correctness(SparseVector<double, RowMajor>());
   }
 }
+
+TEST(SparseRefTest, CheckNoncompressedRefInnerVectors) {
+  for (int i = 0; i < g_repeat; i++) {
+    check_noncompressed_ref_inner_vectors();
+  }
+}
+
+TEST(SparseRefTest, CheckNoncompressedRefSlices) {
+  for (int i = 0; i < g_repeat; i++) {
+    check_noncompressed_ref_slices();
+  }
+}
+
+TEST(SparseRefTest, CheckRefSliceCoeffs) {
+  for (int i = 0; i < g_repeat; i++) {
+    check_ref_slice_coeffs();
+  }
+}

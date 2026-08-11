@@ -142,3 +142,10 @@ TEST(ProductMmtrTest, Basic) {
     (mmtr<std::complex<double> >(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2)));
   }
 }
+
+TEST(ProductMmtrTest, MmtrEmptyProduct) {
+  for (int i = 0; i < g_repeat; i++) {
+    (mmtr_empty_product<MatrixXd>(48));
+    (mmtr_empty_product<Matrix<double, Dynamic, Dynamic, RowMajor> >(48));
+  }
+}

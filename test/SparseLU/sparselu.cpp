@@ -15,3 +15,30 @@ TEST(SparseluTest, Float) {
   test_sparselu_rowmajor_compressed_input<float>();
   test_sparselu_colmajor_uncompressed_input<float>();
 }
+
+template <typename T>
+void test_sparselu_clear_error_state() {
+  typedef SparseMatrix<T, ColMajor> ColMajorSparseMatrix;
+
+  ColMajorSparseMatrix singular(3, 3);  // structurally singular: no nonzeros
+
+  ColMajorSparseMatrix non_singular(3, 3);
+  non_singular.insert(0, 0) = T(1);
+  non_singular.insert(1, 1) = T(1);
+  non_singular.insert(2, 2) = T(1);
+  non_singular.makeCompressed();
+
+  SparseLU<ColMajorSparseMatrix> solver;
+  solver.compute(singular);
+  VERIFY(solver.info() != Success);
+  VERIFY(!solver.lastErrorMessage().empty());
+
+  solver.compute(non_singular);
+  VERIFY_IS_EQUAL(solver.info(), Success);
+  VERIFY(solver.lastErrorMessage().empty());
+}
+
+TEST(SparseluTest, TestSparseluClearErrorState) {
+  test_sparselu_clear_error_state<float>();
+  test_sparselu_clear_error_state<double>();
+}

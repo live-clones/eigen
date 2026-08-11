@@ -8,11 +8,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/
 // SPDX-License-Identifier: MPL-2.0
 
-// jacobisvd split: verify_inputs, verify_assert for complex fixed-size types.
+// jacobisvd split: verify_inputs for complex types.
 
 #include "jacobisvd_helpers.h"
 
-TEST(JacobisvdVerifyTest, Complex) {
-  (jacobisvd_verify_inputs<Matrix<std::complex<double>, 7, 5>>());
-  (jacobisvd_verify_assert<MatrixXcd>(MatrixXcd(7, 5)));
-}
+TEST(JacobisvdVerifyTest, Complex) { (jacobisvd_verify_inputs<Matrix<std::complex<double>, 7, 5>>()); }

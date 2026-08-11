@@ -254,3 +254,5 @@ TEST(TensorRefTest, Basic) {
   test_coeff_ref();
   test_nested_ops_with_ref();
 }
+
+TEST(TensorRefTest, TestFixedSizeScalarRef) { test_fixed_size_scalar_ref(); }

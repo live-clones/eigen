@@ -13,6 +13,7 @@
 // geo_transformations_projective.cpp.
 
 #include "geo_transformations_helpers.h"
+#include <Eigen/Eigenvalues>
 
 TEST(TransformationsAffineTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
@@ -27,5 +28,25 @@ TEST(TransformationsAffineTest, Basic) {
 
     transformations_no_scale<double, Affine, AutoAlign>();
     transformations_no_scale<double, Isometry, AutoAlign>();
+  }
+}
+
+template <int>
+void permutation_transpose_product_issue_1322() {
+  Affine3d transform;
+  transform.setIdentity();
+
+  Matrix3d m = Vector3d(1.0, 2.0, 3.0).asDiagonal();
+  SelfAdjointEigenSolver<Matrix3d> solver(m);
+  const PermutationMatrix<3, 3> p(Vector3i::LinSpaced(0, 2).reverse());
+
+  const Vector3d expected = p.transpose().operator*(solver.eigenvalues());
+  const Vector3d result = p.transpose() * solver.eigenvalues();
+  VERIFY_IS_APPROX(result, expected);
+}
+
+TEST(TransformationsAffineTest, PermutationTransposeProductIssue1322) {
+  for (int i = 0; i < g_repeat; i++) {
+    permutation_transpose_product_issue_1322<0>();
   }
 }

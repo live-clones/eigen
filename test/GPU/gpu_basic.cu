@@ -544,3 +544,7 @@ TEST(GPUBasicTest, Basic) {
   // typedef Matrix<float,6,6> Matrix6f;
   //  run_and_compare_to_gpu(eigenvalues<Matrix6f>(), nthreads, in, out) ;
 }
+
+TEST(GPUBasicTest, TestCustomLessScalarMinmax) { test_custom_less_scalar_minmax(); }
+
+TEST(GPUBasicTest, TestFloatNanMinmax) { test_float_nan_minmax(); }

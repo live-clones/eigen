@@ -40,40 +40,46 @@ void jacobisvd_method() {
 }
 
 template <typename MatrixType>
-void jacobisvd_thin_options(const MatrixType& input = MatrixType()) {
-  MatrixType m(input.rows(), input.cols());
-  svd_fill_random(m);
-
-  svd_thin_option_checks<MatrixType, 0>(m);
-  svd_thin_option_checks<MatrixType, ColPivHouseholderQRPreconditioner>(m);
-  svd_thin_option_checks<MatrixType, HouseholderQRPreconditioner>(m);
-}
-
-template <typename MatrixType>
-void jacobisvd_full_options(const MatrixType& input = MatrixType()) {
-  MatrixType m(input.rows(), input.cols());
-  svd_fill_random(m);
-
-  svd_option_checks_full_only<MatrixType, 0>(m);
-  svd_option_checks_full_only<MatrixType, ColPivHouseholderQRPreconditioner>(m);
-  svd_option_checks_full_only<MatrixType, HouseholderQRPreconditioner>(m);
+void jacobisvd_thin_full_options(const MatrixType& input = MatrixType()) {
+  svd_thin_full_option_checks<MatrixType, 0>(input);
+  svd_thin_full_option_checks<MatrixType, HouseholderQRPreconditioner>(input);
   svd_option_checks_full_only<MatrixType, FullPivHouseholderQRPreconditioner>(
-      m);  // FullPiv only used when computing full unitaries
+      input);  // FullPiv only used when computing full unitaries
+
+  svd_verify_constructor_options_assert<JacobiSVD<MatrixType>>(input);
+  svd_verify_constructor_options_assert<JacobiSVD<MatrixType, HouseholderQRPreconditioner>>(input);
+  svd_verify_constructor_options_assert<JacobiSVD<MatrixType, FullPivHouseholderQRPreconditioner>>(input);
 }
 
 template <typename MatrixType>
-void jacobisvd_verify_assert(const MatrixType& input = MatrixType()) {
+void jacobisvd_vector_asserts(const MatrixType& input = MatrixType()) {
   MatrixType m(input.rows(), input.cols());
   svd_fill_random(m);
-  svd_verify_assert<MatrixType, 0>(m);
-  svd_verify_assert<MatrixType, ColPivHouseholderQRPreconditioner>(m);
+
+  svd_verify_assert<MatrixType>(m);
   svd_verify_assert<MatrixType, HouseholderQRPreconditioner>(m);
   svd_verify_assert_full_only<MatrixType, FullPivHouseholderQRPreconditioner>(m);
 
   svd_verify_constructor_options_assert<JacobiSVD<MatrixType>>(m);
-  svd_verify_constructor_options_assert<JacobiSVD<MatrixType, ColPivHouseholderQRPreconditioner>>(m);
   svd_verify_constructor_options_assert<JacobiSVD<MatrixType, HouseholderQRPreconditioner>>(m);
   svd_verify_constructor_options_assert<JacobiSVD<MatrixType, FullPivHouseholderQRPreconditioner>>(m);
+}
+
+inline void jacobisvd_mixed_option_enum_regression() {
+  using NoQrFullSVD = JacobiSVD<MatrixXd, NoQRPreconditioner | ComputeFullU | ComputeFullV>;
+  using ReversedMixedSVD = JacobiSVD<MatrixXd, ComputeThinU | HouseholderQRPreconditioner | ComputeFullV>;
+
+  STATIC_CHECK((int(NoQrFullSVD::QRPreconditioner) == int(NoQRPreconditioner)));
+  STATIC_CHECK(((int(NoQrFullSVD::Options) & ComputeFullU) != 0));
+  STATIC_CHECK(((int(NoQrFullSVD::Options) & ComputeFullV) != 0));
+  STATIC_CHECK(((int(NoQrFullSVD::Options) & ComputeThinU) == 0));
+  STATIC_CHECK(((int(NoQrFullSVD::Options) & ComputeThinV) == 0));
+
+  STATIC_CHECK((int(ReversedMixedSVD::QRPreconditioner) == int(HouseholderQRPreconditioner)));
+  STATIC_CHECK(((int(ReversedMixedSVD::Options) & ComputeThinU) != 0));
+  STATIC_CHECK(((int(ReversedMixedSVD::Options) & ComputeFullV) != 0));
+  STATIC_CHECK(((int(ReversedMixedSVD::Options) & ComputeFullU) == 0));
+  STATIC_CHECK(((int(ReversedMixedSVD::Options) & ComputeThinV) == 0));
 }
 
 template <typename MatrixType>

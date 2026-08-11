@@ -202,3 +202,13 @@ TEST(TensorConcatenationTest, Basic) {
   test_concatenation_packet_axis_not_innermost<RowMajor>();
   test_concatenation_as_lvalue();
 }
+
+TEST(TensorConcatenationTest, TestComplexConcatenationThroughAbs) {
+  test_complex_concatenation_through_abs<ColMajor>();
+  test_complex_concatenation_through_abs<RowMajor>();
+}
+
+TEST(TensorConcatenationTest, TestConcatenationThroughCast) {
+  test_concatenation_through_cast<ColMajor>();
+  test_concatenation_through_cast<RowMajor>();
+}

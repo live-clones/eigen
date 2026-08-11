@@ -22,3 +22,8 @@ TEST(MatrixFunctionTest, Double) {
 
   testMapRef(MatrixXd(13, 13));
 }
+
+TEST(MatrixFunctionTest, TestMatrixLogarithmSingular) {
+  testMatrixLogarithmSingular<MatrixXf>();
+  testMatrixLogarithmSingular<MatrixXd>();
+}

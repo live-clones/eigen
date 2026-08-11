@@ -112,3 +112,10 @@ TEST(AutodiffScalarTest, Basic) {
     check_limits_specialization<double>();
   }
 }
+
+TEST(AutodiffScalarTest, CheckMinMaxEqualValues) {
+  for (int i = 0; i < g_repeat; i++) {
+    check_min_max_equal_values<float>();
+    check_min_max_equal_values<double>();
+  }
+}

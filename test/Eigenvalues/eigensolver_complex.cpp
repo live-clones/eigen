@@ -13,6 +13,7 @@
 // Real-scalar Matrix3f and CustomComplex<double> live in eigensolver_complex_extra.cpp.
 
 #include "eigensolver_complex.h"
+#include "CustomComplex.h"
 
 void custom_complex_stable_normalization() {
   typedef CustomComplex<double> Scalar;
@@ -50,3 +51,5 @@ TEST(EigensolverComplexTest, Basic) {
 
   TEST_SET_BUT_UNUSED_VARIABLE(s);
 }
+
+TEST(EigensolverComplexTest, CustomComplexStableNormalization) { custom_complex_stable_normalization(); }

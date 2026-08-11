@@ -8,7 +8,7 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/
 // SPDX-License-Identifier: MPL-2.0
 
-// bdcsvd split: thin/full option checks for MatrixXd.
+// bdcsvd split: thin/full option checks for double column-major dynamic matrices.
 
 #include "bdcsvd_helpers.h"
 
@@ -19,11 +19,8 @@ TEST(BDCSVDDoubleColmajorTest, Basic) {
     TEST_SET_BUT_UNUSED_VARIABLE(r);
     TEST_SET_BUT_UNUSED_VARIABLE(c);
 
-    (bdcsvd_thin_options<MatrixXd>(MatrixXd(20, 17)));
-    (bdcsvd_full_options<MatrixXd>(MatrixXd(20, 17)));
-    (bdcsvd_thin_options<MatrixXd>(MatrixXd(17, 20)));
-    (bdcsvd_full_options<MatrixXd>(MatrixXd(17, 20)));
-    (bdcsvd_thin_options<MatrixXd>(MatrixXd(r, c)));
-    (bdcsvd_full_options<MatrixXd>(MatrixXd(r, c)));
+    (bdcsvd_thin_full_options<MatrixXd>(MatrixXd(20, 17)));
+    (bdcsvd_thin_full_options<MatrixXd>(MatrixXd(17, 20)));
+    (bdcsvd_thin_full_options<MatrixXd>(MatrixXd(r, c)));
   }
 }

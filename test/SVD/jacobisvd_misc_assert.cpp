@@ -8,7 +8,7 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/
 // SPDX-License-Identifier: MPL-2.0
 
-// jacobisvd split: vector verify_assert and triangular tests.
+// jacobisvd split: assert checks for vector shapes and TriangularBase construction.
 
 #include "jacobisvd_helpers.h"
 
@@ -19,13 +19,12 @@ TEST(JacobisvdMiscAssertTest, Basic) {
     TEST_SET_BUT_UNUSED_VARIABLE(r);
     TEST_SET_BUT_UNUSED_VARIABLE(c);
 
-    (jacobisvd_verify_assert<Matrix<double, 6, 1>>());
-    (jacobisvd_verify_assert<Matrix<double, 1, 6>>());
-    (jacobisvd_verify_assert<Matrix<double, Dynamic, 1>>(Matrix<double, Dynamic, 1>(r)));
-    (jacobisvd_verify_assert<Matrix<double, 1, Dynamic>>(Matrix<double, 1, Dynamic>(c)));
+    (jacobisvd_vector_asserts<Matrix<double, 6, 1>>());
+    (jacobisvd_vector_asserts<Matrix<double, 1, 6>>());
+    (jacobisvd_vector_asserts<Matrix<double, Dynamic, 1>>(Matrix<double, Dynamic, 1>(r)));
+    (jacobisvd_vector_asserts<Matrix<double, 1, Dynamic>>(Matrix<double, 1, Dynamic>(c)));
   }
 
-  // Check that the TriangularBase constructor works
   (svd_triangular_matrix<Matrix3d>());
   (svd_triangular_matrix<Matrix4f>());
   (svd_triangular_matrix<Matrix<double, 10, 10>>());

@@ -133,3 +133,91 @@ TEST(NnlsTest, Known) {
     test_nnls_handles_zero_rhs();
   }
 }
+
+void test_nnls_does_not_allocate_during_solve() {
+  const Index cols = internal::random<Index>(1, EIGEN_TEST_MAX_SIZE);
+  const Index rows = internal::random<Index>(cols, EIGEN_TEST_MAX_SIZE);
+  const MatrixXd A = MatrixXd::Random(rows, cols);
+  const VectorXd b = VectorXd::Random(rows);
+
+  NNLS<MatrixXd> nnls(A);
+
+  internal::set_is_malloc_allowed(false);
+  nnls.solve(b);
+  internal::set_is_malloc_allowed(true);
+}
+
+// Disabled upstream: it hits allocations in HouseholderSequence.h.
+// TEST(NnlsTest, TestNnlsDoesNotAllocateDuringSolve) { test_nnls_does_not_allocate_during_solve(); }
+
+void test_nnls_does_not_report_false_success_at_row_capacity() {
+  Matrix<double, 2, 4> A;
+  A << 9000, 9000, -3000, 1e-11, 9000, 9000, -3000, -1e-11;
+  Vector2d b;
+  b << -2, -3;
+
+  NNLS<Matrix<double, 2, 4>> nnls(A);
+  nnls.solve(b);
+
+  // The passive QR basis becomes numerically dependent. Its feasible iterate is
+  // not optimal, so reaching the row capacity must not be reported as success.
+  VERIFY_IS_EQUAL(nnls.info(), ComputationInfo::NumericalIssue);
+  VERIFY_IS_EQUAL(nnls.iterations(), 2);
+}
+
+TEST(NnlsTest, TestNnlsDoesNotReportFalseSuccessAtRowCapacity) {
+  test_nnls_does_not_report_false_success_at_row_capacity();
+}
+
+void test_nnls_handles_0xN_matrix() {
+  const MatrixXd A(0, 3);
+  const VectorXd b(0);
+
+  NNLS<MatrixXd> nnls(A, 0, 0.0);
+  const VectorXd x = nnls.solve(b);
+
+  VERIFY_IS_EQUAL(nnls.info(), ComputationInfo::Success);
+  VERIFY_IS_EQUAL(nnls.iterations(), 0);
+  VERIFY_IS_EQUAL(x, VectorXd::Zero(3));
+}
+
+TEST(NnlsTest, TestNnlsHandles0xNMatrix) { test_nnls_handles_0xN_matrix(); }
+
+void test_nnls_reports_nonfinite_inactive_solution() {
+  const Matrix<double, 3, 2> A = Matrix<double, 3, 2>::Zero();
+  Vector3d b;
+  b << 1, 0, 0;
+
+  NNLS<Matrix<double, 3, 2>> nnls(A, -1, 0.0);
+  nnls.solve(b);
+
+  VERIFY_IS_EQUAL(nnls.info(), ComputationInfo::NumericalIssue);
+}
+
+TEST(NnlsTest, TestNnlsReportsNonfiniteInactiveSolution) { test_nnls_reports_nonfinite_inactive_solution(); }
+
+void test_nnls_small_reference_problems() {
+  test_nnls_known_1();
+  test_nnls_known_2();
+  test_nnls_known_3();
+  test_nnls_known_4();
+  test_nnls_known_5();
+}
+
+TEST(NnlsTest, TestNnlsSmallReferenceProblems) { test_nnls_small_reference_problems(); }
+
+void test_nnls_wide_matrix_at_row_capacity() {
+  Matrix<double, 2, 3> A;
+  A << 1, 0, -1, 0, 1, -1;
+  Vector2d b;
+  b << 1, 2;
+
+  NNLS<Matrix<double, 2, 3>> nnls(A, 2);
+  const Vector3d &x = nnls.solve(b);
+
+  VERIFY_IS_EQUAL(nnls.info(), ComputationInfo::Success);
+  VERIFY_IS_EQUAL(nnls.iterations(), 2);
+  verify_nnls_optimality(A, b, x, nnls.tolerance());
+}
+
+TEST(NnlsTest, TestNnlsWideMatrixAtRowCapacity) { test_nnls_wide_matrix_at_row_capacity(); }

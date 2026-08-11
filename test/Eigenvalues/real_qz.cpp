@@ -93,3 +93,19 @@ TEST(RealQZTest, Basic) {
 
   TEST_SET_BUT_UNUSED_VARIABLE(s);
 }
+
+template <typename MatrixType>
+void real_qz_iteration_cap_regression() {
+  MatrixType A = MatrixType::Zero(3, 3);
+  MatrixType B = MatrixType::Zero(3, 3);
+  RealQZ<MatrixType> qz(3);
+  qz.setMaxIterations(50);
+  qz.compute(A, B);
+  VERIFY_IS_EQUAL(qz.info(), NoConvergence);
+}
+
+TEST(RealQZTest, RealQzIterationCapRegression) {
+  for (int i = 0; i < g_repeat; i++) {
+    real_qz_iteration_cap_regression<MatrixXd>();
+  }
+}

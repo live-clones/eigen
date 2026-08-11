@@ -474,3 +474,5 @@ TEST(SpecialFunctionsTest, Basic) {
   // array_special_functions<ArrayX<Eigen::half>>();
   // array_special_functions<ArrayX<Eigen::bfloat16>>();
 }
+
+TEST(SpecialFunctionsTest, ScalarNdtri) { scalar_ndtri<long double>(); }

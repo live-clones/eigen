@@ -8,7 +8,7 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/
 // SPDX-License-Identifier: MPL-2.0
 
-// jacobisvd split: thin/full option checks for complex types.
+// jacobisvd split: thin/full option checks for complex dynamic matrices.
 
 #include "jacobisvd_helpers.h"
 
@@ -19,19 +19,17 @@ TEST(JacobisvdComplexTest, Basic) {
     TEST_SET_BUT_UNUSED_VARIABLE(r);
     TEST_SET_BUT_UNUSED_VARIABLE(c);
 
-    (jacobisvd_thin_options<MatrixXcd>(MatrixXcd(r, c)));
-    (jacobisvd_full_options<MatrixXcd>(MatrixXcd(r, c)));
+    (jacobisvd_thin_full_options<MatrixXcd>(MatrixXcd(r, c)));
 
     MatrixXcd noQRTest = MatrixXcd(r, r);
-    svd_fill_random(noQRTest);
-    (svd_thin_option_checks<MatrixXcd, NoQRPreconditioner>(noQRTest));
-    (svd_option_checks_full_only<MatrixXcd, NoQRPreconditioner>(noQRTest));
+    (svd_thin_full_option_checks<MatrixXcd, NoQRPreconditioner>(noQRTest));
   }
 
-  (jacobisvd_thin_options<MatrixXcd>(
+  (jacobisvd_thin_full_options<MatrixXcd>(
       MatrixXcd(internal::random<int>(EIGEN_TEST_MAX_SIZE / 4, EIGEN_TEST_MAX_SIZE / 3),
                 internal::random<int>(EIGEN_TEST_MAX_SIZE / 4, EIGEN_TEST_MAX_SIZE / 3))));
-  (jacobisvd_full_options<MatrixXcd>(
-      MatrixXcd(internal::random<int>(EIGEN_TEST_MAX_SIZE / 4, EIGEN_TEST_MAX_SIZE / 3),
-                internal::random<int>(EIGEN_TEST_MAX_SIZE / 4, EIGEN_TEST_MAX_SIZE / 3))));
+
+  (jacobisvd_thin_full_options<Matrix2cd>());
 }
+
+TEST(JacobisvdComplexTest, MixedOptionEnumRegression) { jacobisvd_mixed_option_enum_regression(); }

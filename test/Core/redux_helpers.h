@@ -265,6 +265,25 @@ void redux_strided() {
   }
 }
 
+struct keep_first_op {
+  template <typename Scalar>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a, const Scalar& /*b*/) const {
+    return a;
+  }
+};
+
+struct keep_last_op {
+  template <typename Scalar>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& /*a*/, const Scalar& b) const {
+    return b;
+  }
+};
+
+template <typename Scalar>
+struct marked_commutative_sum_op {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a, const Scalar& b) const { return a + b; }
+};
+
 template <typename Scalar>
 void redux_operand_order() {
   typedef Matrix<Scalar, Dynamic, 1> Vec;
@@ -412,6 +431,23 @@ void redux_minmax_nan() {
     }
   }
 }
+// A custom scalar whose comparison ignores its tag, so equivalent values are observably
+// distinct. The generic std::min/std::max keep the first operand of a tie, and custom scalars
+// are excluded from the min/max commutativity opt-in, so minCoeff()/maxCoeff() must return the
+// first extremum in traversal order.
+struct TaggedScalar {
+  double v;
+  int tag;
+  TaggedScalar() : v(0), tag(0) {}
+  TaggedScalar(double v_, int tag_) : v(v_), tag(tag_) {}
+  bool operator<(const TaggedScalar& other) const { return v < other.v; }
+};
+
+namespace Eigen {
+template <>
+struct NumTraits<TaggedScalar> : GenericNumTraits<TaggedScalar> {};
+}  // namespace Eigen
+
 void redux_custom_scalar_min_ties() {
   typedef Matrix<TaggedScalar, Dynamic, 1> Vec;
   STATIC_CHECK(

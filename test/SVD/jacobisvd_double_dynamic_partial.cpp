@@ -8,7 +8,7 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/
 // SPDX-License-Identifier: MPL-2.0
 
-// jacobisvd split: thin/full option checks for partial-dynamic double types.
+// jacobisvd split: thin/full option checks for double partially-fixed tall matrices.
 
 #include "jacobisvd_helpers.h"
 
@@ -18,6 +18,6 @@ TEST(JacobisvdDoubleDynamicPartialTest, Basic) {
 
     TEST_SET_BUT_UNUSED_VARIABLE(r);
 
-    (jacobisvd_thin_options<Matrix<double, Dynamic, 5>>(Matrix<double, Dynamic, 5>(r, 5)));
+    (jacobisvd_thin_full_options<Matrix<double, Dynamic, 5>>(Matrix<double, Dynamic, 5>(r, 5)));
   }
 }

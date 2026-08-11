@@ -34,3 +34,15 @@ TEST(ResizeTest, ResizeLike1x2) { resizeLikeTest<1, 2>(); }
 TEST(ResizeTest, ResizeLike10x20) { resizeLikeTest<10, 20>(); }
 
 TEST(ResizeTest, ResizeLike3x1) { resizeLikeTest<3, 1>(); }
+
+void resizeLikeTest1020() { resizeLikeTest<10, 20>(); }
+
+TEST(ResizeTest, ResizeLikeTest1020) { resizeLikeTest1020(); }
+
+void resizeLikeTest12() { resizeLikeTest<1, 2>(); }
+
+TEST(ResizeTest, ResizeLikeTest12) { resizeLikeTest12(); }
+
+void resizeLikeTest31() { resizeLikeTest<3, 1>(); }
+
+TEST(ResizeTest, ResizeLikeTest31) { resizeLikeTest31(); }

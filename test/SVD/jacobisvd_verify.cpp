@@ -8,17 +8,11 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/
 // SPDX-License-Identifier: MPL-2.0
 
-// jacobisvd split: verify_inputs, verify_assert for real fixed-size types.
+// jacobisvd split: verify_inputs for real types.
 
 #include "jacobisvd_helpers.h"
 
 TEST(JacobisvdVerifyTest, Real) {
   (jacobisvd_verify_inputs<Matrix4d>());
   (jacobisvd_verify_inputs(Matrix<float, 5, Dynamic>(5, 6)));
-
-  (jacobisvd_verify_assert<Matrix3f>());
-  (jacobisvd_verify_assert<Matrix4d>());
-  (jacobisvd_verify_assert<Matrix<float, 10, 12>>());
-  (jacobisvd_verify_assert<Matrix<float, 12, 10>>());
-  (jacobisvd_verify_assert<MatrixXf>(MatrixXf(10, 12)));
 }

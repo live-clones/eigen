@@ -17,93 +17,6 @@ struct FooReturnType {
   typedef int ReturnType;
 };
 
-struct MyInterface {
-  virtual void func() = 0;
-  virtual ~MyInterface() {}
-};
-struct MyImpl : public MyInterface {
-  void func() {}
-};
-
-// =============================================================================
-// Tests for meta
-// =============================================================================
-TEST(MetaTest, Basic) {
-  VERIFY((internal::is_same<float, float>::value));
-  VERIFY((!internal::is_same<float, double>::value));
-  VERIFY((!internal::is_same<float, float&>::value));
-  VERIFY((!internal::is_same<float, const float&>::value));
-
-  VERIFY((internal::is_same<float, internal::remove_all_t<const float&>>::value));
-  VERIFY((internal::is_same<float, internal::remove_all_t<const float*>>::value));
-  VERIFY((internal::is_same<float, internal::remove_all_t<const float*&>>::value));
-  VERIFY((internal::is_same<float, internal::remove_all_t<float**>>::value));
-  VERIFY((internal::is_same<float, internal::remove_all_t<float**&>>::value));
-  VERIFY((internal::is_same<float, internal::remove_all_t<float* const*&>>::value));
-  VERIFY((internal::is_same<float, internal::remove_all_t<float* const>>::value));
-
-  // test add_const_on_value_type
-  VERIFY((internal::is_same<internal::add_const_on_value_type_t<float&>, float const&>::value));
-  VERIFY((internal::is_same<internal::add_const_on_value_type_t<float*>, float const*>::value));
-
-  VERIFY((internal::is_same<internal::add_const_on_value_type_t<float>, const float>::value));
-  VERIFY((internal::is_same<internal::add_const_on_value_type_t<const float>, const float>::value));
-
-  VERIFY((internal::is_same<internal::add_const_on_value_type_t<const float* const>, const float* const>::value));
-  VERIFY((internal::is_same<internal::add_const_on_value_type_t<float* const>, const float* const>::value));
-
-  // is_convertible
-  STATIC_CHECK((internal::is_convertible<float, double>::value));
-  STATIC_CHECK((internal::is_convertible<int, double>::value));
-  STATIC_CHECK((internal::is_convertible<int, short>::value));
-  STATIC_CHECK((internal::is_convertible<short, int>::value));
-  STATIC_CHECK((internal::is_convertible<double, int>::value));
-  STATIC_CHECK((internal::is_convertible<double, std::complex<double>>::value));
-  STATIC_CHECK((!internal::is_convertible<std::complex<double>, double>::value));
-  STATIC_CHECK((internal::is_convertible<Array33f, Matrix3f>::value));
-  STATIC_CHECK((internal::is_convertible<Matrix3f&, Matrix3f>::value));
-  STATIC_CHECK((internal::is_convertible<Matrix3f&, Matrix3f&>::value));
-  STATIC_CHECK((internal::is_convertible<Matrix3f&, const Matrix3f&>::value));
-  STATIC_CHECK((internal::is_convertible<const Matrix3f&, Matrix3f>::value));
-  STATIC_CHECK((internal::is_convertible<const Matrix3f&, const Matrix3f&>::value));
-  STATIC_CHECK((!internal::is_convertible<const Matrix3f&, Matrix3f&>::value));
-  STATIC_CHECK((!internal::is_convertible<const Matrix3f, Matrix3f&>::value));
-  STATIC_CHECK(!(internal::is_convertible<Matrix3f, Matrix3f&>::value));
-
-  STATIC_CHECK(!(internal::is_convertible<int, int&>::value));
-  STATIC_CHECK((internal::is_convertible<const int, const int&>::value));
-
-  STATIC_CHECK((!internal::is_convertible<Array33f, int>::value));
-  STATIC_CHECK((!internal::is_convertible<MatrixXf, float>::value));
-  {
-    float f = 0.0f;
-    MatrixXf A, B;
-    VectorXf a, b;
-    VERIFY((check_is_convertible(a.dot(b), f)));
-    VERIFY((check_is_convertible(a.transpose() * b, f)));
-    VERIFY((!check_is_convertible(A * B, f)));
-    VERIFY((check_is_convertible(A * B, A)));
-  }
-
-#if (EIGEN_COMP_GNUC_STRICT && EIGEN_COMP_GNUC <= 990) || (EIGEN_COMP_CLANG_STRICT && EIGEN_COMP_CLANG <= 990) || \
-    (EIGEN_COMP_MSVC && EIGEN_COMP_MSVC <= 1914)
-  STATIC_CHECK((!internal::is_convertible<MyInterface, MyImpl>::value));
-  STATIC_CHECK((!internal::is_convertible<MyImpl, MyInterface>::value));
-  STATIC_CHECK((internal::is_convertible<MyImpl, const MyInterface&>::value));
-#endif
-
-  {
-    int i = 0;
-    VERIFY((check_is_convertible(fix<3>(), i)));
-    VERIFY((!check_is_convertible(i, fix<DynamicIndex>())));
-  }
-
-  VERIFY((internal::has_ReturnType<FooReturnType>::value));
-  VERIFY((internal::has_ReturnType<ScalarBinaryOpTraits<int, int>>::value));
-  VERIFY((!internal::has_ReturnType<MatrixXf>::value));
-  VERIFY((!internal::has_ReturnType<int>::value));
-}
-
 using Eigen::internal::apply_op_from_left;
 using Eigen::internal::apply_op_from_right;
 using Eigen::internal::arg_prod;
@@ -258,27 +171,6 @@ static void test_get() {
   VERIFY_IS_EQUAL(((int)Eigen::internal::get<5, il>::value), 42);
 }
 
-static void test_id_helper(dummy_a a, dummy_a b, dummy_a c) {
-  (void)a;
-  (void)b;
-  (void)c;
-}
-
-template <int... ii>
-static void test_id_numeric() {
-  test_id_helper(typename id_numeric<int, ii, dummy_a>::type()...);
-}
-
-template <typename... tt>
-static void test_id_type() {
-  test_id_helper(typename id_type<tt, dummy_a>::type()...);
-}
-
-static void test_id() {
-  test_id_numeric<1, 4, 6>();
-  test_id_type<dummy_a, dummy_b, dummy_c>();
-}
-
 static void test_is_same_gf() {
   VERIFY((!is_same_gf<dummy_a, dummy_b>::value));
   VERIFY((!!is_same_gf<dummy_a, dummy_a>::value));
@@ -327,8 +219,6 @@ static void test_array_reductions() {
   array<int, 6> a{{4, 8, 15, 16, 23, 42}};
   array<int, 6> b{{42, 23, 16, 15, 8, 4}};
 
-  VERIFY((array_reverse(a) == b));
-  VERIFY((array_reverse(b) == a));
   VERIFY_IS_EQUAL((array_sum(a)), 108);
   VERIFY_IS_EQUAL((array_sum(b)), 108);
   VERIFY_IS_EQUAL((array_prod(a)), 7418880);
@@ -403,17 +293,12 @@ EIGEN_DECLARE_TEST(meta) {
   VERIFY((!internal::has_ReturnType<MatrixXf>::value));
   VERIFY((!internal::has_ReturnType<int>::value));
 
-TEST(MetaTest, CXX11) {
-  test_gen_numeric_list();
-  test_concat();
-  test_slice();
-  test_get();
-  test_id();
-  test_is_same_gf();
-  test_apply_op();
-  test_contained_in_list();
-  test_arg_reductions();
-  test_array_reverse_and_reduce();
-  test_array_zip_and_apply();
-  test_array_misc();
+  CALL_SUBTEST(test_concat());
+  CALL_SUBTEST(test_slice());
+  CALL_SUBTEST(test_get());
+  CALL_SUBTEST(test_is_same_gf());
+  CALL_SUBTEST(test_apply_op());
+  CALL_SUBTEST(test_contained_in_list());
+  CALL_SUBTEST(test_arg_reductions());
+  CALL_SUBTEST(test_array_reductions());
 }

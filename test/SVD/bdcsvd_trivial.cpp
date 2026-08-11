@@ -8,11 +8,16 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/
 // SPDX-License-Identifier: MPL-2.0
 
-// bdcsvd split: 2x2 trivials for Matrix2cd and method test for Matrix3f.
+// bdcsvd split: matrixbase method checks and small fixed-size option checks.
 
 #include "bdcsvd_helpers.h"
 
-TEST(BDCSVDTrivialTest, Real) {
-  // test matrixbase method
+TEST(BDCSVDTrivialTest, Method) {
+  (bdcsvd_method<Matrix2cd>());
   (bdcsvd_method<Matrix3f>());
+}
+
+TEST(BDCSVDTrivialTest, SmallFixed) {
+  (bdcsvd_thin_full_options<Matrix2cd>());
+  (bdcsvd_thin_full_options<Matrix2d>());
 }

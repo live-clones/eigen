@@ -530,3 +530,31 @@ TEST(NumextTest, Shift) {
     check_shift<uint64_t>();
   }
 }
+
+TEST(NumextTest, CheckComplexExp) {
+  for (int i = 0; i < g_repeat; i++) {
+    check_complex_exp<float>();
+    check_complex_exp<double>();
+  }
+}
+
+TEST(NumextTest, CheckCopysign) {
+  for (int i = 0; i < g_repeat; i++) {
+    check_copysign<half>();
+    check_copysign<bfloat16>();
+    check_copysign<float>();
+    check_copysign<double>();
+    check_copysign<long double>();
+    check_copysign<std::complex<float>>();
+    check_copysign<std::complex<double>>();
+    check_copysign<bool>();
+    check_copysign<int8_t>();
+    check_copysign<int16_t>();
+    check_copysign<int32_t>();
+    check_copysign<int64_t>();
+    check_copysign<uint8_t>();
+    check_copysign<uint16_t>();
+    check_copysign<uint32_t>();
+    check_copysign<uint64_t>();
+  }
+}

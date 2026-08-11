@@ -30,3 +30,8 @@ ei_add_test(product_mmtr)
 ei_add_test(product_threaded "-pthread" "${CMAKE_THREAD_LIBS_INIT}")
 ei_add_test(prec_inverse_4x4)
 ei_add_test(assignment_threaded)
+if(EIGEN_TEST_SME)
+  # EIGEN_TEST_SME defines EIGEN_ARM64_USE_SME (root CMakeLists.txt); the
+  # toolchain must still supply an SME -march/-mcpu.
+  ei_add_test(product_sme)
+endif()

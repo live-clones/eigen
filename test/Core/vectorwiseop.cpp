@@ -11,9 +11,6 @@
 
 #include "vectorwiseop.h"
 
-// Tests for vectorwiseop
-// =============================================================================
-=======
 TEST(VectorwiseOpTest, Array) {
   for (int i = 0; i < g_repeat; i++) {
     vectorwiseop_array(Array22cd());

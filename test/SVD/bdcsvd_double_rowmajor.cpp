@@ -8,8 +8,7 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/
 // SPDX-License-Identifier: MPL-2.0
 
-// bdcsvd split: thin/full options for MatrixXcd. Row-major double dynamic
-// rectangular cases live in bdcsvd_double_rowmajor_rect.cpp.
+// bdcsvd split: thin/full option checks for complex dynamic matrices.
 
 #include "bdcsvd_helpers.h"
 
@@ -20,7 +19,6 @@ TEST(BDCSVDDoubleRowmajorTest, Basic) {
     TEST_SET_BUT_UNUSED_VARIABLE(r);
     TEST_SET_BUT_UNUSED_VARIABLE(c);
 
-    (bdcsvd_thin_options<MatrixXcd>(MatrixXcd(r, c)));
-    (bdcsvd_full_options<MatrixXcd>(MatrixXcd(r, c)));
+    (bdcsvd_thin_full_options<MatrixXcd>(MatrixXcd(r, c)));
   }
 }

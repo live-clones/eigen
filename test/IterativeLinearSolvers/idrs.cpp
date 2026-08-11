@@ -10,22 +10,18 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "sparse_solver.h"
-<<<<<<<< HEAD:test/idrs.cpp
 #include <Eigen/IterativeLinearSolvers>
-========
-#include <Eigen/IterativeSolvers>
->>>>>>>> c57243a37 (Migrate Eigen test framework from custom to Google Test (gtest)):unsupported/test/IterativeSolvers/idrs.cpp
 
 template <typename T>
 void test_idrs_T() {
   IDRS<SparseMatrix<T>, DiagonalPreconditioner<T> > idrs_colmajor_diag;
   IDRS<SparseMatrix<T>, IncompleteLUT<T> > idrs_colmajor_ilut;
 
-  check_sparse_square_solving(idrs_colmajor_diag);
-  check_sparse_square_solving(idrs_colmajor_ilut);
+  CALL_SUBTEST(check_sparse_square_solving(idrs_colmajor_diag));
+  CALL_SUBTEST(check_sparse_square_solving(idrs_colmajor_ilut));
 }
 
-TEST(IdrsTest, Basic) {
-  test_idrs_T<double>();
-  test_idrs_T<std::complex<double> >();
+EIGEN_DECLARE_TEST(idrs) {
+  CALL_SUBTEST_1(test_idrs_T<double>());
+  CALL_SUBTEST_2(test_idrs_T<std::complex<double> >());
 }

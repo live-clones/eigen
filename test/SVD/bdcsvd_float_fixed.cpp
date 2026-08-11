@@ -8,12 +8,18 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/
 // SPDX-License-Identifier: MPL-2.0
 
-// bdcsvd split: thin/full option checks for square fixed-size float types.
+// bdcsvd split: thin/full option checks for float fixed-size matrices.
 
 #include "bdcsvd_helpers.h"
 
 TEST(BDCSVDFloatFixedTest, Square) {
   for (int i = 0; i < g_repeat; i++) {
-    (bdcsvd_thin_options_part1<Matrix3f>());
+    (bdcsvd_thin_full_options<Matrix3f>());
+  }
+}
+
+TEST(BDCSVDFloatFixedTest, Rect) {
+  for (int i = 0; i < g_repeat; i++) {
+    (bdcsvd_thin_full_options<Matrix<float, 2, 3>>());
   }
 }

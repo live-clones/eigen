@@ -11,11 +11,7 @@
 #include <cmath>
 
 #include "sparse_solver.h"
-<<<<<<<< HEAD:test/minres.cpp
 #include <Eigen/IterativeLinearSolvers>
-========
-#include <Eigen/IterativeSolvers>
->>>>>>>> c57243a37 (Migrate Eigen test framework from custom to Google Test (gtest)):unsupported/test/IterativeSolvers/minres.cpp
 
 template <typename T>
 void test_minres_T() {
@@ -29,18 +25,17 @@ void test_minres_T() {
   MINRES<SparseMatrix<T>, Lower | Upper, DiagonalPreconditioner<T> > minres_colmajor_uplo_diag;
 
   // call tests for SPD matrix
-  check_sparse_spd_solving(minres_colmajor_lower_I);
-  check_sparse_spd_solving(minres_colmajor_upper_I);
+  CALL_SUBTEST(check_sparse_spd_solving(minres_colmajor_lower_I));
+  CALL_SUBTEST(check_sparse_spd_solving(minres_colmajor_upper_I));
 
-  check_sparse_spd_solving(minres_colmajor_lower_diag);
-  check_sparse_spd_solving(minres_colmajor_upper_diag);
-  check_sparse_spd_solving(minres_colmajor_uplo_diag);
+  CALL_SUBTEST(check_sparse_spd_solving(minres_colmajor_lower_diag));
+  CALL_SUBTEST(check_sparse_spd_solving(minres_colmajor_upper_diag));
+  CALL_SUBTEST(check_sparse_spd_solving(minres_colmajor_uplo_diag));
 
   // TO DO: symmetric semi-definite matrix
   // TO DO: symmetric indefinite matrix
 }
 
-<<<<<<<< HEAD:test/minres.cpp
 void test_minres_extreme_rhs() {
   const Matrix2d mat = Matrix2d::Identity();
   const Vector2d direction = (Vector2d() << 1, -1).finished();
@@ -66,9 +61,4 @@ EIGEN_DECLARE_TEST(minres) {
   CALL_SUBTEST_1(test_minres_T<double>());
   //  CALL_SUBTEST_2(test_minres_T<std::complex<double> >());
   CALL_SUBTEST_3(test_minres_extreme_rhs());
-========
-TEST(MinresTest, Basic) {
-  test_minres_T<double>();
-  //  test_minres_T<std::complex<double> >();
->>>>>>>> c57243a37 (Migrate Eigen test framework from custom to Google Test (gtest)):unsupported/test/IterativeSolvers/minres.cpp
 }

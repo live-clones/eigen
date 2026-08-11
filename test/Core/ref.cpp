@@ -467,3 +467,5 @@ TEST(RefTest, ContiguousNoCopy) {
   test_contiguous_ref_no_copy(MatrixXd(9, 5));
   test_contiguous_ref_no_copy(Matrix3d());
 }
+
+TEST(RefTest, TestRefAlignmentMatching) { test_ref_alignment_matching(); }

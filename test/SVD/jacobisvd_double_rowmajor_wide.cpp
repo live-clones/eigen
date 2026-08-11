@@ -8,12 +8,12 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/
 // SPDX-License-Identifier: MPL-2.0
 
-// jacobisvd split: thin/full option checks for 7x5 fixed-size double row-major types.
+// jacobisvd split: thin/full option checks for double row-major wide matrices.
 
 #include "jacobisvd_helpers.h"
 
 TEST(JacobisvdDoubleRowmajorWideTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
-    (jacobisvd_thin_options<Matrix<double, 7, 5, RowMajor>>());
+    (jacobisvd_thin_full_options<Matrix<double, 7, 5, RowMajor>>());
   }
 }

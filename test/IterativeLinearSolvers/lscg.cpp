@@ -71,3 +71,10 @@ TEST(LSCGTest, Basic) {
   test_lscg_T<double>();
   test_lscg_T<std::complex<double> >();
 }
+
+TEST(LSCGTest, TestLeastSquareDiagonalPreconditionerZeroColumns) {
+  test_least_square_diagonal_preconditioner_zero_columns<double>();
+  test_least_square_diagonal_preconditioner_zero_columns<std::complex<double> >();
+}
+
+TEST(LSCGTest, TestLscgExtremeRhs) { test_lscg_extreme_rhs(); }

@@ -33,10 +33,10 @@ add_subdirectory(SparseExtra)
 add_subdirectory(OpenGLSupport)
 add_subdirectory(Polynomials)
 add_subdirectory(Splines)
-add_subdirectory(IterativeSolvers)
 add_subdirectory(LevenbergMarquardt)
 add_subdirectory(KroneckerProduct)
 add_subdirectory(SpecialFunctions)
+add_subdirectory(StructuredMatrices)
 add_subdirectory(Tensor)
 
 # unsupported/Eigen/GPU module: host-side dispatch to CUDA libraries

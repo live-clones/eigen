@@ -170,3 +170,16 @@ TEST(DeterminantTest, Basic) {
     TEST_SET_BUT_UNUSED_VARIABLE(s);
   }
 }
+
+TEST(DeterminantTest, DeterminantLuFallbackReference) {
+  for (int i = 0; i < g_repeat; i++) {
+    determinant_lu_fallback_reference(Matrix<double, 5, 5>());
+    determinant_lu_fallback_reference(MatrixXcd(5, 5));
+  }
+}
+
+TEST(DeterminantTest, DeterminantNonFiniteLuFallback) {
+  for (int i = 0; i < g_repeat; i++) {
+    determinant_non_finite_lu_fallback();
+  }
+}

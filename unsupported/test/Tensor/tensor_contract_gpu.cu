@@ -263,3 +263,12 @@ TEST(TensorContractGPUTest, Basic) {
   test_gpu_contraction_sizes<RowMajor>();
 #endif
 }
+
+TEST(TensorContractGPUTest, TestGpuContractionDouble) {
+  test_gpu_contraction_double<ColMajor>(64, 64, 64);
+  test_gpu_contraction_double<RowMajor>(64, 64, 64);
+  test_gpu_contraction_double<ColMajor>(100, 100, 100);
+  test_gpu_contraction_double<RowMajor>(100, 100, 100);
+  test_gpu_contraction_double<ColMajor>(65, 129, 33);
+  test_gpu_contraction_double<RowMajor>(65, 129, 33);
+}

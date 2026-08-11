@@ -215,3 +215,5 @@ TEST(UnaryViewTest, MutableUnaryView) { test_mutable_unaryview(); }
 TEST(UnaryViewTest, UnaryViewSolve) { test_unaryview_solve(); }
 
 TEST(UnaryViewTest, DirectAccessProduct) { test_unaryview_direct_access_product(); }
+
+TEST(UnaryViewTest, TestUnaryviewPointerResult) { test_unaryview_pointer_result(); }

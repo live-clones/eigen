@@ -88,3 +88,5 @@ TEST(TensorForcedEvalTest, Basic) {
   test_simple();
   test_const();
 }
+
+TEST(TensorForcedEvalTest, TestNonPodNoLeak) { test_non_pod_no_leak(); }

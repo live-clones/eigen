@@ -954,3 +954,7 @@ TEST(IndexedViewTest, StaticChecks) {
   STATIC_CHECK((!internal::valid_indexed_view_overload<std::ptrdiff_t, int>::value));
   STATIC_CHECK((!internal::valid_indexed_view_overload<std::size_t, int>::value));
 }
+
+TEST(IndexedViewTest, CheckExpressionIndices) { check_expression_indices(); }
+
+TEST(IndexedViewTest, CheckIndexedViewSelect) { check_indexed_view_select(); }

@@ -252,3 +252,8 @@ TEST(NomallocTest, Basic) {
   // freeing is now possible
   Eigen::internal::set_is_malloc_allowed(true);
 }
+
+TEST(NomallocTest, SelfadjointEigensolverLargeFixedNoMalloc) {
+  selfadjoint_eigensolver_large_fixed_no_malloc<float>();
+  selfadjoint_eigensolver_large_fixed_no_malloc<double>();
+}

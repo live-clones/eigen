@@ -108,3 +108,8 @@ TEST(TensorPaddingTest, Basic) {
   test_padded_expr<ColMajor>();
   test_padded_expr<RowMajor>();
 }
+
+TEST(TensorPaddingTest, TestPaddingThroughCast) {
+  test_padding_through_cast<ColMajor>();
+  test_padding_through_cast<RowMajor>();
+}

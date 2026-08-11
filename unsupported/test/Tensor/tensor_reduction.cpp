@@ -775,3 +775,32 @@ TEST(TensorReductionTest, Basic) {
   (test_sum_accuracy<Eigen::half, 4 * 1024, 16>());
   (test_sum_accuracy<Eigen::half, 10 * 1024 * 1024, 0>());
 }
+
+TEST(TensorReductionTest, TestDynamicInnermostDims) {
+  test_dynamic_innermost_dims<ColMajor>();
+  test_dynamic_innermost_dims<RowMajor>();
+}
+
+TEST(TensorReductionTest, TestMixedTypeScalarArithmetic) {
+  test_mixed_type_scalar_arithmetic<ColMajor>();
+  test_mixed_type_scalar_arithmetic<RowMajor>();
+}
+
+TEST(TensorReductionTest, TestScalarReductionConversion) {
+  (test_scalar_reduction_conversion<int, ColMajor>());
+  (test_scalar_reduction_conversion<int, RowMajor>());
+  (test_scalar_reduction_conversion<Eigen::half, ColMajor>());
+}
+
+TEST(TensorReductionTest, TestScalarReductionMixedOperators) {
+  (test_scalar_reduction_mixed_operators<float, ColMajor>());
+  (test_scalar_reduction_mixed_operators<double, ColMajor>());
+  (test_scalar_reduction_mixed_operators<int, RowMajor>());
+}
+
+TEST(TensorReductionTest, TestScalarReductionMixedOperatorsMod) { test_scalar_reduction_mixed_operators_mod(); }
+
+TEST(TensorReductionTest, TestValueTransformingReducer) {
+  test_value_transforming_reducer<ColMajor>();
+  test_value_transforming_reducer<RowMajor>();
+}

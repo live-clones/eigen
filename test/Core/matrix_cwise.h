@@ -293,4 +293,22 @@ void test_cwise_complex(const MatrixType& m) {
                         }));
 }
 
+struct pointer_result_payload {
+  double value;
+};
+
+struct pointer_result_holder {
+  pointer_result_payload* ptr;
+};
+
+struct unary_pointer_result_op {
+  pointer_result_payload* operator()(const pointer_result_holder& x) const { return x.ptr; }
+};
+
+struct binary_pointer_result_op {
+  pointer_result_payload* operator()(const pointer_result_holder& x, const pointer_result_holder&) const {
+    return x.ptr;
+  }
+};
+
 #endif  // EIGEN_TEST_MATRIX_CWISE_H

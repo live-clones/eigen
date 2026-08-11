@@ -23,3 +23,8 @@ TEST(SparseProductTest, Basic) {
     (test_mixed_storage());
   }
 }
+
+TEST(SparseProductTest, SparseStructuredViewProductSfinae) {
+  (sparse_structured_view_product_sfinae<SparseMatrix<double, ColMajor>>());
+  (sparse_structured_view_product_sfinae<SparseMatrix<double, RowMajor>>());
+}

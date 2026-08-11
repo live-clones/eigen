@@ -135,3 +135,13 @@ TEST(TensorRandomGPUTest, Basic) {
   test_gpu_random_normal();
   test_complex();
 }
+
+TEST(TensorRandomGPUTest, TestGpuRandomNormalAllFinite) {
+  test_gpu_random_normal_all_finite<Eigen::half>(1024, 2048);
+  test_gpu_random_normal_all_finite<Eigen::bfloat16>(512, 512);
+}
+
+TEST(TensorRandomGPUTest, TestGpuRandomUniformRange) {
+  test_gpu_random_uniform_range<Eigen::half>(256, 256);
+  test_gpu_random_uniform_range<Eigen::bfloat16>(256, 256);
+}

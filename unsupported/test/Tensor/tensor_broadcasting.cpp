@@ -327,3 +327,8 @@ TEST(TensorBroadcastingTest, Basic) {
   test_size_one_broadcasting<ColMajor>();
   test_size_one_broadcasting<RowMajor>();
 }
+
+TEST(TensorBroadcastingTest, TestBroadcastingThroughCast) {
+  test_broadcasting_through_cast<ColMajor>();
+  test_broadcasting_through_cast<RowMajor>();
+}

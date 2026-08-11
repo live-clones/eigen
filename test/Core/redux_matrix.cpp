@@ -105,3 +105,28 @@ TEST(ReduxMatrixTest, Strided) {
   redux_strided<double>();
   redux_strided<std::complex<float>>();
 }
+
+TEST(ReduxMatrixTest, ReduxCommutative) {
+  redux_commutative<int>();
+  redux_commutative<double>();
+}
+
+TEST(ReduxMatrixTest, ReduxCustomScalarMinTies) { redux_custom_scalar_min_ties(); }
+
+TEST(ReduxMatrixTest, ReduxMinmaxNan) {
+  redux_minmax_nan<float>();
+  redux_minmax_nan<double>();
+}
+
+TEST(ReduxMatrixTest, ReduxOperandOrder) {
+  redux_operand_order<float>();
+  redux_operand_order<double>();
+  redux_operand_order<int>();
+}
+
+TEST(ReduxMatrixTest, ReduxRuntimeContiguous) {
+  redux_runtime_contiguous<float>();
+  redux_runtime_contiguous<double>();
+  redux_runtime_contiguous<std::complex<float>>();
+  redux_runtime_contiguous<std::complex<double>>();
+}

@@ -8,11 +8,27 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/
 // SPDX-License-Identifier: MPL-2.0
 
-// bdcsvd split: verify_assert tests for real fixed-size types (square).
+// bdcsvd split: assert checks and option-enum regression.
 
 #include "bdcsvd_helpers.h"
 
-TEST(BDCSVDAssertTest, Real) {
-  (bdcsvd_verify_assert<Matrix3f>());
-  (bdcsvd_verify_assert<Matrix4d>());
+TEST(BDCSVDAssertTest, Basic) {
+  (bdcsvd_asserts<Matrix3f>());
+  (bdcsvd_asserts<Matrix4d>());
+  (bdcsvd_asserts<Matrix<float, 10, 7>>());
+  (bdcsvd_asserts<Matrix<float, 7, 10>>());
+  (bdcsvd_asserts<Matrix<std::complex<double>, 6, 9>>());
 }
+
+void bdcsvd_mixed_option_enum_regression() {
+  using NoQrFullSVD = BDCSVD<MatrixXd, NoQRPreconditioner | ComputeFullU | ComputeFullV>;
+  using ReversedMixedSVD = BDCSVD<MatrixXd, ComputeThinU | DisableQRDecomposition | ComputeFullV>;
+
+  STATIC_CHECK((int(NoQrFullSVD::QRDecomposition) == int(NoQRPreconditioner)));
+  STATIC_CHECK((NoQrFullSVD::ComputationOptions == (ComputeFullU | ComputeFullV)));
+
+  STATIC_CHECK((int(ReversedMixedSVD::QRDecomposition) == int(DisableQRDecomposition)));
+  STATIC_CHECK((ReversedMixedSVD::ComputationOptions == (ComputeThinU | ComputeFullV)));
+}
+
+TEST(BDCSVDAssertTest, MixedOptionEnumRegression) { bdcsvd_mixed_option_enum_regression(); }

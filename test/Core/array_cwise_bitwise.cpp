@@ -37,3 +37,12 @@ TEST(ArrayCwiseBitwiseTest, TypedLogicalsComplex) {
     typed_logicals_test(ArrayX<std::complex<double>>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
   }
 }
+
+TEST(ArrayCwiseBitwiseTest, LdexpTest) {
+  for (int i = 0; i < g_repeat; i++) {
+    ldexp_test<float>();
+    ldexp_test<double>();
+    ldexp_test<Eigen::half>();
+    ldexp_test<Eigen::bfloat16>();
+  }
+}

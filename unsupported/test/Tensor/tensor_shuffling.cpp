@@ -285,3 +285,8 @@ TEST(TensorShufflingTest, Basic) {
   test_empty_shuffling<ColMajor>();
   test_empty_shuffling<RowMajor>();
 }
+
+TEST(TensorShufflingTest, TestShufflingThroughCast) {
+  test_shuffling_through_cast<ColMajor>();
+  test_shuffling_through_cast<RowMajor>();
+}

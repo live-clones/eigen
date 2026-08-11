@@ -125,3 +125,13 @@ TEST(TensorRandomTest, Basic) {
   (test_normal<Eigen::bfloat16>());
   test_custom();
 }
+
+TEST(TensorRandomTest, TestNormalAllFinite) {
+  (test_normal_all_finite<Eigen::half>(Eigen::Index(1) << 21));
+  (test_normal_all_finite<Eigen::bfloat16>(Eigen::Index(1) << 18));
+}
+
+TEST(TensorRandomTest, TestUniformRange) {
+  (test_uniform_range<Eigen::half>(Eigen::Index(1) << 16));
+  (test_uniform_range<Eigen::bfloat16>(Eigen::Index(1) << 16));
+}

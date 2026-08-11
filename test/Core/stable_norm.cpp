@@ -767,3 +767,49 @@ TEST(StableNormTest, BlockBoundary) {
   stable_norm_block_boundary<float>();
   stable_norm_block_boundary<double>();
 }
+
+TEST(StableNormTest, StableNormComplexInfinity) {
+  stable_norm_complex_infinity<std::complex<float> >();
+  stable_norm_complex_infinity<std::complex<double> >();
+}
+
+TEST(StableNormTest, StableNormComplexLowPrecision) {
+  stable_norm_complex_low_precision<half>();
+  stable_norm_complex_low_precision<bfloat16>();
+}
+
+TEST(StableNormTest, StableNormDenormalRounding) {
+  stable_norm_denormal_rounding<float>();
+  stable_norm_denormal_rounding<double>();
+}
+
+TEST(StableNormTest, StableNormExpressionAndStride) { stable_norm_expression_and_stride(); }
+
+TEST(StableNormTest, StableNormExtremeCrossProduct) {
+  stable_norm_extreme_cross_product<float>();
+  stable_norm_extreme_cross_product<double>();
+}
+
+TEST(StableNormTest, StableNormLowPrecision) {
+  stable_norm_low_precision<half>();
+  stable_norm_low_precision<bfloat16>();
+}
+
+TEST(StableNormTest, StableNormMixedUnderflow) {
+  stable_norm_mixed_underflow<float>();
+  stable_norm_mixed_underflow<double>();
+}
+
+TEST(StableNormTest, StableNormalizeComplexExtremes) {
+  stable_normalize_complex_extremes<float>();
+  stable_normalize_complex_extremes<double>();
+}
+
+TEST(StableNormTest, StableNormalizeExtremes) {
+  stable_normalize_extremes<float>();
+  stable_normalize_extremes<double>();
+}
+
+TEST(StableNormTest, StableNormalizeNoMalloc) { stable_normalize_no_malloc(); }
+
+TEST(StableNormTest, StableNormalizePromotedFactor) { stable_normalize_promoted_factor(); }
