@@ -126,20 +126,23 @@ def scan_quoted(line, j, quote):
 def lex_lines(lines):
     """Lex a file's complete contiguous text.
 
-    Returns (code_lines, comment_only) as parallel lists: per line, the code
-    with comments and string/character literals blanked, and the stripped
-    comment text when the line holds no code (else None).  Block comments,
-    raw string literals, and backslash-spliced ordinary literals carry their
-    state across physical lines.
+    Returns (code_lines, comment_only, doxygen_only) as parallel lists: per
+    line, the code with comments and string/character literals blanked, the
+    stripped comment text when the line holds no code (else None), and whether
+    that comment belongs to Doxygen.  Block comments, raw string literals, and
+    backslash-spliced ordinary literals carry their state across physical
+    lines.
     """
-    code_lines, comment_only = [], []
+    code_lines, comment_only, doxygen_only = [], [], []
     in_block = False
+    block_doxygen = False
     raw_terminator = None  # e.g. )delim" while inside a raw string literal
     open_quote = None      # quote character of a spliced ordinary literal
     for line in lines:
         out, i, n = [], 0, len(line)
         had_code = False
         had_comment = in_block
+        line_doxygen = block_doxygen if in_block else False
         literal_at_start = raw_terminator is not None or open_quote is not None
         while i < n:
             if in_block:
@@ -148,6 +151,7 @@ def lex_lines(lines):
                     i = n
                 else:
                     in_block = False
+                    block_doxygen = False
                     i = j + 2
                 continue
             if raw_terminator is not None:
@@ -166,9 +170,12 @@ def lex_lines(lines):
             c = line[i]
             if c == "/" and i + 1 < n and line[i + 1] == "/":
                 had_comment = True
+                line_doxygen = line_doxygen or bool(DOXYGEN.match(line[i:]))
                 break
             if c == "/" and i + 1 < n and line[i + 1] == "*":
                 had_comment = True
+                block_doxygen = line.startswith(("/**", "/*!"), i)
+                line_doxygen = line_doxygen or block_doxygen
                 in_block = True
                 i += 2
                 continue
@@ -208,10 +215,11 @@ def lex_lines(lines):
         is_comment = (not had_code) and had_comment and not literal_at_start
         code_lines.append("".join(out))
         comment_only.append(stripped if is_comment else None)
-    return code_lines, comment_only
+        doxygen_only.append(line_doxygen if is_comment else None)
+    return code_lines, comment_only, doxygen_only
 
 
-def check_comments(comment_only, added, findings):
+def check_comments(comment_only, doxygen_only, added, findings):
     """Flag comment blocks that gain six or more added narration lines.
 
     Blocks are formed over the full file, so an addition inside an existing
@@ -219,21 +227,28 @@ def check_comments(comment_only, added, findings):
     ADDED lines count toward the threshold — extending a pre-existing block
     by a line or two is not reported.
     """
-    block_start = None
+    def finish_block(block_start, block_end, is_doxygen):
+        block = comment_only[block_start:block_end]
+        added_in_block = [line_no for line_no in range(block_start + 1, block_end + 1) if line_no in added]
+        if added_in_block and len(added_in_block) >= 6 and not (is_doxygen or LICENSE.search("\n".join(block))):
+            findings.append((added_in_block[0], "%d added lines of non-Doxygen comment: AGENTS.md keeps only "
+                                                "mathematics, invariants, compatibility constraints, provenance, "
+                                                "or the reason a deliberate construct must not be simplified"
+                                                % len(added_in_block)))
+
+    block_start, block_doxygen = None, None
     for idx in range(len(comment_only) + 1):
         comment = comment_only[idx] if idx < len(comment_only) else None
         if comment is not None:
             if block_start is None:
                 block_start = idx
+                block_doxygen = doxygen_only[idx]
+            elif doxygen_only[idx] != block_doxygen:
+                finish_block(block_start, idx, block_doxygen)
+                block_start = idx
+                block_doxygen = doxygen_only[idx]
         elif block_start is not None:
-            block = comment_only[block_start:idx]
-            added_in_block = [line_no for line_no in range(block_start + 1, idx + 1) if line_no in added]
-            if added_in_block and len(added_in_block) >= 6 and not (
-                    LICENSE.search("\n".join(block)) or DOXYGEN.match(block[0])):
-                findings.append((added_in_block[0], "%d added lines of non-Doxygen comment: AGENTS.md keeps only "
-                                                    "mathematics, invariants, compatibility constraints, provenance, "
-                                                    "or the reason a deliberate construct must not be simplified"
-                                                    % len(added_in_block)))
+            finish_block(block_start, idx, block_doxygen)
             block_start = None
 
 
@@ -289,9 +304,9 @@ def find_findings(rel_path, lines, added):
     added = {n for n in added if 1 <= n <= len(lines) and lines[n - 1].strip()}
     if not added:
         return []
-    code_lines, comment_only = lex_lines(lines)
+    code_lines, comment_only, doxygen_only = lex_lines(lines)
     findings = []
-    check_comments(comment_only, added, findings)
+    check_comments(comment_only, doxygen_only, added, findings)
     check_conventions(rel_path, code_lines, added, findings)
     findings.sort()
     return findings
