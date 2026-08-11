@@ -709,6 +709,23 @@ build:linux:cross:x86-64:gcc-10:avx512dq:affected:
         - Eigen/src/Core/arch/AVX/**/*
         - Eigen/src/Core/arch/AVX512/**/*
 
+# The AVX512-FP16 headers are excluded unless -mavx512fp16 is active, so the
+# AVX512DQ job above does not parse them.  Reuse the existing split compile-only
+# builds; there is no runner with AVX512-FP16 hardware for a paired test job.
+build:linux:cross:x86-64:gcc-13:avx512fp16:official:affected:
+  extends: build:linux:cross:x86-64:gcc-13:avx512fp16:official
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/"
+      changes:
+        - Eigen/src/Core/arch/AVX512/*FP16*
+
+build:linux:cross:x86-64:gcc-13:avx512fp16:unsupported:affected:
+  extends: build:linux:cross:x86-64:gcc-13:avx512fp16:unsupported
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/"
+      changes:
+        - Eigen/src/Core/arch/AVX512/*FP16*
+
 # 32-bit arm: a distinct NEON code path from the aarch64 job above.
 build:linux:cross:arm:gcc-10:default:affected:
   extends: [ build:linux:cross:arm:gcc-10:default, .affected:build ]
