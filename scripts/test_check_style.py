@@ -66,6 +66,12 @@ def test_scoping():
     assert_clean("AGENTS.md", "NULL typedef enum {\n")
     # Only ADDED lines are reported: the same violations on unchanged lines stay silent.
     assert_clean("Eigen/src/Core/Foo.h", "const char* p = NULL;\nint x = 1;\n", added={2})
+    # Sources with a documented C++17 requirement are exempt from the C++14 checks...
+    assert_clean("test/sycl_basic.cpp", "if constexpr (kSize > 4) {}\n")
+    assert_clean("Eigen/src/Core/arch/SYCL/PacketMath.h", "if constexpr (kSize > 4) {}\n")
+    assert_clean("unsupported/test/duccfft.cpp", "if constexpr (kSize > 4) {}\n")
+    # ...but not from the other conventions.
+    assert_flags("test/sycl_basic.cpp", "const char* p = NULL;\n", "nullptr")
 
 
 def test_false_positive_probes():
@@ -178,6 +184,29 @@ def test_diff_parser():
     assert files["Eigen/src/Core/Foo.h"] == {11, 12, 23}, files
 
 
+def test_no_newline_marker():
+    # Replacing an unterminated last line: the "\ No newline" markers must not
+    # advance the line counter, or the addition maps past the post-image.
+    diff = (
+        "--- a/Eigen/src/Core/Foo.h\n"
+        "+++ b/Eigen/src/Core/Foo.h\n"
+        "@@ -1 +1 @@\n"
+        "-int old;\n"
+        "\\ No newline at end of file\n"
+        "+const char* p = NULL;\n"
+        "\\ No newline at end of file\n"
+    )
+    files = added_lines_from_diff(diff)
+    assert files["Eigen/src/Core/Foo.h"] == {1}, files
+    assert messages("Eigen/src/Core/Foo.h", "const char* p = NULL;", added={1})
+    response = {"structuredPatch": [
+        {"oldStart": 1, "oldLines": 1, "newStart": 1, "newLines": 1,
+         "lines": ["-int old;", "\\ No newline at end of file",
+                   "+const char* p = NULL;", "\\ No newline at end of file"]},
+    ]}
+    assert added_from_structured_patch(response) == {1}
+
+
 def test_diff_mode_merge_base_and_untracked():
     tmp = tempfile.mkdtemp(prefix="check_style_test_")
     try:
@@ -191,11 +220,16 @@ def test_diff_mode_merge_base_and_untracked():
                 handle.write(text)
 
         sh("git", "init", "-q", "-b", "main")
-        sh("git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "base")
+        # The base carries a one-line file without a trailing newline, so the
+        # feature diff emits "\ No newline at end of file" markers.
+        write("Eigen/src/Core/NoEol.h", "int old;")
+        sh("git", "add", "Eigen/src/Core/NoEol.h")
+        sh("git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "base")
         sh("git", "branch", "target")
-        # Feature branch adds a violating file.
+        # Feature branch adds a violating file and replaces the unterminated line.
         write("Eigen/src/Core/Added.h", "const char* p = NULL;\n")
-        sh("git", "add", "Eigen/src/Core/Added.h")
+        write("Eigen/src/Core/NoEol.h", "typedef int Replaced;")
+        sh("git", "add", "Eigen/src/Core/Added.h", "Eigen/src/Core/NoEol.h")
         sh("git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "feature")
         # Target advances independently with its own violating file: a
         # two-tree diff against `target` would report it in reverse.
@@ -212,6 +246,9 @@ def test_diff_mode_merge_base_and_untracked():
         assert "Eigen/src/Core/Added.h" in paths, results
         assert "Eigen/src/Core/Untracked.h" in paths, results
         assert "Eigen/src/Core/TargetOnly.h" not in paths, results
+        # The unterminated replacement maps to line 1 despite the markers.
+        noeol = [(l, m) for p, l, m in results if p == "Eigen/src/Core/NoEol.h"]
+        assert noeol and noeol[0][0] == 1 and "typedef" in noeol[0][1], results
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
