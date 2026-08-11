@@ -128,7 +128,7 @@ class QR {
     if (transposed_) {
       transpose_into_factor(d_A);
     } else {
-      d_qr_ = internal::DeviceBuffer::adopt(static_cast<void*>(d_A.release()), factorBytes());
+      d_qr_ = internal::DeviceBuffer::adopt(static_cast<void*>(d_A.release()), factorBytes(), solver_ctx_.stream());
     }
 
     factorize();
@@ -220,7 +220,7 @@ class QR {
     return true;
   }
 
-  void allocate_factor_storage(size_t mat_bytes) { internal::ensure_sized(d_qr_, mat_bytes); }
+  void allocate_factor_storage(size_t mat_bytes) { internal::ensure_sized(d_qr_, mat_bytes, solver_ctx_.stream()); }
 
   // Wide input (m < n): factor A^H, produced on device via cuBLAS geam.
   void transpose_into_factor(const DeviceMatrix<Scalar>& d_A) {
@@ -236,7 +236,7 @@ class QR {
 
     solver_ctx_.mark_pending();
 
-    internal::ensure_sized(d_tau_, static_cast<size_t>(k()) * sizeof(Scalar));
+    internal::ensure_sized(d_tau_, static_cast<size_t>(k()) * sizeof(Scalar), solver_ctx_.stream());
 
     const int64_t fm = factor_rows();
     const int64_t fn = factor_cols();
@@ -287,7 +287,7 @@ class QR {
     const Index nrhs = rhs.cols();
     const size_t b_bytes = static_cast<size_t>(m_) * static_cast<size_t>(nrhs) * sizeof(Scalar);
 
-    internal::DeviceBuffer d_B(b_bytes);
+    internal::DeviceBuffer d_B(b_bytes, solver_ctx_.stream());
     EIGEN_CUDA_RUNTIME_CHECK(
         cudaMemcpyAsync(d_B.get(), rhs.data(), b_bytes, cudaMemcpyHostToDevice, solver_ctx_.stream()));
 
@@ -313,7 +313,7 @@ class QR {
     const Index nrhs = d_B.cols();
     const size_t b_bytes = static_cast<size_t>(m_) * static_cast<size_t>(nrhs) * sizeof(Scalar);
 
-    internal::DeviceBuffer d_work(b_bytes);
+    internal::DeviceBuffer d_work(b_bytes, solver_ctx_.stream());
     EIGEN_CUDA_RUNTIME_CHECK(
         cudaMemcpyAsync(d_work.get(), d_B.data(), b_bytes, cudaMemcpyDeviceToDevice, solver_ctx_.stream()));
 
@@ -343,7 +343,7 @@ class QR {
   PlainMatrix solve_underdetermined_host(const PlainMatrix& rhs, Index nrhs) const {
     const size_t x_bytes = static_cast<size_t>(n_) * static_cast<size_t>(nrhs) * sizeof(Scalar);
 
-    internal::DeviceBuffer d_X(x_bytes);
+    internal::DeviceBuffer d_X(x_bytes, solver_ctx_.stream());
     // Zero the full n × nrhs buffer; B will overwrite the top m × nrhs block.
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(d_X.get(), 0, x_bytes, solver_ctx_.stream()));
 
@@ -369,7 +369,7 @@ class QR {
     const Index nrhs = d_B.cols();
     const size_t x_bytes = static_cast<size_t>(n_) * static_cast<size_t>(nrhs) * sizeof(Scalar);
 
-    internal::DeviceBuffer d_X(x_bytes);
+    internal::DeviceBuffer d_X(x_bytes, solver_ctx_.stream());
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(d_X.get(), 0, x_bytes, solver_ctx_.stream()));
 
     if (m_ > 0 && nrhs > 0) {

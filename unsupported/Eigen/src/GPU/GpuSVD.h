@@ -137,7 +137,7 @@ class SVD {
       transpose_into_input(d_A);
     } else {
       const size_t mat_bytes = static_cast<size_t>(lda_) * static_cast<size_t>(n_) * sizeof(Scalar);
-      d_A_ = internal::DeviceBuffer(mat_bytes);
+      d_A_ = internal::DeviceBuffer(mat_bytes, solver_ctx_.stream());
       EIGEN_CUDA_RUNTIME_CHECK(
           cudaMemcpyAsync(d_A_.get(), d_A.data(), mat_bytes, cudaMemcpyDeviceToDevice, solver_ctx_.stream()));
     }
@@ -156,7 +156,7 @@ class SVD {
       transpose_into_input(d_A);
     } else {
       const size_t a_bytes = d_A.sizeInBytes();
-      d_A_ = internal::DeviceBuffer::adopt(static_cast<void*>(d_A.release()), a_bytes);
+      d_A_ = internal::DeviceBuffer::adopt(static_cast<void*>(d_A.release()), a_bytes, solver_ctx_.stream());
     }
 
     factorize();
@@ -402,7 +402,7 @@ class SVD {
   // Wide input (m < n): produce d_A_ = A^H on device via cuBLAS geam.
   void transpose_into_input(const DeviceMatrix<Scalar>& d_A) {
     const size_t mat_bytes = static_cast<size_t>(lda_) * static_cast<size_t>(n_) * sizeof(Scalar);
-    d_A_ = internal::DeviceBuffer(mat_bytes);
+    d_A_ = internal::DeviceBuffer(mat_bytes, solver_ctx_.stream());
     // geam: C(m×n) = alpha * op(A) + beta * op(B). beta=0, B=nullptr.
     Scalar alpha_one(1), beta_zero(0);
     EIGEN_CUBLAS_CHECK(internal::cublasXgeam(solver_ctx_.cublasHandle(), CUBLAS_OP_C, CUBLAS_OP_N, m_, n_, &alpha_one,
@@ -439,7 +439,7 @@ class SVD {
 
     solver_ctx_.mark_pending();
 
-    internal::ensure_sized(d_S_, static_cast<size_t>(k) * sizeof(RealScalar));
+    internal::ensure_sized(d_S_, static_cast<size_t>(k) * sizeof(RealScalar), solver_ctx_.stream());
 
     const unsigned int int_opts = transposed_ ? swap_uv_options(options_) : options_;
 
@@ -449,10 +449,12 @@ class SVD {
     const int64_t ldvt = vtrows > 0 ? vtrows : 1;
 
     if (ucols > 0) {
-      internal::ensure_sized(d_U_, static_cast<size_t>(m_) * static_cast<size_t>(ucols) * sizeof(Scalar));
+      internal::ensure_sized(d_U_, static_cast<size_t>(m_) * static_cast<size_t>(ucols) * sizeof(Scalar),
+                             solver_ctx_.stream());
     }
     if (vtrows > 0) {
-      internal::ensure_sized(d_VT_, static_cast<size_t>(vtrows) * static_cast<size_t>(n_) * sizeof(Scalar));
+      internal::ensure_sized(d_VT_, static_cast<size_t>(vtrows) * static_cast<size_t>(n_) * sizeof(Scalar),
+                             solver_ctx_.stream());
     }
 
     eigen_assert(m_ >= n_ && "Internal error: m_ < n_ should have been handled by transpose in compute()");
@@ -475,8 +477,8 @@ class SVD {
 
     // The input copy is pure gesvd scratch — release it now. The free is
     // stream-ordered (or synchronous on the fallback allocator), so it waits
-    // for gesvd to retire; the memory returns to the pool instead of staying
-    // resident for the solver's lifetime.
+    // for gesvd to retire; when supported, the memory returns to the driver
+    // pool instead of staying resident for the solver's lifetime.
     d_A_ = internal::DeviceBuffer();
   }
 
@@ -509,7 +511,7 @@ class SVD {
     }
 
     const size_t d_bytes = static_cast<size_t>(kk) * sizeof(Scalar);
-    internal::ensure_sized(d_D_, d_bytes);
+    internal::ensure_sized(d_D_, d_bytes, solver_ctx_.stream());
     EIGEN_CUDA_RUNTIME_CHECK(
         cudaMemcpyAsync(d_D_.get(), D.data(), d_bytes, cudaMemcpyHostToDevice, solver_ctx_.stream()));
     cached_diag_kk_ = kk;
@@ -531,7 +533,8 @@ class SVD {
     Scalar scalars[2] = {Scalar(1), Scalar(0)};
 
     // Step 1: tmp = U_orig^H * B  (kk × nrhs).
-    internal::DeviceBuffer d_tmp(static_cast<size_t>(kk) * static_cast<size_t>(nrhs) * sizeof(Scalar));
+    internal::DeviceBuffer d_tmp(static_cast<size_t>(kk) * static_cast<size_t>(nrhs) * sizeof(Scalar),
+                                 solver_ctx_.stream());
     auto* tmp_dev = static_cast<Scalar*>(d_tmp.get());
     if (!transposed_) {
       internal::cublaslt_gemm(solver_ctx_.cublasLtHandle(), solver_ctx_.cublasHandle(), CUBLAS_OP_C, CUBLAS_OP_N, kk,
@@ -588,14 +591,16 @@ class SVD {
     // (re)built, its S-download sync then also covers the in-flight upload —
     // one blocking wait instead of two.
     const Ref<const PlainMatrix> rhs(B.derived());
-    internal::DeviceBuffer d_B(static_cast<size_t>(m_orig) * static_cast<size_t>(nrhs) * sizeof(Scalar));
+    internal::DeviceBuffer d_B(static_cast<size_t>(m_orig) * static_cast<size_t>(nrhs) * sizeof(Scalar),
+                               solver_ctx_.stream());
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_B.get(), rhs.data(),
                                              static_cast<size_t>(m_orig) * static_cast<size_t>(nrhs) * sizeof(Scalar),
                                              cudaMemcpyHostToDevice, solver_ctx_.stream()));
     build_diag(kk, lambda);
 
     PlainMatrix X(n_orig, nrhs);
-    internal::DeviceBuffer d_X(static_cast<size_t>(n_orig) * static_cast<size_t>(nrhs) * sizeof(Scalar));
+    internal::DeviceBuffer d_X(static_cast<size_t>(n_orig) * static_cast<size_t>(nrhs) * sizeof(Scalar),
+                               solver_ctx_.stream());
     apply_pinv(static_cast<const Scalar*>(d_B.get()), kk, nrhs, static_cast<Scalar*>(d_X.get()));
 
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(X.data(), d_X.get(),

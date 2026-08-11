@@ -35,9 +35,9 @@ class DeviceScalar {
 
   /** Allocate an uninitialized device scalar. Contents are undefined until
    * written, e.g. by cuBLAS dot/nrm2 under POINTER_MODE_DEVICE. */
-  explicit DeviceScalar(cudaStream_t stream = nullptr) : d_val_(sizeof(Scalar)), stream_(stream) {}
+  explicit DeviceScalar(cudaStream_t stream = nullptr) : d_val_(sizeof(Scalar), stream), stream_(stream) {}
 
-  DeviceScalar(Scalar host_val, cudaStream_t stream) : d_val_(sizeof(Scalar)), stream_(stream) {
+  DeviceScalar(Scalar host_val, cudaStream_t stream) : d_val_(sizeof(Scalar), stream), stream_(stream) {
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_val_.get(), &host_val, sizeof(Scalar), cudaMemcpyHostToDevice, stream_));
   }
 

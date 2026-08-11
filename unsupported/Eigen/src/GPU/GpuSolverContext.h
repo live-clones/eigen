@@ -88,6 +88,9 @@ struct GpuSolverContext {
       if (!info_synced_ && pinned_info_) (void)cudaStreamSynchronize(stream());
       // Release plan-cache descriptors before the moves below replace the cuBLASLt handle they were built with.
       gemm_plan_cache_.clear();
+      // Free the stream-ordered device buffers while the stream they were allocated on is still alive.
+      d_scratch_ = DeviceBuffer();
+      gemm_workspace_ = DeviceBuffer();
       bound_ctx_ = o.bound_ctx_;
       stream_ = std::move(o.stream_);
       cusolver_ = std::move(o.cusolver_);
@@ -140,14 +143,12 @@ struct GpuSolverContext {
     return workspace_bytes + kInfoBytes;
   }
 
-  // Ensure d_scratch_ holds at least `workspace_bytes` of scratch plus the trailing
-  // info word. Grows but never shrinks. Syncs the stream before reallocating to
-  // avoid freeing memory that async kernels may still be using.
+  // Ensure d_scratch_ holds at least `workspace_bytes` of scratch plus the
+  // trailing info word. Grows but never shrinks.
   void ensure_scratch(size_t workspace_bytes) {
     size_t needed = scratchBytesFor(workspace_bytes);
     if (needed > d_scratch_.size()) {
-      if (d_scratch_) EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream()));
-      d_scratch_ = DeviceBuffer(needed);
+      d_scratch_ = DeviceBuffer(needed, stream());
     }
   }
 
