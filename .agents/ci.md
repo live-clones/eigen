@@ -37,7 +37,8 @@ Selection follows the textual `#include` graph, ignoring preprocessor guards, so
 compile dependency and never drops an affected test. Because Eigen is header-only and the umbrella headers are hubs,
 a change under `Eigen/src/Core` typically reaches every test and the selector degrades to `buildtests` — that is the
 correct answer, not a failure. Changes to CMake, `ci/`, or the BLAS/LAPACK shims also force the full suite, since they
-invalidate the mapping itself.
+invalidate the mapping itself. Git rename detection is disabled for the input diff so both the old and new path of a
+move are evaluated; an old path absent from the current graph safely forces the full suite.
 
 The selector derives source-to-target mappings from test CMake registration, including multi-translation-unit
 executables. A changed test source without a registration is an error rather than an unconfigured target to drop.
