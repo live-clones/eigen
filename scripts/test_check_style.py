@@ -158,6 +158,19 @@ def test_comment_verbosity():
     # lose the exemption inherited from the opening delimiter.
     doxy = "/** docs\n\nline one\nline two\nline three\nline four\nline five\nline six */\nint x = 1;\n"
     assert_clean("Eigen/src/Core/Foo.h", doxy)
+    # An adjacent ordinary heading is a separate comment run and must not
+    # strip the exemption from the Doxygen block that follows it.
+    doxy = "// API documentation follows\n/** docs\nline one\nline two\nline three\nline four\nline five\nline six */\n"
+    assert_clean("Eigen/src/Core/Foo.h", doxy)
+    # The Doxygen kind is carried even when the opener follows code and is not
+    # itself a comment-only line.
+    trailing_doxy = ("int value; /**< docs\n * line one\n * line two\n * line three\n"
+                     " * line four\n * line five\n * line six */\n")
+    assert_clean("Eigen/src/Core/Foo.h", trailing_doxy)
+    # Conversely, ordinary narration immediately after Doxygen does not
+    # inherit its exemption.
+    narration = "/** short docs */\n" + "\n".join("// narration %d" % i for i in range(6)) + "\n"
+    assert_flags("Eigen/src/Core/Foo.h", narration, "non-Doxygen comment")
 
 
 def test_multiline_literals():
