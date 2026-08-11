@@ -79,6 +79,31 @@ void test_execute_unary_expr(Device d) {
 }
 
 template <typename T, int NumDims, typename Device, bool Vectorizable, TiledEvaluation Tiling, int Layout>
+void test_execute_nullary_expr(Device d) {
+  static constexpr int Options = 0 | Layout;
+
+  // A constant() leaf must not disable any executor configuration; in
+  // particular this sweep forces Tiling::On, which requires the nullary
+  // evaluator to serve blocks.
+  auto dims = RandomDims<NumDims>(50 / NumDims, 100 / NumDims);
+
+  Tensor<T, NumDims, Options, Index> src(dims);
+  Tensor<T, NumDims, Options, Index> dst(dims);
+
+  src.setRandom();
+  const auto expr = src * src.constant(T(2));
+
+  using Assign = TensorAssignOp<decltype(dst), const decltype(expr)>;
+  using Executor = internal::TensorExecutor<const Assign, Device, Vectorizable, Tiling>;
+
+  Executor::run(Assign(dst, expr), d);
+
+  for (Index i = 0; i < dst.dimensions().TotalSize(); ++i) {
+    VERIFY_IS_EQUAL(T(2) * src.coeff(i), dst.coeff(i));
+  }
+}
+
+template <typename T, int NumDims, typename Device, bool Vectorizable, TiledEvaluation Tiling, int Layout>
 void test_execute_binary_expr(Device d) {
   static constexpr int Options = 0 | Layout;
 
@@ -719,6 +744,10 @@ EIGEN_DECLARE_TEST(tensor_executor) {
   CALL_SUBTEST_COMBINATIONS(2, test_execute_binary_expr, float, 3);
   CALL_SUBTEST_COMBINATIONS(2, test_execute_binary_expr, float, 4);
   CALL_SUBTEST_COMBINATIONS(2, test_execute_binary_expr, float, 5);
+
+  CALL_SUBTEST_COMBINATIONS(2, test_execute_nullary_expr, float, 3);
+  CALL_SUBTEST_COMBINATIONS(2, test_execute_nullary_expr, float, 4);
+  CALL_SUBTEST_COMBINATIONS(2, test_execute_nullary_expr, float, 5);
 
   CALL_SUBTEST_COMBINATIONS(3, test_execute_broadcasting, float, 3);
   CALL_SUBTEST_COMBINATIONS(3, test_execute_broadcasting, float, 4);

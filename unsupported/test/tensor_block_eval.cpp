@@ -453,6 +453,58 @@ static void test_eval_tensor_ternary() {
 }
 
 template <typename T, int NumDims, int Layout>
+static void test_eval_tensor_nullary() {
+  DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
+  Tensor<T, NumDims, Layout> input(dims);
+  input.setRandom();
+
+  VerifyBlockEvaluator<T, NumDims, Layout>(input.constant(T(7)),
+                                           [&dims]() { return RandomBlock<Layout>(dims, 1, 10); });
+  VerifyBlockEvaluator<T, NumDims, Layout>(input.constant(T(7)), [&dims]() { return FixedSizeBlock(dims); });
+
+  // Nullary leaf composed under a block-capable binary expression.
+  VerifyBlockEvaluator<T, NumDims, Layout>(input * input.constant(T(1)),
+                                           [&dims]() { return RandomBlock<Layout>(dims, 1, 10); });
+}
+
+template <typename T, int NumDims, int Layout>
+static void test_eval_tensor_random_nullary() {
+  // Random generators advance their state on every call, so block and linear
+  // evaluation produce different (equally distributed) values; only
+  // distribution properties can be checked.
+  DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
+  Tensor<T, NumDims, Layout> input(dims);
+
+  using Device = DefaultDevice;
+  auto d = Device();
+  typedef internal::TensorBlockScratchAllocator<Device> TensorBlockScratch;
+  TensorBlockScratch scratch(d);
+
+  auto expr = input.random();
+  auto eval = TensorEvaluator<const decltype(expr), Device>(expr, d);
+  eval.evalSubExprsIfNeeded(nullptr);
+
+  TensorBlockParams<NumDims> block_params = RandomBlock<Layout>(dims, 5, 10);
+  auto tensor_block = eval.block(block_params.desc, scratch);
+
+  Tensor<T, NumDims, Layout> block(block_params.desc.dimensions());
+  auto b_expr = tensor_block.expr();
+  using BlockAssign = TensorAssignOp<decltype(block), const decltype(b_expr)>;
+  using BlockExecutor = TensorExecutor<const BlockAssign, Device, false, internal::TiledEvaluation::Off>;
+  BlockExecutor::run(BlockAssign(block, b_expr), d);
+  tensor_block.cleanup();
+
+  bool all_equal = true;
+  for (Index i = 0; i < block.size(); ++i) {
+    VERIFY(block.coeff(i) >= T(0) && block.coeff(i) < T(1));
+    all_equal = all_equal && (block.coeff(i) == block.coeff(0));
+  }
+  // A block of >= 25 uniform samples collapsing to one value means the
+  // generator was not actually invoked per element.
+  VERIFY(!all_equal);
+}
+
+template <typename T, int NumDims, int Layout>
 static void test_eval_tensor_select() {
   DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
   Tensor<T, NumDims, Layout> lhs(dims);
@@ -1015,6 +1067,8 @@ EIGEN_DECLARE_TEST(tensor_block_eval) {
   CALL_SUBTEST_PART(2)((test_eval_contract_pad_composition<float, RowMajor>()));
   CALL_SUBTEST_PART(2)((test_eval_contract_pad_composition<float, ColMajor>()));
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(3, test_eval_tensor_cast);
+  CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(3, test_eval_tensor_nullary);
+  CALL_SUBTESTS_DIMS_LAYOUTS(3, test_eval_tensor_random_nullary);
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(3, test_eval_tensor_select);
   CALL_SUBTESTS_DIMS_LAYOUTS(3, test_eval_tensor_ternary);
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(3, test_eval_tensor_padding);
