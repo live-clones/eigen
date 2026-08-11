@@ -66,19 +66,41 @@ STD_MATH = (
 )
 
 # Convention checks applied per added code line (comments and literals blanked).
+#
+# Several have a clang-tidy analogue, noted per check, and ci/scripts/run-clang-
+# tidy.sh already lints an MR's changed files.  They are duplicated here because
+# that job is whole-file: enabling modernize-use-using or cppcoreguidelines-use-
+# enum-class would report every pre-existing occurrence in a touched header —
+# Eigen/src alone holds ~4100 typedefs and ~870 unscoped enum blocks — burying
+# the handful of lines a change actually adds.  This script reports added lines
+# only, needs neither clang nor a compilation database, and is quick enough to
+# run on every edit.  Should the clang-tidy job grow per-line filtering, the
+# overlapping entries below should go.
 CODE_CHECKS = [
+    # clang-tidy analogue: modernize-use-nullptr.
     (r"\bNULL\b", "NULL: new code uses nullptr"),
+    # clang-tidy analogue: modernize-use-using.
     (r"\btypedef\b", "typedef: prefer `using` in new aliases unless the file is uniformly typedef"),
+    # No upstream check; see the parked integral-constant-bool entry in .clang-tidy.
     (r"std::integral_constant<\s*bool\b", "std::integral_constant<bool,...>: use Eigen's bool_constant (Meta.h)"),
+    # Partial clang-tidy analogue: cppcoreguidelines-use-enum-class, which asks
+    # for `enum class`; Eigen's rule for trait constants is static constexpr.
     (r"^\s*enum\s*(?::[^{}]+)?\{", "enum constant block: trait/evaluator constants are static constexpr in new "
                                    "code; Flags is `unsigned int`"),
 ]
 CXX14_CHECKS = [
+    # No upstream check; see the parked eigen-if-constexpr entry in .clang-tidy.
+    # A C++14 build does not reliably reject this: clang accepts `if constexpr`
+    # as an extension and only warns under -Wc++17-extensions.
     (r"\bif\s+constexpr\b", "if constexpr: supported code compiles as C++14; use EIGEN_IF_CONSTEXPR(...) with a "
                             "condition that is valid either way"),
+    # These do fail the default C++14 build; flagging them at edit time just
+    # shortens the loop, and covers headers no built target happens to include.
     (r"\bstd::(any|span|optional|variant|string_view|byte|filesystem|void_t)\b",
      "C++17/20 library facility: the supported baseline is C++14"),
 ]
+# Also C++14-tree only (CMakeLists.txt defaults CMAKE_CXX_STANDARD to 14), and
+# with no clang-tidy analogue.
 DESIGNATED_MSG = "designated initializer: C++20-only; use aggregate assignment with /*name=*/ comments"
 
 
