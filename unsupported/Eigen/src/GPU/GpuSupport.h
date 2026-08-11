@@ -22,6 +22,7 @@
 
 #include <limits>
 #include <memory>
+#include <type_traits>
 
 namespace Eigen {
 namespace gpu {
@@ -123,6 +124,18 @@ struct CudaFreeHostDeleter {
     if (p) (void)cudaFreeHost(p);
   }
 };
+
+// RAII CUDA stream. The ownership flag lets a borrowed stream (e.g. a
+// gpu::Context bound to a caller-provided stream) flow through the same
+// member type as an owned one. Destruction is deferred by CUDA until
+// enqueued work completes, so destroying with work in flight is safe.
+struct CudaStreamDeleter {
+  bool owns = true;
+  void operator()(cudaStream_t s) const noexcept {
+    if (owns && s) (void)cudaStreamDestroy(s);
+  }
+};
+using UniqueStream = std::unique_ptr<std::remove_pointer_t<cudaStream_t>, CudaStreamDeleter>;
 
 // Recycles allocations up to kSmallBufferThreshold bytes (e.g. DeviceScalar) to
 // avoid cudaMalloc/cudaFree overhead. Larger allocations bypass the pool.

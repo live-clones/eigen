@@ -92,6 +92,19 @@ struct CusolverParams {
   CusolverParams& operator=(const CusolverParams&) = delete;
 };
 
+// RAII cuSOLVER dense handle, with an ownership flag for handles borrowed
+// from a gpu::Context. Not used by gpu::Context itself: naming
+// cusolverDnDestroy in a member's deleter would force every translation unit
+// that destroys a Context to link cuSOLVER, defeating the lazy-linking
+// design; Context keeps a function-pointer deleter installed at creation.
+struct CusolverHandleDeleter {
+  bool owns = true;
+  void operator()(cusolverDnHandle_t h) const noexcept {
+    if (owns && h) (void)cusolverDnDestroy(h);
+  }
+};
+using UniqueCusolverHandle = std::unique_ptr<std::remove_pointer_t<cusolverDnHandle_t>, CusolverHandleDeleter>;
+
 // Alias kept for compatibility; cuda_data_type<> in GpuSupport.h is canonical.
 template <typename Scalar>
 using cusolver_data_type = cuda_data_type<Scalar>;
