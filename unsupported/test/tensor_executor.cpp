@@ -143,6 +143,74 @@ void test_stateful_random_thread_pool_capabilities(const RandomGenerator& genera
   VERIFY(!all_equal);
 }
 
+// Custom nullary functors carry no functor_traits, so they must default to
+// the conservative non-repeatable classification: materialized with true
+// tensor-linear indices on DefaultDevice, and excluded from ThreadPoolDevice
+// tiling, whose block tasks share one evaluator (and functor instance).
+// Declaring IsRepeatable in functor_traits opts back in.
+struct UnannotatedIndexedFunctor {
+  float operator()() const { return -1.0f; }
+  float operator()(Index i) const { return static_cast<float>(i); }
+};
+
+struct UnannotatedNullaryFunctor {
+  float operator()() const { return 1.0f; }
+};
+
+struct RepeatableIndexedFunctor {
+  float operator()(Index i) const { return static_cast<float>(i); }
+};
+
+namespace Eigen {
+namespace internal {
+template <>
+struct functor_traits<RepeatableIndexedFunctor> {
+  enum { Cost = 1, PacketAccess = false, IsRepeatable = true };
+};
+}  // namespace internal
+}  // namespace Eigen
+
+void test_custom_nullary_functor_block_access() {
+  Tensor<float, 2> src(64, 64);
+  Tensor<float, 2> dst(64, 64);
+  src.setZero();
+
+  const auto indexed = src.nullaryExpr(UnannotatedIndexedFunctor());
+  using IndexedExpr = decltype(indexed);
+  static_assert(TensorEvaluator<const IndexedExpr, DefaultDevice>::BlockAccess,
+                "Unannotated indexed functors must serve materialized blocks on DefaultDevice");
+  static_assert(!TensorEvaluator<const IndexedExpr, ThreadPoolDevice>::BlockAccess,
+                "Unannotated functors must not opt into ThreadPoolDevice shared-evaluator tiling");
+
+  using NullaryOnlyExpr = decltype(src.nullaryExpr(UnannotatedNullaryFunctor()));
+  static_assert(!TensorEvaluator<const NullaryOnlyExpr, DefaultDevice>::BlockAccess,
+                "Unannotated zero-argument functors must keep their linear call order");
+
+  using RepeatableExpr = decltype(src.nullaryExpr(RepeatableIndexedFunctor()));
+  static_assert(TensorEvaluator<const RepeatableExpr, ThreadPoolDevice>::BlockAccess,
+                "IsRepeatable functors may serve blocks from a shared ThreadPoolDevice evaluator");
+
+  using ConstantExpr = decltype(src.constant(7.0f));
+  static_assert(TensorEvaluator<const ConstantExpr, ThreadPoolDevice>::BlockAccess,
+                "Constants must remain tileable on ThreadPoolDevice");
+
+  array<Index, 2> shuffle{{1, 0}};
+  const auto expr = src.shuffle(shuffle) + indexed;
+  using Assign = TensorAssignOp<decltype(dst), const decltype(expr)>;
+  static_assert(internal::IsTileable<DefaultDevice, const Assign>::value == TiledEvaluation::On,
+                "DefaultDevice expressions with unannotated indexed functors must remain tileable");
+  static_assert(internal::IsTileable<ThreadPoolDevice, const Assign>::value == TiledEvaluation::Off,
+                "ThreadPoolDevice expressions with unannotated functors must use coefficient evaluation");
+
+  // Tiled evaluation must feed the functor true tensor-linear indices; a lazy
+  // block would restart them at each block origin.
+  DefaultDevice d;
+  dst.device(d) = expr;
+  for (Index i = 0; i < dst.size(); ++i) {
+    VERIFY_IS_EQUAL(dst.coeff(i), static_cast<float>(i));
+  }
+}
+
 template <typename T, int NumDims, typename Device, bool Vectorizable, TiledEvaluation Tiling, int Layout>
 void test_execute_binary_expr(Device d) {
   static constexpr int Options = 0 | Layout;
@@ -813,6 +881,7 @@ EIGEN_DECLARE_TEST(tensor_executor) {
   CALL_SUBTEST_8((test_execute_ternary_tiled<RowMajor>(default_device, tp_device)));
   CALL_SUBTEST_8(test_stateful_random_thread_pool_capabilities(internal::UniformRandomGenerator<float>(123)));
   CALL_SUBTEST_8(test_stateful_random_thread_pool_capabilities(internal::NormalRandomGenerator<float>(123)));
+  CALL_SUBTEST_8(test_custom_nullary_functor_block_access());
 
   CALL_SUBTEST_COMBINATIONS(9, test_execute_reshape, float, 2);
   CALL_SUBTEST_COMBINATIONS(9, test_execute_reshape, float, 3);

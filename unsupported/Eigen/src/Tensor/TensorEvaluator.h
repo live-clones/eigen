@@ -18,12 +18,17 @@ namespace Eigen {
 
 namespace internal {
 
+// Whether functor_traits declare the functor repeatable: pure calls that may
+// be re-evaluated freely and invoked from concurrent threads. The primary
+// functor_traits template defaults IsRepeatable to false, but specializations
+// for custom functors routinely omit the member, so absence must also map to
+// the conservative default.
 template <typename Functor, typename = void>
-struct tensor_functor_is_stateful : std::false_type {};
+struct tensor_functor_is_repeatable : std::false_type {};
 
 template <typename Functor>
-struct tensor_functor_is_stateful<Functor, void_t<decltype(functor_traits<Functor>::IsStateful)>>
-    : bool_constant<functor_traits<Functor>::IsStateful> {};
+struct tensor_functor_is_repeatable<Functor, void_t<decltype(functor_traits<Functor>::IsRepeatable)>>
+    : bool_constant<functor_traits<Functor>::IsRepeatable> {};
 
 }  // namespace internal
 
@@ -339,8 +344,27 @@ struct TensorEvaluator<const TensorCwiseNullaryOp<NullaryOp, ArgType>, Device> {
   static constexpr int NumDims = internal::array_size<Dimensions>::value;
   typedef std::remove_const_t<CoeffReturnType> ScalarNoConst;
 
-  static constexpr bool IsStatefulThreadPoolOp = std::is_same<std::remove_cv_t<Device>, ThreadPoolDevice>::value &&
-                                                 internal::tensor_functor_is_stateful<NullaryOp>::value;
+  // Only functors whose functor_traits declare IsRepeatable (e.g. the
+  // scalar_constant_op behind constant(), cwiseMax(Scalar) and clip()) are
+  // known to be pure; unannotated custom functors conservatively default to
+  // non-repeatable, like the random generators whose calls advance PRNG state.
+  static constexpr bool RepeatableFunctor = internal::tensor_functor_is_repeatable<NullaryOp>::value;
+
+  // nullary_wrapper dispatches to an indexed operator() whenever one exists,
+  // even if a zero-argument overload is also present.
+  static constexpr bool IndexDependentFunctor =
+      internal::has_unary_operator<NullaryOp, Index>::value || internal::has_binary_operator<NullaryOp, Index>::value;
+
+  // A lazy block rebuilds the nullary expression over the block's local
+  // extent with a copy of the functor, so it is only correct for repeatable
+  // functors evaluated through the zero-argument overload: an index-dependent
+  // functor would see indices restart at the block origin, and a
+  // non-repeatable one would restart its state per block. Other block-served
+  // functors are materialized with their true tensor-linear indices.
+  static constexpr bool IndexIndependentFunctor =
+      RepeatableFunctor && !IndexDependentFunctor && internal::has_nullary_operator<NullaryOp, Index>::value;
+
+  static constexpr bool IsThreadPoolDevice = std::is_same<std::remove_cv_t<Device>, ThreadPoolDevice>::value;
 
   static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
   enum {
@@ -352,23 +376,19 @@ struct TensorEvaluator<const TensorCwiseNullaryOp<NullaryOp, ArgType>, Device> {
         ,
     // A nullary leaf can serve any block; without this, a single constant()
     // in an expression disables tiled evaluation for the whole tree. Never
-    // *prefer* block access on its own account, though. ThreadPool block tasks
-    // share an evaluator, so stateful functors stay on the packet-capable
-    // coefficient path, which copies the evaluator for each task.
-    BlockAccess = NumDims > 0 && internal::is_arithmetic<ScalarNoConst>::value && !IsStatefulThreadPoolOp,
+    // *prefer* block access on its own account, though. Blocks are declined
+    // when they could change behavior relative to coefficient evaluation:
+    // ThreadPool block tasks share one evaluator -- and one functor instance
+    // -- so non-repeatable functors stay on the packet-capable coefficient
+    // path there, which copies the evaluator per task. A non-repeatable
+    // functor without an indexed overload never serves blocks, since block
+    // traversal would permute its call sequence relative to linear order.
+    BlockAccess = NumDims > 0 && internal::is_arithmetic<ScalarNoConst>::value &&
+                  (IndexIndependentFunctor || (IndexDependentFunctor && (RepeatableFunctor || !IsThreadPoolDevice))),
     PreferBlockAccess = false,
     CoordAccess = false,  // to be implemented
     RawAccess = false
   };
-
-  // An index-independent functor (a functor with a nullary operator(), e.g.
-  // the scalar_constant_op behind constant(), cwiseMax(Scalar) and clip())
-  // produces the same value at every coefficient, so its block is served
-  // lazily and the consumer evaluates the functor in registers -- no scratch
-  // materialization. Index-dependent functors (the random generators, whose
-  // index selects the random stream) are materialized with their true
-  // tensor-linear indices instead.
-  static constexpr bool IndexIndependentFunctor = internal::has_nullary_operator<NullaryOp, Index>::value;
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
   typedef internal::TensorBlockDescriptor<NumDims, Index> TensorBlockDesc;
