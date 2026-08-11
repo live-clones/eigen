@@ -23,7 +23,7 @@ struct tensor_functor_is_stateful : std::false_type {};
 
 template <typename Functor>
 struct tensor_functor_is_stateful<Functor, void_t<decltype(functor_traits<Functor>::IsStateful)>>
-    : std::integral_constant<bool, functor_traits<Functor>::IsStateful> {};
+    : bool_constant<functor_traits<Functor>::IsStateful> {};
 
 }  // namespace internal
 
@@ -391,7 +391,7 @@ struct TensorEvaluator<const TensorCwiseNullaryOp<NullaryOp, ArgType>, Device> {
     XprType expr() const {
       return XprType(ArgXprType(static_cast<const ScalarNoConst*>(nullptr), m_dimensions), m_functor);
     }
-    const Scalar* data() const { return NULL; }
+    const Scalar* data() const { return nullptr; }
     void cleanup() {}
 
    private:
@@ -479,11 +479,11 @@ struct TensorEvaluator<const TensorCwiseNullaryOp<NullaryOp, ArgType>, Device> {
     // row is contiguous in linear-index space, so each run is one
     // packet-sized sweep.
     static TensorBlock Run(const Self& self, TensorBlockDesc& desc, TensorBlockScratch& scratch) {
-      static constexpr bool is_col_major = static_cast<int>(Layout) == static_cast<int>(ColMajor);
+      constexpr bool is_col_major = static_cast<int>(Layout) == static_cast<int>(ColMajor);
       typedef NullaryBlockFill<Self, bool(PacketAccess)> Fill;
 
       if (desc.size() == 0) {
-        return TensorBlock(internal::TensorBlockKind::kView, NULL, desc.dimensions());
+        return TensorBlock(internal::TensorBlockKind::kView, nullptr, desc.dimensions());
       }
 
       // Strides of the full tensor in linear-index space.
@@ -507,10 +507,9 @@ struct TensorEvaluator<const TensorCwiseNullaryOp<NullaryOp, ArgType>, Device> {
       array<BlockIteratorState, NumDims> it;
       for (int i = 0; i < NumDims; ++i) {
         const int dim = is_col_major ? i : NumDims - 1 - i;
-        it[i].size = desc.dimension(dim);
-        it[i].count = 0;
-        it[i].tensor_stride = tensor_strides[dim];
-        it[i].tensor_span = it[i].tensor_stride * (it[i].size - 1);
+        const Index size = desc.dimension(dim);
+        const Index stride = tensor_strides[dim];
+        it[i] = {/*size=*/size, /*count=*/0, /*tensor_stride=*/stride, /*tensor_span=*/stride * (size - 1)};
       }
       eigen_assert(it[0].tensor_stride == 1);
 
