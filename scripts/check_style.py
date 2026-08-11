@@ -67,18 +67,46 @@ CXX14_CHECKS = [
 DESIGNATED_MSG = "designated initializer: C++20-only; use aggregate assignment with /*name=*/ comments"
 
 
+RAW_PREFIX = re.compile(r"(?:^|[^0-9A-Za-z_])(?:u8|u|U|L)?R$")
+
+
+def scan_quoted(line, j, quote):
+    """Scan a quoted literal's remainder from position ``j``.
+
+    Returns (next_position, closed, spliced): ``spliced`` is True when the
+    line ends with a backslash inside the literal, so the literal continues
+    on the next physical line.
+    """
+    n = len(line)
+    while j < n:
+        if line[j] == "\\":
+            if j == n - 1:
+                return n, False, True
+            j += 2
+            continue
+        if line[j] == quote:
+            return j + 1, True, False
+        j += 1
+    return n, False, False
+
+
 def lex_lines(lines):
     """Lex a file's complete contiguous text.
 
     Returns (code_lines, comment_only) as parallel lists: per line, the code
     with comments and string/character literals blanked, and the stripped
-    comment text when the line holds no code (else None).
+    comment text when the line holds no code (else None).  Block comments,
+    raw string literals, and backslash-spliced ordinary literals carry their
+    state across physical lines.
     """
     code_lines, comment_only = [], []
     in_block = False
+    raw_terminator = None  # e.g. )delim" while inside a raw string literal
+    open_quote = None      # quote character of a spliced ordinary literal
     for line in lines:
         out, i, n = [], 0, len(line)
         had_code = False
+        literal_at_start = raw_terminator is not None or open_quote is not None
         while i < n:
             if in_block:
                 j = line.find("*/", i)
@@ -88,6 +116,19 @@ def lex_lines(lines):
                     in_block = False
                     i = j + 2
                 continue
+            if raw_terminator is not None:
+                j = line.find(raw_terminator, i)
+                if j < 0:
+                    i = n
+                else:
+                    i = j + len(raw_terminator)
+                    raw_terminator = None
+                continue
+            if open_quote is not None:
+                i, closed, spliced = scan_quoted(line, i, open_quote)
+                if closed or not spliced:  # an unspliced open literal is ill-formed; close at EOL
+                    open_quote = None
+                continue
             c = line[i]
             if c == "/" and i + 1 < n and line[i + 1] == "/":
                 break
@@ -95,25 +136,33 @@ def lex_lines(lines):
                 in_block = True
                 i += 2
                 continue
+            if c == '"' and RAW_PREFIX.search(line[:i]):
+                paren = line.find("(", i + 1)
+                delimiter = line[i + 1:paren] if paren >= 0 else None
+                if delimiter is not None and len(delimiter) <= 16 and not re.search(r"[()\\\s]", delimiter):
+                    out.append('""')
+                    had_code = True
+                    raw_terminator = ")" + delimiter + '"'
+                    j = line.find(raw_terminator, paren + 1)
+                    if j < 0:
+                        i = n
+                    else:
+                        i = j + len(raw_terminator)
+                        raw_terminator = None
+                    continue
             if c in "\"'":
-                quote, j = c, i + 1
-                while j < n:
-                    if line[j] == "\\":
-                        j += 2
-                        continue
-                    if line[j] == quote:
-                        break
-                    j += 1
-                out.append(quote + quote)
-                i = j + 1 if j < n else n
+                out.append(c + c)
                 had_code = True
+                i, closed, spliced = scan_quoted(line, i + 1, c)
+                if not closed and spliced:
+                    open_quote = c
                 continue
             out.append(c)
             if not c.isspace():
                 had_code = True
             i += 1
         stripped = line.strip()
-        is_comment = (not had_code) and stripped != "" and (
+        is_comment = (not had_code) and stripped != "" and not literal_at_start and (
             stripped.startswith("//") or stripped.startswith("/*") or stripped.startswith("*") or in_block)
         code_lines.append("".join(out))
         comment_only.append(stripped if is_comment else None)
@@ -227,7 +276,7 @@ def git(root, *args):
 def read_post_image(root, rel_path):
     try:
         with open(os.path.join(root, rel_path), encoding="utf-8", errors="replace") as handle:
-            return handle.read().splitlines()
+            return handle.read()
     except OSError:
         return None
 
@@ -245,35 +294,56 @@ def run_diff_mode(base, root=REPO_ROOT):
     untracked = git(root, "ls-files", "--others", "--exclude-standard")
     for rel_path in untracked.stdout.splitlines():
         if os.path.splitext(rel_path)[1].lower() in CXX_EXT:
-            lines = read_post_image(root, rel_path)
-            if lines is not None:
-                per_file.setdefault(rel_path, set()).update(range(1, len(lines) + 1))
+            text = read_post_image(root, rel_path)
+            if text is not None:
+                per_file.setdefault(rel_path, set()).update(range(1, len(text.splitlines()) + 1))
     results = []
     for rel_path in sorted(per_file):
-        lines = read_post_image(root, rel_path)
-        if lines is None:  # deleted or unreadable
+        text = read_post_image(root, rel_path)
+        if text is None:  # deleted or unreadable
             continue
-        for line_no, message in find_findings(rel_path, lines, per_file[rel_path]):
+        for line_no, message in find_findings(rel_path, text.splitlines(), per_file[rel_path]):
             results.append((rel_path, line_no, message))
     return results
+
+
+def added_from_structured_patch(tool_response):
+    """Derive added line numbers from the tool response's structured patch,
+    which records the exact edited hunks.  Returns None when absent or of an
+    unexpected shape, so callers fall through to the heuristics."""
+    try:
+        added = set()
+        for hunk in tool_response["structuredPatch"]:
+            line_no = int(hunk["newStart"])
+            for entry in hunk["lines"]:
+                if entry.startswith("+"):
+                    added.add(line_no)
+                    line_no += 1
+                elif not entry.startswith("-"):
+                    line_no += 1
+        return added or None
+    except Exception:
+        return None
 
 
 def hook_added_line_numbers(content, snippets):
     """Map the strings an edit added onto post-image line numbers.
 
-    Returns the set of covered lines, or None when a snippet cannot be found
-    (the caller falls back to checking the snippet text standalone)."""
+    Each snippet must occur exactly once — a repeated occurrence cannot be
+    told apart from pre-existing identical text, and would mark unrelated
+    lines.  A snippet's span excludes the line after its trailing newline.
+    Returns None when any snippet is absent or ambiguous; the caller then
+    checks the snippet text standalone."""
     added = set()
     for snippet in snippets:
         if not snippet:
             continue
         start = content.find(snippet)
-        if start < 0:
+        if start < 0 or content.find(snippet, start + 1) >= 0:
             return None
-        while start >= 0:
-            first = content.count("\n", 0, start) + 1
-            added.update(range(first, first + snippet.count("\n") + 1))
-            start = content.find(snippet, start + 1)
+        first = content.count("\n", 0, start) + 1
+        span = snippet.count("\n") + (0 if snippet.endswith("\n") else 1)
+        added.update(range(first, first + max(span, 1)))
     return added
 
 
@@ -301,11 +371,20 @@ def run_hook_mode():
 
     # The hook runs after the edit, so the file on disk is the post-image;
     # lex it whole so enclosing comments and initializers classify correctly.
-    lines = read_post_image(REPO_ROOT, rel_path)
-    added = hook_added_line_numbers("\n".join(lines), snippets) if lines is not None else None
-    if added is None:  # unreadable file or unlocatable snippet: check the added text standalone
-        text = "\n".join(snippets)
+    # The edited lines come from the response's structured patch when present,
+    # else from locating a uniquely occurring added string.
+    text = read_post_image(REPO_ROOT, rel_path)
+    added = None
+    if text is not None:
         lines = text.splitlines()
+        added = added_from_structured_patch(payload.get("tool_response") or {})
+        if added is None:
+            if tool_name == "Write":
+                added = set(range(1, len(lines) + 1))
+            else:
+                added = hook_added_line_numbers(text, snippets)
+    if added is None:  # unreadable file or unlocatable snippet: check the added text standalone
+        lines = "\n".join(snippets).splitlines()
         added = set(range(1, len(lines) + 1))
     findings = find_findings(rel_path, lines, added)
     if findings:
