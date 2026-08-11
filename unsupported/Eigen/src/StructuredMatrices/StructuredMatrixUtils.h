@@ -360,7 +360,7 @@ void structured_fft_apply(Dest& dst, const Matrix<std::complex<typename NumTrait
     // The length-one DFT is the identity and is unsupported by kissfft. The
     // pointwise step still runs, scaled around just as the transforms are on the
     // general path.
-    const int budget = std::numeric_limits<RealScalar>::max_exponent - 2;
+    const int budget = NumTraits<RealScalar>::max_exponent() - 2;
     ComplexVector xf(1);
     for (Index k = 0; k < rhs.cols(); ++k) {
       int colExp;
