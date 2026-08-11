@@ -908,7 +908,7 @@ struct TensorEvaluator<const TensorStridingSlicingOp<StartIndices, StopIndices, 
   template <int LoadMode>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketReturnType packet(Index index) const {
     EIGEN_STATIC_ASSERT((PacketSize > 1), YOU_MADE_A_PROGRAMMING_MISTAKE)
-    eigen_assert(index + PacketSize - 1 < dimensions().TotalSize());
+    eigen_assert(index + PacketSize - 1 < internal::array_prod(dimensions()));
 
     if (m_is_identity) {
       return m_impl.template packet<LoadMode>(index);
@@ -928,9 +928,12 @@ struct TensorEvaluator<const TensorStridingSlicingOp<StartIndices, StopIndices, 
     const Index base = srcCoeffInner(index, inner_pos);
     if (inner_pos + PacketSize <= inner_size) {
       const Index inner_stride = m_inputStrides[inner_dim];
+      // SYCL packets do not implement preverse; use the scalar gather below.
+      const bool packet_reverse =
+          inner_stride == -1 && !std::is_same<internal::remove_all_t<Device>, SyclDevice>::value;
       if (inner_stride == 1) {
         return m_impl.template packet<Unaligned>(base);
-      } else if (inner_stride == -1) {
+      } else if (packet_reverse) {
         return internal::preverse(m_impl.template packet<Unaligned>(base - (PacketSize - 1)));
       }
       EIGEN_ALIGN_MAX std::remove_const_t<CoeffReturnType> values[PacketSize];
@@ -952,7 +955,16 @@ struct TensorEvaluator<const TensorStridingSlicingOp<StartIndices, StopIndices, 
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorOpCost costPerCoeff(bool vectorized) const {
-    return m_impl.costPerCoeff(vectorized) + TensorOpCost(0, 0, m_is_identity ? 1 : NumDims);
+    constexpr int inner_dim = (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ? 0 : NumDims - 1;
+    const bool packets_stay_in_inner =
+        m_is_identity || (m_dimensions[inner_dim] >= PacketSize && m_dimensions[inner_dim] % PacketSize == 0);
+    const Index inner_stride = m_inputStrides[inner_dim];
+    const bool packetizes_arg =
+        m_is_identity || (packets_stay_in_inner &&
+                          (inner_stride == 1 ||
+                           (inner_stride == -1 && !std::is_same<internal::remove_all_t<Device>, SyclDevice>::value)));
+    return m_impl.costPerCoeff(vectorized && packetizes_arg) +
+           TensorOpCost(0, 0, m_is_identity ? 1 : NumDims, vectorized && packets_stay_in_inner, PacketSize);
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename Storage::Type data() const { return NULL; }
@@ -1051,7 +1063,7 @@ struct TensorEvaluator<TensorStridingSlicingOp<StartIndices, StopIndices, Stride
   template <int StoreMode>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacket(Index index, const PacketReturnType& x) const {
     EIGEN_STATIC_ASSERT((Base::PacketSize > 1), YOU_MADE_A_PROGRAMMING_MISTAKE)
-    eigen_assert(index + Base::PacketSize - 1 < this->dimensions().TotalSize());
+    eigen_assert(index + Base::PacketSize - 1 < internal::array_prod(this->dimensions()));
 
     if (this->m_is_identity) {
       this->m_impl.template writePacket<StoreMode>(index, x);
@@ -1068,10 +1080,13 @@ struct TensorEvaluator<TensorStridingSlicingOp<StartIndices, StopIndices, Stride
     const Index base = this->srcCoeffInner(index, inner_pos);
     if (inner_pos + Base::PacketSize <= inner_size) {
       const Index inner_stride = this->m_inputStrides[inner_dim];
+      // SYCL packets do not implement preverse; use the scalar scatter below.
+      const bool packet_reverse =
+          inner_stride == -1 && !std::is_same<internal::remove_all_t<Device>, SyclDevice>::value;
       if (inner_stride == 1) {
         this->m_impl.template writePacket<Unaligned>(base, x);
         return;
-      } else if (inner_stride == -1) {
+      } else if (packet_reverse) {
         this->m_impl.template writePacket<Unaligned>(base - (Base::PacketSize - 1), internal::preverse(x));
         return;
       }

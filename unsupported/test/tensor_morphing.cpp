@@ -518,16 +518,44 @@ static void test_strided_slice_packet_access() {
 
   // Full-range unit-stride slice: the identity fast path.
   {
-    const Index2 strides(1, 1);
-    const Index2 start(0, 0);
-    const Index2 stop(31, 37);
+    const Eigen::array<Eigen::DenseIndex, 2> strides = {{1, 1}};
+    const Eigen::array<Eigen::DenseIndex, 2> start = {{0, 0}};
+    const Eigen::array<Eigen::DenseIndex, 2> stop = {{31, 37}};
     Tensor2 slice = tensor.stridedSlice(start, stop, strides);
+    Tensor2 destination(31, 37);
+    destination.setZero();
+    destination.stridedSlice(start, stop, strides) = tensor;
     for (Eigen::DenseIndex i = 0; i < 31; ++i) {
       for (Eigen::DenseIndex j = 0; j < 37; ++j) {
         VERIFY_IS_EQUAL(slice(i, j), tensor(i, j));
+        VERIFY_IS_EQUAL(destination(i, j), tensor(i, j));
       }
     }
   }
+}
+
+template <typename = void>
+static void test_strided_slice_packet_cost() {
+  typedef Tensor<float, 2> Tensor2;
+  typedef Eigen::DSizes<Eigen::DenseIndex, 2> Index2;
+
+  Tensor2 tensor(32, 32);
+  tensor.setRandom();
+  const Index2 start(0, 0);
+  const Index2 stop(32, 32);
+  const Index2 strides(2, 2);
+  auto expression = tensor.exp();
+  auto slice = expression.stridedSlice(start, stop, strides);
+
+  DefaultDevice device;
+  TensorEvaluator<const decltype(expression), DefaultDevice> expression_evaluator(expression, device);
+  TensorEvaluator<const decltype(slice), DefaultDevice> slice_evaluator(slice, device);
+  const TensorOpCost scalar_expression_cost = expression_evaluator.costPerCoeff(false);
+  const TensorOpCost packet_slice_cost = slice_evaluator.costPerCoeff(true);
+
+  // A gathered packet evaluates the nested expression coefficient by
+  // coefficient and must not receive the nested evaluator's packet discount.
+  VERIFY(packet_slice_cost.compute_cycles() >= scalar_expression_cost.compute_cycles());
 }
 
 template <typename T, int DataLayout>
@@ -640,4 +668,5 @@ EIGEN_DECLARE_TEST(tensor_morphing) {
   CALL_SUBTEST_8((test_strided_slice_packet_access<float, RowMajor>()));
   CALL_SUBTEST_8((test_strided_slice_packet_access<double, ColMajor>()));
   CALL_SUBTEST_8((test_strided_slice_packet_access<double, RowMajor>()));
+  CALL_SUBTEST_8(test_strided_slice_packet_cost<>());
 }
