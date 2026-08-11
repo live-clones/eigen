@@ -63,6 +63,9 @@ def test_conventions_flagged():
     assert_flags("Eigen/src/Core/Foo.h", "double x = (std::sqrt)(2.0);\n", "numext::")
     assert_flags("Eigen/src/Core/Foo.h", "double x = std::exp2(2.0);\n", "numext::")
     assert_flags("Eigen/src/Core/Foo.h", "double x = std::cbrt(2.0);\n", "numext::")
+    assert_flags("Eigen/src/Core/Foo.h", "double x = std::acosh(2.0);\n", "numext::")
+    assert_flags("Eigen/src/Core/Foo.h", "auto x = std::conj(value);\n", "numext::")
+    assert_flags("Eigen/src/Core/Foo.h", "double x = std::frexp(value, &exponent);\n", "EIGEN_USING_STD")
 
 
 def test_scoping():

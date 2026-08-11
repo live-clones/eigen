@@ -60,8 +60,9 @@ LIBRARY_SRC_TREES = ("Eigen/src/", "unsupported/Eigen/src/")
 DOXYGEN = re.compile(r"^\s*(/\*\*|/\*!|///|//!)")
 LICENSE = re.compile(r"SPDX|Copyright|License|Mozilla Public", re.I)
 STD_MATH = (
-    r"abs|sqrt|cbrt|isnan|isinf|isfinite|signbit|exp|exp2|expm1|log|log1p|log2|pow|sin|cos|tan|"
-    r"asin|acos|atan|atan2|sinh|cosh|tanh|hypot|fma|copysign|ldexp|frexp|floor|ceil|round|rint|trunc|fmod"
+    r"abs|arg|conj|real|imag|sqrt|cbrt|isnan|isinf|isfinite|signbit|exp|exp2|expm1|log|log1p|log2|pow|"
+    r"sin|cos|tan|asin|acos|atan|atan2|asinh|acosh|atanh|sinh|cosh|tanh|hypot|fma|copysign|ldexp|floor|"
+    r"ceil|round|rint|trunc|fmod"
 )
 
 # Convention checks applied per added code line (comments and literals blanked).
@@ -284,6 +285,9 @@ def check_conventions(rel_path, code_lines, added, findings):
         checks.append((r"(?:\(\s*)?\bstd::(?:%s)\s*(?:\)\s*)?\(" % STD_MATH,
                        "std:: math call in a library header: use the numext:: equivalent "
                        "(device- and custom-scalar-aware)"))
+        checks.append((r"(?:\(\s*)?\bstd::frexp\s*(?:\)\s*)?\(",
+                       "std::frexp call in a library header: use EIGEN_USING_STD(frexp) and an unqualified call "
+                       "for ADL and device/custom-scalar support"))
     added_sorted = sorted(added)
     for pattern, message in checks:
         rx = re.compile(pattern)
