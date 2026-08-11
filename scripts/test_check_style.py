@@ -4,41 +4,44 @@
 
 """Unit tests for scripts/check_style.py.
 
-Exercises the checks on synthetic added text and the diff parser on a crafted
-diff, so the expectations do not depend on the checked-out tree.
+Runs the checks on synthetic post-images, the diff parser on a crafted diff,
+and the diff mode against a temporary git repository, so the expectations do
+not depend on the checked-out tree.
 
 Usage: python3 scripts/test_check_style.py
 """
 
 import os
+import shutil
+import subprocess
 import sys
+import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from check_style import added_lines_from_diff, check_added_lines
+from check_style import added_lines_from_diff, find_findings, run_diff_mode
 
 
-def numbered(text, start=1):
-    return list(enumerate(text.splitlines(), start=start))
+def messages(rel_path, text, added=None):
+    lines = text.splitlines()
+    if added is None:
+        added = set(range(1, len(lines) + 1))
+    return [m for _, m in find_findings(rel_path, lines, added)]
 
 
-def messages(rel_path, text):
-    return [m for _, m in check_added_lines(rel_path, numbered(text))]
-
-
-def assert_flags(rel_path, text, *fragments):
-    got = messages(rel_path, text)
+def assert_flags(rel_path, text, *fragments, **kwargs):
+    got = messages(rel_path, text, kwargs.get("added"))
     for fragment in fragments:
         assert any(fragment in m for m in got), "expected %r in findings for %s, got %r" % (fragment, rel_path, got)
 
 
-def assert_clean(rel_path, text):
-    got = messages(rel_path, text)
+def assert_clean(rel_path, text, added=None):
+    got = messages(rel_path, text, added)
     assert not got, "expected no findings for %s, got %r" % (rel_path, got)
 
 
 def test_conventions_flagged():
-    assert_flags("Eigen/src/Core/Foo.h", "const char* p = NULL;\n", "NULL")
+    assert_flags("Eigen/src/Core/Foo.h", "const char* p = NULL;\n", "nullptr")
     assert_flags("Eigen/src/Core/Foo.h", "typedef int MyInt;\n", "typedef")
     assert_flags("Eigen/src/Core/Foo.h", "std::integral_constant<bool, true> b;\n", "bool_constant")
     assert_flags("Eigen/src/Core/Foo.h", "enum { Flags = 0 };\n", "static constexpr")
@@ -55,6 +58,8 @@ def test_scoping():
     assert_clean("benchmarks/Core/foo.cpp", "if constexpr (kSize > 4) {}\n")
     # Non-C++ files are ignored entirely.
     assert_clean("AGENTS.md", "NULL typedef enum {\n")
+    # Only ADDED lines are reported: the same violations on unchanged lines stay silent.
+    assert_clean("Eigen/src/Core/Foo.h", "const char* p = NULL;\nint x = 1;\n", added={2})
 
 
 def test_false_positive_probes():
@@ -68,28 +73,44 @@ def test_false_positive_probes():
                                          "double x = numext::sqrt(2.0);\n")
 
 
+def test_multiline_designated_initializer():
+    # The designator on its own line after `{` or `,` is still a C++20 designated initializer.
+    assert_flags("Eigen/src/Core/Foo.h", "S s = {\n    .size = 3,\n};\n", "designated initializer")
+    assert_flags("Eigen/src/Core/Foo.h", "S s = {\n    .a = 1,\n    .b = 2,\n};\n", "designated initializer")
+    # A wrapped member assignment is not: the previous code line does not end with `{` or `,`.
+    assert_clean("Eigen/src/Core/Foo.h", "obj\n    .member = value;\n")
+    assert_clean("Eigen/src/Core/Foo.h", "foo(bar)\n    .field = 1;\n")
+
+
+def test_context_across_diff_gaps():
+    # An added continuation line inside an existing block comment is a comment,
+    # not code, even though the surrounding lines were not added.
+    text = "/* existing block\n * Do not use if constexpr here\n */\nint x = 1;\n"
+    assert_clean("Eigen/src/Core/Foo.h", text, added={2})
+    # Same for an existing Doxygen block: additions inherit its exemption.
+    doxy = "/** \\brief Existing docs.\n" + "\n".join(" * added line %d" % i for i in range(8)) + "\n */\nint x;\n"
+    assert_clean("Eigen/src/Core/Foo.h", doxy, added=set(range(2, 10)))
+    # A string on an unchanged line does not leak its content into added lines.
+    text = 'const char* s = "no /* here";\nconst char* p = NULL;\n'
+    assert_flags("Eigen/src/Core/Foo.h", text, "nullptr", added={2})
+
+
 def test_comment_verbosity():
     narration = "\n".join("// narration line %d" % i for i in range(6)) + "\nint x = 1;\n"
-    assert_flags("Eigen/src/Core/Foo.h", narration, "non-Doxygen comment block")
+    assert_flags("Eigen/src/Core/Foo.h", narration, "non-Doxygen comment")
     # License headers and Doxygen blocks are exempt however long they are.
     license_header = "\n".join("// SPDX-License-Identifier: MPL-2.0" if i == 0 else "// Copyright notice %d" % i
                                for i in range(8)) + "\nint x = 1;\n"
     assert_clean("Eigen/src/Core/Foo.h", license_header)
-    doxygen = "/** \\brief Documented API.\n" + "\n".join(" * line %d" % i for i in range(8)) + "\n */\nint x = 1;\n"
-    assert_clean("Eigen/src/Core/Foo.h", doxygen)
-    # Five lines stay under the block threshold.
+    # Five added lines stay under the threshold.
     assert_clean("Eigen/src/Core/Foo.h", "\n".join("// l%d" % i for i in range(5)) + "\nint x = 1;\n")
-    # Non-contiguous added comment lines (as in a diff) do not merge into one block.
-    scattered = [(1, "// a"), (2, "// b"), (3, "// c"), (10, "// d"), (11, "// e"), (12, "// f"), (13, "int x;")]
-    assert not check_added_lines("Eigen/src/Core/Foo.h", scattered)
-
-
-def test_block_comment_state():
-    # A /* ... */ block spanning added lines hides code checks inside it...
-    assert_clean("Eigen/src/Core/Foo.h", "/* start\n NULL typedef\n end */\nint x = 1;\n")
-    # ...and block state resets across a gap in line numbers.
-    gap = [(1, "/* start"), (50, "const char* p = NULL;")]
-    assert any("NULL" in m for _, m in check_added_lines("Eigen/src/Core/Foo.h", gap))
+    # Extending an existing narration block by two lines is not reported: only
+    # ADDED lines count toward the threshold.
+    block = "\n".join("// old line %d" % i for i in range(10)) + "\n// new a\n// new b\nint x = 1;\n"
+    assert_clean("Eigen/src/Core/Foo.h", block, added={11, 12})
+    # Six added lines inside an existing non-Doxygen block are reported.
+    block = "// old line\n" + "\n".join("// new %d" % i for i in range(6)) + "\nint x = 1;\n"
+    assert_flags("Eigen/src/Core/Foo.h", block, "non-Doxygen comment", added=set(range(2, 8)))
 
 
 def test_diff_parser():
@@ -109,11 +130,45 @@ def test_diff_parser():
     )
     files = added_lines_from_diff(diff)
     assert set(files) == {"Eigen/src/Core/Foo.h"}, files
-    assert files["Eigen/src/Core/Foo.h"] == [(11, "const char* p = NULL;"), (12, "int y = 2;"),
-                                             (23, "typedef int T;")], files
-    findings = check_added_lines("Eigen/src/Core/Foo.h", files["Eigen/src/Core/Foo.h"])
-    lines = sorted(line for line, _ in findings)
-    assert lines == [11, 23], findings
+    assert files["Eigen/src/Core/Foo.h"] == {11, 12, 23}, files
+
+
+def test_diff_mode_merge_base_and_untracked():
+    tmp = tempfile.mkdtemp(prefix="check_style_test_")
+    try:
+        def sh(*args):
+            subprocess.run(args, cwd=tmp, check=True, capture_output=True)
+
+        def write(rel, text):
+            path = os.path.join(tmp, rel)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w") as handle:
+                handle.write(text)
+
+        sh("git", "init", "-q", "-b", "main")
+        sh("git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "base")
+        sh("git", "branch", "target")
+        # Feature branch adds a violating file.
+        write("Eigen/src/Core/Added.h", "const char* p = NULL;\n")
+        sh("git", "add", "Eigen/src/Core/Added.h")
+        sh("git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "feature")
+        # Target advances independently with its own violating file: a
+        # two-tree diff against `target` would report it in reverse.
+        sh("git", "checkout", "-q", "target")
+        write("Eigen/src/Core/TargetOnly.h", "typedef int Legacy;\n")
+        sh("git", "add", "Eigen/src/Core/TargetOnly.h")
+        sh("git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "target-only")
+        sh("git", "checkout", "-q", "main")
+        # An untracked new file must be scanned even though git diff omits it.
+        write("Eigen/src/Core/Untracked.h", "std::integral_constant<bool, true> b;\n")
+
+        results = run_diff_mode("target", root=tmp)
+        paths = {rel_path for rel_path, _, _ in results}
+        assert "Eigen/src/Core/Added.h" in paths, results
+        assert "Eigen/src/Core/Untracked.h" in paths, results
+        assert "Eigen/src/Core/TargetOnly.h" not in paths, results
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def main():
