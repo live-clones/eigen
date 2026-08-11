@@ -35,11 +35,11 @@ CheckOptions:
   - key: bugprone-assert-side-effect.AssertMacros
     value: 'eigen_assert,eigen_internal_assert,EIGEN_STATIC_ASSERT,VERIFY,VERIFY_IS_APPROX,VERIFY_IS_EQUAL,VERIFY_IS_MUCH_SMALLER_THAN,VERIFY_IS_NOT_APPROX,VERIFY_IS_NOT_EQUAL,VERIFY_IS_UNITARY,VERIFY_RAISES_ASSERT'
 
-# Two Eigen-specific conventions that no upstream check covers. `CustomChecks`
-# requires clang-tidy >= 22, while the CI image (checkformat:clangtidy, Ubuntu
-# 24.04) provides 18, so they are parked here rather than enabled; uncomment
-# once that job's toolchain moves. Until then scripts/check_style.py reports
-# both textually on added lines.
+# Eigen-specific conventions that no upstream check covers, contributed in the
+# review of !2775. `CustomChecks` requires clang-tidy >= 22, while the CI image
+# (checkformat:clangtidy, Ubuntu 24.04) provides 18, so these are parked here
+# rather than enabled; uncomment once that job's toolchain moves. Until then
+# scripts/check_style.py reports the first three textually on added lines.
 # CustomChecks:
 #   - Name: integral-constant-bool
 #     Query: |
@@ -61,5 +61,28 @@ CheckOptions:
 #     Diagnostic:
 #       - BindName: target
 #         Message: baseline is C++14; use `EIGEN_IF_CONSTEXPR(...)` with unconditionally-valid branches
+#         Level: Warning
+#   - Name: eigen-enum-constant
+#     Query: |
+#       match enumDecl(
+#         hasDeclContext(cxxRecordDecl()),
+#         matchesName("\)$"),
+#       ).bind("target")
+#     Diagnostic:
+#       - BindName: target
+#         Message: use `static constexpr` instead of `enum` for class constants
+#         Level: Warning
+#   - Name: eigen-unsigned-flags
+#     Query: |
+#       match varDecl(
+#         hasDeclContext(cxxRecordDecl()),
+#         isStaticStorageClass(),
+#         isConstexpr(),
+#         matchesName("Flags0?"),
+#         hasType(isSignedInteger()),
+#       ).bind("target")
+#     Diagnostic:
+#       - BindName: target
+#         Message: flag types are conventionally unsigned
 #         Level: Warning
 ...

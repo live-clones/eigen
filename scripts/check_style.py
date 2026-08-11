@@ -69,13 +69,14 @@ STD_MATH = (
 #
 # Several have a clang-tidy analogue, noted per check, and ci/scripts/run-clang-
 # tidy.sh already lints an MR's changed files.  They are duplicated here because
-# that job is whole-file: enabling modernize-use-using or cppcoreguidelines-use-
-# enum-class would report every pre-existing occurrence in a touched header —
-# Eigen/src alone holds ~4100 typedefs and ~870 unscoped enum blocks — burying
-# the handful of lines a change actually adds.  This script reports added lines
-# only, needs neither clang nor a compilation database, and is quick enough to
-# run on every edit.  Should the clang-tidy job grow per-line filtering, the
-# overlapping entries below should go.
+# that job is whole-file: enabling modernize-use-using, or the eigen-enum-
+# constant check parked in .clang-tidy, would report every pre-existing
+# occurrence in a touched header — Eigen/src alone holds ~4100 typedefs and ~870
+# class-scope enum constant blocks — burying the handful of lines a change
+# actually adds.  This script reports added lines only, needs neither clang nor
+# a compilation database, and is quick enough to run on every edit.  Should the
+# clang-tidy job grow per-line filtering, the overlapping entries below should
+# go.
 CODE_CHECKS = [
     # clang-tidy analogue: modernize-use-nullptr.
     (r"\bNULL\b", "NULL: new code uses nullptr"),
@@ -83,8 +84,9 @@ CODE_CHECKS = [
     (r"\btypedef\b", "typedef: prefer `using` in new aliases unless the file is uniformly typedef"),
     # No upstream check; see the parked integral-constant-bool entry in .clang-tidy.
     (r"std::integral_constant<\s*bool\b", "std::integral_constant<bool,...>: use Eigen's bool_constant (Meta.h)"),
-    # Partial clang-tidy analogue: cppcoreguidelines-use-enum-class, which asks
-    # for `enum class`; Eigen's rule for trait constants is static constexpr.
+    # No upstream check states Eigen's rule (cppcoreguidelines-use-enum-class
+    # asks for `enum class` instead); see the parked eigen-enum-constant entry
+    # in .clang-tidy.
     (r"^\s*enum\s*(?::[^{}]+)?\{", "enum constant block: trait/evaluator constants are static constexpr in new "
                                    "code; Flags is `unsigned int`"),
 ]
