@@ -26,10 +26,11 @@ and ``ci/scripts/test.linux.script.sh``:
 
 The selected names are CMake target names, not CTest test names: a split test
 ``foo`` registers ``foo_1``..``foo_N`` as tests but a single ``foo`` target that
-aggregates them, so selecting ``foo`` builds and runs every part.  Targets that
-do not exist in a given configuration (optional dependencies such as CHOLMOD or
-SYCL) are filtered out by the build script, which is the only place that knows
-what CMake actually configured.
+aggregates them, so selecting ``foo`` builds and runs every part.  Test sources
+are mapped to targets from their CMake registration, including multi-source
+executables.  Targets that do not exist in a given configuration (optional
+dependencies such as CHOLMOD or SYCL) are filtered out by the build script,
+which is the only place that knows what CMake actually configured.
 """
 
 import argparse
@@ -90,6 +91,14 @@ FULL_REBUILD_PATTERNS = (
 )
 
 INCLUDE_RE = re.compile(r'^[ \t]*#[ \t]*include[ \t]*[<"]([^>"]+)[>"]', re.MULTILINE)
+CMAKE_TEST_RE = re.compile(
+    r"^[ \t]*(?:ei_add_test|ei_add_gpu_test)\([ \t]*([A-Za-z_][A-Za-z_0-9]*)",
+    re.MULTILINE,
+)
+CMAKE_EXECUTABLE_RE = re.compile(
+    r"^[ \t]*add_executable\([ \t]*([A-Za-z_][A-Za-z_0-9]*)[ \t\r\n]+([^)]*)\)",
+    re.MULTILINE,
+)
 
 
 def _matches(path, patterns):
@@ -164,19 +173,54 @@ class IncludeGraph:
         return seen
 
 
-def test_sources(graph):
-    """Test translation units, as repo-relative paths."""
-    return sorted(
+def test_source_targets(graph):
+    """Map registered test translation units to their CMake targets."""
+    source_targets = {}
+
+    def register(source, target):
+        previous = source_targets.get(source)
+        if previous is not None and previous != target:
+            raise ValueError("%s is registered by both %s and %s" % (source, previous, target))
+        source_targets[source] = target
+
+    cmake_files = sorted(
         rel
         for rel in graph.files
-        if rel.endswith(".cpp")
+        if os.path.basename(rel) == "CMakeLists.txt"
         and any(rel.startswith(root + "/") for root in TEST_ROOTS)
     )
+    for cmake_file in cmake_files:
+        directory = os.path.dirname(cmake_file)
+        contents = graph._read(cmake_file)
+        for target in CMAKE_TEST_RE.findall(contents):
+            source = os.path.normpath(os.path.join(directory, target + ".cpp"))
+            if source in graph.files:
+                register(source, target)
+        for target, arguments in CMAKE_EXECUTABLE_RE.findall(contents):
+            for token in re.findall(r'"[^"]*"|[^\s]+', arguments):
+                token = token.strip('"')
+                if not token.endswith(".cpp") or "$" in token:
+                    continue
+                source = os.path.normpath(os.path.join(directory, token))
+                if source in graph.files:
+                    register(source, target)
+
+    # GPU/CMakeLists.txt registers several same-named .cpp sources through
+    # foreach variables.  They follow the same source/target naming convention
+    # as literal ei_add_gpu_test calls, but cannot be recovered from one call.
+    gpu_prefix = "unsupported/test/GPU/"
+    for rel in graph.files:
+        if rel.startswith(gpu_prefix) and rel.endswith(".cpp"):
+            register(rel, os.path.splitext(os.path.basename(rel))[0])
+
+    return source_targets
 
 
-def target_name(test_source):
-    """CMake target aggregating every part of a test source."""
-    return os.path.splitext(os.path.basename(test_source))[0]
+def test_sources(graph, source_targets=None):
+    """Registered test translation units, as repo-relative paths."""
+    if source_targets is None:
+        source_targets = test_source_targets(graph)
+    return sorted(source_targets)
 
 
 def reverse_map(graph, sources):
@@ -189,15 +233,17 @@ def reverse_map(graph, sources):
 
 
 class Selection:
-    """Outcome of a selection: either the full suite or an explicit target set."""
+    """Outcome: the full suite, explicit targets, no tests, or an error."""
 
     def __init__(self, mode, targets=(), reasons=()):
-        self.mode = mode  # "all", "targets", or "none"
+        self.mode = mode  # "all", "targets", "none", or "error"
         self.targets = set(targets)
         self.reasons = list(reasons)
 
     @property
     def targets_file(self):
+        if self.mode == "error":
+            raise ValueError("an invalid selection has no target file")
         if self.mode == "all":
             return "buildtests\n"
         if self.mode == "none":
@@ -206,6 +252,8 @@ class Selection:
 
     @property
     def regex_file(self):
+        if self.mode == "error":
+            raise ValueError("an invalid selection has no regex file")
         if self.mode == "all":
             return "ALL\n"
         if self.mode == "none":
@@ -216,29 +264,39 @@ class Selection:
 
 def select(graph, changed_files, max_fraction=0.85):
     """Map changed paths to the tests that must run."""
-    sources = test_sources(graph)
+    paths = []
+    for path in changed_files:
+        path = path.strip()
+        if path and not _matches(path, IGNORED_PATTERNS):
+            paths.append(path)
+    if not paths:
+        return Selection("none", reasons=["no change reaches a test"])
+    for path in paths:
+        if _matches(path, FULL_REBUILD_PATTERNS):
+            return Selection("all", reasons=["%s forces the full suite" % path])
+
+    try:
+        source_targets = test_source_targets(graph)
+    except ValueError as error:
+        return Selection("error", reasons=[str(error)])
+    sources = test_sources(graph, source_targets)
     reverse = reverse_map(graph, sources)
 
     selected = set()
     reasons = []
-    for path in changed_files:
-        path = path.strip()
-        if not path:
-            continue
-        if _matches(path, IGNORED_PATTERNS):
-            continue
-        if _matches(path, FULL_REBUILD_PATTERNS):
-            return Selection("all", reasons=["%s forces the full suite" % path])
+    for path in paths:
         hits = reverse.get(path)
         if hits is not None:
             selected |= hits
+        if path in source_targets:
+            selected.add(path)
+        if hits is not None or path in source_targets:
             continue
         if path in graph.files:
-            # A source file in the tree that nothing includes: a new header not
-            # yet wired up, or a test source that was added in this change.
+            # A source file in the tree that nothing includes: either a new
+            # header not yet wired up or an unregistered test translation unit.
             if any(path.startswith(root + "/") for root in TEST_ROOTS) and path.endswith(".cpp"):
-                selected.add(path)
-                continue
+                return Selection("error", reasons=["%s has no CMake test target" % path])
             reasons.append("%s is in the tree but reaches no test" % path)
             continue
         # Deleted, renamed, or outside every scanned root: the graph cannot say
@@ -255,13 +313,13 @@ def select(graph, changed_files, max_fraction=0.85):
         )
         return Selection("all", reasons=reasons)
 
-    return Selection("targets", (target_name(s) for s in selected), reasons)
+    return Selection("targets", (source_targets[s] for s in selected), reasons)
 
 
 def changed_files_from_git(source_dir, base_sha, head="HEAD"):
     """Paths changed between ``base_sha`` and ``head``."""
     result = subprocess.run(
-        ["git", "diff", "--name-only", "%s...%s" % (base_sha, head)],
+        ["git", "diff", "--no-renames", "--name-only", "%s...%s" % (base_sha, head)],
         cwd=source_dir,
         capture_output=True,
         text=True,
@@ -318,6 +376,8 @@ def main(argv=None):
     print("mode: %s" % selection.mode, file=sys.stderr)
     for reason in selection.reasons:
         print("  %s" % reason, file=sys.stderr)
+    if selection.mode == "error":
+        return 1
     if selection.mode == "targets":
         print("  %d targets: %s" % (len(selection.targets),
                                     " ".join(sorted(selection.targets))), file=sys.stderr)
