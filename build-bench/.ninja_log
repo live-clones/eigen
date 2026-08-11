@@ -1,9 +1,0 @@
-# ninja log v5
-2	4510	1786305887550466176	Core/CMakeFiles/bench_broadcasting.dir/bench_broadcasting.cpp.o	d6e1380bd8607150
-1	2316	1786304390372798891	Core/CMakeFiles/bench_reshaped.dir/bench_reshaped.cpp.o	802547a9a1b6ee7b
-4510	4733	1786305887773748607	Core/bench_broadcasting	9692c0629f9300ae
-7	9089	1786307080918790235	build.ninja	f0ccbb9f7d88d35f
-2316	2444	1786304390503703059	Core/bench_reshaped	8f55ee57275ec941
-2	4147	1786307080918790235	build.ninja	f0ccbb9f7d88d35f
-1	2826	1786307083749619360	Core/CMakeFiles/bench_reshaped.dir/bench_reshaped.cpp.o	802547a9a1b6ee7b
-2826	2955	1786307083880187248	Core/bench_reshaped	8f55ee57275ec941

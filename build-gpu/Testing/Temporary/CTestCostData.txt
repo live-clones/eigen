@@ -1,6 +1,0 @@
-cusparse_spmv_1 6 0.0658
-cusparse_spmv_2 6 0.041846
-cusparse_spmv_3 6 0.0436417
-cusparse_spmv_4 6 0.0451434
-device_matrix 2 0.493739
----
