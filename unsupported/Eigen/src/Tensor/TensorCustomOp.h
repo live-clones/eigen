@@ -27,6 +27,11 @@ struct traits<TensorCustomUnaryOp<CustomUnaryFunc, XprType> > {
   static constexpr int NumDimensions = traits<XprType>::NumDimensions;
   static constexpr int Layout = traits<XprType>::Layout;
   typedef typename traits<XprType>::PointerType PointerType;
+
+  // Nesting a custom op under another tensor expression consults these flags
+  // (via ref_selector); without them the composition does not compile.
+  // Matches traits<TensorForcedEvalOp>.
+  enum { Flags = 0 };
 };
 
 template <typename CustomUnaryFunc, typename XprType>
@@ -87,14 +92,22 @@ struct TensorEvaluator<const TensorCustomUnaryOp<CustomUnaryFunc, XprType>, Devi
   enum {
     IsAligned = false,
     PacketAccess = (PacketType<CoeffReturnType, Device>::size > 1),
-    BlockAccess = false,
+    // The custom op is eagerly evaluated into a dense buffer (m_result), so
+    // blocks and raw storage can be served straight from it, exactly like
+    // TensorForcedEvalOp. Without these flags a custom op disables tiled
+    // evaluation for any expression containing it and hides its buffer from
+    // consumers with data()-based fast paths.
+    BlockAccess = internal::is_arithmetic<CoeffReturnType>::value,
     PreferBlockAccess = false,
     CoordAccess = false,  // to be implemented
-    RawAccess = false
+    RawAccess = true
   };
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockNotImplemented TensorBlock;
+  typedef internal::TensorBlockDescriptor<NumDims, Index> TensorBlockDesc;
+  typedef internal::TensorBlockScratchAllocator<Device> TensorBlockScratch;
+
+  typedef typename internal::TensorMaterializedBlock<CoeffReturnType, NumDims, Layout, Index> TensorBlock;
   //===--------------------------------------------------------------------===//
 
   EIGEN_STRONG_INLINE TensorEvaluator(const ArgType& op, const Device& device)
@@ -133,6 +146,16 @@ struct TensorEvaluator<const TensorCustomUnaryOp<CustomUnaryFunc, XprType>, Devi
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorOpCost costPerCoeff(bool vectorized) const {
     // TODO(rmlarsen): Extend CustomOp API to return its cost estimate.
     return TensorOpCost(sizeof(CoeffReturnType), 0, 0, vectorized, PacketSize);
+  }
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE internal::TensorBlockResourceRequirements getResourceRequirements() const {
+    return internal::TensorBlockResourceRequirements::any();
+  }
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorBlock block(TensorBlockDesc& desc, TensorBlockScratch& scratch,
+                                                          bool /*root_of_expr_ast*/ = false) const {
+    eigen_assert(m_result != NULL);
+    return TensorBlock::materialize(m_result, m_dimensions, desc, scratch);
   }
 
   EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return m_result; }
@@ -175,6 +198,9 @@ struct traits<TensorCustomBinaryOp<CustomBinaryFunc, LhsXprType, RhsXprType> > {
   typedef std::conditional_t<Pointer_type_promotion<typename LhsXprType::Scalar, Scalar>::val,
                              typename traits<LhsXprType>::PointerType, typename traits<RhsXprType>::PointerType>
       PointerType;
+
+  // See traits<TensorCustomUnaryOp>.
+  enum { Flags = 0 };
 };
 
 template <typename CustomBinaryFunc, typename LhsXprType, typename RhsXprType>
@@ -241,14 +267,19 @@ struct TensorEvaluator<const TensorCustomBinaryOp<CustomBinaryFunc, LhsXprType, 
   enum {
     IsAligned = false,
     PacketAccess = (PacketType<CoeffReturnType, Device>::size > 1),
-    BlockAccess = false,
+    // See the unary evaluator above: serve blocks and raw storage from the
+    // eagerly materialized buffer, like TensorForcedEvalOp.
+    BlockAccess = internal::is_arithmetic<CoeffReturnType>::value,
     PreferBlockAccess = false,
     CoordAccess = false,  // to be implemented
-    RawAccess = false
+    RawAccess = true
   };
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockNotImplemented TensorBlock;
+  typedef internal::TensorBlockDescriptor<NumDims, Index> TensorBlockDesc;
+  typedef internal::TensorBlockScratchAllocator<Device> TensorBlockScratch;
+
+  typedef typename internal::TensorMaterializedBlock<CoeffReturnType, NumDims, Layout, Index> TensorBlock;
   //===--------------------------------------------------------------------===//
 
   EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device)
@@ -287,6 +318,16 @@ struct TensorEvaluator<const TensorCustomBinaryOp<CustomBinaryFunc, LhsXprType, 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorOpCost costPerCoeff(bool vectorized) const {
     // TODO(rmlarsen): Extend CustomOp API to return its cost estimate.
     return TensorOpCost(sizeof(CoeffReturnType), 0, 0, vectorized, PacketSize);
+  }
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE internal::TensorBlockResourceRequirements getResourceRequirements() const {
+    return internal::TensorBlockResourceRequirements::any();
+  }
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorBlock block(TensorBlockDesc& desc, TensorBlockScratch& scratch,
+                                                          bool /*root_of_expr_ast*/ = false) const {
+    eigen_assert(m_result != NULL);
+    return TensorBlock::materialize(m_result, m_dimensions, desc, scratch);
   }
 
   EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return m_result; }
