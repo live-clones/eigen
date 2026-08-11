@@ -274,9 +274,7 @@ void cublaslt_gemm(cublasLtHandle_t lt_handle, cublasHandle_t cublas_handle, cub
   if (entry->use_cublaslt) {
     const size_t needed = entry->workspace_size;
     if (needed > workspace->size()) {
-      // Sync only when freeing an existing buffer that may be in use.
-      if (workspace->get()) EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream));
-      *workspace = DeviceBuffer(needed);
+      *workspace = DeviceBuffer(needed, stream);
     }
 
     EIGEN_CUBLASLT_CHECK(cublasLtMatmul(lt_handle, entry->matmul_desc, alpha, A, entry->layout_A, B, entry->layout_B,
