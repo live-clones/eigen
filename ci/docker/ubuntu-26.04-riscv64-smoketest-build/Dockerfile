@@ -19,7 +19,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update -y && \
     apt-get install -y --no-install-recommends \
-      cmake ninja-build git \
+      cmake ninja-build git ca-certificates \
       g++-15-riscv64-linux-gnu \
       clang-21 \
     && apt-get clean \

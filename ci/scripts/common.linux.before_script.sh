@@ -30,6 +30,12 @@ if [[ "${EIGEN_CI_SKIP_APT}" != "true" ]]; then
     pip3 install --quiet cmake
     hash -r
   fi
+elif [[ ! -e /etc/ssl/certs/ca-certificates.crt ]]; then
+  # The prebuilt smoketest images skip apt for speed, but the googletest
+  # FetchContent clone at configure time still needs CA certificates.
+  # Install them if the image was built without (cheap no-op otherwise).
+  apt-get update -y > /dev/null
+  apt-get install -y --no-install-recommends ca-certificates > /dev/null
 fi
 
 # Install required dependencies and set up compilers.
