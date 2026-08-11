@@ -136,13 +136,11 @@ d_x += alpha * d_p;                    // host scalar * DeviceMatrix (axpy)
 ```
 
 Division between `DeviceScalar` values (real types only) is performed on
-device via NPP, avoiding extra synchronizations. Small device allocations
-(including `DeviceScalar`) are recycled through a thread-local
-`DeviceBufferPool` to avoid `cudaMalloc`/`cudaFree` overhead in tight loops.
-Pool contract: recycled pointers are safe for same-thread, same-stream reuse
-(the typical iterative-solver pattern, where one `gpu::Context` drives all
-work). Mixing pooled buffers across threads or CUDA streams without external
-synchronization is not supported.
+device via NPP, avoiding extra synchronizations. A `DeviceScalar` allocates and
+frees its storage on the stream that produces it, so independent contexts do
+not serialize through the legacy default stream. Unlike `DeviceMatrix`, it
+does not track cross-stream readiness; its arithmetic operands and consumers
+must use that same stream.
 
 ### `gpu::Context`
 
@@ -546,22 +544,30 @@ via CUDA events. When a matrix written on stream A is read on stream B, the
 module automatically inserts `cudaStreamWaitEvent`. Same-stream operations
 skip the wait (CUDA guarantees in-order execution within a stream).
 
-**Device memory allocation is stream-ordered.** All module allocations go
-through `cudaMallocAsync` / `cudaFreeAsync` on devices that support memory
-pools (detected at runtime; `cudaMalloc`/`cudaFree` fallback otherwise, or
-force the fallback with `EIGEN_GPU_NO_STREAM_ORDERED_ALLOC` — required when
-borrowing `cudaStreamNonBlocking` streams, which do not synchronize with the
-legacy stream the allocator uses for ordering). Consequences:
+**Internal scratch allocation follows its execution stream.** `DeviceBuffer`
+storage used by `DeviceScalar`, dense and sparse solvers, FFT, and library
+workspaces is allocated and freed with `cudaMallocAsync` / `cudaFreeAsync` on
+the owning execution stream when the device supports memory pools (detected at
+runtime). Independent contexts therefore do not acquire an implicit dependency
+on the legacy default stream. On the `cudaMalloc` / `cudaFree` fallback (or
+when forced with `EIGEN_GPU_NO_STREAM_ORDERED_ALLOC`), small buffers use a
+thread-local cache with a CUDA event per returned block. Reuse on another
+stream waits for the recorded event; larger fallback allocations retain the
+synchronous runtime behavior. Consequences:
 
-- Allocating/destroying `DeviceMatrix` temporaries no longer performs a
-  device-wide synchronization; freed blocks recycle through the driver pool
-  (the pool's release threshold is raised so steady-state loops reallocate at
-  user-space speed).
-- Destroying a solver (or `DeviceMatrix`) with work still in flight is safe
-  *and* async: the stream-ordered free waits for previously enqueued work
-  without stalling the host.
+- Growing or destroying stream-bound scratch does not perform a device-wide
+  synchronization; freed blocks recycle through the driver pool (the pool's
+  release threshold is raised so steady-state loops reallocate at user-space
+  speed).
+- Destroying a solver with work still in flight is safe and asynchronous: its
+  buffers are freed on the solver stream before an owned stream is destroyed.
 - `DeviceMatrix::resize()` is capacity-aware: shrinking or same-size reshapes
   reuse the existing allocation (contents are still discarded).
+
+`DeviceMatrix` constructors are not bound to a `Context`, so their backing
+storage continues to use the module's legacy-default-stream allocator. The
+existing `EIGEN_GPU_NO_STREAM_ORDERED_ALLOC` fallback remains required when
+that storage is used directly from a borrowed `cudaStreamNonBlocking` stream.
 
 ## Reference
 
@@ -1029,7 +1035,7 @@ template compatibility.
 
 | File | Depends on | Contents |
 |------|-----------|----------|
-| `GpuSupport.h` | `<cuda_runtime.h>` | Error macro, `DeviceBuffer`, `DeviceBufferPool`, `cuda_data_type<>` |
+| `GpuSupport.h` | `<cuda_runtime.h>` | Error macro, stream-bound `DeviceBuffer`, event-fenced fallback cache, `cuda_data_type<>` |
 | `DeviceMatrix.h` | `GpuSupport.h` | `gpu::DeviceMatrix<>`, `gpu::HostTransfer<>` |
 | `DeviceExpr.h` | `DeviceMatrix.h` | GEMM, geam, and device-scalar expression wrappers |
 | `DeviceBlasExpr.h` | `DeviceMatrix.h` | TRSM, SYMM, SYRK expression wrappers |
@@ -1098,8 +1104,8 @@ ctest --test-dir build -R '^cudss_' --output-on-failure
   dispatch and device-side Eigen expression templates (Core + Tensor) running
   inside CUDA kernels. Raw-pointer + `Map` / `TensorMap` as the zero-copy
   interop surface.
-- **Per-stream CUDA memory pools.** Allocation is now stream-ordered through
-  the device's default memory pool. Attaching a dedicated `cudaMemPool_t` per
-  stream (`cudaDeviceSetMempool` / `cudaMallocFromPoolAsync`) could further
-  reduce cross-stream allocator contention for workloads that fan out many
-  concurrent solves.
+- **Per-context CUDA memory pools.** Stream-bound internal allocations use the
+  device's default memory pool on their execution stream. Attaching a dedicated
+  `cudaMemPool_t` per context with `cudaMallocFromPoolAsync` could further
+  reduce allocator contention for workloads that fan out many concurrent
+  solves.
