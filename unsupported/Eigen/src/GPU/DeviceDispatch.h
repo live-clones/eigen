@@ -9,7 +9,8 @@
 // SPDX-License-Identifier: MPL-2.0
 
 // Dispatch functions mapping DeviceMatrix expressions to NVIDIA library calls,
-// plus the DeviceMatrix members that need a complete gpu::Context.
+// plus the DeviceMatrix members that need a complete gpu::Context. The
+// expression argument selects the dispatch() overload.
 
 #ifndef EIGEN_GPU_DEVICE_DISPATCH_H
 #define EIGEN_GPU_DEVICE_DISPATCH_H
@@ -36,8 +37,8 @@ bool aliases_device_memory(const DeviceMatrix<Scalar>& a, const DeviceMatrix<Sca
 }
 
 template <typename Lhs, typename Rhs>
-void dispatch_gemm(Context& ctx, DeviceMatrix<scalar_type_t<Lhs>>& dst, const GemmExpr<Lhs, Rhs>& expr,
-                   scalar_type_t<Lhs> beta_val, scalar_type_t<Lhs> alpha_scale = scalar_type_t<Lhs>(1)) {
+void dispatch(Context& ctx, DeviceMatrix<scalar_type_t<Lhs>>& dst, const GemmExpr<Lhs, Rhs>& expr,
+              scalar_type_t<Lhs> beta_val, scalar_type_t<Lhs> alpha_scale = scalar_type_t<Lhs>(1)) {
   using Scalar = scalar_type_t<Lhs>;
   using traits_lhs = device_expr_traits<Lhs>;
   using traits_rhs = device_expr_traits<Rhs>;
@@ -115,7 +116,7 @@ inline void oneshot_check_info(Context& ctx, OneShotSolverScratch& scratch, cons
 }
 
 template <typename Scalar, int UpLo>
-void dispatch_llt_solve(Context& ctx, DeviceMatrix<Scalar>& dst, const LltSolveExpr<Scalar, UpLo>& expr) {
+void dispatch(Context& ctx, DeviceMatrix<Scalar>& dst, const LltSolveExpr<Scalar, UpLo>& expr) {
   const DeviceMatrix<Scalar>& A = expr.matrix();
   const DeviceMatrix<Scalar>& B = expr.rhs();
 
@@ -138,7 +139,7 @@ void dispatch_llt_solve(Context& ctx, DeviceMatrix<Scalar>& dst, const LltSolveE
   constexpr cublasFillMode_t uplo = cusolver_fill_mode<UpLo>::value;
   const int64_t n = static_cast<int64_t>(A.rows());
   constexpr cudaDataType_t dtype = cuda_data_type<Scalar>::value;
-  OneShotSolverScratch& scratch = *ctx.oneshotSolverScratch();
+  OneShotSolverScratch& scratch = ctx.oneshotSolverScratch();
   {
     const size_t mat_bytes = A.sizeInBytes();
     // Context-owned grow-only scratch: no per-call allocation, no end-of-call sync.
@@ -173,7 +174,7 @@ void dispatch_llt_solve(Context& ctx, DeviceMatrix<Scalar>& dst, const LltSolveE
 }
 
 template <typename Scalar>
-void dispatch_lu_solve(Context& ctx, DeviceMatrix<Scalar>& dst, const LuSolveExpr<Scalar>& expr) {
+void dispatch(Context& ctx, DeviceMatrix<Scalar>& dst, const LuSolveExpr<Scalar>& expr) {
   const DeviceMatrix<Scalar>& A = expr.matrix();
   const DeviceMatrix<Scalar>& B = expr.rhs();
 
@@ -195,7 +196,7 @@ void dispatch_lu_solve(Context& ctx, DeviceMatrix<Scalar>& dst, const LuSolveExp
   static thread_local CusolverParams params;
   const int64_t n = static_cast<int64_t>(A.rows());
   constexpr cudaDataType_t dtype = cuda_data_type<Scalar>::value;
-  OneShotSolverScratch& scratch = *ctx.oneshotSolverScratch();
+  OneShotSolverScratch& scratch = ctx.oneshotSolverScratch();
   {
     const size_t mat_bytes = A.sizeInBytes();
     // Context-owned grow-only scratch: no per-call allocation, no end-of-call sync.
@@ -231,7 +232,7 @@ void dispatch_lu_solve(Context& ctx, DeviceMatrix<Scalar>& dst, const LuSolveExp
 }
 
 template <typename Scalar, int UpLo>
-void dispatch_trsm(Context& ctx, DeviceMatrix<Scalar>& dst, const TrsmExpr<Scalar, UpLo>& expr) {
+void dispatch(Context& ctx, DeviceMatrix<Scalar>& dst, const TrsmExpr<Scalar, UpLo>& expr) {
   const DeviceMatrix<Scalar>& A = expr.matrix();
   const DeviceMatrix<Scalar>& B = expr.rhs();
 
@@ -270,7 +271,7 @@ void dispatch_trsm(Context& ctx, DeviceMatrix<Scalar>& dst, const TrsmExpr<Scala
 }
 
 template <typename Scalar, int UpLo>
-void dispatch_symm(Context& ctx, DeviceMatrix<Scalar>& dst, const SymmExpr<Scalar, UpLo>& expr) {
+void dispatch(Context& ctx, DeviceMatrix<Scalar>& dst, const SymmExpr<Scalar, UpLo>& expr) {
   const DeviceMatrix<Scalar>& A = expr.matrix();
   const DeviceMatrix<Scalar>& B = expr.rhs();
 
@@ -297,7 +298,7 @@ void dispatch_symm(Context& ctx, DeviceMatrix<Scalar>& dst, const SymmExpr<Scala
   dst.resize(m, n);
 
   constexpr cublasFillMode_t uplo = (UpLo == Lower) ? CUBLAS_FILL_MODE_LOWER : CUBLAS_FILL_MODE_UPPER;
-  // The array keeps the host-pointer stack slots alive; see dispatch_gemm.
+  // The array keeps the host-pointer stack slots alive; see the GEMM dispatch.
   Scalar scalars[2] = {Scalar(1), Scalar(0)};
 
   EIGEN_CUBLAS_CHECK(cublasXsymm(ctx.cublasHandle(), CUBLAS_SIDE_LEFT, uplo, m, n, &scalars[0], A.data(),
@@ -308,8 +309,8 @@ void dispatch_symm(Context& ctx, DeviceMatrix<Scalar>& dst, const SymmExpr<Scala
 }
 
 template <typename Scalar, int UpLo>
-void dispatch_syrk(Context& ctx, DeviceMatrix<Scalar>& dst, const SyrkExpr<Scalar, UpLo>& expr,
-                   typename NumTraits<Scalar>::Real alpha_val, typename NumTraits<Scalar>::Real beta_val) {
+void dispatch(Context& ctx, DeviceMatrix<Scalar>& dst, const SyrkExpr<Scalar, UpLo>& expr,
+              typename NumTraits<Scalar>::Real alpha_val, typename NumTraits<Scalar>::Real beta_val) {
   using RealScalar = typename NumTraits<Scalar>::Real;
   const DeviceMatrix<Scalar>& A = expr.matrix();
 
@@ -348,7 +349,7 @@ void dispatch_syrk(Context& ctx, DeviceMatrix<Scalar>& dst, const SyrkExpr<Scala
 // dimensions, which always holds here since DeviceMatrix is fully dense).
 
 template <typename Scalar>
-void dispatch_geam(Context& ctx, DeviceMatrix<Scalar>& dst, const DeviceAddExpr<Scalar>& expr) {
+void dispatch(Context& ctx, DeviceMatrix<Scalar>& dst, const DeviceAddExpr<Scalar>& expr) {
   const DeviceMatrix<Scalar>& A = expr.A();
   const DeviceMatrix<Scalar>& B = expr.B();
   eigen_assert(A.rows() == B.rows() && A.cols() == B.cols());
@@ -361,7 +362,7 @@ void dispatch_geam(Context& ctx, DeviceMatrix<Scalar>& dst, const DeviceAddExpr<
   if (m > 0 && n > 0) {
     A.waitReady(ctx.stream());
     B.waitReady(ctx.stream());
-    // See dispatch_gemm: array prevents compiler from eliding host-pointer stack slots.
+    // See the GEMM dispatch: array prevents compiler from eliding host-pointer stack slots.
     Scalar scalars[2] = {expr.alpha(), expr.beta()};
     EIGEN_CUBLAS_CHECK(cublasXgeam(ctx.cublasHandle(), CUBLAS_OP_N, CUBLAS_OP_N, m, n, &scalars[0], A.data(), m,
                                    &scalars[1], B.data(), m, dst.data(), m));
@@ -379,53 +380,53 @@ class Assignment {
 
   template <typename Lhs, typename Rhs>
   DeviceMatrix<Scalar>& operator=(const GemmExpr<Lhs, Rhs>& expr) {
-    internal::dispatch_gemm(ctx_, dst_, expr, Scalar(0));
+    internal::dispatch(ctx_, dst_, expr, Scalar(0));
     return dst_;
   }
 
   template <typename Lhs, typename Rhs>
   DeviceMatrix<Scalar>& operator+=(const GemmExpr<Lhs, Rhs>& expr) {
-    internal::dispatch_gemm(ctx_, dst_, expr, Scalar(1));
+    internal::dispatch(ctx_, dst_, expr, Scalar(1));
     return dst_;
   }
 
   template <typename Lhs, typename Rhs>
   DeviceMatrix<Scalar>& operator-=(const GemmExpr<Lhs, Rhs>& expr) {
-    internal::dispatch_gemm(ctx_, dst_, expr, Scalar(1), Scalar(-1));
+    internal::dispatch(ctx_, dst_, expr, Scalar(1), Scalar(-1));
     return dst_;
   }
 
   template <int UpLo>
   DeviceMatrix<Scalar>& operator=(const LltSolveExpr<Scalar, UpLo>& expr) {
-    internal::dispatch_llt_solve(ctx_, dst_, expr);
+    internal::dispatch(ctx_, dst_, expr);
     return dst_;
   }
 
   DeviceMatrix<Scalar>& operator=(const LuSolveExpr<Scalar>& expr) {
-    internal::dispatch_lu_solve(ctx_, dst_, expr);
+    internal::dispatch(ctx_, dst_, expr);
     return dst_;
   }
 
   template <int UpLo>
   DeviceMatrix<Scalar>& operator=(const TrsmExpr<Scalar, UpLo>& expr) {
-    internal::dispatch_trsm(ctx_, dst_, expr);
+    internal::dispatch(ctx_, dst_, expr);
     return dst_;
   }
 
   template <int UpLo>
   DeviceMatrix<Scalar>& operator=(const SymmExpr<Scalar, UpLo>& expr) {
-    internal::dispatch_symm(ctx_, dst_, expr);
+    internal::dispatch(ctx_, dst_, expr);
     return dst_;
   }
 
   DeviceMatrix<Scalar>& operator=(const DeviceAddExpr<Scalar>& expr) {
-    internal::dispatch_geam(ctx_, dst_, expr);
+    internal::dispatch(ctx_, dst_, expr);
     return dst_;
   }
 
   DeviceMatrix<Scalar>& operator=(const Scaled<DeviceMatrix<Scalar>>& expr) {
     // geam with beta == 0: cuBLAS documents B as unread, so pass A twice.
-    internal::dispatch_geam(ctx_, dst_, DeviceAddExpr<Scalar>(expr.scalar(), expr.inner(), Scalar(0), expr.inner()));
+    internal::dispatch(ctx_, dst_, DeviceAddExpr<Scalar>(expr.scalar(), expr.inner(), Scalar(0), expr.inner()));
     return dst_;
   }
 
@@ -548,7 +549,7 @@ template <typename Scalar_, int UpLo_>
 void SelfAdjointView<Scalar_, UpLo_>::rankUpdate(const DeviceMatrix<Scalar_>& A, RealScalar alpha) {
   SyrkExpr<Scalar_, UpLo_> expr(A);
   RealScalar beta = matrix().empty() ? RealScalar(0) : RealScalar(1);
-  internal::dispatch_syrk(Context::threadLocal(), matrix(), expr, alpha, beta);
+  internal::dispatch(Context::threadLocal(), matrix(), expr, alpha, beta);
 }
 
 namespace internal {
@@ -772,7 +773,7 @@ DeviceMatrix<Scalar_>& DeviceMatrix<Scalar_>::operator-=(const DeviceScaledDevic
 // this = alpha * A + beta * B  (cuBLAS geam)
 template <typename Scalar_>
 DeviceMatrix<Scalar_>& DeviceMatrix<Scalar_>::operator=(const DeviceAddExpr<Scalar_>& expr) {
-  internal::dispatch_geam(Context::threadLocal(), *this, expr);
+  internal::dispatch(Context::threadLocal(), *this, expr);
   return *this;
 }
 
