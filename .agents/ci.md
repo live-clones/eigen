@@ -5,6 +5,11 @@ includes; [`ci/*.gitlab-ci.yml`](../ci) and [`ci/scripts/`](../ci/scripts) defin
 run a limited smoke matrix; labels such as `all-tests` and `gpu-tests`, plus scheduled or manually started pipelines,
 enable broader jobs. A green default MR pipeline is not proof that every supported configuration was exercised.
 
+A pipeline is evidence only for the commit it ran on. After pushing a fix, amending, or rebasing, the previous green
+pipeline describes a superseded revision; check which SHA the pipeline and the merge request actually point at before
+citing either. The same applies in reverse when reporting a failure: confirm it reproduces at the current head rather
+than at the revision that was reviewed.
+
 Build jobs publish the configured build directory as an artifact. Their paired test jobs consume that artifact and
 run CTest without rebuilding. When changing either side, keep the test job's `needs`, CTest label or filter, and the
 corresponding build target consistent; otherwise CTest can discover tests whose executables are absent.

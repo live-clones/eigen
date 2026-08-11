@@ -83,6 +83,19 @@ Computations* are standard references for choosing error measures and adversaria
 - Treat a few-ULP performance tradeoff as a measured, documented finite-input decision. It does not waive NaN,
   infinity, signed-zero, or domain semantics unless the API and build mode explicitly document different behavior.
 
+## Documented Bounds And Shortcut Paths
+
+A scaling, threshold, or overflow budget stated in a comment is part of the code. When you widen the operation the code
+performs, re-derive that bound for the new operation instead of carrying the old expression forward. A pre-scaling
+computed from the largest multiplier does not bound a division, whose amplification is the reciprocal of the smallest
+retained divisor; the result is an overflow to infinity where the exact answer was representable, on inputs the existing
+tests do not reach. Where the operation is a parameter, let it report its own growth bound rather than hard-coding one
+caller's.
+
+Every early exit, identity case, and length-one shortcut must satisfy the same invariant as the general path. These are
+the branches that get added for a special case and then not revisited when the general path gains a guard, so check them
+explicitly and give them regression coverage at the boundary they cover.
+
 ## Subnormals and Flush-to-Zero
 
 Require gradual-underflow behavior when the target and active floating-point mode support it. Some targets or build

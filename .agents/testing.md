@@ -89,6 +89,48 @@ target must fail with `EIGEN_SHOULD_FAIL_TO_BUILD` defined.
 
 `ctest -R '^<name>$'` does not match split parts. Use `ctest -R '<name>'` for every part or anchor one generated name.
 
+After changing subtest registration, reconfigure and read back the generated target list rather than assuming it. Two
+failure modes are silent: a subtest function that no longer has a `CALL_SUBTEST` call still compiles and still looks
+like coverage, and a part reached only through a macro such as `CALL_SUBTESTS_TYPES_LAYOUTS` is not built at all under
+`EIGEN_SPLIT_LARGE_TESTS=ON` unless an `EIGEN_SUFFIXES` marker lists it. Both have gone unnoticed for years in this
+repository. Confirm that every subtest function in the source is called, and that the configured parts match the
+suffixes the source intends.
+
+## Coverage That Can Fail
+
+A test that passes when the change is reverted is not coverage. Establish that it fails at the parent commit, and when
+that is impractical, establish by construction that it reaches the new code.
+
+- A capability flag needs both halves: a `STATIC_CHECK` that the flag has the expected value for the expression under
+  test, and an evaluation through the ordinary public path that consults it. Calling the new method directly through a
+  helper proves the method works, not that anything selects it — such a test keeps passing when the flag reverts to
+  `false`. Compose an expression that actually prefers the path, evaluate it through assignment on the relevant devices
+  and layouts, and compare against the coefficient-wise result.
+- Pin both ends of an opt-in trait with `STATIC_CHECK`: a type that must be in, and a type that must stay out.
+- Do not verify a subset of the result. When a test functor writes only some coefficients, a raw or block consumer still
+  copies the whole buffer, so skipping the rest in verification means corruption there cannot fail the test.
+  Zero-initialize the destination and check every coefficient.
+- Exercise the customization points a user is documented to have, not only the built-in specializations: a functor that
+  declares no traits, one that declares them partially, and one with an extra overload. Several correctness regressions
+  in this repository were invisible because every in-tree specialization happened to satisfy the new precondition.
+
+## Configurations The Test Suite Cannot See
+
+Enumerate the configurations and instantiations that compile the new code, then check the ones the default build omits.
+
+- `test/main.h` undefines `NDEBUG`, and `Eigen/src/Core/util/Macros.h` derives `EIGEN_NO_DEBUG` from it, so no test in
+  the suite ever compiles an `EIGEN_NO_DEBUG` code path. If the change makes a buffer size, member, or branch depend on
+  that macro, verify it with a standalone `-DNDEBUG` program and say so.
+- The converse also holds: the body of an `eigen_assert` is only type-checked where assertions are enabled. An
+  assertion that calls a member the argument type does not have compiles cleanly in every `NDEBUG` build, including the
+  benchmarks, and breaks ordinary user builds.
+- Instantiate the public argument types, not only the internal ones a nearby test happened to use. A test written
+  against an internal dimension type does not cover the type users pass.
+- Run an `EIGEN_DEFAULT_TO_ROW_MAJOR` build when layout is in play, and pin the layout explicitly where a test aliases
+  one object's storage through another view whose default layout is fixed.
+- Cover `EIGEN_TEST_NO_EXPLICIT_VECTORIZATION`, `EIGEN_UNALIGNED_VECTORIZE=0`, and a narrower
+  `EIGEN_DEFAULT_DENSE_INDEX_TYPE` when the change reasons about packets, alignment, or index width.
+
 ## Numerical Assertions
 
 `VERIFY_IS_APPROX` is a convenient broad comparison, not a machine-epsilon guarantee. `test_precision<T>()` uses
@@ -98,6 +140,15 @@ target must fail with `EIGEN_SHOULD_FAIL_TO_BUILD` defined.
 For numerical kernels, add explicit named bounds based on epsilon, dimension, conditioning, or a backward-error
 model as appropriate. Check NaN, infinity, and signed zero explicitly when their distinction matters. Follow
 [`numerics.md`](numerics.md) for solver, packet, and scalar-math coverage.
+
+Two ways a comparison silently accepts everything, both of which have shipped here:
+
+- The tolerance is computed by the operation under test. A product error bound formed as `(A.cwiseAbs() * B.cwiseAbs())`
+  routes the tolerance through the code paths the test is supposed to be checking. Accumulate such a bound explicitly,
+  in a wider type, outside the implementation being tested.
+- The comparison admits a non-finite value. `error <= tolerance` is true when both are infinite, and
+  `if (error > bound)` never fires for a NaN error. Assert the negation, and reject a non-finite tolerance where it is
+  computed so a later caller cannot reintroduce the hole.
 
 Run reproducible failures directly with a fixed seed and repeat count:
 

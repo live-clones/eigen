@@ -33,6 +33,12 @@ do not assume they validate `unsupported/benchmarks` changes.
 
 - Benchmark the user-visible operation affected by the change, with representative scalar types, sizes, shapes,
   storage layouts, sparsity, and thread counts. Include transition sizes where a kernel or blocking strategy changes.
+- Confirm the registered arguments reach the code the change touches. A shape the operation rejects, a transform length
+  that falls off a fast path, or a missing case for the only configuration the change affects all produce a green
+  benchmark that measures something else. If the affected path has no case, add one; if a size measures a fallback,
+  either say so or replace it.
+- Check derived counters against the operation. `bytes_per_second` and item counts are hand-written multipliers, and an
+  operand miscount silently rescales every reported rate.
 - Keep allocation, input generation, validation, and unrelated setup outside the timed region. Prevent dead-code
   elimination with Google Benchmark's `DoNotOptimize` and `ClobberMemory` where appropriate.
 - Validate results outside the measured loop. A faster incorrect kernel is not a useful result.
@@ -66,6 +72,20 @@ function small and deterministic.
    drift. Use the same benchmark filter and arguments for each pair.
 5. Re-run suspicious or noisy cases. Treat changes smaller than the observed run-to-run variation as inconclusive,
    not as wins or regressions.
+
+## When Wall Clock Is Unusable
+
+Sometimes the machine cannot be made quiet enough for the effect size, and reporting the drift anyway is worse than
+reporting nothing. Deterministic counters are then the honest measurement, and they are also placement-immune:
+
+- Instruction counts under `valgrind --tool=callgrind` for the kernel under test.
+- Allocation counts, for example by linking with `-Wl,--wrap=malloc` and counting calls, which is the direct measure for
+  a change that hoists workspaces out of a loop.
+- Identical result checksums across both variants, so a counter improvement is not a behavior change.
+
+Report these as counter measurements, not as timings, and name the tool and configuration. A counter result plus a
+statement that wall clock was inconclusive is a complete performance claim for this kind of change; an unqualified
+speedup ratio measured on a loaded host is not.
 
 Never infer a general speedup from one convenient size or one warm run. State the tested domain, include regressions
 as well as improvements, and keep numerical accuracy results separate from performance measurements.

@@ -71,6 +71,44 @@ alive until synchronous evaluation returns or asynchronous completion is signale
 reduction, and device code have `ThreadPoolDevice`-specific paths; a serial `DefaultDevice` test alone is insufficient.
 See `unsupported/Eigen/src/Tensor/README.md` and `TensorDeviceThreadPool.h`.
 
+## Evaluator capability flags
+
+`PacketAccess`, `BlockAccess`, `PreferBlockAccess`, and `RawAccess` are independent claims, and the executor combines
+them: vectorization follows `PacketAccess` while tiling follows `BlockAccess && PreferBlockAccess`. Declining one does
+not decline the other, so a leaf that cannot support tiled evaluation can still be packet-evaluated.
+
+The two paths differ in how they treat evaluator state, and this is the asymmetry to reason about before widening a
+flag:
+
+- The coefficient path copies the evaluator per worker range, so a functor mutating evaluator-owned state stays
+  thread-local.
+- Tiled evaluation captures one evaluator by reference and calls `evalBlock()` from every task concurrently, so the same
+  functor instance is shared. A generator with mutable state is a data race on that path even though its `packetOp()`
+  is otherwise correct.
+
+`TensorEvaluator` knows its `Device`, so a capability may legitimately depend on it: declining `BlockAccess` only for
+`ThreadPoolDevice` keeps serial tiling while removing the race. Because tileability is a compile-time property and the
+thread count is not, that decision also applies to a single-threaded pool; prefer the conservative answer.
+
+A lazy block restarts its indices from the block origin. A functor is only safe to serve that way if it is genuinely
+index-independent and repeatable. The existence of a nullary `operator()()` does not establish that: a functor may also
+provide `operator()(Index)`, which `nullary_wrapper` selects for coefficient evaluation, so a lazily blocked expression
+and the same expression evaluated linearly produce different values.
+
+Reduction fast paths carry an equivalent obligation. Splitting an inner-most reduction across independent accumulators
+and folding them together permutes the operands rather than only re-associating them, so it requires an associative and
+commutative combine with `initialize()` as its identity, not merely a reducer that can combine partial accumulators.
+Document which property the trait promises and name the trait after it.
+
+## Cost model
+
+`costPerCoeff()` drives thread-count selection, so it has to describe the path the evaluator actually takes. When a
+packet path is conditional, mirror the same condition in the cost: charge the nested evaluator as vectorized only when
+the packet path really forwards packets, and as scalar when it gathers or scatters lane by lane. `TensorStriding.h`
+passes `vectorized && m_inputStrides[innerDim] == 1` down to the nested evaluator and is the reference for the gather
+case. Overstating vectorization here is not a cosmetic error — a nested `exp()` charged as vectorized instead of scalar
+has selected one thread where the workload wanted five.
+
 ## Scheduling changes
 
 - Preserve the `ThreadPoolInterface` contract, including `Schedule`, `ScheduleWithHint`, `CurrentThreadId`,

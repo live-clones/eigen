@@ -26,6 +26,14 @@ interface used by evaluators.
   in ULPs against an appropriate scalar or higher-precision reference; test NaN, infinities, signed zero, subnormals,
   and domain boundaries explicitly where the platform exposes those IEEE-754 behaviors.
 
+A missing specialization is not always a compile error. Several generic fallbacks in
+`Eigen/src/Core/GenericPacketMath.h` are defined for every packet type and are semantically the identity or a
+single-lane approximation of the real operation. Calling such an operation from a path that a backend without the
+specialization will instantiate produces silently wrong results rather than a diagnostic — a lane reversal that does
+not reverse, for instance. Before using a `p*` operation in code a device backend can reach, confirm that the backend
+implements it for the packet types it uses, and keep the scalar fallback for the backends that do not. SYCL is the usual
+gap because its packet surface is narrower than the CPU backends'.
+
 The current source tree and `test/CMakeLists.txt` are authoritative for supported backends and configuration options;
 do not copy an architecture inventory into documentation.
 
@@ -73,6 +81,26 @@ This is a host-side NVIDIA-library wrapper selected explicitly with `Eigen::gpu`
 evaluation or packet fusion. Define `EIGEN_USE_GPU` before including `<unsupported/Eigen/GPU>`, and consult
 `unsupported/Eigen/src/GPU/README.md`. Its tests under `unsupported/test/GPU/` are intentionally host-compiled `.cpp`
 files.
+
+Asynchrony makes three ordinary refactors unsafe here, and each has produced a defect that the module's tests did not
+catch:
+
+- **Value-based sentinels.** Do not encode a mode in a value the user can legitimately supply. A null stream is a valid
+  explicit stream, so it cannot also mean "no stream was given"; carry a separate flag. The meaning of the null stream
+  is itself build-configurable — under per-thread default streams it does not order against other streams — so code that
+  needs the device-wide ordering point must name `cudaStreamLegacy` and code that needs ordering against a specific
+  stream must use that stream.
+- **Identity-based caches.** A host pointer, extent, and nonzero count do not identify a pattern: assigning a different
+  same-shape pattern to the same object reuses its allocations, so the cache reports a hit for different data. Key on
+  content or bump a generation counter on every write, and keep the cheap descriptor cache separate from the upload it
+  is guarding.
+- **Removing a wait.** A cleanup that deletes a drain, event wait, or re-upload must show the step was redundant on
+  every ownership mode, not just the common one. A borrowed handle's deleter deliberately does nothing, so it supplies
+  none of the implicit synchronization an owned handle's teardown does, and host memory that is the destination of an
+  asynchronous copy cannot be released on the strength of the free call alone.
+
+Buffers whose size depends on `EIGEN_NO_DEBUG` are a related hazard: a status word the vendor library writes in every
+build must be allocated in every build, even when only the debug-side mirror and its assertion compile away.
 
 ## Validation
 
