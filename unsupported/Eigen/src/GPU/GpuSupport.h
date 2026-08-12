@@ -259,8 +259,10 @@ struct DeviceBufferDeleter {
 
   void operator()(void* p) const noexcept {
     if (!p) return;
+    // The branch already resolved pool support, so call the API directly
+    // instead of paying device_free()'s repeat of the same check.
     if (device_supports_memory_pools()) {
-      device_free(p, stream.get());
+      (void)cudaFreeAsync(p, stream.get());
     } else if (bytes > 0 && bytes <= FallbackDeviceBufferPool<>::kSmallBufferThreshold &&
                FallbackDeviceBufferPool<>::threadState() == FallbackDeviceBufferPool<>::State::kAlive) {
       FallbackDeviceBufferPool<>::threadLocal().deallocate(p, bytes, stream.get());
@@ -278,7 +280,7 @@ class DeviceBuffer {
     if (bytes > 0) {
       void* p = nullptr;
       if (device_supports_memory_pools()) {
-        p = device_malloc(bytes, stream.get());
+        EIGEN_CUDA_RUNTIME_CHECK(cudaMallocAsync(&p, bytes, stream.get()));
       } else if (bytes <= FallbackDeviceBufferPool<>::kSmallBufferThreshold &&
                  FallbackDeviceBufferPool<>::threadState() != FallbackDeviceBufferPool<>::State::kDestroyed) {
         p = FallbackDeviceBufferPool<>::threadLocal().allocate(bytes, stream.get());
@@ -311,6 +313,10 @@ class DeviceBuffer {
 
   /** Logical allocation size in bytes, tracked for adopted pointers as well. */
   size_t size() const noexcept { return bytes_; }
+
+  /** The stream this allocation is bound to: it was allocated there and its
+   * free is enqueued there. Empty (the legacy default stream) when null. */
+  const CudaStreamHandle& streamHandle() const noexcept { return ptr_.get_deleter().stream; }
 
   // Adopt an existing device pointer of `bytes` usable bytes. Caller
   // relinquishes ownership.
@@ -347,7 +353,9 @@ inline void ensure_sized(DeviceBuffer& buf, size_t needed, const CudaStreamHandl
 // stream first; growth is rare (monotone high-water mark), so the drain is too.
 inline void ensure_host_sized(std::vector<char>& buf, size_t needed, cudaStream_t stream) {
   if (needed > buf.size()) {
-    (void)cudaStreamSynchronize(stream);
+    // Nothing to protect on the first growth: there is no old storage a queued
+    // routine could still be reading.
+    if (!buf.empty()) (void)cudaStreamSynchronize(stream);
     buf.resize(needed);
   }
 }

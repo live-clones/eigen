@@ -20,25 +20,15 @@
 #include "main.h"
 #include <unsupported/Eigen/GPU>
 
-#include <atomic>
-#include <chrono>
-#include <thread>
+#include "gpu_test_helpers.h"
+
 #include <vector>
 
 using namespace Eigen;
 
-namespace {
-
-struct StreamGate {
-  std::atomic<bool> open{false};
-};
-
-void CUDART_CB wait_for_stream_gate(void* user_data) {
-  auto* gate = static_cast<StreamGate*>(user_data);
-  while (!gate->open.load(std::memory_order_acquire)) std::this_thread::yield();
-}
-
-}  // namespace
+using gpu_test::StreamGate;
+using gpu_test::StreamGateOpener;
+using gpu_test::wait_for_stream_gate;
 
 // Small buffers route through the thread-local pool: free followed by a
 // same-size allocate must return the cached pointer, via DeviceBuffer itself
@@ -103,13 +93,13 @@ void test_cross_stream_reuse_through_device_buffer() {
   gpu::internal::DeviceBuffer reused(bytes, consumer);
   EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(reused.get(), &inputs[1], bytes, cudaMemcpyHostToDevice, consumer));
 
-  std::thread release_gate([&gate] {
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    gate.open.store(true, std::memory_order_release);
-  });
-  const cudaError_t consumer_status = cudaStreamSynchronize(consumer);
-  const cudaError_t producer_status = cudaStreamSynchronize(producer);
-  release_gate.join();
+  cudaError_t consumer_status = cudaSuccess;
+  cudaError_t producer_status = cudaSuccess;
+  {
+    StreamGateOpener opener(gate, /*delay_ms=*/50);
+    consumer_status = cudaStreamSynchronize(consumer);
+    producer_status = cudaStreamSynchronize(producer);
+  }
 
   const float observed_value = *observed;
   EIGEN_CUDA_RUNTIME_CHECK(cudaFreeHost(inputs));

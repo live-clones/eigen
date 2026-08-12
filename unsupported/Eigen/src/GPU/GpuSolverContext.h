@@ -98,15 +98,15 @@ struct GpuSolverContext {
     if (!info_synced_ || (!device_supports_memory_pools() && (d_scratch_ || gemm_workspace_))) {
       (void)cudaStreamSynchronize(stream_);
     }
-    // Destroy plan cache before its cublasLt handle (entries hold descriptors).
+    // Destroy plan cache before its cublasLt handle (entries hold descriptors);
+    // move-assignment replaces the handle before the cache, so this cannot be
+    // left to member order.
     gemm_plan_cache_.clear();
     cublas_lt_ = UniqueCublasLtHandle();
-    // Free the stream-ordered device buffers while stream_ is still alive.
-    d_scratch_ = DeviceBuffer();
-    gemm_workspace_ = DeviceBuffer();
-    // The borrow-aware cusolver_/cublas_ handles and stream_ need no explicit
-    // destroy: the shared handle releases an owned stream once the buffers
-    // freed above have enqueued their frees on it.
+    // Everything else is RAII: the device buffers, the borrow-aware
+    // cusolver_/cublas_ handles, and stream_ release themselves — and each
+    // buffer's deleter holds its own copy of the shared stream handle, so an
+    // owned stream outlives the frees enqueued on it however teardown is reached.
   }
 
   GpuSolverContext(GpuSolverContext&& o) noexcept

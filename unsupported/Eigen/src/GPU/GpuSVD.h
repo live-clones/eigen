@@ -265,22 +265,8 @@ class SVD {
       return v;
     }
     // transposed: U_orig = VT_stored^H -> conjugate-transpose via cublasXgeam.
-    // The owning result is allocated on the solver stream (via the
-    // stream-carrying adopt) so allocation, geam write, and eventual free all
-    // stay ordered even on a borrowed cudaStreamNonBlocking stream.
     const Index vtrows_stored = (options_ & ComputeFullU) ? n_ : k;
-    if (n_ == 0 || vtrows_stored == 0) return DeviceMatrix<Scalar>(n_, vtrows_stored);
-    internal::DeviceBuffer d_result(static_cast<size_t>(n_) * static_cast<size_t>(vtrows_stored) * sizeof(Scalar),
-                                    solver_ctx_.streamHandle());
-    Scalar alpha_one(1), beta_zero(0);
-    EIGEN_CUBLAS_CHECK(internal::cublasXgeam(solver_ctx_.cublasHandle(), CUBLAS_OP_C, CUBLAS_OP_N, n_, vtrows_stored,
-                                             &alpha_one, static_cast<const Scalar*>(d_VT_.get()), vtrows_stored,
-                                             &beta_zero, static_cast<const Scalar*>(nullptr), n_,
-                                             static_cast<Scalar*>(d_result.get()), n_));
-    DeviceMatrix<Scalar> result = DeviceMatrix<Scalar>::adopt(static_cast<Scalar*>(d_result.release()), n_,
-                                                              vtrows_stored, solver_ctx_.streamHandle());
-    result.recordReady(solver_ctx_.stream());
-    return result;
+    return adjoint_on_stream(static_cast<const Scalar*>(d_VT_.get()), n_, vtrows_stored);
   }
 
   /** Right singular vectors transposed V^T as a DeviceMatrix on this solver's stream.
@@ -297,21 +283,9 @@ class SVD {
       v.recordReady(solver_ctx_.stream());
       return v;
     }
-    // transposed: VT_orig = U_stored^H. Solver-stream-bound for the same
-    // reason as the d_matrixU() branch above.
+    // transposed: VT_orig = U_stored^H.
     const Index ucols = (options_ & ComputeFullV) ? n_orig : k;
-    if (ucols == 0 || m_ == 0) return DeviceMatrix<Scalar>(ucols, m_);
-    internal::DeviceBuffer d_result(static_cast<size_t>(ucols) * static_cast<size_t>(m_) * sizeof(Scalar),
-                                    solver_ctx_.streamHandle());
-    Scalar alpha_one(1), beta_zero(0);
-    EIGEN_CUBLAS_CHECK(internal::cublasXgeam(solver_ctx_.cublasHandle(), CUBLAS_OP_C, CUBLAS_OP_N, ucols, m_,
-                                             &alpha_one, static_cast<const Scalar*>(d_U_.get()), m_, &beta_zero,
-                                             static_cast<const Scalar*>(nullptr), ucols,
-                                             static_cast<Scalar*>(d_result.get()), ucols));
-    DeviceMatrix<Scalar> result =
-        DeviceMatrix<Scalar>::adopt(static_cast<Scalar*>(d_result.release()), ucols, m_, solver_ctx_.streamHandle());
-    result.recordReady(solver_ctx_.stream());
-    return result;
+    return adjoint_on_stream(static_cast<const Scalar*>(d_U_.get()), ucols, m_);
   }
 
   /** Number of singular values above threshold. */
@@ -383,6 +357,21 @@ class SVD {
   int64_t n_ = 0;
   int64_t lda_ = 0;
   bool transposed_ = false;
+
+  // Owning `rows x cols` result holding src^H, where src is the `cols x rows`
+  // stored factor. Allocated on the solver stream so allocation, the geam
+  // write, and the eventual free stay ordered even on a borrowed
+  // cudaStreamNonBlocking stream.
+  DeviceMatrix<Scalar> adjoint_on_stream(const Scalar* src, Index rows, Index cols) const {
+    if (rows == 0 || cols == 0) return DeviceMatrix<Scalar>(rows, cols);
+    DeviceMatrix<Scalar> result = DeviceMatrix<Scalar>::onStream(rows, cols, solver_ctx_.streamHandle());
+    Scalar alpha_one(1), beta_zero(0);
+    EIGEN_CUBLAS_CHECK(internal::cublasXgeam(solver_ctx_.cublasHandle(), CUBLAS_OP_C, CUBLAS_OP_N, rows, cols,
+                                             &alpha_one, src, cols, &beta_zero, static_cast<const Scalar*>(nullptr),
+                                             rows, result.data(), rows));
+    result.recordReady(solver_ctx_.stream());
+    return result;
+  }
 
   // Common compute() prologue: record shape/options, reset info and cached
   // diagonal, wait on input. Returns false (clearing state) for empty input.
@@ -604,7 +593,7 @@ class SVD {
     // one blocking wait instead of two.
     const Ref<const PlainMatrix> rhs(B.derived());
     internal::DeviceBuffer d_B(static_cast<size_t>(m_orig) * static_cast<size_t>(nrhs) * sizeof(Scalar),
-                               solver_ctx_.stream());
+                               solver_ctx_.streamHandle());
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_B.get(), rhs.data(),
                                              static_cast<size_t>(m_orig) * static_cast<size_t>(nrhs) * sizeof(Scalar),
                                              cudaMemcpyHostToDevice, solver_ctx_.stream()));
@@ -612,7 +601,7 @@ class SVD {
 
     PlainMatrix X(n_orig, nrhs);
     internal::DeviceBuffer d_X(static_cast<size_t>(n_orig) * static_cast<size_t>(nrhs) * sizeof(Scalar),
-                               solver_ctx_.stream());
+                               solver_ctx_.streamHandle());
     apply_pinv(static_cast<const Scalar*>(d_B.get()), kk, nrhs, static_cast<Scalar*>(d_X.get()));
 
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(X.data(), d_X.get(),
@@ -639,12 +628,9 @@ class SVD {
     if (kk == 0 || nrhs == 0 || n_orig == 0) {
       // Zero result, allocated and zeroed on the solver stream like the main
       // path below so its lifetime is ordered with the solver's other work.
-      const size_t x_bytes = static_cast<size_t>(n_orig) * static_cast<size_t>(nrhs) * sizeof(Scalar);
-      internal::DeviceBuffer d_x(x_bytes, solver_ctx_.streamHandle());
-      DeviceMatrix<Scalar> X =
-          DeviceMatrix<Scalar>::adopt(static_cast<Scalar*>(d_x.release()), n_orig, nrhs, solver_ctx_.streamHandle());
-      if (x_bytes > 0) {
-        EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(X.data(), 0, x_bytes, solver_ctx_.stream()));
+      DeviceMatrix<Scalar> X = DeviceMatrix<Scalar>::onStream(n_orig, nrhs, solver_ctx_.streamHandle());
+      if (X.sizeInBytes() > 0) {
+        EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(X.data(), 0, X.sizeInBytes(), solver_ctx_.stream()));
         X.recordReady(solver_ctx_.stream());
       }
       return X;
@@ -653,14 +639,10 @@ class SVD {
     d_B.waitReady(solver_ctx_.stream());
     build_diag(kk, lambda);
 
-    // Allocate the result on the solver stream and hand it to DeviceMatrix via
-    // the stream-carrying adopt, so its eventual free is ordered after the
-    // GEMMs below (a plain DeviceMatrix would free on the legacy stream).
-    internal::DeviceBuffer d_x(static_cast<size_t>(n_orig) * static_cast<size_t>(nrhs) * sizeof(Scalar),
-                               solver_ctx_.streamHandle());
-    apply_pinv(d_B.data(), kk, nrhs, static_cast<Scalar*>(d_x.get()));
-    DeviceMatrix<Scalar> X =
-        DeviceMatrix<Scalar>::adopt(static_cast<Scalar*>(d_x.release()), n_orig, nrhs, solver_ctx_.streamHandle());
+    // Allocate the result on the solver stream so its eventual free is ordered
+    // after the GEMMs below (a plain DeviceMatrix would free on the legacy stream).
+    DeviceMatrix<Scalar> X = DeviceMatrix<Scalar>::onStream(n_orig, nrhs, solver_ctx_.streamHandle());
+    apply_pinv(d_B.data(), kk, nrhs, X.data());
     X.recordReady(solver_ctx_.stream());
     return X;
   }

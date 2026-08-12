@@ -540,6 +540,17 @@ class DeviceMatrix {
     return dm;
   }
 
+  /** Allocate an uninitialized rows x cols matrix whose storage is bound to
+   * \p stream: it is allocated there and its eventual free is enqueued there,
+   * ordered after the work that produced the contents. Device-resident solver
+   * results use this; the plain constructors bind to the legacy default
+   * stream, which is unordered against a borrowed cudaStreamNonBlocking one. */
+  static DeviceMatrix onStream(Index rows, Index cols, const internal::CudaStreamHandle& stream) {
+    eigen_assert(rows >= 0 && cols >= 0);
+    internal::DeviceBuffer buf(static_cast<size_t>(rows) * static_cast<size_t>(cols) * sizeof(Scalar), stream);
+    return adopt(static_cast<Scalar*>(buf.release()), rows, cols, stream);
+  }
+
   /** Construct a non-owning view over an existing device pointer.
    *
    * The pointer is *borrowed*: destruction does not free, and the underlying

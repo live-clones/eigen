@@ -333,8 +333,6 @@ class FFT {
   Eigen::internal::LruCache<int64_t, internal::CufftPlan> plans_;
   internal::DeviceBuffer d_in_;
   internal::DeviceBuffer d_out_;
-  size_t d_in_size_ = 0;
-  size_t d_out_size_ = 0;
 
   // Common device-transform prologue: alias check, input/output event waits,
   // and (destructive) output resize.
@@ -351,9 +349,7 @@ class FFT {
   // Buffers grow but never shrink.
   void ensure_buffers(size_t in_bytes, size_t out_bytes) {
     internal::ensure_sized(d_in_, in_bytes, ctx_->streamHandle());
-    d_in_size_ = d_in_.size();
     internal::ensure_sized(d_out_, out_bytes, ctx_->streamHandle());
-    d_out_size_ = d_out_.size();
   }
 
   // Plan key encoding: rank (1 bit) | type (4 bits) | dims.

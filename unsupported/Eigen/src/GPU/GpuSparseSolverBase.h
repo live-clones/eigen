@@ -237,18 +237,16 @@ class SparseSolverBase {
     const int64_t nrhs = static_cast<int64_t>(d_B.cols());
     if (n_ == 0 || nrhs == 0) return DeviceMatrix<Scalar>(n_, d_B.cols());
 
-    // Allocate the result on the solver stream and hand it to DeviceMatrix via
-    // the stream-carrying adopt, so the allocation is ordered before the cuDSS
-    // write and the eventual free after it (a plain DeviceMatrix would
-    // allocate and free on the legacy default stream, unordered against a
-    // borrowed cudaStreamNonBlocking solver stream).
-    DeviceBuffer d_x(static_cast<size_t>(n_) * static_cast<size_t>(nrhs) * sizeof(Scalar), stream_);
+    // Allocate the result on the solver stream, so the allocation is ordered
+    // before the cuDSS write and the eventual free after it (a plain
+    // DeviceMatrix would allocate and free on the legacy default stream,
+    // unordered against a borrowed cudaStreamNonBlocking solver stream).
+    DeviceMatrix<Scalar> X = DeviceMatrix<Scalar>::onStream(n_, d_B.cols(), stream_);
 
     d_B.waitReady(stream());
-    update_solve_descriptors(nrhs, const_cast<Scalar*>(d_B.data()), d_x.get());
+    update_solve_descriptors(nrhs, const_cast<Scalar*>(d_B.data()), X.data());
     EIGEN_CUDSS_CHECK(cudssExecute(handle_.get(), CUDSS_PHASE_SOLVE, config_.get(), data_.get(), d_A_cudss_.get(),
                                    x_solve_cudss_.get(), b_solve_cudss_.get()));
-    DeviceMatrix<Scalar> X = DeviceMatrix<Scalar>::adopt(static_cast<Scalar*>(d_x.release()), n_, d_B.cols(), stream_);
     X.recordReady(stream());
     return X;
   }
