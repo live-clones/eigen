@@ -15,6 +15,7 @@ core.*
 *.bak
 *~
 *.build*
+.tidy-build/
 *.moc.*
 *.moc
 ui_*

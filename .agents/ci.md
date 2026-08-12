@@ -44,8 +44,9 @@ python3 scripts/clang_tidy_hook.py --diff <base-sha>   # needs clang-tidy
 Both report only on the lines a change adds, and both are advisory. `check_style.py` covers the conventions
 clang-tidy cannot state — comment verbosity, and the declaration forms still awaiting a `CustomChecks` query
 (see the parked block in `.clang-tidy`). `clang_tidy_hook.py` runs clang-tidy itself, restricted to added lines
-with `--line-filter`; it needs no build directory, generating a module-umbrella driver for `Eigen/src` headers
-the way `ci/scripts/run-clang-tidy.sh` does for merge requests. It skips silently when clang-tidy is absent.
+with `--line-filter`; it needs no build directory, generating a driver that includes the module umbrella and then
+the edited `Eigen/src` header, the way `ci/scripts/run-clang-tidy.sh` does for merge requests. It skips silently when
+clang-tidy is absent.
 
 Claude Code sessions run both automatically through the hooks registered in `.claude/settings.json`.
 

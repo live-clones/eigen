@@ -11,10 +11,12 @@ restriction the checks would be unusable interactively: ``Eigen/src`` holds
 ~4100 ``typedef``s, and whole-file output buries the two lines just written.
 
 Editing a header under ``Eigen/src`` cannot be compiled directly — the module's
-``InternalHeaderCheck.h`` ``#error``s out — so a one-line driver that includes
-the module umbrella is generated instead, the umbrella name being read from the
+``InternalHeaderCheck.h`` ``#error``s out — so a driver includes the module
+umbrella first and then the edited header.  The umbrella name is read from the
 ``#error "Please include <X>"`` directive.  This mirrors what
-``ci/scripts/run-clang-tidy.sh`` does for merge requests.
+``ci/scripts/run-clang-tidy.sh`` does for merge requests.  Including the edited
+header explicitly also covers a new header that the umbrella does not export
+yet.
 
 No compilation database is required: ``-std=c++14 -I<repo>`` is enough to parse
 any file in the C++14 trees, which keeps the hook usable in a fresh checkout
@@ -40,7 +42,7 @@ from style_common import (REPO_ROOT, diff_added_lines, hook_edit_snippets,  # no
 
 # Parsing an umbrella costs about a second, so keep the hook off trees whose
 # conventions these checks do not describe (bench/, demos/, doc/ examples).
-CHECKED_TREES = ("Eigen/", "unsupported/Eigen/", "test/", "unsupported/test/", "blas/", "lapack/")
+CHECKED_TREES = ("Eigen/", "unsupported/Eigen/", "test/", "unsupported/test/", "failtest/", "blas/", "lapack/")
 SRC_TREES = ("Eigen/src/", "unsupported/Eigen/src/")
 # Modules whose umbrella needs a third-party header we cannot assume is present.
 EXTERNAL_DEP_MODULES = ("AccelerateSupport", "CholmodSupport", "KLUSupport", "MetisSupport",
@@ -91,7 +93,7 @@ def tidy_target(rel_path, tmpdir, root=REPO_ROOT):
     """Return the path clang-tidy should be pointed at, or None to skip.
 
     Source files are linted directly; src-tree headers go through a generated
-    driver that includes their module umbrella.
+    driver that includes their module umbrella followed by the header itself.
     """
     if rel_path.startswith(SRC_TREES) or not os.path.splitext(rel_path)[1]:
         include = umbrella_for(rel_path, root) if rel_path.startswith(SRC_TREES) else rel_path
@@ -100,6 +102,8 @@ def tidy_target(rel_path, tmpdir, root=REPO_ROOT):
         driver = os.path.join(tmpdir, "tidy_driver_" + rel_path.replace("/", "_") + ".cpp")
         with open(driver, "w", encoding="utf-8") as handle:
             handle.write("#include <%s>\n" % include)
+            if rel_path.startswith(SRC_TREES):
+                handle.write("#include <%s>\n" % rel_path)
         return driver
     if os.path.splitext(rel_path)[1].lower() in (".cpp", ".cc", ".cxx"):
         return os.path.join(root, rel_path)
@@ -141,7 +145,8 @@ def run_clang_tidy(per_file, root=REPO_ROOT, tidy=None):
                 skipped.append((rel_path, "clang-tidy timed out after %ds" % TIMEOUT_SECONDS))
                 continue
             broke = False
-            for line in done.stdout.splitlines():
+            output = "\n".join(part for part in (done.stdout, done.stderr) if part)
+            for line in output.splitlines():
                 if not re.search(r": (warning|error): ", line):
                     continue
                 if "clang-diagnostic-error" in line or ": error: " in line:
@@ -150,6 +155,8 @@ def run_clang_tidy(per_file, root=REPO_ROOT, tidy=None):
                 diagnostics.append(re.sub(r"^" + re.escape(root) + "/", "", line))
             if broke:
                 skipped.append((rel_path, "translation unit did not compile"))
+            elif done.returncode != 0:
+                skipped.append((rel_path, "clang-tidy failed"))
     return diagnostics, skipped
 
 

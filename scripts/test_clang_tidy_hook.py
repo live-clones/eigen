@@ -20,7 +20,7 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from clang_tidy_hook import compile_args, module_of, tidy_target, umbrella_for
+from clang_tidy_hook import compile_args, module_of, run_clang_tidy, tidy_target, umbrella_for
 from style_common import REPO_ROOT, as_ranges, line_filter_json
 
 
@@ -79,10 +79,12 @@ def test_umbrella_resolution():
 def test_tidy_target():
     tmp = tempfile.mkdtemp(prefix="tidy_target_test_")
     try:
-        # A src-tree header is linted through a generated umbrella driver.
+        # A src-tree header is linted after its umbrella.  The explicit second
+        # include is needed for a new header the umbrella does not export yet.
         driver = tidy_target("Eigen/src/Core/Block.h", tmp)
         assert driver is not None and driver.startswith(tmp)
-        assert open(driver).read() == "#include <Eigen/Core>\n"
+        assert open(driver).read() == ("#include <Eigen/Core>\n"
+                                       "#include <Eigen/src/Core/Block.h>\n")
         # An extensionless public module header is included directly.
         driver = tidy_target("Eigen/Core", tmp)
         assert open(driver).read() == "#include <Eigen/Core>\n"
@@ -146,11 +148,76 @@ def test_broken_translation_unit_is_not_reported_clean():
         source = os.path.join(tmp, "test", "broken.cpp")
         with open(source, "w") as handle:
             handle.write("int valid = 0;\nthis is not valid C++ at all @@@;\n")
-        from clang_tidy_hook import run_clang_tidy
         diagnostics, skipped = run_clang_tidy({"test/broken.cpp": {2}}, root=tmp)
         assert diagnostics == [], diagnostics
         reasons = [reason for path, reason in skipped if path == "test/broken.cpp"]
         assert reasons == ["translation unit did not compile"], skipped
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_new_src_header_is_checked():
+    """A private header absent from its umbrella must still be parsed."""
+    if shutil.which("clang-tidy") is None:
+        print("SKIP test_new_src_header_is_checked (clang-tidy not installed)")
+        return
+    tmp = tempfile.mkdtemp(prefix="tidy_new_header_test_")
+    try:
+        src = os.path.join(tmp, "Eigen", "src", "Core")
+        os.makedirs(src)
+        with open(os.path.join(tmp, ".clang-tidy"), "w") as handle:
+            handle.write("Checks: '-*,modernize-use-using'\n")
+        with open(os.path.join(tmp, "Eigen", "Core"), "w") as handle:
+            handle.write("#define EIGEN_CORE_MODULE_H\n")
+        with open(os.path.join(src, "InternalHeaderCheck.h"), "w") as handle:
+            handle.write("#ifndef EIGEN_CORE_MODULE_H\n"
+                         "#error \"Please include Eigen/Core instead of this file directly.\"\n"
+                         "#endif\n")
+        with open(os.path.join(src, "Added.h"), "w") as handle:
+            handle.write('#include "InternalHeaderCheck.h"\n'
+                         "typedef int AddedAlias;\n")
+
+        diagnostics, skipped = run_clang_tidy({"Eigen/src/Core/Added.h": {2}}, root=tmp)
+        assert not skipped, skipped
+        assert len(diagnostics) == 1 and "modernize-use-using" in diagnostics[0], diagnostics
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_clang_tidy_failure_is_not_reported_clean():
+    tmp = tempfile.mkdtemp(prefix="tidy_failure_test_")
+    try:
+        os.makedirs(os.path.join(tmp, "test"))
+        with open(os.path.join(tmp, ".clang-tidy"), "w") as handle:
+            handle.write("Checks: '-*'\n")
+        with open(os.path.join(tmp, "test", "probe.cpp"), "w") as handle:
+            handle.write("int probe;\n")
+        diagnostics, skipped = run_clang_tidy({"test/probe.cpp": {1}}, root=tmp, tidy="/bin/false")
+        assert diagnostics == [], diagnostics
+        assert skipped == [("test/probe.cpp", "clang-tidy failed")], skipped
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_failtest_is_checked_without_failure_macro():
+    """Failtests are linted as their successful compile, not their _ko target."""
+    if shutil.which("clang-tidy") is None:
+        print("SKIP test_failtest_is_checked_without_failure_macro (clang-tidy not installed)")
+        return
+    tmp = tempfile.mkdtemp(prefix="tidy_failtest_test_")
+    try:
+        os.makedirs(os.path.join(tmp, "failtest"))
+        with open(os.path.join(tmp, ".clang-tidy"), "w") as handle:
+            handle.write("Checks: '-*,modernize-use-using'\n")
+        with open(os.path.join(tmp, "failtest", "probe.cpp"), "w") as handle:
+            handle.write("#ifdef EIGEN_SHOULD_FAIL_TO_BUILD\n"
+                         "this is intentionally invalid;\n"
+                         "#endif\n"
+                         "typedef int AddedAlias;\n")
+
+        diagnostics, skipped = run_clang_tidy({"failtest/probe.cpp": {4}}, root=tmp)
+        assert not skipped, skipped
+        assert len(diagnostics) == 1 and "modernize-use-using" in diagnostics[0], diagnostics
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
