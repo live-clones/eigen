@@ -728,10 +728,12 @@ void test_concat_row_major() {
     VERIFY_IS_APPROX(expected, result);
 
     STATIC_CHECK(!(internal::evaluator<std::decay_t<decltype(vcat(a, b))>>::Flags & PacketAccessBit));
-#ifdef EIGEN_VECTORIZE
+    // With matching operand orders the Concat keeps packet access exactly when the operand
+    // evaluators have it; comparing against the operand's own flag keeps this valid on backends
+    // where this Scalar is not vectorizable.
     RowMajorMatrix c(2, 11);
-    STATIC_CHECK((internal::evaluator<std::decay_t<decltype(vcat(a, c))>>::Flags & PacketAccessBit) != 0);
-#endif
+    STATIC_CHECK((internal::evaluator<std::decay_t<decltype(vcat(a, c))>>::Flags & PacketAccessBit) ==
+                 (internal::evaluator<RowMajorMatrix>::Flags & PacketAccessBit));
   }
   {
     ColMajorMatrix a = ColMajorMatrix::Random(5, 8);
