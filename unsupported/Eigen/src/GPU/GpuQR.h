@@ -336,14 +336,12 @@ class QR {
     // on the solver stream too — a plain DeviceMatrix would allocate and free
     // on the legacy default stream, unordered against a borrowed
     // cudaStreamNonBlocking solver stream.
-    internal::DeviceBuffer d_result(static_cast<size_t>(n_) * static_cast<size_t>(nrhs) * sizeof(Scalar),
-                                    solver_ctx_.streamHandle());
-    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpy2DAsync(d_result.get(), static_cast<size_t>(n_) * sizeof(Scalar), d_work.get(),
+    DeviceMatrix<Scalar> result =
+        DeviceMatrix<Scalar>::onStream(n_, static_cast<Index>(nrhs), solver_ctx_.streamHandle());
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpy2DAsync(result.data(), static_cast<size_t>(n_) * sizeof(Scalar), d_work.get(),
                                                static_cast<size_t>(m_) * sizeof(Scalar),
                                                static_cast<size_t>(n_) * sizeof(Scalar), static_cast<size_t>(nrhs),
                                                cudaMemcpyDeviceToDevice, solver_ctx_.stream()));
-    DeviceMatrix<Scalar> result = DeviceMatrix<Scalar>::adopt(static_cast<Scalar*>(d_result.release()), n_,
-                                                              static_cast<Index>(nrhs), solver_ctx_.streamHandle());
     result.recordReady(solver_ctx_.stream());
     return result;
   }

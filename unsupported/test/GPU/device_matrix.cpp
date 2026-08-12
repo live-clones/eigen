@@ -285,13 +285,13 @@ void test_fallback_pool_cross_stream_reuse() {
   void* reused_ptr = pool.allocate(bytes, consumer_stream);
   EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(reused_ptr, &inputs[1], bytes, cudaMemcpyHostToDevice, consumer_stream));
 
-  std::thread release_gate([&gate] {
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    gate.open.store(true, std::memory_order_release);
-  });
-  const cudaError_t consumer_status = cudaStreamSynchronize(consumer_stream);
-  const cudaError_t producer_status = cudaStreamSynchronize(producer_stream);
-  release_gate.join();
+  cudaError_t consumer_status = cudaSuccess;
+  cudaError_t producer_status = cudaSuccess;
+  {
+    gpu_test::StreamGateOpener opener(gate, /*delay_ms=*/50);
+    consumer_status = cudaStreamSynchronize(consumer_stream);
+    producer_status = cudaStreamSynchronize(producer_stream);
+  }
 
   const float observed_value = *observed;
   const cudaError_t free_status = cudaFree(reused_ptr);
