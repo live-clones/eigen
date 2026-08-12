@@ -137,7 +137,7 @@ class SVD {
       transpose_into_input(d_A);
     } else {
       const size_t mat_bytes = static_cast<size_t>(lda_) * static_cast<size_t>(n_) * sizeof(Scalar);
-      d_A_ = internal::DeviceBuffer(mat_bytes, solver_ctx_.stream());
+      d_A_ = internal::DeviceBuffer(mat_bytes, solver_ctx_.streamHandle());
       EIGEN_CUDA_RUNTIME_CHECK(
           cudaMemcpyAsync(d_A_.get(), d_A.data(), mat_bytes, cudaMemcpyDeviceToDevice, solver_ctx_.stream()));
     }
@@ -148,15 +148,17 @@ class SVD {
 
   /** Decompose a device matrix (move). For m >= n the buffer is adopted and
    * consumed in place by gesvd — no copy; for m < n a transposed copy is
-   * unavoidable. */
+   * unavoidable. Non-owning views cannot be adopted (their storage belongs to
+   * someone else); they take the copying overload instead. */
   SVD& compute(DeviceMatrix<Scalar>&& d_A, unsigned int options = ComputeThinU | ComputeThinV) {
+    if (!d_A.ownsStorage()) return compute(d_A, options);
     if (!begin_compute(d_A, options)) return *this;
 
     if (transposed_) {
       transpose_into_input(d_A);
     } else {
       const size_t a_bytes = d_A.sizeInBytes();
-      d_A_ = internal::DeviceBuffer::adopt(static_cast<void*>(d_A.release()), a_bytes, solver_ctx_.stream());
+      d_A_ = internal::DeviceBuffer::adopt(static_cast<void*>(d_A.release()), a_bytes, solver_ctx_.streamHandle());
     }
 
     factorize();
@@ -402,7 +404,7 @@ class SVD {
   // Wide input (m < n): produce d_A_ = A^H on device via cuBLAS geam.
   void transpose_into_input(const DeviceMatrix<Scalar>& d_A) {
     const size_t mat_bytes = static_cast<size_t>(lda_) * static_cast<size_t>(n_) * sizeof(Scalar);
-    d_A_ = internal::DeviceBuffer(mat_bytes, solver_ctx_.stream());
+    d_A_ = internal::DeviceBuffer(mat_bytes, solver_ctx_.streamHandle());
     // geam: C(m×n) = alpha * op(A) + beta * op(B). beta=0, B=nullptr.
     Scalar alpha_one(1), beta_zero(0);
     EIGEN_CUBLAS_CHECK(internal::cublasXgeam(solver_ctx_.cublasHandle(), CUBLAS_OP_C, CUBLAS_OP_N, m_, n_, &alpha_one,
@@ -439,7 +441,7 @@ class SVD {
 
     solver_ctx_.mark_pending();
 
-    internal::ensure_sized(d_S_, static_cast<size_t>(k) * sizeof(RealScalar), solver_ctx_.stream());
+    internal::ensure_sized(d_S_, static_cast<size_t>(k) * sizeof(RealScalar), solver_ctx_.streamHandle());
 
     const unsigned int int_opts = transposed_ ? swap_uv_options(options_) : options_;
 
@@ -450,11 +452,11 @@ class SVD {
 
     if (ucols > 0) {
       internal::ensure_sized(d_U_, static_cast<size_t>(m_) * static_cast<size_t>(ucols) * sizeof(Scalar),
-                             solver_ctx_.stream());
+                             solver_ctx_.streamHandle());
     }
     if (vtrows > 0) {
       internal::ensure_sized(d_VT_, static_cast<size_t>(vtrows) * static_cast<size_t>(n_) * sizeof(Scalar),
-                             solver_ctx_.stream());
+                             solver_ctx_.streamHandle());
     }
 
     eigen_assert(m_ >= n_ && "Internal error: m_ < n_ should have been handled by transpose in compute()");
@@ -465,7 +467,7 @@ class SVD {
         vtrows > 0 ? d_VT_.get() : nullptr, ldvt, dtype, &dev_ws, &host_ws));
 
     solver_ctx_.ensure_scratch(dev_ws);
-    solver_ctx_.h_workspace_.resize(host_ws);
+    solver_ctx_.ensure_host_workspace(host_ws);
 
     EIGEN_CUSOLVER_CHECK(cusolverDnXgesvd(
         solver_ctx_.cusolverHandle(), solver_ctx_.params_.p, jobu(int_opts), jobvt(int_opts), m_, n_, dtype, d_A_.get(),
@@ -511,7 +513,7 @@ class SVD {
     }
 
     const size_t d_bytes = static_cast<size_t>(kk) * sizeof(Scalar);
-    internal::ensure_sized(d_D_, d_bytes, solver_ctx_.stream());
+    internal::ensure_sized(d_D_, d_bytes, solver_ctx_.streamHandle());
     EIGEN_CUDA_RUNTIME_CHECK(
         cudaMemcpyAsync(d_D_.get(), D.data(), d_bytes, cudaMemcpyHostToDevice, solver_ctx_.stream()));
     cached_diag_kk_ = kk;
@@ -534,19 +536,19 @@ class SVD {
 
     // Step 1: tmp = U_orig^H * B  (kk × nrhs).
     internal::DeviceBuffer d_tmp(static_cast<size_t>(kk) * static_cast<size_t>(nrhs) * sizeof(Scalar),
-                                 solver_ctx_.stream());
+                                 solver_ctx_.streamHandle());
     auto* tmp_dev = static_cast<Scalar*>(d_tmp.get());
     if (!transposed_) {
       internal::cublaslt_gemm(solver_ctx_.cublasLtHandle(), solver_ctx_.cublasHandle(), CUBLAS_OP_C, CUBLAS_OP_N, kk,
                               nrhs, m_, &scalars[0], U_dev, m_, B_dev, m_orig, &scalars[1], tmp_dev, kk,
                               solver_ctx_.gemmWorkspace(), solver_ctx_.gemmPlanCache(),
-                              solver_ctx_.cublasLtMaxWorkspaceBytes(), solver_ctx_.stream());
+                              solver_ctx_.cublasLtMaxWorkspaceBytes(), solver_ctx_.streamHandle());
     } else {
       const Index vtrows_stored = (swap_uv_options(options_) & ComputeFullV) ? n_ : k;
       internal::cublaslt_gemm(solver_ctx_.cublasLtHandle(), solver_ctx_.cublasHandle(), CUBLAS_OP_N, CUBLAS_OP_N, kk,
                               nrhs, m_orig, &scalars[0], VT_dev, vtrows_stored, B_dev, m_orig, &scalars[1], tmp_dev, kk,
                               solver_ctx_.gemmWorkspace(), solver_ctx_.gemmPlanCache(),
-                              solver_ctx_.cublasLtMaxWorkspaceBytes(), solver_ctx_.stream());
+                              solver_ctx_.cublasLtMaxWorkspaceBytes(), solver_ctx_.streamHandle());
     }
 
     // Step 2: tmp = diag(D) * tmp on device via cublasXdgmm.
@@ -559,12 +561,12 @@ class SVD {
       internal::cublaslt_gemm(solver_ctx_.cublasLtHandle(), solver_ctx_.cublasHandle(), CUBLAS_OP_C, CUBLAS_OP_N,
                               n_orig, nrhs, kk, &scalars[0], VT_dev, vtrows, tmp_dev, kk, &scalars[1], X_dev, n_orig,
                               solver_ctx_.gemmWorkspace(), solver_ctx_.gemmPlanCache(),
-                              solver_ctx_.cublasLtMaxWorkspaceBytes(), solver_ctx_.stream());
+                              solver_ctx_.cublasLtMaxWorkspaceBytes(), solver_ctx_.streamHandle());
     } else {
       internal::cublaslt_gemm(solver_ctx_.cublasLtHandle(), solver_ctx_.cublasHandle(), CUBLAS_OP_N, CUBLAS_OP_N,
                               n_orig, nrhs, kk, &scalars[0], U_dev, m_, tmp_dev, kk, &scalars[1], X_dev, n_orig,
                               solver_ctx_.gemmWorkspace(), solver_ctx_.gemmPlanCache(),
-                              solver_ctx_.cublasLtMaxWorkspaceBytes(), solver_ctx_.stream());
+                              solver_ctx_.cublasLtMaxWorkspaceBytes(), solver_ctx_.streamHandle());
     }
   }
 
@@ -633,8 +635,14 @@ class SVD {
     d_B.waitReady(solver_ctx_.stream());
     build_diag(kk, lambda);
 
-    DeviceMatrix<Scalar> X(n_orig, nrhs);
-    apply_pinv(d_B.data(), kk, nrhs, X.data());
+    // Allocate the result on the solver stream and hand it to DeviceMatrix via
+    // the stream-carrying adopt, so its eventual free is ordered after the
+    // GEMMs below (a plain DeviceMatrix would free on the legacy stream).
+    internal::DeviceBuffer d_x(static_cast<size_t>(n_orig) * static_cast<size_t>(nrhs) * sizeof(Scalar),
+                               solver_ctx_.streamHandle());
+    apply_pinv(d_B.data(), kk, nrhs, static_cast<Scalar*>(d_x.get()));
+    DeviceMatrix<Scalar> X =
+        DeviceMatrix<Scalar>::adopt(static_cast<Scalar*>(d_x.release()), n_orig, nrhs, solver_ctx_.streamHandle());
     X.recordReady(solver_ctx_.stream());
     return X;
   }

@@ -251,7 +251,7 @@ void test_device_buffer_uses_owner_stream() {
   cudaGraph_t graph = nullptr;
   EIGEN_CUDA_RUNTIME_CHECK(cudaStreamBeginCapture(allocation_stream, cudaStreamCaptureModeThreadLocal));
   {
-    gpu::internal::DeviceBuffer buffer(1024, allocation_stream);
+    gpu::internal::DeviceBuffer buffer(1024, gpu::internal::borrow_stream(allocation_stream));
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(buffer.get(), 0, buffer.size(), allocation_stream));
   }
   EIGEN_CUDA_RUNTIME_CHECK(cudaStreamEndCapture(allocation_stream, &graph));
@@ -320,6 +320,38 @@ void test_fallback_pool_cross_stream_reuse() {
   VERIFY_IS_EQUAL(host_free_status, cudaSuccess);
   VERIFY_IS_EQUAL(consumer_destroy_status, cudaSuccess);
   VERIFY_IS_EQUAL(producer_destroy_status, cudaSuccess);
+}
+
+// ---- Stream lifetime -------------------------------------------------------
+
+// A DeviceScalar produced through a Context may outlive it: the shared stream
+// handle in its buffer deleter keeps the (owned) stream alive until the free
+// is enqueued, and get() can still synchronize on it.
+void test_device_scalar_outlives_context() {
+  Eigen::VectorXf h_x = Eigen::VectorXf::LinSpaced(64, 1.0f, 64.0f);
+  gpu::DeviceScalar<float> result;
+  {
+    gpu::Context ctx;
+    gpu::DeviceMatrix<float> d_x = gpu::DeviceMatrix<float>::fromHost(h_x, ctx.stream());
+    result = d_x.dot(ctx, d_x);
+  }
+  // Context (and its owned stream's primary reference) is gone; the read must
+  // still work and the buffer free must target a live stream.
+  VERIFY_IS_APPROX(static_cast<float>(result), h_x.squaredNorm());
+}
+
+// A DeviceBuffer bound to an owned stream keeps that stream alive after the
+// last CudaStreamHandle owner is destroyed; the stream-ordered free then still
+// has a valid target.
+void test_device_buffer_outlives_stream_handle() {
+  gpu::internal::DeviceBuffer buffer;
+  {
+    gpu::internal::CudaStreamHandle stream = gpu::internal::create_stream();
+    buffer = gpu::internal::DeviceBuffer(1024, stream);
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(buffer.get(), 0, buffer.size(), stream));
+  }
+  buffer = gpu::internal::DeviceBuffer();  // free enqueued on the still-live stream
+  EIGEN_CUDA_RUNTIME_CHECK(cudaDeviceSynchronize());
 }
 
 // ---- Per-scalar driver ------------------------------------------------------
@@ -560,6 +592,8 @@ EIGEN_DECLARE_TEST(gpu_device_matrix) {
   CALL_SUBTEST(test_empty());
   CALL_SUBTEST(test_device_buffer_uses_owner_stream());
   CALL_SUBTEST(test_fallback_pool_cross_stream_reuse());
+  CALL_SUBTEST(test_device_scalar_outlives_context());
+  CALL_SUBTEST(test_device_buffer_outlives_stream_handle());
   CALL_SUBTEST(test_resize());
   CALL_SUBTEST(test_host_transfer_ready());
   CALL_SUBTEST(test_host_transfer_move());

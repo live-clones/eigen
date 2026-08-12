@@ -60,6 +60,13 @@ endfunction()
 # DeviceMatrix core: CUDA runtime + cuBLAS + cuSOLVER (for BLAS-1 ops via GpuContext).
 ei_add_gpu_test(device_matrix
   EXTRA_LIBS CUDA::cublas CUDA::cusolver CUDA::npps CUDA::nppc)
+# Fallback-allocator integration: the source defines
+# EIGEN_GPU_NO_STREAM_ORDERED_ALLOC before the module headers, so the
+# cudaMalloc/cudaFree path (threshold routing into the event-fenced pool,
+# thread-state gating, plain-cudaFree large buffers) runs on every device,
+# not only on pre-CUDA-11.2 hardware.
+ei_add_gpu_test(device_buffer_fallback
+  EXTRA_LIBS CUDA::cublas CUDA::cusolver CUDA::npps CUDA::nppc)
 ei_add_gpu_test(cublas_64bit EXTRA_LIBS CUDA::cublas)
 
 # cuBLAS integration. OFF by default; later MRs in the stack opt in.
