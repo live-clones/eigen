@@ -926,7 +926,7 @@ struct TensorEvaluator<const TensorStridingSlicingOp<StartIndices, StopIndices, 
     const Index inner_size = m_dimensions[inner_dim];
     Index inner_pos;
     const Index base = srcCoeffInner(index, inner_pos);
-    EIGEN_ALIGN_MAX std::remove_const_t<CoeffReturnType> values[PacketSize];
+    EIGEN_ALIGN_TO_BOUNDARY(sizeof(PacketReturnType)) std::remove_const_t<CoeffReturnType> values[PacketSize];
     if (inner_pos + PacketSize <= inner_size) {
       const Index inner_stride = m_inputStrides[inner_dim];
       if (inner_stride == 1) {
@@ -1077,7 +1077,7 @@ struct TensorEvaluator<TensorStridingSlicingOp<StartIndices, StopIndices, Stride
     const Index inner_size = this->m_dimensions[inner_dim];
     Index inner_pos;
     const Index base = this->srcCoeffInner(index, inner_pos);
-    EIGEN_ALIGN_MAX CoeffReturnType values[Base::PacketSize];
+    EIGEN_ALIGN_TO_BOUNDARY(sizeof(PacketReturnType)) CoeffReturnType values[Base::PacketSize];
     if (inner_pos + Base::PacketSize <= inner_size) {
       const Index inner_stride = this->m_inputStrides[inner_dim];
       if (inner_stride == 1) {
