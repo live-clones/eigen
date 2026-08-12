@@ -161,7 +161,7 @@ struct imag_ref_impl : imag_ref_default_impl<Scalar, NumTraits<Scalar>::IsComple
 namespace numext {
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline auto real(const Scalar& x) -> decltype(EIGEN_MATHFUNC_IMPL(real, Scalar)::run(x)) {
+EIGEN_DEVICE_FUNC inline decltype(auto) real(const Scalar& x) {
   return EIGEN_MATHFUNC_IMPL(real, Scalar)::run(x);
 }
 
@@ -178,7 +178,7 @@ EIGEN_DEVICE_FUNC inline auto real_ref(Scalar& x)
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline auto imag(const Scalar& x) -> decltype(EIGEN_MATHFUNC_IMPL(imag, Scalar)::run(x)) {
+EIGEN_DEVICE_FUNC inline decltype(auto) imag(const Scalar& x) {
   return EIGEN_MATHFUNC_IMPL(imag, Scalar)::run(x);
 }
 
@@ -1200,7 +1200,7 @@ EIGEN_DEVICE_FUNC inline Scalar negate(const Scalar& x) {
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline auto abs2(const Scalar& x) -> decltype(EIGEN_MATHFUNC_IMPL(abs2, Scalar)::run(x)) {
+EIGEN_DEVICE_FUNC inline decltype(auto) abs2(const Scalar& x) {
   return EIGEN_MATHFUNC_IMPL(abs2, Scalar)::run(x);
 }
 
