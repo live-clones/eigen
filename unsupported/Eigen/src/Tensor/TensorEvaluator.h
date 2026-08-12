@@ -403,7 +403,7 @@ struct TensorEvaluator<const TensorCwiseNullaryOp<NullaryOp, ArgType>, Device> {
     TensorNullaryBlock(const NullaryOp& functor, const DSizes<Index, NumDims>& dimensions)
         : m_functor(functor), m_dimensions(dimensions) {}
 
-    internal::TensorBlockKind kind() const { return internal::TensorBlockKind::kExpr; }
+    constexpr internal::TensorBlockKind kind() const { return internal::TensorBlockKind::kExpr; }
     XprType expr() const {
       return XprType(ArgXprType(static_cast<const ScalarNoConst*>(nullptr), m_dimensions), m_functor);
     }
