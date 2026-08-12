@@ -265,15 +265,21 @@ class SVD {
       return v;
     }
     // transposed: U_orig = VT_stored^H -> conjugate-transpose via cublasXgeam.
+    // The owning result is allocated on the solver stream (via the
+    // stream-carrying adopt) so allocation, geam write, and eventual free all
+    // stay ordered even on a borrowed cudaStreamNonBlocking stream.
     const Index vtrows_stored = (options_ & ComputeFullU) ? n_ : k;
-    DeviceMatrix<Scalar> result(n_, vtrows_stored);
-    if (n_ > 0 && vtrows_stored > 0) {
-      Scalar alpha_one(1), beta_zero(0);
-      EIGEN_CUBLAS_CHECK(internal::cublasXgeam(solver_ctx_.cublasHandle(), CUBLAS_OP_C, CUBLAS_OP_N, n_, vtrows_stored,
-                                               &alpha_one, static_cast<const Scalar*>(d_VT_.get()), vtrows_stored,
-                                               &beta_zero, static_cast<const Scalar*>(nullptr), n_, result.data(), n_));
-      result.recordReady(solver_ctx_.stream());
-    }
+    if (n_ == 0 || vtrows_stored == 0) return DeviceMatrix<Scalar>(n_, vtrows_stored);
+    internal::DeviceBuffer d_result(static_cast<size_t>(n_) * static_cast<size_t>(vtrows_stored) * sizeof(Scalar),
+                                    solver_ctx_.streamHandle());
+    Scalar alpha_one(1), beta_zero(0);
+    EIGEN_CUBLAS_CHECK(internal::cublasXgeam(solver_ctx_.cublasHandle(), CUBLAS_OP_C, CUBLAS_OP_N, n_, vtrows_stored,
+                                             &alpha_one, static_cast<const Scalar*>(d_VT_.get()), vtrows_stored,
+                                             &beta_zero, static_cast<const Scalar*>(nullptr), n_,
+                                             static_cast<Scalar*>(d_result.get()), n_));
+    DeviceMatrix<Scalar> result = DeviceMatrix<Scalar>::adopt(static_cast<Scalar*>(d_result.release()), n_,
+                                                              vtrows_stored, solver_ctx_.streamHandle());
+    result.recordReady(solver_ctx_.stream());
     return result;
   }
 
@@ -291,16 +297,20 @@ class SVD {
       v.recordReady(solver_ctx_.stream());
       return v;
     }
-    // transposed: VT_orig = U_stored^H.
+    // transposed: VT_orig = U_stored^H. Solver-stream-bound for the same
+    // reason as the d_matrixU() branch above.
     const Index ucols = (options_ & ComputeFullV) ? n_orig : k;
-    DeviceMatrix<Scalar> result(ucols, m_);
-    if (ucols > 0 && m_ > 0) {
-      Scalar alpha_one(1), beta_zero(0);
-      EIGEN_CUBLAS_CHECK(internal::cublasXgeam(solver_ctx_.cublasHandle(), CUBLAS_OP_C, CUBLAS_OP_N, ucols, m_,
-                                               &alpha_one, static_cast<const Scalar*>(d_U_.get()), m_, &beta_zero,
-                                               static_cast<const Scalar*>(nullptr), ucols, result.data(), ucols));
-      result.recordReady(solver_ctx_.stream());
-    }
+    if (ucols == 0 || m_ == 0) return DeviceMatrix<Scalar>(ucols, m_);
+    internal::DeviceBuffer d_result(static_cast<size_t>(ucols) * static_cast<size_t>(m_) * sizeof(Scalar),
+                                    solver_ctx_.streamHandle());
+    Scalar alpha_one(1), beta_zero(0);
+    EIGEN_CUBLAS_CHECK(internal::cublasXgeam(solver_ctx_.cublasHandle(), CUBLAS_OP_C, CUBLAS_OP_N, ucols, m_,
+                                             &alpha_one, static_cast<const Scalar*>(d_U_.get()), m_, &beta_zero,
+                                             static_cast<const Scalar*>(nullptr), ucols,
+                                             static_cast<Scalar*>(d_result.get()), ucols));
+    DeviceMatrix<Scalar> result =
+        DeviceMatrix<Scalar>::adopt(static_cast<Scalar*>(d_result.release()), ucols, m_, solver_ctx_.streamHandle());
+    result.recordReady(solver_ctx_.stream());
     return result;
   }
 
@@ -627,8 +637,16 @@ class SVD {
     const Index nrhs = d_B.cols();
 
     if (kk == 0 || nrhs == 0 || n_orig == 0) {
-      DeviceMatrix<Scalar> X(n_orig, nrhs);
-      X.setZero(solver_ctx_.stream());
+      // Zero result, allocated and zeroed on the solver stream like the main
+      // path below so its lifetime is ordered with the solver's other work.
+      const size_t x_bytes = static_cast<size_t>(n_orig) * static_cast<size_t>(nrhs) * sizeof(Scalar);
+      internal::DeviceBuffer d_x(x_bytes, solver_ctx_.streamHandle());
+      DeviceMatrix<Scalar> X =
+          DeviceMatrix<Scalar>::adopt(static_cast<Scalar*>(d_x.release()), n_orig, nrhs, solver_ctx_.streamHandle());
+      if (x_bytes > 0) {
+        EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(X.data(), 0, x_bytes, solver_ctx_.stream()));
+        X.recordReady(solver_ctx_.stream());
+      }
       return X;
     }
 

@@ -18,8 +18,11 @@
 #define EIGEN_UNSUPPORTED_TEST_GPU_TEST_HELPERS_H
 
 #include <Eigen/Core>
+#include <atomic>
+#include <chrono>
 #include <cstdlib>
 #include <iostream>
+#include <thread>
 #include <type_traits>
 
 namespace gpu_test {
@@ -73,6 +76,40 @@ inline void require_cufft_context() {
   }
   EIGEN_CUFFT_CHECK(cufftDestroy(plan));
 }
+#endif
+
+#ifdef CUDART_VERSION
+// A host-function gate that holds a CUDA stream closed until opened from the
+// host, so tests can keep enqueued work "in flight" at a deterministic point:
+//   EIGEN_CUDA_RUNTIME_CHECK(cudaLaunchHostFunc(stream, gpu_test::wait_for_stream_gate, &gate));
+struct StreamGate {
+  std::atomic<bool> open{false};
+};
+
+inline void CUDART_CB wait_for_stream_gate(void* user_data) {
+  auto* gate = static_cast<StreamGate*>(user_data);
+  while (!gate->open.load(std::memory_order_acquire)) std::this_thread::yield();
+}
+
+// Opens \p gate from a helper thread after \p delay_ms, so a host thread that
+// then blocks on the gated stream (a draining destructor, HostTransfer::get(),
+// cudaStreamSynchronize) always makes progress. Joins on destruction.
+class StreamGateOpener {
+ public:
+  StreamGateOpener(StreamGate& gate, int delay_ms)
+      : thread_([&gate, delay_ms] {
+          std::this_thread::sleep_for(std::chrono::milliseconds(delay_ms));
+          gate.open.store(true, std::memory_order_release);
+        }) {}
+  ~StreamGateOpener() {
+    if (thread_.joinable()) thread_.join();
+  }
+  StreamGateOpener(const StreamGateOpener&) = delete;
+  StreamGateOpener& operator=(const StreamGateOpener&) = delete;
+
+ private:
+  std::thread thread_;
+};
 #endif
 
 }  // namespace gpu_test

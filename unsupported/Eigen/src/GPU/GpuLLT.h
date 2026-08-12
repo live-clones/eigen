@@ -205,8 +205,8 @@ class LLT {
     d_B.waitReady(solver_ctx_.stream());
     const int64_t nrhs = static_cast<int64_t>(d_B.cols());
     const int64_t ldb = static_cast<int64_t>(d_B.rows());
-    internal::DeviceBuffer d_x =
-        internal::DeviceBuffer::adopt(static_cast<void*>(d_B.release()), rhsBytes(nrhs, ldb), solver_ctx_.streamHandle());
+    internal::DeviceBuffer d_x = internal::DeviceBuffer::adopt(static_cast<void*>(d_B.release()), rhsBytes(nrhs, ldb),
+                                                               solver_ctx_.streamHandle());
     return solve_impl(nrhs, ldb, std::move(d_x));
   }
 

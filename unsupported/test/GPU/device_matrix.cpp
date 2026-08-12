@@ -15,25 +15,14 @@
 #include "main.h"
 #include <Eigen/Sparse>
 #include <unsupported/Eigen/GPU>
+#include "gpu_test_helpers.h"
 
-#include <atomic>
 #include <chrono>
 #include <thread>
 
 using namespace Eigen;
-
-namespace {
-
-struct StreamGate {
-  std::atomic<bool> open{false};
-};
-
-void CUDART_CB wait_for_stream_gate(void* user_data) {
-  auto* gate = static_cast<StreamGate*>(user_data);
-  while (!gate->open.load(std::memory_order_acquire)) std::this_thread::yield();
-}
-
-}  // namespace
+using gpu_test::StreamGate;
+using gpu_test::wait_for_stream_gate;
 
 // ---- Default construction ---------------------------------------------------
 
@@ -322,6 +311,67 @@ void test_fallback_pool_cross_stream_reuse() {
   VERIFY_IS_EQUAL(producer_destroy_status, cudaSuccess);
 }
 
+// ---- Cross-stream free ordering (two-stream immediate release) --------------
+
+// Regression: the stream-aware deleter enqueues cudaFreeAsync on the
+// allocation's bound stream S. A consumer on stream T that read the matrix via
+// waitReady(T) must complete before that free executes, even when the matrix
+// is released immediately after the read is enqueued — by destruction
+// (mode 0), a reallocating resize (mode 1), or a move-overwrite (mode 2). The
+// consumer stream is held closed by a host-function gate while the storage is
+// released and a same-size allocation on S is clobbered; without the reverse
+// S-waits-for-T dependency, the pool may recycle the block and the clobber
+// lands under the still-pending read.
+void test_cross_stream_free_ordering(int teardown_mode) {
+  if (!gpu::internal::device_supports_memory_pools()) return;
+
+  const Index n = 4096;
+  const size_t bytes = static_cast<size_t>(n) * sizeof(float);
+
+  Eigen::MatrixXf h_src = Eigen::MatrixXf::Random(n, 1);
+
+  gpu::internal::CudaStreamHandle producer = gpu::internal::create_stream();
+  cudaStream_t consumer = nullptr;
+  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreateWithFlags(&consumer, cudaStreamNonBlocking));
+
+  StreamGate gate;
+  gpu::HostTransfer<float> transfer = [&]() {
+    gpu::internal::DeviceBuffer buf(bytes, producer);
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(buf.get(), h_src.data(), bytes, cudaMemcpyHostToDevice, producer));
+    auto dm = gpu::DeviceMatrix<float>::adopt(static_cast<float*>(buf.release()), n, 1, producer);
+    dm.recordReady(producer);
+
+    // Hold the consumer stream closed, then enqueue the cross-stream read.
+    EIGEN_CUDA_RUNTIME_CHECK(cudaLaunchHostFunc(consumer, wait_for_stream_gate, &gate));
+    gpu::HostTransfer<float> pending = dm.toHostAsync(consumer);
+
+    // Release the storage while the read is still gated.
+    if (teardown_mode == 1) {
+      dm.resize(2 * n, 2);  // exceeds capacity: frees and reallocates
+    } else if (teardown_mode == 2) {
+      dm = gpu::DeviceMatrix<float>(4, 4);  // move-overwrite frees the old block
+    }
+    return pending;  // mode 0: dm goes out of scope here (destruction)
+  }();
+
+  // Same-size allocation on S: once the free above is stream-ordered on S, the
+  // pool may recycle the block, so this memset would corrupt the gated read if
+  // the free were not ordered after it.
+  gpu::internal::DeviceBuffer clobber(bytes, producer);
+  EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(clobber.get(), 0xFF, bytes, producer));
+
+  {
+    gpu_test::StreamGateOpener opener(gate, /*delay_ms=*/50);
+    Eigen::MatrixXf result = transfer.get();
+    VERIFY_IS_EQUAL(result, h_src);  // exact: pure copies, no arithmetic
+  }
+
+  clobber = gpu::internal::DeviceBuffer();
+  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(consumer));
+  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(producer.get()));
+  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamDestroy(consumer));
+}
+
 // ---- Stream lifetime -------------------------------------------------------
 
 // A DeviceScalar produced through a Context may outlive it: the shared stream
@@ -592,6 +642,9 @@ EIGEN_DECLARE_TEST(gpu_device_matrix) {
   CALL_SUBTEST(test_empty());
   CALL_SUBTEST(test_device_buffer_uses_owner_stream());
   CALL_SUBTEST(test_fallback_pool_cross_stream_reuse());
+  CALL_SUBTEST(test_cross_stream_free_ordering(0));
+  CALL_SUBTEST(test_cross_stream_free_ordering(1));
+  CALL_SUBTEST(test_cross_stream_free_ordering(2));
   CALL_SUBTEST(test_device_scalar_outlives_context());
   CALL_SUBTEST(test_device_buffer_outlives_stream_handle());
   CALL_SUBTEST(test_resize());

@@ -551,6 +551,12 @@ lambda) setting to build its cached inverse diagonal.
 via CUDA events. When a matrix written on stream A is read on stream B, the
 module automatically inserts `cudaStreamWaitEvent`. Same-stream operations
 skip the wait (CUDA guarantees in-order execution within a stream).
+Deallocation is ordered the same way: before an owning `DeviceMatrix`
+releases its storage (destruction, a reallocating `resize()`, or a
+move-overwrite), the stream-ordered free — enqueued on the allocation's bound
+stream — is made to wait for every other stream that used the matrix, so
+releasing a matrix immediately after enqueuing cross-stream work on it is
+safe.
 
 **Internal scratch allocation follows its execution stream.** `DeviceBuffer`
 storage used by `DeviceScalar`, dense and sparse solvers, FFT, and library
@@ -570,11 +576,17 @@ synchronous runtime behavior. Consequences:
   synchronization; freed blocks recycle through the driver pool (the pool's
   release threshold is raised so steady-state loops reallocate at user-space
   speed).
-- Destroying a solver with work still in flight is safe and asynchronous: its
-  buffers are freed on the solver stream, which stays alive until those frees
-  are issued. Device-resident solver results (`solve(d_B)`) are likewise
-  allocated *and* freed on the solver stream, so releasing one never races the
-  kernels that produced it.
+- Destroying a dense solver with work still in flight is safe and
+  asynchronous: its buffers are freed on the solver stream, which stays alive
+  until those frees are issued. Device-resident solver results (`solve(d_B)`)
+  are likewise allocated *and* freed on the solver stream, so releasing one
+  never races the kernels that produced it.
+- Destroying a sparse (cuDSS) solver drains its stream first: the opaque
+  cuDSS objects own internal device buffers that `cudssDataDestroy` /
+  `cudssDestroy` release immediately rather than stream-ordered, so the
+  destructor synchronizes before tearing them down. Device-resident sparse
+  solve results are unaffected — they are Eigen-owned, stream-bound buffers
+  and may outlive the solver.
 - `DeviceMatrix::resize()` is capacity-aware: shrinking or same-size reshapes
   reuse the existing allocation (contents are still discarded).
 
