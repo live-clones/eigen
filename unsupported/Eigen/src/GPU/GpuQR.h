@@ -131,7 +131,8 @@ class QR {
     if (transposed_) {
       transpose_into_factor(d_A);
     } else {
-      d_qr_ = internal::DeviceBuffer::adopt(static_cast<void*>(d_A.release()), factorBytes(), solver_ctx_.streamHandle());
+      d_qr_ =
+          internal::DeviceBuffer::adopt(static_cast<void*>(d_A.release()), factorBytes(), solver_ctx_.streamHandle());
     }
 
     factorize();
@@ -223,7 +224,9 @@ class QR {
     return true;
   }
 
-  void allocate_factor_storage(size_t mat_bytes) { internal::ensure_sized(d_qr_, mat_bytes, solver_ctx_.streamHandle()); }
+  void allocate_factor_storage(size_t mat_bytes) {
+    internal::ensure_sized(d_qr_, mat_bytes, solver_ctx_.streamHandle());
+  }
 
   // Wide input (m < n): factor A^H, produced on device via cuBLAS geam.
   void transpose_into_factor(const DeviceMatrix<Scalar>& d_A) {
@@ -324,16 +327,23 @@ class QR {
     trsm_R(d_work.get(), m_, nrhs, /*op=*/CUBLAS_OP_N);
 
     if (m_ == n_) {
-      DeviceMatrix<Scalar> result = DeviceMatrix<Scalar>::adopt(
-          static_cast<Scalar*>(d_work.release()), n_, static_cast<Index>(nrhs), solver_ctx_.streamHandle());
+      DeviceMatrix<Scalar> result = DeviceMatrix<Scalar>::adopt(static_cast<Scalar*>(d_work.release()), n_,
+                                                                static_cast<Index>(nrhs), solver_ctx_.streamHandle());
       result.recordReady(solver_ctx_.stream());
       return result;
     }
-    DeviceMatrix<Scalar> result(n_, static_cast<Index>(nrhs));
-    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpy2DAsync(result.data(), static_cast<size_t>(n_) * sizeof(Scalar), d_work.get(),
+    // m_ > n_: the result is the top n_ rows of the work buffer. Allocate it
+    // on the solver stream too — a plain DeviceMatrix would allocate and free
+    // on the legacy default stream, unordered against a borrowed
+    // cudaStreamNonBlocking solver stream.
+    internal::DeviceBuffer d_result(static_cast<size_t>(n_) * static_cast<size_t>(nrhs) * sizeof(Scalar),
+                                    solver_ctx_.streamHandle());
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpy2DAsync(d_result.get(), static_cast<size_t>(n_) * sizeof(Scalar), d_work.get(),
                                                static_cast<size_t>(m_) * sizeof(Scalar),
                                                static_cast<size_t>(n_) * sizeof(Scalar), static_cast<size_t>(nrhs),
                                                cudaMemcpyDeviceToDevice, solver_ctx_.stream()));
+    DeviceMatrix<Scalar> result = DeviceMatrix<Scalar>::adopt(static_cast<Scalar*>(d_result.release()), n_,
+                                                              static_cast<Index>(nrhs), solver_ctx_.streamHandle());
     result.recordReady(solver_ctx_.stream());
     return result;
   }

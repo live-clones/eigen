@@ -12,6 +12,9 @@
 //
 // Cross-stream safety is automatic: an internal CUDA event records when the last
 // write completed, and consumers on a different stream wait on it before reading.
+// Deallocation is ordered the same way — the stream-ordered free is made to wait
+// for every stream that used the matrix, so destroying, resizing, or overwriting
+// it right after enqueuing cross-stream work is safe.
 
 #ifndef EIGEN_GPU_DEVICE_MATRIX_H
 #define EIGEN_GPU_DEVICE_MATRIX_H
@@ -159,10 +162,12 @@ class DeviceMatrix {
   DeviceMatrix(const SpMVExpr<Scalar>& expr);
 
   ~DeviceMatrix() {
-    // cudaEventDestroy on a pending event is non-blocking: the runtime defers
-    // teardown until the event completes. The trailing cudaFree() (via
-    // data_.reset()) is itself synchronous, so the buffer outlives any
-    // in-flight kernel that may still be touching it.
+    // Order the stream-ordered free after every use recorded on other streams
+    // (no-op for views and for the synchronous cudaFree fallback); data_'s
+    // deleter then enqueues the free on its bound stream. cudaEventDestroy on
+    // a pending event is non-blocking: the runtime defers teardown until the
+    // event completes.
+    orderFreeAfterUses();
     if (ready_event_) (void)cudaEventDestroy(ready_event_);
   }
 
@@ -174,6 +179,9 @@ class DeviceMatrix {
         ready_event_(o.ready_event_),
         ready_stream_(o.ready_stream_),
         retained_buffer_(std::move(o.retained_buffer_)) {
+    for (int i = 0; i < o.num_use_streams_; ++i) use_streams_[i] = o.use_streams_[i];
+    num_use_streams_ = o.num_use_streams_;
+    o.num_use_streams_ = 0;
     o.rows_ = 0;
     o.cols_ = 0;
     o.capacity_bytes_ = 0;
@@ -183,6 +191,7 @@ class DeviceMatrix {
 
   DeviceMatrix& operator=(DeviceMatrix&& o) noexcept {
     if (this != &o) {
+      orderFreeAfterUses();  // the overwritten allocation is freed below
       if (ready_event_) EIGEN_CUDA_RUNTIME_CHECK(cudaEventDestroy(ready_event_));
       data_ = std::move(o.data_);
       rows_ = o.rows_;
@@ -191,6 +200,9 @@ class DeviceMatrix {
       ready_event_ = o.ready_event_;
       ready_stream_ = o.ready_stream_;
       retained_buffer_ = std::move(o.retained_buffer_);
+      for (int i = 0; i < o.num_use_streams_; ++i) use_streams_[i] = o.use_streams_[i];
+      num_use_streams_ = o.num_use_streams_;
+      o.num_use_streams_ = 0;
       o.rows_ = 0;
       o.cols_ = 0;
       o.capacity_bytes_ = 0;
@@ -319,6 +331,7 @@ class DeviceMatrix {
       cols_ = cols;
       return;
     }
+    orderFreeAfterUses();  // the free below must land after cross-stream uses
     data_.reset();
     capacity_bytes_ = 0;
     if (ready_event_) {
@@ -346,6 +359,7 @@ class DeviceMatrix {
     ensureEvent();
     EIGEN_CUDA_RUNTIME_CHECK(cudaEventRecord(ready_event_, stream));
     ready_stream_ = stream;
+    noteUse(stream);
   }
 
   /** Make \p stream wait until the device data is ready.
@@ -355,6 +369,7 @@ class DeviceMatrix {
     if (ready_event_ && stream != ready_stream_) {
       EIGEN_CUDA_RUNTIME_CHECK(cudaStreamWaitEvent(stream, ready_event_, 0));
     }
+    noteUse(stream);
   }
 
   /** Adjoint view: maps to a GEMM operand with ConjTrans. */
@@ -512,7 +527,8 @@ class DeviceMatrix {
   /** Adopt an existing device pointer. Caller relinquishes ownership.
    * \p stream is the stream the allocation is bound to: the eventual free is
    * enqueued there, ordered after the work that produced the data (solver
-   * results pass their solver stream). Default: the legacy default stream,
+   * results pass their solver stream) and after any cross-stream use recorded
+   * through waitReady()/recordReady(). Default: the legacy default stream,
    * matching this class's own constructors. */
   static DeviceMatrix adopt(Scalar* device_ptr, Index rows, Index cols, internal::CudaStreamHandle stream = nullptr) {
     DeviceMatrix dm;
@@ -533,8 +549,10 @@ class DeviceMatrix {
    * the borrowed pointer would be silently replaced, leaving the owner intact. */
   static DeviceMatrix view(Scalar* device_ptr, Index rows, Index cols) {
     DeviceMatrix dm;
-    dm.data_ =
-        std::unique_ptr<Scalar, internal::CudaFreeDeleter>(device_ptr, internal::CudaFreeDeleter{/*borrow=*/true});
+    // Spell out the stream member: a partial aggregate initialization would
+    // trip -Wmissing-field-initializers in every including translation unit.
+    dm.data_ = std::unique_ptr<Scalar, internal::CudaFreeDeleter>(
+        device_ptr, internal::CudaFreeDeleter{/*borrow=*/true, /*stream=*/{}});
     dm.rows_ = rows;
     dm.cols_ = cols;
     return dm;
@@ -546,10 +564,13 @@ class DeviceMatrix {
 
   /** Transfer ownership of the device pointer out. Zeros internal state.
    * Only valid on owning matrices — releasing a borrowed view would hand out
-   * a pointer its real owner still frees. */
+   * a pointer its real owner still frees. Use tracking is dropped with the
+   * deleter: ordering the eventual free after any cross-stream consumers
+   * becomes the new owner's responsibility. */
   Scalar* release() {
     eigen_assert(ownsStorage() && "DeviceMatrix::release() called on a non-owning view");
     Scalar* p = data_.release();
+    num_use_streams_ = 0;
     rows_ = 0;
     cols_ = 0;
     capacity_bytes_ = 0;
@@ -581,6 +602,52 @@ class DeviceMatrix {
 
   void retainBuffer(internal::DeviceBuffer&& buffer) { retained_buffer_ = std::move(buffer); }
 
+  // Record that `stream` used (read or wrote) the current allocation. The
+  // eventual cudaFreeAsync is enqueued on the deleter's stream, and CUDA
+  // requires it to be ordered after every use, so each distinct user stream
+  // is remembered until orderFreeAfterUses() inserts that ordering. Views
+  // never free and the non-pool fallback frees with device-synchronizing
+  // cudaFree, so neither needs tracking.
+  void noteUse(cudaStream_t stream) const {
+    if (!data_ || data_.get_deleter().borrow || !internal::device_supports_memory_pools()) return;
+    if (stream == data_.get_deleter().stream.get()) return;
+    for (int i = 0; i < num_use_streams_; ++i) {
+      if (use_streams_[i] == stream) return;
+    }
+    if (num_use_streams_ == kMaxUseStreams) {
+      // Full: order the eventual free after the oldest entry's already
+      // enqueued work now and recycle its slot. A later use on that stream
+      // re-tracks it.
+      orderFreeAfterStream(use_streams_[0]);
+      for (int i = 1; i < kMaxUseStreams; ++i) use_streams_[i - 1] = use_streams_[i];
+      --num_use_streams_;
+    }
+    use_streams_[num_use_streams_++] = stream;
+  }
+
+  // Make the deleter's stream wait for the work currently enqueued on `user`.
+  // Best-effort (runs on noexcept teardown paths): errors are swallowed — a
+  // failed record means the user stream is gone, and with it its work.
+  void orderFreeAfterStream(cudaStream_t user) const {
+    cudaEvent_t ev = nullptr;
+    if (cudaEventCreateWithFlags(&ev, cudaEventDisableTiming) != cudaSuccess) return;
+    if (cudaEventRecord(ev, user) == cudaSuccess) {
+      (void)cudaStreamWaitEvent(data_.get_deleter().stream.get(), ev, 0);
+    }
+    (void)cudaEventDestroy(ev);
+  }
+
+  // Called before the current allocation is released (destruction, a
+  // reallocating resize, or a move-overwrite). Every use is already enqueued
+  // by then — host program order — so an event recorded on each tracked user
+  // stream captures it, and the free stream is made to wait on them all.
+  void orderFreeAfterUses() {
+    for (int i = 0; i < num_use_streams_; ++i) orderFreeAfterStream(use_streams_[i]);
+    num_use_streams_ = 0;
+  }
+
+  static constexpr int kMaxUseStreams = 4;
+
   std::unique_ptr<Scalar, internal::CudaFreeDeleter> data_;
   Index rows_ = 0;
   Index cols_ = 0;
@@ -588,6 +655,10 @@ class DeviceMatrix {
   cudaEvent_t ready_event_ = nullptr;       // internal: tracks last write completion
   cudaStream_t ready_stream_ = nullptr;     // stream that recorded ready_event_ (for same-stream skip)
   internal::DeviceBuffer retained_buffer_;  // internal: keeps async aux buffers alive
+  // Streams other than the deleter's that used this allocation; mutable
+  // because reads through the const interface (waitReady) are uses too.
+  mutable cudaStream_t use_streams_[kMaxUseStreams] = {};
+  mutable int num_use_streams_ = 0;
 };
 }  // namespace gpu
 }  // namespace Eigen

@@ -203,8 +203,8 @@ class LU {
     d_B.waitReady(solver_ctx_.stream());
     const int64_t nrhs = static_cast<int64_t>(d_B.cols());
     const int64_t ldb = static_cast<int64_t>(d_B.rows());
-    internal::DeviceBuffer d_x =
-        internal::DeviceBuffer::adopt(static_cast<void*>(d_B.release()), matrixBytes(nrhs, ldb), solver_ctx_.streamHandle());
+    internal::DeviceBuffer d_x = internal::DeviceBuffer::adopt(static_cast<void*>(d_B.release()),
+                                                               matrixBytes(nrhs, ldb), solver_ctx_.streamHandle());
     return solve_impl(nrhs, ldb, op, std::move(d_x));
   }
 
