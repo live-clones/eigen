@@ -79,11 +79,12 @@ class Context {
   explicit Context(cudaStream_t stream) : stream_(internal::borrow_stream(stream)) { init_cublas(); }
 
   ~Context() {
-    // Drain once before teardown: queued one-shot solver kernels may still
-    // read the scratch below — including its pageable h_workspace, whose
-    // free is host-side and thus not covered by stream-ordered deallocation.
-    // The error is swallowed: at process teardown the stream may be gone.
-    (void)cudaStreamSynchronize(stream_.get());
+    // Queued one-shot solver kernels may still read the scratch below —
+    // including its pageable h_workspace, whose free is host-side and thus
+    // not covered by stream-ordered deallocation. Avoid synchronizing contexts
+    // that never queued such work (or already synchronized it in a debug
+    // status check). Errors are swallowed on this noexcept teardown path.
+    if (oneshot_solver_pending_) (void)cudaStreamSynchronize(stream_.get());
     // Everything else is a RAII member, destroyed in reverse declaration
     // order: the plan cache before its cuBLASLt handle, the buffers before
     // stream_ (declared first, destroyed last).
@@ -162,6 +163,8 @@ class Context {
    * (d_A.llt().solve(d_B), d_A.lu().solve(d_B)). Same thread-safety rules as
    * the GEMM workspace: all uses must be on this context's stream. */
   internal::OneShotSolverScratch& oneshotSolverScratch() { return oneshot_solver_scratch_; }
+  void markOneShotSolverPending() { oneshot_solver_pending_ = true; }
+  void markOneShotSolverComplete() { oneshot_solver_pending_ = false; }
 
   /** Workspace ceiling passed to the cublasLtMatmul heuristic at plan-creation time.
    * Defaults to internal::kCublasLtMaxWorkspaceBytes (compile-time configurable via
@@ -208,6 +211,7 @@ class Context {
   internal::DeviceBuffer gemm_workspace_;     // lazy
   internal::CublasLtPlanCache gemm_plan_cache_{internal::kCublasLtPlanCacheCapacity};
   internal::OneShotSolverScratch oneshot_solver_scratch_;  // grow-only
+  bool oneshot_solver_pending_ = false;
   std::size_t cublaslt_max_workspace_bytes_ = internal::kCublasLtMaxWorkspaceBytes;
 
   static Context*& tl_override_ptr() {

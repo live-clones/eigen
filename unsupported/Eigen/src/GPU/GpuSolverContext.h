@@ -212,6 +212,10 @@ struct GpuSolverContext {
   bool begin_compute(bool nonempty) {
     info_ = InvalidInput;
     if (!nonempty) {
+      // An earlier factorization may still be copying into pinned_info_ or
+      // reading h_workspace_. Empty input queues no replacement work to keep
+      // those resources ordered, so retire the earlier operation now.
+      if (!info_synced_) EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream()));
       info_ = Success;
       info_synced_ = true;
       return false;

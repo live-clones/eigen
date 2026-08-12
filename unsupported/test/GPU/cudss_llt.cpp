@@ -234,6 +234,35 @@ void test_default_stream_context() {
   VERIFY_IS_EQUAL(llt.stream(), static_cast<cudaStream_t>(nullptr));
 }
 
+// Reanalysis with an empty matrix must drain previously queued cuDSS work
+// before replacing descriptor state and disabling destructor synchronization.
+void test_empty_reanalysis_drains_pending_work() {
+  using SpMat = SparseMatrix<float, ColMajor, int>;
+  SpMat A = make_spd<float>(64);
+  gpu::SparseLLT<float> llt;
+  llt.compute(A);
+
+  gpu_test::StreamGate gate;
+  EIGEN_CUDA_RUNTIME_CHECK(cudaLaunchHostFunc(llt.stream(), gpu_test::wait_for_stream_gate, &gate));
+
+  std::atomic<bool> started{false};
+  std::atomic<bool> finished{false};
+  SpMat empty(0, 0);
+  std::thread reanalyze([&] {
+    started.store(true, std::memory_order_release);
+    llt.compute(empty);
+    finished.store(true, std::memory_order_release);
+  });
+  while (!started.load(std::memory_order_acquire)) std::this_thread::yield();
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  const bool finished_while_gated = finished.load(std::memory_order_acquire);
+
+  gate.open.store(true, std::memory_order_release);
+  reanalyze.join();
+  VERIFY(!finished_while_gated);
+  VERIFY_IS_EQUAL(llt.info(), Success);
+}
+
 // ---- Borrowed non-blocking stream + destroy with work in flight -------------
 
 // A borrowed cudaStreamNonBlocking stream has no implicit ordering with the
@@ -297,6 +326,7 @@ EIGEN_DECLARE_TEST(gpu_cudss_llt) {
   CALL_SUBTEST_5(test_device_solve_context<float>(64));
   CALL_SUBTEST_5(test_device_solve_context<double>(64));
   CALL_SUBTEST_5(test_default_stream_context());
+  CALL_SUBTEST_5(test_empty_reanalysis_drains_pending_work());
   CALL_SUBTEST_5(test_device_solve_nonblocking_destroy_in_flight<float>(64));
   CALL_SUBTEST_5(test_device_solve_nonblocking_destroy_in_flight<double>(64));
 }

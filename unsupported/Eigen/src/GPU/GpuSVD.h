@@ -140,6 +140,7 @@ class SVD {
       d_A_ = internal::DeviceBuffer(mat_bytes, solver_ctx_.streamHandle());
       EIGEN_CUDA_RUNTIME_CHECK(
           cudaMemcpyAsync(d_A_.get(), d_A.data(), mat_bytes, cudaMemcpyDeviceToDevice, solver_ctx_.stream()));
+      d_A.recordUse(solver_ctx_.stream());
     }
 
     factorize();
@@ -409,6 +410,7 @@ class SVD {
     EIGEN_CUBLAS_CHECK(internal::cublasXgeam(solver_ctx_.cublasHandle(), CUBLAS_OP_C, CUBLAS_OP_N, m_, n_, &alpha_one,
                                              d_A.data(), d_A.rows(), &beta_zero, static_cast<const Scalar*>(nullptr),
                                              m_, static_cast<Scalar*>(d_A_.get()), m_));
+    d_A.recordUse(solver_ctx_.stream());
   }
 
   // Swap U↔V flags for the transposed case.
@@ -643,6 +645,7 @@ class SVD {
     // after the GEMMs below (a plain DeviceMatrix would free on the legacy stream).
     DeviceMatrix<Scalar> X = DeviceMatrix<Scalar>::onStream(n_orig, nrhs, solver_ctx_.streamHandle());
     apply_pinv(d_B.data(), kk, nrhs, X.data());
+    d_B.recordUse(solver_ctx_.stream());
     X.recordReady(solver_ctx_.stream());
     return X;
   }

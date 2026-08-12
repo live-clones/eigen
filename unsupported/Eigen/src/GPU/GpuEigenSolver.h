@@ -110,6 +110,7 @@ class SelfAdjointEigenSolver {
     internal::ensure_sized(d_A_, mat_bytes, solver_ctx_.streamHandle());
     EIGEN_CUDA_RUNTIME_CHECK(
         cudaMemcpyAsync(d_A_.get(), d_A.data(), mat_bytes, cudaMemcpyDeviceToDevice, solver_ctx_.stream()));
+    d_A.recordUse(solver_ctx_.stream());
 
     factorize();
     return *this;

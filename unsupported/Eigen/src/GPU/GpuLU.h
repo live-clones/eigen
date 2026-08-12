@@ -121,6 +121,7 @@ class LU {
     allocate_lu_storage();
     EIGEN_CUDA_RUNTIME_CHECK(
         cudaMemcpyAsync(d_lu_.get(), d_A.data(), matrixBytes(), cudaMemcpyDeviceToDevice, solver_ctx_.stream()));
+    d_A.recordUse(solver_ctx_.stream());
 
     factorize();
     return *this;
@@ -190,6 +191,7 @@ class LU {
     internal::DeviceBuffer d_x(matrixBytes(nrhs, ldb), solver_ctx_.streamHandle());
     EIGEN_CUDA_RUNTIME_CHECK(
         cudaMemcpyAsync(d_x.get(), d_B.data(), matrixBytes(nrhs, ldb), cudaMemcpyDeviceToDevice, solver_ctx_.stream()));
+    d_B.recordUse(solver_ctx_.stream());
     return solve_impl(nrhs, ldb, op, std::move(d_x));
   }
 

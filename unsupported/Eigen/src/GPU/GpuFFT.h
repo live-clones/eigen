@@ -247,6 +247,7 @@ class FFT {
     cufftHandle plan = get_plan_1d(n, internal::cufft_c2c_type<Scalar>::value);
     EIGEN_CUFFT_CHECK(
         internal::cufftExecC2C_dispatch(plan, const_cast<Complex*>(d_x.data()), d_X.data(), CUFFT_FORWARD));
+    d_x.recordUse(ctx_->stream());
     d_X.recordReady(ctx_->stream());
   }
 
@@ -260,6 +261,7 @@ class FFT {
     EIGEN_CUFFT_CHECK(
         internal::cufftExecC2C_dispatch(plan, const_cast<Complex*>(d_X.data()), d_x.data(), CUFFT_INVERSE));
     EIGEN_CUBLAS_CHECK(internal::cublasXscal(ctx_->cublasHandle(), n, Scalar(1) / Scalar(n), d_x.data(), 1));
+    d_X.recordUse(ctx_->stream());
     d_x.recordReady(ctx_->stream());
   }
 
@@ -272,6 +274,7 @@ class FFT {
     if (n == 0) return;
     cufftHandle plan = get_plan_1d(n, internal::cufft_r2c_type<Scalar>::value);
     EIGEN_CUFFT_CHECK(internal::cufftExecR2C_dispatch(plan, const_cast<Scalar*>(d_x.data()), d_X.data()));
+    d_x.recordUse(ctx_->stream());
     d_X.recordReady(ctx_->stream());
   }
 
@@ -292,6 +295,7 @@ class FFT {
     cufftHandle plan = get_plan_1d(n, internal::cufft_c2r_type<Scalar>::value);
     EIGEN_CUFFT_CHECK(internal::cufftExecC2R_dispatch(plan, static_cast<Complex*>(d_in_.get()), d_x.data()));
     EIGEN_CUBLAS_CHECK(internal::cublasXscal(ctx_->cublasHandle(), n, Scalar(1) / Scalar(n), d_x.data(), 1));
+    d_X.recordUse(ctx_->stream());
     d_x.recordReady(ctx_->stream());
   }
 
@@ -304,6 +308,7 @@ class FFT {
     cufftHandle plan = get_plan_2d(rows, cols, internal::cufft_c2c_type<Scalar>::value);
     EIGEN_CUFFT_CHECK(
         internal::cufftExecC2C_dispatch(plan, const_cast<Complex*>(d_A.data()), d_B.data(), CUFFT_FORWARD));
+    d_A.recordUse(ctx_->stream());
     d_B.recordReady(ctx_->stream());
   }
 
@@ -319,6 +324,7 @@ class FFT {
     const int total_elems = internal::to_blas_int(static_cast<int64_t>(rows) * static_cast<int64_t>(cols));
     EIGEN_CUBLAS_CHECK(
         internal::cublasXscal(ctx_->cublasHandle(), total_elems, Scalar(1) / Scalar(total_elems), d_B.data(), 1));
+    d_A.recordUse(ctx_->stream());
     d_B.recordReady(ctx_->stream());
   }
 

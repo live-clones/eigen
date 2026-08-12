@@ -67,7 +67,7 @@ class SparseSolverBase {
   // flight. Best-effort: a failed sync means the stream (and its work) is
   // already gone, and a destructor must not assert.
   ~SparseSolverBase() {
-    if (n_ > 0) (void)cudaStreamSynchronize(stream());
+    if (work_pending_) (void)cudaStreamSynchronize(stream());
   }
 
   SparseSolverBase(const SparseSolverBase&) = delete;
@@ -87,12 +87,20 @@ class SparseSolverBase {
    * This phase is synchronous (blocks until complete). */
   template <typename InputType>
   Derived& analyzePattern(const SparseMatrixBase<InputType>& A) {
+    // Reanalysis replaces cuDSS descriptors and data. Retire a previous async
+    // factorization or solve before changing that state, including when the
+    // new input is empty.
+    if (work_pending_) {
+      EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream()));
+      work_pending_ = false;
+    }
     const InputType& input = A.derived();
     check_storage_index_bounds<StorageIndex>(input.rows(), input.cols(), input.nonZeros());
     eigen_assert(input.rows() == input.cols() && "GpuSparseSolver requires a square matrix");
 
     n_ = input.rows();
     info_ = InvalidInput;
+    info_synced_ = true;
     analysis_done_ = false;
 
     if (n_ == 0) {
@@ -188,6 +196,7 @@ class SparseSolverBase {
     info_synced_ = false;
     EIGEN_CUDSS_CHECK(cudssExecute(handle_.get(), CUDSS_PHASE_FACTORIZATION, config_.get(), data_.get(),
                                    d_A_cudss_.get(), d_x_cudss_.get(), d_b_cudss_.get()));
+    work_pending_ = true;
 
     return derived();
   }
@@ -217,10 +226,12 @@ class SparseSolverBase {
     update_solve_descriptors(nrhs, d_b_solve_.get(), d_x_solve_.get());
     EIGEN_CUDSS_CHECK(cudssExecute(handle_.get(), CUDSS_PHASE_SOLVE, config_.get(), data_.get(), d_A_cudss_.get(),
                                    x_solve_cudss_.get(), b_solve_cudss_.get()));
+    work_pending_ = true;
 
     DenseMatrix X(n_, rhs.cols());
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(X.data(), d_x_solve_.get(), rhs_bytes, cudaMemcpyDeviceToHost, stream()));
     EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream()));
+    work_pending_ = false;
 
     return X;
   }
@@ -247,6 +258,8 @@ class SparseSolverBase {
     update_solve_descriptors(nrhs, const_cast<Scalar*>(d_B.data()), X.data());
     EIGEN_CUDSS_CHECK(cudssExecute(handle_.get(), CUDSS_PHASE_SOLVE, config_.get(), data_.get(), d_A_cudss_.get(),
                                    x_solve_cudss_.get(), b_solve_cudss_.get()));
+    work_pending_ = true;
+    d_B.recordUse(stream());
     X.recordReady(stream());
     return X;
   }
@@ -294,6 +307,7 @@ class SparseSolverBase {
   int64_t nnz_ = 0;
   mutable ComputationInfo info_ = InvalidInput;
   mutable bool info_synced_ = true;
+  mutable bool work_pending_ = false;
   bool analysis_done_ = false;
 
  private:
@@ -346,6 +360,7 @@ class SparseSolverBase {
           cudssDataGet(handle_.get(), data_.get(), CUDSS_DATA_INFO, &cudss_info, sizeof(cudss_info), nullptr));
       info_ = (cudss_info == 0) ? Success : NumericalIssue;
       info_synced_ = true;
+      work_pending_ = false;
     }
   }
 

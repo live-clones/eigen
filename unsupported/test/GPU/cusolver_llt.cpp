@@ -16,6 +16,7 @@
 #include "main.h"
 #include <Eigen/Cholesky>
 #include <unsupported/Eigen/GPU>
+#include "gpu_test_helpers.h"
 
 // Identifier convention throughout this file:
 //   h_ prefix for host-resident Eigen::Matrix values
@@ -115,6 +116,36 @@ void test_not_spd_device_solve_asserts() {
   VERIFY_IS_EQUAL(gpu_llt.info(), Eigen::NumericalIssue);
   auto d_B = Eigen::gpu::DeviceMatrix<double>::fromHost(h_B);
   VERIFY_RAISES_ASSERT(gpu_llt.solve(d_B));
+}
+
+// An empty recompute must retire a previous asynchronous factorization before
+// marking its pinned status staging as synchronized.
+void test_empty_compute_drains_pending_factorization() {
+  using MatrixType = Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>;
+  MatrixType h_A = make_spd<MatrixType>(64);
+  auto d_A = Eigen::gpu::DeviceMatrix<double>::fromHost(h_A);
+  Eigen::gpu::LLT<double> gpu_llt;
+
+  gpu_test::StreamGate gate;
+  EIGEN_CUDA_RUNTIME_CHECK(cudaLaunchHostFunc(gpu_llt.stream(), gpu_test::wait_for_stream_gate, &gate));
+  gpu_llt.compute(d_A);
+
+  std::atomic<bool> started{false};
+  std::atomic<bool> finished{false};
+  MatrixType empty(0, 0);
+  std::thread recompute([&] {
+    started.store(true, std::memory_order_release);
+    gpu_llt.compute(empty);
+    finished.store(true, std::memory_order_release);
+  });
+  while (!started.load(std::memory_order_acquire)) std::this_thread::yield();
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  const bool finished_while_gated = finished.load(std::memory_order_acquire);
+
+  gate.open.store(true, std::memory_order_release);
+  recompute.join();
+  VERIFY(!finished_while_gated);
+  VERIFY_IS_EQUAL(gpu_llt.info(), Eigen::Success);
 }
 
 // ---- DeviceMatrix-native API --------------------------------------------
@@ -314,4 +345,5 @@ EIGEN_DECLARE_TEST(gpu_cusolver_llt) {
   CALL_SUBTEST_4(test_scalar<std::complex<double>>());
   CALL_SUBTEST_5(test_not_spd());
   CALL_SUBTEST_5(test_not_spd_device_solve_asserts());
+  CALL_SUBTEST_5(test_empty_compute_drains_pending_factorization());
 }

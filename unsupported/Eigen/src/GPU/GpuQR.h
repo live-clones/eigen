@@ -114,6 +114,7 @@ class QR {
       allocate_factor_storage(mat_bytes);
       EIGEN_CUDA_RUNTIME_CHECK(
           cudaMemcpyAsync(d_qr_.get(), d_A.data(), mat_bytes, cudaMemcpyDeviceToDevice, solver_ctx_.stream()));
+      d_A.recordUse(solver_ctx_.stream());
     }
 
     factorize();
@@ -235,6 +236,7 @@ class QR {
     EIGEN_CUBLAS_CHECK(internal::cublasXgeam(solver_ctx_.cublasHandle(), CUBLAS_OP_C, CUBLAS_OP_N, n_, m_, &alpha_one,
                                              d_A.data(), d_A.rows(), &beta_zero, static_cast<const Scalar*>(nullptr),
                                              n_, static_cast<Scalar*>(d_qr_.get()), n_));
+    d_A.recordUse(solver_ctx_.stream());
   }
 
   void factorize() {
@@ -325,6 +327,7 @@ class QR {
 
     apply_QH(d_work.get(), m_, nrhs);
     trsm_R(d_work.get(), m_, nrhs, /*op=*/CUBLAS_OP_N);
+    d_B.recordUse(solver_ctx_.stream());
 
     if (m_ == n_) {
       DeviceMatrix<Scalar> result = DeviceMatrix<Scalar>::adopt(static_cast<Scalar*>(d_work.release()), n_,
@@ -392,6 +395,7 @@ class QR {
 
     trsm_R(d_X.get(), n_, nrhs, trsm_op_conj_trans());
     apply_Q(CUBLAS_OP_N, d_X.get(), n_, nrhs);
+    d_B.recordUse(solver_ctx_.stream());
 
     DeviceMatrix<Scalar> result = DeviceMatrix<Scalar>::adopt(static_cast<Scalar*>(d_X.release()), n_,
                                                               static_cast<Index>(nrhs), solver_ctx_.streamHandle());
