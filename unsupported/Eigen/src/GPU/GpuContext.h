@@ -50,12 +50,6 @@ struct OneShotSolverScratch {
   PinnedHostBuffer h_info{kOneShotHostInfoBytes};  // debug-build info check only
   std::vector<char> h_workspace;
 };
-
-inline void ensure_sized(DeviceBuffer& buf, size_t needed, cudaStream_t stream) {
-  if (needed > buf.size()) {
-    buf = DeviceBuffer(needed, stream);
-  }
-}
 }  // namespace internal
 
 /** \ingroup GPU_Module
@@ -76,19 +70,24 @@ inline void ensure_sized(DeviceBuffer& buf, size_t needed, cudaStream_t stream) 
 class Context {
  public:
   /** Create a new context with a dedicated CUDA stream. */
-  Context() : stream_(internal::create_stream()) {
-    oneshot_solver_scratch_.d_info = internal::DeviceBuffer(internal::kOneShotInfoBytes, stream_.get());
-    init_cublas();
-  }
+  Context() : stream_(internal::create_stream()) { init_cublas(); }
 
   /** Create a context on an existing stream (e.g., stream 0 = nullptr).
-   * The caller retains ownership of the stream — this context will not destroy it. */
-  explicit Context(cudaStream_t stream) : stream_(internal::borrow_stream(stream)) {
-    oneshot_solver_scratch_.d_info = internal::DeviceBuffer(internal::kOneShotInfoBytes, stream_.get());
-    init_cublas();
-  }
+   * The caller retains ownership of the stream — this context will not destroy
+   * it — and must keep it valid for the lifetime of this context and of any
+   * object allocated through it (solver results, DeviceScalar reductions). */
+  explicit Context(cudaStream_t stream) : stream_(internal::borrow_stream(stream)) { init_cublas(); }
 
-  ~Context() = default;
+  ~Context() {
+    // Drain once before teardown: queued one-shot solver kernels may still
+    // read the scratch below — including its pageable h_workspace, whose
+    // free is host-side and thus not covered by stream-ordered deallocation.
+    // The error is swallowed: at process teardown the stream may be gone.
+    (void)cudaStreamSynchronize(stream_.get());
+    // Everything else is a RAII member, destroyed in reverse declaration
+    // order: the plan cache before its cuBLASLt handle, the buffers before
+    // stream_ (declared first, destroyed last).
+  }
 
   Context(const Context&) = delete;
   Context& operator=(const Context&) = delete;
@@ -123,6 +122,11 @@ class Context {
   static void setThreadLocal(Context* ctx) { tl_override_ptr() = ctx; }
 
   cudaStream_t stream() const { return stream_.get(); }
+
+  /** Shared handle for this context's stream. Buffers constructed with it keep
+   * an owned stream alive until their (stream-ordered) frees are issued. */
+  const internal::CudaStreamHandle& streamHandle() const { return stream_; }
+
   cublasHandle_t cublasHandle() const { return cublas_.get(); }
 
   /** Returns the cuSOLVER handle, creating it on first call. */

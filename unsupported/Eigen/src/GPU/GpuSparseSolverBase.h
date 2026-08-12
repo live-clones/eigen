@@ -56,7 +56,7 @@ class SparseSolverBase {
    * caller's other GPU operations (device-resident solves chain with SpMV /
    * cuBLAS work without cross-stream event waits). The cuDSS handle itself is
    * always owned by this solver. \p ctx must outlive this object. */
-  explicit SparseSolverBase(Context& ctx) : stream_(borrow_stream(ctx.stream())) { init_cudss(); }
+  explicit SparseSolverBase(Context& ctx) : stream_(ctx.streamHandle()) { init_cudss(); }
 
   // All resources are RAII members; reverse declaration order destroys the
   // cuDSS descriptors and device buffers first, then data_ (whose deleter
@@ -298,11 +298,7 @@ class SparseSolverBase {
     config_.reset(config);
   }
 
-  void ensure_solve_buffer(DeviceBuffer& buf, size_t needed) const {
-    if (needed > buf.size()) {
-      buf = DeviceBuffer(needed, stream());
-    }
-  }
+  void ensure_solve_buffer(DeviceBuffer& buf, size_t needed) const { ensure_sized(buf, needed, stream_); }
 
   // Recreate the solve descriptors when nrhs changes; otherwise just re-point
   // them (cudssMatrixSetValues is a host-side pointer update).
@@ -362,9 +358,9 @@ class SparseSolverBase {
     const size_t colidx_bytes = static_cast<size_t>(nnz_) * sizeof(StorageIndex);
     const size_t values_bytes = static_cast<size_t>(nnz_) * sizeof(Scalar);
 
-    d_rowPtr_ = DeviceBuffer(rowptr_bytes, stream());
-    d_colIdx_ = DeviceBuffer(colidx_bytes, stream());
-    d_values_ = DeviceBuffer(values_bytes, stream());
+    d_rowPtr_ = DeviceBuffer(rowptr_bytes, stream_);
+    d_colIdx_ = DeviceBuffer(colidx_bytes, stream_);
+    d_values_ = DeviceBuffer(values_bytes, stream_);
 
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_rowPtr_.get(), outer, rowptr_bytes, cudaMemcpyHostToDevice, stream()));
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_colIdx_.get(), inner, colidx_bytes, cudaMemcpyHostToDevice, stream()));
