@@ -2,16 +2,18 @@
 # SPDX-FileCopyrightText: The Eigen Authors
 # SPDX-License-Identifier: MPL-2.0
 
-"""Advisory style check for added C++ code.
+"""Advisory style check for added C++ code, for what clang-tidy cannot say.
 
-Flags the problems that recur in this repository's code reviews: narration-
-comment verbosity (see the comment rules in ``AGENTS.md``), and declaration
-forms that new code should not use (``NULL``, ``typedef``, ``enum`` constant
-blocks, C++17-and-later constructs in the C++14 trees, ``std::`` math in
-library headers where ``numext::`` is required).  Only lines a change ADDS
-are reported, but each file's complete post-image is lexed so surrounding
-context — an enclosing block comment, a Doxygen continuation, a multi-line
-initializer — is classified correctly.
+Flags the problems that recur in this repository's code reviews and that no
+clang-tidy check states: narration-comment verbosity (see the comment rules in
+``AGENTS.md``), ``enum`` constant blocks, ``std::integral_constant<bool,...>``,
+C++17-and-later constructs in the C++14 trees, and ``std::`` math in library
+headers where ``numext::`` is required.  Conventions clang-tidy *can* state
+live in ``.clang-tidy`` and are checked by ``clang_tidy_hook.py`` against the
+same added lines.  Only lines a change ADDS are reported, but each file's
+complete post-image is lexed so surrounding context — an enclosing block
+comment, a Doxygen continuation, a multi-line initializer — is classified
+correctly.
 
 The findings are advisory: a flagged construct may be justified, in which
 case keep it and state the reason where the construct is.
@@ -33,12 +35,13 @@ import argparse
 import json
 import os
 import re
-import subprocess
 import sys
 
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CXX_EXT = {".h", ".hpp", ".hxx", ".cpp", ".cc", ".cxx", ".cu", ".cuh", ".inc"}
-EXTENSIONLESS_HEADER_TREES = ("Eigen/", "unsupported/Eigen/")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from style_common import (REPO_ROOT, added_lines_from_diff, added_from_structured_patch,  # noqa: E402,F401
+                          diff_added_lines, hook_added_line_numbers, hook_edit_snippets,
+                          hook_post_image_and_added, is_cxx_path, read_post_image)
 
 # Trees whose headers and tests must compile as C++14 (see AGENTS.md rule 3).
 CXX14_TREES = ("Eigen/", "unsupported/Eigen/", "test/", "unsupported/test/", "failtest/", "blas/", "lapack/")
@@ -67,33 +70,32 @@ STD_MATH = (
 
 # Convention checks applied per added code line (comments and literals blanked).
 #
-# Several have a clang-tidy analogue, noted per check, and ci/scripts/run-clang-
-# tidy.sh already lints an MR's changed files.  They are duplicated here because
-# that job is whole-file: enabling modernize-use-using, or the eigen-enum-
-# constant check parked in .clang-tidy, would report every pre-existing
-# occurrence in a touched header — Eigen/src alone holds ~4100 typedefs and ~870
-# class-scope enum constant blocks — burying the handful of lines a change
-# actually adds.  This script reports added lines only, needs neither clang nor
-# a compilation database, and is quick enough to run on every edit.  Should the
-# clang-tidy job grow per-line filtering, the overlapping entries below should
-# go.
+# Only conventions clang-tidy cannot currently state belong here; NULL and
+# typedef moved to modernize-use-nullptr and modernize-use-using in
+# .clang-tidy, which clang_tidy_hook.py and ci/scripts/run-clang-tidy.sh run
+# against the same added lines.  The entries below are the remainder: those
+# needing a CustomChecks query (parked in .clang-tidy until CI's clang-tidy
+# reaches 22) and those no AST matcher reaches at all.
+#
+# One known gap in that handover: modernize-use-using reports typedefs at class
+# and namespace scope but not function-local ones (measured against clang-tidy
+# 18 — Block.h 17 of 18, Redux.h 24 of 25, GeneralMatrixMatrix.h 21 of 28).
+# modernize-use-nullptr has no such gap.  A function-local typedef in new code
+# therefore now goes unreported; reintroducing a regex for it would bring back
+# the false positives this handover removes, so the gap is left open.
 CODE_CHECKS = [
-    # clang-tidy analogue: modernize-use-nullptr.
-    (r"\bNULL\b", "NULL: new code uses nullptr"),
-    # clang-tidy analogue: modernize-use-using.
-    (r"\btypedef\b", "typedef: prefer `using` in new aliases unless the file is uniformly typedef"),
-    # No upstream check; see the parked integral-constant-bool entry in .clang-tidy.
+    # Awaiting the parked integral-constant-bool query.
     (r"std::integral_constant<\s*bool\b", "std::integral_constant<bool,...>: use Eigen's bool_constant (Meta.h)"),
-    # No upstream check states Eigen's rule (cppcoreguidelines-use-enum-class
-    # asks for `enum class` instead); see the parked eigen-enum-constant entry
-    # in .clang-tidy.
+    # Awaiting the parked eigen-enum-constant query.  No stock check states
+    # this rule: cppcoreguidelines-use-enum-class asks for `enum class`,
+    # whereas Eigen wants static constexpr for trait constants.
     (r"^\s*enum\s*(?::[^{}]+)?\{", "enum constant block: trait/evaluator constants are static constexpr in new "
                                    "code; Flags is `unsigned int`"),
 ]
 CXX14_CHECKS = [
-    # No upstream check; see the parked eigen-if-constexpr entry in .clang-tidy.
-    # A C++14 build does not reliably reject this: clang accepts `if constexpr`
-    # as an extension and only warns under -Wc++17-extensions.
+    # Awaiting the parked eigen-if-constexpr query.  A C++14 build does not
+    # reliably reject this on its own: clang accepts `if constexpr` as an
+    # extension and only warns under -Wc++17-extensions.
     (r"\bif\s+constexpr\b", "if constexpr: supported code compiles as C++14; use EIGEN_IF_CONSTEXPR(...) with a "
                             "condition that is valid either way"),
     # These do fail the default C++14 build; flagging them at edit time just
@@ -102,19 +104,12 @@ CXX14_CHECKS = [
      "C++17/20 library facility: the supported baseline is C++14"),
 ]
 # Also C++14-tree only (CMakeLists.txt defaults CMAKE_CXX_STANDARD to 14), and
-# with no clang-tidy analogue.
+# not expressible as a matcher — designated initializers do not parse in C++14,
+# so there is no AST for a check to match.
 DESIGNATED_MSG = "designated initializer: C++20-only; use aggregate assignment with /*name=*/ comments"
 
 
 RAW_PREFIX = re.compile(r"(?:^|[^0-9A-Za-z_])(?:u8|u|U|L)?R$")
-
-
-def is_cxx_path(rel_path):
-    """Return whether ``rel_path`` is C++ source, including Eigen's
-    extensionless public module headers such as ``Eigen/Core``."""
-    return (os.path.splitext(rel_path)[1].lower() in CXX_EXT
-            or (not os.path.splitext(os.path.basename(rel_path))[1]
-                and rel_path.startswith(EXTENSIONLESS_HEADER_TREES)))
 
 
 def is_digit_separator(line, i):
@@ -340,55 +335,10 @@ def find_findings(rel_path, lines, added):
     return findings
 
 
-def added_lines_from_diff(diff_text):
-    """Parse ``git diff -U0`` output into {relative_path: set(added line numbers)}."""
-    files = {}
-    path, new_line = None, 0
-    for raw in diff_text.splitlines():
-        if raw.startswith("+++ "):
-            name = raw[4:]
-            path = None if name == "/dev/null" else name[2:] if name.startswith("b/") else name
-        elif raw.startswith("@@"):
-            m = re.search(r"\+(\d+)(?:,(\d+))?", raw)
-            new_line = int(m.group(1)) if m else 0
-        elif raw.startswith("+") and not raw.startswith("+++"):
-            if path is not None:
-                files.setdefault(path, set()).add(new_line)
-            new_line += 1
-        elif not raw.startswith("-") and not raw.startswith("\\"):
-            # "\ No newline at end of file" is a marker, not a context line.
-            new_line += 1
-    return files
-
-
-def git(root, *args):
-    return subprocess.run(["git"] + list(args), cwd=root, capture_output=True, text=True)
-
-
-def read_post_image(root, rel_path):
-    try:
-        with open(os.path.join(root, rel_path), encoding="utf-8", errors="replace") as handle:
-            return handle.read()
-    except OSError:
-        return None
-
-
 def run_diff_mode(base, root=REPO_ROOT):
     """Return [(rel_path, line_no, message)] for lines added since
     merge-base(base, HEAD), including untracked C++ files."""
-    merge_base = git(root, "merge-base", base, "HEAD")
-    resolved = merge_base.stdout.strip() if merge_base.returncode == 0 else base
-    diff = git(root, "diff", "-U0", "--no-color", resolved)
-    if diff.returncode not in (0, 1):
-        sys.stderr.write(diff.stderr)
-        raise SystemExit(2)
-    per_file = added_lines_from_diff(diff.stdout)
-    untracked = git(root, "ls-files", "--others", "--exclude-standard")
-    for rel_path in untracked.stdout.splitlines():
-        if is_cxx_path(rel_path):
-            text = read_post_image(root, rel_path)
-            if text is not None:
-                per_file.setdefault(rel_path, set()).update(range(1, len(text.splitlines()) + 1))
+    per_file = diff_added_lines(base, root)
     results = []
     for rel_path in sorted(per_file):
         text = read_post_image(root, rel_path)
@@ -399,86 +349,17 @@ def run_diff_mode(base, root=REPO_ROOT):
     return results
 
 
-def added_from_structured_patch(tool_response):
-    """Derive added line numbers from the tool response's structured patch,
-    which records the exact edited hunks.  A valid deletion-only patch returns
-    an empty set; None means absent or malformed data and enables fallback."""
-    try:
-        added = set()
-        for hunk in tool_response["structuredPatch"]:
-            line_no = int(hunk["newStart"])
-            for entry in hunk["lines"]:
-                if entry.startswith("+"):
-                    added.add(line_no)
-                    line_no += 1
-                elif not entry.startswith("-") and not entry.startswith("\\"):
-                    # "\ No newline at end of file" is a marker, not a context line.
-                    line_no += 1
-        return added
-    except Exception:
-        return None
-
-
-def hook_added_line_numbers(content, snippets):
-    """Map the strings an edit added onto post-image line numbers.
-
-    Each snippet must occur exactly once — a repeated occurrence cannot be
-    told apart from pre-existing identical text, and would mark unrelated
-    lines.  A snippet's span excludes the line after its trailing newline.
-    Returns None when any snippet is absent or ambiguous; the caller then
-    checks the snippet text standalone."""
-    added = set()
-    for snippet in snippets:
-        if not snippet:
-            continue
-        start = content.find(snippet)
-        if start < 0 or content.find(snippet, start + 1) >= 0:
-            return None
-        first = content.count("\n", 0, start) + 1
-        span = snippet.count("\n") + (0 if snippet.endswith("\n") else 1)
-        added.update(range(first, first + max(span, 1)))
-    return added
-
-
 def run_hook_mode():
     try:
         payload = json.load(sys.stdin)
     except Exception:
         return 0
-    tool_input = payload.get("tool_input", {}) or {}
-    tool_name = payload.get("tool_name", "")
-    path = tool_input.get("file_path", "") or ""
-    rel_path = os.path.relpath(os.path.abspath(path), REPO_ROOT).replace(os.sep, "/")
-    if rel_path.startswith(".."):
+    rel_path, snippets = hook_edit_snippets(payload)
+    if rel_path is None:
         return 0
-    if tool_name == "Write":
-        snippets = [tool_input.get("content", "")]
-    elif tool_name == "Edit":
-        snippets = [tool_input.get("new_string", "")]
-    elif tool_name == "MultiEdit":
-        snippets = [e.get("new_string", "") for e in tool_input.get("edits", [])]
-    else:
-        return 0
-    if not any(s.strip() for s in snippets):
-        return 0
-
-    # The hook runs after the edit, so the file on disk is the post-image;
-    # lex it whole so enclosing comments and initializers classify correctly.
-    # The edited lines come from the response's structured patch when present,
-    # else from locating a uniquely occurring added string.
-    text = read_post_image(REPO_ROOT, rel_path)
-    added = None
-    if text is not None:
-        lines = text.splitlines()
-        added = added_from_structured_patch(payload.get("tool_response") or {})
-        if added is None:
-            if tool_name == "Write":
-                added = set(range(1, len(lines) + 1))
-            else:
-                added = hook_added_line_numbers(text, snippets)
-    if added is None:  # unreadable file or unlocatable snippet: check the added text standalone
-        lines = "\n".join(snippets).splitlines()
-        added = set(range(1, len(lines) + 1))
+    # The hook runs after the edit, so the file on disk is the post-image; it is
+    # lexed whole so enclosing comments and initializers classify correctly.
+    lines, added, _ = hook_post_image_and_added(payload, rel_path, snippets)
     findings = find_findings(rel_path, lines, added)
     if findings:
         sys.stderr.write("style check (%s) — review before proceeding:\n" % rel_path)

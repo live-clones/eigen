@@ -38,11 +38,16 @@ Run checks relevant to the changed files and report unavailable tools:
 codespell --config setup.cfg path/to/changed-file
 reuse lint
 python3 scripts/check_style.py --diff <base-sha>
+python3 scripts/clang_tidy_hook.py --diff <base-sha>   # needs clang-tidy
 ```
 
-`check_style.py` reports review-recurrent style problems in the lines a change adds (comment verbosity and the
-superseded declaration forms review keeps flagging); its findings are advisory. Claude Code sessions run it
-automatically through the hook registered in `.claude/settings.json`.
+Both report only on the lines a change adds, and both are advisory. `check_style.py` covers the conventions
+clang-tidy cannot state — comment verbosity, and the declaration forms still awaiting a `CustomChecks` query
+(see the parked block in `.clang-tidy`). `clang_tidy_hook.py` runs clang-tidy itself, restricted to added lines
+with `--line-filter`; it needs no build directory, generating a module-umbrella driver for `Eigen/src` headers
+the way `ci/scripts/run-clang-tidy.sh` does for merge requests. It skips silently when clang-tidy is absent.
+
+Claude Code sessions run both automatically through the hooks registered in `.claude/settings.json`.
 
 The whole-tree codespell invocation used by CI can expose pre-existing findings. Do not modify unrelated files merely
 to make a local broad scan clean. In the current CI configuration, clang-format, codespell, and clang-tidy jobs are

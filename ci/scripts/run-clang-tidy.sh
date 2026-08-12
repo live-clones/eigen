@@ -121,18 +121,34 @@ for c in cmds:
         break
 ")
 
+# Restrict diagnostics to the lines this merge request adds. Without it the
+# style checks in .clang-tidy (modernize-use-nullptr, modernize-use-using)
+# would report every pre-existing occurrence in a touched file — Eigen/src
+# holds ~4100 typedefs — rather than the ones under review. An empty filter
+# means "no filtering" to clang-tidy, so a file with no added lines is skipped
+# rather than linted whole.
+line_filter_for() {
+  python3 "${REPO_ROOT}/scripts/style_common.py" --line-filter "${BASE_SHA}" "$1" 2>/dev/null
+}
+
 echo "Checking changed files with clang-tidy..."
 echo "Base SHA: ${BASE_SHA}"
 echo ""
 
 for file in ${CHANGED_FILES}; do
+  LINE_FILTER=$(line_filter_for "${file}")
+  if [ -z "${LINE_FILTER}" ] || [ "${LINE_FILTER}" = "[]" ]; then
+    # Renamed or mode-only change: nothing added to report on.
+    continue
+  fi
+
   # Only check C++ source and header files.
   case "${file}" in
     *.cpp|*.cc|*.cxx)
       # Source file: run clang-tidy directly if it's in the compilation database.
       if grep -q "\"${file}\"" "${BUILD_DIR}/compile_commands.json" 2>/dev/null; then
         echo "=== ${file} ==="
-        if ! clang-tidy -p "${BUILD_DIR}" "${file}" 2>&1; then
+        if ! clang-tidy -p "${BUILD_DIR}" --line-filter="${LINE_FILTER}" "${file}" 2>&1; then
           ERRORS=$((ERRORS + 1))
         fi
       fi
@@ -154,6 +170,7 @@ EOF
       if ! clang-tidy \
             -p "${BUILD_DIR}" \
             --header-filter="$(echo "${file}" | sed 's/[.[\*^$()+?{|]/\\&/g')" \
+            --line-filter="${LINE_FILTER}" \
             "${DRIVER}" 2>&1; then
         ERRORS=$((ERRORS + 1))
       fi

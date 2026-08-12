@@ -47,9 +47,6 @@ def assert_clean(rel_path, text, added=None):
 
 
 def test_conventions_flagged():
-    assert_flags("Eigen/src/Core/Foo.h", "const char* p = NULL;\n", "nullptr")
-    assert_flags("Eigen/src/Core/Foo.h", "typedef int MyInt;\n", "typedef")
-    assert_flags("Eigen/src/Core/Foo.h", "EIGEN_UNUSED typedef int MyInt;\n", "typedef")
     assert_flags("Eigen/src/Core/Foo.h", "std::integral_constant<bool, true> b;\n", "bool_constant")
     assert_flags("Eigen/src/Core/Foo.h", "enum { Flags = 0 };\n", "static constexpr")
     assert_flags("Eigen/src/Core/Foo.h", "enum : unsigned int { Flags = 0 };\n", "static constexpr")
@@ -70,16 +67,16 @@ def test_conventions_flagged():
 
 def test_scoping():
     # Eigen's public module headers are C++ despite having no extension.
-    assert_flags("Eigen/Core", "const char* p = NULL;\n", "nullptr")
+    assert_flags("Eigen/Core", "enum { Flags = 0 };\n", "static constexpr")
     assert_flags("unsupported/Eigen/FFT", "if constexpr (kSize > 4) {}\n", "EIGEN_IF_CONSTEXPR")
     # std:: math is only flagged in library implementation headers.
     assert_clean("test/foo.cpp", "double x = std::sqrt(2.0);\n")
     # C++14 checks do not apply outside the C++14 trees.
     assert_clean("benchmarks/Core/foo.cpp", "if constexpr (kSize > 4) {}\n")
     # Non-C++ files are ignored entirely.
-    assert_clean("AGENTS.md", "NULL typedef enum {\n")
+    assert_clean("AGENTS.md", "enum { Flags = 0 };\nif constexpr (x) {}\n")
     # Only ADDED lines are reported: the same violations on unchanged lines stay silent.
-    assert_clean("Eigen/src/Core/Foo.h", "const char* p = NULL;\nint x = 1;\n", added={2})
+    assert_clean("Eigen/src/Core/Foo.h", "enum { Flags = 0 };\nint x = 1;\n", added={2})
     # Sources with a documented C++17 requirement are exempt from the C++14 checks...
     assert_clean("test/sycl_basic.cpp", "if constexpr (kSize > 4) {}\n")
     assert_clean("Eigen/src/Core/arch/SYCL/PacketMath.h", "if constexpr (kSize > 4) {}\n")
@@ -94,7 +91,7 @@ def test_scoping():
     assert_flags("test/not_sycl_related.cpp", "if constexpr (kSize > 4) {}\n", "EIGEN_IF_CONSTEXPR")
     assert_flags("unsupported/Eigen/src/FFT/kissfft_impl.h", "if constexpr (kSize > 4) {}\n", "EIGEN_IF_CONSTEXPR")
     # ...but not from the other conventions.
-    assert_flags("test/sycl_basic.cpp", "const char* p = NULL;\n", "nullptr")
+    assert_flags("test/sycl_basic.cpp", "std::integral_constant<bool, true> b;\n", "bool_constant")
 
 
 def test_false_positive_probes():
@@ -102,14 +99,16 @@ def test_false_positive_probes():
     assert_clean("Eigen/src/Core/Foo.h", "double v[] = {.5, 1.5};\n")                  # float literal, not init
     assert_clean("Eigen/src/Core/Foo.h", "enum class Kind { A, B };\n")                # scoped enums are fine
     assert_clean("Eigen/src/Core/Foo.h", "enum Kind : unsigned int { A, B };\n")       # named enums are fine
-    assert_clean("Eigen/src/Core/Foo.h", 'const char* s = "NULL typedef enum {";\n')   # inside a string
+    assert_clean("Eigen/src/Core/Foo.h", 'auto s = "if constexpr integral_constant<bool,";\n')  # in a string
     assert_clean("Eigen/src/Core/Foo.h", "const char c = 'N';\n")                      # character literal
     assert_clean("Eigen/src/Core/Foo.h", "const wchar_t c = L'N';\n")                  # prefixed character literal
-    assert_clean("Eigen/src/Core/Foo.h", "// NULL and typedef discussed in a comment\nint x = 1;\n")
+    assert_clean("Eigen/src/Core/Foo.h", "// if constexpr discussed in a comment\nint x = 1;\n")
     # A C++14 digit separator is not the start of a character literal; code
     # later on the same line must remain visible to convention checks.
-    assert_flags("Eigen/src/Core/Foo.h", "auto n = 1'000; const char* p = NULL;\n", "nullptr")
-    assert_flags("Eigen/src/Core/Foo.h", "auto n = 0xFF'00; const char* p = NULL;\n", "nullptr")
+    assert_flags("Eigen/src/Core/Foo.h", "auto n = 1'000; std::integral_constant<bool, true> b;\n",
+                 "bool_constant")
+    assert_flags("Eigen/src/Core/Foo.h", "auto n = 0xFF'00; std::integral_constant<bool, true> b;\n",
+                 "bool_constant")
     assert_clean("Eigen/src/Core/Foo.h", "using MyInt = int;\nstatic constexpr unsigned int Flags = 0;\n"
                                          "const char* p = nullptr;\nEIGEN_IF_CONSTEXPR (kSize > 4) {}\n"
                                          "double x = numext::sqrt(2.0);\n")
@@ -133,8 +132,8 @@ def test_context_across_diff_gaps():
     doxy = "/** \\brief Existing docs.\n" + "\n".join(" * added line %d" % i for i in range(8)) + "\n */\nint x;\n"
     assert_clean("Eigen/src/Core/Foo.h", doxy, added=set(range(2, 10)))
     # A string on an unchanged line does not leak its content into added lines.
-    text = 'const char* s = "no /* here";\nconst char* p = NULL;\n'
-    assert_flags("Eigen/src/Core/Foo.h", text, "nullptr", added={2})
+    text = 'const char* s = "no /* here";\nstd::integral_constant<bool, true> b;\n'
+    assert_flags("Eigen/src/Core/Foo.h", text, "bool_constant", added={2})
 
 
 def test_comment_verbosity():
@@ -181,8 +180,8 @@ def test_multiline_literals():
     raw = 'const char* prog = R"cl(\nif constexpr (true) { std::optional<int> x; }\n)cl";\nint y = 1;\n'
     assert_clean("Eigen/src/Core/Foo.h", raw)
     # Code after the raw string closes is lexed again.
-    raw_then_code = 'auto s = R"(\ntext\n)"; const char* p = NULL;\n'
-    assert_flags("Eigen/src/Core/Foo.h", raw_then_code, "nullptr")
+    raw_then_code = 'auto s = R"(\ntext\n)"; std::integral_constant<bool, true> b;\n'
+    assert_flags("Eigen/src/Core/Foo.h", raw_then_code, "bool_constant")
     # A backslash-spliced ordinary string stays a literal on its continuation lines.
     spliced = 'const char* s = "first \\\nif constexpr (x) \\\nlast";\nint z = 1;\n'
     assert_clean("Eigen/src/Core/Foo.h", spliced)
@@ -218,7 +217,8 @@ def test_structured_patch():
     # A valid empty result must not fall back and mark the retained context.
     deletion_added = added_from_structured_patch(deletion_only)
     assert deletion_added == set()
-    assert_clean("Eigen/src/Core/Foo.h", "int keep;\nconst char* p = NULL;\n", added=deletion_added)
+    assert_clean("Eigen/src/Core/Foo.h", "int keep;\nstd::integral_constant<bool, true> b;\n",
+                 added=deletion_added)
     assert added_from_structured_patch({}) is None
     assert added_from_structured_patch({"structuredPatch": "bogus"}) is None
 
@@ -257,7 +257,7 @@ def test_no_newline_marker():
     )
     files = added_lines_from_diff(diff)
     assert files["Eigen/src/Core/Foo.h"] == {1}, files
-    assert messages("Eigen/src/Core/Foo.h", "const char* p = NULL;", added={1})
+    assert messages("Eigen/src/Core/Foo.h", "std::integral_constant<bool, true> b;", added={1})
     response = {"structuredPatch": [
         {"oldStart": 1, "oldLines": 1, "newStart": 1, "newLines": 1,
          "lines": ["-int old;", "\\ No newline at end of file",
@@ -286,20 +286,20 @@ def test_diff_mode_merge_base_and_untracked():
         sh("git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "base")
         sh("git", "branch", "target")
         # Feature branch adds a violating file and replaces the unterminated line.
-        write("Eigen/src/Core/Added.h", "const char* p = NULL;\n")
-        write("Eigen/src/Core/NoEol.h", "typedef int Replaced;")
+        write("Eigen/src/Core/Added.h", "std::integral_constant<bool, true> b;\n")
+        write("Eigen/src/Core/NoEol.h", "enum { Flags = 0 };")
         sh("git", "add", "Eigen/src/Core/Added.h", "Eigen/src/Core/NoEol.h")
         sh("git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "feature")
         # Target advances independently with its own violating file: a
         # two-tree diff against `target` would report it in reverse.
         sh("git", "checkout", "-q", "target")
-        write("Eigen/src/Core/TargetOnly.h", "typedef int Legacy;\n")
+        write("Eigen/src/Core/TargetOnly.h", "std::integral_constant<bool, false> legacy;\n")
         sh("git", "add", "Eigen/src/Core/TargetOnly.h")
         sh("git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "target-only")
         sh("git", "checkout", "-q", "main")
         # An untracked new file must be scanned even though git diff omits it.
         write("Eigen/src/Core/Untracked.h", "std::integral_constant<bool, true> b;\n")
-        write("Eigen/NewModule", "typedef int NewAlias;\n")
+        write("Eigen/NewModule", "enum { Flags = 0 };\n")
 
         results = run_diff_mode("target", root=tmp)
         paths = {rel_path for rel_path, _, _ in results}
@@ -309,7 +309,7 @@ def test_diff_mode_merge_base_and_untracked():
         assert "Eigen/src/Core/TargetOnly.h" not in paths, results
         # The unterminated replacement maps to line 1 despite the markers.
         noeol = [(l, m) for p, l, m in results if p == "Eigen/src/Core/NoEol.h"]
-        assert noeol and noeol[0][0] == 1 and "typedef" in noeol[0][1], results
+        assert noeol and noeol[0][0] == 1 and "static constexpr" in noeol[0][1], results
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

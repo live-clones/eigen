@@ -2,13 +2,21 @@
 # Conservative clang-tidy configuration for Eigen.
 #
 # Focuses on bug-finding checks with low false-positive rates.
-# Intentionally omits style-enforcement checks (modernize-*, google-*,
+# Intentionally omits blanket style enforcement (modernize-*, google-*,
 # cppcoreguidelines-*) since Eigen has its own conventions and is a
 # heavily-templated math library where many "modern C++" idioms don't apply.
+# The individually named modernize-* checks below are the exceptions: they
+# state actual Eigen conventions for new code. They only make sense because
+# both entry points restrict diagnostics to the lines a change adds via
+# --line-filter (ci/scripts/run-clang-tidy.sh for merge requests,
+# scripts/clang_tidy_hook.py while editing); whole-file they would report
+# thousands of pre-existing occurrences.
 
 Checks: >
   -*,
   bugprone-*,
+  modernize-use-nullptr,
+  modernize-use-using,
   -bugprone-narrowing-conversions,
   -bugprone-easily-swappable-parameters,
   -bugprone-implicit-widening-of-multiplication-result,
