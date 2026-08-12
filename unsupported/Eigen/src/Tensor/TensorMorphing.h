@@ -511,7 +511,7 @@ struct TensorEvaluator<const TensorSlicingOp<StartIndices, Sizes, ArgType>, Devi
       PacketReturnType rslt = m_impl.template packet<Unaligned>(inputIndices[0]);
       return rslt;
     } else {
-      EIGEN_ALIGN_MAX std::remove_const_t<CoeffReturnType> values[packetSize];
+      EIGEN_ALIGN_TO_BOUNDARY(sizeof(PacketReturnType)) std::remove_const_t<CoeffReturnType> values[packetSize];
       values[0] = m_impl.coeff(inputIndices[0]);
       values[packetSize - 1] = m_impl.coeff(inputIndices[1]);
       EIGEN_UNROLL_LOOP
@@ -697,7 +697,7 @@ struct TensorEvaluator<TensorSlicingOp<StartIndices, Sizes, ArgType>, Device>
     if (inputIndices[1] - inputIndices[0] == packetSize - 1) {
       this->m_impl.template writePacket<StoreMode>(inputIndices[0], x);
     } else {
-      EIGEN_ALIGN_MAX CoeffReturnType values[packetSize];
+      EIGEN_ALIGN_TO_BOUNDARY(sizeof(PacketReturnType)) CoeffReturnType values[packetSize];
       internal::pstore<CoeffReturnType, PacketReturnType>(values, x);
       this->m_impl.coeffRef(inputIndices[0]) = values[0];
       this->m_impl.coeffRef(inputIndices[1]) = values[packetSize - 1];

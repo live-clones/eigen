@@ -200,7 +200,7 @@ struct TensorEvaluator<const TensorReverseOp<ReverseDimensions, ArgType>, Device
 
     // Slow path: the packet crosses an inner-slice boundary, so the
     // contiguous-load trick does not apply.
-    EIGEN_ALIGN_MAX std::remove_const_t<CoeffReturnType> values[PacketSize];
+    EIGEN_ALIGN_TO_BOUNDARY(sizeof(PacketReturnType)) std::remove_const_t<CoeffReturnType> values[PacketSize];
     EIGEN_UNROLL_LOOP
     for (int i = 0; i < PacketSize; ++i) {
       values[i] = coeff(index + i);
@@ -417,7 +417,7 @@ struct TensorEvaluator<TensorReverseOp<ReverseDimensions, ArgType>, Device>
     }
 
     // Slow path: the packet crosses an inner-slice boundary.
-    EIGEN_ALIGN_MAX CoeffReturnType values[PacketSize];
+    EIGEN_ALIGN_TO_BOUNDARY(sizeof(PacketReturnType)) CoeffReturnType values[PacketSize];
     internal::pstore<CoeffReturnType, PacketReturnType>(values, x);
     EIGEN_UNROLL_LOOP
     for (int i = 0; i < PacketSize; ++i) {

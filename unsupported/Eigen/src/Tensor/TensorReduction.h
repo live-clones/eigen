@@ -905,7 +905,7 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
       }
     }
 
-    EIGEN_ALIGN_MAX std::remove_const_t<CoeffReturnType> values[PacketSize];
+    EIGEN_ALIGN_TO_BOUNDARY(sizeof(PacketReturnType)) std::remove_const_t<CoeffReturnType> values[PacketSize];
     EIGEN_IF_CONSTEXPR (ReducingInnerMostDims) {
       const Index num_values_to_reduce = (static_cast<int>(Layout) == static_cast<int>(ColMajor))
                                              ? m_preservedStrides[0]
