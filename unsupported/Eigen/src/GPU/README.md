@@ -538,6 +538,10 @@ Mandatory sync points:
 - `toHost()` / `HostTransfer::get()` -- Must deliver data to host
 - `info()` -- Must read the factorization status
 - `DeviceScalar` implicit conversion -- Downloads scalar from device
+- `Context` destruction after an unchecked release-build one-shot solve --
+  Retires kernels that may still read context-owned host scratch
+- An empty dense-solver `compute()` after a pending factorization -- Retires
+  the previous operation before resetting its host-visible status staging
 
 Debug-only sync points (compiled out under `EIGEN_NO_DEBUG`/`NDEBUG`): every
 solver `solve()` and accessor verifies `info() == Success` via `eigen_assert`,
@@ -549,14 +553,14 @@ lambda) setting to build its cached inverse diagonal.
 
 **Cross-stream safety** is automatic. `DeviceMatrix` tracks write completion
 via CUDA events. When a matrix written on stream A is read on stream B, the
-module automatically inserts `cudaStreamWaitEvent`. Same-stream operations
-skip the wait (CUDA guarantees in-order execution within a stream).
+module automatically inserts `cudaStreamWaitEvent`; waiting on the producing
+stream itself is also valid and preserves its existing in-order execution.
 Deallocation is ordered the same way: before an owning `DeviceMatrix`
 releases its storage (destruction, a reallocating `resize()`, or a
 move-overwrite), the stream-ordered free — enqueued on the allocation's bound
-stream — is made to wait for every other stream that used the matrix, so
-releasing a matrix immediately after enqueuing cross-stream work on it is
-safe.
+stream — is made to wait for events captured immediately after every
+cross-stream use. The originating stream may therefore be destroyed after its
+work completes without having to outlive the matrix.
 
 **Internal scratch allocation follows its execution stream.** `DeviceBuffer`
 storage used by `DeviceScalar`, dense and sparse solvers, FFT, and library
@@ -669,6 +673,11 @@ bool    empty()
 Scalar* data()                                           // Raw device pointer
 void    resize(Index rows, Index cols)                   // Discard contents; keeps the allocation
                                                          // when it is already large enough
+
+// Event protocol for custom CUDA operations
+void    waitReady(cudaStream_t stream) const             // Order stream after the last matrix write
+void    recordUse(cudaStream_t stream) const             // Call after enqueuing a read
+void    recordReady(cudaStream_t stream)                 // Call after enqueuing a write
 
 // Expression builders (return lightweight views, evaluated on assignment)
 AdjointView       adjoint()                              // GEMM with ConjTrans

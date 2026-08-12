@@ -366,6 +366,7 @@ class SparseContext {
     exec_spmv(x_size, y_size, const_cast<void*>(static_cast<const void*>(d_x.data())), static_cast<void*>(d_y.data()),
               alpha, beta, cu_op);
 
+    d_x.recordUse(stream());
     d_y.recordReady(stream());
   }
 
@@ -402,6 +403,7 @@ class SparseContext {
     exec_spmm(m_op, k_op, n, const_cast<void*>(static_cast<const void*>(d_X.data())), static_cast<void*>(d_Y.data()),
               alpha, beta, cu_op);
 
+    d_X.recordUse(stream());
     d_Y.recordReady(stream());
   }
 

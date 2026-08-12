@@ -126,6 +126,7 @@ class LLT {
     allocate_factor_storage();
     EIGEN_CUDA_RUNTIME_CHECK(
         cudaMemcpyAsync(d_factor_.get(), d_A.data(), factorBytes(), cudaMemcpyDeviceToDevice, solver_ctx_.stream()));
+    d_A.recordUse(solver_ctx_.stream());
 
     factorize();
     return *this;
@@ -192,6 +193,7 @@ class LLT {
     internal::DeviceBuffer d_x(rhsBytes(nrhs, ldb), solver_ctx_.streamHandle());
     EIGEN_CUDA_RUNTIME_CHECK(
         cudaMemcpyAsync(d_x.get(), d_B.data(), rhsBytes(nrhs, ldb), cudaMemcpyDeviceToDevice, solver_ctx_.stream()));
+    d_B.recordUse(solver_ctx_.stream());
     return solve_impl(nrhs, ldb, std::move(d_x));
   }
 
