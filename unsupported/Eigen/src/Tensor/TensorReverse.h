@@ -197,7 +197,7 @@ struct TensorEvaluator<const TensorReverseOp<ReverseDimensions, ArgType>, Device
     // load (plus a preverse when the inner dim is reversed).
     constexpr int inner_dim = (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ? 0 : NumDims - 1;
     const Index inner_size = m_dimensions[inner_dim];
-    const Index inner_pos = index - (index / inner_size) * inner_size;
+    const Index inner_pos = index % inner_size;
     if (inner_pos + PacketSize <= inner_size) {
       if (m_reverse[inner_dim]) {
         const Index input_index = reverseIndex(index + PacketSize - 1);
@@ -413,7 +413,7 @@ struct TensorEvaluator<TensorReverseOp<ReverseDimensions, ArgType>, Device>
     // one packet store (plus a preverse when the inner dim is reversed).
     constexpr int inner_dim = (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ? 0 : NumDims - 1;
     const Index inner_size = this->m_dimensions[inner_dim];
-    const Index inner_pos = index - (index / inner_size) * inner_size;
+    const Index inner_pos = index % inner_size;
     if (inner_pos + PacketSize <= inner_size) {
       if (this->m_reverse[inner_dim]) {
         const Index input_index = this->reverseIndex(index + PacketSize - 1);
