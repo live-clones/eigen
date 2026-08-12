@@ -92,10 +92,6 @@ class Context {
     init_cublas();
   }
 
-  // Teardown is member destruction in reverse declaration order (see the
-  // member block): the plan cache releases its cuBLASLt descriptors before
-  // the cuBLASLt handle, and the stream outlives every handle. All deleters
-  // swallow errors — CUDA may already be deinitialized at process exit.
   ~Context() = default;
 
   Context(const Context&) = delete;
@@ -197,19 +193,13 @@ class Context {
   static cusolverStatus_t destroyCusolver(cusolverDnHandle_t h) { return cusolverDnDestroy(h); }
   static cusparseStatus_t destroyCusparse(cusparseHandle_t h) { return cusparseDestroy(h); }
 
-  // Function-pointer deleters, installed at handle creation. A stateless
-  // deleter naming cusolverDnDestroy / cusparseDestroy would make every TU
-  // that destroys a Context link those libraries; the function pointer keeps
-  // the symbol reference in the TU that actually created the handle.
+  // Function-pointer deleters keep cusolverDnDestroy / cusparseDestroy referenced only by TUs that create handles.
   using LazyCusolverHandle =
       std::unique_ptr<std::remove_pointer_t<cusolverDnHandle_t>, cusolverStatus_t (*)(cusolverDnHandle_t)>;
   using LazyCusparseHandle =
       std::unique_ptr<std::remove_pointer_t<cusparseHandle_t>, cusparseStatus_t (*)(cusparseHandle_t)>;
 
-  // Declaration order is load-bearing: members are destroyed in reverse
-  // order, so the stream outlives every handle and the GEMM plan cache
-  // (whose entries hold cuBLASLt descriptors) is destroyed before the
-  // cuBLASLt handle.
+  // Destroyed in reverse declaration order: the plan cache before the cuBLASLt handle, the stream last.
   internal::UniqueStream stream_;
   internal::UniqueCublasHandle cublas_;
   LazyCusolverHandle cusolver_{nullptr, nullptr};

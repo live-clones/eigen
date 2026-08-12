@@ -27,17 +27,7 @@ namespace gpu {
 namespace internal {
 
 struct GpuSolverContext {
-  // Non-null when this solver context borrows from a gpu::Context: stream and
-  // cuSOLVER/cuBLAS handles are the Context's, and the cuBLASLt handle, GEMM
-  // plan cache, and GEMM workspace are shared with it rather than duplicated.
-  // Null in standalone mode, where all of the above are owned.
   Context* bound_ctx_ = nullptr;
-  // Declaration order is load-bearing: members are destroyed in reverse
-  // order, so the stream outlives every handle and the GEMM plan cache
-  // (whose entries hold cuBLASLt descriptors) is destroyed before the
-  // cuBLASLt handle. All deleters swallow errors — dtors are noexcept — and
-  // the device buffers free stream-ordered (or synchronously on the
-  // cudaMalloc fallback), waiting for any in-flight kernel touching them.
   UniqueStream stream_;
   UniqueCusolverHandle cusolver_;
   UniqueCublasHandle cublas_;
@@ -94,14 +84,9 @@ struct GpuSolverContext {
 
   GpuSolverContext& operator=(GpuSolverContext&& o) noexcept {
     if (this != &o) {
-      // A pending info copy writes into pinned_info_, whose cudaFreeHost
-      // deleter is not stream-ordered. nullptr is a valid default stream, so
-      // do not guard the synchronization on stream().
+      // A pending info copy may still write pinned_info_, whose cudaFreeHost deleter is not stream-ordered.
       if (!info_synced_ && pinned_info_) (void)cudaStreamSynchronize(stream());
-      // Release this instance's plan-cache descriptors before the member-wise
-      // moves below tear down the cuBLASLt handle they were built with. The
-      // device-buffer moves remain safe through stream-ordered frees (or the
-      // synchronous cudaMalloc fallback).
+      // Release plan-cache descriptors before the moves below replace the cuBLASLt handle they were built with.
       gemm_plan_cache_.clear();
       bound_ctx_ = o.bound_ctx_;
       stream_ = std::move(o.stream_);

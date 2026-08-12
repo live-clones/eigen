@@ -125,10 +125,7 @@ struct CudaFreeHostDeleter {
   }
 };
 
-// RAII CUDA stream. The ownership flag lets a borrowed stream (e.g. a
-// gpu::Context bound to a caller-provided stream) flow through the same
-// member type as an owned one. Destruction is deferred by CUDA until
-// enqueued work completes, so destroying with work in flight is safe.
+// RAII CUDA stream; the ownership flag supports borrowed, caller-owned streams.
 struct CudaStreamDeleter {
   bool owns = true;
   void operator()(cudaStream_t s) const noexcept {

@@ -60,9 +60,7 @@ inline int64_t to_blas_dim(int64_t v) { return v; }
 inline int to_blas_dim(int64_t v) { return to_blas_int(v); }
 #endif
 
-// RAII cuBLAS / cuBLASLt handles. The cuBLAS deleter carries an ownership
-// flag so a handle borrowed from a gpu::Context flows through the same
-// member type as an owned one.
+// RAII cuBLAS / cuBLASLt handles; the ownership flag supports handles borrowed from a gpu::Context.
 struct CublasHandleDeleter {
   bool owns = true;
   void operator()(cublasHandle_t h) const noexcept {
