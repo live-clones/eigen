@@ -162,11 +162,10 @@ struct evaluator<Concat<Direction, LhsType, RhsType>> : evaluator_base<Concat<Di
     // coefficients in that same order. Compile-time vectors are exempt: a vector evaluator with
     // packet access is contiguous along its single extent, and requests along the other
     // direction can only be single-lane.
-    LhsOrderAgrees = ((int(LhsFlags) & RowMajorBit) == int(IsRowMajor)) || LhsNestedCleaned::IsVectorAtCompileTime,
-    RhsOrderAgrees = ((int(RhsFlags) & RowMajorBit) == int(IsRowMajor)) || RhsNestedCleaned::IsVectorAtCompileTime,
-    BothHavePacketAccess =
-        (int(LhsFlags) & PacketAccessBit) && (int(RhsFlags) & PacketAccessBit) && LhsOrderAgrees && RhsOrderAgrees,
-    BothHaveLinearAccess = (int(LhsFlags) & LinearAccessBit) && (int(RhsFlags) & LinearAccessBit),
+    LhsOrderAgrees = (bool(int(LhsFlags) & RowMajorBit) == bool(IsRowMajor)) || LhsNestedCleaned::IsVectorAtCompileTime,
+    RhsOrderAgrees = (bool(int(RhsFlags) & RowMajorBit) == bool(IsRowMajor)) || RhsNestedCleaned::IsVectorAtCompileTime,
+    BothHavePacketAccess = (int(LhsFlags) & int(RhsFlags) & PacketAccessBit) && LhsOrderAgrees && RhsOrderAgrees,
+    BothHaveLinearAccess = int(LhsFlags) & int(RhsFlags) & LinearAccessBit,
     Flags = (traits<XprType>::Flags & RowMajorBit) | (BothHavePacketAccess ? PacketAccessBit : 0) |
             (IsVectorAtCompileTime && BothHaveLinearAccess ? LinearAccessBit : 0),
     Alignment = 0  // conservative: no alignment guarantees across boundary
