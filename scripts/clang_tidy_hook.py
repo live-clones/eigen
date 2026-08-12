@@ -123,7 +123,7 @@ def run_clang_tidy(per_file, root=REPO_ROOT, tidy=None):
     clang-tidy emits no useful check output for it, and reporting it as clean
     would claim a check that never ran.
     """
-    tidy = tidy or shutil.which("clang-tidy")
+    tidy = shutil.which(tidy or "clang-tidy")
     if tidy is None:
         return None, []
     diagnostics, skipped = [], []
@@ -164,7 +164,7 @@ def run_clang_tidy(per_file, root=REPO_ROOT, tidy=None):
     return diagnostics, skipped
 
 
-def run_hook_mode():
+def run_hook_mode(tidy=None):
     try:
         payload = json.load(sys.stdin)
     except Exception:
@@ -177,7 +177,7 @@ def run_hook_mode():
         # Without real line numbers a line filter would point at the wrong
         # lines; silence beats a misplaced diagnostic.
         return 0
-    diagnostics, skipped = run_clang_tidy({rel_path: added})
+    diagnostics, skipped = run_clang_tidy({rel_path: added}, tidy=tidy)
     if not diagnostics:
         broken = [reason for path, reason in (skipped or []) if reason == "translation unit did not compile"]
         if broken:
@@ -195,11 +195,11 @@ def run_hook_mode():
     return 2
 
 
-def run_diff_mode(base):
+def run_diff_mode(base, tidy=None):
     per_file = diff_added_lines(base)
-    diagnostics, skipped = run_clang_tidy(per_file)
+    diagnostics, skipped = run_clang_tidy(per_file, tidy=tidy)
     if diagnostics is None:
-        sys.stderr.write("clang-tidy not found; skipping.\n")
+        sys.stderr.write("%s not found; skipping.\n" % (tidy or "clang-tidy"))
         return 0
     for line in diagnostics:
         print(line)
@@ -215,13 +215,22 @@ def main():
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--diff", metavar="BASE", help="lint lines added since merge-base(BASE, HEAD)")
     mode.add_argument("--claude-hook", action="store_true", help="run as a Claude Code PostToolUse hook")
+    parser.add_argument("-b", "--binary", metavar="CLANG_TIDY",
+                        help="clang-tidy executable to use, as a PATH name or a full path "
+                             "(e.g. clang-tidy-19 from LLVM's version-suffixed packages); "
+                             "default: clang-tidy")
     args = parser.parse_args()
     if args.claude_hook:
         try:
-            return run_hook_mode()
+            return run_hook_mode(tidy=args.binary)
         except Exception:
             return 0  # a broken hook must not block the harness
-    return run_diff_mode(args.diff)
+    if args.binary and shutil.which(args.binary) is None:
+        # In diff mode an explicitly named binary that is absent is a usage
+        # error; silently skipping would claim a check that never ran.  Hook
+        # mode above keeps the fail-open contract instead.
+        parser.error("--binary %s not found" % args.binary)
+    return run_diff_mode(args.diff, tidy=args.binary)
 
 
 if __name__ == "__main__":

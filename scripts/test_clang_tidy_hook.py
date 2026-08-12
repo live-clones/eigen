@@ -77,8 +77,7 @@ def test_umbrella_resolution():
 
 
 def test_tidy_target():
-    tmp = tempfile.mkdtemp(prefix="tidy_target_test_")
-    try:
+    with tempfile.TemporaryDirectory(prefix="tidy_target_test_") as tmp:
         # A src-tree header is linted after its umbrella.  The explicit second
         # include is needed for a new header the umbrella does not export yet.
         driver = tidy_target("Eigen/src/Core/Block.h", tmp)
@@ -94,8 +93,6 @@ def test_tidy_target():
         assert tidy_target("test/main.h", tmp) is None
         # An unresolvable module is skipped.
         assert tidy_target("Eigen/src/CholmodSupport/CholmodSupport.h", tmp) is None
-    finally:
-        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def test_compile_args():
@@ -112,8 +109,7 @@ def test_end_to_end_line_filter():
     if shutil.which("clang-tidy") is None:
         print("SKIP test_end_to_end_line_filter (clang-tidy not installed)")
         return
-    tmp = tempfile.mkdtemp(prefix="tidy_e2e_test_")
-    try:
+    with tempfile.TemporaryDirectory(prefix="tidy_e2e_test_") as tmp:
         header = os.path.join(tmp, "probe.h")
         with open(header, "w") as handle:
             handle.write("struct Probe {\n"
@@ -131,8 +127,6 @@ def test_end_to_end_line_filter():
         hits = [line for line in out.splitlines() if "modernize-use-using" in line]
         assert len(hits) == 1, "expected exactly the added line, got %r" % (hits,)
         assert "probe.h:3:" in hits[0], hits
-    finally:
-        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def test_broken_translation_unit_is_not_reported_clean():
@@ -140,8 +134,7 @@ def test_broken_translation_unit_is_not_reported_clean():
     if shutil.which("clang-tidy") is None:
         print("SKIP test_broken_translation_unit_is_not_reported_clean (clang-tidy not installed)")
         return
-    tmp = tempfile.mkdtemp(prefix="tidy_broken_test_")
-    try:
+    with tempfile.TemporaryDirectory(prefix="tidy_broken_test_") as tmp:
         os.makedirs(os.path.join(tmp, "test"))
         # run_clang_tidy reads <root>/.clang-tidy, so the fake root needs one.
         shutil.copyfile(os.path.join(REPO_ROOT, ".clang-tidy"), os.path.join(tmp, ".clang-tidy"))
@@ -152,8 +145,6 @@ def test_broken_translation_unit_is_not_reported_clean():
         assert diagnostics == [], diagnostics
         reasons = [reason for path, reason in skipped if path == "test/broken.cpp"]
         assert reasons == ["translation unit did not compile"], skipped
-    finally:
-        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def test_new_src_header_is_checked():
@@ -161,8 +152,7 @@ def test_new_src_header_is_checked():
     if shutil.which("clang-tidy") is None:
         print("SKIP test_new_src_header_is_checked (clang-tidy not installed)")
         return
-    tmp = tempfile.mkdtemp(prefix="tidy_new_header_test_")
-    try:
+    with tempfile.TemporaryDirectory(prefix="tidy_new_header_test_") as tmp:
         src = os.path.join(tmp, "Eigen", "src", "Core")
         os.makedirs(src)
         with open(os.path.join(tmp, ".clang-tidy"), "w") as handle:
@@ -180,13 +170,23 @@ def test_new_src_header_is_checked():
         diagnostics, skipped = run_clang_tidy({"Eigen/src/Core/Added.h": {2}}, root=tmp)
         assert not skipped, skipped
         assert len(diagnostics) == 1 and "modernize-use-using" in diagnostics[0], diagnostics
-    finally:
-        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_binary_flag():
+    """--binary must be honored: a usage error in diff mode, fail-open in hook mode."""
+    script = os.path.join(REPO_ROOT, "scripts", "clang_tidy_hook.py")
+    done = subprocess.run([sys.executable, script, "--diff", "HEAD", "--binary", "no-such-clang-tidy"],
+                          capture_output=True, text=True)
+    assert done.returncode == 2 and "no-such-clang-tidy" in done.stderr, (done.returncode, done.stderr)
+    done = subprocess.run([sys.executable, script, "--claude-hook", "--binary", "no-such-clang-tidy"],
+                          input="{}", capture_output=True, text=True)
+    assert done.returncode == 0, (done.returncode, done.stderr)
+    # A resolvable path is used as given: /bin/false runs and fails, which
+    # run_clang_tidy reports per file (test_clang_tidy_failure_is_not_reported_clean).
 
 
 def test_clang_tidy_failure_is_not_reported_clean():
-    tmp = tempfile.mkdtemp(prefix="tidy_failure_test_")
-    try:
+    with tempfile.TemporaryDirectory(prefix="tidy_failure_test_") as tmp:
         os.makedirs(os.path.join(tmp, "test"))
         with open(os.path.join(tmp, ".clang-tidy"), "w") as handle:
             handle.write("Checks: '-*'\n")
@@ -195,8 +195,6 @@ def test_clang_tidy_failure_is_not_reported_clean():
         diagnostics, skipped = run_clang_tidy({"test/probe.cpp": {1}}, root=tmp, tidy="/bin/false")
         assert diagnostics == [], diagnostics
         assert skipped == [("test/probe.cpp", "clang-tidy failed")], skipped
-    finally:
-        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def test_failtest_is_checked_without_failure_macro():
@@ -204,8 +202,7 @@ def test_failtest_is_checked_without_failure_macro():
     if shutil.which("clang-tidy") is None:
         print("SKIP test_failtest_is_checked_without_failure_macro (clang-tidy not installed)")
         return
-    tmp = tempfile.mkdtemp(prefix="tidy_failtest_test_")
-    try:
+    with tempfile.TemporaryDirectory(prefix="tidy_failtest_test_") as tmp:
         os.makedirs(os.path.join(tmp, "failtest"))
         with open(os.path.join(tmp, ".clang-tidy"), "w") as handle:
             handle.write("Checks: '-*,modernize-use-using'\n")
@@ -218,8 +215,6 @@ def test_failtest_is_checked_without_failure_macro():
         diagnostics, skipped = run_clang_tidy({"failtest/probe.cpp": {4}}, root=tmp)
         assert not skipped, skipped
         assert len(diagnostics) == 1 and "modernize-use-using" in diagnostics[0], diagnostics
-    finally:
-        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def main():

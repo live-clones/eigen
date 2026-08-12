@@ -77,12 +77,14 @@ STD_MATH = (
 # needing a CustomChecks query (parked in .clang-tidy until CI's clang-tidy
 # reaches 22) and those no AST matcher reaches at all.
 #
-# One known gap in that handover: modernize-use-using reports typedefs at class
-# and namespace scope but not function-local ones (measured against clang-tidy
-# 18 — Block.h 17 of 18, Redux.h 24 of 25, GeneralMatrixMatrix.h 21 of 28).
-# modernize-use-nullptr has no such gap.  A function-local typedef in new code
-# therefore now goes unreported; reintroducing a regex for it would bring back
-# the false positives this handover removes, so the gap is left open.
+# One known gap in that handover: modernize-use-using in clang-tidy 18 (the
+# checkformat:clangtidy toolchain) reports typedefs at class and namespace
+# scope but not function-local ones (measured — Block.h 17 of 18, Redux.h 24
+# of 25, GeneralMatrixMatrix.h 21 of 28).  That was an upstream defect,
+# llvm/llvm-project#72179, fixed in the 19.x release, so the gap closes when
+# the CI image's clang-tidy moves; until then a function-local typedef in new
+# code goes unreported.  Reintroducing a regex for it would bring back the
+# false positives this handover removes.  modernize-use-nullptr has no gap.
 CODE_CHECKS = [
     # Awaiting the parked eigen-bool-constant query.
     (r"std::integral_constant<\s*bool\b", "std::integral_constant<bool,...>: use Eigen's bool_constant (Meta.h)"),
@@ -96,7 +98,7 @@ CXX14_CHECKS = [
     # Awaiting the parked eigen-if-constexpr query.  A C++14 build does not
     # reliably reject this on its own: clang accepts `if constexpr` as an
     # extension and only warns under -Wc++17-extensions.
-    (r"\bif\s+constexpr\b", "if constexpr: supported code compiles as C++14; use EIGEN_IF_CONSTEXPR(...) with a "
+    (r"\bif\s+constexpr\b", "if constexpr: supported code compiles as C++14; use EIGEN_IF_CONSTEXPR (...) with a "
                             "condition that is valid either way"),
     # These do fail the default C++14 build; flagging them at edit time just
     # shortens the loop, and covers headers no built target happens to include.

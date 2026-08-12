@@ -12,7 +12,6 @@ Usage: python3 scripts/test_check_style.py
 """
 
 import os
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -267,8 +266,7 @@ def test_no_newline_marker():
 
 
 def test_diff_mode_merge_base_and_untracked():
-    tmp = tempfile.mkdtemp(prefix="check_style_test_")
-    try:
+    with tempfile.TemporaryDirectory(prefix="check_style_test_") as tmp:
         def sh(*args):
             subprocess.run(args, cwd=tmp, check=True, capture_output=True)
 
@@ -310,8 +308,6 @@ def test_diff_mode_merge_base_and_untracked():
         # The unterminated replacement maps to line 1 despite the markers.
         noeol = [(l, m) for p, l, m in results if p == "Eigen/src/Core/NoEol.h"]
         assert noeol and noeol[0][0] == 1 and "static constexpr" in noeol[0][1], results
-    finally:
-        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def main():
