@@ -50,24 +50,18 @@ class SparseSolverBase {
   using DenseVector = Matrix<Scalar, Dynamic, 1>;
   using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
 
-  SparseSolverBase() { init_context(/*stream=*/nullptr, /*borrow_stream=*/false); }
+  SparseSolverBase() : stream_(create_stream()) { init_cudss(); }
 
   /** Borrow \p ctx's stream: solver work runs on the same stream as the
    * caller's other GPU operations (device-resident solves chain with SpMV /
    * cuBLAS work without cross-stream event waits). The cuDSS handle itself is
    * always owned by this solver. \p ctx must outlive this object. */
-  explicit SparseSolverBase(Context& ctx) { init_context(ctx.stream(), /*borrow_stream=*/true); }
+  explicit SparseSolverBase(Context& ctx) : stream_(borrow_stream(ctx.stream())) { init_cudss(); }
 
-  ~SparseSolverBase() {
-    destroy_cudss_objects();
-    if (handle_) (void)cudssDestroy(handle_);
-    d_rowPtr_ = DeviceBuffer();
-    d_colIdx_ = DeviceBuffer();
-    d_values_ = DeviceBuffer();
-    d_b_solve_ = DeviceBuffer();
-    d_x_solve_ = DeviceBuffer();
-    if (owns_stream_ && stream_) (void)cudaStreamDestroy(stream_);
-  }
+  // All resources are RAII members; reverse declaration order destroys the
+  // cuDSS descriptors and device buffers first, then data_ (whose deleter
+  // needs handle_), then config_/handle_, and stream_ last.
+  ~SparseSolverBase() = default;
 
   SparseSolverBase(const SparseSolverBase&) = delete;
   SparseSolverBase& operator=(const SparseSolverBase&) = delete;
@@ -120,12 +114,15 @@ class SparseSolverBase {
     }
     create_cudss_matrix();
 
-    if (data_) EIGEN_CUDSS_CHECK(cudssDataDestroy(handle_, data_));
-    EIGEN_CUDSS_CHECK(cudssDataCreate(handle_, &data_));
+    data_.reset();
+    cudssData_t data = nullptr;
+    EIGEN_CUDSS_CHECK(cudssDataCreate(handle_.get(), &data));
+    data_ = CudssDataPtr(data, CudssDataDeleter{handle_.get()});
 
     create_placeholder_dense();
 
-    EIGEN_CUDSS_CHECK(cudssExecute(handle_, CUDSS_PHASE_ANALYSIS, config_, data_, d_A_cudss_, d_x_cudss_, d_b_cudss_));
+    EIGEN_CUDSS_CHECK(cudssExecute(handle_.get(), CUDSS_PHASE_ANALYSIS, config_.get(), data_.get(), d_A_cudss_.get(),
+                                   d_x_cudss_.get(), d_b_cudss_.get()));
 
     analysis_done_ = true;
     info_ = Success;
@@ -176,14 +173,14 @@ class SparseSolverBase {
     EIGEN_UNUSED_VARIABLE(value_nnz);
 
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_values_.get(), value_ptr, static_cast<size_t>(nnz_) * sizeof(Scalar),
-                                             cudaMemcpyHostToDevice, stream_));
+                                             cudaMemcpyHostToDevice, stream()));
 
-    EIGEN_CUDSS_CHECK(cudssMatrixSetValues(d_A_cudss_, d_values_.get()));
+    EIGEN_CUDSS_CHECK(cudssMatrixSetValues(d_A_cudss_.get(), d_values_.get()));
 
     info_ = InvalidInput;
     info_synced_ = false;
-    EIGEN_CUDSS_CHECK(
-        cudssExecute(handle_, CUDSS_PHASE_FACTORIZATION, config_, data_, d_A_cudss_, d_x_cudss_, d_b_cudss_));
+    EIGEN_CUDSS_CHECK(cudssExecute(handle_.get(), CUDSS_PHASE_FACTORIZATION, config_.get(), data_.get(),
+                                   d_A_cudss_.get(), d_x_cudss_.get(), d_b_cudss_.get()));
 
     return derived();
   }
@@ -207,15 +204,16 @@ class SparseSolverBase {
     const size_t rhs_bytes = static_cast<size_t>(n_) * static_cast<size_t>(nrhs) * sizeof(Scalar);
     ensure_solve_buffer(d_b_solve_, rhs_bytes);
     ensure_solve_buffer(d_x_solve_, rhs_bytes);
-    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_b_solve_.get(), rhs.data(), rhs_bytes, cudaMemcpyHostToDevice, stream_));
+    EIGEN_CUDA_RUNTIME_CHECK(
+        cudaMemcpyAsync(d_b_solve_.get(), rhs.data(), rhs_bytes, cudaMemcpyHostToDevice, stream()));
 
     update_solve_descriptors(nrhs, d_b_solve_.get(), d_x_solve_.get());
-    EIGEN_CUDSS_CHECK(
-        cudssExecute(handle_, CUDSS_PHASE_SOLVE, config_, data_, d_A_cudss_, x_solve_cudss_, b_solve_cudss_));
+    EIGEN_CUDSS_CHECK(cudssExecute(handle_.get(), CUDSS_PHASE_SOLVE, config_.get(), data_.get(), d_A_cudss_.get(),
+                                   x_solve_cudss_.get(), b_solve_cudss_.get()));
 
     DenseMatrix X(n_, rhs.cols());
-    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(X.data(), d_x_solve_.get(), rhs_bytes, cudaMemcpyDeviceToHost, stream_));
-    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream_));
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(X.data(), d_x_solve_.get(), rhs_bytes, cudaMemcpyDeviceToHost, stream()));
+    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream()));
 
     return X;
   }
@@ -233,11 +231,11 @@ class SparseSolverBase {
     DeviceMatrix<Scalar> X(n_, d_B.cols());
     if (n_ == 0 || nrhs == 0) return X;
 
-    d_B.waitReady(stream_);
+    d_B.waitReady(stream());
     update_solve_descriptors(nrhs, const_cast<Scalar*>(d_B.data()), X.data());
-    EIGEN_CUDSS_CHECK(
-        cudssExecute(handle_, CUDSS_PHASE_SOLVE, config_, data_, d_A_cudss_, x_solve_cudss_, b_solve_cudss_));
-    X.recordReady(stream_);
+    EIGEN_CUDSS_CHECK(cudssExecute(handle_.get(), CUDSS_PHASE_SOLVE, config_.get(), data_.get(), d_A_cudss_.get(),
+                                   x_solve_cudss_.get(), b_solve_cudss_.get()));
+    X.recordReady(stream());
     return X;
   }
 
@@ -248,17 +246,19 @@ class SparseSolverBase {
   Index rows() const { return n_; }
   Index cols() const { return n_; }
 
-  cudaStream_t stream() const { return stream_; }
+  cudaStream_t stream() const { return stream_.get(); }
 
  protected:
-  cudaStream_t stream_ = nullptr;
-  bool owns_stream_ = true;
-  cudssHandle_t handle_ = nullptr;
-  cudssConfig_t config_ = nullptr;
-  cudssData_t data_ = nullptr;
-  cudssMatrix_t d_A_cudss_ = nullptr;
-  cudssMatrix_t d_x_cudss_ = nullptr;
-  cudssMatrix_t d_b_cudss_ = nullptr;
+  // Declared first: destroyed last, after every member whose destruction
+  // releases resources against the stream.
+  CudaStreamHandle stream_;
+  CudssHandlePtr handle_;
+  CudssConfigPtr config_;
+  // data_'s deleter captures handle_; declared after it so it is destroyed first.
+  CudssDataPtr data_;
+  CudssMatrixPtr d_A_cudss_;
+  CudssMatrixPtr d_x_cudss_;
+  CudssMatrixPtr d_b_cudss_;
 
   DeviceBuffer d_rowPtr_;
   DeviceBuffer d_colIdx_;
@@ -274,8 +274,8 @@ class SparseSolverBase {
 
   // Cached cuDSS dense descriptors for solve, re-pointed per call and
   // recreated only when nrhs changes.
-  mutable cudssMatrix_t b_solve_cudss_ = nullptr;
-  mutable cudssMatrix_t x_solve_cudss_ = nullptr;
+  mutable CudssMatrixPtr b_solve_cudss_;
+  mutable CudssMatrixPtr x_solve_cudss_;
   mutable int64_t solve_desc_nrhs_ = -1;
 
   int64_t n_ = 0;
@@ -288,24 +288,19 @@ class SparseSolverBase {
   Derived& derived() { return static_cast<Derived&>(*this); }
   const Derived& derived() const { return static_cast<const Derived&>(*this); }
 
-  void init_context(cudaStream_t stream, bool borrow_stream) {
-    if (borrow_stream) {
-      // nullptr is CUDA's valid legacy default stream, so ownership cannot be
-      // inferred from the stream value.
-      stream_ = stream;
-      owns_stream_ = false;
-    } else {
-      EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&stream_));
-      owns_stream_ = true;
-    }
-    EIGEN_CUDSS_CHECK(cudssCreate(&handle_));
-    EIGEN_CUDSS_CHECK(cudssSetStream(handle_, stream_));
-    EIGEN_CUDSS_CHECK(cudssConfigCreate(&config_));
+  void init_cudss() {
+    cudssHandle_t handle = nullptr;
+    EIGEN_CUDSS_CHECK(cudssCreate(&handle));
+    handle_.reset(handle);
+    EIGEN_CUDSS_CHECK(cudssSetStream(handle, stream()));
+    cudssConfig_t config = nullptr;
+    EIGEN_CUDSS_CHECK(cudssConfigCreate(&config));
+    config_.reset(config);
   }
 
   void ensure_solve_buffer(DeviceBuffer& buf, size_t needed) const {
     if (needed > buf.size()) {
-      buf = DeviceBuffer(needed, stream_);
+      buf = DeviceBuffer(needed, stream());
     }
   }
 
@@ -315,24 +310,22 @@ class SparseSolverBase {
     constexpr cudss_value_type_t dtype = to_cudss_data_type(cuda_data_type<Scalar>::value);
     if (!b_solve_cudss_ || solve_desc_nrhs_ != nrhs) {
       destroy_solve_descriptors();
-      EIGEN_CUDSS_CHECK(cudssMatrixCreateDn(&b_solve_cudss_, n_, nrhs, n_, b_ptr, dtype, CUDSS_LAYOUT_COL_MAJOR));
-      EIGEN_CUDSS_CHECK(cudssMatrixCreateDn(&x_solve_cudss_, n_, nrhs, n_, x_ptr, dtype, CUDSS_LAYOUT_COL_MAJOR));
+      cudssMatrix_t b = nullptr;
+      EIGEN_CUDSS_CHECK(cudssMatrixCreateDn(&b, n_, nrhs, n_, b_ptr, dtype, CUDSS_LAYOUT_COL_MAJOR));
+      b_solve_cudss_.reset(b);
+      cudssMatrix_t x = nullptr;
+      EIGEN_CUDSS_CHECK(cudssMatrixCreateDn(&x, n_, nrhs, n_, x_ptr, dtype, CUDSS_LAYOUT_COL_MAJOR));
+      x_solve_cudss_.reset(x);
       solve_desc_nrhs_ = nrhs;
     } else {
-      EIGEN_CUDSS_CHECK(cudssMatrixSetValues(b_solve_cudss_, b_ptr));
-      EIGEN_CUDSS_CHECK(cudssMatrixSetValues(x_solve_cudss_, x_ptr));
+      EIGEN_CUDSS_CHECK(cudssMatrixSetValues(b_solve_cudss_.get(), b_ptr));
+      EIGEN_CUDSS_CHECK(cudssMatrixSetValues(x_solve_cudss_.get(), x_ptr));
     }
   }
 
   void destroy_solve_descriptors() const {
-    if (b_solve_cudss_) {
-      (void)cudssMatrixDestroy(b_solve_cudss_);
-      b_solve_cudss_ = nullptr;
-    }
-    if (x_solve_cudss_) {
-      (void)cudssMatrixDestroy(x_solve_cudss_);
-      x_solve_cudss_ = nullptr;
-    }
+    b_solve_cudss_.reset();
+    x_solve_cudss_.reset();
     solve_desc_nrhs_ = -1;
   }
 
@@ -341,34 +334,10 @@ class SparseSolverBase {
       // cudssDataGet for CUDSS_DATA_INFO synchronizes the stream internally,
       // so an explicit cudaStreamSynchronize would be redundant.
       int cudss_info = 0;
-      EIGEN_CUDSS_CHECK(cudssDataGet(handle_, data_, CUDSS_DATA_INFO, &cudss_info, sizeof(cudss_info), nullptr));
+      EIGEN_CUDSS_CHECK(
+          cudssDataGet(handle_.get(), data_.get(), CUDSS_DATA_INFO, &cudss_info, sizeof(cudss_info), nullptr));
       info_ = (cudss_info == 0) ? Success : NumericalIssue;
       info_synced_ = true;
-    }
-  }
-
-  // Destructor-only cleanup: there is no useful recovery path for failures.
-  void destroy_cudss_objects() {
-    destroy_solve_descriptors();
-    if (d_A_cudss_) {
-      (void)cudssMatrixDestroy(d_A_cudss_);
-      d_A_cudss_ = nullptr;
-    }
-    if (d_x_cudss_) {
-      (void)cudssMatrixDestroy(d_x_cudss_);
-      d_x_cudss_ = nullptr;
-    }
-    if (d_b_cudss_) {
-      (void)cudssMatrixDestroy(d_b_cudss_);
-      d_b_cudss_ = nullptr;
-    }
-    if (data_) {
-      (void)cudssDataDestroy(handle_, data_);
-      data_ = nullptr;
-    }
-    if (config_) {
-      (void)cudssConfigDestroy(config_);
-      config_ = nullptr;
     }
   }
 
@@ -393,33 +362,35 @@ class SparseSolverBase {
     const size_t colidx_bytes = static_cast<size_t>(nnz_) * sizeof(StorageIndex);
     const size_t values_bytes = static_cast<size_t>(nnz_) * sizeof(Scalar);
 
-    d_rowPtr_ = DeviceBuffer(rowptr_bytes, stream_);
-    d_colIdx_ = DeviceBuffer(colidx_bytes, stream_);
-    d_values_ = DeviceBuffer(values_bytes, stream_);
+    d_rowPtr_ = DeviceBuffer(rowptr_bytes, stream());
+    d_colIdx_ = DeviceBuffer(colidx_bytes, stream());
+    d_values_ = DeviceBuffer(values_bytes, stream());
 
-    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_rowPtr_.get(), outer, rowptr_bytes, cudaMemcpyHostToDevice, stream_));
-    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_colIdx_.get(), inner, colidx_bytes, cudaMemcpyHostToDevice, stream_));
-    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_values_.get(), values, values_bytes, cudaMemcpyHostToDevice, stream_));
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_rowPtr_.get(), outer, rowptr_bytes, cudaMemcpyHostToDevice, stream()));
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_colIdx_.get(), inner, colidx_bytes, cudaMemcpyHostToDevice, stream()));
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_values_.get(), values, values_bytes, cudaMemcpyHostToDevice, stream()));
   }
 
   void create_cudss_matrix() {
-    if (d_A_cudss_) EIGEN_CUDSS_CHECK(cudssMatrixDestroy(d_A_cudss_));
+    d_A_cudss_.reset();
 
     constexpr cudss_value_type_t idx_type = to_cudss_data_type(cudss_index_type<StorageIndex>::value);
     constexpr cudss_value_type_t val_type = to_cudss_data_type(cuda_data_type<Scalar>::value);
     constexpr cudssMatrixType_t mtype = Derived::cudss_matrix_type();
     constexpr cudssMatrixViewType_t mview = Derived::cudss_matrix_view();
 
+    cudssMatrix_t A = nullptr;
 #if defined(CUDSS_VERSION) && CUDSS_VERSION >= 800
     // cuDSS 0.8 split the index type into separate offset/index type params.
-    EIGEN_CUDSS_CHECK(cudssMatrixCreateCsr(&d_A_cudss_, n_, n_, nnz_, d_rowPtr_.get(),
+    EIGEN_CUDSS_CHECK(cudssMatrixCreateCsr(&A, n_, n_, nnz_, d_rowPtr_.get(),
                                            /*rowEnd=*/nullptr, d_colIdx_.get(), d_values_.get(), idx_type, idx_type,
                                            val_type, mtype, mview, CUDSS_BASE_ZERO));
 #else
-    EIGEN_CUDSS_CHECK(cudssMatrixCreateCsr(&d_A_cudss_, n_, n_, nnz_, d_rowPtr_.get(),
+    EIGEN_CUDSS_CHECK(cudssMatrixCreateCsr(&A, n_, n_, nnz_, d_rowPtr_.get(),
                                            /*rowEnd=*/nullptr, d_colIdx_.get(), d_values_.get(), idx_type, val_type,
                                            mtype, mview, CUDSS_BASE_ZERO));
 #endif
+    d_A_cudss_.reset(A);
   }
 
   // TODO: expose a fill-reducing reordering choice. Since cuDSS 0.8,
@@ -431,11 +402,15 @@ class SparseSolverBase {
   void create_placeholder_dense() {
     // A new analysis may change n_, so the cached solve descriptors are stale.
     destroy_solve_descriptors();
-    if (d_x_cudss_) EIGEN_CUDSS_CHECK(cudssMatrixDestroy(d_x_cudss_));
-    if (d_b_cudss_) EIGEN_CUDSS_CHECK(cudssMatrixDestroy(d_b_cudss_));
+    d_x_cudss_.reset();
+    d_b_cudss_.reset();
     constexpr cudss_value_type_t dtype = to_cudss_data_type(cuda_data_type<Scalar>::value);
-    EIGEN_CUDSS_CHECK(cudssMatrixCreateDn(&d_x_cudss_, n_, 1, n_, nullptr, dtype, CUDSS_LAYOUT_COL_MAJOR));
-    EIGEN_CUDSS_CHECK(cudssMatrixCreateDn(&d_b_cudss_, n_, 1, n_, nullptr, dtype, CUDSS_LAYOUT_COL_MAJOR));
+    cudssMatrix_t x = nullptr;
+    EIGEN_CUDSS_CHECK(cudssMatrixCreateDn(&x, n_, 1, n_, nullptr, dtype, CUDSS_LAYOUT_COL_MAJOR));
+    d_x_cudss_.reset(x);
+    cudssMatrix_t b = nullptr;
+    EIGEN_CUDSS_CHECK(cudssMatrixCreateDn(&b, n_, 1, n_, nullptr, dtype, CUDSS_LAYOUT_COL_MAJOR));
+    d_b_cudss_.reset(b);
   }
 };
 }  // namespace internal
