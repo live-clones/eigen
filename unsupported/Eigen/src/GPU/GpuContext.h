@@ -49,13 +49,6 @@ struct OneShotSolverScratch {
   DeviceBuffer d_info;                             // 2 ints: {factorization, solve}
   PinnedHostBuffer h_info{kOneShotHostInfoBytes};  // debug-build info check only
   std::vector<char> h_workspace;
-
-  void clearDeviceBuffers() {
-    d_factor = DeviceBuffer();
-    d_ipiv = DeviceBuffer();
-    d_workspace = DeviceBuffer();
-    d_info = DeviceBuffer();
-  }
 };
 
 inline void ensure_sized(DeviceBuffer& buf, size_t needed, cudaStream_t stream) {
@@ -83,18 +76,15 @@ inline void ensure_sized(DeviceBuffer& buf, size_t needed, cudaStream_t stream) 
 class Context {
  public:
   /** Create a new context with a dedicated CUDA stream. */
-  Context() {
-    cudaStream_t s = nullptr;
-    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&s));
-    stream_ = internal::UniqueStream(s);
-    oneshot_solver_scratch_.d_info = internal::DeviceBuffer(internal::kOneShotInfoBytes, s);
+  Context() : stream_(internal::create_stream()) {
+    oneshot_solver_scratch_.d_info = internal::DeviceBuffer(internal::kOneShotInfoBytes, stream_.get());
     init_cublas();
   }
 
   /** Create a context on an existing stream (e.g., stream 0 = nullptr).
    * The caller retains ownership of the stream — this context will not destroy it. */
-  explicit Context(cudaStream_t stream) : stream_(stream, internal::CudaStreamDeleter{/*owns=*/false}) {
-    oneshot_solver_scratch_.d_info = internal::DeviceBuffer(internal::kOneShotInfoBytes, stream);
+  explicit Context(cudaStream_t stream) : stream_(internal::borrow_stream(stream)) {
+    oneshot_solver_scratch_.d_info = internal::DeviceBuffer(internal::kOneShotInfoBytes, stream_.get());
     init_cublas();
   }
 
@@ -206,7 +196,7 @@ class Context {
       std::unique_ptr<std::remove_pointer_t<cusparseHandle_t>, cusparseStatus_t (*)(cusparseHandle_t)>;
 
   // Destroyed in reverse declaration order: the plan cache before the cuBLASLt handle, the stream last.
-  internal::UniqueStream stream_;
+  internal::CudaStreamHandle stream_;
   internal::UniqueCublasHandle cublas_;
   LazyCusolverHandle cusolver_{nullptr, nullptr};
   LazyCusparseHandle cusparse_{nullptr, nullptr};

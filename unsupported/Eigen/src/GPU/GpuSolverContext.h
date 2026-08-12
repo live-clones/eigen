@@ -28,7 +28,7 @@ namespace internal {
 
 struct GpuSolverContext {
   Context* bound_ctx_ = nullptr;
-  UniqueStream stream_;
+  CudaStreamHandle stream_;
   UniqueCusolverHandle cusolver_;
   UniqueCublasHandle cublas_;
   UniqueCublasLtHandle cublas_lt_;  // lazy: created on first GEMM-via-cublasLt call (standalone mode only)
@@ -52,9 +52,8 @@ struct GpuSolverContext {
   cublasHandle_t cublasHandle() const { return cublas_.get(); }
 
   GpuSolverContext() {
-    cudaStream_t s = nullptr;
-    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&s));
-    stream_ = UniqueStream(s);
+    stream_ = create_stream();
+    cudaStream_t s = stream_.get();
     cusolverDnHandle_t solver = nullptr;
     EIGEN_CUSOLVER_CHECK(cusolverDnCreate(&solver));
     cusolver_ = UniqueCusolverHandle(solver);
@@ -73,7 +72,7 @@ struct GpuSolverContext {
    * with the Context as well. The Context must outlive this solver context. */
   explicit GpuSolverContext(Context& ctx)
       : bound_ctx_(&ctx),
-        stream_(ctx.stream(), CudaStreamDeleter{/*owns=*/false}),
+        stream_(borrow_stream(ctx.stream())),
         cusolver_(ctx.cusolverHandle(), CusolverHandleDeleter{/*owns=*/false}),
         cublas_(ctx.cublasHandle(), CublasHandleDeleter{/*owns=*/false}) {
     ensure_scratch(0);

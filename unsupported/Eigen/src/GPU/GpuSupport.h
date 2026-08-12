@@ -137,14 +137,35 @@ struct CudaFreeHostDeleter {
   }
 };
 
-// RAII CUDA stream; the ownership flag supports borrowed, caller-owned streams.
+// Borrow-aware deleter for cudaStream_t — the stream analog of CudaFreeDeleter.
+// With `borrow == true` destruction is left to the stream's real owner.
+// Ownership is recorded explicitly rather than inferred from the value because
+// nullptr (CUDA's legacy default stream) is a valid stream to borrow.
 struct CudaStreamDeleter {
-  bool owns = true;
+  bool borrow = false;
   void operator()(cudaStream_t s) const noexcept {
-    if (owns && s) (void)cudaStreamDestroy(s);
+    if (s && !borrow) (void)cudaStreamDestroy(s);
   }
 };
-using UniqueStream = std::unique_ptr<std::remove_pointer_t<cudaStream_t>, CudaStreamDeleter>;
+
+// Owning-or-borrowing RAII handle for a CUDA stream; get() yields the raw
+// cudaStream_t to pass to CUDA APIs. Declare it before members that release
+// resources against the stream (device buffers, library handles) so it is
+// destroyed after them.
+using CudaStreamHandle = std::unique_ptr<std::remove_pointer_t<cudaStream_t>, CudaStreamDeleter>;
+
+// Create a new stream owned (and eventually destroyed) by the handle.
+inline CudaStreamHandle create_stream() {
+  cudaStream_t s = nullptr;
+  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&s));
+  return CudaStreamHandle(s, CudaStreamDeleter{/*borrow=*/false});
+}
+
+// Wrap an existing stream without taking ownership (nullptr = the legacy
+// default stream).
+inline CudaStreamHandle borrow_stream(cudaStream_t s) noexcept {
+  return CudaStreamHandle(s, CudaStreamDeleter{/*borrow=*/true});
+}
 
 // On devices without stream-ordered allocation, retain a small-buffer cache to
 // avoid a synchronous cudaMalloc/cudaFree pair for every DeviceScalar. Each
