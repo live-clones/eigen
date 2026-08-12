@@ -273,7 +273,7 @@ void cublaslt_gemm(cublasLtHandle_t lt_handle, cublasHandle_t cublas_handle, cub
                    cublasOperation_t transB, int64_t m, int64_t n, int64_t k, const Scalar* alpha, const Scalar* A,
                    int64_t lda, const Scalar* B, int64_t ldb, const Scalar* beta, Scalar* C, int64_t ldc,
                    DeviceBuffer* workspace, CublasLtPlanCache* plan_cache, std::size_t max_workspace_bytes,
-                   cudaStream_t stream) {
+                   const CudaStreamHandle& stream) {
   constexpr cudaDataType_t dtype = cuda_data_type<Scalar>::value;
   constexpr cublasComputeType_t compute = cuda_compute_type<Scalar>::value;
   constexpr cudaDataType_t alpha_type = cuda_data_type<Scalar>::value;
@@ -288,9 +288,7 @@ void cublaslt_gemm(cublasLtHandle_t lt_handle, cublasHandle_t cublas_handle, cub
 
   if (entry->use_cublaslt) {
     const size_t needed = entry->workspace_size;
-    if (needed > workspace->size()) {
-      *workspace = DeviceBuffer(needed, stream);
-    }
+    ensure_sized(*workspace, needed, stream);
 
     EIGEN_CUBLASLT_CHECK(cublasLtMatmul(lt_handle, entry->matmul_desc, alpha, A, entry->layout_A, B, entry->layout_B,
                                         beta, C, entry->layout_C, C, entry->layout_C, &entry->algo, workspace->get(),

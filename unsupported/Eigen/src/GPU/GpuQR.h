@@ -121,8 +121,11 @@ class QR {
   }
 
   /** Factor a device matrix (move). For m >= n the buffer is adopted and
-   * factored in place — no copy; for m < n a transposed copy is unavoidable. */
+   * factored in place — no copy; for m < n a transposed copy is unavoidable.
+   * Non-owning views cannot be adopted (their storage belongs to someone
+   * else); they take the copying overload instead. */
   QR& compute(DeviceMatrix<Scalar>&& d_A) {
+    if (!d_A.ownsStorage()) return compute(d_A);
     if (!begin_compute(d_A)) return *this;
 
     if (transposed_) {
@@ -245,7 +248,7 @@ class QR {
                                                      d_qr_.get(), lda_, dtype, d_tau_.get(), dtype, &dev_ws, &host_ws));
 
     solver_ctx_.ensure_scratch(dev_ws);
-    solver_ctx_.h_workspace_.resize(host_ws);
+    solver_ctx_.ensure_host_workspace(host_ws);
 
     EIGEN_CUSOLVER_CHECK(cusolverDnXgeqrf(solver_ctx_.cusolver_, solver_ctx_.params_.p, fm, fn, dtype, d_qr_.get(),
                                           lda_, dtype, d_tau_.get(), dtype, solver_ctx_.scratch_workspace(), dev_ws,
@@ -321,8 +324,8 @@ class QR {
     trsm_R(d_work.get(), m_, nrhs, /*op=*/CUBLAS_OP_N);
 
     if (m_ == n_) {
-      DeviceMatrix<Scalar> result =
-          DeviceMatrix<Scalar>::adopt(static_cast<Scalar*>(d_work.release()), n_, static_cast<Index>(nrhs));
+      DeviceMatrix<Scalar> result = DeviceMatrix<Scalar>::adopt(static_cast<Scalar*>(d_work.release()), n_,
+                                                                static_cast<Index>(nrhs), solver_ctx_.stream_);
       result.recordReady(solver_ctx_.stream_);
       return result;
     }
@@ -382,8 +385,8 @@ class QR {
     trsm_R(d_X.get(), n_, nrhs, trsm_op_conj_trans());
     apply_Q(CUBLAS_OP_N, d_X.get(), n_, nrhs);
 
-    DeviceMatrix<Scalar> result =
-        DeviceMatrix<Scalar>::adopt(static_cast<Scalar*>(d_X.release()), n_, static_cast<Index>(nrhs));
+    DeviceMatrix<Scalar> result = DeviceMatrix<Scalar>::adopt(static_cast<Scalar*>(d_X.release()), n_,
+                                                              static_cast<Index>(nrhs), solver_ctx_.stream_);
     result.recordReady(solver_ctx_.stream_);
     return result;
   }

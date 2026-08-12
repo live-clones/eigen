@@ -509,10 +509,15 @@ class DeviceMatrix {
    * The method exists so `tmp.noalias() = mat * p` compiles for both types. */
   DeviceMatrix& noalias() { return *this; }
 
-  /** Adopt an existing device pointer. Caller relinquishes ownership. */
-  static DeviceMatrix adopt(Scalar* device_ptr, Index rows, Index cols) {
+  /** Adopt an existing device pointer. Caller relinquishes ownership.
+   * \p stream is the stream the allocation is bound to: the eventual free is
+   * enqueued there, ordered after the work that produced the data (solver
+   * results pass their solver stream). Default: the legacy default stream,
+   * matching this class's own constructors. */
+  static DeviceMatrix adopt(Scalar* device_ptr, Index rows, Index cols, internal::CudaStreamHandle stream = nullptr) {
     DeviceMatrix dm;
-    dm.data_.reset(device_ptr);
+    dm.data_ = std::unique_ptr<Scalar, internal::CudaFreeDeleter>(
+        device_ptr, internal::CudaFreeDeleter{/*borrow=*/false, std::move(stream)});
     dm.rows_ = rows;
     dm.cols_ = cols;
     dm.capacity_bytes_ = dm.sizeInBytes();
@@ -535,8 +540,15 @@ class DeviceMatrix {
     return dm;
   }
 
-  /** Transfer ownership of the device pointer out. Zeros internal state. */
+  /** True when this matrix owns its device allocation; false for view()s,
+   * whose storage belongs to someone else and must not be adopted or freed. */
+  bool ownsStorage() const { return !data_.get_deleter().borrow; }
+
+  /** Transfer ownership of the device pointer out. Zeros internal state.
+   * Only valid on owning matrices — releasing a borrowed view would hand out
+   * a pointer its real owner still frees. */
   Scalar* release() {
+    eigen_assert(ownsStorage() && "DeviceMatrix::release() called on a non-owning view");
     Scalar* p = data_.release();
     rows_ = 0;
     cols_ = 0;

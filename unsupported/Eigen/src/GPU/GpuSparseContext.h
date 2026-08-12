@@ -115,7 +115,7 @@ class SparseContext {
   /** Borrow a Context: shares stream and cuSPARSE handle.
    * The Context must outlive this SparseContext. */
   explicit SparseContext(Context& ctx)
-      : stream_(internal::borrow_stream(ctx.stream())), handle_(ctx.cusparseHandle()), owns_handle_(false) {}
+      : stream_(ctx.streamHandle()), handle_(ctx.cusparseHandle()), owns_handle_(false) {}
 
   ~SparseContext() {
     destroy_spmat_descriptor(/*checked=*/false);
@@ -645,11 +645,7 @@ class SparseContext {
     invalidate_ws_caches();
   }
 
-  void ensure_buffer(internal::DeviceBuffer& buf, size_t needed) const {
-    if (needed > buf.size()) {
-      buf = internal::DeviceBuffer(needed, stream());
-    }
-  }
+  void ensure_buffer(internal::DeviceBuffer& buf, size_t needed) const { internal::ensure_sized(buf, needed, stream_); }
 };
 
 // Defined here because it needs the full SparseContext definition.

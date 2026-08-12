@@ -27,7 +27,10 @@ namespace gpu {
 namespace internal {
 
 struct GpuSolverContext {
-  cudaStream_t stream_ = nullptr;
+  // Shared handle (declared first, destroyed last): DeviceBuffers bound to it —
+  // including solver factors and results that outlive this context via moves —
+  // keep an owned stream alive until their stream-ordered frees are issued.
+  CudaStreamHandle stream_;
   cusolverDnHandle_t cusolver_ = nullptr;
   cublasHandle_t cublas_ = nullptr;
   cublasLtHandle_t cublas_lt_ = nullptr;  // lazy: created on first GEMM-via-cublasLt call (standalone mode only)
@@ -51,8 +54,7 @@ struct GpuSolverContext {
   int& info_word() { return *static_cast<int*>(pinned_info_.get()); }
   int info_word() const { return *static_cast<const int*>(pinned_info_.get()); }
 
-  GpuSolverContext() {
-    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&stream_));
+  GpuSolverContext() : stream_(create_stream()) {
     EIGEN_CUSOLVER_CHECK(cusolverDnCreate(&cusolver_));
     EIGEN_CUSOLVER_CHECK(cusolverDnSetStream(cusolver_, stream_));
     EIGEN_CUBLAS_CHECK(cublasCreate(&cublas_));
@@ -66,13 +68,25 @@ struct GpuSolverContext {
    * own). The cuBLASLt handle, GEMM plan cache, and GEMM workspace are shared
    * with the Context as well. The Context must outlive this solver context. */
   explicit GpuSolverContext(Context& ctx)
-      : stream_(ctx.stream()), cusolver_(ctx.cusolverHandle()), cublas_(ctx.cublasHandle()), bound_ctx_(&ctx) {
+      : stream_(ctx.streamHandle()), cusolver_(ctx.cusolverHandle()), cublas_(ctx.cublasHandle()), bound_ctx_(&ctx) {
     ensure_scratch(0);
   }
 
-  ~GpuSolverContext() {
-    // Ignore errors here: dtors are noexcept, and EIGEN_CU{BLAS,SOLVER,DA_RUNTIME}_CHECK
-    // are eigen_assert-based — firing one from a noexcept dtor terminates the program.
+  ~GpuSolverContext() { teardown(); }
+
+  // Shared teardown for the destructor and move-assignment. Ignore errors
+  // throughout: both callers are noexcept, and EIGEN_CU{BLAS,SOLVER,DA_RUNTIME}_CHECK
+  // are eigen_assert-based — firing one from a noexcept body terminates the program.
+  void teardown() noexcept {
+    // Drain before freeing host-visible staging: an unread factorization
+    // (info_synced_ == false) still has the async info copy targeting
+    // pinned_info_ and may still read h_workspace_ host-side, neither of which
+    // stream-ordered deallocation covers. Fallback (non-pool) builds also
+    // release large device scratch with plain cudaFree, whose device-wide
+    // synchronization is observed but not documented behavior.
+    if (!info_synced_ || (!device_supports_memory_pools() && (d_scratch_ || gemm_workspace_))) {
+      (void)cudaStreamSynchronize(stream_);
+    }
     // Destroy plan cache before its cublasLt handle (entries hold descriptors).
     gemm_plan_cache_.clear();
     if (cublas_lt_) (void)cublasLtDestroy(cublas_lt_);
@@ -81,12 +95,13 @@ struct GpuSolverContext {
     if (!bound_ctx_) {
       if (cublas_) (void)cublasDestroy(cublas_);
       if (cusolver_) (void)cusolverDnDestroy(cusolver_);
-      if (stream_) (void)cudaStreamDestroy(stream_);
     }
+    // stream_ needs no explicit destroy: the shared handle releases an owned
+    // stream once the buffers freed above have enqueued their frees on it.
   }
 
   GpuSolverContext(GpuSolverContext&& o) noexcept
-      : stream_(o.stream_),
+      : stream_(std::move(o.stream_)),
         cusolver_(o.cusolver_),
         cublas_(o.cublas_),
         cublas_lt_(o.cublas_lt_),
@@ -100,7 +115,6 @@ struct GpuSolverContext {
         pinned_info_(std::move(o.pinned_info_)),
         info_synced_(o.info_synced_),
         bound_ctx_(o.bound_ctx_) {
-    o.stream_ = nullptr;
     o.cusolver_ = nullptr;
     o.cublas_ = nullptr;
     o.cublas_lt_ = nullptr;
@@ -111,20 +125,8 @@ struct GpuSolverContext {
 
   GpuSolverContext& operator=(GpuSolverContext&& o) noexcept {
     if (this != &o) {
-      // Mirror the dtor: noexcept context, can't propagate. Drain the old stream
-      // first, then swallow destroy errors (the EIGEN_CU*_CHECK macros are
-      // eigen_assert-based and would terminate from a noexcept body).
-      if (stream_) (void)cudaStreamSynchronize(stream_);
-      gemm_plan_cache_.clear();
-      if (cublas_lt_) (void)cublasLtDestroy(cublas_lt_);
-      d_scratch_ = DeviceBuffer();
-      gemm_workspace_ = DeviceBuffer();
-      if (!bound_ctx_) {
-        if (cublas_) (void)cublasDestroy(cublas_);
-        if (cusolver_) (void)cusolverDnDestroy(cusolver_);
-        if (stream_) (void)cudaStreamDestroy(stream_);
-      }
-      stream_ = o.stream_;
+      teardown();
+      stream_ = std::move(o.stream_);
       cusolver_ = o.cusolver_;
       cublas_ = o.cublas_;
       cublas_lt_ = o.cublas_lt_;
@@ -138,7 +140,6 @@ struct GpuSolverContext {
       pinned_info_ = std::move(o.pinned_info_);
       info_synced_ = o.info_synced_;
       bound_ctx_ = o.bound_ctx_;
-      o.stream_ = nullptr;
       o.cusolver_ = nullptr;
       o.cublas_ = nullptr;
       o.cublas_lt_ = nullptr;
@@ -182,12 +183,11 @@ struct GpuSolverContext {
 
   // Ensure d_scratch_ holds at least `workspace_bytes` of scratch plus the
   // trailing info word. Grows but never shrinks.
-  void ensure_scratch(size_t workspace_bytes) {
-    size_t needed = scratchBytesFor(workspace_bytes);
-    if (needed > d_scratch_.size()) {
-      d_scratch_ = DeviceBuffer(needed, stream_);
-    }
-  }
+  void ensure_scratch(size_t workspace_bytes) { ensure_sized(d_scratch_, scratchBytesFor(workspace_bytes), stream_); }
+
+  // Grow-only host workspace for the 64-bit cuSOLVER factorizations; drains
+  // the stream before the old storage is freed (see ensure_host_sized).
+  void ensure_host_workspace(size_t bytes) { ensure_host_sized(h_workspace_, bytes, stream_); }
 
   void* scratch_workspace() const { return d_scratch_.get(); }
 

@@ -131,8 +131,12 @@ class LLT {
     return *this;
   }
 
-  /** Compute the Cholesky factorization from a device matrix (move, no copy). */
+  /** Compute the Cholesky factorization from a device matrix (move, no copy).
+   * Non-owning views (e.g. rvalue results of d_matrixU()) cannot be adopted —
+   * potrf would overwrite the owner's storage in place and the adopted buffer
+   * would be freed twice — so they take the copying overload instead. */
   LLT& compute(DeviceMatrix<Scalar>&& d_A) {
+    if (!d_A.ownsStorage()) return compute(d_A);
     eigen_assert(d_A.rows() == d_A.cols());
     if (!begin_compute(d_A.rows())) return *this;
 
@@ -191,8 +195,10 @@ class LLT {
   }
 
   /** Solve in place: consumes \p d_B and returns it holding the solution —
-   * no RHS copy and no allocation (potrs overwrites its RHS). */
+   * no RHS copy and no allocation (potrs overwrites its RHS). Non-owning
+   * views are not consumed; they take the copying overload. */
   DeviceMatrix<Scalar> solve(DeviceMatrix<Scalar>&& d_B) const {
+    if (!d_B.ownsStorage()) return solve(d_B);
     eigen_assert(solver_ctx_.info() == Success && "LLT::solve called on a failed or uninitialized factorization");
     eigen_assert(d_B.rows() == n_);
     d_B.waitReady(solver_ctx_.stream_);
@@ -238,8 +244,8 @@ class LLT {
     EIGEN_CUSOLVER_CHECK(cusolverDnXpotrs(solver_ctx_.cusolver_, solver_ctx_.params_.p, uplo, n_, nrhs, dtype,
                                           d_factor_.get(), lda_, dtype, d_x.get(), ldb, solver_ctx_.scratch_info()));
 
-    DeviceMatrix<Scalar> result =
-        DeviceMatrix<Scalar>::adopt(static_cast<Scalar*>(d_x.release()), n_, static_cast<Index>(nrhs));
+    DeviceMatrix<Scalar> result = DeviceMatrix<Scalar>::adopt(static_cast<Scalar*>(d_x.release()), n_,
+                                                              static_cast<Index>(nrhs), solver_ctx_.stream_);
     result.recordReady(solver_ctx_.stream_);
     return result;
   }
@@ -255,7 +261,7 @@ class LLT {
                                                      d_factor_.get(), lda_, dtype, &dev_ws_bytes, &host_ws_bytes));
 
     solver_ctx_.ensure_scratch(dev_ws_bytes);
-    solver_ctx_.h_workspace_.resize(host_ws_bytes);
+    solver_ctx_.ensure_host_workspace(host_ws_bytes);
 
     EIGEN_CUSOLVER_CHECK(cusolverDnXpotrf(solver_ctx_.cusolver_, solver_ctx_.params_.p, uplo, n_, dtype,
                                           d_factor_.get(), lda_, dtype, solver_ctx_.scratch_workspace(), dev_ws_bytes,

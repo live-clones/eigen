@@ -34,23 +34,24 @@ class DeviceScalar {
   using Scalar = Scalar_;
 
   /** Allocate an uninitialized device scalar. Contents are undefined until
-   * written, e.g. by cuBLAS dot/nrm2 under POINTER_MODE_DEVICE. */
-  explicit DeviceScalar(cudaStream_t stream = nullptr) : d_val_(sizeof(Scalar), stream), stream_(stream) {}
+   * written, e.g. by cuBLAS dot/nrm2 under POINTER_MODE_DEVICE. The raw-stream
+   * overloads borrow: the stream must stay valid for this scalar's lifetime.
+   * The handle overloads (used by the Context-driven reductions) share stream
+   * ownership, so the scalar may outlive the Context that produced it. */
+  explicit DeviceScalar(cudaStream_t stream = nullptr) : DeviceScalar(internal::borrow_stream(stream)) {}
 
-  DeviceScalar(Scalar host_val, cudaStream_t stream) : d_val_(sizeof(Scalar), stream), stream_(stream) {
+  DeviceScalar(Scalar host_val, cudaStream_t stream) : DeviceScalar(host_val, internal::borrow_stream(stream)) {}
+
+  explicit DeviceScalar(internal::CudaStreamHandle stream)
+      : d_val_(sizeof(Scalar), stream), stream_(std::move(stream)) {}
+
+  DeviceScalar(Scalar host_val, internal::CudaStreamHandle stream)
+      : d_val_(sizeof(Scalar), stream), stream_(std::move(stream)) {
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_val_.get(), &host_val, sizeof(Scalar), cudaMemcpyHostToDevice, stream_));
   }
 
-  DeviceScalar(DeviceScalar&& o) noexcept : d_val_(std::move(o.d_val_)), stream_(o.stream_) { o.stream_ = nullptr; }
-
-  DeviceScalar& operator=(DeviceScalar&& o) noexcept {
-    if (this != &o) {
-      d_val_ = std::move(o.d_val_);
-      stream_ = o.stream_;
-      o.stream_ = nullptr;
-    }
-    return *this;
-  }
+  DeviceScalar(DeviceScalar&& o) noexcept = default;
+  DeviceScalar& operator=(DeviceScalar&& o) noexcept = default;
 
   DeviceScalar(const DeviceScalar&) = delete;
   DeviceScalar& operator=(const DeviceScalar&) = delete;
@@ -69,7 +70,7 @@ class DeviceScalar {
 
   Scalar* devicePtr() { return static_cast<Scalar*>(d_val_.get()); }
   const Scalar* devicePtr() const { return static_cast<const Scalar*>(d_val_.get()); }
-  cudaStream_t stream() const { return stream_; }
+  cudaStream_t stream() const { return stream_.get(); }
 
   // The arithmetic below keeps results on device via the NPP helpers in
   // DeviceScalarOps.h, and covers real types only; complex division falls back to
@@ -101,7 +102,7 @@ class DeviceScalar {
 
  private:
   internal::DeviceBuffer d_val_;
-  cudaStream_t stream_ = nullptr;
+  internal::CudaStreamHandle stream_;
 };
 
 }  // namespace gpu

@@ -138,9 +138,11 @@ d_x += alpha * d_p;                    // host scalar * DeviceMatrix (axpy)
 Division between `DeviceScalar` values (real types only) is performed on
 device via NPP, avoiding extra synchronizations. A `DeviceScalar` allocates and
 frees its storage on the stream that produces it, so independent contexts do
-not serialize through the legacy default stream. Unlike `DeviceMatrix`, it
-does not track cross-stream readiness; its arithmetic operands and consumers
-must use that same stream.
+not serialize through the legacy default stream. It holds a shared handle to
+that stream, so a result may safely outlive the `Context` that produced it
+(the owned stream is destroyed only after the scalar's storage is freed).
+Unlike `DeviceMatrix`, it does not track cross-stream readiness; its
+arithmetic operands and consumers must use that same stream.
 
 ### `gpu::Context`
 
@@ -172,6 +174,12 @@ To integrate with existing CUDA code, borrow an existing stream:
 ```cpp
 gpu::Context ctx(my_existing_stream);  // wraps stream, does not take ownership
 ```
+
+A borrowed stream must remain valid for the lifetime of the context *and* of
+anything allocated through it (solver results, `DeviceScalar` reductions):
+their storage is freed on that stream. Contexts that create their own stream
+have no such requirement — the stream is reference-counted and survives until
+the last buffer bound to it is released.
 
 To override the thread-local default (e.g., in CG where all ops share one
 context):
@@ -549,8 +557,11 @@ storage used by `DeviceScalar`, dense and sparse solvers, FFT, and library
 workspaces is allocated and freed with `cudaMallocAsync` / `cudaFreeAsync` on
 the owning execution stream when the device supports memory pools (detected at
 runtime). Independent contexts therefore do not acquire an implicit dependency
-on the legacy default stream. On the `cudaMalloc` / `cudaFree` fallback (or
-when forced with `EIGEN_GPU_NO_STREAM_ORDERED_ALLOC`), small buffers use a
+on the legacy default stream. Each buffer's deleter holds a shared handle to
+its stream, so an owned stream is destroyed only after the last free enqueued
+on it — buffers, solver results, and `DeviceScalar`s may outlive the `Context`
+or solver that created the stream. On the `cudaMalloc` / `cudaFree` fallback
+(or when forced with `EIGEN_GPU_NO_STREAM_ORDERED_ALLOC`), small buffers use a
 thread-local cache with a CUDA event per returned block. Reuse on another
 stream waits for the recorded event; larger fallback allocations retain the
 synchronous runtime behavior. Consequences:
@@ -560,7 +571,10 @@ synchronous runtime behavior. Consequences:
   release threshold is raised so steady-state loops reallocate at user-space
   speed).
 - Destroying a solver with work still in flight is safe and asynchronous: its
-  buffers are freed on the solver stream before an owned stream is destroyed.
+  buffers are freed on the solver stream, which stays alive until those frees
+  are issued. Device-resident solver results (`solve(d_B)`) are likewise
+  allocated *and* freed on the solver stream, so releasing one never races the
+  kernels that produced it.
 - `DeviceMatrix::resize()` is capacity-aware: shrinking or same-size reshapes
   reuse the existing allocation (contents are still discarded).
 

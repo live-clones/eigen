@@ -350,14 +350,10 @@ class FFT {
 
   // Buffers grow but never shrink.
   void ensure_buffers(size_t in_bytes, size_t out_bytes) {
-    if (in_bytes > d_in_size_) {
-      d_in_ = internal::DeviceBuffer(in_bytes, ctx_->stream());
-      d_in_size_ = in_bytes;
-    }
-    if (out_bytes > d_out_size_) {
-      d_out_ = internal::DeviceBuffer(out_bytes, ctx_->stream());
-      d_out_size_ = out_bytes;
-    }
+    internal::ensure_sized(d_in_, in_bytes, ctx_->streamHandle());
+    d_in_size_ = d_in_.size();
+    internal::ensure_sized(d_out_, out_bytes, ctx_->streamHandle());
+    d_out_size_ = d_out_.size();
   }
 
   // Plan key encoding: rank (1 bit) | type (4 bits) | dims.

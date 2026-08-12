@@ -200,6 +200,58 @@ void test_chaining(Eigen::Index n) {
   VERIFY((h_Y - h_Y_ref).norm() < tol);
 }
 
+// Move-assignment over a live solver: the old solver's stream-bound buffers
+// (factor, scratch) must be freed against a still-valid stream even though the
+// old solver context — and with it the old owned stream's primary reference —
+// is replaced first. Regression test for the shared stream handle.
+template <typename Scalar>
+void test_move_assign_reuse(Eigen::Index n) {
+  using MatrixType = Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic>;
+  using RealScalar = typename Eigen::NumTraits<Scalar>::Real;
+
+  Eigen::gpu::LLT<Scalar, Eigen::Lower> gpu_llt;
+  MatrixType h_A;
+  for (int i = 0; i < 3; ++i) {
+    h_A = make_spd<MatrixType>(n);
+    gpu_llt = Eigen::gpu::LLT<Scalar, Eigen::Lower>(h_A);  // replaces solver + stream
+    VERIFY_IS_EQUAL(gpu_llt.info(), Eigen::Success);
+  }
+  MatrixType h_B = MatrixType::Random(n, 2);
+  MatrixType h_X = gpu_llt.solve(h_B);
+  RealScalar residual = (h_A * h_X - h_B).norm() / h_B.norm();
+  VERIFY(residual < RealScalar(n) * Eigen::NumTraits<Scalar>::epsilon());
+}
+
+// An rvalue *view* RHS must not be consumed in place: solve() falls back to
+// the copying path, leaving the viewed storage intact and owned by its real
+// owner (no double free when both are destroyed).
+template <typename Scalar>
+void test_view_rvalue_solve_copies(Eigen::Index n) {
+  using MatrixType = Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic>;
+  using RealScalar = typename Eigen::NumTraits<Scalar>::Real;
+
+  MatrixType h_A = make_spd<MatrixType>(n);
+  MatrixType h_B = MatrixType::Random(n, 2);
+
+  Eigen::gpu::LLT<Scalar, Eigen::Lower> gpu_llt(h_A);
+  VERIFY_IS_EQUAL(gpu_llt.info(), Eigen::Success);
+
+  auto d_B = Eigen::gpu::DeviceMatrix<Scalar>::fromHost(h_B);
+  auto view = Eigen::gpu::DeviceMatrix<Scalar>::view(d_B.data(), n, 2);
+  VERIFY(!view.ownsStorage());
+  Eigen::gpu::DeviceMatrix<Scalar> d_X = gpu_llt.solve(std::move(view));
+  VERIFY(d_X.ownsStorage());
+  VERIFY(d_X.data() != d_B.data());
+
+  MatrixType h_X = d_X.toHost();
+  RealScalar residual = (h_A * h_X - h_B).norm() / h_B.norm();
+  VERIFY(residual < RealScalar(n) * Eigen::NumTraits<Scalar>::epsilon());
+
+  // The viewed RHS is untouched (potrs would have overwritten it in place).
+  MatrixType h_B_after = d_B.toHost();
+  VERIFY_IS_APPROX(h_B_after, h_B);
+}
+
 // ---- Context binding + in-place (rvalue) solve --------------------------------
 
 template <typename Scalar>
@@ -250,6 +302,8 @@ void test_scalar() {
   CALL_SUBTEST((test_device_matrix_solve<Scalar, Eigen::Upper>(128, 1)));
   CALL_SUBTEST(test_device_matrix_move_compute<Scalar>(64));
   CALL_SUBTEST(test_chaining<Scalar>(64));
+  CALL_SUBTEST(test_move_assign_reuse<Scalar>(64));
+  CALL_SUBTEST(test_view_rvalue_solve_copies<Scalar>(64));
 }
 
 EIGEN_DECLARE_TEST(gpu_cusolver_llt) {

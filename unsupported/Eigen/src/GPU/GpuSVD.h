@@ -148,8 +148,10 @@ class SVD {
 
   /** Decompose a device matrix (move). For m >= n the buffer is adopted and
    * consumed in place by gesvd — no copy; for m < n a transposed copy is
-   * unavoidable. */
+   * unavoidable. Non-owning views cannot be adopted (their storage belongs to
+   * someone else); they take the copying overload instead. */
   SVD& compute(DeviceMatrix<Scalar>&& d_A, unsigned int options = ComputeThinU | ComputeThinV) {
+    if (!d_A.ownsStorage()) return compute(d_A, options);
     if (!begin_compute(d_A, options)) return *this;
 
     if (transposed_) {
@@ -465,7 +467,7 @@ class SVD {
         ldvt, dtype, &dev_ws, &host_ws));
 
     solver_ctx_.ensure_scratch(dev_ws);
-    solver_ctx_.h_workspace_.resize(host_ws);
+    solver_ctx_.ensure_host_workspace(host_ws);
 
     EIGEN_CUSOLVER_CHECK(
         cusolverDnXgesvd(solver_ctx_.cusolver_, solver_ctx_.params_.p, jobu(int_opts), jobvt(int_opts), m_, n_, dtype,
@@ -633,8 +635,14 @@ class SVD {
     d_B.waitReady(solver_ctx_.stream_);
     build_diag(kk, lambda);
 
-    DeviceMatrix<Scalar> X(n_orig, nrhs);
-    apply_pinv(d_B.data(), kk, nrhs, X.data());
+    // Allocate the result on the solver stream and hand it to DeviceMatrix via
+    // the stream-carrying adopt, so its eventual free is ordered after the
+    // GEMMs below (a plain DeviceMatrix would free on the legacy stream).
+    internal::DeviceBuffer d_x(static_cast<size_t>(n_orig) * static_cast<size_t>(nrhs) * sizeof(Scalar),
+                               solver_ctx_.stream_);
+    apply_pinv(d_B.data(), kk, nrhs, static_cast<Scalar*>(d_x.get()));
+    DeviceMatrix<Scalar> X =
+        DeviceMatrix<Scalar>::adopt(static_cast<Scalar*>(d_x.release()), n_orig, nrhs, solver_ctx_.stream_);
     X.recordReady(solver_ctx_.stream_);
     return X;
   }
