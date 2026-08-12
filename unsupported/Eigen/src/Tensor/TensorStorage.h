@@ -23,6 +23,21 @@
 
 namespace Eigen {
 
+namespace internal {
+// Fixed-size stack array for TensorStorage, aligned the same way plain_array (DenseStorage.h)
+// aligns fixed-size Matrix/Array storage: to compute_default_alignment's result when it can
+// guarantee one, falling back to alignof(T) (some 32-bit platforms don't guarantee alignof(T)
+// for stack arrays otherwise).
+template <typename T, std::size_t Size, int Alignment = compute_default_alignment<T, static_cast<int>(Size)>::value>
+struct tensor_fixed_storage_array {
+  EIGEN_ALIGN_TO_BOUNDARY(Alignment) T data[Size];
+};
+template <typename T, std::size_t Size>
+struct tensor_fixed_storage_array<T, Size, 0> {
+  EIGEN_ALIGN_TO_BOUNDARY(alignof(T)) T data[Size];
+};
+}  // namespace internal
+
 /** \internal
  *
  * \ingroup Tensor_Module
@@ -45,13 +60,13 @@ class TensorStorage {
 
   // Allocate an array of size at least one to prevent compiler warnings.
   static constexpr std::size_t MinSize = max_n_1<Size>::size;
-  EIGEN_ALIGN_MAX T m_data[MinSize];
+  internal::tensor_fixed_storage_array<T, MinSize> m_data;
 
  public:
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorStorage() {}
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T* data() { return m_data; }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const T* data() const { return m_data; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T* data() { return m_data.data; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const T* data() const { return m_data.data; }
 
   constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const FixedDimensions dimensions() const { return FixedDimensions(); }
 
