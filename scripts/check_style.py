@@ -84,7 +84,7 @@ STD_MATH = (
 # therefore now goes unreported; reintroducing a regex for it would bring back
 # the false positives this handover removes, so the gap is left open.
 CODE_CHECKS = [
-    # Awaiting the parked integral-constant-bool query.
+    # Awaiting the parked eigen-bool-constant query.
     (r"std::integral_constant<\s*bool\b", "std::integral_constant<bool,...>: use Eigen's bool_constant (Meta.h)"),
     # Awaiting the parked eigen-enum-constant query.  No stock check states
     # this rule: cppcoreguidelines-use-enum-class asks for `enum class`,

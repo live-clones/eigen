@@ -18,6 +18,10 @@ umbrella first and then the edited header.  The umbrella name is read from the
 header explicitly also covers a new header that the umbrella does not export
 yet.
 
+LLVM's ``clang-tidy-diff.py`` cannot replace this routing: it invokes changed
+headers directly, which trips Eigen's internal-header guard, and a PostToolUse
+payload is not a unified diff.
+
 No compilation database is required: ``-std=c++14 -I<repo>`` is enough to parse
 any file in the C++14 trees, which keeps the hook usable in a fresh checkout
 with no build directory.
