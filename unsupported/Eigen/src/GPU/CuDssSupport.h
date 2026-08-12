@@ -20,6 +20,8 @@
 
 #include "./GpuSupport.h"
 #include <cudss.h>
+#include <memory>
+#include <type_traits>
 
 namespace Eigen {
 namespace gpu {
@@ -30,6 +32,31 @@ namespace internal {
     eigen_assert(_s == CUDSS_STATUS_SUCCESS && "cuDSS call failed: " #x); \
     EIGEN_UNUSED_VARIABLE(_s);                                            \
   } while (0)
+
+// RAII wrappers for the opaque cuDSS object types. Destruction failures are
+// swallowed: the deleters run from destructors, where there is no recovery
+// path. (unique_ptr never invokes its deleter on a null pointer, so no null
+// checks are needed here.)
+struct CudssHandleDeleter {
+  void operator()(cudssHandle_t h) const noexcept { (void)cudssDestroy(h); }
+};
+struct CudssConfigDeleter {
+  void operator()(cudssConfig_t c) const noexcept { (void)cudssConfigDestroy(c); }
+};
+// cudssDataDestroy requires the handle the data object was created with, so
+// the deleter captures it: a CudssDataPtr must not outlive its handle.
+struct CudssDataDeleter {
+  cudssHandle_t handle = nullptr;
+  void operator()(cudssData_t d) const noexcept { (void)cudssDataDestroy(handle, d); }
+};
+struct CudssMatrixDeleter {
+  void operator()(cudssMatrix_t m) const noexcept { (void)cudssMatrixDestroy(m); }
+};
+
+using CudssHandlePtr = std::unique_ptr<std::remove_pointer_t<cudssHandle_t>, CudssHandleDeleter>;
+using CudssConfigPtr = std::unique_ptr<std::remove_pointer_t<cudssConfig_t>, CudssConfigDeleter>;
+using CudssDataPtr = std::unique_ptr<std::remove_pointer_t<cudssData_t>, CudssDataDeleter>;
+using CudssMatrixPtr = std::unique_ptr<std::remove_pointer_t<cudssMatrix_t>, CudssMatrixDeleter>;
 
 // cuDSS 0.8 changed cudssMatrixCreateDn/Csr from cudaDataType_t to the
 // value-compatible cudssDataType_t (CUDSS_R_32F == CUDA_R_32F, ...). Map the
