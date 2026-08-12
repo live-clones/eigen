@@ -458,7 +458,7 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
                         YOU_MIXED_MATRICES_OF_DIFFERENT_SIZES)
     const Index m1 = m_A.rows(), m2 = m_B.rows();
     eigen_assert(b.rows() == m1 * m2 && "right-hand side has the wrong number of rows");
-    JacobiSVD<DenseMatrix> svdA(LhsOps::denseFactor(m_A), ComputeThinU | ComputeThinV),
+    BDCSVD<DenseMatrix> svdA(LhsOps::denseFactor(m_A), ComputeThinU | ComputeThinV),
         svdB(RhsOps::denseFactor(m_B), ComputeThinU | ComputeThinV);
     const RealVector sa = svdA.singularValues(), sb = svdB.singularValues();
     const RealScalar tol = relativeRankThreshold();
@@ -517,7 +517,7 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
    * that are negligible at the product level, so the rank can be smaller than
    * the product of the factor ranks. */
   Index rank() const {
-    JacobiSVD<DenseMatrix> svdA(LhsOps::denseFactor(m_A)), svdB(RhsOps::denseFactor(m_B));
+    BDCSVD<DenseMatrix> svdA(LhsOps::denseFactor(m_A)), svdB(RhsOps::denseFactor(m_B));
     const RealVector sa = svdA.singularValues(), sb = svdB.singularValues();
     // An exactly zero factor zeroes the whole operator (and would make the
     // ratios below 0/0).
@@ -597,7 +597,7 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
    * \c U and \c V); for rectangular shapes the full SVD pads this set with
    * \c min(rows(),cols()) - k_A*k_B structural zeros. */
   RealVector singularValues() const {
-    JacobiSVD<DenseMatrix> svdA(LhsOps::denseFactor(m_A)), svdB(RhsOps::denseFactor(m_B));
+    BDCSVD<DenseMatrix> svdA(LhsOps::denseFactor(m_A)), svdB(RhsOps::denseFactor(m_B));
     // Column-major stacking of the kB x kA outer product puts sigma_j(B) sigma_i(A)
     // at index i*kB + j, the Kronecker order.
     return (svdB.singularValues() * svdA.singularValues().transpose()).reshaped();
@@ -607,7 +607,7 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
    * itself a Kronecker operator with orthonormal columns; column \c i*k_B + j
    * matches \c singularValues()[i*k_B + j]. */
   KroneckerOperator<DenseMatrix, DenseMatrix> matrixU() const {
-    JacobiSVD<DenseMatrix> svdA(LhsOps::denseFactor(m_A), ComputeThinU), svdB(RhsOps::denseFactor(m_B), ComputeThinU);
+    BDCSVD<DenseMatrix> svdA(LhsOps::denseFactor(m_A), ComputeThinU), svdB(RhsOps::denseFactor(m_B), ComputeThinU);
     return {svdA.matrixU(), svdB.matrixU()};
   }
 
@@ -615,7 +615,7 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
    * itself a Kronecker operator with orthonormal columns; column \c i*k_B + j
    * matches \c singularValues()[i*k_B + j]. */
   KroneckerOperator<DenseMatrix, DenseMatrix> matrixV() const {
-    JacobiSVD<DenseMatrix> svdA(LhsOps::denseFactor(m_A), ComputeThinV), svdB(RhsOps::denseFactor(m_B), ComputeThinV);
+    BDCSVD<DenseMatrix> svdA(LhsOps::denseFactor(m_A), ComputeThinV), svdB(RhsOps::denseFactor(m_B), ComputeThinV);
     return {svdA.matrixV(), svdB.matrixV()};
   }
 
