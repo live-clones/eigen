@@ -291,8 +291,8 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
   using StorageIndex = int;
   using ComplexScalar = std::complex<RealScalar>;
   // The vec-trick reshapes below identify a vector of length n1*n2 with an
-  // n2 x n1 matrix whose columns are stacked, so every workspace and Map taking
-  // part in a reshape is pinned to ColMajor explicitly: the semantics must not
+  // n2 x n1 matrix whose columns are stacked, so every workspace taking part
+  // in a reshape is pinned to ColMajor explicitly: the semantics must not
   // change under EIGEN_DEFAULT_TO_ROW_MAJOR.
   using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
   using DenseVector = Matrix<Scalar, Dynamic, 1>;
@@ -430,11 +430,7 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
       // fixed number of power-of-two factors).
       const int e = ec - solverA.exponent() - solverB.exponent();
       if (e != 0) X = internal::kron_ldexp_entries(X, e);
-      // Map, not reshaped(): evaluator<Reshaped>::Flags drops PacketAccessBit
-      // even in its direct-access specialization, so a Reshaped source puts this
-      // copy on the scalar path. reshaped() is free above, where the operand
-      // reaches the decomposition through blas_traits rather than the evaluator.
-      x.col(k) = Map<const DenseVector>(X.data(), X.size());
+      x.col(k) = X.reshaped();
     }
     return x;
   }
@@ -500,7 +496,7 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
           }
         }
       X.noalias() = svdB.matrixV() * M * svdA.matrixV().transpose();
-      x.col(k) = Map<const DenseVector>(X.data(), X.size());  // Map, not reshaped(): see solve()
+      x.col(k) = X.reshaped();
     }
     return x;
   }
@@ -729,13 +725,12 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
       // For a diagonal factor its side degenerates to a diagonal scaling
       // (transposedOperand: a diagonal matrix is its own transpose).
       Y.noalias() = m_B * xc.reshaped(n2, n1) * LhsOps::transposedOperand(m_A);
-      // Map, not reshaped(), for the accumulation: see solve().
       if (e > 0) {
         const ProductReal up1 = ProductReal(std::ldexp(ProductReal(1), e / 2));
         const ProductReal up2 = ProductReal(std::ldexp(ProductReal(1), e - e / 2));
-        dst.col(k) += alpha * ((Map<const ProductVector>(Y.data(), Y.size()) * up1) * up2);
+        dst.col(k) += alpha * ((Y.reshaped() * up1) * up2);
       } else {
-        dst.col(k) += alpha * Map<const ProductVector>(Y.data(), Y.size());
+        dst.col(k) += alpha * Y.reshaped();
       }
     }
   }
