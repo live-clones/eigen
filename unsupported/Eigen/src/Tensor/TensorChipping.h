@@ -231,7 +231,7 @@ struct TensorEvaluator<const TensorChippingOp<DimId, ArgType>, Device> {
         return m_impl.template packet<LoadMode>(inputIndex);
       } else {
         // Cross the stride boundary. Fallback to slow path.
-        EIGEN_ALIGN_MAX std::remove_const_t<CoeffReturnType> values[PacketSize];
+        EIGEN_ALIGN_TO_BOUNDARY(sizeof(PacketReturnType)) std::remove_const_t<CoeffReturnType> values[PacketSize];
         EIGEN_UNROLL_LOOP
         for (int i = 0; i < PacketSize; ++i) {
           values[i] = coeff(index);
@@ -365,7 +365,7 @@ struct TensorEvaluator<const TensorChippingOp<DimId, ArgType>, Device> {
 
   template <int LoadMode>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketReturnType packetInnerChipping(Index index) const {
-    EIGEN_ALIGN_MAX std::remove_const_t<CoeffReturnType> values[PacketSize];
+    EIGEN_ALIGN_TO_BOUNDARY(sizeof(PacketReturnType)) std::remove_const_t<CoeffReturnType> values[PacketSize];
     Index inputIndex = srcCoeffInnerChipping(index);
     EIGEN_UNROLL_LOOP
     for (int i = 0; i < PacketSize; ++i) {
@@ -455,7 +455,7 @@ struct TensorEvaluator<TensorChippingOp<DimId, ArgType>, Device>
         this->m_impl.template writePacket<StoreMode>(inputIndex, x);
       } else {
         // Cross stride boundary. Fallback to slow path.
-        EIGEN_ALIGN_MAX std::remove_const_t<CoeffReturnType> values[PacketSize];
+        EIGEN_ALIGN_TO_BOUNDARY(sizeof(PacketReturnType)) std::remove_const_t<CoeffReturnType> values[PacketSize];
         internal::pstore<CoeffReturnType, PacketReturnType>(values, x);
         EIGEN_UNROLL_LOOP
         for (int i = 0; i < PacketSize; ++i) {
@@ -490,7 +490,7 @@ struct TensorEvaluator<TensorChippingOp<DimId, ArgType>, Device>
  private:
   template <int StoreMode>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketInnerChipping(Index index, const PacketReturnType& x) const {
-    EIGEN_ALIGN_MAX std::remove_const_t<CoeffReturnType> values[PacketSize];
+    EIGEN_ALIGN_TO_BOUNDARY(sizeof(PacketReturnType)) std::remove_const_t<CoeffReturnType> values[PacketSize];
     internal::pstore<CoeffReturnType, PacketReturnType>(values, x);
     Index inputIndex = this->srcCoeffInnerChipping(index);
     EIGEN_UNROLL_LOOP
