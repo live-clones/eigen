@@ -260,7 +260,7 @@ struct TensorEvaluator<TensorLayoutSwapOp<ArgType>, Device>
   }
 
   template <typename TensorBlock>
-  EIGEN_STRONG_INLINE void writeBlock(const TensorBlockDesc& desc, const TensorBlock& block) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writeBlock(const TensorBlockDesc& desc, const TensorBlock& block) {
     eigen_assert(this->m_impl.data() != NULL);
 
     // Dense strides of the swapped dimensions in this layout are exactly the
