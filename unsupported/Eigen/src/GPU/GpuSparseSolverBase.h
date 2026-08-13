@@ -30,20 +30,56 @@
 namespace Eigen {
 namespace gpu {
 
+// The enumerators below carry the cuDSS values so apply_config() can
+// static_cast them. cuDSS < 0.8 names none of these algorithms, so there they
+// are plain placeholders and setConfig() accepts only a default config.
+// Default is a sentinel either way: apply_config() skips its cudssConfigSet(),
+// leaving the cuDSS default in place without depending on its numeric value.
+#if defined(CUDSS_VERSION) && CUDSS_VERSION >= 800
+#define EIGEN_CUDSS_ALG(value) = value
+#else
+#define EIGEN_CUDSS_ALG(value)
+#endif
+
 /** Fill-reducing reordering algorithm, applied during analyzePattern().
  * Default lets cuDSS choose; Natural disables reordering. BtfColamd and
  * Colamd are valid for general (SparseLU) matrices only. */
-enum class SparseReordering { Default, BtfColamd, Colamd, Amd, NestedDissection, Natural };
+enum class SparseReordering : int {
+  Default = -1,
+  BtfColamd EIGEN_CUDSS_ALG(CUDSS_REORDERING_ALG_BTF_COLAMD),
+  Colamd EIGEN_CUDSS_ALG(CUDSS_REORDERING_ALG_COLAMD),
+  Amd EIGEN_CUDSS_ALG(CUDSS_REORDERING_ALG_AMD),
+  NestedDissection EIGEN_CUDSS_ALG(CUDSS_REORDERING_ALG_NESTED_DISSECTION),
+  Natural EIGEN_CUDSS_ALG(CUDSS_REORDERING_ALG_NONE)
+};
 
 /** Matching algorithm, applied during analyzePattern() to improve numerical
  * robustness. Off by cuDSS default; primarily useful for SparseLU on
  * indefinite or badly scaled systems. Auto lets cuDSS pick. */
-enum class SparseMatching { Default, None, MaxDiagCount, MaxMinDiag, MaxMinDiagAlt, MaxDiagSum, MaxDiagProduct, Auto };
+enum class SparseMatching : int {
+  Default = -1,
+  None EIGEN_CUDSS_ALG(CUDSS_MATCHING_ALG_NONE),
+  MaxDiagCount EIGEN_CUDSS_ALG(CUDSS_MATCHING_ALG_MAX_DIAG_COUNT),
+  MaxMinDiag EIGEN_CUDSS_ALG(CUDSS_MATCHING_ALG_MAX_MIN_DIAG),
+  MaxMinDiagAlt EIGEN_CUDSS_ALG(CUDSS_MATCHING_ALG_MAX_MIN_DIAG_ALT),
+  MaxDiagSum EIGEN_CUDSS_ALG(CUDSS_MATCHING_ALG_MAX_DIAG_SUM),
+  MaxDiagProduct EIGEN_CUDSS_ALG(CUDSS_MATCHING_ALG_MAX_DIAG_PRODUCT),
+  Auto EIGEN_CUDSS_ALG(CUDSS_MATCHING_ALG_AUTO)
+};
 
 /** Pivoting strategy, applied during factorize(). Default resolves per
  * matrix type. Validity of the other values depends on the matrix type and
  * reordering algorithm; see the cuDSS documentation for cudssPivotType_t. */
-enum class SparsePivoting { Default, None, GlobalCol, GlobalRow, Diagonal, LocalBlock };
+enum class SparsePivoting : int {
+  Default = -1,
+  None EIGEN_CUDSS_ALG(CUDSS_PIVOT_NONE),
+  GlobalCol EIGEN_CUDSS_ALG(CUDSS_PIVOT_GLOBAL_COL),
+  GlobalRow EIGEN_CUDSS_ALG(CUDSS_PIVOT_GLOBAL_ROW),
+  Diagonal EIGEN_CUDSS_ALG(CUDSS_PIVOT_DIAGONAL),
+  LocalBlock EIGEN_CUDSS_ALG(CUDSS_PIVOT_LOCAL_BLOCK)
+};
+
+#undef EIGEN_CUDSS_ALG
 
 /** Pass-through configuration for the cuDSS-backed sparse direct solvers
  * (SparseLLT, SparseLDLT, SparseLU). Fields left at their defaults keep the
@@ -79,36 +115,6 @@ struct SparseSolverConfig {
 };
 
 namespace internal {
-
-#if defined(CUDSS_VERSION) && CUDSS_VERSION >= 800
-constexpr cudssReorderingAlg_t to_cudss_reordering(SparseReordering r) {
-  return r == SparseReordering::BtfColamd          ? CUDSS_REORDERING_ALG_BTF_COLAMD
-         : r == SparseReordering::Colamd           ? CUDSS_REORDERING_ALG_COLAMD
-         : r == SparseReordering::Amd              ? CUDSS_REORDERING_ALG_AMD
-         : r == SparseReordering::NestedDissection ? CUDSS_REORDERING_ALG_NESTED_DISSECTION
-         : r == SparseReordering::Natural          ? CUDSS_REORDERING_ALG_NONE
-                                                   : CUDSS_REORDERING_ALG_DEFAULT;
-}
-
-constexpr cudssMatchingAlg_t to_cudss_matching(SparseMatching m) {
-  return m == SparseMatching::MaxDiagCount     ? CUDSS_MATCHING_ALG_MAX_DIAG_COUNT
-         : m == SparseMatching::MaxMinDiag     ? CUDSS_MATCHING_ALG_MAX_MIN_DIAG
-         : m == SparseMatching::MaxMinDiagAlt  ? CUDSS_MATCHING_ALG_MAX_MIN_DIAG_ALT
-         : m == SparseMatching::MaxDiagSum     ? CUDSS_MATCHING_ALG_MAX_DIAG_SUM
-         : m == SparseMatching::MaxDiagProduct ? CUDSS_MATCHING_ALG_MAX_DIAG_PRODUCT
-         : m == SparseMatching::Auto           ? CUDSS_MATCHING_ALG_AUTO
-                                               : CUDSS_MATCHING_ALG_NONE;
-}
-
-constexpr cudssPivotType_t to_cudss_pivoting(SparsePivoting p) {
-  return p == SparsePivoting::None         ? CUDSS_PIVOT_NONE
-         : p == SparsePivoting::GlobalCol  ? CUDSS_PIVOT_GLOBAL_COL
-         : p == SparsePivoting::GlobalRow  ? CUDSS_PIVOT_GLOBAL_ROW
-         : p == SparsePivoting::Diagonal   ? CUDSS_PIVOT_DIAGONAL
-         : p == SparsePivoting::LocalBlock ? CUDSS_PIVOT_LOCAL_BLOCK
-                                           : CUDSS_PIVOT_AUTO;
-}
-#endif
 
 /** CRTP base for GPU sparse direct solvers.
  *
@@ -403,15 +409,15 @@ class SparseSolverBase {
     EIGEN_CUDSS_CHECK(cudssConfigCreate(&config_));
     const SparseSolverConfig& c = config_opts_;
     if (c.reordering != SparseReordering::Default) {
-      const cudssReorderingAlg_t v = to_cudss_reordering(c.reordering);
+      const cudssReorderingAlg_t v = static_cast<cudssReorderingAlg_t>(c.reordering);
       EIGEN_CUDSS_CHECK(cudssConfigSet(config_, CUDSS_CONFIG_REORDERING_ALG, &v, sizeof(v)));
     }
     if (c.matching != SparseMatching::Default) {
-      const cudssMatchingAlg_t v = to_cudss_matching(c.matching);
+      const cudssMatchingAlg_t v = static_cast<cudssMatchingAlg_t>(c.matching);
       EIGEN_CUDSS_CHECK(cudssConfigSet(config_, CUDSS_CONFIG_MATCHING_ALG, &v, sizeof(v)));
     }
     if (c.pivoting != SparsePivoting::Default) {
-      const cudssPivotType_t v = to_cudss_pivoting(c.pivoting);
+      const cudssPivotType_t v = static_cast<cudssPivotType_t>(c.pivoting);
       EIGEN_CUDSS_CHECK(cudssConfigSet(config_, CUDSS_CONFIG_PIVOT_TYPE, &v, sizeof(v)));
     }
     if (c.pivotThreshold >= 0) {
