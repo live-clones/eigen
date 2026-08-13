@@ -660,7 +660,7 @@ struct TensorEvaluator<const TensorVolumePatchOp<Planes, Rows, Cols, ArgType>, D
                   block_buffer[dst_plane + d] = m_impl.coeff(src + d);
                 }
               } else {
-                Map<Array<Scalar, Dynamic, 1>>(block_buffer + dst_plane, depth_size).setConstant(m_paddingValue);
+                Map<ArrayX<Scalar>>(block_buffer + dst_plane, depth_size).setConstant(m_paddingValue);
               }
             }
           }
