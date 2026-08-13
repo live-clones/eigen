@@ -70,7 +70,40 @@ static void test_simple_inflation() {
   }
 }
 
+template <int DataLayout>
+static void test_inflation_of_expression() {
+  // An expression argument has no raw buffer; the block path reads it through
+  // the argument evaluator's coeff(). Sizes with partial-packet tails.
+  Tensor<float, 3, DataLayout> tensor(17, 5, 7);
+  tensor.setRandom();
+
+  array<ptrdiff_t, 3> strides;
+  strides[0] = 2;
+  strides[1] = 3;
+  strides[2] = 1;
+
+  Tensor<float, 3, DataLayout> inflated = (tensor + tensor.constant(1.0f)).inflate(strides);
+
+  VERIFY_IS_EQUAL(inflated.dimension(0), 33);
+  VERIFY_IS_EQUAL(inflated.dimension(1), 13);
+  VERIFY_IS_EQUAL(inflated.dimension(2), 7);
+
+  for (Index i = 0; i < inflated.dimension(0); ++i) {
+    for (Index j = 0; j < inflated.dimension(1); ++j) {
+      for (Index k = 0; k < inflated.dimension(2); ++k) {
+        if (i % 2 == 0 && j % 3 == 0) {
+          VERIFY_IS_EQUAL(inflated(i, j, k), tensor(i / 2, j / 3, k) + 1.0f);
+        } else {
+          VERIFY_IS_EQUAL(inflated(i, j, k), 0.0f);
+        }
+      }
+    }
+  }
+}
+
 EIGEN_DECLARE_TEST(tensor_inflation) {
   CALL_SUBTEST(test_simple_inflation<ColMajor>());
   CALL_SUBTEST(test_simple_inflation<RowMajor>());
+  CALL_SUBTEST(test_inflation_of_expression<ColMajor>());
+  CALL_SUBTEST(test_inflation_of_expression<RowMajor>());
 }

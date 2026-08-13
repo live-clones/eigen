@@ -80,18 +80,23 @@ struct TensorEvaluator<const TensorInflationOp<Strides, ArgType>, Device> {
   enum {
     IsAligned = /*TensorEvaluator<ArgType, Device>::IsAligned*/ false,
     PacketAccess = TensorEvaluator<ArgType, Device>::PacketAccess,
-    BlockAccess = false,
-    PreferBlockAccess = false,
+    BlockAccess = NumDims > 0,
+    // The coeff/packet path pays a div/mod walk plus a hole check per output
+    // scalar; the block path is a zero-fill plus a sparse copy of the stride
+    // lattice.
+    PreferBlockAccess = true,
     CoordAccess = false,  // to be implemented
     RawAccess = false
   };
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockNotImplemented TensorBlock;
+  typedef internal::TensorBlockDescriptor<NumDims, Index> TensorBlockDesc;
+  typedef internal::TensorBlockScratchAllocator<Device> TensorBlockScratch;
+  typedef typename internal::TensorMaterializedBlock<CoeffReturnType, NumDims, Layout, Index> TensorBlock;
   //===--------------------------------------------------------------------===//
 
   EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device)
-      : m_impl(op.expression(), device), m_strides(op.strides()) {
+      : m_impl(op.expression(), device), m_strides(op.strides()), m_device(device) {
     m_dimensions = m_impl.dimensions();
     // Expand each dimension to the inflated dimension.
     for (int i = 0; i < NumDims; ++i) {
@@ -192,6 +197,99 @@ struct TensorEvaluator<const TensorInflationOp<Strides, ArgType>, Device> {
     return rslt;
   }
 
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE internal::TensorBlockResourceRequirements getResourceRequirements() const {
+    const size_t target_size = m_device.lastLevelCacheSize();
+    return internal::TensorBlockResourceRequirements::skewed<Scalar>(target_size);
+  }
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorBlock block(TensorBlockDesc& desc, TensorBlockScratch& scratch,
+                                                          bool /*root_of_expr_ast*/ = false) const {
+    static const bool is_col_major = static_cast<int>(Layout) == static_cast<int>(ColMajor);
+
+    if (desc.size() == 0) {
+      return TensorBlock(internal::TensorBlockKind::kView, NULL, desc.dimensions());
+    }
+
+    // Everything is a hole except the stride lattice: zero-fill first, then
+    // copy the input values covered by the block onto the lattice.
+    typename TensorBlock::Storage block_storage = TensorBlock::prepareStorage(desc, scratch);
+    CoeffReturnType* block_buffer = block_storage.data();
+    for (Index i = 0; i < desc.size(); ++i) block_buffer[i] = Scalar(0);
+
+    // Output coordinates of the block's corner.
+    array<Index, NumDims> coords;
+    Index remaining = desc.offset();
+    EIGEN_IF_CONSTEXPR (is_col_major) {
+      for (int i = NumDims - 1; i > 0; --i) {
+        coords[i] = remaining / m_outputStrides[i];
+        remaining -= coords[i] * m_outputStrides[i];
+      }
+      coords[0] = remaining;
+    } else {
+      for (int i = 0; i < NumDims - 1; ++i) {
+        coords[i] = remaining / m_outputStrides[i];
+        remaining -= coords[i] * m_outputStrides[i];
+      }
+      coords[NumDims - 1] = remaining;
+    }
+
+    // First lattice point inside the block and the lattice extent, per dim.
+    const DSizes<Index, NumDims> block_strides = internal::strides<Layout>(desc.dimensions());
+    array<Index, NumDims> lattice_count;
+    Index dst_offset = 0;
+    Index src_offset = 0;
+    for (int i = 0; i < NumDims; ++i) {
+      const Index stride = m_strides[i];
+      const Index first = ((coords[i] + stride - 1) / stride) * stride;
+      const Index end = coords[i] + desc.dimension(i);  // exclusive
+      if (first >= end) {
+        // The block lies entirely between lattice points on this dimension.
+        return block_storage.AsTensorMaterializedBlock();
+      }
+      lattice_count[i] = (end - 1 - first) / stride + 1;
+      dst_offset += (first - coords[i]) * block_strides[i];
+      src_offset += (first / stride) * m_inputStrides[i];
+    }
+
+    // Iterate the lattice (dimensions ordered inner-most to outer-most).
+    array<BlockIteratorState, NumDims> it;
+    for (int i = 0; i < NumDims; ++i) {
+      const int dim = is_col_major ? i : NumDims - 1 - i;
+      it[i].size = lattice_count[dim];
+      it[i].count = 0;
+      it[i].dst_stride = block_strides[dim] * m_strides[dim];
+      it[i].dst_span = it[i].dst_stride * (it[i].size - 1);
+      it[i].src_stride = m_inputStrides[dim];
+      it[i].src_span = it[i].src_stride * (it[i].size - 1);
+    }
+
+    const Index inner_size = it[0].size;
+    const Index inner_dst_stride = it[0].dst_stride;
+    const Index inner_src_stride = it[0].src_stride;
+    Index dst = dst_offset;
+    Index src = src_offset;
+    while (it[NumDims - 1].count < it[NumDims - 1].size) {
+      for (Index j = 0; j < inner_size; ++j) {
+        block_buffer[dst + j * inner_dst_stride] = m_impl.coeff(src + j * inner_src_stride);
+      }
+
+      EIGEN_IF_CONSTEXPR (NumDims == 1) break;
+
+      for (int i = 1; i < NumDims; ++i) {
+        if (++it[i].count < it[i].size) {
+          dst += it[i].dst_stride;
+          src += it[i].src_stride;
+          break;
+        }
+        if (i != NumDims - 1) it[i].count = 0;
+        dst -= it[i].dst_span;
+        src -= it[i].src_span;
+      }
+    }
+
+    return block_storage.AsTensorMaterializedBlock();
+  }
+
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorOpCost costPerCoeff(bool vectorized) const {
     const double compute_cost = NumDims * (3 * TensorOpCost::DivCost<Index>() + 3 * TensorOpCost::MulCost<Index>() +
                                            2 * TensorOpCost::AddCost<Index>());
@@ -211,6 +309,19 @@ struct TensorEvaluator<const TensorInflationOp<Strides, ArgType>, Device> {
   TensorEvaluator<ArgType, Device> m_impl;
   const Strides m_strides;
   array<internal::TensorIntDivisor<Index>, NumDims> m_fastStrides;
+  const Device EIGEN_DEVICE_REF m_device;
+
+ private:
+  struct BlockIteratorState {
+    BlockIteratorState() : size(0), count(0), dst_stride(0), dst_span(0), src_stride(0), src_span(0) {}
+
+    Index size;
+    Index count;
+    Index dst_stride;
+    Index dst_span;
+    Index src_stride;
+    Index src_span;
+  };
 };
 
 }  // end namespace Eigen
