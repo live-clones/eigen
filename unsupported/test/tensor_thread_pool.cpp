@@ -167,18 +167,18 @@ void test_async_multithread_volume_patch() {
 // with it the functor) into each task, so no instance is ever called
 // concurrently even though the expression is evaluated by multiple threads.
 struct OverlapDetectingOp {
-  explicit OverlapDetectingOp(std::atomic<int>* overlaps) : overlaps(overlaps) {}
-  OverlapDetectingOp(const OverlapDetectingOp& other) : overlaps(other.overlaps) {}
+  explicit OverlapDetectingOp(std::atomic<int>* overlaps) : overlaps_(overlaps) {}
+  OverlapDetectingOp(const OverlapDetectingOp& other) : overlaps_(other.overlaps_) {}
 
   float operator()(const float& x) const {
-    if (busy.exchange(true)) overlaps->fetch_add(1);
+    if (busy_.exchange(true)) overlaps_->fetch_add(1);
     const float result = x + 1.0f;
-    busy.store(false);
+    busy_.store(false);
     return result;
   }
 
-  std::atomic<int>* overlaps;
-  mutable std::atomic<bool> busy{false};
+  std::atomic<int>* overlaps_;
+  mutable std::atomic<bool> busy_{false};
 };
 
 // The driver expression uses reverse() because its block() has always read
