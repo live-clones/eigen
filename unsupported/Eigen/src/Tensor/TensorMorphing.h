@@ -789,7 +789,7 @@ struct TensorEvaluator<const TensorStridingSlicingOp<StartIndices, StopIndices, 
     // Blocks are materialized from the nested evaluator's raw buffer with one
     // (possibly strided or reversed) line copy per inner run.
     BlockAccess = TensorEvaluator<ArgType, Device>::RawAccess,
-    PreferBlockAccess = BlockAccess || TensorEvaluator<ArgType, Device>::PreferBlockAccess,
+    PreferBlockAccess = true,
     RawAccess = false
   };
 
@@ -955,14 +955,11 @@ struct TensorEvaluator<const TensorStridingSlicingOp<StartIndices, StopIndices, 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE internal::TensorBlockResourceRequirements getResourceRequirements() const {
     const size_t target_size = m_device.lastLevelCacheSize();
     constexpr int inner_dim = (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ? 0 : NumDims - 1;
-    using BlockRequirements = internal::TensorBlockResourceRequirements;
     // A non-unit (or negative) inner stride turns the per-line copies into
-    // gathers or reversed reads the default cost model does not see; surface
-    // that like TensorReverse does.
-    if (m_inputStrides[inner_dim] != 1) {
-      return BlockRequirements::skewed<Scalar>(target_size).addCostPerCoeff({0, 0, 24});
-    }
-    return BlockRequirements::skewed<Scalar>(target_size);
+    // gathers or reversed reads the default cost model does not see in bytes
+    // loaded and stored; surface that like TensorReverse does.
+    const double gather_cost = m_inputStrides[inner_dim] == 1 ? 0.0 : 24.0;
+    return internal::TensorBlockResourceRequirements::skewed<Scalar>(target_size).addCostPerCoeff({0, 0, gather_cost});
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorBlock block(TensorBlockDesc& desc, TensorBlockScratch& scratch,
@@ -1062,7 +1059,7 @@ struct TensorEvaluator<TensorStridingSlicingOp<StartIndices, StopIndices, Stride
     // Blocks are scattered into the nested evaluator's raw buffer with one
     // (possibly strided or reversed) line copy per inner run.
     BlockAccess = TensorEvaluator<ArgType, Device>::RawAccess,
-    PreferBlockAccess = BlockAccess || TensorEvaluator<ArgType, Device>::PreferBlockAccess,
+    PreferBlockAccess = true,
     CoordAccess = TensorEvaluator<ArgType, Device>::CoordAccess,
     RawAccess = false
   };
@@ -1143,6 +1140,7 @@ struct TensorEvaluator<TensorStridingSlicingOp<StartIndices, StopIndices, Stride
     typedef typename TensorBlockIO::Dst TensorBlockIODst;
     typedef typename TensorBlockIO::Src TensorBlockIOSrc;
 
+    const typename TensorBlockIO::Dimensions block_strides = internal::strides<Layout>(desc.dimensions());
     const Scalar* block_buffer = block.data();
 
     // TODO(ezhulenev): TensorBlockIO should be able to read from any Eigen
@@ -1155,19 +1153,14 @@ struct TensorEvaluator<TensorStridingSlicingOp<StartIndices, StopIndices, Stride
       typedef internal::TensorBlockAssignment<ScalarNoConst, NumDims, typename TensorBlock::XprType, Index>
           TensorBlockAssignment;
 
-      TensorBlockAssignment::Run(
-          TensorBlockAssignment::target(desc.dimensions(), internal::strides<Layout>(desc.dimensions()), buf),
-          block.expr());
+      TensorBlockAssignment::Run(TensorBlockAssignment::target(desc.dimensions(), block_strides, buf), block.expr());
 
       block_buffer = buf;
     }
 
-    // Read from block.
-    TensorBlockIOSrc src(internal::strides<Layout>(desc.dimensions()), block_buffer);
+    TensorBlockIOSrc src(block_strides, block_buffer);
 
-    // Write to the destination through the (possibly negative) dilated
-    // strides; the block's first element lands on the mapped offset of the
-    // block descriptor's origin.
+    // Write through the (possibly negative) dilated strides.
     typename TensorBlockIO::Dimensions output_strides(this->m_inputStrides);
     TensorBlockIODst dst(desc.dimensions(), output_strides, this->m_impl.data(), this->srcCoeff(desc.offset()));
 

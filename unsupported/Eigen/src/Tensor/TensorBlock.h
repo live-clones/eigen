@@ -1097,6 +1097,11 @@ class StridedLinearBufferCopy {
 // It's possible to specify src->dst dimension mapping for the copy operation.
 // Dimensions of `dst` specify how many elements have to be copied, for the
 // `src` we need to know only stride to navigate through source memory buffer.
+//
+// Strides may be non-unit (strided/dilated views), negative (reversed views),
+// or, on the `src` side only, zero (the broadcasting trick). Inner dimensions
+// are fused into one copy only while the elements keep forming a single
+// arithmetic progression at the inner stride on both sides.
 
 template <typename Scalar, typename IndexType, int NumDims, int Layout>
 class TensorBlockIO {
@@ -1140,11 +1145,6 @@ class TensorBlockIO {
       return 1;
     }
 
-    // The innermost dimension strides need not be unit: non-unit or negative
-    // strides (strided or reversed views) route the per-line copies to the
-    // gather/scatter/random kinds below, and stride '0' is used as a trick to
-    // implement broadcasting. Unit strides keep the fast linear kinds.
-
     // Give a shorter name to `dst_to_src_dim_map`.
     const DimensionsMap& dim_map = dst_to_src_dim_map;
 
@@ -1174,28 +1174,27 @@ class TensorBlockIO {
       return 1;
     }
 
-    // Outermost dimension in the dst with `stride == 1` (contiguous in memory).
-    const int dst_stride1_dim = IsColMajor ? num_size_one_inner_dims : NumDims - num_size_one_inner_dims - 1;
+    // Innermost dimension in the dst that still has to be copied. Its stride
+    // need not be 1: the run may be dilated or reversed.
+    const int dst_inner_dim = IsColMajor ? num_size_one_inner_dims : NumDims - num_size_one_inner_dims - 1;
 
     // Dimension in the src that corresponds to the dst innermost dimension.
-    const int src_dim_for_dst_stride1_dim = NumDims == 0 ? 1 : dim_map[dst_stride1_dim];
+    const int src_dim_for_dst_inner_dim = NumDims == 0 ? 1 : dim_map[dst_inner_dim];
 
-    // Size of the innermost dimension (length of contiguous blocks of memory).
-    IndexType dst_inner_dim_size = NumDims == 0 ? 1 : dst.dims[dst_stride1_dim];
+    // Number of elements copied per line.
+    IndexType dst_inner_dim_size = NumDims == 0 ? 1 : dst.dims[dst_inner_dim];
 
     // Squeeze multiple inner dims into one if the elements keep forming a
     // single arithmetic progression at the inner stride across the dimension
     // boundary in both `dst` and `src` memory, so we can do less linear copy
-    // calls. With unit inner strides this is the familiar contiguity check;
-    // non-unit or negative inner strides (strided or reversed views) squeeze
-    // only when the outer stride equals extent times the inner stride.
-    const IndexType dst_inner_stride = NumDims == 0 ? 1 : dst.strides[dst_stride1_dim];
-    const IndexType src_inner_stride = NumDims == 0 ? 1 : src.strides[src_dim_for_dst_stride1_dim];
+    // calls.
+    const IndexType output_stride = NumDims == 0 ? 1 : dst.strides[dst_inner_dim];
+    const IndexType input_stride = NumDims == 0 ? 1 : src.strides[src_dim_for_dst_inner_dim];
     for (int i = num_size_one_inner_dims + 1; i < num_squeezable_dims; ++i) {
       const int dst_dim = IsColMajor ? i : NumDims - i - 1;
       const IndexType dst_stride = dst.strides[dst_dim];
       const IndexType src_stride = src.strides[dim_map[dst_dim]];
-      if (dst_stride == dst_inner_dim_size * dst_inner_stride && src_stride == dst_inner_dim_size * src_inner_stride) {
+      if (dst_stride == dst_inner_dim_size * output_stride && src_stride == dst_inner_dim_size * input_stride) {
         dst_inner_dim_size *= dst.dims[dst_dim];
         ++num_size_one_inner_dims;
       } else {
@@ -1206,8 +1205,6 @@ class TensorBlockIO {
     // Setup strides to read data from `src` and write to `dst`.
     IndexType input_offset = src.offset;
     IndexType output_offset = dst.offset;
-    IndexType input_stride = NumDims == 0 ? 1 : src.strides[src_dim_for_dst_stride1_dim];
-    IndexType output_stride = NumDims == 0 ? 1 : dst.strides[dst_stride1_dim];
 
     constexpr int at_least_1_dim = NumDims <= 1 ? 1 : NumDims - 1;
     array<BlockIteratorState, at_least_1_dim> it;

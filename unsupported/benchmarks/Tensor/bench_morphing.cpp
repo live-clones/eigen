@@ -185,15 +185,18 @@ static void BM_StridedSliceExp(benchmark::State& state) {
 static void BM_StridedSliceWrite(benchmark::State& state) {
   const int M = state.range(0);
   const int N = state.range(1);
+  const Index s0 = state.range(2);
+  const Index s1 = state.range(3);
 
-  const Eigen::array<Index, 2> start = {1, 1};
-  const Eigen::array<Index, 2> stop = {M - 1, N - 1};
-  const Eigen::array<Index, 2> strides = {1, 1};
+  const Eigen::array<Index, 2> start = {s0 > 0 ? 1 : M - 2, s1 > 0 ? 1 : N - 2};
+  const Eigen::array<Index, 2> stop = {s0 > 0 ? M - 1 : 0, s1 > 0 ? N - 1 : 0};
+  const Eigen::array<Index, 2> strides = {s0, s1};
 
-  Tensor<Scalar, 2> A(M - 2, N - 2);
-  A.setRandom();
   Tensor<Scalar, 2> B(M, N);
   B.setZero();
+  // Size the source from the slice itself, so it tracks the stride sweep.
+  Tensor<Scalar, 2> A = B.stridedSlice(start, stop, strides);
+  A.setRandom();
 
   for (auto _ : state) {
     B.stridedSlice(start, stop, strides) = A;
@@ -203,7 +206,7 @@ static void BM_StridedSliceWrite(benchmark::State& state) {
 
   for (Index i = 0; i < A.dimension(0); ++i) {
     for (Index j = 0; j < A.dimension(1); ++j) {
-      if (B(1 + i, 1 + j) != A(i, j)) {
+      if (B(start[0] + i * s0, start[1] + j * s1) != A(i, j)) {
         state.SkipWithError("validation failed");
         return;
       }
@@ -304,6 +307,6 @@ BENCHMARK(BM_Pad) PAD_SIZES;
 BENCHMARK(BM_Stride) STRIDE_SIZES;
 BENCHMARK(BM_StridedSliceRead) STRIDED_SLICE_SIZES;
 BENCHMARK(BM_StridedSliceExp) STRIDED_SLICE_SIZES;
-BENCHMARK(BM_StridedSliceWrite) MORPH_SIZES;
+BENCHMARK(BM_StridedSliceWrite) STRIDED_SLICE_SIZES;
 BENCHMARK(BM_Slice_ThreadPool) MORPH_THREADPOOL_SIZES->UseRealTime();
 BENCHMARK(BM_Pad_ThreadPool) MORPH_THREADPOOL_SIZES->UseRealTime();
