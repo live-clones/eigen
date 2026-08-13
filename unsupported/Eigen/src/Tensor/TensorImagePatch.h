@@ -654,7 +654,7 @@ struct TensorEvaluator<const TensorImagePatchOp<Rows, Cols, ArgType>, Device> {
                 block_buffer[dst_row + d] = m_impl.coeff(src + d);
               }
             } else {
-              Map<Array<Scalar, Dynamic, 1>>(block_buffer + dst_row, depth_size).setConstant(m_paddingValue);
+              Map<ArrayX<Scalar>>(block_buffer + dst_row, depth_size).setConstant(m_paddingValue);
             }
           }
         }
