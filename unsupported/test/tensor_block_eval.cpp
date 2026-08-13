@@ -336,7 +336,7 @@ static void test_eval_tensor_layout_swap() {
   constexpr int InputLayout = (Layout == ColMajor) ? RowMajor : ColMajor;
   DSizes<Index, NumDims> input_dims = RandomDims<NumDims>(10, 20);
   Tensor<T, NumDims, InputLayout> input(input_dims);
-  input.setRandom();
+  setRandomForBinaryProduct(input);
 
   DSizes<Index, NumDims> swapped_dims;
   for (int i = 0; i < NumDims; ++i) {
@@ -355,10 +355,12 @@ static void test_eval_tensor_layout_swap() {
   // lazy blocks (materialized by the layout swap itself).
   DSizes<Index, NumDims> reversing_shuffle;
   for (int i = 0; i < NumDims; ++i) reversing_shuffle[i] = NumDims - 1 - i;
-  setRandomForBinaryProduct(input);
 
   VerifyBlockEvaluator<T, NumDims, Layout>(input.shuffle(reversing_shuffle).swap_layout(),
                                            [&input_dims]() { return RandomBlock<Layout>(input_dims, 1, 10); });
+
+  VerifyBlockEvaluator<T, NumDims, Layout>(input.shuffle(reversing_shuffle).swap_layout(),
+                                           [&input_dims]() { return FixedSizeBlock(input_dims); });
 
   VerifyBlockEvaluator<T, NumDims, Layout>(
       (input.shuffle(reversing_shuffle) * input.shuffle(reversing_shuffle)).swap_layout(),
@@ -1067,11 +1069,11 @@ static void test_assign_to_tensor_layout_swap() {
 
   TensorMap<Tensor<T, NumDims, Layout>> map(tensor.data(), dims);
 
-  VerifyBlockAssignment<T, NumDims, SwappedLayout, NumDims, Layout>(
+  VerifyBlockAssignment<T, NumDims, SwappedLayout>(
       tensor, map.swap_layout(), [&swapped_dims]() { return RandomBlock<SwappedLayout>(swapped_dims, 1, 10); });
 
-  VerifyBlockAssignment<T, NumDims, SwappedLayout, NumDims, Layout>(
-      tensor, map.swap_layout(), [&swapped_dims]() { return FixedSizeBlock(swapped_dims); });
+  VerifyBlockAssignment<T, NumDims, SwappedLayout>(tensor, map.swap_layout(),
+                                                   [&swapped_dims]() { return FixedSizeBlock(swapped_dims); });
 }
 
 // -------------------------------------------------------------------------- //

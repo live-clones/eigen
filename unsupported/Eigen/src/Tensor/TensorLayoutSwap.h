@@ -184,13 +184,16 @@ struct TensorEvaluator<const TensorLayoutSwapOp<ArgType>, Device> {
     DSizes<Index, NumDims> arg_dims;
     for (int i = 0; i < NumDims; ++i) arg_dims[i] = desc.dimension(NumDims - 1 - i);
     TensorBlockDesc arg_desc(desc.offset(), arg_dims);
+    const DSizes<Index, NumDims> arg_strides = internal::strides<ArgLayout>(arg_dims);
 
     // A contiguous destination for this block is bit-for-bit a contiguous
-    // destination for the argument block.
+    // destination for the argument block. Only contiguous ones are forwarded,
+    // and deliberately so: it is what keeps the argument's prepareStorage from
+    // choosing strided storage, whose buffer carries no valid dense expression
+    // and so must not be re-wrapped as one below.
     typedef typename TensorBlockDesc::DestinationBuffer DestinationBuffer;
     if (desc.destination().kind() == DestinationBuffer::kContiguous) {
-      arg_desc.template AddDestinationBuffer<ArgLayout>(desc.destination().template data<ScalarNoConst>(),
-                                                        internal::strides<ArgLayout>(arg_dims));
+      arg_desc.template AddDestinationBuffer<ArgLayout>(desc.destination().template data<ScalarNoConst>(), arg_strides);
     }
 
     ArgTensorBlock arg_block = m_impl.block(arg_desc, scratch, root_of_expr_ast);
@@ -209,8 +212,7 @@ struct TensorEvaluator<const TensorLayoutSwapOp<ArgType>, Device> {
     typedef internal::TensorBlockAssignment<ScalarNoConst, NumDims, typename ArgTensorBlock::XprType, Index>
         ArgBlockAssign;
     typename TensorBlock::Storage storage = TensorBlock::prepareStorage(desc, scratch);
-    ArgBlockAssign::Run(ArgBlockAssign::target(arg_dims, internal::strides<ArgLayout>(arg_dims), storage.data()),
-                        arg_block.expr());
+    ArgBlockAssign::Run(ArgBlockAssign::target(arg_dims, arg_strides, storage.data()), arg_block.expr());
     arg_block.cleanup();
     return storage.AsTensorMaterializedBlock();
   }
@@ -226,14 +228,16 @@ struct TensorEvaluator<TensorLayoutSwapOp<ArgType>, Device>
   typedef TensorEvaluator<const TensorLayoutSwapOp<ArgType>, Device> Base;
   typedef TensorLayoutSwapOp<ArgType> XprType;
 
-  static constexpr int NumDims = internal::array_size<typename TensorEvaluator<ArgType, Device>::Dimensions>::value;
-  static constexpr int Layout =
-      (TensorEvaluator<ArgType, Device>::Layout == static_cast<int>(ColMajor)) ? RowMajor : ColMajor;
+  static constexpr int NumDims = Base::NumDims;
+  static constexpr int Layout = Base::Layout;
   enum {
     IsAligned = TensorEvaluator<ArgType, Device>::IsAligned,
     PacketAccess = TensorEvaluator<ArgType, Device>::PacketAccess,
     // Writing a block only needs the argument's flat buffer: layout swap does
-    // not touch flat memory, so the block is assigned straight into it.
+    // not touch flat memory, so the block is assigned straight into it. The
+    // argument cannot be forwarded to as it is on the read side, because
+    // TensorBlockAssignment takes the inner dimension from the block
+    // expression's layout but the strides from the target.
     BlockAccess = TensorEvaluator<ArgType, Device>::RawAccess && NumDims > 0,
     PreferBlockAccess = TensorEvaluator<ArgType, Device>::PreferBlockAccess,
     CoordAccess = false  // to be implemented
@@ -243,10 +247,9 @@ struct TensorEvaluator<TensorLayoutSwapOp<ArgType>, Device>
   typedef typename XprType::Scalar Scalar;
   typedef typename XprType::CoeffReturnType CoeffReturnType;
   typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
-  typedef std::remove_const_t<Scalar> ScalarNoConst;
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockDescriptor<NumDims, Index> TensorBlockDesc;
+  typedef typename Base::TensorBlockDesc TensorBlockDesc;
   //===--------------------------------------------------------------------===//
 
   EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device) : Base(op, device) {}
@@ -267,9 +270,9 @@ struct TensorEvaluator<TensorLayoutSwapOp<ArgType>, Device>
     // argument's flat strides, so the block expression can be assigned
     // directly into the argument's buffer at the block's flat offset.
     typedef typename TensorBlock::XprType TensorBlockExpr;
-    typedef internal::TensorBlockAssignment<ScalarNoConst, NumDims, TensorBlockExpr, Index> TensorBlockAssign;
+    typedef internal::TensorBlockAssignment<Scalar, NumDims, TensorBlockExpr, Index> TensorBlockAssign;
 
-    TensorBlockAssign::Run(TensorBlockAssign::target(desc.dimensions(), internal::strides<Layout>(this->m_dimensions),
+    TensorBlockAssign::Run(TensorBlockAssign::target(desc.dimensions(), internal::strides<Layout>(this->dimensions()),
                                                      this->m_impl.data(), desc.offset()),
                            block.expr());
   }
