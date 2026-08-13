@@ -183,14 +183,11 @@ struct TensorEvaluator<const TensorVolumePatchOp<Planes, Rows, Cols, ArgType>, D
   enum {
     IsAligned = false,
     PacketAccess = TensorEvaluator<ArgType, Device>::PacketAccess,
-    // block() reads the argument through coeff(), and under a ThreadPool the
-    // tiled executor shares this evaluator across concurrent block tasks, so
-    // the argument must be safe to read repeatedly and concurrently. Either bit
-    // establishes that: BlockAccess is what non-repeatable nullary functors
-    // (random generators) clear, and RawAccess means coeff() is a plain buffer
-    // read. Requiring BlockAccess alone would needlessly exclude raw arguments
-    // whose scalar is not arithmetic, such as complex tensors.
-    BlockAccess = TensorEvaluator<ArgType, Device>::BlockAccess || TensorEvaluator<ArgType, Device>::RawAccess,
+    // block() reads the argument one coefficient at a time through coeff() --
+    // the contract the scalar executors already rely on for every evaluator --
+    // so it requires no capability bit from the argument (same as
+    // TensorReverse).
+    BlockAccess = true,
     // The coeff/packet path pays ~10 divisions of index math per element; the
     // block path amortizes all of it over whole depth runs.
     PreferBlockAccess = true,
@@ -519,11 +516,13 @@ struct TensorEvaluator<const TensorVolumePatchOp<Planes, Rows, Cols, ArgType>, D
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE internal::TensorBlockResourceRequirements getResourceRequirements() const {
     const size_t target_size = m_device.firstLevelCacheSize();
     // In-bounds output coefficients read the argument once and every output
-    // coefficient is stored once; charge the argument's per-coefficient cost
-    // plus the store so ThreadPool scheduling sees expensive expression
-    // arguments (padding runs make this a slight over-estimate).
+    // coefficient is stored once (padding runs make this a slight
+    // over-estimate). Pass the full cost explicitly rather than adding to
+    // skewed()'s default load+store seed, which would double-count the
+    // baseline byte traffic and halve the tile size.
     const TensorOpCost cost_per_coeff = m_impl.costPerCoeff(/*vectorized=*/false) + TensorOpCost(0, sizeof(Scalar), 0);
-    return internal::TensorBlockResourceRequirements::skewed<Scalar>(target_size).addCostPerCoeff(cost_per_coeff);
+    return internal::TensorBlockResourceRequirements::withShapeAndSize<Scalar>(
+        internal::TensorBlockShapeType::kSkewedInnerDims, target_size, cost_per_coeff);
   }
 
   // Materializes the block by iterating patch/col/row/plane coordinates and
