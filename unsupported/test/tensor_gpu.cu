@@ -231,6 +231,61 @@ void test_gpu_props() {
   gpuFree(d_out);
 }
 
+// Instantiates the striding evaluators' packet load and store paths in device
+// code: the read side strides an expression-sourced argument, the write side
+// stores through a strided destination.
+template <int DataLayout>
+void test_gpu_striding() {
+  Tensor<float, 2, DataLayout> in(31, 26);
+  Tensor<float, 2, DataLayout> read_out(16, 13);
+  Tensor<float, 2, DataLayout> write_out(31, 26);
+  in.setRandom();
+  write_out.setZero();
+
+  std::size_t in_bytes = in.size() * sizeof(float);
+  std::size_t read_out_bytes = read_out.size() * sizeof(float);
+  std::size_t write_out_bytes = write_out.size() * sizeof(float);
+
+  float* d_in;
+  float* d_read_out;
+  float* d_write_out;
+  gpuMalloc((void**)(&d_in), in_bytes);
+  gpuMalloc((void**)(&d_read_out), read_out_bytes);
+  gpuMalloc((void**)(&d_write_out), write_out_bytes);
+
+  gpuMemcpy(d_in, in.data(), in_bytes, gpuMemcpyHostToDevice);
+  gpuMemcpy(d_write_out, write_out.data(), write_out_bytes, gpuMemcpyHostToDevice);
+
+  Eigen::GpuStreamDevice stream;
+  Eigen::GpuDevice gpu_device(&stream);
+
+  Eigen::TensorMap<Eigen::Tensor<float, 2, DataLayout>, Eigen::Aligned> gpu_in(d_in, 31, 26);
+  Eigen::TensorMap<Eigen::Tensor<float, 2, DataLayout>, Eigen::Aligned> gpu_read_out(d_read_out, 16, 13);
+  Eigen::TensorMap<Eigen::Tensor<float, 2, DataLayout>, Eigen::Aligned> gpu_write_out(d_write_out, 31, 26);
+
+  Eigen::array<Eigen::DenseIndex, 2> strides{{2, 2}};
+  gpu_read_out.device(gpu_device) = (gpu_in + gpu_in.constant(1.0f)).stride(strides);
+  gpu_write_out.stride(strides).device(gpu_device) =
+      gpu_in.slice(Eigen::array<Eigen::DenseIndex, 2>{{0, 0}}, Eigen::array<Eigen::DenseIndex, 2>{{16, 13}});
+
+  assert(gpuMemcpyAsync(read_out.data(), d_read_out, read_out_bytes, gpuMemcpyDeviceToHost, gpu_device.stream()) ==
+         gpuSuccess);
+  assert(gpuMemcpyAsync(write_out.data(), d_write_out, write_out_bytes, gpuMemcpyDeviceToHost, gpu_device.stream()) ==
+         gpuSuccess);
+  assert(gpuStreamSynchronize(gpu_device.stream()) == gpuSuccess);
+
+  for (int i = 0; i < 16; ++i) {
+    for (int j = 0; j < 13; ++j) {
+      VERIFY_IS_EQUAL(read_out(i, j), in(2 * i, 2 * j) + 1.0f);
+      VERIFY_IS_EQUAL(write_out(2 * i, 2 * j), in(i, j));
+    }
+  }
+
+  gpuFree(d_in);
+  gpuFree(d_read_out);
+  gpuFree(d_write_out);
+}
+
 void test_gpu_reduction() {
   Tensor<float, 4> in1(72, 53, 97, 113);
   Tensor<float, 2> out(72, 97);
@@ -1440,6 +1495,8 @@ EIGEN_DECLARE_TEST(tensor_gpu) {
   CALL_SUBTEST_1(test_gpu_elementwise_small());
   CALL_SUBTEST_1(test_gpu_elementwise());
   CALL_SUBTEST_1(test_gpu_props());
+  CALL_SUBTEST_1(test_gpu_striding<ColMajor>());
+  CALL_SUBTEST_1(test_gpu_striding<RowMajor>());
   CALL_SUBTEST_2(test_gpu_reduction());
   CALL_SUBTEST_3(test_gpu_contraction<ColMajor>());
   CALL_SUBTEST_3(test_gpu_contraction<RowMajor>());
