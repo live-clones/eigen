@@ -436,29 +436,13 @@ struct TensorEvaluator<TensorReverseOp<ReverseDimensions, ArgType>, Device>
   EIGEN_STRONG_INLINE void writeBlock(const TensorBlockDesc& desc, const TensorBlock& block) {
     eigen_assert(this->m_impl.data() != nullptr);
 
-    // The destination of a block is a box in the underlying tensor: on
-    // reversed dimensions the output range [o, o + e) maps to the input range
-    // [n - o - e, n - o). Compute the input-space corner of that box.
-    Index output_offset = desc.offset();
-    Index input_corner = 0;
-    EIGEN_IF_CONSTEXPR (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
-      for (int i = NumDims - 1; i > 0; --i) {
-        const Index idx = output_offset / this->m_fastStrides[i];
-        output_offset -= idx * this->m_strides[i];
-        const Index first = this->m_reverse[i] ? this->m_dimensions[i] - idx - desc.dimension(i) : idx;
-        input_corner += first * this->m_strides[i];
-      }
-      input_corner += this->m_reverse[0] ? this->m_dimensions[0] - output_offset - desc.dimension(0) : output_offset;
-    } else {
-      for (int i = 0; i < NumDims - 1; ++i) {
-        const Index idx = output_offset / this->m_fastStrides[i];
-        output_offset -= idx * this->m_strides[i];
-        const Index first = this->m_reverse[i] ? this->m_dimensions[i] - idx - desc.dimension(i) : idx;
-        input_corner += first * this->m_strides[i];
-      }
-      input_corner += this->m_reverse[NumDims - 1]
-                          ? this->m_dimensions[NumDims - 1] - output_offset - desc.dimension(NumDims - 1)
-                          : output_offset;
+    // The destination of a block is a box in the underlying tensor: on a
+    // reversed dimension the output range [o, o + e) maps to the input range
+    // [n - o - e, n - o), whose corner sits (e - 1) strides below the image of
+    // the block's origin.
+    Index input_corner = this->reverseIndex(desc.offset());
+    for (int i = 0; i < NumDims; ++i) {
+      if (this->m_reverse[i]) input_corner -= (desc.dimension(i) - 1) * this->m_strides[i];
     }
 
     // Assigning the block expression reversed along the reversed dimensions

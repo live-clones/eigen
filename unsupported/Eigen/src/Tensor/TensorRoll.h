@@ -375,6 +375,8 @@ struct TensorEvaluator<TensorRollOp<RollDimensions, ArgType>, Device>
     if (desc.size() == 0) return;
     eigen_assert(this->m_impl.data() != nullptr);
 
+    const DSizes<Index, NumDims> block_strides = internal::strides<Layout>(desc.dimensions());
+
     // Materialize the block into a temporary buffer if it is lazy.
     const ScalarNoConst* block_buffer = block.data();
     void* mem = nullptr;
@@ -384,9 +386,7 @@ struct TensorEvaluator<TensorRollOp<RollDimensions, ArgType>, Device>
 
       typedef internal::TensorBlockAssignment<ScalarNoConst, NumDims, typename TensorBlock::XprType, Index>
           TensorBlockAssignment;
-      TensorBlockAssignment::Run(
-          TensorBlockAssignment::target(desc.dimensions(), internal::strides<Layout>(desc.dimensions()), buf),
-          block.expr());
+      TensorBlockAssignment::Run(TensorBlockAssignment::target(desc.dimensions(), block_strides, buf), block.expr());
 
       block_buffer = buf;
     }
@@ -422,7 +422,6 @@ struct TensorEvaluator<TensorRollOp<RollDimensions, ArgType>, Device>
     typedef typename TensorBlockIO::Dst TensorBlockIODst;
     typedef typename TensorBlockIO::Src TensorBlockIOSrc;
 
-    const DSizes<Index, NumDims> block_strides = internal::strides<Layout>(desc.dimensions());
     const typename TensorBlockIO::Dimensions input_strides(this->m_strides);
 
     // Copy every wrap-around piece (the cartesian product of the per-dim

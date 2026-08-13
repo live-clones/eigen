@@ -619,6 +619,8 @@ struct TensorEvaluator<TensorConcatenationOp<Axis, LeftArgType, RightArgType>, D
     if (desc.size() == 0) return;
     eigen_assert(this->m_leftImpl.data() != nullptr && this->m_rightImpl.data() != nullptr);
 
+    const DSizes<Index, NumDims> block_strides = internal::strides<Layout>(desc.dimensions());
+
     // Materialize the block into a temporary buffer if it is lazy.
     const ScalarNoConst* block_buffer = block.data();
     void* mem = nullptr;
@@ -628,9 +630,7 @@ struct TensorEvaluator<TensorConcatenationOp<Axis, LeftArgType, RightArgType>, D
 
       typedef internal::TensorBlockAssignment<ScalarNoConst, NumDims, typename TensorBlock::XprType, Index>
           TensorBlockAssignment;
-      TensorBlockAssignment::Run(
-          TensorBlockAssignment::target(desc.dimensions(), internal::strides<Layout>(desc.dimensions()), buf),
-          block.expr());
+      TensorBlockAssignment::Run(TensorBlockAssignment::target(desc.dimensions(), block_strides, buf), block.expr());
 
       block_buffer = buf;
     }
@@ -660,8 +660,6 @@ struct TensorEvaluator<TensorConcatenationOp<Axis, LeftArgType, RightArgType>, D
     typedef internal::TensorBlockIO<ScalarNoConst, Index, NumDims, Layout> TensorBlockIO;
     typedef typename TensorBlockIO::Dst TensorBlockIODst;
     typedef typename TensorBlockIO::Src TensorBlockIOSrc;
-
-    const DSizes<Index, NumDims> block_strides = internal::strides<Layout>(desc.dimensions());
 
     if (axis_start < left_axis_size) {
       DSizes<Index, NumDims> left_sub_dims = desc.dimensions();
