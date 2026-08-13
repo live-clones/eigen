@@ -281,24 +281,20 @@ struct TensorEvaluator<const TensorPatchOp<PatchDim, ArgType>, Device> {
       coords[NumDims - 1] = remaining;
     }
 
-    const DSizes<Index, NumDims>& block_strides = block_storage.strides();
-
     const int patch_dim = is_col_major ? NumDims - 1 : 0;
     const int inner_dim = is_col_major ? 0 : NumDims - 1;
-    const int inner_in_dim = is_col_major ? 0 : NumDims - 2;
 
     const Index num_patches_in_block = desc.dimension(patch_dim);
-    const Index patch_dst_stride = block_strides[patch_dim];
+    // The input's inner-most stride is 1 by construction, so the inner run is
+    // contiguous on both sides.
     const Index inner_size = desc.dimension(inner_dim);
-    const Index inner_src_stride = m_inputStrides[inner_in_dim];
 
     // The within-patch dimensions between the inner-most one and the patch
     // index, ordered inner-most to outer-most, plus the input offset the
     // block's corner contributes on every within-patch dimension.
-    Index mid_sizes[NumDims];
-    Index mid_dst_stride[NumDims];
-    Index mid_src_stride[NumDims];
-    Index mid_count[NumDims];
+    array<Index, NumDims> mid_sizes;
+    array<Index, NumDims> mid_src_stride;
+    array<Index, NumDims> mid_count;
     int num_mid = 0;
     Index src_corner = 0;
     for (int k = 0; k < NumDims - 1; ++k) {
@@ -307,12 +303,15 @@ struct TensorEvaluator<const TensorPatchOp<PatchDim, ArgType>, Device> {
       src_corner += coords[d] * m_inputStrides[in_d];
       if (k > 0) {
         mid_sizes[num_mid] = desc.dimension(d);
-        mid_dst_stride[num_mid] = block_strides[d];
         mid_src_stride[num_mid] = m_inputStrides[in_d];
         ++num_mid;
       }
     }
 
+    // The loop nest below visits the block in exactly its memory order (the
+    // storage returned by prepareStorage() is dense with the block's own
+    // layout-order strides), so the destination is one running cursor.
+    Index dst = 0;
     for (Index p = 0; p < num_patches_in_block; ++p) {
       // Input offset of this patch's first element.
       Index patch_index = coords[patch_dim] + p;
@@ -323,37 +322,35 @@ struct TensorEvaluator<const TensorPatchOp<PatchDim, ArgType>, Device> {
           patch_index -= idx * m_patchStrides[i];
           src_patch += idx * m_inputStrides[i];
         }
-        src_patch += patch_index;
       } else {
         for (int i = 0; i < NumDims - 2; ++i) {
           const Index idx = patch_index / m_patchStrides[i];
           patch_index -= idx * m_patchStrides[i];
           src_patch += idx * m_inputStrides[i];
         }
-        src_patch += patch_index;
       }
+      src_patch += patch_index;
 
-      Index dst = p * patch_dst_stride;
       Index src = src_patch + src_corner;
       for (int k = 0; k < num_mid; ++k) mid_count[k] = 0;
       for (;;) {
         for (Index j = 0; j < inner_size; ++j) {
-          block_buffer[dst + j] = m_impl.coeff(src + j * inner_src_stride);
+          block_buffer[dst + j] = m_impl.coeff(src + j);
         }
+        dst += inner_size;
         int k = 0;
         for (; k < num_mid; ++k) {
           if (++mid_count[k] < mid_sizes[k]) {
-            dst += mid_dst_stride[k];
             src += mid_src_stride[k];
             break;
           }
           mid_count[k] = 0;
-          dst -= mid_dst_stride[k] * (mid_sizes[k] - 1);
           src -= mid_src_stride[k] * (mid_sizes[k] - 1);
         }
         if (k == num_mid) break;
       }
     }
+    eigen_assert(dst == desc.size());
 
     return block_storage.AsTensorMaterializedBlock();
   }
