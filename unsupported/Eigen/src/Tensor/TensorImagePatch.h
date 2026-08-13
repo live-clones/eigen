@@ -168,9 +168,12 @@ struct TensorEvaluator<const TensorImagePatchOp<Rows, Cols, ArgType>, Device> {
     PacketAccess = TensorEvaluator<ArgType, Device>::PacketAccess,
     // block() reads the argument through coeff(), and under a ThreadPool the
     // tiled executor shares this evaluator across concurrent block tasks, so
-    // the argument must itself be safe for block-style (concurrent, repeated)
-    // evaluation; its BlockAccess bit encodes that decision.
-    BlockAccess = TensorEvaluator<ArgType, Device>::BlockAccess,
+    // the argument must be safe to read repeatedly and concurrently. Either bit
+    // establishes that: BlockAccess is what non-repeatable nullary functors
+    // (random generators) clear, and RawAccess means coeff() is a plain buffer
+    // read. Requiring BlockAccess alone would needlessly exclude raw arguments
+    // whose scalar is not arithmetic, such as complex tensors.
+    BlockAccess = TensorEvaluator<ArgType, Device>::BlockAccess || TensorEvaluator<ArgType, Device>::RawAccess,
     PreferBlockAccess = true,
     CoordAccess = false,
     RawAccess = false
@@ -573,7 +576,7 @@ struct TensorEvaluator<const TensorImagePatchOp<Rows, Cols, ArgType>, Device> {
       coords[NumDims - 1] = remaining;
     }
 
-    const DSizes<Index, NumDims> block_strides = internal::strides<Layout>(desc.dimensions());
+    const DSizes<Index, NumDims>& block_strides = block_storage.strides();
 
     // Output dimensions: depth, patch row/col offset, 2d patch index, rest.
     const int dd = is_col_major ? 0 : NumDims - 1;

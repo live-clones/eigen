@@ -948,6 +948,18 @@ static void test_eval_tensor_image_patch() {
     VerifyBlockEvaluator<T, 5, Layout>(input.extract_image_patches(pr, pc, 1, 1, 2, 2, PADDING_VALID),
                                        [&out_dims]() { return FixedSizeBlock(out_dims); });
   }
+
+  // Inflated (zero-interleaved) input. Only the long overload can set the
+  // inflate strides, and they are what makes an in-range coordinate land
+  // between samples, which is a branch none of the cases above reach.
+  {
+    const Index rows_eff = (rows - 1) * 2 + 1;
+    const Index cols_eff = (cols - 1) * 2 + 1;
+    DSizes<Index, 5> out_dims = make_out_dims(rows_eff - pr + 1, cols_eff - pc + 1);
+    auto inflated = input.extract_image_patches(pr, pc, 1, 1, 1, 1, 2, 2, 0, 0, 0, 0, T(0));
+    VerifyBlockEvaluator<T, 5, Layout>(inflated, [&out_dims]() { return RandomBlock<Layout, 5>(out_dims, 1, 10); });
+    VerifyBlockEvaluator<T, 5, Layout>(inflated, [&out_dims]() { return FixedSizeBlock(out_dims); });
+  }
 }
 
 template <typename T, int Layout>
@@ -992,6 +1004,18 @@ static void test_eval_tensor_volume_patch() {
                                        [&out_dims]() { return RandomBlock<Layout, 6>(out_dims, 1, 10); });
     VerifyBlockEvaluator<T, 6, Layout>(input.extract_volume_patches(pp, pr, pc, 2, 2, 2, PADDING_SAME),
                                        [&out_dims]() { return FixedSizeBlock(out_dims); });
+  }
+
+  // Inflated (zero-interleaved) input, reaching the branch that rejects an
+  // in-range coordinate for landing between samples.
+  {
+    const Index planes_eff = (planes - 1) * 2 + 1;
+    const Index rows_eff = (rows - 1) * 2 + 1;
+    const Index cols_eff = (cols - 1) * 2 + 1;
+    DSizes<Index, 6> out_dims = make_out_dims(planes_eff - pp + 1, rows_eff - pr + 1, cols_eff - pc + 1);
+    auto inflated = input.extract_volume_patches(pp, pr, pc, 1, 1, 1, 2, 2, 2, 0, 0, 0, 0, 0, 0, T(0));
+    VerifyBlockEvaluator<T, 6, Layout>(inflated, [&out_dims]() { return RandomBlock<Layout, 6>(out_dims, 1, 10); });
+    VerifyBlockEvaluator<T, 6, Layout>(inflated, [&out_dims]() { return FixedSizeBlock(out_dims); });
   }
 }
 
