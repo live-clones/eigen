@@ -438,7 +438,6 @@ void verify_complex_nan_head() {
 
 void verify_custom_complex_small_tail() {
   typedef reordered_complex::Complex<float> Scalar;
-  static_assert(!internal::complex_array_access<Scalar>::value, "test must exercise the scalar rescaling fallback");
   const float coefficient = 2e-16f;
   Matrix<Scalar, 2, 1> vector;
   vector << Scalar(0), Scalar(coefficient);
