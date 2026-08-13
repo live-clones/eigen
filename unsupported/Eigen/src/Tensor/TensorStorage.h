@@ -20,25 +20,8 @@
 
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
-#include "./"
 
 namespace Eigen {
-
-namespace internal {
-
-// Unlike `plain_array` (DenseStorage.h), this is always aligned to the packet size rather
-// than the `Size`-dependent `compute_default_alignment<T, Size>` because
-// `TensorFixedSize::IsAligned` is itself a flat bool keyed only on
-// `EIGEN_MAX_STATIC_ALIGN_BYTES > 0`.  `Size`-dependent storage alignment that falls back
-// to `alignof(T)` for sizes `compute_default_alignment` cannot safely over-align would
-// silently diverge from that flag and let the evaluator issue aligned packet loads
-// against under-aligned storage.
-template <typename T, std::size_t Size>
-struct tensor_fixed_storage_array {
-  EIGEN_ALIGN_TO_BOUNDARY(EIGEN_MAX_STATIC_ALIGN_BYTES) T data[Size];
-};
-
-}  // namespace internal
 
 /** \internal
  *
@@ -62,13 +45,13 @@ class TensorStorage {
 
   // Allocate an array of size at least one to prevent compiler warnings.
   static constexpr std::size_t MinSize = max_n_1<Size>::size;
-  internal::tensor_fixed_storage_array<T, MinSize> m_data;
+  EIGEN_ALIGN_MAX T m_data[MinSize];
 
  public:
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorStorage() {}
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T* data() { return m_data.data; }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const T* data() const { return m_data.data; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T* data() { return m_data; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const T* data() const { return m_data; }
 
   constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const FixedDimensions dimensions() const { return FixedDimensions(); }
 
