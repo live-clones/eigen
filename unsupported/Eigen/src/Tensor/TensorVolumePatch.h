@@ -559,8 +559,6 @@ struct TensorEvaluator<const TensorVolumePatchOp<Planes, Rows, Cols, ArgType>, D
       coords[NumDims - 1] = remaining;
     }
 
-    const DSizes<Index, NumDims>& block_strides = block_storage.strides();
-
     // Output dimensions: depth, patch plane/row/col offset, 3d patch index.
     const int dd = is_col_major ? 0 : NumDims - 1;
     const int nd = is_col_major ? 1 : NumDims - 2;
@@ -581,10 +579,9 @@ struct TensorEvaluator<const TensorVolumePatchOp<Planes, Rows, Cols, ArgType>, D
 
     // Odometer over the remaining (batch etc.) dimensions, tracking the input
     // offset they contribute.
-    Index other_sizes[NumDims];
-    Index other_dst_stride[NumDims];
-    Index other_src_stride[NumDims];
-    Index other_count[NumDims];
+    array<Index, NumDims> other_sizes;
+    array<Index, NumDims> other_src_stride;
+    array<Index, NumDims> other_count;
     int num_other = 0;
     Index src_other = 0;
     {
@@ -592,7 +589,6 @@ struct TensorEvaluator<const TensorVolumePatchOp<Planes, Rows, Cols, ArgType>, D
       for (int k = 5; k < NumDims; ++k) {
         const int d = is_col_major ? k : NumDims - 1 - k;
         other_sizes[num_other] = desc.dimension(d);
-        other_dst_stride[num_other] = block_strides[d];
         other_src_stride[num_other] = in_stride;
         other_count[num_other] = 0;
         src_other += coords[d] * in_stride;
@@ -601,14 +597,18 @@ struct TensorEvaluator<const TensorVolumePatchOp<Planes, Rows, Cols, ArgType>, D
       }
     }
 
-    Index dst_other = 0;
+    typedef internal::StridedLinearBufferCopy<Scalar, Index> LinCopy;
+
+    // The loop nest below visits the block in exactly its memory order (the
+    // storage returned by prepareStorage() is dense with the block's own
+    // layout-order strides), so the destination is one running cursor.
+    Index dst = 0;
     for (;;) {
       for (Index p = 0; p < patch_size; ++p) {
         const Index patch3DIndex = patch_start + p;
         const Index colIndex = patch3DIndex / m_fastOutputPlanesRows;
         const Index rowIndex = (patch3DIndex - colIndex * m_outputPlanesRows) / m_fastOutputPlanes;
         const Index planeIndex = patch3DIndex - m_outputPlanes * (colIndex * m_outputRows + rowIndex);
-        const Index dst_patch = dst_other + p * block_strides[pd];
 
         for (Index c = 0; c < col_size; ++c) {
           const Index colOffset = col_start + c;
@@ -619,7 +619,6 @@ struct TensorEvaluator<const TensorVolumePatchOp<Planes, Rows, Cols, ArgType>, D
             origInputCol = inputCol / m_fastInputColStride;
             col_valid = (inputCol == origInputCol * m_col_inflate_strides);
           }
-          const Index dst_col = dst_patch + c * block_strides[cd];
 
           for (Index r = 0; r < row_size; ++r) {
             const Index rowOffset = row_start + r;
@@ -636,7 +635,6 @@ struct TensorEvaluator<const TensorVolumePatchOp<Planes, Rows, Cols, ArgType>, D
                 }
               }
             }
-            const Index dst_row = dst_col + r * block_strides[rd];
 
             for (Index n = 0; n < plane_size; ++n) {
               const Index planeOffset = plane_start + n;
@@ -654,17 +652,19 @@ struct TensorEvaluator<const TensorVolumePatchOp<Planes, Rows, Cols, ArgType>, D
                   }
                 }
               }
-              const Index dst_plane = dst_row + n * block_strides[nd];
 
               if (valid) {
                 const Index src = depth_start + origInputPlane * m_planeInputStride + origInputRow * m_rowInputStride +
                                   origInputCol * m_colInputStride + src_other;
                 for (Index d = 0; d < depth_size; ++d) {
-                  block_buffer[dst_plane + d] = m_impl.coeff(src + d);
+                  block_buffer[dst + d] = m_impl.coeff(src + d);
                 }
               } else {
-                Map<ArrayX<Scalar>>(block_buffer + dst_plane, depth_size).setConstant(m_paddingValue);
+                LinCopy::template Run<LinCopy::Kind::FillLinear>(typename LinCopy::Dst(dst, 1, block_buffer),
+                                                                 typename LinCopy::Src(0, 0, &m_paddingValue),
+                                                                 depth_size);
               }
+              dst += depth_size;
             }
           }
         }
@@ -673,16 +673,15 @@ struct TensorEvaluator<const TensorVolumePatchOp<Planes, Rows, Cols, ArgType>, D
       int k = 0;
       for (; k < num_other; ++k) {
         if (++other_count[k] < other_sizes[k]) {
-          dst_other += other_dst_stride[k];
           src_other += other_src_stride[k];
           break;
         }
         other_count[k] = 0;
-        dst_other -= other_dst_stride[k] * (other_sizes[k] - 1);
         src_other -= other_src_stride[k] * (other_sizes[k] - 1);
       }
       if (k == num_other) break;
     }
+    eigen_assert(dst == desc.size());
 
     return block_storage.AsTensorMaterializedBlock();
   }

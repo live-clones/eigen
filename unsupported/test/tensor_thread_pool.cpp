@@ -181,21 +181,24 @@ struct OverlapDetectingOp {
   mutable std::atomic<bool> busy{false};
 };
 
+// The driver expression uses reverse() because its block() has always read
+// the argument through coeff() with BlockAccess independent of the argument,
+// so these tests exercise the tiled executor's per-task evaluator copy
+// regardless of how any one evaluator's traits evolve.
 void test_multithread_tiled_stateful_functor() {
-  Tensor<float, 4> in(4, 64, 64, 8);
+  Tensor<float, 4> in(64, 64, 64, 8);
   in.setRandom();
 
-  Tensor<float, 4> plus_one(4, 64, 64, 8);
-  plus_one = in + 1.0f;
-  Tensor<float, 5> expected(4, 3, 3, 64 * 64, 8);
-  expected = plus_one.extract_image_patches(3, 3);
+  const array<bool, 4> rev = {{false, true, true, false}};
+  Tensor<float, 4> expected(64, 64, 64, 8);
+  expected = (in + 1.0f).reverse(rev);
 
   std::atomic<int> overlaps(0);
   Eigen::ThreadPool tp(4);
   Eigen::ThreadPoolDevice thread_pool_device(&tp, 4);
 
-  Tensor<float, 5> out(4, 3, 3, 64 * 64, 8);
-  out.device(thread_pool_device) = in.unaryExpr(OverlapDetectingOp(&overlaps)).extract_image_patches(3, 3);
+  Tensor<float, 4> out(64, 64, 64, 8);
+  out.device(thread_pool_device) = in.unaryExpr(OverlapDetectingOp(&overlaps)).reverse(rev);
 
   VERIFY_IS_EQUAL(overlaps.load(), 0);
   for (int i = 0; i < out.size(); ++i) {
@@ -204,22 +207,20 @@ void test_multithread_tiled_stateful_functor() {
 }
 
 void test_async_multithread_tiled_stateful_functor() {
-  Tensor<float, 4> in(4, 64, 64, 8);
+  Tensor<float, 4> in(64, 64, 64, 8);
   in.setRandom();
 
-  Tensor<float, 4> plus_one(4, 64, 64, 8);
-  plus_one = in + 1.0f;
-  Tensor<float, 5> expected(4, 3, 3, 64 * 64, 8);
-  expected = plus_one.extract_image_patches(3, 3);
+  const array<bool, 4> rev = {{false, true, true, false}};
+  Tensor<float, 4> expected(64, 64, 64, 8);
+  expected = (in + 1.0f).reverse(rev);
 
   std::atomic<int> overlaps(0);
   Eigen::ThreadPool tp(4);
   Eigen::ThreadPoolDevice thread_pool_device(&tp, 4);
 
-  Tensor<float, 5> out(4, 3, 3, 64 * 64, 8);
+  Tensor<float, 4> out(64, 64, 64, 8);
   Eigen::Barrier b(1);
-  out.device(thread_pool_device, [&b]() { b.Notify(); }) =
-      in.unaryExpr(OverlapDetectingOp(&overlaps)).extract_image_patches(3, 3);
+  out.device(thread_pool_device, [&b]() { b.Notify(); }) = in.unaryExpr(OverlapDetectingOp(&overlaps)).reverse(rev);
   b.Wait();
 
   VERIFY_IS_EQUAL(overlaps.load(), 0);

@@ -252,6 +252,27 @@ struct EvalRange<Evaluator, StorageIndex, /*Vectorizable*/ true> {
   }
 };
 
+// Evaluates a range of blocks for the tiled executors below. Each task copies
+// the evaluator so that concurrent tasks never share per-instance state (e.g.
+// stateful functors reached through coeff()), matching EvalRange for the
+// non-tiled path.
+template <typename Evaluator, typename BlockMapper, typename IndexType>
+struct EvalBlockRange {
+  static void run(Evaluator* evaluator_in, const BlockMapper& block_mapper, const ThreadPoolDevice& device,
+                  IndexType firstBlockIdx, IndexType lastBlockIdx) {
+    typedef TensorBlockScratchAllocator<ThreadPoolDevice> TensorBlockScratch;
+    Evaluator evaluator = *evaluator_in;
+    eigen_assert(lastBlockIdx >= firstBlockIdx);
+    TensorBlockScratch scratch(device);
+
+    for (IndexType block_idx = firstBlockIdx; block_idx < lastBlockIdx; ++block_idx) {
+      auto desc = block_mapper.blockDescriptor(block_idx);
+      evaluator.evalBlock(desc, scratch);
+      scratch.reset();
+    }
+  }
+};
+
 template <typename Expression, bool Vectorizable, TiledEvaluation Tiling>
 class TensorExecutor<Expression, ThreadPoolDevice, Vectorizable, Tiling> {
  public:
@@ -299,17 +320,8 @@ class TensorExecutor<Expression, ThreadPoolDevice, Vectorizable,
           internal::GetTensorExecutorTilingContext<Evaluator, BlockMapper, Vectorizable>(evaluator);
 
       auto eval_block = [&device, &evaluator, &tiling](IndexType firstBlockIdx, IndexType lastBlockIdx) {
-        // Copy the evaluator into the task so that concurrent tasks never
-        // share per-instance state (e.g. stateful functors reached through
-        // coeff()), matching EvalRange in the non-tiled path.
-        Evaluator task_evaluator = evaluator;
-        TensorBlockScratch scratch(device);
-
-        for (IndexType block_idx = firstBlockIdx; block_idx < lastBlockIdx; ++block_idx) {
-          TensorBlockDesc desc = tiling.block_mapper.blockDescriptor(block_idx);
-          task_evaluator.evalBlock(desc, scratch);
-          scratch.reset();
-        }
+        EvalBlockRange<Evaluator, BlockMapper, IndexType>::run(&evaluator, tiling.block_mapper, device, firstBlockIdx,
+                                                               lastBlockIdx);
       };
 
       // Evaluate small expressions directly as a single block.
@@ -396,15 +408,8 @@ class TensorAsyncExecutor<Expression, ThreadPoolDevice, DoneCallback, Vectorizab
       ctx->tiling = internal::GetTensorExecutorTilingContext<Evaluator, BlockMapper, Vectorizable>(ctx->evaluator);
 
       auto eval_block = [ctx](IndexType firstBlockIdx, IndexType lastBlockIdx) {
-        // Per-task evaluator copy: see the synchronous executor above.
-        Evaluator task_evaluator = ctx->evaluator;
-        TensorBlockScratch scratch(ctx->device);
-
-        for (IndexType block_idx = firstBlockIdx; block_idx < lastBlockIdx; ++block_idx) {
-          TensorBlockDesc desc = ctx->tiling.block_mapper.blockDescriptor(block_idx);
-          task_evaluator.evalBlock(desc, scratch);
-          scratch.reset();
-        }
+        EvalBlockRange<Evaluator, BlockMapper, IndexType>::run(&ctx->evaluator, ctx->tiling.block_mapper, ctx->device,
+                                                               firstBlockIdx, lastBlockIdx);
       };
 
       // Evaluate small expressions directly as a single block.
