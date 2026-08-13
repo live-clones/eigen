@@ -5,10 +5,22 @@
 # Shared rule sets, referenced from concrete jobs via
 #   rules: !reference [.rules:<name>, rules]
 # Centralizing them keeps the "what triggers this job?" decision in one place.
+# The EIGEN_CI_CCACHE_POLICY rule variables feed cache:policy in jobs that
+# share a ccache pool across refs: scheduled and web pipelines run refs of
+# the main project and may push the pool, while merge-request pipelines
+# carry untrusted code and must only pull it — ccache result entries are
+# unauthenticated object code, and GitLab classifies Maintainer/Owner-started
+# MR pipelines as protected-cache writers, so an MR write could otherwise
+# reach the pool that default-branch jobs restore. Jobs that consume the
+# variable default it to "pull".
 .rules:libeigen:all-tests:
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen"
+      variables:
+        EIGEN_CI_CCACHE_POLICY: pull-push
     - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
+      variables:
+        EIGEN_CI_CCACHE_POLICY: pull-push
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/all-tests/"
 
 .rules:libeigen:gpu:
