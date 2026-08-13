@@ -15,13 +15,16 @@ template <typename ResultTensor, typename Expr>
 static bool ValidateAgainstCoeff(benchmark::State& state, const ResultTensor& result, const Expr& expr) {
   TensorEvaluator<const Expr, DefaultDevice> eval(expr, DefaultDevice());
   eval.evalSubExprsIfNeeded(nullptr);
+  bool ok = true;
   for (Index i = 0; i < result.size(); ++i) {
     if (result.coeff(i) != eval.coeff(i)) {
       state.SkipWithError("validation failed");
-      return false;
+      ok = false;
+      break;
     }
   }
-  return true;
+  eval.cleanup();
+  return ok;
 }
 
 // --- Generic sliding-window patches on a 2D tensor ---
@@ -32,14 +35,15 @@ static void BM_Patch2D(benchmark::State& state) {
   Tensor<Scalar, 2> input(N, N);
   input.setRandom();
   Eigen::array<Index, 2> patch_dims = {K, K};
+  const auto patches = input.extract_patches(patch_dims);
 
   Tensor<Scalar, 3> result;
   for (auto _ : state) {
-    result = input.extract_patches(patch_dims);
+    result = patches;
     benchmark::DoNotOptimize(result.data());
     benchmark::ClobberMemory();
   }
-  if (!ValidateAgainstCoeff(state, result, input.extract_patches(patch_dims))) return;
+  if (!ValidateAgainstCoeff(state, result, patches)) return;
   state.SetBytesProcessed(state.iterations() * static_cast<int64_t>(result.size()) * sizeof(Scalar));
 }
 
@@ -51,14 +55,15 @@ static void BM_Patch3D(benchmark::State& state) {
   Tensor<Scalar, 3> input(N, N, N);
   input.setRandom();
   Eigen::array<Index, 3> patch_dims = {K, K, K};
+  const auto patches = input.extract_patches(patch_dims);
 
   Tensor<Scalar, 4> result;
   for (auto _ : state) {
-    result = input.extract_patches(patch_dims);
+    result = patches;
     benchmark::DoNotOptimize(result.data());
     benchmark::ClobberMemory();
   }
-  if (!ValidateAgainstCoeff(state, result, input.extract_patches(patch_dims))) return;
+  if (!ValidateAgainstCoeff(state, result, patches)) return;
   state.SetBytesProcessed(state.iterations() * static_cast<int64_t>(result.size()) * sizeof(Scalar));
 }
 
@@ -70,14 +75,15 @@ static void BM_VolumePatch_Valid(benchmark::State& state) {
 
   Tensor<Scalar, 5> input(C, N, N, N, 1);
   input.setRandom();
+  const auto patches = input.extract_volume_patches(K, K, K, 1, 1, 1, PADDING_VALID);
 
   Tensor<Scalar, 6> result;
   for (auto _ : state) {
-    result = input.extract_volume_patches(K, K, K, 1, 1, 1, PADDING_VALID);
+    result = patches;
     benchmark::DoNotOptimize(result.data());
     benchmark::ClobberMemory();
   }
-  if (!ValidateAgainstCoeff(state, result, input.extract_volume_patches(K, K, K, 1, 1, 1, PADDING_VALID))) return;
+  if (!ValidateAgainstCoeff(state, result, patches)) return;
   state.SetBytesProcessed(state.iterations() * static_cast<int64_t>(result.size()) * sizeof(Scalar));
 }
 
@@ -89,14 +95,15 @@ static void BM_VolumePatch_Same(benchmark::State& state) {
 
   Tensor<Scalar, 5> input(C, N, N, N, 1);
   input.setRandom();
+  const auto patches = input.extract_volume_patches(K, K, K, 2, 2, 2, PADDING_SAME);
 
   Tensor<Scalar, 6> result;
   for (auto _ : state) {
-    result = input.extract_volume_patches(K, K, K, 2, 2, 2, PADDING_SAME);
+    result = patches;
     benchmark::DoNotOptimize(result.data());
     benchmark::ClobberMemory();
   }
-  if (!ValidateAgainstCoeff(state, result, input.extract_volume_patches(K, K, K, 2, 2, 2, PADDING_SAME))) return;
+  if (!ValidateAgainstCoeff(state, result, patches)) return;
   state.SetBytesProcessed(state.iterations() * static_cast<int64_t>(result.size()) * sizeof(Scalar));
 }
 
