@@ -20,22 +20,24 @@
 
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
+#include "./"
 
 namespace Eigen {
 
 namespace internal {
-// Fixed-size stack array for TensorStorage, aligned the same way plain_array (DenseStorage.h)
-// aligns fixed-size Matrix/Array storage: to compute_default_alignment's result when it can
-// guarantee one, falling back to alignof(T) (some 32-bit platforms don't guarantee alignof(T)
-// for stack arrays otherwise).
-template <typename T, std::size_t Size, int Alignment = compute_default_alignment<T, static_cast<int>(Size)>::value>
-struct tensor_fixed_storage_array {
-  EIGEN_ALIGN_TO_BOUNDARY(Alignment) T data[Size];
-};
+
+// Unlike `plain_array` (DenseStorage.h), this is always aligned to the packet size rather
+// than the `Size`-dependent `compute_default_alignment<T, Size>` because
+// `TensorFixedSize::IsAligned` is itself a flat bool keyed only on
+// `EIGEN_MAX_STATIC_ALIGN_BYTES > 0`.  `Size`-dependent storage alignment that falls back
+// to `alignof(T)` for sizes `compute_default_alignment` cannot safely over-align would
+// silently diverge from that flag and let the evaluator issue aligned packet loads
+// against under-aligned storage.
 template <typename T, std::size_t Size>
-struct tensor_fixed_storage_array<T, Size, 0> {
-  EIGEN_ALIGN_TO_BOUNDARY(alignof(T)) T data[Size];
+struct tensor_fixed_storage_array {
+  EIGEN_ALIGN_TO_BOUNDARY(EIGEN_MAX_STATIC_ALIGN_BYTES) T data[Size];
 };
+
 }  // namespace internal
 
 /** \internal

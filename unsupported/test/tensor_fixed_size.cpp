@@ -254,6 +254,32 @@ static void test_array() {
   }
 }
 
+// Sanity check: `TensorFixedSize` whose element count isn't a multiple of the packet width
+// (5 floats) must still be safely usable when embedded in a larger aligned struct at
+// a non-16-byte-aligned offset.  Since `IsAligned` (and thus the `Aligned`/`Unaligned`
+// `LoadMode` `TensorEvaluator` picks for packet ops) is a flat, `Size`-independent trait,
+// it must not assume a stronger alignment than the storage actually provides for odd
+// sizes like this one.
+struct TensorFixedSizeEmbeddingHolder {
+  float pad;
+  TensorFixedSize<float, Sizes<5> > tensor;
+};
+
+static void test_embedded_odd_size() {
+  EIGEN_ALIGN_MAX TensorFixedSizeEmbeddingHolder lhs;
+  EIGEN_ALIGN_MAX TensorFixedSizeEmbeddingHolder rhs;
+
+  for (int i = 0; i < 5; ++i) {
+    rhs.tensor(i) = static_cast<float>(i + 1);
+  }
+
+  lhs.tensor = rhs.tensor + rhs.tensor;
+
+  for (int i = 0; i < 5; ++i) {
+    VERIFY_IS_APPROX(lhs.tensor(i), 2.0f * static_cast<float>(i + 1));
+  }
+}
+
 EIGEN_DECLARE_TEST(tensor_fixed_size) {
   CALL_SUBTEST(test_0d());
   CALL_SUBTEST(test_1d());
@@ -261,4 +287,5 @@ EIGEN_DECLARE_TEST(tensor_fixed_size) {
   CALL_SUBTEST(test_2d());
   CALL_SUBTEST(test_3d());
   CALL_SUBTEST(test_array());
+  CALL_SUBTEST(test_embedded_odd_size());
 }
