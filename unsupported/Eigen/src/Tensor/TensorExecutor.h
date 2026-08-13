@@ -299,11 +299,15 @@ class TensorExecutor<Expression, ThreadPoolDevice, Vectorizable,
           internal::GetTensorExecutorTilingContext<Evaluator, BlockMapper, Vectorizable>(evaluator);
 
       auto eval_block = [&device, &evaluator, &tiling](IndexType firstBlockIdx, IndexType lastBlockIdx) {
+        // Copy the evaluator into the task so that concurrent tasks never
+        // share per-instance state (e.g. stateful functors reached through
+        // coeff()), matching EvalRange in the non-tiled path.
+        Evaluator task_evaluator = evaluator;
         TensorBlockScratch scratch(device);
 
         for (IndexType block_idx = firstBlockIdx; block_idx < lastBlockIdx; ++block_idx) {
           TensorBlockDesc desc = tiling.block_mapper.blockDescriptor(block_idx);
-          evaluator.evalBlock(desc, scratch);
+          task_evaluator.evalBlock(desc, scratch);
           scratch.reset();
         }
       };
@@ -392,11 +396,13 @@ class TensorAsyncExecutor<Expression, ThreadPoolDevice, DoneCallback, Vectorizab
       ctx->tiling = internal::GetTensorExecutorTilingContext<Evaluator, BlockMapper, Vectorizable>(ctx->evaluator);
 
       auto eval_block = [ctx](IndexType firstBlockIdx, IndexType lastBlockIdx) {
+        // Per-task evaluator copy: see the synchronous executor above.
+        Evaluator task_evaluator = ctx->evaluator;
         TensorBlockScratch scratch(ctx->device);
 
         for (IndexType block_idx = firstBlockIdx; block_idx < lastBlockIdx; ++block_idx) {
           TensorBlockDesc desc = ctx->tiling.block_mapper.blockDescriptor(block_idx);
-          ctx->evaluator.evalBlock(desc, scratch);
+          task_evaluator.evalBlock(desc, scratch);
           scratch.reset();
         }
       };
