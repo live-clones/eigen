@@ -23,9 +23,10 @@
     # layout, concurrent build slots) turns every compile into a miss.
     CCACHE_BASEDIR: ${CI_PROJECT_DIR}
     # Access mode for the cache entries below; the all-tests rules raise it
-    # to pull-push for scheduled and web pipelines. The pull default keeps
-    # merge-request pipelines read-only, so MR-controlled cache content can
-    # never enter the pools that trusted jobs restore.
+    # to pull-push only for scheduled and web pipelines on a protected ref.
+    # The pull default keeps merge-request pipelines and unprotected-ref runs
+    # read-only, so untrusted cache content can never enter the pools that
+    # trusted jobs restore.
     EIGEN_CI_CCACHE_POLICY: pull
   script:
      - ./ci/scripts/build.windows.script.ps1

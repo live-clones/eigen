@@ -6,21 +6,26 @@
 #   rules: !reference [.rules:<name>, rules]
 # Centralizing them keeps the "what triggers this job?" decision in one place.
 # The EIGEN_CI_CCACHE_POLICY rule variables feed cache:policy in jobs that
-# share a ccache pool across refs: scheduled and web pipelines run refs of
-# the main project and may push the pool, while merge-request pipelines
-# carry untrusted code and must only pull it — ccache result entries are
-# unauthenticated object code, and GitLab classifies Maintainer/Owner-started
-# MR pipelines as protected-cache writers, so an MR write could otherwise
-# reach the pool that default-branch jobs restore. Jobs that consume the
-# variable default it to "pull".
+# share a ccache pool across refs. Only scheduled and web pipelines running a
+# protected ref may push the pool: ccache result entries are unauthenticated
+# object code, and GitLab grants the protected cache suffix by the role of
+# whoever starts the pipeline, so a schedule or web run pointed at an
+# unprotected branch — or any merge-request pipeline — could otherwise write
+# the pool that default-branch jobs restore. The pipeline source alone says
+# nothing about the ref, hence the $CI_COMMIT_REF_PROTECTED condition; the
+# fallback arms keep the same pipelines running with the read-only default
+# ("pull") that consuming jobs declare. First match wins, so each fallback
+# arm only catches the unprotected-ref remainder of the arm above it.
 .rules:libeigen:all-tests:
   rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_COMMIT_REF_PROTECTED == "true"
+      variables:
+        EIGEN_CI_CCACHE_POLICY: pull-push
     - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_COMMIT_REF_PROTECTED == "true"
       variables:
         EIGEN_CI_CCACHE_POLICY: pull-push
     - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
-      variables:
-        EIGEN_CI_CCACHE_POLICY: pull-push
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/all-tests/"
 
 .rules:libeigen:gpu:
