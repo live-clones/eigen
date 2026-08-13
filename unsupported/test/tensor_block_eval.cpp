@@ -888,10 +888,10 @@ static void test_eval_tensor_patch() {
   }
 
   VerifyBlockEvaluator<T, 4, Layout>(input.extract_patches(patch_dims),
-                                     [&out_dims]() { return RandomBlock<Layout, 4>(out_dims, 1, 10); });
+                                     [&out_dims]() { return RandomBlock<Layout>(out_dims, 1, 10); });
 
   VerifyBlockEvaluator<T, 4, Layout>(input.extract_patches(patch_dims),
-                                     [&out_dims]() { return SkewedInnerBlock<Layout, 4>(out_dims); });
+                                     [&out_dims]() { return SkewedInnerBlock<Layout>(out_dims); });
 
   VerifyBlockEvaluator<T, 4, Layout>(input.extract_patches(patch_dims),
                                      [&out_dims]() { return FixedSizeBlock(out_dims); });
@@ -922,9 +922,9 @@ static void test_eval_tensor_image_patch() {
   {
     DSizes<Index, 5> out_dims = make_out_dims(rows - pr + 1, cols - pc + 1);
     VerifyBlockEvaluator<T, 5, Layout>(input.extract_image_patches(pr, pc, 1, 1, 1, 1, PADDING_VALID),
-                                       [&out_dims]() { return RandomBlock<Layout, 5>(out_dims, 1, 10); });
+                                       [&out_dims]() { return RandomBlock<Layout>(out_dims, 1, 10); });
     VerifyBlockEvaluator<T, 5, Layout>(input.extract_image_patches(pr, pc, 1, 1, 1, 1, PADDING_VALID),
-                                       [&out_dims]() { return SkewedInnerBlock<Layout, 5>(out_dims); });
+                                       [&out_dims]() { return SkewedInnerBlock<Layout>(out_dims); });
     VerifyBlockEvaluator<T, 5, Layout>(input.extract_image_patches(pr, pc, 1, 1, 1, 1, PADDING_VALID),
                                        [&out_dims]() { return FixedSizeBlock(out_dims); });
   }
@@ -933,7 +933,7 @@ static void test_eval_tensor_image_patch() {
   {
     DSizes<Index, 5> out_dims = make_out_dims(numext::div_ceil(rows, Index(2)), numext::div_ceil(cols, Index(2)));
     VerifyBlockEvaluator<T, 5, Layout>(input.extract_image_patches(pr, pc, 2, 2, 1, 1, PADDING_SAME),
-                                       [&out_dims]() { return RandomBlock<Layout, 5>(out_dims, 1, 10); });
+                                       [&out_dims]() { return RandomBlock<Layout>(out_dims, 1, 10); });
     VerifyBlockEvaluator<T, 5, Layout>(input.extract_image_patches(pr, pc, 2, 2, 1, 1, PADDING_SAME),
                                        [&out_dims]() { return FixedSizeBlock(out_dims); });
   }
@@ -944,7 +944,7 @@ static void test_eval_tensor_image_patch() {
     const Index pc_eff = pc + (pc - 1);
     DSizes<Index, 5> out_dims = make_out_dims(rows - pr_eff + 1, cols - pc_eff + 1);
     VerifyBlockEvaluator<T, 5, Layout>(input.extract_image_patches(pr, pc, 1, 1, 2, 2, PADDING_VALID),
-                                       [&out_dims]() { return RandomBlock<Layout, 5>(out_dims, 1, 10); });
+                                       [&out_dims]() { return RandomBlock<Layout>(out_dims, 1, 10); });
     VerifyBlockEvaluator<T, 5, Layout>(input.extract_image_patches(pr, pc, 1, 1, 2, 2, PADDING_VALID),
                                        [&out_dims]() { return FixedSizeBlock(out_dims); });
   }
@@ -957,7 +957,7 @@ static void test_eval_tensor_image_patch() {
     const Index cols_eff = (cols - 1) * 2 + 1;
     DSizes<Index, 5> out_dims = make_out_dims(rows_eff - pr + 1, cols_eff - pc + 1);
     auto inflated = input.extract_image_patches(pr, pc, 1, 1, 1, 1, 2, 2, 0, 0, 0, 0, T(0));
-    VerifyBlockEvaluator<T, 5, Layout>(inflated, [&out_dims]() { return RandomBlock<Layout, 5>(out_dims, 1, 10); });
+    VerifyBlockEvaluator<T, 5, Layout>(inflated, [&out_dims]() { return RandomBlock<Layout>(out_dims, 1, 10); });
     VerifyBlockEvaluator<T, 5, Layout>(inflated, [&out_dims]() { return FixedSizeBlock(out_dims); });
   }
 }
@@ -989,9 +989,9 @@ static void test_eval_tensor_volume_patch() {
   {
     DSizes<Index, 6> out_dims = make_out_dims(planes - pp + 1, rows - pr + 1, cols - pc + 1);
     VerifyBlockEvaluator<T, 6, Layout>(input.extract_volume_patches(pp, pr, pc, 1, 1, 1, PADDING_VALID),
-                                       [&out_dims]() { return RandomBlock<Layout, 6>(out_dims, 1, 10); });
+                                       [&out_dims]() { return RandomBlock<Layout>(out_dims, 1, 10); });
     VerifyBlockEvaluator<T, 6, Layout>(input.extract_volume_patches(pp, pr, pc, 1, 1, 1, PADDING_VALID),
-                                       [&out_dims]() { return SkewedInnerBlock<Layout, 6>(out_dims); });
+                                       [&out_dims]() { return SkewedInnerBlock<Layout>(out_dims); });
     VerifyBlockEvaluator<T, 6, Layout>(input.extract_volume_patches(pp, pr, pc, 1, 1, 1, PADDING_VALID),
                                        [&out_dims]() { return FixedSizeBlock(out_dims); });
   }
@@ -1001,7 +1001,7 @@ static void test_eval_tensor_volume_patch() {
     DSizes<Index, 6> out_dims = make_out_dims(numext::div_ceil(planes, Index(2)), numext::div_ceil(rows, Index(2)),
                                               numext::div_ceil(cols, Index(2)));
     VerifyBlockEvaluator<T, 6, Layout>(input.extract_volume_patches(pp, pr, pc, 2, 2, 2, PADDING_SAME),
-                                       [&out_dims]() { return RandomBlock<Layout, 6>(out_dims, 1, 10); });
+                                       [&out_dims]() { return RandomBlock<Layout>(out_dims, 1, 10); });
     VerifyBlockEvaluator<T, 6, Layout>(input.extract_volume_patches(pp, pr, pc, 2, 2, 2, PADDING_SAME),
                                        [&out_dims]() { return FixedSizeBlock(out_dims); });
   }
@@ -1014,7 +1014,7 @@ static void test_eval_tensor_volume_patch() {
     const Index cols_eff = (cols - 1) * 2 + 1;
     DSizes<Index, 6> out_dims = make_out_dims(planes_eff - pp + 1, rows_eff - pr + 1, cols_eff - pc + 1);
     auto inflated = input.extract_volume_patches(pp, pr, pc, 1, 1, 1, 2, 2, 2, 0, 0, 0, 0, 0, 0, T(0));
-    VerifyBlockEvaluator<T, 6, Layout>(inflated, [&out_dims]() { return RandomBlock<Layout, 6>(out_dims, 1, 10); });
+    VerifyBlockEvaluator<T, 6, Layout>(inflated, [&out_dims]() { return RandomBlock<Layout>(out_dims, 1, 10); });
     VerifyBlockEvaluator<T, 6, Layout>(inflated, [&out_dims]() { return FixedSizeBlock(out_dims); });
   }
 }
