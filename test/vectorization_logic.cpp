@@ -292,9 +292,9 @@ struct vectorization_logic {
     if (PacketSize > 1) {
       // Reshaped evaluators serve packets: directly for unit-inner-stride storage, and by
       // forwarding the nested evaluator's packets for same-order coeff-level reshapes.
-      typedef Matrix<Scalar, 2 * PacketSize, 8, ColMajor> Matrix28c;
-      typedef Matrix<Scalar, 2 * PacketSize, 8, RowMajor> Matrix28r;
-      typedef Matrix<Scalar, 16 * PacketSize, 1> VectorFlat;
+      using Matrix28c = Matrix<Scalar, 2 * PacketSize, 8, ColMajor>;
+      using Matrix28r = Matrix<Scalar, 2 * PacketSize, 8, RowMajor>;
+      using VectorFlat = Matrix<Scalar, 16 * PacketSize, 1>;
       VERIFY(test_assign(VectorFlat(), Matrix28c().reshaped(), InnerVectorizedTraversal, -1));
       VERIFY(test_assign(VectorFlat(), (Matrix28c() + Matrix28c()).reshaped(), InnerVectorizedTraversal, -1));
       // A cross-order flat view cannot serve packets, but stays linear...
