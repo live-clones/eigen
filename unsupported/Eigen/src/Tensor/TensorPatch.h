@@ -80,17 +80,22 @@ struct TensorEvaluator<const TensorPatchOp<PatchDim, ArgType>, Device> {
   enum {
     IsAligned = false,
     PacketAccess = TensorEvaluator<ArgType, Device>::PacketAccess,
-    BlockAccess = false,
-    PreferBlockAccess = TensorEvaluator<ArgType, Device>::PreferBlockAccess,
+    BlockAccess = NumDims > 1,
+    // The coeff/packet path pays a div/mod cascade per element; the block
+    // path copies whole in-bounds boxes patch by patch.
+    PreferBlockAccess = true,
     CoordAccess = false,
     RawAccess = false
   };
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockNotImplemented TensorBlock;
+  typedef internal::TensorBlockDescriptor<NumDims, Index> TensorBlockDesc;
+  typedef internal::TensorBlockScratchAllocator<Device> TensorBlockScratch;
+  typedef typename internal::TensorMaterializedBlock<CoeffReturnType, NumDims, Layout, Index> TensorBlock;
   //===--------------------------------------------------------------------===//
 
-  EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device) : m_impl(op.expression(), device) {
+  EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device)
+      : m_impl(op.expression(), device), m_device(device) {
     Index num_patches = 1;
     const typename TensorEvaluator<ArgType, Device>::Dimensions& input_dims = m_impl.dimensions();
     const PatchDim& patch_dims = op.patch_dims();
@@ -231,6 +236,116 @@ struct TensorEvaluator<const TensorPatchOp<PatchDim, ArgType>, Device> {
     }
   }
 
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE internal::TensorBlockResourceRequirements getResourceRequirements() const {
+    const size_t target_size = m_device.firstLevelCacheSize();
+    return internal::TensorBlockResourceRequirements::skewed<Scalar>(target_size);
+  }
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorBlock block(TensorBlockDesc& desc, TensorBlockScratch& scratch,
+                                                          bool /*root_of_expr_ast*/ = false) const {
+    static const bool is_col_major = static_cast<int>(Layout) == static_cast<int>(ColMajor);
+
+    if (desc.size() == 0) {
+      return TensorBlock(internal::TensorBlockKind::kView, nullptr, desc.dimensions());
+    }
+
+    typename TensorBlock::Storage block_storage = TensorBlock::prepareStorage(desc, scratch);
+    CoeffReturnType* block_buffer = block_storage.data();
+
+    // Output coordinates of the block's corner.
+    array<Index, NumDims> coords;
+    Index remaining = desc.offset();
+    EIGEN_IF_CONSTEXPR (is_col_major) {
+      for (int i = NumDims - 1; i > 0; --i) {
+        coords[i] = remaining / m_outputStrides[i];
+        remaining -= coords[i] * m_outputStrides[i];
+      }
+      coords[0] = remaining;
+    } else {
+      for (int i = 0; i < NumDims - 1; ++i) {
+        coords[i] = remaining / m_outputStrides[i];
+        remaining -= coords[i] * m_outputStrides[i];
+      }
+      coords[NumDims - 1] = remaining;
+    }
+
+    const DSizes<Index, NumDims> block_strides = internal::strides<Layout>(desc.dimensions());
+
+    const int patch_dim = is_col_major ? NumDims - 1 : 0;
+    const int inner_dim = is_col_major ? 0 : NumDims - 1;
+    const int inner_in_dim = is_col_major ? 0 : NumDims - 2;
+
+    const Index num_patches_in_block = desc.dimension(patch_dim);
+    const Index patch_dst_stride = block_strides[patch_dim];
+    const Index inner_size = desc.dimension(inner_dim);
+    const Index inner_src_stride = m_inputStrides[inner_in_dim];
+
+    // The within-patch dimensions between the inner-most one and the patch
+    // index, ordered inner-most to outer-most, plus the input offset the
+    // block's corner contributes on every within-patch dimension.
+    Index mid_sizes[NumDims];
+    Index mid_dst_stride[NumDims];
+    Index mid_src_stride[NumDims];
+    Index mid_count[NumDims];
+    int num_mid = 0;
+    Index src_corner = 0;
+    for (int k = 0; k < NumDims - 1; ++k) {
+      const int d = is_col_major ? k : NumDims - 1 - k;  // output dimension
+      const int in_d = is_col_major ? d : d - 1;         // input-strides index
+      src_corner += coords[d] * m_inputStrides[in_d];
+      if (k > 0) {
+        mid_sizes[num_mid] = desc.dimension(d);
+        mid_dst_stride[num_mid] = block_strides[d];
+        mid_src_stride[num_mid] = m_inputStrides[in_d];
+        ++num_mid;
+      }
+    }
+
+    for (Index p = 0; p < num_patches_in_block; ++p) {
+      // Input offset of this patch's first element.
+      Index patch_index = coords[patch_dim] + p;
+      Index src_patch = 0;
+      EIGEN_IF_CONSTEXPR (is_col_major) {
+        for (int i = NumDims - 2; i > 0; --i) {
+          const Index idx = patch_index / m_patchStrides[i];
+          patch_index -= idx * m_patchStrides[i];
+          src_patch += idx * m_inputStrides[i];
+        }
+        src_patch += patch_index;
+      } else {
+        for (int i = 0; i < NumDims - 2; ++i) {
+          const Index idx = patch_index / m_patchStrides[i];
+          patch_index -= idx * m_patchStrides[i];
+          src_patch += idx * m_inputStrides[i];
+        }
+        src_patch += patch_index;
+      }
+
+      Index dst = p * patch_dst_stride;
+      Index src = src_patch + src_corner;
+      for (int k = 0; k < num_mid; ++k) mid_count[k] = 0;
+      for (;;) {
+        for (Index j = 0; j < inner_size; ++j) {
+          block_buffer[dst + j] = m_impl.coeff(src + j * inner_src_stride);
+        }
+        int k = 0;
+        for (; k < num_mid; ++k) {
+          if (++mid_count[k] < mid_sizes[k]) {
+            dst += mid_dst_stride[k];
+            src += mid_src_stride[k];
+            break;
+          }
+          mid_count[k] = 0;
+          dst -= mid_dst_stride[k] * (mid_sizes[k] - 1);
+          src -= mid_src_stride[k] * (mid_sizes[k] - 1);
+        }
+        if (k == num_mid) break;
+      }
+    }
+
+    return block_storage.AsTensorMaterializedBlock();
+  }
+
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorOpCost costPerCoeff(bool vectorized) const {
     const double compute_cost = NumDims * (TensorOpCost::DivCost<Index>() + TensorOpCost::MulCost<Index>() +
                                            2 * TensorOpCost::AddCost<Index>());
@@ -246,6 +361,7 @@ struct TensorEvaluator<const TensorPatchOp<PatchDim, ArgType>, Device> {
   array<Index, NumDims - 1> m_patchStrides;
 
   TensorEvaluator<ArgType, Device> m_impl;
+  const Device EIGEN_DEVICE_REF m_device;
 };
 
 }  // end namespace Eigen
