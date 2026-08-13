@@ -78,6 +78,14 @@ static void BM_StrideIdentity2D(benchmark::State& state) {
     benchmark::DoNotOptimize(B.data());
     benchmark::ClobberMemory();
   }
+  for (Index i = 0; i < B.dimension(0); ++i) {
+    for (Index j = 0; j < B.dimension(1); ++j) {
+      if (B(i, j) != A(i, j)) {
+        state.SkipWithError("validation failed");
+        return;
+      }
+    }
+  }
   state.SetItemsProcessed(state.iterations() * B.size());
 }
 
@@ -96,6 +104,16 @@ static void BM_StrideRead3D(benchmark::State& state) {
     B = A.stride(strides);
     benchmark::DoNotOptimize(B.data());
     benchmark::ClobberMemory();
+  }
+  for (Index i = 0; i < B.dimension(0); ++i) {
+    for (Index j = 0; j < B.dimension(1); ++j) {
+      for (Index k = 0; k < B.dimension(2); ++k) {
+        if (B(i, j, k) != A(i * 2, j * 2, k * 2)) {
+          state.SkipWithError("validation failed");
+          return;
+        }
+      }
+    }
   }
   state.SetItemsProcessed(state.iterations() * B.size());
 }
