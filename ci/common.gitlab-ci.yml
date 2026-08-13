@@ -11,6 +11,24 @@
     - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/all-tests/"
 
+# Split of .rules:libeigen:all-tests by cache-trust tier, for build jobs
+# whose GitLab cache configuration must differ between untrusted and trusted
+# pipelines (cache: cannot vary per rule arm, so the split happens at the
+# job level: a regular job and a :trusted twin with mutually exclusive
+# rules; see ci/build.windows.gitlab-ci.yml). The union of the two rule sets
+# equals .rules:libeigen:all-tests exactly — ref protection decides which
+# variant of a build job a scheduled or web pipeline runs.
+.rules:libeigen:all-tests:untrusted-cache:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_COMMIT_REF_PROTECTED != "true"
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_COMMIT_REF_PROTECTED != "true"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/all-tests/"
+
+.rules:libeigen:all-tests:trusted-cache:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_COMMIT_REF_PROTECTED == "true"
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_COMMIT_REF_PROTECTED == "true"
+
 .rules:libeigen:gpu:
   # Spelled out (rather than referencing .rules:libeigen:all-tests) to avoid
   # a nested !reference, which GitLab CI has had inconsistent support for.
