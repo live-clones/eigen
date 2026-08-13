@@ -251,7 +251,7 @@ struct TensorEvaluator<const TensorPatchOp<PatchDim, ArgType>, Device> {
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorBlock block(TensorBlockDesc& desc, TensorBlockScratch& scratch,
                                                           bool /*root_of_expr_ast*/ = false) const {
-    static const bool is_col_major = static_cast<int>(Layout) == static_cast<int>(ColMajor);
+    constexpr bool is_col_major = static_cast<int>(Layout) == static_cast<int>(ColMajor);
 
     if (desc.size() == 0) {
       return TensorBlock(internal::TensorBlockKind::kView, nullptr, desc.dimensions());
