@@ -19,7 +19,7 @@ namespace Eigen {
 namespace internal {
 
 template <DenseIndex Rows, DenseIndex Cols, typename XprType>
-struct traits<TensorImagePatchOp<Rows, Cols, XprType> > : public traits<XprType> {
+struct traits<TensorImagePatchOp<Rows, Cols, XprType>> : public traits<XprType> {
   typedef std::remove_const_t<typename XprType::Scalar> Scalar;
   typedef traits<XprType> XprTraits;
   typedef typename XprTraits::StorageKind StorageKind;
@@ -546,7 +546,7 @@ struct TensorEvaluator<const TensorImagePatchOp<Rows, Cols, ArgType>, Device> {
   // amortized over a whole depth run instead of paid per coefficient.
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorBlock block(TensorBlockDesc& desc, TensorBlockScratch& scratch,
                                                           bool /*root_of_expr_ast*/ = false) const {
-    static const bool is_col_major = static_cast<int>(Layout) == static_cast<int>(ColMajor);
+    constexpr bool is_col_major = static_cast<int>(Layout) == static_cast<int>(ColMajor);
 
     if (desc.size() == 0) {
       return TensorBlock(internal::TensorBlockKind::kView, nullptr, desc.dimensions());
@@ -654,9 +654,7 @@ struct TensorEvaluator<const TensorImagePatchOp<Rows, Cols, ArgType>, Device> {
                 block_buffer[dst_row + d] = m_impl.coeff(src + d);
               }
             } else {
-              for (Index d = 0; d < depth_size; ++d) {
-                block_buffer[dst_row + d] = Scalar(m_paddingValue);
-              }
+              Map<Array<Scalar, Dynamic, 1>>(block_buffer + dst_row, depth_size).setConstant(m_paddingValue);
             }
           }
         }
