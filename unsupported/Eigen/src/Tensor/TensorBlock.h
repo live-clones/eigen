@@ -1140,15 +1140,10 @@ class TensorBlockIO {
       return 1;
     }
 
-    // Both `dst` and `src` must have contiguous innermost dimension. We also
-    // accept the special case with stride '0', because it's used as a trick to
-    // implement broadcasting.
-    {
-      int inner_dim = IsColMajor ? 0 : NumDims - 1;
-      EIGEN_UNUSED_VARIABLE(inner_dim);
-      eigen_assert(dst.strides[inner_dim] == 1 || dst.strides[inner_dim] == 0);
-      eigen_assert(src.strides[inner_dim] == 1 || src.strides[inner_dim] == 0);
-    }
+    // The innermost dimension strides need not be unit: non-unit or negative
+    // strides (strided or reversed views) route the per-line copies to the
+    // gather/scatter/random kinds below, and stride '0' is used as a trick to
+    // implement broadcasting. Unit strides keep the fast linear kinds.
 
     // Give a shorter name to `dst_to_src_dim_map`.
     const DimensionsMap& dim_map = dst_to_src_dim_map;
@@ -1188,13 +1183,19 @@ class TensorBlockIO {
     // Size of the innermost dimension (length of contiguous blocks of memory).
     IndexType dst_inner_dim_size = NumDims == 0 ? 1 : dst.dims[dst_stride1_dim];
 
-    // Squeeze multiple inner dims into one if they are contiguous in `dst` and
-    // `src` memory, so we can do less linear copy calls.
+    // Squeeze multiple inner dims into one if the elements keep forming a
+    // single arithmetic progression at the inner stride across the dimension
+    // boundary in both `dst` and `src` memory, so we can do less linear copy
+    // calls. With unit inner strides this is the familiar contiguity check;
+    // non-unit or negative inner strides (strided or reversed views) squeeze
+    // only when the outer stride equals extent times the inner stride.
+    const IndexType dst_inner_stride = NumDims == 0 ? 1 : dst.strides[dst_stride1_dim];
+    const IndexType src_inner_stride = NumDims == 0 ? 1 : src.strides[src_dim_for_dst_stride1_dim];
     for (int i = num_size_one_inner_dims + 1; i < num_squeezable_dims; ++i) {
       const int dst_dim = IsColMajor ? i : NumDims - i - 1;
       const IndexType dst_stride = dst.strides[dst_dim];
       const IndexType src_stride = src.strides[dim_map[dst_dim]];
-      if (dst_inner_dim_size == dst_stride && dst_stride == src_stride) {
+      if (dst_stride == dst_inner_dim_size * dst_inner_stride && src_stride == dst_inner_dim_size * src_inner_stride) {
         dst_inner_dim_size *= dst.dims[dst_dim];
         ++num_size_one_inner_dims;
       } else {
