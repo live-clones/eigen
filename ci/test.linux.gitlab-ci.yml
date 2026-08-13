@@ -4,6 +4,9 @@
 .test:linux:
   extends: .common:linux:cross
   stage: test
+  variables:
+    # Content-addressed pass cache toggle, read by test.linux.script.sh.
+    EIGEN_CI_TEST_CACHE: "on"
   script:
     - . ci/scripts/test.linux.script.sh
   after_script:
@@ -13,6 +16,17 @@
     - saas-linux-2xlarge-amd64
   allow_failure:
     exit_codes: 42
+  # Pass-cache manifest consumed by test.linux.script.sh.  Like the build
+  # jobs' ccache, one pool per job name; merge-request pipelines are the
+  # only readers and writers (the script no-ops elsewhere), so scheduled
+  # full-matrix runs keep their seed diversity.  GitLab keeps protected and
+  # unprotected refs' caches separate, so MR pipelines only ever consume
+  # manifests recorded by other MR pipelines.
+  cache:
+    key: "$CI_JOB_NAME_SLUG-testcache"
+    paths:
+      - .testcache/
+    when: always
 
 ##### x86-64 ###################################################################
 .test:linux:x86-64:
@@ -250,6 +264,9 @@ test:linux:x86-64:nvhpc-26.1:default:unsupported:
   allow_failure: true
   variables:
     EIGEN_CI_CTEST_LABEL: gpu
+    # nvcc-driven builds bypass ccache and nvcc-linked binaries are not
+    # bit-reproducible, so the pass cache could never hit here.
+    EIGEN_CI_TEST_CACHE: "off"
   rules: !reference [.rules:libeigen:gpu, rules]
   tags:
     - saas-linux-medium-amd64-gpu-standard
