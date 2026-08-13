@@ -166,7 +166,11 @@ struct TensorEvaluator<const TensorImagePatchOp<Rows, Cols, ArgType>, Device> {
   enum {
     IsAligned = false,
     PacketAccess = TensorEvaluator<ArgType, Device>::PacketAccess,
-    BlockAccess = true,
+    // block() reads the argument through coeff(), and under a ThreadPool the
+    // tiled executor shares this evaluator across concurrent block tasks, so
+    // the argument must itself be safe for block-style (concurrent, repeated)
+    // evaluation; its BlockAccess bit encodes that decision.
+    BlockAccess = TensorEvaluator<ArgType, Device>::BlockAccess,
     PreferBlockAccess = true,
     CoordAccess = false,
     RawAccess = false
@@ -528,7 +532,12 @@ struct TensorEvaluator<const TensorImagePatchOp<Rows, Cols, ArgType>, Device> {
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE internal::TensorBlockResourceRequirements getResourceRequirements() const {
     const size_t target_size = m_device.firstLevelCacheSize();
-    return internal::TensorBlockResourceRequirements::skewed<Scalar>(target_size);
+    // In-bounds output coefficients read the argument once and every output
+    // coefficient is stored once; charge the argument's per-coefficient cost
+    // plus the store so ThreadPool scheduling sees expensive expression
+    // arguments (padding runs make this a slight over-estimate).
+    const TensorOpCost cost_per_coeff = m_impl.costPerCoeff(/*vectorized=*/false) + TensorOpCost(0, sizeof(Scalar), 0);
+    return internal::TensorBlockResourceRequirements::skewed<Scalar>(target_size).addCostPerCoeff(cost_per_coeff);
   }
 
   // Materializes the block by iterating patch/col/row coordinates and either
