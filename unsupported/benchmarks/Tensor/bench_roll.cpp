@@ -179,6 +179,14 @@ static void BM_RollWrite_Expr(benchmark::State& state) {
   ->Args({256, 256, 1})->Args({256, 256, 13}) \
   ->Args({1024, 1024, 1})->Args({1024, 1024, 13})
 
+// Transition sizes around the tiled-evaluation crossover (~8x8) for the
+// write benchmarks: below it the fixed tiled-executor setup cost dominates.
+#define ROLL_WRITE_SIZES \
+  ->Args({2, 2, 1})->Args({4, 4, 1})->Args({8, 8, 1})->Args({16, 16, 3})->Args({32, 32, 3}) \
+  ->Args({64, 64, 1})->Args({64, 64, 13}) \
+  ->Args({256, 256, 1})->Args({256, 256, 13}) \
+  ->Args({1024, 1024, 1})->Args({1024, 1024, 13})
+
 #define ROLL_3D_SIZES \
   ->Args({32, 32, 32})->Args({64, 64, 64})->Args({128, 128, 128})
 // clang-format on
@@ -187,6 +195,6 @@ BENCHMARK(BM_Roll_Inner) ROLL_SIZES;
 BENCHMARK(BM_Roll_Outer) ROLL_SIZES;
 BENCHMARK(BM_Roll_All) ROLL_SIZES;
 BENCHMARK(BM_Roll_3D_Inner) ROLL_3D_SIZES;
-BENCHMARK(BM_RollWrite_Inner) ROLL_SIZES;
-BENCHMARK(BM_RollWrite_Outer) ROLL_SIZES;
-BENCHMARK(BM_RollWrite_Expr) ROLL_SIZES;
+BENCHMARK(BM_RollWrite_Inner) ROLL_WRITE_SIZES;
+BENCHMARK(BM_RollWrite_Outer) ROLL_WRITE_SIZES;
+BENCHMARK(BM_RollWrite_Expr) ROLL_WRITE_SIZES;
