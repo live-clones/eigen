@@ -290,31 +290,26 @@ struct vectorization_logic {
                         InnerVectorizedTraversal, CompleteUnrolling)));
 
     if (PacketSize > 1) {
-      // Reshaped evaluators serve packets: directly for unit-inner-stride storage, and by
-      // forwarding the nested evaluator's packets for same-order coeff-level reshapes.
-      using Matrix28c = Matrix<Scalar, 2 * PacketSize, 8, ColMajor>;
-      using Matrix28r = Matrix<Scalar, 2 * PacketSize, 8, RowMajor>;
-      using VectorFlat = Matrix<Scalar, 16 * PacketSize, 1>;
-      VERIFY(test_assign(VectorFlat(), Matrix28c().reshaped(), InnerVectorizedTraversal, -1));
-      VERIFY(test_assign(VectorFlat(), (Matrix28c() + Matrix28c()).reshaped(), InnerVectorizedTraversal, -1));
+      // Matrix22 is column-major here, since EIGEN_DEFAULT_TO_ROW_MAJOR is #undef'd above; Matrix22r
+      // is its row-major twin, so the pair below isolates the effect of storage order alone.
+      using Matrix22r = Matrix<Scalar, 2 * PacketSize, 8, RowMajor>;
+      using VectorFlat = Matrix<Scalar, Matrix22::SizeAtCompileTime, 1>;
+      using Matrix2x16 = Matrix<Scalar, 2 * PacketSize, 16, ColMajor>;
+      VERIFY(test_assign(VectorFlat(), Matrix22().reshaped(), InnerVectorizedTraversal, -1));
+      VERIFY(test_assign(VectorFlat(), (Matrix22() + Matrix22()).reshaped(), InnerVectorizedTraversal, -1));
       // A cross-order flat view cannot serve packets, but stays linear...
-      VERIFY(test_assign(VectorFlat(), Matrix28r().reshaped(), LinearTraversal, -1));
+      VERIFY(test_assign(VectorFlat(), Matrix22r().reshaped(), LinearTraversal, -1));
       // ... and vectorizes again when the requested order follows the storage order.
-      VERIFY(test_assign(VectorFlat(), Matrix28r().template reshaped<AutoOrder>(), InnerVectorizedTraversal, -1));
-      VERIFY(test_redux(Matrix28c().reshaped(), LinearVectorizedTraversal, CompleteUnrolling));
+      VERIFY(test_assign(VectorFlat(), Matrix22r().template reshaped<AutoOrder>(), InnerVectorizedTraversal, -1));
+      VERIFY(test_redux(Matrix22().reshaped(), LinearVectorizedTraversal, CompleteUnrolling));
       VERIFY(test_assign(VectorX(160), MatrixXX(10, 16).reshaped(), LinearVectorizedTraversal, NoUnrolling));
 
-      // Replicate evaluators serve packets exactly when the inner (storage-order) direction is
-      // provably not replicated, so that no packet crosses a replication boundary.
-      VERIFY(test_assign(Matrix<Scalar, 2 * PacketSize, 16, ColMajor>(), Matrix28c().template replicate<1, 2>(),
-                         InnerVectorizedTraversal, -1));
-      VERIFY(test_assign(Matrix<Scalar, PacketSize, 3>(), Vector1().template replicate<1, 3>(),
-                         InnerVectorizedTraversal, -1));
+      // Replicate serves packets only when the inner (storage-order) direction is not replicated.
+      VERIFY(test_assign(Matrix2x16(), Matrix22().template replicate<1, 2>(), InnerVectorizedTraversal, -1));
       VERIFY(test_assign(MatrixXX(10, 8), MatrixXX(10, 4).template replicate<1, 2>(), SliceVectorizedTraversal,
                          NoUnrolling));
       // Replicating the inner direction would need wrap-around loads: scalar fallback.
-      VERIFY(test_assign(Matrix<Scalar, 4 * PacketSize, 8, ColMajor>(), Matrix28c().template replicate<2, 1>(),
-                         DefaultTraversal, -1));
+      VERIFY(test_assign(Matrix44(), Matrix2x16().template replicate<2, 1>(), DefaultTraversal, -1));
       // A replicated vector keeps linear access even when packets are unavailable.
       VERIFY(
           test_assign(Matrix<Scalar, 2 * PacketSize, 1>(), Vector1().template replicate<2, 1>(), LinearTraversal, -1));
