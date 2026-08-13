@@ -41,8 +41,7 @@ using require_host_scalar_convertible_t =
 
 }  // namespace internal
 
-// Returned by DeviceMatrix::adjoint(). Maps to cublasXgemm transA/B = C.
-
+/** \brief View returned by DeviceMatrix::adjoint(); maps to the cuBLAS conjugate-transpose operand flag. */
 template <typename Scalar_>
 class AdjointView {
  public:
@@ -54,8 +53,7 @@ class AdjointView {
   const DeviceMatrix<Scalar>& mat_;
 };
 
-// Returned by DeviceMatrix::transpose(). Maps to cublasXgemm transA/B = T.
-
+/** \brief View returned by DeviceMatrix::transpose(); maps to the cuBLAS transpose operand flag. */
 template <typename Scalar_>
 class TransposeView {
  public:
@@ -67,8 +65,7 @@ class TransposeView {
   const DeviceMatrix<Scalar>& mat_;
 };
 
-// Returned by operator*(Scalar, DeviceMatrix/View). Carries the scalar factor.
-
+/** \brief Expression returned by operator*(Scalar, DeviceMatrix/View), carrying the scalar factor. */
 template <typename Inner>
 class Scaled {
  public:
@@ -82,8 +79,7 @@ class Scaled {
   const Inner& inner_;
 };
 
-// Returned by operator*(lhs_expr, rhs_expr). Dispatches to cuBLAS GEMM.
-
+/** \brief Expression returned by operator*(lhs_expr, rhs_expr), dispatched to cuBLAS GEMM. */
 template <typename Lhs, typename Rhs>
 class GemmExpr {
  public:
@@ -165,6 +161,7 @@ Scaled<Inner> operator-(const Scaled<Inner>& s) {
 
 namespace internal {
 // Default: a DeviceMatrix is NoTrans.
+/** \brief Describes GPU device expression types. */
 template <typename T>
 struct device_expr_traits {
   static constexpr bool is_device_expr = false;
@@ -217,9 +214,12 @@ GemmExpr<Lhs, Rhs> operator*(const Lhs& a, const Rhs& b) {
   return {a, b};
 }
 
-// Like Scaled but carries a DeviceScalar (device pointer) instead of
-// a host scalar. operator+= dispatches to cuBLAS axpy with POINTER_MODE_DEVICE.
-
+/**
+ * \brief Expression that scales a device matrix by a DeviceScalar.
+ *
+ * Unlike Scaled, this expression carries a device pointer. operator+= dispatches to cuBLAS AXPY with device pointer
+ * mode.
+ */
 template <typename Scalar_>
 class DeviceScaledDevice {
  public:
@@ -248,6 +248,7 @@ DeviceScaledDevice<S> operator*(const DeviceScalar<S>& alpha, const DeviceMatrix
 // If DeviceMatrix is ever made an Eigen expression type, these would need to
 // be revisited.
 
+/** \brief Linear combination of two device matrices. */
 template <typename Scalar_>
 class DeviceAddExpr {
  public:
