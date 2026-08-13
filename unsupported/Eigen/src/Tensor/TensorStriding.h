@@ -80,12 +80,15 @@ struct TensorEvaluator<const TensorStridingOp<Strides, ArgType>, Device> {
   typedef typename Storage::Type EvaluatorPointerType;
 
   static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
-  typedef TensorEvaluator<const XprType, Device> Self;
+  // Inner-most dimension in storage order: the one a packet runs along.
+  static constexpr int kInnerDim = (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ? 0 : NumDims - 1;
+  // Tag selecting whether the argument can be asked for whole packets.
+  typedef std::integral_constant<bool, TensorEvaluator<ArgType, Device>::PacketAccess> ImplHasPacket;
   enum {
     IsAligned = false,
     // Packets are assembled from inner runs even when the nested evaluator
     // only exposes coefficient access.
-    PacketAccess = (PacketType<CoeffReturnType, Device>::size > 1),
+    PacketAccess = (PacketSize > 1),
     BlockAccess = false,
     PreferBlockAccess = TensorEvaluator<ArgType, Device>::PreferBlockAccess,
     CoordAccess = false,  // to be implemented
@@ -141,91 +144,48 @@ struct TensorEvaluator<const TensorStridingOp<Strides, ArgType>, Device> {
     return m_impl.coeff(srcCoeff(index));
   }
 
-  // Assembles a packet whose elements all lie in one inner-most run of the
-  // output: the input indices form an arithmetic progression starting at
-  // `base` with step `inner_stride`, so the index mapping is computed once
-  // per packet instead of once per coefficient.
-  template <int LoadMode, typename Self, bool ImplPacketAccess>
-  struct InnerRunLoader {
-    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static PacketReturnType Run(const Self& self, Index base,
-                                                                      Index inner_stride) {
-      EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<PacketReturnType>::alignment)
-      std::remove_const_t<CoeffReturnType> values[PacketSize];
-      EIGEN_UNROLL_LOOP
-      for (int i = 0; i < PacketSize; ++i) {
-        values[i] = self.m_impl.coeff(base + i * inner_stride);
-      }
-      return internal::pload<PacketReturnType>(values);
-    }
-  };
-
-  template <int LoadMode, typename Self>
-  struct InnerRunLoader<LoadMode, Self, true> {
-    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static PacketReturnType Run(const Self& self, Index base,
-                                                                      Index inner_stride) {
-      if (inner_stride == 1) {
-        // Inner dimension not strided: one contiguous load.
-        return self.m_impl.template packet<Unaligned>(base);
-      }
-      EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<PacketReturnType>::alignment)
-      std::remove_const_t<CoeffReturnType> values[PacketSize];
-      EIGEN_UNROLL_LOOP
-      for (int i = 0; i < PacketSize; ++i) {
-        values[i] = self.m_impl.coeff(base + i * inner_stride);
-      }
-      return internal::pload<PacketReturnType>(values);
-    }
-  };
-
-  template <int LoadMode, typename Self, bool ImplPacketAccess>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static PacketReturnType LoadPacketViaInnerRun(const Self& self, Index index) {
-    constexpr int inner_dim = (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ? 0 : NumDims - 1;
-    Index inner_pos;
-    const Index base = self.srcCoeffInner(index, inner_pos);
-    if (inner_pos + PacketSize <= self.m_dimensions[inner_dim]) {
-      return InnerRunLoader<LoadMode, Self, ImplPacketAccess>::Run(self, base, self.m_inputStrides[inner_dim]);
-    }
-
-    // The packet crosses an inner-run boundary: assemble it scalar by scalar.
+  // Reads PacketSize coefficients of the argument starting at `base` and
+  // stepping by `inner_stride`. Callers guarantee those lanes lie in a single
+  // inner-most run, which is what makes the input indices an arithmetic
+  // progression and lets the index mapping be computed once per packet
+  // instead of once per coefficient. The argument's packet() must not be
+  // instantiated when it has no packet access, hence the tag-dispatched pair
+  // rather than a plain branch (C++14 has no if constexpr).
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketReturnType loadInnerRun(Index base, Index inner_stride,
+                                                                      std::false_type) const {
     EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<PacketReturnType>::alignment)
     std::remove_const_t<CoeffReturnType> values[PacketSize];
     EIGEN_UNROLL_LOOP
     for (int i = 0; i < PacketSize; ++i) {
-      values[i] = self.coeff(index + i);
+      values[i] = m_impl.coeff(base + i * inner_stride);
     }
     return internal::pload<PacketReturnType>(values);
   }
 
-  template <int LoadMode, typename Self, bool ImplPacketAccess>
-  struct PacketLoader {
-    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static PacketReturnType Run(const Self& self, Index index) {
-      if (self.m_is_identity) {
-        EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<PacketReturnType>::alignment)
-        std::remove_const_t<CoeffReturnType> values[PacketSize];
-        EIGEN_UNROLL_LOOP
-        for (int i = 0; i < PacketSize; ++i) {
-          values[i] = self.m_impl.coeff(index + i);
-        }
-        return internal::pload<PacketReturnType>(values);
-      }
-      return LoadPacketViaInnerRun<LoadMode, Self, ImplPacketAccess>(self, index);
-    }
-  };
-
-  template <int LoadMode, typename Self>
-  struct PacketLoader<LoadMode, Self, true> {
-    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static PacketReturnType Run(const Self& self, Index index) {
-      if (self.m_is_identity) {
-        return self.m_impl.template packet<LoadMode>(index);
-      }
-      return LoadPacketViaInnerRun<LoadMode, Self, true>(self, index);
-    }
-  };
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketReturnType loadInnerRun(Index base, Index inner_stride,
+                                                                      std::true_type) const {
+    if (inner_stride == 1) return m_impl.template packet<Unaligned>(base);
+    return loadInnerRun(base, inner_stride, std::false_type());
+  }
 
   template <int LoadMode>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketReturnType packet(Index index) const {
     eigen_assert(index + PacketSize - 1 < dimensions().TotalSize());
-    return PacketLoader<LoadMode, Self, TensorEvaluator<ArgType, Device>::PacketAccess>::Run(*this, index);
+    // Identity striding is just the inner-run case with step one: srcCoeff is
+    // then the identity and the inner input stride is 1.
+    if (m_is_identity) return loadInnerRun(index, 1, ImplHasPacket());
+    Index base;
+    if (packetStaysInInnerRun(index, base)) return loadInnerRun(base, m_inputStrides[kInnerDim], ImplHasPacket());
+
+    // The packet crosses an inner-run boundary, so every lane needs its own
+    // index mapping.
+    EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<PacketReturnType>::alignment)
+    std::remove_const_t<CoeffReturnType> values[PacketSize];
+    EIGEN_UNROLL_LOOP
+    for (int i = 0; i < PacketSize; ++i) {
+      values[i] = coeff(index + i);
+    }
+    return internal::pload<PacketReturnType>(values);
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorOpCost costPerCoeff(bool vectorized) const {
@@ -234,18 +194,17 @@ struct TensorEvaluator<const TensorStridingOp<Strides, ArgType>, Device> {
                                     : (NumDims - 1) * (TensorOpCost::AddCost<Index>() + TensorOpCost::MulCost<Index>() +
                                                        TensorOpCost::DivCost<Index>()) +
                                           TensorOpCost::MulCost<Index>();
-    constexpr int inner_dim = (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ? 0 : (NumDims - 1);
     // The nested evaluator is served whole packets only when it has packet
     // access at all, and the inner runs are packet-aligned with an unstrided
-    // inner dimension (or the striding is the identity); everywhere else it is
-    // driven coefficient by coefficient and must be charged at scalar rates.
-    // Likewise the once-per-packet index mapping amortizes only while packets
-    // stay inside one inner run; the cross-run fallback recomputes it per lane.
-    constexpr bool ImplPacketAccess = bool(TensorEvaluator<ArgType, Device>::PacketAccess);
+    // inner dimension; everywhere else it is driven coefficient by coefficient
+    // and must be charged at scalar rates. Likewise the once-per-packet index
+    // mapping amortizes only while packets stay inside one inner run; the
+    // cross-run fallback recomputes it per lane. Identity striding satisfies
+    // both conditions, so it needs no special case here.
     const bool packets_stay_in_inner =
-        m_is_identity || (m_dimensions[inner_dim] >= PacketSize && m_dimensions[inner_dim] % PacketSize == 0);
+        m_is_identity || (m_dimensions[kInnerDim] > 0 && m_dimensions[kInnerDim] % PacketSize == 0);
     const bool packetizes_arg =
-        ImplPacketAccess && (m_is_identity || (packets_stay_in_inner && m_inputStrides[inner_dim] == 1));
+        TensorEvaluator<ArgType, Device>::PacketAccess && packets_stay_in_inner && m_inputStrides[kInnerDim] == 1;
     return m_impl.costPerCoeff(vectorized && packetizes_arg) +
            TensorOpCost(0, 0, compute_cost, vectorized && packets_stay_in_inner, PacketSize);
   }
@@ -286,6 +245,14 @@ struct TensorEvaluator<const TensorStridingOp<Strides, ArgType>, Device> {
     return srcCoeffInner(index, inner_pos);
   }
 
+  // True when the whole packet at output `index` stays inside one inner-most
+  // run; sets `base` to the input index of its first lane either way.
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool packetStaysInInnerRun(Index index, Index& base) const {
+    Index inner_pos;
+    base = srcCoeffInner(index, inner_pos);
+    return inner_pos + PacketSize <= m_dimensions[kInnerDim];
+  }
+
   Dimensions m_dimensions;
   bool m_is_identity;
   array<Index, NumDims> m_outputStrides;
@@ -301,12 +268,17 @@ struct TensorEvaluator<TensorStridingOp<Strides, ArgType>, Device>
   typedef TensorEvaluator<const XprType, Device> Base;
   static constexpr int NumDims = internal::array_size<typename TensorEvaluator<ArgType, Device>::Dimensions>::value;
 
+  typedef typename XprType::Index Index;
+  typedef typename XprType::Scalar Scalar;
+  typedef typename XprType::CoeffReturnType CoeffReturnType;
+  typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
+  static constexpr int PacketSize = PacketType<CoeffReturnType, Device>::size;
   static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
   enum {
     IsAligned = false,
     // Packets are scattered into inner runs even when the nested evaluator
     // only exposes coefficient access.
-    PacketAccess = (PacketType<typename XprType::CoeffReturnType, Device>::size > 1),
+    PacketAccess = Base::PacketAccess,
     PreferBlockAccess = false,
     CoordAccess = false,  // to be implemented
     RawAccess = false
@@ -314,59 +286,48 @@ struct TensorEvaluator<TensorStridingOp<Strides, ArgType>, Device>
 
   EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device) : Base(op, device) {}
 
-  typedef typename XprType::Index Index;
-  typedef typename XprType::Scalar Scalar;
-  typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
-  static constexpr int PacketSize = PacketType<CoeffReturnType, Device>::size;
-
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar& coeffRef(Index index) const {
+    if (this->m_is_identity) return this->m_impl.coeffRef(index);
     return this->m_impl.coeffRef(this->srcCoeff(index));
   }
 
-  // Contiguous store into an unstrided inner run; only instantiated when the
-  // nested evaluator has packet access.
-  template <int StoreMode, typename Self, bool ImplPacketAccess>
-  struct InnerRunWriter {
-    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static bool Run(const Self&, Index, const PacketReturnType&) { return false; }
-  };
-
-  template <int StoreMode, typename Self>
-  struct InnerRunWriter<StoreMode, Self, true> {
-    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static bool Run(const Self& self, Index base, const PacketReturnType& x) {
-      self.m_impl.template writePacket<Unaligned>(base, x);
-      return true;
+  // Mirror of the rvalue loadInnerRun: scatters a packet across PacketSize
+  // coefficients starting at `base` and stepping by `inner_stride`.
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void storeInnerRun(Index base, Index inner_stride, const PacketReturnType& x,
+                                                           std::false_type) const {
+    EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<PacketReturnType>::alignment) Scalar values[PacketSize];
+    internal::pstore<Scalar, PacketReturnType>(values, x);
+    EIGEN_UNROLL_LOOP
+    for (int i = 0; i < PacketSize; ++i) {
+      this->m_impl.coeffRef(base + i * inner_stride) = values[i];
     }
-  };
+  }
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void storeInnerRun(Index base, Index inner_stride, const PacketReturnType& x,
+                                                           std::true_type) const {
+    if (inner_stride == 1) {
+      this->m_impl.template writePacket<Unaligned>(base, x);
+      return;
+    }
+    storeInnerRun(base, inner_stride, x, std::false_type());
+  }
 
   template <int StoreMode>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacket(Index index, const PacketReturnType& x) const {
-    typedef TensorEvaluator<TensorStridingOp<Strides, ArgType>, Device> Self;
-    constexpr bool ImplPacketAccess = bool(TensorEvaluator<ArgType, Device>::PacketAccess);
     eigen_assert(index + PacketSize - 1 < this->dimensions().TotalSize());
-
-    // Mirrors the rvalue PacketLoader: within one inner-most run the target
-    // input indices form an arithmetic progression, so the index mapping is
-    // computed once per packet; an unstrided inner dimension becomes a
-    // single contiguous store.
-    constexpr int inner_dim = (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ? 0 : NumDims - 1;
-    Index inner_pos;
-    const Index base = this->srcCoeffInner(index, inner_pos);
-    if (inner_pos + PacketSize <= this->m_dimensions[inner_dim]) {
-      const Index inner_stride = this->m_inputStrides[inner_dim];
-      if (inner_stride == 1 && InnerRunWriter<StoreMode, Self, ImplPacketAccess>::Run(*this, base, x)) {
-        return;
-      }
-      EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<PacketReturnType>::alignment) Scalar values[PacketSize];
-      internal::pstore<Scalar, PacketReturnType>(values, x);
-      EIGEN_UNROLL_LOOP
-      for (int i = 0; i < PacketSize; ++i) {
-        this->m_impl.coeffRef(base + i * inner_stride) = values[i];
-      }
+    typedef typename Base::ImplHasPacket ImplHasPacket;
+    if (this->m_is_identity) {
+      storeInnerRun(index, 1, x, ImplHasPacket());
+      return;
+    }
+    Index base;
+    if (this->packetStaysInInnerRun(index, base)) {
+      storeInnerRun(base, this->m_inputStrides[Base::kInnerDim], x, ImplHasPacket());
       return;
     }
 
-    // The packet crosses an inner-run boundary: scatter scalar by scalar.
+    // The packet crosses an inner-run boundary, so every lane needs its own
+    // index mapping.
     EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<PacketReturnType>::alignment) Scalar values[PacketSize];
     internal::pstore<Scalar, PacketReturnType>(values, x);
     EIGEN_UNROLL_LOOP
