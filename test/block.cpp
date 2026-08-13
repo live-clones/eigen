@@ -139,12 +139,12 @@ void block(const MatrixType& m) {
   VERIFY_IS_APPROX(m1.row(r1), m1_copy.row(r1) + s1 * m1_copy.row(r2));
   // check nested block xpr on lhs
   m1.row(r1).row(0) += s1 * m1_copy.row(r2);
-  VERIFY_IS_APPROX(m1.row(r1), m1_copy.row(r1) + Scalar(2) * s1 * m1_copy.row(r2));
+  VERIFY_IS_APPROX(m1.row(r1), m1_copy.row(r1) + internal::wrapping_mul(Scalar(2), s1) * m1_copy.row(r2));
   m1 = m1_copy;
   m1.col(c1) += s1 * m1_copy.col(c2);
   VERIFY_IS_APPROX(m1.col(c1), m1_copy.col(c1) + s1 * m1_copy.col(c2));
   m1.col(c1).col(0) += s1 * m1_copy.col(c2);
-  VERIFY_IS_APPROX(m1.col(c1), m1_copy.col(c1) + Scalar(2) * s1 * m1_copy.col(c2));
+  VERIFY_IS_APPROX(m1.col(c1), m1_copy.col(c1) + internal::wrapping_mul(Scalar(2), s1) * m1_copy.col(c2));
 
   check_left_top(m1, r1, c1, rows, cols);
 

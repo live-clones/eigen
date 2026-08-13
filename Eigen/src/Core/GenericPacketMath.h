@@ -324,7 +324,7 @@ struct pcast_generic<SrcPacket, TgtPacket, false, true> {
 /** \internal \returns a + b (coeff-wise) */
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet padd(const Packet& a, const Packet& b) {
-  return a + b;
+  return wrapping_add(a, b);
 }
 // Avoid compiler warning for boolean algebra.
 template <>
@@ -343,7 +343,7 @@ EIGEN_DEVICE_FUNC inline std::enable_if_t<unpacket_traits<Packet>::masked_fpops_
 /** \internal \returns a - b (coeff-wise) */
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet psub(const Packet& a, const Packet& b) {
-  return a - b;
+  return wrapping_sub(a, b);
 }
 
 /** \internal \returns -a (coeff-wise) */
@@ -363,7 +363,7 @@ EIGEN_DEVICE_FUNC inline Packet pconj(const Packet& a) {
 /** \internal \returns a * b (coeff-wise) */
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet pmul(const Packet& a, const Packet& b) {
-  return a * b;
+  return wrapping_mul(a, b);
 }
 // Avoid compiler warning for boolean algebra.
 template <>
@@ -1598,13 +1598,13 @@ struct pmadd_impl<Scalar, std::enable_if_t<is_scalar<Scalar>::value && NumTraits
     return numext::madd<Scalar>(a, b, c);
   }
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar pmsub(const Scalar& a, const Scalar& b, const Scalar& c) {
-    return numext::madd<Scalar>(a, b, Scalar(-c));
+    return numext::madd<Scalar>(a, b, numext::negate(c));
   }
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar pnmadd(const Scalar& a, const Scalar& b, const Scalar& c) {
-    return numext::madd<Scalar>(Scalar(-a), b, c);
+    return numext::madd<Scalar>(numext::negate(a), b, c);
   }
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar pnmsub(const Scalar& a, const Scalar& b, const Scalar& c) {
-    return -Scalar(numext::madd<Scalar>(a, b, c));
+    return numext::negate(Scalar(numext::madd<Scalar>(a, b, c)));
   }
 };
 

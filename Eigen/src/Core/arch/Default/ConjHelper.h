@@ -80,16 +80,16 @@ struct conj_helper {
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ResultType pmadd(const LhsType& x, const RhsType& y,
                                                          const ResultType& c) const {
-    return this->pmul(x, y) + c;
+    return wrapping_add(this->pmul(x, y), c);
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ResultType pmsub(const LhsType& x, const RhsType& y,
                                                          const ResultType& c) const {
-    return this->pmul(x, y) - c;
+    return wrapping_sub(this->pmul(x, y), c);
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ResultType pmul(const LhsType& x, const RhsType& y) const {
-    return conj_if<ConjLhs>()(x) * conj_if<ConjRhs>()(y);
+    return wrapping_mul(conj_if<ConjLhs>()(x), conj_if<ConjRhs>()(y));
   }
 };
 

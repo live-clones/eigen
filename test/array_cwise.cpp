@@ -660,8 +660,8 @@ void array_generic(const ArrayType& m) {
     VERIFY_IS_APPROX(f1, FixedArrayType::Constant(s1));
     FixedArrayType f2(numext::real(s1));
     VERIFY_IS_APPROX(f2, FixedArrayType::Constant(numext::real(s1)));
-    FixedArrayType f3((int)100 * numext::real(s1));
-    VERIFY_IS_APPROX(f3, FixedArrayType::Constant((int)100 * numext::real(s1)));
+    FixedArrayType f3(internal::wrapping_mul(RealScalar(100), numext::real(s1)));
+    VERIFY_IS_APPROX(f3, FixedArrayType::Constant(internal::wrapping_mul(RealScalar(100), numext::real(s1))));
     f1.setRandom();
     FixedArrayType f4(f1.data());
     VERIFY_IS_APPROX(f4, f1);
@@ -671,8 +671,8 @@ void array_generic(const ArrayType& m) {
     VERIFY_IS_APPROX(f1, FixedArrayType::Constant(s1));
     FixedArrayType f2{numext::real(s1)};
     VERIFY_IS_APPROX(f2, FixedArrayType::Constant(numext::real(s1)));
-    FixedArrayType f3{(int)100 * numext::real(s1)};
-    VERIFY_IS_APPROX(f3, FixedArrayType::Constant((int)100 * numext::real(s1)));
+    FixedArrayType f3{internal::wrapping_mul(RealScalar(100), numext::real(s1))};
+    VERIFY_IS_APPROX(f3, FixedArrayType::Constant(internal::wrapping_mul(RealScalar(100), numext::real(s1))));
     f1.setRandom();
     FixedArrayType f4{f1.data()};
     VERIFY_IS_APPROX(f4, f1);
@@ -826,7 +826,7 @@ void comparisons(const ArrayType& m) {
   // test select
   VERIFY_IS_APPROX((m1 < m2).select(m1, m2), m1.cwiseMin(m2));
   VERIFY_IS_APPROX((m1 > m2).select(m1, m2), m1.cwiseMax(m2));
-  Scalar mid = (m1.cwiseAbs().minCoeff() + m1.cwiseAbs().maxCoeff()) / Scalar(2);
+  Scalar mid = internal::wrapping_add(m1.cwiseAbs().minCoeff(), m1.cwiseAbs().maxCoeff()) / Scalar(2);
   for (int j = 0; j < cols; ++j)
     for (int i = 0; i < rows; ++i) m3(i, j) = abs(m1(i, j)) < mid ? 0 : m1(i, j);
   VERIFY_IS_APPROX((m1.abs() < ArrayType::Constant(rows, cols, mid)).select(ArrayType::Zero(rows, cols), m1), m3);

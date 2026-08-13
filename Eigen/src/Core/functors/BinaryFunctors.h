@@ -39,7 +39,7 @@ struct scalar_sum_op : binary_op_base<LhsScalar, RhsScalar> {
 #endif
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE result_type
   operator()(const LhsScalar& a, const RhsScalar& b) const {
-    return a + b;
+    return wrapping_add(a, b);
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const {
@@ -85,7 +85,7 @@ struct scalar_product_op : binary_op_base<LhsScalar, RhsScalar> {
 #endif
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE result_type
   operator()(const LhsScalar& a, const RhsScalar& b) const {
-    return a * b;
+    return wrapping_mul(a, b);
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const {
@@ -421,7 +421,7 @@ struct scalar_difference_op : binary_op_base<LhsScalar, RhsScalar> {
 #endif
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE result_type
   operator()(const LhsScalar& a, const RhsScalar& b) const {
-    return a - b;
+    return wrapping_sub(a, b);
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const {

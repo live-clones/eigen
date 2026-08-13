@@ -1457,9 +1457,9 @@ struct diagonal_product_evaluator_base : evaluator_base<Derived> {
 
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const Scalar coeff(Index idx) const {
     EIGEN_IF_CONSTEXPR (AsScalarProduct)
-      return m_diagImpl.coeff(0) * m_matImpl.coeff(idx);
+      return wrapping_mul(m_diagImpl.coeff(0), m_matImpl.coeff(idx));
     else
-      return m_diagImpl.coeff(idx) * m_matImpl.coeff(idx);
+      return wrapping_mul(m_diagImpl.coeff(idx), m_matImpl.coeff(idx));
   }
 
  protected:
@@ -1528,7 +1528,7 @@ struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DiagonalSha
   EIGEN_DEVICE_FUNC constexpr explicit product_evaluator(const XprType& xpr) : Base(xpr.rhs(), xpr.lhs().diagonal()) {}
 
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const Scalar coeff(Index row, Index col) const {
-    return m_diagImpl.coeff(row) * m_matImpl.coeff(row, col);
+    return wrapping_mul(m_diagImpl.coeff(row), m_matImpl.coeff(row, col));
   }
 
 #ifndef EIGEN_GPUCC
@@ -1581,7 +1581,7 @@ struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DenseShape,
   EIGEN_DEVICE_FUNC constexpr explicit product_evaluator(const XprType& xpr) : Base(xpr.lhs(), xpr.rhs().diagonal()) {}
 
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const Scalar coeff(Index row, Index col) const {
-    return m_matImpl.coeff(row, col) * m_diagImpl.coeff(col);
+    return wrapping_mul(m_matImpl.coeff(row, col), m_diagImpl.coeff(col));
   }
 
 #ifndef EIGEN_GPUCC

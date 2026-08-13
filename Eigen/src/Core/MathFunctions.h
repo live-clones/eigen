@@ -212,13 +212,59 @@ template <typename Scalar, bool IsComplex = NumTraits<Scalar>::IsComplex>
 struct conj_impl : conj_default_impl<Scalar, IsComplex> {};
 
 /****************************************************************************
+ * Wrapping integer arithmetic                                              *
+ ****************************************************************************/
+
+// Eigen's vectorized integer paths wrap around on overflow (two's complement), but in the
+// scalar paths signed overflow is undefined behavior, and the product of narrow unsigned
+// operands can overflow `int` through integer promotion. Computing +, -, * in an unsigned
+// type at least as wide as `int` gives every built-in integer type defined wrap-around
+// semantics matching the packet paths. Non-integer types keep the plain operators, as do
+// mixed-type calls (only reachable through user-specialized ScalarBinaryOpTraits).
+template <typename T>
+struct is_wrapping_integer : bool_constant<std::is_integral<T>::value && !std::is_same<T, bool>::value> {};
+
+template <typename T, std::enable_if_t<is_wrapping_integer<T>::value, int> = 0>
+EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE T wrapping_add(const T& a, const T& b) {
+  using UnsignedT = std::common_type_t<std::make_unsigned_t<T>, unsigned int>;
+  return static_cast<T>(static_cast<UnsignedT>(a) + static_cast<UnsignedT>(b));
+}
+template <typename Lhs, typename Rhs,
+          std::enable_if_t<!(std::is_same<Lhs, Rhs>::value && is_wrapping_integer<Lhs>::value), int> = 0>
+EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE auto wrapping_add(const Lhs& a, const Rhs& b) -> decltype(a + b) {
+  return a + b;
+}
+
+template <typename T, std::enable_if_t<is_wrapping_integer<T>::value, int> = 0>
+EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE T wrapping_sub(const T& a, const T& b) {
+  using UnsignedT = std::common_type_t<std::make_unsigned_t<T>, unsigned int>;
+  return static_cast<T>(static_cast<UnsignedT>(a) - static_cast<UnsignedT>(b));
+}
+template <typename Lhs, typename Rhs,
+          std::enable_if_t<!(std::is_same<Lhs, Rhs>::value && is_wrapping_integer<Lhs>::value), int> = 0>
+EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE auto wrapping_sub(const Lhs& a, const Rhs& b) -> decltype(a - b) {
+  return a - b;
+}
+
+template <typename T, std::enable_if_t<is_wrapping_integer<T>::value, int> = 0>
+EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE T wrapping_mul(const T& a, const T& b) {
+  using UnsignedT = std::common_type_t<std::make_unsigned_t<T>, unsigned int>;
+  return static_cast<T>(static_cast<UnsignedT>(a) * static_cast<UnsignedT>(b));
+}
+template <typename Lhs, typename Rhs,
+          std::enable_if_t<!(std::is_same<Lhs, Rhs>::value && is_wrapping_integer<Lhs>::value), int> = 0>
+EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE auto wrapping_mul(const Lhs& a, const Rhs& b) -> decltype(a * b) {
+  return a * b;
+}
+
+/****************************************************************************
  * Implementation of abs2                                                 *
  ****************************************************************************/
 
 template <typename Scalar, bool IsComplex>
 struct abs2_impl_default {
   using RealScalar = typename NumTraits<Scalar>::Real;
-  EIGEN_DEVICE_FUNC static inline RealScalar run(const Scalar& x) { return x * x; }
+  EIGEN_DEVICE_FUNC static inline RealScalar run(const Scalar& x) { return wrapping_mul(x, x); }
 };
 
 template <typename Scalar>
@@ -516,11 +562,11 @@ struct pow_impl<ScalarX, ScalarY, true> {
   static EIGEN_DEVICE_FUNC inline ScalarX run(ScalarX x, ScalarY y) {
     ScalarX res(1);
     eigen_assert(!NumTraits<ScalarY>::IsSigned || y >= 0);
-    if (y & 1) res *= x;
+    if (y & 1) res = wrapping_mul(res, x);
     y >>= 1;
     while (y) {
-      x *= x;
-      if (y & 1) res *= x;
+      x = wrapping_mul(x, x);
+      if (y & 1) res = wrapping_mul(res, x);
       y >>= 1;
     }
     return res;
@@ -891,7 +937,7 @@ struct negate_impl {
 template <typename Scalar>
 struct negate_impl<Scalar, true> {
   EIGEN_STATIC_ASSERT((!std::is_same<Scalar, bool>::value), NEGATE IS NOT DEFINED FOR BOOLEAN TYPES)
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar run(const Scalar& a) { return Scalar(0) - a; }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar run(const Scalar& a) { return wrapping_sub(Scalar(0), a); }
 };
 
 template <typename Scalar, bool IsInteger = NumTraits<typename unpacket_traits<Scalar>::type>::IsInteger>
@@ -980,7 +1026,7 @@ struct fma_impl<double, void> {
 template <typename Scalar, typename EnableIf = void>
 struct madd_impl {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar run(const Scalar& x, const Scalar& y, const Scalar& z) {
-    return x * y + z;
+    return wrapping_add(wrapping_mul(x, y), z);
   }
 };
 
