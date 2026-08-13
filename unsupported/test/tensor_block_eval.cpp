@@ -895,6 +895,41 @@ static void test_eval_tensor_patch() {
 
   VerifyBlockEvaluator<T, 4, Layout>(input.extract_patches(patch_dims),
                                      [&out_dims]() { return FixedSizeBlock(out_dims); });
+
+  // Dispatch check: stride() serves neither blocks nor raw buffers, so this
+  // pins down that the patch block path needs no capability bit from its
+  // argument, only coeff().
+  {
+    const array<Index, 3> strides = {{2, 2, 2}};
+    auto strided = input.stride(strides);
+    typedef TensorEvaluator<const decltype(strided), DefaultDevice> StridedEval;
+    static_assert(!StridedEval::BlockAccess && !StridedEval::RawAccess,
+                  "stride() must stay a coeff()-only argument for this check to be meaningful");
+
+    DSizes<Index, 3> strided_dims;
+    DSizes<Index, 3> strided_patch_dims;
+    Index strided_num_patches = 1;
+    for (int i = 0; i < 3; ++i) {
+      strided_dims[i] = (dims[i] - 1) / 2 + 1;
+      strided_patch_dims[i] = internal::random<Index>(1, strided_dims[i]);
+      strided_num_patches *= (strided_dims[i] - strided_patch_dims[i] + 1);
+    }
+    DSizes<Index, 4> strided_out_dims;
+    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+      strided_out_dims =
+          DSizes<Index, 4>(strided_patch_dims[0], strided_patch_dims[1], strided_patch_dims[2], strided_num_patches);
+    } else {
+      strided_out_dims =
+          DSizes<Index, 4>(strided_num_patches, strided_patch_dims[0], strided_patch_dims[1], strided_patch_dims[2]);
+    }
+
+    auto strided_patch = strided.extract_patches(strided_patch_dims);
+    typedef TensorEvaluator<const decltype(strided_patch), DefaultDevice> PatchEval;
+    static_assert(PatchEval::BlockAccess && PatchEval::PreferBlockAccess,
+                  "the patch block path must dispatch for a coeff()-only argument");
+    VerifyBlockEvaluator<T, 4, Layout>(strided_patch,
+                                       [&strided_out_dims]() { return RandomBlock<Layout>(strided_out_dims, 1, 10); });
+  }
 }
 
 template <typename T, int Layout>
@@ -960,6 +995,20 @@ static void test_eval_tensor_image_patch() {
     VerifyBlockEvaluator<T, 5, Layout>(inflated, [&out_dims]() { return RandomBlock<Layout>(out_dims, 1, 10); });
     VerifyBlockEvaluator<T, 5, Layout>(inflated, [&out_dims]() { return FixedSizeBlock(out_dims); });
   }
+
+  // Dispatch check: stride() serves neither blocks nor raw buffers, so this
+  // pins down that the block path needs no capability bit from its argument.
+  {
+    const array<Index, 4> strides = {{1, 2, 2, 1}};
+    auto strided_patch = input.stride(strides).extract_image_patches(pr, pc, 1, 1, 1, 1, PADDING_VALID);
+    typedef TensorEvaluator<const decltype(strided_patch), DefaultDevice> PatchEval;
+    static_assert(PatchEval::BlockAccess && PatchEval::PreferBlockAccess,
+                  "the image-patch block path must dispatch for a coeff()-only argument");
+    const Index rows_s = (rows - 1) / 2 + 1;
+    const Index cols_s = (cols - 1) / 2 + 1;
+    DSizes<Index, 5> out_dims = make_out_dims(rows_s - pr + 1, cols_s - pc + 1);
+    VerifyBlockEvaluator<T, 5, Layout>(strided_patch, [&out_dims]() { return RandomBlock<Layout>(out_dims, 1, 10); });
+  }
 }
 
 template <typename T, int Layout>
@@ -1016,6 +1065,21 @@ static void test_eval_tensor_volume_patch() {
     auto inflated = input.extract_volume_patches(pp, pr, pc, 1, 1, 1, 2, 2, 2, 0, 0, 0, 0, 0, 0, T(0));
     VerifyBlockEvaluator<T, 6, Layout>(inflated, [&out_dims]() { return RandomBlock<Layout>(out_dims, 1, 10); });
     VerifyBlockEvaluator<T, 6, Layout>(inflated, [&out_dims]() { return FixedSizeBlock(out_dims); });
+  }
+
+  // Dispatch check: stride() serves neither blocks nor raw buffers, so this
+  // pins down that the block path needs no capability bit from its argument.
+  {
+    const array<Index, 5> strides = {{1, 2, 2, 2, 1}};
+    auto strided_patch = input.stride(strides).extract_volume_patches(pp, pr, pc, 1, 1, 1, PADDING_VALID);
+    typedef TensorEvaluator<const decltype(strided_patch), DefaultDevice> PatchEval;
+    static_assert(PatchEval::BlockAccess && PatchEval::PreferBlockAccess,
+                  "the volume-patch block path must dispatch for a coeff()-only argument");
+    const Index planes_s = (planes - 1) / 2 + 1;
+    const Index rows_s = (rows - 1) / 2 + 1;
+    const Index cols_s = (cols - 1) / 2 + 1;
+    DSizes<Index, 6> out_dims = make_out_dims(planes_s - pp + 1, rows_s - pr + 1, cols_s - pc + 1);
+    VerifyBlockEvaluator<T, 6, Layout>(strided_patch, [&out_dims]() { return RandomBlock<Layout>(out_dims, 1, 10); });
   }
 }
 
