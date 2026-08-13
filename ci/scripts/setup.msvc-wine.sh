@@ -81,8 +81,7 @@ fi
 
 # The generated wrappers record the toolset they point at.  Surface it so the
 # Windows test job can compare it against the runtime it has.
-EIGEN_CI_MSVC_TOOLSET=$(sed -n 's/^MSVCVER=//p' "${msvc_dir}/bin/x64/msvcenv.sh")
-export EIGEN_CI_MSVC_TOOLSET
+export EIGEN_CI_MSVC_TOOLSET=$(sed -n 's/^MSVCVER=//p' "${msvc_dir}/bin/x64/msvcenv.sh")
 
 export PATH="${msvc_dir}/bin/x64:${PATH}"
 export WINEDEBUG=-all

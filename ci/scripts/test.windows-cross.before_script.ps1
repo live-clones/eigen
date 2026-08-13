@@ -59,14 +59,14 @@ $verdict = if ($builtWith -eq 'unknown' -or $runnerHas -eq 'unknown') {
 } else {
   ' (differ)'
 }
-Write-Host "MSVC toolset: built with ${builtWith}, this runner has ${runnerHas}${verdict}"
+Write-Information "MSVC toolset: built with ${builtWith}, this runner has ${runnerHas}${verdict}"
 
 if ($builtWith -ne 'unknown' -and $runnerHas -ne 'unknown' -and $builtWith -ne $runnerHas) {
-  Write-Host "WARNING: the build and the runner have drifted apart."
+  Write-Warning "Build and runner toolset versions have drifted apart."
   if ([version]$builtWith -gt [version]$runnerHas) {
     $fix = if ($runnerVs) { "`"${runnerVs}`"" } else { "the Visual Studio version this runner reports" }
-    Write-Host ("WARNING: the binaries are newer than this runner's runtime, so " +
-                "they will fail to load. Set EIGEN_CI_MSVC_VS_VERSION in " +
-                "ci/build.windows.gitlab-ci.yml to ${fix}.")
+    Write-Warning ("Build MSVC version is newer than this runner's runtime, so " +
+                   "binaries will fail to load. Set EIGEN_CI_MSVC_VS_VERSION in " +
+                   "ci/build.windows.gitlab-ci.yml to ${fix}.")
   }
 }
