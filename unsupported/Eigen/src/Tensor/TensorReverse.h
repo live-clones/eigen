@@ -374,7 +374,12 @@ struct TensorEvaluator<TensorReverseOp<ReverseDimensions, ArgType>, Device>
   enum {
     IsAligned = false,
     PacketAccess = TensorEvaluator<ArgType, Device>::PacketAccess,
-    BlockAccess = false,
+    // writeBlock() assigns the re-reversed block expression straight into the
+    // argument's buffer, so it needs raw storage underneath.
+    BlockAccess = TensorEvaluator<ArgType, Device>::RawAccess,
+    // Unlike the rvalue side there is no preference: the reversal cost moves
+    // to the block-expression reads, so writing blocks only pays off when the
+    // right-hand side prefers block evaluation anyway.
     PreferBlockAccess = false,
     CoordAccess = false,  // to be implemented
     RawAccess = false
@@ -385,9 +390,10 @@ struct TensorEvaluator<TensorReverseOp<ReverseDimensions, ArgType>, Device>
   typedef typename XprType::CoeffReturnType CoeffReturnType;
   typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
   static constexpr int PacketSize = PacketType<CoeffReturnType, Device>::size;
+  typedef std::remove_const_t<Scalar> ScalarNoConst;
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockNotImplemented TensorBlock;
+  typedef internal::TensorBlockDescriptor<NumDims, Index> TensorBlockDesc;
   //===--------------------------------------------------------------------===//
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return this->m_dimensions; }
@@ -424,6 +430,48 @@ struct TensorEvaluator<TensorReverseOp<ReverseDimensions, ArgType>, Device>
     for (int i = 0; i < PacketSize; ++i) {
       this->coeffRef(index + i) = values[i];
     }
+  }
+
+  template <typename TensorBlock>
+  EIGEN_STRONG_INLINE void writeBlock(const TensorBlockDesc& desc, const TensorBlock& block) {
+    eigen_assert(this->m_impl.data() != nullptr);
+
+    // The destination of a block is a box in the underlying tensor: on
+    // reversed dimensions the output range [o, o + e) maps to the input range
+    // [n - o - e, n - o). Compute the input-space corner of that box.
+    Index output_offset = desc.offset();
+    Index input_corner = 0;
+    EIGEN_IF_CONSTEXPR (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+      for (int i = NumDims - 1; i > 0; --i) {
+        const Index idx = output_offset / this->m_fastStrides[i];
+        output_offset -= idx * this->m_strides[i];
+        const Index first = this->m_reverse[i] ? this->m_dimensions[i] - idx - desc.dimension(i) : idx;
+        input_corner += first * this->m_strides[i];
+      }
+      input_corner += this->m_reverse[0] ? this->m_dimensions[0] - output_offset - desc.dimension(0) : output_offset;
+    } else {
+      for (int i = 0; i < NumDims - 1; ++i) {
+        const Index idx = output_offset / this->m_fastStrides[i];
+        output_offset -= idx * this->m_strides[i];
+        const Index first = this->m_reverse[i] ? this->m_dimensions[i] - idx - desc.dimension(i) : idx;
+        input_corner += first * this->m_strides[i];
+      }
+      input_corner += this->m_reverse[NumDims - 1]
+                          ? this->m_dimensions[NumDims - 1] - output_offset - desc.dimension(NumDims - 1)
+                          : output_offset;
+    }
+
+    // Assigning the block expression reversed along the reversed dimensions
+    // into that box cancels the reversal; the reversed reads vectorize via
+    // the rvalue evaluator's inner-slice fast path while the stores stay
+    // contiguous.
+    typedef TensorReverseOp<const ReverseDimensions, const typename TensorBlock::XprType> RevBlockExpr;
+    const RevBlockExpr reversed_block(block.expr(), this->m_reverse);
+
+    typedef internal::TensorBlockAssignment<ScalarNoConst, NumDims, RevBlockExpr, Index> TensorBlockAssign;
+    TensorBlockAssign::Run(TensorBlockAssign::target(desc.dimensions(), DSizes<Index, NumDims>(this->m_strides),
+                                                     this->m_impl.data(), input_corner),
+                           reversed_block);
   }
 };
 

@@ -1483,6 +1483,111 @@ static void test_assign_expr_to_tensor_strided_slice() {
   }
 }
 
+template <typename T, int NumDims, int Layout>
+static void test_assign_to_tensor_reverse() {
+  DSizes<Index, NumDims> dims = RandomDims<NumDims>(5, 15);
+  Tensor<T, NumDims, Layout> tensor(dims);
+
+  TensorMap<Tensor<T, NumDims, Layout>> map(tensor.data(), dims);
+
+  array<bool, NumDims> reverse;
+  for (int i = 0; i < NumDims; ++i) reverse[i] = false;
+  VerifyBlockAssignment<T, NumDims, Layout>(tensor, map.reverse(reverse),
+                                            [&dims]() { return RandomBlock<Layout>(dims, 1, 10); });
+
+  for (int i = 0; i < NumDims; ++i) reverse[i] = true;
+  VerifyBlockAssignment<T, NumDims, Layout>(tensor, map.reverse(reverse),
+                                            [&dims]() { return RandomBlock<Layout>(dims, 1, 10); });
+  VerifyBlockAssignment<T, NumDims, Layout>(tensor, map.reverse(reverse), [&dims]() { return FixedSizeBlock(dims); });
+
+  for (int i = 0; i < NumDims; ++i) reverse[i] = internal::random<bool>();
+  VerifyBlockAssignment<T, NumDims, Layout>(tensor, map.reverse(reverse),
+                                            [&dims]() { return RandomBlock<Layout>(dims, 1, 10); });
+}
+
+template <typename T, int NumDims, int Layout>
+static void test_assign_to_tensor_roll() {
+  DSizes<Index, NumDims> dims = RandomDims<NumDims>(5, 15);
+  Tensor<T, NumDims, Layout> tensor(dims);
+
+  TensorMap<Tensor<T, NumDims, Layout>> map(tensor.data(), dims);
+
+  array<Index, NumDims> rolls;
+  for (int i = 0; i < NumDims; ++i) rolls[i] = 0;
+  VerifyBlockAssignment<T, NumDims, Layout>(tensor, map.roll(rolls),
+                                            [&dims]() { return RandomBlock<Layout>(dims, 1, 10); });
+
+  // Shifts beyond the dimension size and negative shifts must wrap.
+  for (int i = 0; i < NumDims; ++i) rolls[i] = internal::random<Index>(-2 * dims[i], 2 * dims[i]);
+  VerifyBlockAssignment<T, NumDims, Layout>(tensor, map.roll(rolls),
+                                            [&dims]() { return RandomBlock<Layout>(dims, 1, 10); });
+  VerifyBlockAssignment<T, NumDims, Layout>(tensor, map.roll(rolls), [&dims]() { return FixedSizeBlock(dims); });
+}
+
+template <typename T, int NumDims, int Layout>
+static void test_assign_to_tensor_concatenation() {
+  // A concatenation writes into two operands, which VerifyBlockAssignment's
+  // single-tensor contract cannot express; compare writeBlock against a
+  // scalar reference instead.
+  DSizes<Index, NumDims> dims = RandomDims<NumDims>(5, 15);
+  const int axis = internal::random<int>(0, NumDims - 1);
+  const Index left_axis_size = internal::random<Index>(1, dims[axis] - 1);
+
+  DSizes<Index, NumDims> left_dims = dims;
+  left_dims[axis] = left_axis_size;
+  DSizes<Index, NumDims> right_dims = dims;
+  right_dims[axis] = dims[axis] - left_axis_size;
+
+  Tensor<T, NumDims, Layout> left(left_dims);
+  Tensor<T, NumDims, Layout> right(right_dims);
+  left.setZero();
+  right.setZero();
+
+  TensorMap<Tensor<T, NumDims, Layout>> left_map(left.data(), left_dims);
+  TensorMap<Tensor<T, NumDims, Layout>> right_map(right.data(), right_dims);
+
+  auto expr = left_map.concatenate(right_map, axis);
+  auto eval = TensorEvaluator<decltype(expr), DefaultDevice>(expr, DefaultDevice());
+
+  TensorBlockParams<NumDims> params = RandomBlock<Layout>(dims, 1, 10);
+  Tensor<T, NumDims, Layout> block(params.desc.dimensions());
+  block.setRandom();
+
+  internal::TensorMaterializedBlock<T, NumDims, Layout> blk(internal::TensorBlockKind::kView, block.data(),
+                                                            block.dimensions());
+  eval.writeBlock(params.desc, blk);
+
+  // Scalar reference: land every block coefficient in the expected operand.
+  Tensor<T, NumDims, Layout> expected_left(left_dims);
+  Tensor<T, NumDims, Layout> expected_right(right_dims);
+  expected_left.setZero();
+  expected_right.setZero();
+
+  DSizes<Index, NumDims> it;
+  for (int i = 0; i < NumDims; ++i) it[i] = 0;
+  for (Index count = 0; count < block.size(); ++count) {
+    array<Index, NumDims> dst;
+    for (int i = 0; i < NumDims; ++i) dst[i] = params.offsets[i] + it[i];
+    if (dst[axis] < left_axis_size) {
+      expected_left(dst) = block(it);
+    } else {
+      dst[axis] -= left_axis_size;
+      expected_right(dst) = block(it);
+    }
+    for (int i = 0; i < NumDims; ++i) {
+      if (++it[i] < params.desc.dimension(i)) break;
+      it[i] = 0;
+    }
+  }
+
+  for (Index i = 0; i < left.size(); ++i) {
+    VERIFY_IS_EQUAL(left.coeff(i), expected_left.coeff(i));
+  }
+  for (Index i = 0; i < right.size(); ++i) {
+    VERIFY_IS_EQUAL(right.coeff(i), expected_right.coeff(i));
+  }
+}
+
 // -------------------------------------------------------------------------- //
 
 #define CALL_SUBTEST_PART(PART) CALL_SUBTEST_##PART
@@ -1603,9 +1708,12 @@ EIGEN_DECLARE_TEST(tensor_block_eval) {
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(8, test_assign_to_tensor_layout_swap);
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(8, test_assign_to_tensor_strided_slice);
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(8, test_assign_expr_to_tensor_strided_slice);
+  CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(9, test_assign_to_tensor_reverse);
+  CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(9, test_assign_to_tensor_roll);
+  CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(9, test_assign_to_tensor_concatenation);
 
   // Force CMake to split this test.
-  // EIGEN_SUFFIXES;1;2;3;4;5;6;7;8
+  // EIGEN_SUFFIXES;1;2;3;4;5;6;7;8;9
 
   // clang-format on
 }
