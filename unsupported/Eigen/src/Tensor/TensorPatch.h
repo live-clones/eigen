@@ -80,7 +80,11 @@ struct TensorEvaluator<const TensorPatchOp<PatchDim, ArgType>, Device> {
   enum {
     IsAligned = false,
     PacketAccess = TensorEvaluator<ArgType, Device>::PacketAccess,
-    BlockAccess = NumDims > 1,
+    // block() reads the argument through coeff(), and under a ThreadPool the
+    // tiled executor shares this evaluator across concurrent block tasks, so
+    // the argument must itself be safe for block-style (concurrent, repeated)
+    // evaluation; its BlockAccess bit encodes that decision.
+    BlockAccess = TensorEvaluator<ArgType, Device>::BlockAccess && NumDims > 1,
     // The coeff/packet path pays a div/mod cascade per element; the block
     // path copies whole in-bounds boxes patch by patch.
     PreferBlockAccess = true,
@@ -237,7 +241,12 @@ struct TensorEvaluator<const TensorPatchOp<PatchDim, ArgType>, Device> {
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE internal::TensorBlockResourceRequirements getResourceRequirements() const {
     const size_t target_size = m_device.firstLevelCacheSize();
-    return internal::TensorBlockResourceRequirements::skewed<Scalar>(target_size);
+    // Every output coefficient is read once from the argument and stored
+    // once, so charge the argument's per-coefficient cost plus the store so
+    // that ThreadPool scheduling sees expensive expression arguments.
+    const TensorOpCost cost_per_coeff =
+        m_impl.costPerCoeff(/*vectorized=*/false) + TensorOpCost(0, sizeof(CoeffReturnType), 0);
+    return internal::TensorBlockResourceRequirements::skewed<Scalar>(target_size).addCostPerCoeff(cost_per_coeff);
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorBlock block(TensorBlockDesc& desc, TensorBlockScratch& scratch,
