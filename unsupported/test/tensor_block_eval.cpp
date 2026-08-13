@@ -1048,7 +1048,7 @@ static void test_assign_to_tensor_shuffle() {
   CALL_SUBTEST_PART(PART)((NAME<float, 5, RowMajor>())); \
   CALL_SUBTEST_PART(PART)((NAME<float, 1, ColMajor>())); \
   CALL_SUBTEST_PART(PART)((NAME<float, 2, ColMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<float, 4, ColMajor>())); \
+  CALL_SUBTEST_PART(PART)((NAME<float, 3, ColMajor>())); \
   CALL_SUBTEST_PART(PART)((NAME<float, 4, ColMajor>())); \
   CALL_SUBTEST_PART(PART)((NAME<float, 5, ColMajor>())); \
   CALL_SUBTEST_PART(PART)((NAME<int, 1, RowMajor>()));   \
@@ -1058,7 +1058,7 @@ static void test_assign_to_tensor_shuffle() {
   CALL_SUBTEST_PART(PART)((NAME<int, 5, RowMajor>()));   \
   CALL_SUBTEST_PART(PART)((NAME<int, 1, ColMajor>()));   \
   CALL_SUBTEST_PART(PART)((NAME<int, 2, ColMajor>()));   \
-  CALL_SUBTEST_PART(PART)((NAME<int, 4, ColMajor>()));   \
+  CALL_SUBTEST_PART(PART)((NAME<int, 3, ColMajor>()));   \
   CALL_SUBTEST_PART(PART)((NAME<int, 4, ColMajor>()));   \
   CALL_SUBTEST_PART(PART)((NAME<int, 5, ColMajor>()));   \
   CALL_SUBTEST_PART(PART)((NAME<bool, 1, RowMajor>()));  \
@@ -1068,7 +1068,7 @@ static void test_assign_to_tensor_shuffle() {
   CALL_SUBTEST_PART(PART)((NAME<bool, 5, RowMajor>()));  \
   CALL_SUBTEST_PART(PART)((NAME<bool, 1, ColMajor>()));  \
   CALL_SUBTEST_PART(PART)((NAME<bool, 2, ColMajor>()));  \
-  CALL_SUBTEST_PART(PART)((NAME<bool, 4, ColMajor>()));  \
+  CALL_SUBTEST_PART(PART)((NAME<bool, 3, ColMajor>()));  \
   CALL_SUBTEST_PART(PART)((NAME<bool, 4, ColMajor>()));  \
   CALL_SUBTEST_PART(PART)((NAME<bool, 5, ColMajor>()))
 
@@ -1080,7 +1080,7 @@ static void test_assign_to_tensor_shuffle() {
   CALL_SUBTEST_PART(PART)((NAME<float, 5, RowMajor>())); \
   CALL_SUBTEST_PART(PART)((NAME<float, 1, ColMajor>())); \
   CALL_SUBTEST_PART(PART)((NAME<float, 2, ColMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<float, 4, ColMajor>())); \
+  CALL_SUBTEST_PART(PART)((NAME<float, 3, ColMajor>())); \
   CALL_SUBTEST_PART(PART)((NAME<float, 4, ColMajor>())); \
   CALL_SUBTEST_PART(PART)((NAME<float, 5, ColMajor>()))
 

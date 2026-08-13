@@ -80,7 +80,12 @@ struct TensorEvaluator<const TensorInflationOp<Strides, ArgType>, Device> {
   enum {
     IsAligned = /*TensorEvaluator<ArgType, Device>::IsAligned*/ false,
     PacketAccess = TensorEvaluator<ArgType, Device>::PacketAccess,
-    BlockAccess = NumDims > 0,
+    // block() reads the argument through coeff(), and under a ThreadPool the
+    // tiled executor shares this evaluator across concurrent block tasks, so
+    // the argument must itself be safe for block-style (concurrent, repeated)
+    // evaluation. Its BlockAccess bit encodes exactly that decision -- e.g.
+    // non-repeatable nullary functors such as random generators report false.
+    BlockAccess = TensorEvaluator<ArgType, Device>::BlockAccess && NumDims > 0,
     // The coeff/packet path pays a div/mod walk plus a hole check per output
     // scalar; the block path is a zero-fill plus a sparse copy of the stride
     // lattice.
@@ -199,7 +204,16 @@ struct TensorEvaluator<const TensorInflationOp<Strides, ArgType>, Device> {
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE internal::TensorBlockResourceRequirements getResourceRequirements() const {
     const size_t target_size = m_device.lastLevelCacheSize();
-    return internal::TensorBlockResourceRequirements::skewed<Scalar>(target_size);
+    // block() zero-fills every output coefficient and then overwrites the
+    // lattice points with the argument's values: charge one store per output
+    // coefficient, plus the argument's per-coefficient cost and the overwrite
+    // store scaled by the lattice density, so that ThreadPool scheduling sees
+    // the true cost of expensive expression arguments.
+    const double output_size = static_cast<double>(m_dimensions.TotalSize());
+    const double density = output_size == 0 ? 0.0 : static_cast<double>(m_impl.dimensions().TotalSize()) / output_size;
+    const TensorOpCost cost_per_coeff = density * m_impl.costPerCoeff(/*vectorized=*/false) +
+                                        TensorOpCost(0, (1.0 + density) * sizeof(CoeffReturnType), 0);
+    return internal::TensorBlockResourceRequirements::skewed<Scalar>(target_size).addCostPerCoeff(cost_per_coeff);
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorBlock block(TensorBlockDesc& desc, TensorBlockScratch& scratch,
