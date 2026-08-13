@@ -234,10 +234,20 @@ struct TensorEvaluator<const TensorStridingOp<Strides, ArgType>, Device> {
                                     : (NumDims - 1) * (TensorOpCost::AddCost<Index>() + TensorOpCost::MulCost<Index>() +
                                                        TensorOpCost::DivCost<Index>()) +
                                           TensorOpCost::MulCost<Index>();
-    constexpr int innerDim = (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ? 0 : (NumDims - 1);
-    return m_impl.costPerCoeff(vectorized && (m_is_identity || m_inputStrides[innerDim] == 1)) +
-           // The index mapping is not vectorized per se, but it is computed once per packet.
-           TensorOpCost(0, 0, compute_cost, vectorized, PacketSize);
+    constexpr int inner_dim = (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ? 0 : (NumDims - 1);
+    // The nested evaluator is served whole packets only when it has packet
+    // access at all, and the inner runs are packet-aligned with an unstrided
+    // inner dimension (or the striding is the identity); everywhere else it is
+    // driven coefficient by coefficient and must be charged at scalar rates.
+    // Likewise the once-per-packet index mapping amortizes only while packets
+    // stay inside one inner run; the cross-run fallback recomputes it per lane.
+    constexpr bool ImplPacketAccess = bool(TensorEvaluator<ArgType, Device>::PacketAccess);
+    const bool packets_stay_in_inner =
+        m_is_identity || (m_dimensions[inner_dim] >= PacketSize && m_dimensions[inner_dim] % PacketSize == 0);
+    const bool packetizes_arg =
+        ImplPacketAccess && (m_is_identity || (packets_stay_in_inner && m_inputStrides[inner_dim] == 1));
+    return m_impl.costPerCoeff(vectorized && packetizes_arg) +
+           TensorOpCost(0, 0, compute_cost, vectorized && packets_stay_in_inner, PacketSize);
   }
 
   EIGEN_DEVICE_FUNC typename Storage::Type data() const { return nullptr; }
@@ -330,7 +340,7 @@ struct TensorEvaluator<TensorStridingOp<Strides, ArgType>, Device>
   };
 
   template <int StoreMode>
-  EIGEN_STRONG_INLINE void writePacket(Index index, const PacketReturnType& x) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacket(Index index, const PacketReturnType& x) const {
     typedef TensorEvaluator<TensorStridingOp<Strides, ArgType>, Device> Self;
     constexpr bool ImplPacketAccess = bool(TensorEvaluator<ArgType, Device>::PacketAccess);
     eigen_assert(index + PacketSize - 1 < this->dimensions().TotalSize());
