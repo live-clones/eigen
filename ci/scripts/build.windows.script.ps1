@@ -23,10 +23,58 @@ cd $EIGEN_CI_BUILDDIR
 # as a single argument.  Split by space, unless double-quoted.
 $split_args = [regex]::Split(${EIGEN_CI_ADDITIONAL_ARGS}, ' (?=(?:[^"]|"[^"]*")*$)' )
 
+# Locate ccache when the job enables it (mirrors build.linux.script.sh: the
+# GitLab cache holds ${CCACHE_DIR}, keyed on file content and compiler, so it
+# hits even after a re-checkout re-stamps every source mtime). Prefer a
+# runner-installed ccache, then a previously downloaded copy restored from the
+# .ccache-bin cache; otherwise download the release pinned below and cache it
+# for subsequent jobs on this runner. The SHA-256 must match, so a failed or
+# tampered download only means building without ccache, never running an
+# unverified binary. Caching MSVC needs ccache >= 4.8, and only /Z7 or no
+# debug information is cacheable; these MinSizeRel builds emit none.
+$ccache_exe = ""
+if ("${EIGEN_CI_CCACHE}" -eq "on") {
+  $ccache_version = "4.13.6"
+  $ccache_sha256 = "3d7cebb05850ad704e197b3f1d3f0f924ab6c9fdfc561578e146184fe9d89380"
+  $ccache_bindir = Join-Path ${rootdir} ".ccache-bin"
+  $system_ccache = Get-Command ccache -ErrorAction SilentlyContinue
+  if ($system_ccache) {
+    $ccache_exe = $system_ccache.Source
+  } elseif (Test-Path (Join-Path $ccache_bindir "ccache.exe")) {
+    $ccache_exe = Join-Path $ccache_bindir "ccache.exe"
+  } else {
+    $zip = Join-Path ([System.IO.Path]::GetTempPath()) "ccache-${ccache_version}.zip"
+    try {
+      $ProgressPreference = "SilentlyContinue"
+      Invoke-WebRequest "https://github.com/ccache/ccache/releases/download/v${ccache_version}/ccache-${ccache_version}-windows-x86_64.zip" -OutFile $zip
+      if ((Get-FileHash $zip -Algorithm SHA256).Hash -eq $ccache_sha256) {
+        $unpack = Join-Path ([System.IO.Path]::GetTempPath()) "ccache-unpack"
+        Expand-Archive $zip -DestinationPath $unpack -Force
+        New-Item -ItemType Directory -Force -Path $ccache_bindir | Out-Null
+        Copy-Item (Join-Path $unpack "ccache-${ccache_version}-windows-x86_64/ccache.exe") $ccache_bindir
+        $ccache_exe = Join-Path $ccache_bindir "ccache.exe"
+      } else {
+        Write-Warning "ccache download failed SHA-256 verification; building without ccache."
+      }
+    } catch {
+      Write-Warning "ccache download failed ($_); building without ccache."
+    }
+  }
+}
+
+$launchers = @()
+if ($ccache_exe) {
+  # Forward slashes: CMake treats the launcher as a path-valued cache entry.
+  $ccache_cmake = $ccache_exe -replace '\\', '/'
+  $launchers = "-DCMAKE_C_COMPILER_LAUNCHER=${ccache_cmake}",
+               "-DCMAKE_CXX_COMPILER_LAUNCHER=${ccache_cmake}"
+  & $ccache_exe --zero-stats
+}
+
 # Configure build.
 cmake -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel `
       -DEIGEN_TEST_CUSTOM_CXX_FLAGS="${EIGEN_CI_TEST_CUSTOM_CXX_FLAGS}" `
-      ${split_args} "${rootdir}"
+      ${launchers} ${split_args} "${rootdir}"
 
 $target = ""
 if (${EIGEN_CI_BUILD_TARGET}) {
@@ -38,6 +86,13 @@ if (${EIGEN_CI_BUILD_TARGET}) {
 cmake --build . ${target} -- -k0 || cmake --build . ${target} -- -k0 -j1
 
 $success = $LASTEXITCODE
+
+# Hit/miss summary for judging what the cache pays for on this job. Runs on
+# failures too: the cache is pushed even then (cache:when: always), so the
+# stats still describe what the next attempt can reuse.
+if ($ccache_exe) {
+  & $ccache_exe --show-stats
+}
 
 # Return to root directory.
 cd ${rootdir}
