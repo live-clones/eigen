@@ -18,7 +18,7 @@ namespace Eigen {
 
 namespace internal {
 template <typename Strides, typename XprType>
-struct traits<TensorInflationOp<Strides, XprType> > : public traits<XprType> {
+struct traits<TensorInflationOp<Strides, XprType>> : public traits<XprType> {
   typedef typename XprType::Scalar Scalar;
   typedef traits<XprType> XprTraits;
   typedef typename XprTraits::StorageKind StorageKind;
@@ -218,7 +218,7 @@ struct TensorEvaluator<const TensorInflationOp<Strides, ArgType>, Device> {
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorBlock block(TensorBlockDesc& desc, TensorBlockScratch& scratch,
                                                           bool /*root_of_expr_ast*/ = false) const {
-    static const bool is_col_major = static_cast<int>(Layout) == static_cast<int>(ColMajor);
+    constexpr bool is_col_major = static_cast<int>(Layout) == static_cast<int>(ColMajor);
 
     if (desc.size() == 0) {
       return TensorBlock(internal::TensorBlockKind::kView, NULL, desc.dimensions());
@@ -228,7 +228,7 @@ struct TensorEvaluator<const TensorInflationOp<Strides, ArgType>, Device> {
     // copy the input values covered by the block onto the lattice.
     typename TensorBlock::Storage block_storage = TensorBlock::prepareStorage(desc, scratch);
     CoeffReturnType* block_buffer = block_storage.data();
-    for (Index i = 0; i < desc.size(); ++i) block_buffer[i] = Scalar(0);
+    Map<ArrayX<CoeffReturnType>>(block_buffer, desc.size()).setZero();
 
     // Output coordinates of the block's corner.
     array<Index, NumDims> coords;
@@ -254,7 +254,7 @@ struct TensorEvaluator<const TensorInflationOp<Strides, ArgType>, Device> {
     Index src_offset = 0;
     for (int i = 0; i < NumDims; ++i) {
       const Index stride = m_strides[i];
-      const Index first = ((coords[i] + stride - 1) / stride) * stride;
+      const Index first = numext::div_ceil(coords[i], stride) * stride;
       const Index end = coords[i] + desc.dimension(i);  // exclusive
       if (first >= end) {
         // The block lies entirely between lattice points on this dimension.
@@ -269,12 +269,15 @@ struct TensorEvaluator<const TensorInflationOp<Strides, ArgType>, Device> {
     array<BlockIteratorState, NumDims> it;
     for (int i = 0; i < NumDims; ++i) {
       const int dim = is_col_major ? i : NumDims - 1 - i;
-      it[i].size = lattice_count[dim];
-      it[i].count = 0;
-      it[i].dst_stride = block_strides[dim] * m_strides[dim];
-      it[i].dst_span = it[i].dst_stride * (it[i].size - 1);
-      it[i].src_stride = m_inputStrides[dim];
-      it[i].src_span = it[i].src_stride * (it[i].size - 1);
+      const Index size = lattice_count[dim];
+      const Index dst_stride = block_strides[dim] * m_strides[dim];
+      const Index src_stride = m_inputStrides[dim];
+      it[i] = {/*size=*/size,
+               /*count=*/0,
+               /*dst_stride=*/dst_stride,
+               /*dst_span=*/dst_stride * (size - 1),
+               /*src_stride=*/src_stride,
+               /*src_span=*/src_stride * (size - 1)};
     }
 
     const Index inner_size = it[0].size;
@@ -327,8 +330,6 @@ struct TensorEvaluator<const TensorInflationOp<Strides, ArgType>, Device> {
 
  private:
   struct BlockIteratorState {
-    BlockIteratorState() : size(0), count(0), dst_stride(0), dst_span(0), src_stride(0), src_span(0) {}
-
     Index size;
     Index count;
     Index dst_stride;
