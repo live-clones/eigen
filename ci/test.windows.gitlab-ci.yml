@@ -20,9 +20,16 @@
 
 # MSVC 14.29 (VS 2019) 64 bit
 
+# Exactly one of the regular or :trusted build variant exists per pipeline
+# (their rule sets partition .rules:libeigen:all-tests by cache-trust tier;
+# see build.windows.gitlab-ci.yml), hence one optional need for each.
 .test:windows:x86-64:msvc-14.29:default:
   extends: .test:windows
-  needs: [ build:windows:x86-64:msvc-14.29:default ]
+  needs:
+    - job: build:windows:x86-64:msvc-14.29:default
+      optional: true
+    - job: build:windows:x86-64:msvc-14.29:default:trusted
+      optional: true
 
 test:windows:x86-64:msvc-14.29:default:official:
   extends: .test:windows:x86-64:msvc-14.29:default
@@ -36,7 +43,11 @@ test:windows:x86-64:msvc-14.29:default:unsupported:
 
 .test:windows:x86-64:msvc-14.29:avx2:
   extends: .test:windows
-  needs: [ build:windows:x86-64:msvc-14.29:avx2 ]
+  needs:
+    - job: build:windows:x86-64:msvc-14.29:avx2
+      optional: true
+    - job: build:windows:x86-64:msvc-14.29:avx2:trusted
+      optional: true
 
 test:windows:x86-64:msvc-14.29:avx2:official:
   extends: .test:windows:x86-64:msvc-14.29:avx2
@@ -50,7 +61,11 @@ test:windows:x86-64:msvc-14.29:avx2:unsupported:
 
 .test:windows:x86-64:msvc-14.29:avx512dq:
   extends: .test:windows
-  needs: [ build:windows:x86-64:msvc-14.29:avx512dq ]
+  needs:
+    - job: build:windows:x86-64:msvc-14.29:avx512dq
+      optional: true
+    - job: build:windows:x86-64:msvc-14.29:avx512dq:trusted
+      optional: true
   tags:
     - eigen-runner
     - windows

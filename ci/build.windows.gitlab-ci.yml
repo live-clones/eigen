@@ -28,42 +28,40 @@
     - eigen-runner
     - windows
     - x86-64
-  rules: !reference [.rules:libeigen:all-tests, rules]
+  rules: !reference [.rules:libeigen:all-tests:untrusted-cache, rules]
   # Cache the ccache directory, not ${EIGEN_CI_BUILDDIR}, mirroring
   # build.linux.gitlab-ci.yml: ccache keys on file content and compiler, so
   # hits survive a re-checkout that re-stamps every source mtime (which made
-  # the old build-directory cache rebuild everything anyway). Write
-  # authorization is structural, not variable-based — pipeline variables
-  # outrank YAML variables, so a policy switch held in a variable could be
-  # overridden by whoever may pass pipeline variables. Instead, every
-  # pipeline reads and writes only its own ref's pool and restores the
-  # default branch's pool read-only; under this configuration nothing an
-  # untrusted pipeline pushes is ever restored by another ref, and GitLab's
-  # protected/unprotected cache separation applies on top. Writable entries
-  # push even when the build fails (when: always): the retry after a compile
-  # error is exactly where hits matter most.
+  # the old build-directory cache rebuild everything anyway).
+  #
+  # The pools form two disjoint trust tiers, separated by literal key
+  # prefixes rather than variables or ref names: cache keys built from
+  # variables are attacker-influenced (pipeline variables outrank even
+  # predefined variables, and CI_COMMIT_REF_SLUG is lossy — "master_" slugs
+  # to "master"), so no key an untrusted pipeline can write may ever be
+  # restored by a trusted one. Untrusted pipelines (this job) use
+  # "windows-ccache-scratch-*" keys: ref-scoped, self-warming across retries
+  # and pushes of the same ref. Trusted pools use fully literal
+  # "windows-ccache-trusted-*" keys and are written only by the :trusted
+  # twin jobs below, which run in place of these jobs on scheduled/web
+  # pipelines of protected refs. No variable value can make the two
+  # prefixes collide, and neither tier restores the other's keys; GitLab's
+  # protected/unprotected cache separation applies on top of this.
+  # Writable entries push even when the build fails (when: always): the
+  # retry after a compile error is exactly where hits matter most.
   cache:
     # The pinned ccache binary the build script downloads when the runner
-    # has none. Ref-scoped like the pools below; the script additionally
-    # re-verifies the binary's SHA-256 on every use before executing it,
-    # since cache content is writable job output, not a trusted source.
-    - key: "windows-ccache-bin-$CI_COMMIT_REF_SLUG"
+    # has none; the script re-verifies its SHA-256 on every use, since
+    # cache content is writable job output, not a trusted source.
+    - key: "windows-ccache-scratch-bin-$CI_COMMIT_REF_SLUG"
       paths:
         - .ccache-bin/
       when: always
     # The ref's own compile cache, the only pool this pipeline can write.
-    - key: "$CI_JOB_NAME_SLUG-$CI_COMMIT_REF_SLUG-ccache"
+    - key: "windows-ccache-scratch-$CI_JOB_NAME_SLUG-$CI_COMMIT_REF_SLUG"
       paths:
         - .ccache/
       when: always
-    # Read-only warmth from the default branch, written by the entry above
-    # when master itself builds (nightly schedules), subject to GitLab's
-    # protected-cache namespace separation. The literal "master" avoids
-    # depending on any variable here.
-    - key: "$CI_JOB_NAME_SLUG-master-ccache"
-      paths:
-        - .ccache/
-      policy: pull
 
 ######### MSVC #################################################################
 
@@ -89,6 +87,66 @@ build:windows:x86-64:msvc-14.29:avx512dq:
   variables:
     EIGEN_CI_ADDITIONAL_ARGS: "-DEIGEN_TEST_AVX512DQ=on"
 
+######### Trusted-cache twins #################################################
+
+# On scheduled/web pipelines of protected refs these run in place of the
+# regular jobs above (the rule sets partition .rules:libeigen:all-tests), so
+# they build the same targets and publish the same artifacts for the test
+# jobs, but read and write only the fully literal "windows-ccache-trusted-*"
+# keys that no variable-keyed entry can collide with. Content-keyed ccache
+# tolerates several protected refs sharing a pool; CCACHE_MAXSIZE bounds it.
+
+build:windows:x86:msvc-14.29:default:trusted:
+  extends: build:windows:x86:msvc-14.29:default
+  rules: !reference [.rules:libeigen:all-tests:trusted-cache, rules]
+  cache:
+    - key: "windows-ccache-trusted-bin"
+      paths:
+        - .ccache-bin/
+      when: always
+    - key: "windows-ccache-trusted-msvc14-29-x86"
+      paths:
+        - .ccache/
+      when: always
+
+build:windows:x86-64:msvc-14.29:default:trusted:
+  extends: build:windows:x86-64:msvc-14.29:default
+  rules: !reference [.rules:libeigen:all-tests:trusted-cache, rules]
+  cache:
+    - key: "windows-ccache-trusted-bin"
+      paths:
+        - .ccache-bin/
+      when: always
+    - key: "windows-ccache-trusted-msvc14-29-x86-64-default"
+      paths:
+        - .ccache/
+      when: always
+
+build:windows:x86-64:msvc-14.29:avx2:trusted:
+  extends: build:windows:x86-64:msvc-14.29:avx2
+  rules: !reference [.rules:libeigen:all-tests:trusted-cache, rules]
+  cache:
+    - key: "windows-ccache-trusted-bin"
+      paths:
+        - .ccache-bin/
+      when: always
+    - key: "windows-ccache-trusted-msvc14-29-x86-64-avx2"
+      paths:
+        - .ccache/
+      when: always
+
+build:windows:x86-64:msvc-14.29:avx512dq:trusted:
+  extends: build:windows:x86-64:msvc-14.29:avx512dq
+  rules: !reference [.rules:libeigen:all-tests:trusted-cache, rules]
+  cache:
+    - key: "windows-ccache-trusted-bin"
+      paths:
+        - .ccache-bin/
+      when: always
+    - key: "windows-ccache-trusted-msvc14-29-x86-64-avx512dq"
+      paths:
+        - .ccache/
+      when: always
 
 # MSVC 14.29 (VS 2019) + CUDA
 
