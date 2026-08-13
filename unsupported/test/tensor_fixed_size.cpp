@@ -280,6 +280,15 @@ static void test_embedded_odd_size() {
   }
 }
 
+// Regression test: `IsAligned` is consumed by evaluators as the legacy `Aligned` load mode,
+// which promises `Aligned16`-byte alignment regardless of what `EIGEN_MAX_STATIC_ALIGN_BYTES`
+// is actually set to.  A build configured with `0 < EIGEN_MAX_STATIC_ALIGN_BYTES < Aligned`
+// (e.g. 8) still only 8-byte-aligns `TensorStorage`'s fixed array via `EIGEN_ALIGN_MAX`, so
+// `IsAligned` must not claim aligned access is safe unless the configured static alignment
+// actually reaches `Aligned` (16) bytes.
+static_assert(TensorFixedSize<float, Sizes<5> >::IsAligned == (EIGEN_MAX_STATIC_ALIGN_BYTES >= 16),
+              "IsAligned must match whether EIGEN_MAX_STATIC_ALIGN_BYTES actually provides Aligned16 storage");
+
 EIGEN_DECLARE_TEST(tensor_fixed_size) {
   CALL_SUBTEST(test_0d());
   CALL_SUBTEST(test_1d());
