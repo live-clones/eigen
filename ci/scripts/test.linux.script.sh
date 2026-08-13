@@ -21,53 +21,35 @@ fi
 
 set +x
 
-# Content-addressed pass cache (see ci/scripts/test_cache.py): skip tests
-# whose executable, emulator, and image fingerprint match a first-attempt
-# pass recorded by an earlier run of this job.  Merge-request pipelines
-# only: scheduled and web runs keep re-running identical binaries so the
-# clock-seeded RNG keeps exploring fresh seeds.  Sharded jobs must not
-# skip -- dropping tests from the filtered list would shift the
-# `-I index,,total` partition and could leave tests unrun in every shard.
-testcache_dir="${rootdir}/.testcache"
-# Scratch files live under Testing/Temporary, which the artifact excludes
-# already filter out of the test job's build-directory upload.
-testcache_tmp="Testing/Temporary"
+# Content-addressed pass cache (see ci/scripts/test_cache.py, which owns
+# the keying and fingerprint policy): skip tests whose executable,
+# emulator, CTest definition, and environment fingerprint match a
+# first-attempt pass recorded by an earlier run of this job.
+# Merge-request pipelines only: scheduled and web runs keep re-running
+# identical binaries so the clock-seeded RNG keeps exploring fresh seeds.
+# Sharded jobs must not skip -- dropping tests from the filtered list
+# would shift the `-I index,,total` partition and could leave tests unrun
+# in every shard; the ctest-args check fails closed for jobs that shard by
+# hand rather than through `parallel:`.
 testcache_active=false
-if [[ "${EIGEN_CI_TEST_CACHE:-on}" == "on" \
+if [[ "${EIGEN_CI_TEST_CACHE}" == "on" \
       && "${CI_PIPELINE_SOURCE:-}" == "merge_request_event" \
-      && "${CI_NODE_TOTAL:-1}" -le 1 ]] && command -v python3 >/dev/null 2>&1; then
-  testcache_active=true
-  mkdir -p "${testcache_dir}" "${testcache_tmp}"
-  # The fingerprint must cover everything that can change a test's outcome
-  # while its binary stays identical: the image and its shared libraries
-  # (every lib* package is a superset of anything a test can dynamically
-  # load, cross sysroots included), the checked-in CI configuration (where
-  # QEMU_CPU, EIGEN_REPEAT, sanitizer options and the like are set), and
-  # the same variables read directly in case a pipeline sets them outside
-  # the tree.  Job-to-job differences are already isolated by the
-  # per-job-name cache key; this guards against the same job's environment
-  # changing over time.  Each part degrades to empty rather than failing
-  # the job.
-  cfg_fp=$( (cd "${rootdir}" && find ci .gitlab-ci.yml -type f | LC_ALL=C sort \
-             | xargs sha256sum | sha256sum | cut -d' ' -f1) 2>/dev/null || true)
-  pkg_fp=$(dpkg-query -W 'lib*' 2>/dev/null | sha256sum | cut -d' ' -f1 || true)
-  env_fp=$(env 2>/dev/null | grep -E '^(EIGEN_REPEAT=|EIGEN_SEED=|QEMU_|ASAN_|UBSAN_|LSAN_|TSAN_|MSAN_|LD_LIBRARY_PATH=|LD_PRELOAD=|EIGEN_CI_CTEST_ARGS=)' \
-           | LC_ALL=C sort | tr '\n' ',' || true)
-  fingerprint="${CI_JOB_IMAGE:-}|$(ldd --version 2>/dev/null | head -n 1 || true)|${cfg_fp}|${pkg_fp}|${env_fp}"
-  ctest --show-only=json-v1 ${target} ${exclude} > "${testcache_tmp}/testcache_tests.json" \
-    && python3 "${rootdir}/ci/scripts/test_cache.py" plan \
-         --tests-json "${testcache_tmp}/testcache_tests.json" \
-         --manifest "${testcache_dir}/passed.txt" \
-         --fingerprint "${fingerprint}" \
-         --skip-out "${testcache_tmp}/testcache_skip.txt" \
-         --keys-out "${testcache_tmp}/testcache_keys.txt" \
-    || testcache_active=false
-  if [[ "${testcache_active}" == "true" && -s "${testcache_tmp}/testcache_skip.txt" ]]; then
-    skip_regex="^($(paste -sd'|' "${testcache_tmp}/testcache_skip.txt"))$"
-    if [[ -n "${EIGEN_CI_CTEST_EXCLUDE}" ]]; then
-      exclude="-E (${EIGEN_CI_CTEST_EXCLUDE})|${skip_regex}"
-    else
-      exclude="-E ${skip_regex}"
+      && "${CI_NODE_TOTAL:-1}" -le 1 \
+      && "${EIGEN_CI_CTEST_ARGS:-}" != *-I* \
+      && -n "${EIGEN_CI_TEST_CACHE_DIR:-}" ]] && command -v python3 >/dev/null 2>&1; then
+  mkdir -p "${EIGEN_CI_TEST_CACHE_DIR}"
+  testcache_tmp=$(mktemp -d)
+  if ctest --show-only=json-v1 ${target} ${exclude} \
+       | python3 "${rootdir}/ci/scripts/test_cache.py" plan \
+           --tests-json - \
+           --manifest "${EIGEN_CI_TEST_CACHE_DIR}/passed.txt" \
+           --config-root "${rootdir}" \
+           --skip-regex-out "${testcache_tmp}/skip_regex.txt" \
+           --keys-out "${testcache_tmp}/keys.txt"; then
+    testcache_active=true
+    skip_regex=$(cat "${testcache_tmp}/skip_regex.txt" 2>/dev/null || true)
+    if [[ -n "${skip_regex}" ]]; then
+      exclude="-E ${EIGEN_CI_CTEST_EXCLUDE:+(${EIGEN_CI_CTEST_EXCLUDE})|}${skip_regex}"
     fi
   fi
 fi
@@ -98,12 +80,10 @@ ${ctest_cmd} -T test || initial_exit=$?
 # records nothing.  Passes obtained in the retry phase below are
 # deliberately not recorded: a seed-flaky test keeps re-running.
 if [[ "${testcache_active}" == "true" ]]; then
-  tag=$(head -n 1 Testing/TAG 2>/dev/null || true)
   python3 "${rootdir}/ci/scripts/test_cache.py" record \
-      --manifest "${testcache_dir}/passed.txt" \
-      --keys "${testcache_tmp}/testcache_keys.txt" \
-      --skip "${testcache_tmp}/testcache_skip.txt" \
-      --test-xml "Testing/${tag}/Test.xml" || true
+      --manifest "${EIGEN_CI_TEST_CACHE_DIR}/passed.txt" \
+      --keys "${testcache_tmp}/keys.txt" \
+      --testing-dir Testing || true
 fi
 
 if [[ ${initial_exit} -eq 0 ]]; then
