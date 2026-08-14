@@ -46,7 +46,7 @@ using TraitDeviceBuffer = gpu::internal::DeviceBuffer;
   static_assert(std::is_same<gpu::Require<Type>, int>::value, #Require " should compile");  \
   static_assert(std::is_same<gpu::RequireAll<Type, const Type&>, int>::value, #RequireAll " should compile")
 
-EIGEN_GPU_STATIC_ASSERT_TRAIT(is_devicematrix, require_devicematrix, require_all_devicematrix, TraitDeviceMatrix,
+EIGEN_GPU_STATIC_ASSERT_TRAIT(is_device_matrix, require_device_matrix, require_all_device_matrix, TraitDeviceMatrix,
                               TraitAdjointView);
 EIGEN_GPU_STATIC_ASSERT_TRAIT(is_adjoint_view, require_adjoint_view, require_all_adjoint_view, TraitAdjointView,
                               TraitDeviceMatrix);
@@ -77,12 +77,12 @@ EIGEN_GPU_STATIC_ASSERT_TRAIT(is_device_scalar, require_device_scalar, require_a
 
 #undef EIGEN_GPU_STATIC_ASSERT_TRAIT
 
-// is_devicebuffer has no require_all_ variant, so it is checked directly.
-static_assert(gpu::is_devicebuffer_v<TraitDeviceBuffer>, "internal::DeviceBuffer is a device buffer");
-static_assert(gpu::is_devicebuffer_v<const TraitDeviceBuffer&>, "is_devicebuffer_v should decay cv/ref");
-static_assert(!gpu::is_devicebuffer_v<TraitDeviceMatrix>, "a DeviceMatrix is not a DeviceBuffer");
-static_assert(std::is_same<gpu::require_devicebuffer<TraitDeviceBuffer>, int>::value,
-              "require_devicebuffer should compile");
+// is_device_buffer has no require_all_ variant, so it is checked directly.
+static_assert(gpu::is_device_buffer_v<TraitDeviceBuffer>, "internal::DeviceBuffer is a device buffer");
+static_assert(gpu::is_device_buffer_v<const TraitDeviceBuffer&>, "is_device_buffer_v should decay cv/ref");
+static_assert(!gpu::is_device_buffer_v<TraitDeviceMatrix>, "a DeviceMatrix is not a DeviceBuffer");
+static_assert(std::is_same<gpu::require_device_buffer<TraitDeviceBuffer>, int>::value,
+              "require_device_buffer should compile");
 
 // is_scaled is name-keyed; is_scaled_leaf / is_scaled_gemm compose it with a
 // predicate over Scaled::Inner. None of the three has a require_all_ variant.
