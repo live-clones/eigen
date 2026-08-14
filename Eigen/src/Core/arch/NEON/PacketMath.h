@@ -1656,7 +1656,7 @@ EIGEN_STRONG_INLINE Packet2ul pcmp_le<Packet2ul>(const Packet2ul& a, const Packe
 #if EIGEN_ARCH_ARM64
   return vcleq_u64(a, b);
 #else
-  return vreinterpretq_s64_u8(vmvnq_u8(vreinterpretq_u8_s64(pcmp_lt(b, a))));
+  return vreinterpretq_u64_u8(vmvnq_u8(vreinterpretq_u8_u64(pcmp_lt(b, a))));
 #endif
 }
 
