@@ -67,9 +67,11 @@ class TransposeView {
 
 /** \brief Expression returned by operator*(Scalar, DeviceMatrix/View), carrying the scalar factor.
  *
- * \c Inner names the scaled operand, so a predicate over a scaled node composes
- * as is_scaled<T> plus the inner predicate over \c T::Inner rather than matching
- * a nested pattern. See is_scaled_leaf and is_scaled_gemm in type_traits.h.
+ * \c Inner names the scaled operand, decayed, for callers that need to reason
+ * about what is being scaled. The is_scaled_* predicates in type_traits.h
+ * deliberately do not read it: naming a member instantiates Scaled, and
+ * Scaled<GemmExpr<...>>::Scalar is ill-formed. They deduce the operand from the
+ * template-id instead.
  */
 template <typename Inner_>
 class Scaled {

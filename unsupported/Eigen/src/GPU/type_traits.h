@@ -25,10 +25,10 @@ namespace gpu {
 /**
  * @name internal:: type traits
  *
- * Each one keys off the *name* of a forward-declared class, so they parse
- * cleanly with FwdDecl.h alone. The two exceptions are is_scaled_leaf and
- * is_scaled_gemm, which read Scaled::Inner to compose with an inner predicate
- * and therefore resolve only once Scaled is complete.
+ * Each one keys off the *name* of a forward-declared class. None of them
+ * inspect members so they parse cleanly with FwdDecl.h alone. is_scaled_leaf
+ * and is_scaled_gemm compose with an inner predicate, but still by matching the
+ * template-id rather than by reading a member.
  */
 
 namespace internal {
@@ -71,27 +71,33 @@ struct is_scaled<Scaled<Inner>> : Eigen::internal::bool_constant<true> {};
 /**
  * @brief Detects a Scaled directly over a leaf DeviceMatrix (no view in between).
  * @tparam T The type to test.
- * @tparam IsScaled Deduced gate; never passed explicitly.
- * @note Composed as is_scaled plus is_device_matrix over Scaled::Inner, so it
- * tracks whatever is_device_matrix accepts instead of restating the nested
- * pattern. Reading that member needs a complete Scaled (DeviceExpr.h).
+ * @note Defers to is_device_matrix on the scaled operand rather than restating
+ * the nested pattern, so it tracks whatever is_device_matrix accepts.
+ * @note The operand is deduced from the template-id, not read from Scaled::Inner:
+ * naming a member would instantiate Scaled, and Scaled<GemmExpr<...>>::Scalar is
+ * ill-formed because GemmExpr has no device_expr_traits specialization. Matching
+ * the template-id keeps this predicate usable on any Scaled, complete or not.
+ * @note Such a node arriving as a donation (owned rvalue) is materialized by
+ * stealing the leaf and applying the scalar in place (scal) instead of a geam
+ * into a fresh buffer.
  */
-template <typename T, bool IsScaled = is_scaled<T>::value>
-struct is_scaled_leaf : Eigen::internal::bool_constant<false> {};
 template <typename T>
-struct is_scaled_leaf<T, true> : is_device_matrix<typename T::Inner> {};
+struct is_scaled_leaf : Eigen::internal::bool_constant<false> {};
+template <typename Inner>
+struct is_scaled_leaf<Scaled<Inner>> : is_device_matrix<std::decay_t<Inner>> {};
 
 /**
  * @brief Detects a Scaled directly over a GemmExpr (a product carrying ONE deferred scalar).
  * @tparam T The type to test.
- * @tparam IsScaled Deduced gate; never passed explicitly.
- * @note Composed from is_scaled and Scaled::Inner like is_scaled_leaf, with the
- * same completeness requirement.
+ * @note Defers to is_gemm_expr on the scaled operand, deduced the same way as in
+ * is_scaled_leaf and for the same reason.
+ * @note Such a summand routes through the GEMM epilogue with its factor as the
+ * gemm's alpha_scale (no temporary).
  */
-template <typename T, bool IsScaled = is_scaled<T>::value>
-struct is_scaled_gemm : Eigen::internal::bool_constant<false> {};
 template <typename T>
-struct is_scaled_gemm<T, true> : is_gemm_expr<typename T::Inner> {};
+struct is_scaled_gemm : Eigen::internal::bool_constant<false> {};
+template <typename Inner>
+struct is_scaled_gemm<Scaled<Inner>> : is_gemm_expr<std::decay_t<Inner>> {};
 
 template <typename T>
 struct is_triangular_view : Eigen::internal::bool_constant<false> {};
@@ -192,7 +198,7 @@ constexpr bool is_device_buffer_v = is_device_buffer<T>::value;
  * @ingroup gpu_type_traits
  */
 template <typename T>
-using require_devicebuffer = internal::require_t<is_device_buffer<T>>;
+using require_device_buffer = internal::require_t<is_device_buffer<T>>;
 
 /**
  * Detect if a type is a @ref Eigen::gpu::DeviceMatrix
@@ -216,7 +222,7 @@ constexpr bool is_device_matrix_v = is_device_matrix<T>::value;
  * @ingroup gpu_type_traits
  */
 template <typename T>
-using require_devicematrix = internal::require_t<is_device_matrix<T>>;
+using require_device_matrix = internal::require_t<is_device_matrix<T>>;
 
 /**
  * Require a type is not a @ref Eigen::gpu::DeviceMatrix
@@ -224,7 +230,7 @@ using require_devicematrix = internal::require_t<is_device_matrix<T>>;
  * @ingroup gpu_type_traits
  */
 template <typename T>
-using require_not_devicematrix = internal::require_not_t<is_device_matrix<T>>;
+using require_not_device_matrix = internal::require_not_t<is_device_matrix<T>>;
 
 /**
  * Require all types are @ref Eigen::gpu::DeviceMatrix types.
@@ -232,7 +238,7 @@ using require_not_devicematrix = internal::require_not_t<is_device_matrix<T>>;
  * @ingroup gpu_type_traits
  */
 template <typename... Types>
-using require_all_devicematrix = internal::require_all_t<is_device_matrix_v<Types>...>;
+using require_all_device_matrix = internal::require_all_t<is_device_matrix_v<Types>...>;
 
 /**
  * Detect if a type is a @ref Eigen::gpu::GemmExpr
