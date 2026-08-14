@@ -1688,10 +1688,11 @@ EIGEN_STRONG_INLINE Packet2ul pcmp_lt<Packet2ul>(const Packet2ul& a, const Packe
 #else
   uint32x4_t const a32 = vreinterpretq_u32_u64(a);
   uint32x4_t const b32 = vreinterpretq_u32_u64(b);
-  uint64x2_t const hi_lt = vreinterpretq_u64_s64(vshrq_n_s64(vreinterpretq_s64_u32(vcltq_u32(a32, b32)), 32));
+  uint32x4_t const lt32 = vcltq_u32(a32, b32);
+  uint64x2_t const hi_lt = vreinterpretq_u64_s64(vshrq_n_s64(vreinterpretq_s64_u32(lt32), 32));
   uint64x2_t const lo_lt = vandq_u64(
       vreinterpretq_u64_s64(vshrq_n_s64(vreinterpretq_s64_u32(vceqq_u32(a32, b32)), 32)),
-      vreinterpretq_u64_s64(vmovl_s32(vreinterpret_s32_u32(vmovn_u64(vreinterpretq_u64_u32(vcltq_u32(a32, b32)))))));
+      vreinterpretq_u64_s64(vmovl_s32(vreinterpret_s32_u32(vmovn_u64(vreinterpretq_u64_u32(lt32))))));
   return vorrq_u64(hi_lt, lo_lt);
 #endif
 }
