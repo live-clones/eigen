@@ -78,10 +78,14 @@ The recurring authoring mistake is trailing punctuation absorbed into a cross-re
 `\ref adjoint. The ...` resolves. Separate a reference from following prose with a space, comma, or period. Punctuation
 inside the name itself is fine — `\ref MatrixBase::cross()` is a qualified symbol, not a glued colon.
 
-The `doc` target also compiles and runs everything under [`doc/snippets`](../doc/snippets),
-[`doc/examples`](../doc/examples), and their unsupported counterparts by way of the `all_snippets` and `all_examples`
+The `doc` target also compiles and runs the configured examples and snippets under [`doc/snippets`](../doc/snippets),
+[`doc/examples`](../doc/examples), and their unsupported counterparts, by way of the `all_snippets` and `all_examples`
 prerequisites in [`doc/CMakeLists.txt`](../doc/CMakeLists.txt). A renamed or removed public name breaks the
 documentation build even when every comment is well formed, so search those directories before changing one.
+"Configured" is the operative word: `unsupported/doc/examples/CMakeLists.txt` adds its `SYCL` subdirectory only under
+`EIGEN_TEST_SYCL`, which `build:linux:docs` does not set, so a broken unsupported SYCL example leaves this target green.
+Treat the target as coverage for the sets the configuration actually enables, and check the conditional before citing
+it as coverage.
 
 `EIGEN_BUILD_DOC` defaults on for a top-level, non-cross-compiling configuration, but `doc` is excluded from `all` and
 must be named:

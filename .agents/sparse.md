@@ -56,11 +56,13 @@ binary-search coefficient access, the coefficient-wise binary ops, and the direc
 
 ## Products
 
-`A * B` on two sparse operands uses the conservative product, which allocates for the exact result pattern.
-`(A * B).pruned()` selects the pruning product in
-[`SparseSparseProductWithPruning.h`](../Eigen/src/SparseCore/SparseSparseProductWithPruning.h) instead, dropping
-entries below a tolerance during accumulation; the two therefore differ in pattern, not only in numerical noise. Do not
-describe one's performance as the other's.
+`A * B` on two sparse operands uses the conservative product; `(A * B).pruned()` selects the pruning product in
+[`SparseSparseProductWithPruning.h`](../Eigen/src/SparseCore/SparseSparseProductWithPruning.h) instead. The distinction
+is semantic before it is a matter of performance: the conservative path stores every structurally generated entry,
+including one whose accumulation cancels to exactly zero, while the pruning path drops completed values at or below its
+tolerance. The two therefore produce different patterns from the same operands, and a test or benchmark written against
+one does not transfer to the other. Neither reserves the exact result size up front — the conservative path starts from
+the heuristic `nonZerosEstimate()` sum documented at its definition and grows or over-allocates from there.
 
 Threaded SpMV is opt-in: [`Eigen/SparseCore`](../Eigen/SparseCore) includes
 `ThreadedSparseProduct.h` and `Eigen/ThreadPool` only under `EIGEN_USE_THREADS`. Coverage lives in
@@ -91,8 +93,14 @@ non-default `StorageIndex` width, complex scalars where conjugation is not a no-
 vector. Comparing against a dense reference computed by Eigen is the standard technique; keep the tolerance a named
 epsilon multiple scaled by dimension or conditioning as [`testing.md`](testing.md) requires.
 
-External backends are gated at configure time in [`test/CMakeLists.txt`](../test/CMakeLists.txt) by `find_package`, and
-several additionally need `EIGEN_BUILD_BLAS` or `EIGEN_BUILD_LAPACK`. A backend that was not found registers in
-`EIGEN_MISSING_BACKENDS` and its test is never built, so a green local run says nothing about `cholmod_support`,
-`umfpack_support`, `klu_support`, `superlu_support`, `pardiso_support`, `spqr_support`, or `accelerate_support`. Report
-which sparse backends were unavailable rather than implying full coverage.
+External backend tests are registered conditionally in [`test/CMakeLists.txt`](../test/CMakeLists.txt), so a green local
+run says nothing about any of them. The full set is `cholmod_support`, `umfpack_support`, `klu_support`,
+`superlu_support`, `pastix_support`, `spqr_support`, `accelerate_support`, `metis_support` — an ordering backend rather
+than a solver — and `pardiso_support`. Most are gated on a `find_package` result and register in
+`EIGEN_MISSING_BACKENDS` when absent, several additionally require `EIGEN_BUILD_BLAS` or `EIGEN_BUILD_LAPACK`, and
+`metis_support` and `pastix_support` depend on variables the PaStiX search sets when the `METIS` component is requested.
+
+`pardiso_support` is the exception worth knowing: the tree contains no `find_package(PARDISO)` and no
+`EIGEN_MISSING_BACKENDS` entry for it, so it is registered only when `PARDISO_FOUND` arrives from outside the project
+and its absence is silent even in the missing-backend summary. Report which sparse backends were unavailable rather than
+implying full coverage.
