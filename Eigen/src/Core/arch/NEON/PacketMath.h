@@ -1036,9 +1036,9 @@ EIGEN_STRONG_INLINE Packet4ui pmul<Packet4ui>(const Packet4ui& a, const Packet4u
 }
 template <>
 EIGEN_STRONG_INLINE Packet2ul pmul<Packet2ul>(const Packet2ul& a, const Packet2ul& b) {
-  uint32x2_t const al = vmovn_u64(a);
-  uint32x2_t const bl = vmovn_u64(b);
-  uint64x2_t const hi = vpaddlq_u32(vmulq_u32(vreinterpretq_u32_u64(a), vrev64q_u32(vreinterpretq_u32_u64(b))));
+  const uint32x2_t al = vmovn_u64(a);
+  const uint32x2_t bl = vmovn_u64(b);
+  const uint64x2_t hi = vpaddlq_u32(vmulq_u32(vreinterpretq_u32_u64(a), vrev64q_u32(vreinterpretq_u32_u64(b))));
   return vmlal_u32(vshlq_n_u64(hi, 32), al, bl);
 }
 template <>
@@ -1639,7 +1639,7 @@ EIGEN_STRONG_INLINE Packet2ul pcmp_lt<Packet2ul>(const Packet2ul& a, const Packe
 #if EIGEN_ARCH_ARM64
   return vcltq_u64(a, b);
 #else
-  uint64x2_t const flag = vshrq_n_u64(vreinterpretq_u64_u8(vdupq_n_u8(0xFF)), 1);
+  const uint64x2_t flag = vshrq_n_u64(vreinterpretq_u64_u8(vdupq_n_u8(0xFF)), 1);
   return vreinterpretq_u64_s64(vshrq_n_s64(vreinterpretq_s64_u64(vqaddq_u64(vqsubq_u64(b, a), flag)), 63));
 #endif
 }
@@ -1731,7 +1731,7 @@ EIGEN_STRONG_INLINE Packet2ul pcmp_eq<Packet2ul>(const Packet2ul& a, const Packe
 #if EIGEN_ARCH_ARM64
   return vceqq_u64(a, b);
 #else
-  uint32x4_t const eq = vceqq_u32(vreinterpretq_u32_u64(a), vreinterpretq_u32_u64(b));
+  const uint32x4_t eq = vceqq_u32(vreinterpretq_u32_u64(a), vreinterpretq_u32_u64(b));
   return vreinterpretq_u64_u32(vandq_u32(eq, vrev64q_u32(eq)));
 #endif
 }
@@ -3301,7 +3301,7 @@ EIGEN_STRONG_INLINE Packet2l pabs(const Packet2l& a) {
   return vabsq_s64(a);
 #else
   // NOTE: From <https://graphics.stanford.edu/~seander/bithacks.html#IntegerAbs>.
-  int64x2_t const mask = vshrq_n_s64(a, 63);
+  const int64x2_t mask = vshrq_n_s64(a, 63);
   return veorq_s64(vaddq_s64(a, mask), mask);
 #endif
 }
