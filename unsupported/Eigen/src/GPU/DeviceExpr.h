@@ -65,18 +65,24 @@ class TransposeView {
   const DeviceMatrix<Scalar>& mat_;
 };
 
-/** \brief Expression returned by operator*(Scalar, DeviceMatrix/View), carrying the scalar factor. */
-template <typename Inner>
+/** \brief Expression returned by operator*(Scalar, DeviceMatrix/View), carrying the scalar factor.
+ *
+ * \c Inner names the scaled operand, so a predicate over a scaled node composes
+ * as is_scaled<T> plus the inner predicate over \c T::Inner rather than matching
+ * a nested pattern. See is_scaled_leaf and is_scaled_gemm in type_traits.h.
+ */
+template <typename Inner_>
 class Scaled {
  public:
+  using Inner = std::decay_t<Inner_>;
   using Scalar = internal::scalar_type_t<Inner>;
-  Scaled(Scalar alpha, const Inner& inner) : alpha_(alpha), inner_(inner) {}
+  Scaled(Scalar alpha, const Inner_& inner) : alpha_(alpha), inner_(inner) {}
   Scalar scalar() const { return alpha_; }
-  const Inner& inner() const { return inner_; }
+  const Inner_& inner() const { return inner_; }
 
  private:
   Scalar alpha_;
-  const Inner& inner_;
+  const Inner_& inner_;
 };
 
 /** \brief Expression returned by operator*(lhs_expr, rhs_expr), dispatched to cuBLAS GEMM. */
@@ -160,8 +166,7 @@ Scaled<Inner> operator-(const Scaled<Inner>& s) {
 }
 
 namespace internal {
-// Default: a DeviceMatrix is NoTrans.
-/** \brief Describes GPU device expression types. */
+// Default: a DeviceMatrix is NoTrans. Documented on the FwdDecl.h forward declaration.
 template <typename T>
 struct device_expr_traits {
   static constexpr bool is_device_expr = false;

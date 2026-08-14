@@ -25,8 +25,10 @@ namespace gpu {
 /**
  * @name internal:: type traits
  *
- * Each one keys off the *name* of a forward-declared class. None of them
- * inspect members so they parse cleanly with FwdDecl.h alone.
+ * Each one keys off the *name* of a forward-declared class, so they parse
+ * cleanly with FwdDecl.h alone. The two exceptions are is_scaled_leaf and
+ * is_scaled_gemm, which read Scaled::Inner to compose with an inner predicate
+ * and therefore resolve only once Scaled is complete.
  */
 
 namespace internal {
@@ -37,14 +39,14 @@ template <typename Expr>
 using scalar_type_t = typename device_expr_traits<Expr>::scalar_type;
 
 template <typename T>
-struct is_devicebuffer : Eigen::internal::bool_constant<false> {};
+struct is_device_buffer : Eigen::internal::bool_constant<false> {};
 template <>
-struct is_devicebuffer<DeviceBuffer> : Eigen::internal::bool_constant<true> {};
+struct is_device_buffer<DeviceBuffer> : Eigen::internal::bool_constant<true> {};
 
 template <typename T>
-struct is_devicematrix : Eigen::internal::bool_constant<false> {};
+struct is_device_matrix : Eigen::internal::bool_constant<false> {};
 template <typename Scalar>
-struct is_devicematrix<DeviceMatrix<Scalar>> : Eigen::internal::bool_constant<true> {};
+struct is_device_matrix<DeviceMatrix<Scalar>> : Eigen::internal::bool_constant<true> {};
 
 template <typename T>
 struct is_gemm_expr : Eigen::internal::bool_constant<false> {};
@@ -69,26 +71,27 @@ struct is_scaled<Scaled<Inner>> : Eigen::internal::bool_constant<true> {};
 /**
  * @brief Detects a Scaled directly over a leaf DeviceMatrix (no view in between).
  * @tparam T The type to test.
- * @note Such a node arriving as a donation (owned rvalue) is materialized by
- * stealing the leaf and applying the scalar in place (scal) instead of a geam
- * into a fresh buffer.
+ * @tparam IsScaled Deduced gate; never passed explicitly.
+ * @note Composed as is_scaled plus is_device_matrix over Scaled::Inner, so it
+ * tracks whatever is_device_matrix accepts instead of restating the nested
+ * pattern. Reading that member needs a complete Scaled (DeviceExpr.h).
  */
-template <typename T>
+template <typename T, bool IsScaled = is_scaled<T>::value>
 struct is_scaled_leaf : Eigen::internal::bool_constant<false> {};
-template <typename Scalar>
-struct is_scaled_leaf<Scaled<DeviceMatrix<Scalar>>> : Eigen::internal::bool_constant<true> {};
+template <typename T>
+struct is_scaled_leaf<T, true> : is_device_matrix<typename T::Inner> {};
 
 /**
  * @brief Detects a Scaled directly over a GemmExpr (a product carrying ONE deferred scalar).
  * @tparam T The type to test.
- * @note Matched by name only, like is_scaled_leaf. Such a summand routes
- * through the GEMM epilogue with its factor as the gemm's alpha_scale (no
- * temporary).
+ * @tparam IsScaled Deduced gate; never passed explicitly.
+ * @note Composed from is_scaled and Scaled::Inner like is_scaled_leaf, with the
+ * same completeness requirement.
  */
-template <typename T>
+template <typename T, bool IsScaled = is_scaled<T>::value>
 struct is_scaled_gemm : Eigen::internal::bool_constant<false> {};
-template <typename Lhs, typename Rhs>
-struct is_scaled_gemm<Scaled<GemmExpr<Lhs, Rhs>>> : Eigen::internal::bool_constant<true> {};
+template <typename T>
+struct is_scaled_gemm<T, true> : is_gemm_expr<typename T::Inner> {};
 
 template <typename T>
 struct is_triangular_view : Eigen::internal::bool_constant<false> {};
@@ -173,7 +176,7 @@ struct is_device_scalar<DeviceScalar<S>> : Eigen::internal::bool_constant<true> 
  * @ingroup gpu_type_traits
  */
 template <typename T>
-struct is_devicebuffer : internal::is_devicebuffer<std::decay_t<T>> {};
+struct is_device_buffer : internal::is_device_buffer<std::decay_t<T>> {};
 
 /**
  * True iff a type is a @ref Eigen::gpu::internal::DeviceBuffer
@@ -181,7 +184,7 @@ struct is_devicebuffer : internal::is_devicebuffer<std::decay_t<T>> {};
  * @ingroup gpu_type_traits
  */
 template <typename T>
-constexpr bool is_devicebuffer_v = is_devicebuffer<T>::value;
+constexpr bool is_device_buffer_v = is_device_buffer<T>::value;
 
 /**
  * Require a type is a @ref Eigen::gpu::internal::DeviceBuffer
@@ -189,7 +192,7 @@ constexpr bool is_devicebuffer_v = is_devicebuffer<T>::value;
  * @ingroup gpu_type_traits
  */
 template <typename T>
-using require_devicebuffer = internal::require_t<is_devicebuffer<T>>;
+using require_devicebuffer = internal::require_t<is_device_buffer<T>>;
 
 /**
  * Detect if a type is a @ref Eigen::gpu::DeviceMatrix
@@ -197,7 +200,7 @@ using require_devicebuffer = internal::require_t<is_devicebuffer<T>>;
  * @ingroup gpu_type_traits
  */
 template <typename T>
-struct is_devicematrix : internal::is_devicematrix<std::decay_t<T>> {};
+struct is_device_matrix : internal::is_device_matrix<std::decay_t<T>> {};
 
 /**
  * True iff a type is a @ref Eigen::gpu::DeviceMatrix
@@ -205,7 +208,7 @@ struct is_devicematrix : internal::is_devicematrix<std::decay_t<T>> {};
  * @ingroup gpu_type_traits
  */
 template <typename T>
-constexpr bool is_devicematrix_v = is_devicematrix<T>::value;
+constexpr bool is_device_matrix_v = is_device_matrix<T>::value;
 
 /**
  * Require a type is a @ref Eigen::gpu::DeviceMatrix
@@ -213,7 +216,7 @@ constexpr bool is_devicematrix_v = is_devicematrix<T>::value;
  * @ingroup gpu_type_traits
  */
 template <typename T>
-using require_devicematrix = internal::require_t<is_devicematrix<T>>;
+using require_devicematrix = internal::require_t<is_device_matrix<T>>;
 
 /**
  * Require a type is not a @ref Eigen::gpu::DeviceMatrix
@@ -221,7 +224,7 @@ using require_devicematrix = internal::require_t<is_devicematrix<T>>;
  * @ingroup gpu_type_traits
  */
 template <typename T>
-using require_not_devicematrix = internal::require_not_t<is_devicematrix<T>>;
+using require_not_devicematrix = internal::require_not_t<is_device_matrix<T>>;
 
 /**
  * Require all types are @ref Eigen::gpu::DeviceMatrix types.
@@ -229,7 +232,7 @@ using require_not_devicematrix = internal::require_not_t<is_devicematrix<T>>;
  * @ingroup gpu_type_traits
  */
 template <typename... Types>
-using require_all_devicematrix = internal::require_all_t<is_devicematrix_v<Types>...>;
+using require_all_devicematrix = internal::require_all_t<is_device_matrix_v<Types>...>;
 
 /**
  * Detect if a type is a @ref Eigen::gpu::GemmExpr
@@ -411,7 +414,6 @@ constexpr bool is_gemm_like_v = is_gemm_expr_v<T> || is_scaled_gemm_v<T>;
 /**
  * Require a type is an @ref Eigen::gpu::AdjointView or a @ref Eigen::gpu::TransposeView
  * @tparam T The type to test.
- * @note Used by the materialize driver to select the geam-based view lowering.
  * @ingroup gpu_type_traits
  */
 template <typename T>

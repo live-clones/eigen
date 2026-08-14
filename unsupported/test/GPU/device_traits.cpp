@@ -84,21 +84,36 @@ static_assert(!gpu::is_devicebuffer_v<TraitDeviceMatrix>, "a DeviceMatrix is not
 static_assert(std::is_same<gpu::require_devicebuffer<TraitDeviceBuffer>, int>::value,
               "require_devicebuffer should compile");
 
-// is_scaled / is_scaled_leaf / is_scaled_gemm are name-keyed and lack require_all_ variants.
+// is_scaled is name-keyed; is_scaled_leaf / is_scaled_gemm compose it with a
+// predicate over Scaled::Inner. None of the three has a require_all_ variant.
 static_assert(gpu::is_scaled_v<TraitScaledMatrix>, "Scaled is a scaled node");
 static_assert(gpu::is_scaled_v<const TraitScaledMatrix&>, "is_scaled_v should decay cv/ref");
 static_assert(!gpu::is_scaled_v<TraitDeviceMatrix>, "a DeviceMatrix is not a scaled node");
 static_assert(std::is_same<gpu::require_scaled<TraitScaledMatrix>, int>::value, "require_scaled should compile");
 
+// Scaled names its operand, which is what the two composed predicates read.
+static_assert(std::is_same<TraitScaledMatrix::Inner, TraitDeviceMatrix>::value, "Scaled exposes its inner type");
+static_assert(std::is_same<gpu::Scaled<const TraitDeviceMatrix&>::Inner, TraitDeviceMatrix>::value,
+              "Scaled::Inner decays the operand");
+
 static_assert(gpu::is_scaled_leaf_v<TraitScaledMatrix>, "Scaled<DeviceMatrix> is a scaled leaf");
 static_assert(gpu::is_scaled_leaf_v<TraitScaledMatrix&&>, "is_scaled_leaf_v should decay refs");
+static_assert(gpu::is_scaled_leaf_v<gpu::Scaled<const TraitDeviceMatrix&>>,
+              "a scaled leaf is still a leaf through Scaled::Inner's decay");
 static_assert(!gpu::is_scaled_leaf_v<gpu::Scaled<TraitAdjointView>>, "Scaled over a view is not a scaled leaf");
+static_assert(!gpu::is_scaled_leaf_v<gpu::Scaled<TraitTransposeView>>, "Scaled over a view is not a scaled leaf");
 static_assert(!gpu::is_scaled_leaf_v<gpu::Scaled<TraitGemmExpr>>, "Scaled over a composite is not a scaled leaf");
 static_assert(!gpu::is_scaled_leaf_v<TraitDeviceMatrix>, "a bare leaf is not a scaled leaf");
 
 static_assert(gpu::is_scaled_gemm_v<gpu::Scaled<TraitGemmExpr>>, "Scaled<GemmExpr> is a scaled product");
 static_assert(!gpu::is_scaled_gemm_v<TraitGemmExpr>, "a bare GemmExpr is not a scaled product");
 static_assert(!gpu::is_scaled_gemm_v<TraitScaledMatrix>, "Scaled<leaf> is not a scaled product");
+static_assert(!gpu::is_scaled_gemm_v<gpu::Scaled<TraitAdjointView>>, "Scaled<view> is not a scaled product");
+
+// The gate short-circuits: a non-Scaled operand must answer false, not fail to
+// compile on the missing ::Inner member.
+static_assert(!gpu::is_scaled_leaf_v<TraitAdjointView>, "a view has no ::Inner and is not a scaled leaf");
+static_assert(!gpu::is_scaled_gemm_v<TraitDeviceScalar>, "a device scalar has no ::Inner and is not a scaled product");
 
 static_assert(gpu::is_gemm_like_v<TraitGemmExpr>, "a GemmExpr is gemm-like");
 static_assert(gpu::is_gemm_like_v<gpu::Scaled<TraitGemmExpr>>, "Scaled<GemmExpr> is gemm-like");
