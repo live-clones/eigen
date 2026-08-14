@@ -61,7 +61,16 @@ static_assert(sizeof(MKL_INT) == 4,
               "link the MKL *_lp64 libraries.");
 #endif
 #else
-using BlasIndex = int;
+using BlasIndex = EIGEN_BLAS_INT;
+// Mirrors the MKL cross-check above: catches a BlasIndex that has stopped tracking EIGEN_BLAS_INT, which would
+// silently disagree with the prototypes in blas.h rather than fail to link.
+static_assert(sizeof(BlasIndex) == sizeof(EIGEN_BLAS_INT),
+              "Eigen::BlasIndex does not match the selected BLAS integer width (EIGEN_BLAS_INT).");
+#if defined(EIGEN_64BIT_BLAS)
+static_assert(sizeof(BlasIndex) == 8, "EIGEN_64BIT_BLAS is defined but Eigen::BlasIndex is 32-bit.");
+#else
+static_assert(sizeof(BlasIndex) == 4, "Eigen::BlasIndex is not 32-bit but EIGEN_64BIT_BLAS is not defined.");
+#endif
 #endif
 
 }  // end namespace Eigen
