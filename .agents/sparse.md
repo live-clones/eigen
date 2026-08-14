@@ -34,11 +34,30 @@ one. `m_innerNonZeros == nullptr` means compressed; when it is non-null, inner v
   happened; state which form a new API takes and why.
 - `InnerIterator` and every raw pointer obtained from the matrix are invalidated by an insertion. Finish iterating, or
   collect the coordinates first and mutate afterwards.
+- A consumer may require compressed input outright rather than adapting: `SparseQR::analyzePattern` opens with an
+  `eigen_assert(mat.isCompressed())`, while `SparseLU` branches on `isCompressed()` and falls back to copying the outer
+  index array. Because that check is an `eigen_assert`, a release build does not diagnose the violation at all — call
+  `makeCompressed()` before handing an assembled matrix to a direct solver rather than relying on the assertion.
 
 ## Sorted Inner Indices
 
-Sorted inner indices within each inner vector are an invariant the public API maintains, not merely a common case:
-binary-search coefficient access, the coefficient-wise binary ops, and the direct solvers all rely on it.
+Sorted inner indices within each inner vector are an invariant most of the API maintains and several parts require.
+`coeff()` resolves an entry by binary search over the inner range, and the sparse-sparse coefficient-wise binary
+evaluator merges two inner streams by advancing whichever index is smaller. Both return wrong values on unsorted
+input rather than failing.
+
+The invariant is not universal, and the exception is a trap. `SparseQR::matrixR()` hands back a reference to a stored
+factor built with `insertBackByOuterInnerUnordered`, so it is compressed but **not** sorted, and the rank-deficient
+path preserves that: right-multiplying a column-major matrix by the pivot permutation takes the outer-permutation
+branch, which relocates whole inner vectors without reordering within them. Compressed is not sorted, and a factor
+returned by reference has had no opportunity to become either.
+
+A storage-order round-trip is the fix, and it works for a reason worth knowing: a cross-order sparse assignment is a
+counting transpose that walks the source in outer order, so each destination inner vector receives its entries in
+ascending order no matter how the source was ordered. Eigen relies on this internally — `SparseQR::_sort_matrix_Q()`
+sorts the stored reflectors exactly that way before `matrixQ()` is materialized into a sparse destination, which is why
+`Q` is not a hazard in the way `R` is. Verify with `innerIndicesAreSorted()` rather than assuming a decomposition's
+output factor satisfies the invariant.
 
 - `setFromTriplets()` accepts unsorted input with duplicates and produces a sorted, compressed matrix with duplicates
   summed. It destroys the previous contents and does not resize — construct or `resize()` the matrix first, since the
