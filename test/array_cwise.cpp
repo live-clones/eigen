@@ -1175,14 +1175,8 @@ struct shift_imm_traits {
   enum { Cost = 1, PacketAccess = internal::packet_traits<Scalar>::HasShift };
 };
 
-template <int N, typename Scalar>
-struct logical_left_shift_op {
-  Scalar operator()(const Scalar& v) const { return numext::logical_shift_left(v, N); }
-  template <typename Packet>
-  Packet packetOp(const Packet& v) const {
-    return internal::plogical_shift_left<N>(v);
-  }
-};
+// ArrayBase exposes an arithmetic right shift and a logical left shift, but no logical right shift,
+// so that packet op is still reached through a functor of its own.
 template <int N, typename Scalar>
 struct logical_right_shift_op {
   Scalar operator()(const Scalar& v) const { return numext::logical_shift_right(v, N); }
@@ -1191,32 +1185,25 @@ struct logical_right_shift_op {
     return internal::plogical_shift_right<N>(v);
   }
 };
-template <int N, typename Scalar>
-struct arithmetic_right_shift_op {
-  Scalar operator()(const Scalar& v) const { return numext::arithmetic_shift_right(v, N); }
-  template <typename Packet>
-  Packet packetOp(const Packet& v) const {
-    return internal::parithmetic_shift_right<N>(v);
-  }
-};
 
 namespace Eigen {
 namespace internal {
 template <int N, typename Scalar>
-struct functor_traits<logical_left_shift_op<N, Scalar>> : shift_imm_traits<Scalar> {};
-template <int N, typename Scalar>
 struct functor_traits<logical_right_shift_op<N, Scalar>> : shift_imm_traits<Scalar> {};
-template <int N, typename Scalar>
-struct functor_traits<arithmetic_right_shift_op<N, Scalar>> : shift_imm_traits<Scalar> {};
 }  // namespace internal
 }  // namespace Eigen
 
+// A lambda takes the default functor_traits, so each reference arm stays scalar while the arm under
+// test vectorizes. Comparing the reference against the shift expression as well as against the
+// assigned result evaluates the expression coefficient-wise, which is the only path that reaches the
+// scalar operator() of its functor.
 template <typename ArrayType>
 struct shift_test_impl {
-  typedef typename ArrayType::Scalar Scalar;
+  using Scalar = typename ArrayType::Scalar;
   static constexpr size_t Size = sizeof(Scalar);
   static constexpr size_t MaxShift = (CHAR_BIT * Size) - 1;
 
+  // N starts at one: NEON's immediate right-shift intrinsics reject a count of zero.
   template <size_t N = 1>
   static inline std::enable_if_t<(N > MaxShift), void> run(const ArrayType&) {}
   template <size_t N = 1>
@@ -1225,18 +1212,26 @@ struct shift_test_impl {
     const Index cols = m.cols();
 
     ArrayType m1 = ArrayType::Random(rows, cols), m2(rows, cols), m3(rows, cols);
+    // The high bit is what separates an arithmetic right shift from a logical one.
+    m1(0, 0) = NumTraits<Scalar>::lowest();
+    m1(rows - 1, cols - 1) = NumTraits<Scalar>::highest();
 
     m2 = m1.unaryExpr([](const Scalar& v) { return numext::logical_shift_left(v, N); });
-    m3 = m1.unaryExpr(logical_left_shift_op<N, Scalar>());
+    m3 = m1.template shiftLeft<N>();
     VERIFY_IS_CWISE_EQUAL(m2, m3);
+    VERIFY_IS_CWISE_EQUAL(m2, m1.template shiftLeft<N>());
 
     m2 = m1.unaryExpr([](const Scalar& v) { return numext::logical_shift_right(v, N); });
     m3 = m1.unaryExpr(logical_right_shift_op<N, Scalar>());
     VERIFY_IS_CWISE_EQUAL(m2, m3);
 
-    m2 = m1.unaryExpr([](const Scalar& v) { return numext::arithmetic_shift_right(v, N); });
-    m3 = m1.unaryExpr(arithmetic_right_shift_op<N, Scalar>());
+    // Referencing Scalar's own operator>> rather than the numext helper the functor calls keeps this
+    // arm independent of the implementation under test, and states the semantics: fill with the sign
+    // bit when Scalar is signed and with zero when it is not.
+    m2 = m1.unaryExpr([](const Scalar& v) { return static_cast<Scalar>(v >> N); });
+    m3 = m1.template shiftRight<N>();
     VERIFY_IS_CWISE_EQUAL(m2, m3);
+    VERIFY_IS_CWISE_EQUAL(m2, m1.template shiftRight<N>());
 
     run<N + 1>(m);
   }
@@ -1378,80 +1373,6 @@ void integer_typed_predicates_test(const ArrayType& m) {
   VERIFY((finite != Scalar(0)).all());
 }
 
-// References for shiftRight()/shiftLeft(), computed with plain C++ operators on the bit pattern:
-// numext::arithmetic_shift_right propagates the sign bit of the signed reinterpretation, whereas
-// numext::logical_shift_left shifts the unsigned one and discards the bits shifted out.
-template <typename Scalar>
-Scalar reference_shift_right(const Scalar& a, int n) {
-  using UnsignedScalar = std::make_unsigned_t<Scalar>;
-  constexpr int Digits = std::numeric_limits<UnsignedScalar>::digits;
-  const UnsignedScalar all_ones = static_cast<UnsignedScalar>(~UnsignedScalar(0));
-  const UnsignedScalar bits = static_cast<UnsignedScalar>(a);
-  UnsignedScalar result = static_cast<UnsignedScalar>(bits >> n);
-  if ((static_cast<UnsignedScalar>(bits >> (Digits - 1)) & UnsignedScalar(1)) != UnsignedScalar(0))
-    result = static_cast<UnsignedScalar>(result | static_cast<UnsignedScalar>(all_ones ^ (all_ones >> n)));
-  return static_cast<Scalar>(result);
-}
-
-template <typename Scalar>
-Scalar reference_shift_left(const Scalar& a, int n) {
-  using UnsignedScalar = std::make_unsigned_t<Scalar>;
-  return static_cast<Scalar>(static_cast<UnsignedScalar>(static_cast<UnsignedScalar>(a) << n));
-}
-
-// Bits an input may occupy. Signed scalars use every one of them, but the SIMD backends implement
-// parithmetic_shift_right as a logical shift for unsigned packet types while the scalar functor
-// sign-extends, so unsigned inputs keep the sign bit clear to stay configuration-independent.
-template <typename Scalar>
-Scalar shift_input_mask() {
-  using UnsignedScalar = std::make_unsigned_t<Scalar>;
-  const UnsignedScalar all_ones = static_cast<UnsignedScalar>(~UnsignedScalar(0));
-  return static_cast<Scalar>(NumTraits<Scalar>::IsSigned ? all_ones : static_cast<UnsignedScalar>(all_ones >> 1));
-}
-
-// Regression: the scalar operator() of scalar_shift_right_op/scalar_shift_left_op dropped the shift
-// count, so no instantiation of shiftRight()/shiftLeft() compiled. The size leaves a tail after the
-// vectorized body, and each expression is read coefficient-wise as well, since a fully vectorized
-// assignment never evaluates the scalar functor.
-template <typename Scalar, int N>
-struct array_shift_test_impl {
-  static void run() {
-    constexpr int PacketSize = internal::packet_traits<Scalar>::size;
-    const Index size = 4 * PacketSize + 5;
-    const Scalar mask = shift_input_mask<Scalar>();
-    const Scalar values[] = {Scalar(0), Scalar(1), mask, NumTraits<Scalar>::highest(), NumTraits<Scalar>::lowest()};
-    const Index num_values = Index(sizeof(values) / sizeof(values[0]));
-    ArrayX<Scalar> m(size);
-    for (Index i = 0; i < size; ++i) m(i) = static_cast<Scalar>(internal::random<Scalar>() & mask);
-    // Place the interesting bit patterns in both the vectorized body and the tail.
-    for (Index i = 0; i < num_values; ++i) {
-      m(i) = static_cast<Scalar>(values[i] & mask);
-      m(size - 1 - i) = static_cast<Scalar>(values[i] & mask);
-    }
-
-    ArrayX<Scalar> shifted_right = m.template shiftRight<N>();
-    ArrayX<Scalar> shifted_left = m.template shiftLeft<N>();
-    for (Index i = 0; i < size; ++i) {
-      VERIFY_IS_EQUAL(shifted_right(i), reference_shift_right(m(i), N));
-      VERIFY_IS_EQUAL(shifted_left(i), reference_shift_left(m(i), N));
-      VERIFY_IS_EQUAL(m.template shiftRight<N>().coeff(i), reference_shift_right(m(i), N));
-      VERIFY_IS_EQUAL(m.template shiftLeft<N>().coeff(i), reference_shift_left(m(i), N));
-    }
-
-    array_shift_test_impl<Scalar, N - 1>::run();
-  }
-};
-template <typename Scalar>
-struct array_shift_test_impl<Scalar, -1> {
-  static void run() {}
-};
-
-// Covers every shift count the scalar type admits, from 0 to its width minus one.
-template <typename Scalar>
-void array_shift_test() {
-  array_shift_test_impl<Scalar, std::numeric_limits<std::make_unsigned_t<Scalar>>::digits - 1>::run();
-}
-
 template <typename SrcType, typename DstType, int RowsAtCompileTime, int ColsAtCompileTime>
 struct cast_test_impl {
   using SrcArray = Array<SrcType, RowsAtCompileTime, ColsAtCompileTime>;
@@ -1539,6 +1460,15 @@ EIGEN_DECLARE_TEST(array_cwise) {
         ArrayXXi(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_9(shift_test(Array<Index, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
                                                              internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    // An unsigned Scalar has no sign bit, so its arithmetic right shift must not sign-extend.
+    CALL_SUBTEST_38(shift_test(Array<uint32_t, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
+                                                                 internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_39(shift_test(Array<uint64_t, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
+                                                                 internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_40(shift_test(Array<int8_t, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
+                                                               internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_40(shift_test(Array<uint8_t, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
+                                                                internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_10(array_generic(Array<uint32_t, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
                                                                     internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_11(array_generic(Array<uint64_t, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
@@ -1600,14 +1530,6 @@ EIGEN_DECLARE_TEST(array_cwise) {
     CALL_SUBTEST_25(typed_logicals_test(ArrayX<double>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_26(typed_logicals_test(ArrayX<std::complex<float>>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_27(typed_logicals_test(ArrayX<std::complex<double>>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
-  }
-
-  for (int i = 0; i < g_repeat; i++) {
-    CALL_SUBTEST_38(array_shift_test<int8_t>());
-    CALL_SUBTEST_38(array_shift_test<int32_t>());
-    CALL_SUBTEST_38(array_shift_test<int64_t>());
-    CALL_SUBTEST_38(array_shift_test<uint8_t>());
-    CALL_SUBTEST_38(array_shift_test<uint32_t>());
   }
 
   for (int i = 0; i < g_repeat; i++) {
