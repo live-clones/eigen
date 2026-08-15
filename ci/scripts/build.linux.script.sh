@@ -28,10 +28,11 @@ cmake -G Ninja                                                   \
 # The affected-tests tier (see scripts/affected_tests.py) passes its selection
 # as a file rather than a variable so the list is not bounded by CI variable
 # limits.  The file holds "NONE" or one target per line; the full-suite form is
-# "buildtests" plus the targets it does not aggregate.
+# "buildtests" plus the targets it does not aggregate, and so takes the same
+# path as any other list.
 # Targets that this configuration did not register (optional dependencies such
-# as CHOLMOD or SYCL) are dropped here: ninja aborts on an unknown target, and
-# this is the first point that knows what CMake actually configured.
+# as CHOLMOD, CUDA or SYCL) are dropped here: ninja aborts on an unknown target,
+# and this is the first point that knows what CMake actually configured.
 selected_targets=""
 if [[ -n "${EIGEN_CI_BUILD_TARGET_FILE}" ]]; then
   target_file="${EIGEN_CI_BUILD_TARGET_FILE}"
@@ -49,8 +50,6 @@ if [[ -n "${EIGEN_CI_BUILD_TARGET_FILE}" ]]; then
     cd ${rootdir}
     set +x
     return 0 2>/dev/null || exit 0
-  elif [[ "${requested}" == "buildtests" ]]; then
-    EIGEN_CI_BUILD_TARGET="buildtests"
   else
     { set +x; } 2>/dev/null
     # The runner sources this script under `set -eo pipefail`, so every command
@@ -70,7 +69,7 @@ if [[ -n "${EIGEN_CI_BUILD_TARGET_FILE}" ]]; then
     unconfigured=$(comm -23 <(echo "${requested_targets}") <(echo "${configured}"))
     nrequested=$(echo "${requested_targets}" | grep -c . || true)
     nselected=$(echo "${selected_targets}" | grep -c . || true)
-    echo "Affected tests: ${nselected} of ${nrequested} requested targets are configured here."
+    echo "Affected selection: ${nselected} of ${nrequested} requested targets are configured here."
     if [[ -n "${unconfigured}" ]]; then
       echo "Not configured in this build: $(echo "${unconfigured}" | tr '\n' ' ')"
     fi
@@ -129,20 +128,66 @@ default_batch=$((njobs * 8))
 default_batch=$((default_batch > 96 ? default_batch : 96))
 batch_size=${EIGEN_CI_BUILD_BATCH_SIZE:-${default_batch}}
 shuffled=false
-# The batch path resolves a target's dependency graph via `ninja -t query`,
-# which takes a single target name.  A multi-target EIGEN_CI_BUILD_TARGET (a
-# space-separated list, e.g. the SME cross-build's product_* targets) would be
-# passed as one bogus name and make the query fail, aborting the job before any
-# build runs.  Skip batching for a list and let the plain `cmake --build
-# --target t1 t2 ...` below build it directly (it handles multiple targets).
+# An affected-tests selection names CMake targets, and most of those are
+# aggregates: "buildtests", and the parent of every split test (bdcsvd depends
+# on bdcsvd_1..bdcsvd_41).  The batch loop can only spread apart the targets it
+# is handed, so an unexpanded parent puts a whole test family in one batch and
+# lets all of its parts co-run.  expand_to_leaves resolves them first.
 #
-# An affected-tests selection is already an explicit target list, so it feeds
-# the batch loop directly and keeps the same memory-pressure protection that
-# the meta-targets get.
+# CMake emits every aggregate as a phony edge, so descending through phony
+# edges alone reaches the compiles and links without walking into object files:
+# buildtests -> test/bdcsvd_1, bdcsvd -> test/bdcsvd -> test/bdcsvd_1, and a
+# plain executable such as bug1213 -> test/bug1213, which is already a link
+# edge and stays as it is.
+expand_to_leaves() {
+  local scratch depth
+  scratch=$(mktemp -d)
+  printf '%s\n' ${1} | awk 'NF' | sort -u > "${scratch}/frontier"
+  : > "${scratch}/leaves"
+  # Every level costs one ninja invocation over the whole frontier (about 0.1s
+  # for the full suite).  Three levels are enough for the graph above; the cap
+  # only bounds an unexpected cycle.
+  for depth in 1 2 3 4 5 6 7 8; do
+    [[ -s "${scratch}/frontier" ]] || break
+    # A query that cannot be answered is not a reason to drop targets: leave
+    # the frontier unexpanded and let ninja resolve it during the build.
+    ninja -t query $(cat "${scratch}/frontier") > "${scratch}/query" 2>/dev/null || break
+    awk '
+      function flush() {
+        if (name == "") return
+        if (rule == "phony" && ninputs > 0) {
+          for (i = 1; i <= ninputs; i++) print "N", inputs[i]
+        } else {
+          print "L", name
+        }
+        name = ""; rule = ""; ninputs = 0; section = ""
+      }
+      /^[^ ]/       { flush(); name = $0; sub(/:$/, "", name); next }
+      /^  input:/   { rule = $2; section = "input"; next }
+      /^  outputs:/ { section = ""; next }
+      section == "input" && /^    / { inputs[++ninputs] = $1 }
+      END { flush() }
+    ' "${scratch}/query" > "${scratch}/classified"
+    sed -n 's/^L //p' "${scratch}/classified" >> "${scratch}/leaves"
+    sed -n 's/^N //p' "${scratch}/classified" | sort -u > "${scratch}/next"
+    mv "${scratch}/next" "${scratch}/frontier"
+  done
+  # Whatever is still unexpanded -- a failed query or a chain past the cap --
+  # is built as named.  Empty after a normal walk.
+  cat "${scratch}/frontier" >> "${scratch}/leaves"
+  sort -u "${scratch}/leaves"
+  rm -rf "${scratch}"
+}
+
 deps=""
 if [[ -n "${selected_targets}" ]] && command -v ninja >/dev/null 2>&1; then
   { set +x; } 2>/dev/null
-  deps="${selected_targets}"
+  deps=$(expand_to_leaves "${selected_targets}")
+# The meta-target path below quotes EIGEN_CI_BUILD_TARGET into `ninja -t query`,
+# so a space-separated list (the SME cross-build's product_* targets) would go in
+# as one bogus name and make the query fail, aborting the job before any build
+# runs.  Skip batching for a list and let the plain `cmake --build --target t1 t2
+# ...` at the end build it directly; it handles multiple targets.
 elif [[ -n "${EIGEN_CI_BUILD_TARGET}" && "${EIGEN_CI_BUILD_TARGET}" != *[[:space:]]* ]] && command -v ninja >/dev/null 2>&1; then
   # Suppress xtrace while extracting and shuffling the target list
   # to avoid dumping ~1200 lines to the CI log.

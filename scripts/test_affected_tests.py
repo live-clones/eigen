@@ -42,10 +42,17 @@ FIXTURE = {
     "test/dense.cpp": '#include "main.h"\n#include <Eigen/Dense>\n',
     "test/multitu.cpp": '#include "main.h"\n',
     "test/multitu_main.cpp": '#include "main.h"\n',
+    "test/gpu_common.h": '#include "main.h"\n',
+    "test/gpu_basic.cu": '#include "gpu_common.h"\n',
+    "test/after_gpu.cpp": '#include "main.h"\n',
     "test/CMakeLists.txt": """ei_add_test(block)
 ei_add_test(bdcsvd)
 ei_add_test(dense)
 add_executable(multitu multitu.cpp multitu_main.cpp)
+set(EIGEN_ADD_TEST_FILENAME_EXTENSION  "cu")
+ei_add_test(gpu_basic)
+unset(EIGEN_ADD_TEST_FILENAME_EXTENSION)
+ei_add_test(after_gpu)
 """,
     "unsupported/test/extra.cpp": '#include "../../test/main.h"\n',
     "unsupported/test/CMakeLists.txt": "ei_add_test(extra)\n",
@@ -80,9 +87,9 @@ def targets_of(selection):
 def test_fixture_graph(root):
     graph = IncludeGraph(root)
     sources = sorted(test_registrations(graph).targets)
-    check(sources == ["test/bdcsvd.cpp", "test/block.cpp", "test/dense.cpp",
-                      "test/multitu.cpp", "test/multitu_main.cpp",
-                      "unsupported/test/extra.cpp"],
+    check(sources == ["test/after_gpu.cpp", "test/bdcsvd.cpp", "test/block.cpp",
+                      "test/dense.cpp", "test/gpu_basic.cu", "test/multitu.cpp",
+                      "test/multitu_main.cpp", "unsupported/test/extra.cpp"],
           "test sources discovered in both trees, got %s" % sources)
 
     # A leaf header reaches only the tests whose closure includes it.
@@ -96,8 +103,8 @@ def test_fixture_graph(root):
 
     # ... but not when the threshold allows the explicit list.
     sel = select(graph, ["Eigen/src/Core/util/Meta.h"], max_fraction=1.0)
-    check(sel.mode == "targets" and len(sel.targets) == 5,
-          "Meta.h reaches all five targets, got %s" % targets_of(sel))
+    check(sel.mode == "targets" and len(sel.targets) == 7,
+          "Meta.h reaches all seven targets, got %s" % targets_of(sel))
 
     # Umbrella indirection is followed: Dense -> SVD -> BDCSVD.h.
     sel = select(graph, ["Eigen/Dense"])
@@ -213,6 +220,43 @@ def test_failtests(root):
         os.remove(orphan)
 
 
+def test_cuda_registrations(root):
+    """ei_add_test compiles .cu while EIGEN_ADD_TEST_FILENAME_EXTENSION is set."""
+    graph = IncludeGraph(root)
+    registered = test_registrations(graph)
+    check(registered.targets.get("test/gpu_basic.cu") == "gpu_basic",
+          "a .cu test registers its own source, got %s"
+          % registered.targets.get("test/gpu_basic.cu"))
+    check("test/gpu_basic.cpp" not in registered.targets,
+          "the .cu registration does not synthesise a .cpp source")
+    check(registered.targets.get("test/after_gpu.cpp") == "after_gpu",
+          "unset restores the default extension, got %s"
+          % registered.targets.get("test/after_gpu.cpp"))
+
+    sel = select(graph, ["test/gpu_basic.cu"])
+    check(sel.mode == "targets" and targets_of(sel) == ["gpu_basic"],
+          "a changed .cu source selects its target, got %s (%s)"
+          % (targets_of(sel), sel.mode))
+
+    # A header only the .cu test includes must still reach it: a configuration
+    # without CUDA reports the target as unconfigured, which is not the same as
+    # reporting that no test is affected.
+    sel = select(graph, ["test/gpu_common.h"])
+    check(sel.mode == "targets" and targets_of(sel) == ["gpu_basic"],
+          "a GPU-only header selects the .cu test, got %s (%s)"
+          % (targets_of(sel), sel.mode))
+
+    # An unregistered .cu is an error, like an unregistered .cpp.
+    orphan = os.path.join(root, "test", "gpu_orphan.cu")
+    with open(orphan, "w") as handle:
+        handle.write('#include "main.h"\n')
+    try:
+        sel = select(IncludeGraph(root), ["test/gpu_orphan.cu"])
+        check(sel.mode == "error", "an unregistered .cu fails selection, got %s" % sel.mode)
+    finally:
+        os.remove(orphan)
+
+
 def test_output_encoding():
     sel = Selection("targets", ["adjoint", "bdcsvd"])
     check(sel.targets_file == "adjoint\nbdcsvd\n",
@@ -296,6 +340,18 @@ def test_real_tree():
     check(all(t not in registered.standalone for t in ("bdcsvd", "block")),
           "ei_add_test targets are aggregated by buildtests")
 
+    # The GPU tests are registered as .cu through EIGEN_ADD_TEST_FILENAME_EXTENSION.
+    # Configurations without CUDA report them as unconfigured; dropping them from
+    # the mapping instead would report that no test is affected at all.
+    if "test/gpu_basic.cu" in graph.files:
+        check(source_targets.get("test/gpu_basic.cu") == "gpu_basic",
+              "test/gpu_basic.cu maps to gpu_basic, got %s"
+              % source_targets.get("test/gpu_basic.cu"))
+        sel = select(graph, ["test/gpu_common.h"])
+        check(sel.mode == "targets" and "gpu_basic" in sel.targets,
+              "test/gpu_common.h reaches gpu_basic, got %s (%s)"
+              % (sorted(sel.targets), sel.mode))
+
     # The compile-failure suite must stay reachable: it is filtered out by any
     # -R regex that does not name it.
     check(len(registered.failtests) > 50,
@@ -335,6 +391,7 @@ def main():
         build_fixture(root)
         test_fixture_graph(root)
         test_failtests(root)
+        test_cuda_registrations(root)
     finally:
         shutil.rmtree(root, ignore_errors=True)
     test_output_encoding()

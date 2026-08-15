@@ -39,6 +39,11 @@ Two registrations do not fit that shape:
 * ``buildtests`` aggregates the ``ei_add_test`` targets only.  A bare
   ``add_executable`` such as ``bug1213`` is attached to nothing, so the
   full-suite mode has to name those targets next to ``buildtests``.
+
+A registered target need not compile a ``.cpp``: ``ei_add_test`` takes the
+source extension from ``EIGEN_ADD_TEST_FILENAME_EXTENSION``, which the GPU
+blocks set to ``cu``.  Those targets are selected like any other; the build
+script drops them in configurations that did not register them.
 """
 
 import argparse
@@ -58,6 +63,10 @@ TEST_ROOTS = ("test", "unsupported/test")
 # Compile-failure suite.  ei_add_failtest registers <name>_ok and <name>_ko as
 # CTest tests whose test action is a build of an EXCLUDE_FROM_ALL target.
 FAILTEST_ROOT = "failtest"
+
+# Extensions a registered test translation unit can have.  ".cu" comes from the
+# GPU registrations; see CMAKE_REGISTRATION_RE.
+TEST_SOURCE_SUFFIXES = (".cpp", ".cu")
 
 # Share of the test suite above which an explicit selection is replaced by the
 # full ``buildtests`` target.
@@ -107,12 +116,16 @@ FULL_REBUILD_PATTERNS = (
 )
 
 INCLUDE_RE = re.compile(r'^[ \t]*#[ \t]*include[ \t]*[<"]([^>"]+)[>"]', re.MULTILINE)
-CMAKE_TEST_RE = re.compile(
-    r"^[ \t]*(?:ei_add_test|ei_add_gpu_test)\([ \t]*([A-Za-z_][A-Za-z_0-9]*)",
-    re.MULTILINE,
-)
-CMAKE_EXECUTABLE_RE = re.compile(
-    r"^[ \t]*add_executable\([ \t]*([A-Za-z_][A-Za-z_0-9]*)[ \t\r\n]+([^)]*)\)",
+# One pass over a test CMakeLists.txt, in source order, because the source an
+# ei_add_test call compiles depends on the EIGEN_ADD_TEST_FILENAME_EXTENSION in
+# effect at that point: the CUDA and HIP blocks set it to "cu" and unset it
+# again, so gpu_basic is test/gpu_basic.cu while its neighbours are .cpp.
+CMAKE_REGISTRATION_RE = re.compile(
+    r"^[ \t]*(?:"
+    r'(?P<scope>set|unset)\([ \t]*EIGEN_ADD_TEST_FILENAME_EXTENSION[ \t]*"?(?P<extension>[A-Za-z_0-9]*)"?'
+    r"|(?:ei_add_test|ei_add_gpu_test)\([ \t]*(?P<test>[A-Za-z_][A-Za-z_0-9]*)"
+    r"|add_executable\([ \t]*(?P<executable>[A-Za-z_][A-Za-z_0-9]*)[ \t\r\n]+(?P<sources>[^)]*)\)"
+    r")",
     re.MULTILINE,
 )
 CMAKE_FAILTEST_RE = re.compile(
@@ -219,15 +232,24 @@ def test_registrations(graph):
     )
     for cmake_file in cmake_files:
         directory = os.path.dirname(cmake_file)
-        contents = graph.read_text(cmake_file)
-        for target in CMAKE_TEST_RE.findall(contents):
-            source = os.path.normpath(os.path.join(directory, target + ".cpp"))
-            if source in graph.files:
-                register(source, target)
-        for target, arguments in CMAKE_EXECUTABLE_RE.findall(contents):
-            for token in re.findall(r'"[^"]*"|[^\s]+', arguments):
+        extension = "cpp"
+        for match in CMAKE_REGISTRATION_RE.finditer(graph.read_text(cmake_file)):
+            if match.group("scope"):
+                # unset(), or a set() with no value, restores the default.
+                extension = match.group("extension") if match.group("scope") == "set" else ""
+                extension = extension or "cpp"
+                continue
+            if match.group("test"):
+                target = match.group("test")
+                source = os.path.normpath(
+                    os.path.join(directory, "%s.%s" % (target, extension)))
+                if source in graph.files:
+                    register(source, target)
+                continue
+            target = match.group("executable")
+            for token in re.findall(r'"[^"]*"|[^\s]+', match.group("sources")):
                 token = token.strip('"')
-                if not token.endswith(".cpp") or "$" in token:
+                if not token.endswith(TEST_SOURCE_SUFFIXES) or "$" in token:
                     continue
                 source = os.path.normpath(os.path.join(directory, token))
                 if source in graph.files:
@@ -344,7 +366,8 @@ def select(graph, changed_files, max_fraction=DEFAULT_MAX_FRACTION):
             # A source file in the tree that nothing includes: either a new
             # header not yet wired up or an unregistered translation unit.
             roots = TEST_ROOTS + (FAILTEST_ROOT,)
-            if any(path.startswith(root + "/") for root in roots) and path.endswith(".cpp"):
+            if (any(path.startswith(root + "/") for root in roots)
+                    and path.endswith(TEST_SOURCE_SUFFIXES)):
                 return Selection("error", reasons=["%s has no CMake test target" % path])
             reasons.append("%s is in the tree but reaches no test" % path)
             continue
