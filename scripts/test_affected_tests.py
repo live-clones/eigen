@@ -25,7 +25,6 @@ from affected_tests import (
     changed_files_from_git,
     select,
     test_source_targets,
-    test_sources,
 )
 
 FIXTURE = {
@@ -76,7 +75,7 @@ def targets_of(selection):
 
 def test_fixture_graph(root):
     graph = IncludeGraph(root)
-    sources = test_sources(graph)
+    sources = sorted(test_source_targets(graph))
     check(sources == ["test/bdcsvd.cpp", "test/block.cpp", "test/dense.cpp",
                       "test/multitu.cpp", "test/multitu_main.cpp",
                       "unsupported/test/extra.cpp"],
@@ -222,8 +221,8 @@ def test_real_tree():
         return
     graph = IncludeGraph(root)
     source_targets = test_source_targets(graph)
-    sources = test_sources(graph, source_targets)
-    check(len(sources) > 200, "real tree has many test sources, got %d" % len(sources))
+    check(len(source_targets) > 200,
+          "real tree has many test sources, got %d" % len(source_targets))
 
     # main.h is a hub: changing it must run everything.
     sel = select(graph, ["test/main.h"])

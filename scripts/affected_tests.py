@@ -9,14 +9,12 @@ translation unit textually includes the changed file.  This script builds the
 include graph over ``Eigen/``, ``unsupported/Eigen/`` and the test trees, then
 maps changed paths to the CMake test targets that reach them.
 
-The include closure is a strict superset of the true compile dependency: it
-follows every ``#include`` regardless of preprocessor guards, so a test is
-never dropped because a conditional branch was not taken.  Over-approximation
-is the safe direction here -- the point is to widen coverage relative to the
-fixed smoke list, not to minimise work.
-
-Changes that invalidate the mapping itself (CMake, CI, the BLAS/LAPACK shims)
-fall back to the full ``buildtests`` target rather than a selection.
+The graph follows every ``#include`` regardless of preprocessor guards, so the
+closure is a strict superset of the true compile dependency and no test is
+dropped because a conditional branch was not taken.  Over-approximation is the
+safe direction here: the point is to widen coverage relative to the fixed smoke
+list, not to minimise work.  Changes that invalidate the mapping itself (CMake,
+CI, the BLAS/LAPACK shims) fall back to the full ``buildtests`` target.
 
 Two output files are written, both consumed by ``ci/scripts/build.linux.script.sh``
 and ``ci/scripts/test.linux.script.sh``:
@@ -26,11 +24,10 @@ and ``ci/scripts/test.linux.script.sh``:
 
 The selected names are CMake target names, not CTest test names: a split test
 ``foo`` registers ``foo_1``..``foo_N`` as tests but a single ``foo`` target that
-aggregates them, so selecting ``foo`` builds and runs every part.  Test sources
-are mapped to targets from their CMake registration, including multi-source
-executables.  Targets that do not exist in a given configuration (optional
-dependencies such as CHOLMOD or SYCL) are filtered out by the build script,
-which is the only place that knows what CMake actually configured.
+aggregates them, so selecting ``foo`` builds and runs every part.  Targets that
+a given configuration does not register (optional dependencies such as CHOLMOD
+or SYCL) are filtered out by the build script, which is the only place that
+knows what CMake actually configured.
 """
 
 import argparse
@@ -45,6 +42,10 @@ SCAN_ROOTS = ("Eigen", "unsupported/Eigen", "test", "unsupported/test")
 
 # Directories whose .cpp files are test translation units.
 TEST_ROOTS = ("test", "unsupported/test")
+
+# Share of the test suite above which an explicit selection is replaced by the
+# full ``buildtests`` target.
+DEFAULT_MAX_FRACTION = 0.85
 
 # Changes matching these patterns cannot affect which tests exist or what they
 # cover, so they select nothing.
@@ -128,15 +129,16 @@ class IncludeGraph:
         # Index every path suffix so that an include spelled relative to a
         # directory outside the scanned roots still resolves.  Ambiguous
         # suffixes are dropped rather than guessed.
-        counts = {}
+        candidates = {}
         for rel in self.files:
             parts = rel.split("/")
             for i in range(len(parts)):
-                suffix = "/".join(parts[i:])
-                counts.setdefault(suffix, []).append(rel)
-        self._by_suffix = {k: v[0] for k, v in counts.items() if len(v) == 1}
+                candidates.setdefault("/".join(parts[i:]), []).append(rel)
+        self._by_suffix = {suffix: matches[0]
+                           for suffix, matches in candidates.items() if len(matches) == 1}
 
-    def _read(self, rel):
+    def read_text(self, rel):
+        """Contents of a file in the tree, or ``''`` if it cannot be read."""
         try:
             with open(os.path.join(self.source_dir, rel), "r", errors="ignore") as handle:
                 return handle.read()
@@ -151,7 +153,7 @@ class IncludeGraph:
         resolved = set()
         self._direct[rel] = resolved  # placed first: the graph has cycles
         directory = os.path.dirname(rel)
-        for spelling in INCLUDE_RE.findall(self._read(rel)):
+        for spelling in INCLUDE_RE.findall(self.read_text(rel)):
             candidate = os.path.normpath(os.path.join(directory, spelling))
             if candidate in self.files:
                 resolved.add(candidate)
@@ -191,7 +193,7 @@ def test_source_targets(graph):
     )
     for cmake_file in cmake_files:
         directory = os.path.dirname(cmake_file)
-        contents = graph._read(cmake_file)
+        contents = graph.read_text(cmake_file)
         for target in CMAKE_TEST_RE.findall(contents):
             source = os.path.normpath(os.path.join(directory, target + ".cpp"))
             if source in graph.files:
@@ -214,13 +216,6 @@ def test_source_targets(graph):
             register(rel, os.path.splitext(os.path.basename(rel))[0])
 
     return source_targets
-
-
-def test_sources(graph, source_targets=None):
-    """Registered test translation units, as repo-relative paths."""
-    if source_targets is None:
-        source_targets = test_source_targets(graph)
-    return sorted(source_targets)
 
 
 def reverse_map(graph, sources):
@@ -262,7 +257,7 @@ class Selection:
         return "^(%s)(_[0-9]+)?$\n" % alternatives
 
 
-def select(graph, changed_files, max_fraction=0.85):
+def select(graph, changed_files, max_fraction=DEFAULT_MAX_FRACTION):
     """Map changed paths to the tests that must run."""
     paths = []
     for path in changed_files:
@@ -279,18 +274,17 @@ def select(graph, changed_files, max_fraction=0.85):
         source_targets = test_source_targets(graph)
     except ValueError as error:
         return Selection("error", reasons=[str(error)])
-    sources = test_sources(graph, source_targets)
+    sources = sorted(source_targets)
     reverse = reverse_map(graph, sources)
 
     selected = set()
     reasons = []
     for path in paths:
-        hits = reverse.get(path)
-        if hits is not None:
-            selected |= hits
+        reached_by = set(reverse.get(path, ()))
         if path in source_targets:
-            selected.add(path)
-        if hits is not None or path in source_targets:
+            reached_by.add(path)
+        if reached_by:
+            selected |= reached_by
             continue
         if path in graph.files:
             # A source file in the tree that nothing includes: either a new
@@ -342,8 +336,8 @@ def parse_args(argv):
                         help="read newline-separated changed paths from this file ('-' for stdin)")
     parser.add_argument("--output-dir",
                         help="write targets.txt and ctest_regex.txt here")
-    parser.add_argument("--max-fraction", type=float, default=0.85,
-                        help="degrade to the full suite above this fraction (default: 0.85)")
+    parser.add_argument("--max-fraction", type=float, default=DEFAULT_MAX_FRACTION,
+                        help="degrade to the full suite above this fraction (default: %(default)s)")
     return parser.parse_args(argv)
 
 
