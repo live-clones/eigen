@@ -890,7 +890,7 @@ EIGEN_STRONG_INLINE Packet2l pnegate(const Packet2l& a) {
   // NOTE: GCC>=12 refuses to emit `vsub.i64` for `0 - x`: <https://godbolt.org/z/bfaz9ao59>.
   int64x2_t x = a;
   int64x2_t z = vdupq_n_s64(0);
-  asm("vsub.i64 %q0, %q1, %q0" : "+w" (x) : "w" (z));
+  asm("vsub.i64 %q0, %q1, %q0" : "+w"(x) : "w"(z));
   return x;
 #endif
 }
@@ -1631,7 +1631,7 @@ EIGEN_STRONG_INLINE Packet2l pcmp_lt<Packet2l>(const Packet2l& a, const Packet2l
 #if EIGEN_ARCH_ARM64
   return vreinterpretq_s64_u64(vcltq_s64(a, b));
 #else
-  return vshrq_n_s64(vqsubq_s64(a, b), 63);;
+  return vshrq_n_s64(vqsubq_s64(a, b), 63);
 #endif
 }
 template <>
