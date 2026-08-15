@@ -27,7 +27,8 @@ cmake -G Ninja                                                   \
 
 # The affected-tests tier (see scripts/affected_tests.py) passes its selection
 # as a file rather than a variable so the list is not bounded by CI variable
-# limits.  The file holds either "buildtests", "NONE", or one target per line.
+# limits.  The file holds "NONE" or one target per line; the full-suite form is
+# "buildtests" plus the targets it does not aggregate.
 # Targets that this configuration did not register (optional dependencies such
 # as CHOLMOD or SYCL) are dropped here: ninja aborts on an unknown target, and
 # this is the first point that knows what CMake actually configured.
@@ -52,7 +53,11 @@ if [[ -n "${EIGEN_CI_BUILD_TARGET_FILE}" ]]; then
     EIGEN_CI_BUILD_TARGET="buildtests"
   else
     { set +x; } 2>/dev/null
-    configured=$(ninja -t targets all 2>/dev/null | sed -n 's/^\([A-Za-z_0-9]*\): phony$/\1/p' | sort -u)
+    # The runner sources this script under `set -eo pipefail`, so every command
+    # substitution below has to end in a success status: a failed ninja, or a
+    # grep that legitimately counts zero lines, would otherwise abandon the job
+    # before the checks that are meant to report it.
+    configured=$(ninja -t targets all 2>/dev/null | sed -n 's/^\([A-Za-z_0-9]*\): phony$/\1/p' | sort -u || true)
     # An empty query means ninja is unusable, not that nothing is configured.
     # Without this the intersection below would be empty and the job would
     # trivially "succeed" having built nothing.
@@ -63,14 +68,14 @@ if [[ -n "${EIGEN_CI_BUILD_TARGET_FILE}" ]]; then
     requested_targets=$(echo "${requested}" | sort -u)
     selected_targets=$(comm -12 <(echo "${requested_targets}") <(echo "${configured}"))
     unconfigured=$(comm -23 <(echo "${requested_targets}") <(echo "${configured}"))
-    nrequested=$(echo "${requested_targets}" | grep -c .)
-    nselected=$(echo "${selected_targets}" | grep -c .)
+    nrequested=$(echo "${requested_targets}" | grep -c . || true)
+    nselected=$(echo "${selected_targets}" | grep -c . || true)
     echo "Affected tests: ${nselected} of ${nrequested} requested targets are configured here."
     if [[ -n "${unconfigured}" ]]; then
       echo "Not configured in this build: $(echo "${unconfigured}" | tr '\n' ' ')"
     fi
     set -x
-    if [[ ${nselected} -eq 0 ]]; then
+    if [[ -z "${selected_targets}" ]]; then
       echo "None of the affected tests exist in this configuration; nothing to build."
       cd ${rootdir}
       set +x

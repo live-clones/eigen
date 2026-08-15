@@ -49,7 +49,7 @@ python3 scripts/test_affected_tests.py     # unit tests, also run by the CI job
 
 Selection follows the textual `#include` graph, ignoring preprocessor guards, so it is a strict superset of the real
 compile dependency and never drops an affected test. Because Eigen is header-only and the umbrella headers are hubs,
-a change under `Eigen/src/Core` typically reaches every test and the selector degrades to `buildtests` — that is the
+a change under `Eigen/src/Core` typically reaches every test and the selector degrades to the full suite — that is the
 correct answer, not a failure. Changes to CMake, `ci/`, or the BLAS/LAPACK shims also force the full suite, since they
 invalidate the mapping itself. Git rename detection is disabled for the input diff so both the old and new path of a
 move are evaluated; an old path absent from the current graph safely forces the full suite.
@@ -57,8 +57,16 @@ move are evaluated; an old path absent from the current graph safely forces the 
 The selector derives source-to-target mappings from test CMake registration, including multi-translation-unit
 executables. A changed test source without a registration is an error rather than an unconfigured target to drop.
 Targets absent from one configuration (optional dependencies such as CHOLMOD or SYCL) are still filtered against
-`ninja -t targets` after cmake configure, because ninja aborts on an unknown target. A missing selection artifact must
-also fail the job rather than fall through to the default target, which would silently build everything.
+`ninja -t targets` after cmake configure, because ninja aborts on an unknown target; a selection consisting only of
+such targets is a no-op, not a failure. A missing selection artifact must also fail the job rather than fall through
+to the default target, which would silently build everything.
+
+Two registrations do not reduce to a build target. `buildtests` aggregates the `ei_add_test` targets only, so a bare
+`add_executable` such as the `bug1213` link regression is named explicitly alongside `buildtests` in the full-suite
+mode. The compile-failure suite under `failtest/` is `EXCLUDE_FROM_ALL` and each of its CTest tests builds its own
+target as the test action, so those are selected as `<name>_ok` and `<name>_ko` CTest names and never handed to the
+build job. Both matter because a `-R` filter silently drops whatever it does not name, while the unfiltered runs in
+the other tiers pick them up for free.
 
 ### Backend-Triggered Configurations
 
