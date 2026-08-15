@@ -953,7 +953,12 @@ struct TensorEvaluator<const TensorStridingSlicingOp<StartIndices, StopIndices, 
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE internal::TensorBlockResourceRequirements getResourceRequirements() const {
-    const size_t target_size = m_device.lastLevelCacheSize();
+    // Blocks materialize into scratch and are then re-read by the consumer, so
+    // the round trip must stay cache-resident: L1-sized blocks (as in
+    // TensorShuffling) make the extra pass nearly free, while LLC-sized blocks
+    // cost a measured ~40% on cheap coefficient-wise consumers of a
+    // larger-than-cache slice.
+    const size_t target_size = m_device.firstLevelCacheSize();
     constexpr int inner_dim = (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ? 0 : NumDims - 1;
     // A non-unit (or negative) inner stride turns the per-line copies into
     // gathers or reversed reads the default cost model does not see in bytes
