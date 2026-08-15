@@ -55,11 +55,17 @@ invalidate the mapping itself. Git rename detection is disabled for the input di
 move are evaluated; an old path absent from the current graph safely forces the full suite.
 
 The selector derives source-to-target mappings from test CMake registration, including multi-translation-unit
-executables. A changed test source without a registration is an error rather than an unconfigured target to drop.
-Targets absent from one configuration (optional dependencies such as CHOLMOD or SYCL) are still filtered against
-`ninja -t targets` after cmake configure, because ninja aborts on an unknown target; a selection consisting only of
-such targets is a no-op, not a failure. A missing selection artifact must also fail the job rather than fall through
-to the default target, which would silently build everything.
+executables and the GPU tests, whose sources are `.cu` because `ei_add_test` takes the extension from
+`EIGEN_ADD_TEST_FILENAME_EXTENSION`. A changed test source without a registration is an error rather than an
+unconfigured target to drop. Targets absent from one configuration (optional dependencies such as CHOLMOD, CUDA or
+SYCL) are still filtered against `ninja -t targets` after cmake configure, because ninja aborts on an unknown target;
+a selection consisting only of such targets is a no-op, not a failure. A missing selection artifact must also fail the
+job rather than fall through to the default target, which would silently build everything.
+
+The build script expands the surviving selection through ninja's phony edges before it shuffles and batches. Most
+selected names are aggregates — `buildtests`, and the parent of every split test — and the batch loop can only spread
+apart what it is handed, so an unexpanded parent would put a whole test family in one batch and undo the
+memory-pressure protection the batching exists for.
 
 Two registrations do not reduce to a build target. `buildtests` aggregates the `ei_add_test` targets only, so a bare
 `add_executable` such as the `bug1213` link regression is named explicitly alongside `buildtests` in the full-suite
