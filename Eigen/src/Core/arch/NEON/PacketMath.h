@@ -1661,6 +1661,23 @@ EIGEN_STRONG_INLINE Packet2ul pcmp_le<Packet2ul>(const Packet2ul& a, const Packe
 }
 
 template <>
+EIGEN_STRONG_INLINE Packet2l pmin<Packet2l>(const Packet2l& a, const Packet2l& b) {
+  return vbslq_s64(vreinterpretq_u64_s64(pcmp_lt(a, b)), a, b);
+}
+template <>
+EIGEN_STRONG_INLINE Packet2ul pmin<Packet2ul>(const Packet2ul& a, const Packet2ul& b) {
+  return vbslq_u64(pcmp_lt(a, b), a, b);
+}
+template <>
+EIGEN_STRONG_INLINE Packet2l pmax<Packet2l>(const Packet2l& a, const Packet2l& b) {
+  return vbslq_s64(vreinterpretq_u64_s64(pcmp_lt(b, a)), a, b);
+}
+template <>
+EIGEN_STRONG_INLINE Packet2ul pmax<Packet2ul>(const Packet2ul& a, const Packet2ul& b) {
+  return vbslq_u64(pcmp_lt(b, a), a, b);
+}
+
+template <>
 EIGEN_STRONG_INLINE Packet2f pcmp_eq<Packet2f>(const Packet2f& a, const Packet2f& b) {
   return vreinterpret_f32_u32(vceq_f32(a, b));
 }
@@ -4333,23 +4350,6 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet2l pselect(const Packet2l& mask, con
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet2ul pselect(const Packet2ul& mask, const Packet2ul& a, const Packet2ul& b) {
   return vbslq_u64(mask, a, b);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet2l pmin<Packet2l>(const Packet2l& a, const Packet2l& b) {
-  return pselect(pcmp_lt(a, b), a, b);
-}
-template <>
-EIGEN_STRONG_INLINE Packet2ul pmin<Packet2ul>(const Packet2ul& a, const Packet2ul& b) {
-  return pselect(pcmp_lt(a, b), a, b);
-}
-template <>
-EIGEN_STRONG_INLINE Packet2l pmax<Packet2l>(const Packet2l& a, const Packet2l& b) {
-  return pselect(pcmp_lt(b, a), a, b);
-}
-template <>
-EIGEN_STRONG_INLINE Packet2ul pmax<Packet2ul>(const Packet2ul& a, const Packet2ul& b) {
-  return pselect(pcmp_lt(b, a), a, b);
 }
 
 // Use armv8 rounding intrinsics if available.
