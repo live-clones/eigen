@@ -795,8 +795,8 @@ test:linux:buildsystem:
 # select:tests is the only filter, so a selection spanning Official and
 # Unsupported tests runs in one job.
 #
-# The backend-triggered jobs repeat their build job's `changes:` rule, since a
-# test job whose build did not run would have nothing to execute.
+# Each job shares its trigger rule with the build job it needs; see
+# .rules:libeigen:affected-tests:* in ci/common.gitlab-ci.yml.
 
 .affected:test:
   variables:
@@ -806,107 +806,47 @@ test:linux:buildsystem:
 
 test:linux:x86-64:gcc-10:avx2:affected:
   extends: [ .test:linux:x86-64:gcc-10:avx2, .affected:test ]
-  needs:
-    - job: build:linux:cross:x86-64:gcc-10:avx2:affected
-      artifacts: true
-    - job: select:tests
-      artifacts: true
+  needs: [ build:linux:cross:x86-64:gcc-10:avx2:affected, select:tests ]
   rules: !reference [.rules:libeigen:affected-tests, rules]
 
 test:linux:aarch64:gcc-10:default:affected:
   extends: [ .test:linux:aarch64:gcc-10:default, .affected:test ]
-  needs:
-    - job: build:linux:cross:aarch64:gcc-10:default:affected
-      artifacts: true
-    - job: select:tests
-      artifacts: true
+  needs: [ build:linux:cross:aarch64:gcc-10:default:affected, select:tests ]
   rules: !reference [.rules:libeigen:affected-tests, rules]
 
 ##### Backend-triggered ########################################################
 
 test:linux:x86-64:gcc-10:default:affected:
   extends: [ .test:linux:x86-64:gcc-10:default, .affected:test ]
-  needs:
-    - job: build:linux:cross:x86-64:gcc-10:default:affected
-      artifacts: true
-    - job: select:tests
-      artifacts: true
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/"
-      changes:
-        - Eigen/src/Core/arch/SSE/**/*
+  needs: [ build:linux:cross:x86-64:gcc-10:default:affected, select:tests ]
+  rules: !reference [.rules:libeigen:affected-tests:sse, rules]
 
 test:linux:x86-64:gcc-10:avx:affected:
   extends: [ .test:linux:x86-64:gcc-10:avx, .affected:test ]
-  needs:
-    - job: build:linux:cross:x86-64:gcc-10:avx:affected
-      artifacts: true
-    - job: select:tests
-      artifacts: true
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/"
-      changes:
-        - Eigen/src/Core/arch/SSE/**/*
-        - Eigen/src/Core/arch/AVX/**/*
+  needs: [ build:linux:cross:x86-64:gcc-10:avx:affected, select:tests ]
+  rules: !reference [.rules:libeigen:affected-tests:avx, rules]
 
 test:linux:x86-64:gcc-10:avx512dq:affected:
   extends: [ .test:linux:x86-64:gcc-10:avx512dq, .affected:test ]
-  needs:
-    - job: build:linux:cross:x86-64:gcc-10:avx512dq:affected
-      artifacts: true
-    - job: select:tests
-      artifacts: true
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/"
-      changes:
-        - Eigen/src/Core/arch/SSE/**/*
-        - Eigen/src/Core/arch/AVX/**/*
-        - Eigen/src/Core/arch/AVX512/**/*
+  needs: [ build:linux:cross:x86-64:gcc-10:avx512dq:affected, select:tests ]
+  rules: !reference [.rules:libeigen:affected-tests:avx512, rules]
 
 test:linux:arm:gcc-10:default:affected:
   extends: [ .test:linux:arm:gcc-10:default, .affected:test ]
-  needs:
-    - job: build:linux:cross:arm:gcc-10:default:affected
-      artifacts: true
-    - job: select:tests
-      artifacts: true
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/"
-      changes:
-        - Eigen/src/Core/arch/NEON/**/*
+  needs: [ build:linux:cross:arm:gcc-10:default:affected, select:tests ]
+  rules: !reference [.rules:libeigen:affected-tests:neon, rules]
 
 test:linux:ppc64le:gcc-14:default:affected:
   extends: [ .test:linux:ppc64le:gcc-14:default, .affected:test ]
-  needs:
-    - job: build:linux:cross:ppc64le:gcc-14:default:affected
-      artifacts: true
-    - job: select:tests
-      artifacts: true
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/"
-      changes:
-        - Eigen/src/Core/arch/AltiVec/**/*
+  needs: [ build:linux:cross:ppc64le:gcc-14:default:affected, select:tests ]
+  rules: !reference [.rules:libeigen:affected-tests:altivec, rules]
 
 test:linux:loongarch64:gcc-14:default:affected:
   extends: [ .test:linux:loongarch64:gcc-14:default, .affected:test ]
-  needs:
-    - job: build:linux:cross:loongarch64:gcc-14:default:affected
-      artifacts: true
-    - job: select:tests
-      artifacts: true
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/"
-      changes:
-        - Eigen/src/Core/arch/LSX/**/*
+  needs: [ build:linux:cross:loongarch64:gcc-14:default:affected, select:tests ]
+  rules: !reference [.rules:libeigen:affected-tests:lsx, rules]
 
 test:linux:riscv64:gcc-15:default:affected:
   extends: [ .test:linux:riscv64:gcc-15:default, .affected:test ]
-  needs:
-    - job: build:linux:riscv64:gcc-15:default:affected
-      artifacts: true
-    - job: select:tests
-      artifacts: true
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/"
-      changes:
-        - Eigen/src/Core/arch/RVV10/**/*
+  needs: [ build:linux:riscv64:gcc-15:default:affected, select:tests ]
+  rules: !reference [.rules:libeigen:affected-tests:rvv10, rules]

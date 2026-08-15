@@ -60,12 +60,14 @@ if [[ -n "${EIGEN_CI_BUILD_TARGET_FILE}" ]]; then
       echo "Could not enumerate configured targets via 'ninja -t targets'." >&2
       exit 1
     fi
-    selected_targets=$(echo "${requested}" | sort -u | comm -12 - <(echo "${configured}"))
-    nrequested=$(echo "${requested}" | grep -c .)
+    requested_targets=$(echo "${requested}" | sort -u)
+    selected_targets=$(comm -12 <(echo "${requested_targets}") <(echo "${configured}"))
+    unconfigured=$(comm -23 <(echo "${requested_targets}") <(echo "${configured}"))
+    nrequested=$(echo "${requested_targets}" | grep -c .)
     nselected=$(echo "${selected_targets}" | grep -c .)
     echo "Affected tests: ${nselected} of ${nrequested} requested targets are configured here."
-    if [[ ${nselected} -lt ${nrequested} ]]; then
-      echo "Not configured in this build: $(comm -23 <(echo "${requested}" | sort -u) <(echo "${configured}") | tr '\n' ' ')"
+    if [[ -n "${unconfigured}" ]]; then
+      echo "Not configured in this build: $(echo "${unconfigured}" | tr '\n' ' ')"
     fi
     set -x
     if [[ ${nselected} -eq 0 ]]; then
