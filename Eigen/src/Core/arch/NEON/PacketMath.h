@@ -1400,6 +1400,10 @@ template <>
 EIGEN_STRONG_INLINE Packet4ui pmin<Packet4ui>(const Packet4ui& a, const Packet4ui& b) {
   return vminq_u32(a, b);
 }
+template <>
+EIGEN_STRONG_INLINE Packet2ul pmin<Packet2ul>(const Packet2ul& a, const Packet2ul& b) {
+  return vsubq_u64(a, vqsubq_u64(a, b));
+}
 
 template <>
 EIGEN_STRONG_INLINE Packet2f pmax<Packet2f>(const Packet2f& a, const Packet2f& b) {
@@ -1490,6 +1494,10 @@ EIGEN_STRONG_INLINE Packet2ui pmax<Packet2ui>(const Packet2ui& a, const Packet2u
 template <>
 EIGEN_STRONG_INLINE Packet4ui pmax<Packet4ui>(const Packet4ui& a, const Packet4ui& b) {
   return vmaxq_u32(a, b);
+}
+template <>
+EIGEN_STRONG_INLINE Packet2ul pmax<Packet2ul>(const Packet2ul& a, const Packet2ul& b) {
+  return vaddq_u64(b, vqsubq_u64(a, b));
 }
 
 template <>
@@ -1665,16 +1673,8 @@ EIGEN_STRONG_INLINE Packet2l pmin<Packet2l>(const Packet2l& a, const Packet2l& b
   return vbslq_s64(vreinterpretq_u64_s64(pcmp_lt(a, b)), a, b);
 }
 template <>
-EIGEN_STRONG_INLINE Packet2ul pmin<Packet2ul>(const Packet2ul& a, const Packet2ul& b) {
-  return vbslq_u64(pcmp_lt(a, b), a, b);
-}
-template <>
 EIGEN_STRONG_INLINE Packet2l pmax<Packet2l>(const Packet2l& a, const Packet2l& b) {
   return vbslq_s64(vreinterpretq_u64_s64(pcmp_lt(b, a)), a, b);
-}
-template <>
-EIGEN_STRONG_INLINE Packet2ul pmax<Packet2ul>(const Packet2ul& a, const Packet2ul& b) {
-  return vbslq_u64(pcmp_lt(b, a), a, b);
 }
 
 template <>
