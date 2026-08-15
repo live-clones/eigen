@@ -78,31 +78,40 @@ static void BM_Max(benchmark::State& state) {
   state.SetBytesProcessed(state.iterations() * n * sizeof(Scalar) * 3);
 }
 
-// (a OP b).select(a, b): exercises pcmp_{lt,le,eq} feeding pselect, the same
-// codepath the optimized pmin/pmax now use internally.
-#define BENCH_CWISE_SELECT(NAME, OP)                                      \
-  template <typename Scalar>                                              \
-  static void BM_Select##NAME(benchmark::State& state) {                  \
-    const Index n = state.range(0);                                       \
-    using Arr = Array<Scalar, Dynamic, 1>;                                \
-    Arr a = Arr::Random(n);                                               \
-    Arr b = Arr::Random(n);                                               \
-    Arr c(n);                                                             \
-    for (auto _ : state) {                                                \
-      c = (a OP b).select(a, b);                                          \
-      benchmark::DoNotOptimize(c.data());                                 \
-    }                                                                     \
-    state.SetBytesProcessed(state.iterations() * n * sizeof(Scalar) * 3); \
+// `(c, d)` must be independent of the predicate inputs `(a, b)`: (a OP b).select(a, b) is
+// algebraically `min`/`max` for `Lt`/`Le` and identically `b` for `Eq`, letting an optimizer erase
+// the comparison (GCC 13/x86-64 turned `BM_SelectEq<uint64_t>` into a `memcpy`).
+#define BENCH_CWISE_SELECT(NAME, OP)                                                                 \
+  template <typename Scalar>                                                                         \
+  static void BM_Select##NAME(benchmark::State& state) {                                             \
+    const Index n = state.range(0);                                                                  \
+    using Arr = Array<Scalar, Dynamic, 1>;                                                           \
+    Arr a = Arr::Random(n);                                                                          \
+    Arr b = Arr::Random(n);                                                                          \
+    Arr c = Arr::Random(n);                                                                          \
+    Arr d = Arr::Random(n);                                                                          \
+    Arr out(n);                                                                                      \
+    for (auto _ : state) {                                                                           \
+      out = (a OP b).select(c, d);                                                                   \
+      benchmark::DoNotOptimize(out.data());                                                          \
+    }                                                                                                \
+    for (Index i = 0; i < n; ++i) {                                                                  \
+      const Scalar expected = (a[i] OP b[i]) ? c[i] : d[i];                                          \
+      if (out[i] != expected) {                                                                      \
+        state.SkipWithError("Select" #NAME ": materialized result does not match scalar reference"); \
+        break;                                                                                       \
+      }                                                                                              \
+    }                                                                                                \
+    state.SetBytesProcessed(state.iterations() * n * sizeof(Scalar) * 5);                            \
   }
 
 BENCH_CWISE_SELECT(Lt, <)
 BENCH_CWISE_SELECT(Le, <=)
 BENCH_CWISE_SELECT(Eq, ==)
 
-// clang-format off
-// Kept small enough that the working set (up to 3 arrays) stays within a
-// typical L1D cache, so timings reflect compute cost rather than memory
-// bandwidth/latency.
+// Kept small enough that the working set (up to 5 arrays, for BENCH_CWISE_SELECT)
+// stays within a typical L1D cache, so timings reflect compute cost rather than
+// memory bandwidth/latency.
 #define INT64_SIZES ->Arg(32)->Arg(64)->Arg(128)->Arg(256)->Arg(512)
 
 BENCHMARK(BM_Negate<int64_t>) INT64_SIZES ->Name("Negate_int64");
@@ -126,5 +135,4 @@ BENCHMARK(BM_SelectLe<int64_t>) INT64_SIZES ->Name("SelectLe_int64");
 BENCHMARK(BM_SelectLe<uint64_t>) INT64_SIZES ->Name("SelectLe_uint64");
 
 BENCHMARK(BM_SelectEq<int64_t>) INT64_SIZES ->Name("SelectEq_int64");
-BENCHMARK(BM_SelectEq<uint64_t>) INT64_SIZES ->Name("SelectEq_uint64");
-// clang-format on
+BENCHMARK(BM_SelectEq<uint64_t>) INT64_SIZES->Name("SelectEq_uint64");

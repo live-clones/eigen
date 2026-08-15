@@ -624,6 +624,81 @@ struct packetmath_integer_predicates_test<
   }
 };
 
+template <typename Scalar, typename Packet, typename = void>
+struct packetmath_64bit_boundary_test {
+  static void run() {}
+};
+
+// Focused coverage for 64-bit lanes: non-ARM64 `pcmp_eq<Packet2{,u}l>` splits each lane into 32-bit
+// halves and `AND`s the two half-comparisons together. The generic `packetmath_boolean_mask_ops`
+// only feeds 0/1 values, whose high half is always zero, so a broken half-pairing/`AND` there can
+// go undetected. Here lanes vary only the high half, only the low half, or neither, and boundary
+// values cross the 2^32 seam.
+template <typename Scalar, typename Packet>
+struct packetmath_64bit_boundary_test<Scalar, Packet,
+                                      std::enable_if_t<NumTraits<Scalar>::IsInteger && sizeof(Scalar) == 8>> {
+  static void run() {
+    const int PacketSize = unpacket_traits<Packet>::size;
+    const int size = 2 * PacketSize;
+    EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar data1[size];
+    EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar data2[size];
+    EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar ref[size];
+
+    auto from_bits = [](uint64_t raw) { return numext::bit_cast<Scalar>(raw); };
+
+    const Scalar high_differs_a = from_bits(0x1111111100000001ull);
+    const Scalar high_differs_b = from_bits(0x2222222200000001ull);
+    const Scalar low_differs_a = from_bits(0x1111111100000001ull);
+    const Scalar low_differs_b = from_bits(0x1111111100000002ull);
+    const Scalar both_equal_a = from_bits(0x1111111100000001ull);
+    const Scalar both_equal_b = from_bits(0x1111111100000001ull);
+    const Scalar lanes_a[] = {high_differs_a, low_differs_a, both_equal_a};
+    const Scalar lanes_b[] = {high_differs_b, low_differs_b, both_equal_b};
+    const int num_lanes = sizeof(lanes_a) / sizeof(lanes_a[0]);
+
+    const Scalar boundary_values[] = {
+        Scalar(0),
+        Scalar(1),
+        from_bits(0xFFFFFFFFFFFFFFFFull),  // -1 (signed) / UINT64_MAX (unsigned)
+        from_bits(0x8000000000000000ull),  // INT64_MIN (signed) / 2^63 (unsigned)
+        from_bits(0x7FFFFFFFFFFFFFFFull),  // INT64_MAX
+        from_bits(0x00000000FFFFFFFFull),  // 2^32 - 1
+        from_bits(0x0000000100000000ull),  // 2^32
+        from_bits(0x00000001FFFFFFFFull),  // 2^33 - 1
+    };
+    const int num_boundary = sizeof(boundary_values) / sizeof(boundary_values[0]);
+
+    const auto check_ops = [&] {
+      CHECK_CWISE2_MASK(REF_PCMP_EQ, internal::pcmp_eq);
+      CHECK_CWISE2_MASK(internal::pcmp_lt, internal::pcmp_lt);
+      CHECK_CWISE2_MASK(internal::pcmp_le, internal::pcmp_le);
+      CHECK_CWISE2_IF(internal::packet_traits<Scalar>::HasMin, (std::min), internal::pmin);
+      CHECK_CWISE2_IF(internal::packet_traits<Scalar>::HasMax, (std::max), internal::pmax);
+      CHECK_CWISE2_IF(internal::packet_traits<Scalar>::HasMul, REF_MUL, internal::pmul);
+      CHECK_CWISE1_IF(internal::packet_traits<Scalar>::HasNegate, test::negate, internal::pnegate);
+      CHECK_CWISE1(numext::abs, internal::pabs);
+    };
+
+    for (int i = 0; i < PacketSize; ++i) {
+      data1[i] = lanes_a[i % num_lanes];
+      data1[i + PacketSize] = lanes_b[i % num_lanes];
+    }
+    check_ops();
+
+    for (int i = 0; i < PacketSize; ++i) {
+      data1[i] = boundary_values[i % num_boundary];
+      data1[i + PacketSize] = boundary_values[(i + 1) % num_boundary];
+    }
+    check_ops();
+
+    for (int i = 0; i < PacketSize; ++i) {
+      data1[i] = boundary_values[i % num_boundary];
+      data1[i + PacketSize] = boundary_values[i % num_boundary];
+    }
+    check_ops();
+  }
+};
+
 // Ensure optimization barrier compiles and doesn't modify contents.
 // Only applies to raw types, so will not work for std::complex, Eigen::half
 // or Eigen::bfloat16. For those you would need to refer to an underlying
@@ -932,6 +1007,7 @@ void packetmath() {
   packetmath_pcast_ops_runner<Scalar, Packet>::run();
   packetmath_minus_zero_add_test<Scalar, Packet>::run();
   packetmath_integer_predicates_test<Scalar, Packet>::run();
+  packetmath_64bit_boundary_test<Scalar, Packet>::run();
 
   CHECK_CWISE3_IF(true, REF_MADD, internal::pmadd);
   if (!std::is_same<Scalar, bool>::value && NumTraits<Scalar>::IsSigned) {
