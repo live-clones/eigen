@@ -1144,9 +1144,26 @@ struct TensorEvaluator<TensorStridingSlicingOp<StartIndices, StopIndices, Stride
     typedef internal::TensorBlockIO<ScalarNoConst, Index, NumDims, Layout> TensorBlockIO;
     typedef typename TensorBlockIO::Dst TensorBlockIODst;
     typedef typename TensorBlockIO::Src TensorBlockIOSrc;
+    typedef internal::TensorBlockAssignment<ScalarNoConst, NumDims, typename TensorBlock::XprType, Index>
+        TensorBlockAssignment;
+
+    const Scalar* block_buffer = block.data();
+
+    // Unlike TensorShuffling this op preserves dimension order, so with a unit
+    // inner stride a block expression can be assigned straight into the
+    // destination through the dilated outer strides, skipping the
+    // materialize-into-temp pass below. TensorBlockAssignment requires exactly
+    // that unit inner stride.
+    constexpr int inner_dim = (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ? 0 : NumDims - 1;
+    if (block_buffer == nullptr && this->m_inputStrides[inner_dim] == 1) {
+      const typename TensorBlockIO::Dimensions output_strides(this->m_inputStrides);
+      TensorBlockAssignment::Run(TensorBlockAssignment::target(desc.dimensions(), output_strides, this->m_impl.data(),
+                                                               this->srcCoeff(desc.offset())),
+                                 block.expr());
+      return;
+    }
 
     const typename TensorBlockIO::Dimensions block_strides = internal::strides<Layout>(desc.dimensions());
-    const Scalar* block_buffer = block.data();
 
     // TODO(ezhulenev): TensorBlockIO should be able to read from any Eigen
     // expression with coefficient and packet access as `src`.
@@ -1154,9 +1171,6 @@ struct TensorEvaluator<TensorStridingSlicingOp<StartIndices, StopIndices, Stride
     if (block_buffer == nullptr) {
       mem = this->m_device.allocate(desc.size() * sizeof(Scalar));
       ScalarNoConst* buf = static_cast<ScalarNoConst*>(mem);
-
-      typedef internal::TensorBlockAssignment<ScalarNoConst, NumDims, typename TensorBlock::XprType, Index>
-          TensorBlockAssignment;
 
       TensorBlockAssignment::Run(TensorBlockAssignment::target(desc.dimensions(), block_strides, buf), block.expr());
 

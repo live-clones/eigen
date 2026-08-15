@@ -215,6 +215,44 @@ static void BM_StridedSliceWrite(benchmark::State& state) {
   state.SetBytesProcessed(state.iterations() * A.size() * sizeof(Scalar));
 }
 
+// Expression assigned through a strided-slice destination. The rhs block has
+// no raw buffer, so this exercises the expression side of writeBlock: direct
+// assignment into the destination for a unit inner stride, and the
+// materialize-into-temp path otherwise.
+static void BM_StridedSliceWriteExp(benchmark::State& state) {
+  const int M = state.range(0);
+  const int N = state.range(1);
+  const Index s0 = state.range(2);
+  const Index s1 = state.range(3);
+
+  const Eigen::array<Index, 2> start = {s0 > 0 ? 1 : M - 2, s1 > 0 ? 1 : N - 2};
+  const Eigen::array<Index, 2> stop = {s0 > 0 ? M - 1 : 0, s1 > 0 ? N - 1 : 0};
+  const Eigen::array<Index, 2> strides = {s0, s1};
+
+  Tensor<Scalar, 2> B(M, N);
+  B.setZero();
+  // Size the source from the slice itself, so it tracks the stride sweep.
+  Tensor<Scalar, 2> A = B.stridedSlice(start, stop, strides);
+  A.setRandom();
+
+  for (auto _ : state) {
+    B.stridedSlice(start, stop, strides) = A.exp();
+    benchmark::DoNotOptimize(B.data());
+    benchmark::ClobberMemory();
+  }
+
+  for (Index i = 0; i < A.dimension(0); ++i) {
+    for (Index j = 0; j < A.dimension(1); ++j) {
+      const Scalar expected = std::exp(A(i, j));
+      if (std::abs(B(start[0] + i * s0, start[1] + j * s1) - expected) > 1e-4f * std::abs(expected)) {
+        state.SkipWithError("validation failed");
+        return;
+      }
+    }
+  }
+  state.SetBytesProcessed(state.iterations() * A.size() * sizeof(Scalar));
+}
+
 // --- ThreadPool variants ---
 
 static void BM_Slice_ThreadPool(benchmark::State& state) {
@@ -308,5 +346,6 @@ BENCHMARK(BM_Stride) STRIDE_SIZES;
 BENCHMARK(BM_StridedSliceRead) STRIDED_SLICE_SIZES;
 BENCHMARK(BM_StridedSliceExp) STRIDED_SLICE_SIZES;
 BENCHMARK(BM_StridedSliceWrite) STRIDED_SLICE_SIZES;
+BENCHMARK(BM_StridedSliceWriteExp) STRIDED_SLICE_SIZES;
 BENCHMARK(BM_Slice_ThreadPool) MORPH_THREADPOOL_SIZES->UseRealTime();
 BENCHMARK(BM_Pad_ThreadPool) MORPH_THREADPOOL_SIZES->UseRealTime();

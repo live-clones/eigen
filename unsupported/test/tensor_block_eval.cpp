@@ -1215,6 +1215,56 @@ static void test_assign_to_tensor_strided_slice() {
   }
 }
 
+// A lazy rhs expression has no raw buffer, so the tiled executor drives
+// writeBlock with a block expression: assigned directly into the destination
+// for a unit inner stride, and through a materialized temporary otherwise.
+// VerifyBlockAssignment cannot reach these paths because it always feeds
+// writeBlock a materialized block.
+template <typename T, int NumDims, int Layout>
+static void test_assign_expr_to_tensor_strided_slice() {
+  DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
+  Tensor<T, NumDims, Layout> tensor(dims);
+
+  TensorMap<Tensor<T, NumDims, Layout>> map(tensor.data(), dims);
+
+  const Index stride_choices[] = {1, 2, -1, -2};
+  for (const Index s : stride_choices) {
+    DSizes<Index, NumDims> start, stop, strides, out_dims;
+    for (int i = 0; i < NumDims; ++i) {
+      strides[i] = s;
+      if (s > 0) {
+        start[i] = 1;
+        stop[i] = dims[i] - 1;
+      } else {
+        start[i] = dims[i] - 2;
+        stop[i] = 0;
+      }
+      const Index interval = stop[i] - start[i];
+      out_dims[i] = interval / strides[i] + (interval % strides[i] != 0 ? 1 : 0);
+    }
+
+    Tensor<T, NumDims, Layout> rhs(out_dims);
+    rhs.setRandom();
+
+    auto lhs_expr = map.stridedSlice(start, stop, strides);
+    auto rhs_expr = rhs + rhs.constant(T(1));
+    using Assign = TensorAssignOp<decltype(lhs_expr), const decltype(rhs_expr)>;
+
+    tensor.setZero();
+    TensorExecutor<const Assign, DefaultDevice, /*Vectorizable=*/true, internal::TiledEvaluation::On>::run(
+        Assign(lhs_expr, rhs_expr), DefaultDevice());
+    Tensor<T, NumDims, Layout> tiled = tensor;
+
+    tensor.setZero();
+    TensorExecutor<const Assign, DefaultDevice, /*Vectorizable=*/false, internal::TiledEvaluation::Off>::run(
+        Assign(lhs_expr, rhs_expr), DefaultDevice());
+
+    for (Index i = 0; i < tensor.size(); ++i) {
+      VERIFY_IS_EQUAL(tiled.coeff(i), tensor.coeff(i));
+    }
+  }
+}
+
 // -------------------------------------------------------------------------- //
 
 #define CALL_SUBTEST_PART(PART) CALL_SUBTEST_##PART
@@ -1331,6 +1381,7 @@ EIGEN_DECLARE_TEST(tensor_block_eval) {
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(8, test_assign_to_tensor_shuffle);
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(8, test_assign_to_tensor_layout_swap);
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(8, test_assign_to_tensor_strided_slice);
+  CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(8, test_assign_expr_to_tensor_strided_slice);
 
   // Force CMake to split this test.
   // EIGEN_SUFFIXES;1;2;3;4;5;6;7;8
