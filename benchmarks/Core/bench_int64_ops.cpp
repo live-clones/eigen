@@ -80,18 +80,18 @@ static void BM_Max(benchmark::State& state) {
 
 // (a OP b).select(a, b): exercises pcmp_{lt,le,eq} feeding pselect, the same
 // codepath the optimized pmin/pmax now use internally.
-#define BENCH_CWISE_SELECT(NAME, OP)                            \
-  template <typename Scalar>                                    \
-  static void BM_Select##NAME(benchmark::State& state) {        \
-    const Index n = state.range(0);                             \
-    using Arr = Array<Scalar, Dynamic, 1>;                       \
-    Arr a = Arr::Random(n);                                      \
-    Arr b = Arr::Random(n);                                      \
-    Arr c(n);                                                    \
-    for (auto _ : state) {                                       \
-      c = (a OP b).select(a, b);                                 \
-      benchmark::DoNotOptimize(c.data());                        \
-    }                                                             \
+#define BENCH_CWISE_SELECT(NAME, OP)                                      \
+  template <typename Scalar>                                              \
+  static void BM_Select##NAME(benchmark::State& state) {                  \
+    const Index n = state.range(0);                                       \
+    using Arr = Array<Scalar, Dynamic, 1>;                                \
+    Arr a = Arr::Random(n);                                               \
+    Arr b = Arr::Random(n);                                               \
+    Arr c(n);                                                             \
+    for (auto _ : state) {                                                \
+      c = (a OP b).select(a, b);                                          \
+      benchmark::DoNotOptimize(c.data());                                 \
+    }                                                                     \
     state.SetBytesProcessed(state.iterations() * n * sizeof(Scalar) * 3); \
   }
 
