@@ -19,7 +19,9 @@ CI, the BLAS/LAPACK shims) fall back to the full ``buildtests`` target.
 Two output files are written, both consumed by ``ci/scripts/build.linux.script.sh``
 and ``ci/scripts/test.linux.script.sh``:
 
-  targets.txt       ``buildtests``, ``NONE``, or a newline-separated target list
+  targets.txt       ``NONE``, a newline-separated target list, or the
+                    full-suite list of ``buildtests`` and the targets it does
+                    not aggregate
   ctest_regex.txt   ``ALL``, ``NONE``, or a CTest ``-R`` regex
 
 The selected names are CMake target names, not CTest test names: a split test
@@ -28,9 +30,19 @@ aggregates them, so selecting ``foo`` builds and runs every part.  Targets that
 a given configuration does not register (optional dependencies such as CHOLMOD
 or SYCL) are filtered out by the build script, which is the only place that
 knows what CMake actually configured.
+
+Two registrations do not fit that shape:
+
+* Each compile-failure test under ``failtest/`` compiles its own target from
+  inside CTest, so those are selected as CTest names and never handed to the
+  build job.
+* ``buildtests`` aggregates the ``ei_add_test`` targets only.  A bare
+  ``add_executable`` such as ``bug1213`` is attached to nothing, so the
+  full-suite mode has to name those targets next to ``buildtests``.
 """
 
 import argparse
+import collections
 import fnmatch
 import os
 import re
@@ -38,10 +50,14 @@ import subprocess
 import sys
 
 # Directories scanned to build the include graph.
-SCAN_ROOTS = ("Eigen", "unsupported/Eigen", "test", "unsupported/test")
+SCAN_ROOTS = ("Eigen", "unsupported/Eigen", "test", "unsupported/test", "failtest")
 
 # Directories whose .cpp files are test translation units.
 TEST_ROOTS = ("test", "unsupported/test")
+
+# Compile-failure suite.  ei_add_failtest registers <name>_ok and <name>_ko as
+# CTest tests whose test action is a build of an EXCLUDE_FROM_ALL target.
+FAILTEST_ROOT = "failtest"
 
 # Share of the test suite above which an explicit selection is replaced by the
 # full ``buildtests`` target.
@@ -68,7 +84,6 @@ IGNORED_PATTERNS = (
     "debug/*",
     "demos/*",
     "doc/*",
-    "failtest/*",
     "unsupported/benchmarks/*",
     "unsupported/doc/*",
 )
@@ -98,6 +113,10 @@ CMAKE_TEST_RE = re.compile(
 )
 CMAKE_EXECUTABLE_RE = re.compile(
     r"^[ \t]*add_executable\([ \t]*([A-Za-z_][A-Za-z_0-9]*)[ \t\r\n]+([^)]*)\)",
+    re.MULTILINE,
+)
+CMAKE_FAILTEST_RE = re.compile(
+    r'^[ \t]*ei_add_failtest\([ \t]*"?([A-Za-z_][A-Za-z_0-9]*)"?',
     re.MULTILINE,
 )
 
@@ -175,9 +194,16 @@ class IncludeGraph:
         return seen
 
 
-def test_source_targets(graph):
-    """Map registered test translation units to their CMake targets."""
+# targets     -- test translation unit -> the CMake target that compiles it
+# standalone  -- targets the ``buildtests`` aggregate does not depend on
+# failtests   -- failtest translation unit -> the CTest names that compile it
+Registrations = collections.namedtuple("Registrations", "targets standalone failtests")
+
+
+def test_registrations(graph):
+    """Map registered translation units to what CI has to build or run."""
     source_targets = {}
+    standalone = set()
 
     def register(source, target):
         previous = source_targets.get(source)
@@ -206,6 +232,7 @@ def test_source_targets(graph):
                 source = os.path.normpath(os.path.join(directory, token))
                 if source in graph.files:
                     register(source, target)
+                    standalone.add(target)
 
     # GPU/CMakeLists.txt registers several same-named .cpp sources through
     # foreach variables.  They follow the same source/target naming convention
@@ -215,7 +242,24 @@ def test_source_targets(graph):
         if rel.startswith(gpu_prefix) and rel.endswith(".cpp"):
             register(rel, os.path.splitext(os.path.basename(rel))[0])
 
-    return source_targets
+    failtests = {}
+    for name in CMAKE_FAILTEST_RE.findall(graph.read_text(FAILTEST_ROOT + "/CMakeLists.txt")):
+        source = "%s/%s.cpp" % (FAILTEST_ROOT, name)
+        if source in graph.files:
+            failtests[source] = (name + "_ok", name + "_ko")
+
+    return Registrations(source_targets, standalone, failtests)
+
+
+def full_suite(graph, reasons):
+    """Full-suite selection, naming the targets ``buildtests`` does not build."""
+    try:
+        standalone = test_registrations(graph).standalone
+    except ValueError:
+        # A broken registration is reported by the paths that depend on the
+        # mapping; the full suite stays available without it.
+        standalone = ()
+    return Selection("all", reasons=reasons, standalone=standalone)
 
 
 def reverse_map(graph, sources):
@@ -230,17 +274,21 @@ def reverse_map(graph, sources):
 class Selection:
     """Outcome: the full suite, explicit targets, no tests, or an error."""
 
-    def __init__(self, mode, targets=(), reasons=()):
+    def __init__(self, mode, targets=(), reasons=(), ctest_names=(), standalone=()):
         self.mode = mode  # "all", "targets", "none", or "error"
         self.targets = set(targets)
         self.reasons = list(reasons)
+        # CTest names with no build target of their own.
+        self.ctest_names = set(ctest_names)
+        # Targets to name alongside ``buildtests`` in "all" mode.
+        self.standalone = set(standalone)
 
     @property
     def targets_file(self):
         if self.mode == "error":
             raise ValueError("an invalid selection has no target file")
         if self.mode == "all":
-            return "buildtests\n"
+            return "".join(name + "\n" for name in ["buildtests"] + sorted(self.standalone))
         if self.mode == "none":
             return "NONE\n"
         return "".join(name + "\n" for name in sorted(self.targets))
@@ -253,8 +301,8 @@ class Selection:
             return "ALL\n"
         if self.mode == "none":
             return "NONE\n"
-        alternatives = "|".join(re.escape(name) for name in sorted(self.targets))
-        return "^(%s)(_[0-9]+)?$\n" % alternatives
+        names = sorted(self.targets) + sorted(self.ctest_names)
+        return "^(%s)(_[0-9]+)?$\n" % "|".join(re.escape(name) for name in names)
 
 
 def select(graph, changed_files, max_fraction=DEFAULT_MAX_FRACTION):
@@ -268,36 +316,43 @@ def select(graph, changed_files, max_fraction=DEFAULT_MAX_FRACTION):
         return Selection("none", reasons=["no change reaches a test"])
     for path in paths:
         if _matches(path, FULL_REBUILD_PATTERNS):
-            return Selection("all", reasons=["%s forces the full suite" % path])
+            return full_suite(graph, ["%s forces the full suite" % path])
 
     try:
-        source_targets = test_source_targets(graph)
+        registered = test_registrations(graph)
     except ValueError as error:
         return Selection("error", reasons=[str(error)])
-    sources = sorted(source_targets)
+    sources = sorted(registered.targets)
     reverse = reverse_map(graph, sources)
+    failtest_reverse = reverse_map(graph, sorted(registered.failtests))
 
     selected = set()
+    selected_failtests = set()
     reasons = []
     for path in paths:
         reached_by = set(reverse.get(path, ()))
-        if path in source_targets:
+        if path in registered.targets:
             reached_by.add(path)
-        if reached_by:
+        failtests = set(failtest_reverse.get(path, ()))
+        if path in registered.failtests:
+            failtests.add(path)
+        if reached_by or failtests:
             selected |= reached_by
+            selected_failtests |= failtests
             continue
         if path in graph.files:
             # A source file in the tree that nothing includes: either a new
-            # header not yet wired up or an unregistered test translation unit.
-            if any(path.startswith(root + "/") for root in TEST_ROOTS) and path.endswith(".cpp"):
+            # header not yet wired up or an unregistered translation unit.
+            roots = TEST_ROOTS + (FAILTEST_ROOT,)
+            if any(path.startswith(root + "/") for root in roots) and path.endswith(".cpp"):
                 return Selection("error", reasons=["%s has no CMake test target" % path])
             reasons.append("%s is in the tree but reaches no test" % path)
             continue
         # Deleted, renamed, or outside every scanned root: the graph cannot say
         # what it affected, so do not guess.
-        return Selection("all", reasons=["%s is not in the include graph" % path])
+        return full_suite(graph, ["%s is not in the include graph" % path])
 
-    if not selected:
+    if not selected and not selected_failtests:
         return Selection("none", reasons=reasons or ["no change reaches a test"])
 
     if len(selected) > max_fraction * len(sources):
@@ -305,9 +360,16 @@ def select(graph, changed_files, max_fraction=DEFAULT_MAX_FRACTION):
             "%d of %d test sources selected (>%.0f%%)"
             % (len(selected), len(sources), 100 * max_fraction)
         )
-        return Selection("all", reasons=reasons)
+        return full_suite(graph, reasons)
 
-    return Selection("targets", (source_targets[s] for s in selected), reasons)
+    ctest_names = set()
+    for source in sorted(selected_failtests):
+        ctest_names.update(registered.failtests[source])
+    if ctest_names:
+        reasons.append("%d compile-failure test(s) build from inside CTest"
+                       % len(selected_failtests))
+    return Selection("targets", (registered.targets[s] for s in selected), reasons,
+                     ctest_names=ctest_names)
 
 
 def changed_files_from_git(source_dir, base_sha, head="HEAD"):
@@ -361,10 +423,10 @@ def main(argv=None):
         print("one of --base-sha or --changed-files is required", file=sys.stderr)
         return 2
 
+    graph = IncludeGraph(args.source_dir)
     if changed is None:
-        selection = Selection("all", reasons=["the merge-base diff is unavailable"])
+        selection = full_suite(graph, ["the merge-base diff is unavailable"])
     else:
-        graph = IncludeGraph(args.source_dir)
         selection = select(graph, changed, args.max_fraction)
 
     print("mode: %s" % selection.mode, file=sys.stderr)
@@ -375,6 +437,10 @@ def main(argv=None):
     if selection.mode == "targets":
         print("  %d targets: %s" % (len(selection.targets),
                                     " ".join(sorted(selection.targets))), file=sys.stderr)
+        if selection.ctest_names:
+            print("  %d CTest-only: %s" % (len(selection.ctest_names),
+                                           " ".join(sorted(selection.ctest_names))),
+                  file=sys.stderr)
 
     if args.output_dir:
         os.makedirs(args.output_dir, exist_ok=True)
