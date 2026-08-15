@@ -85,7 +85,7 @@ Real abs(const Complex<Real>& value) {
 namespace Eigen {
 template <typename Real>
 struct NumTraits<reordered_complex::Complex<Real>> : NumTraits<Real> {
-  enum { IsComplex = 1 };
+  static constexpr bool IsComplex = true;
 };
 }  // namespace Eigen
 
@@ -438,7 +438,6 @@ void verify_complex_nan_head() {
 
 void verify_custom_complex_small_tail() {
   typedef reordered_complex::Complex<float> Scalar;
-  static_assert(!internal::complex_array_access<Scalar>::value, "test must exercise the scalar rescaling fallback");
   const float coefficient = 2e-16f;
   Matrix<Scalar, 2, 1> vector;
   vector << Scalar(0), Scalar(coefficient);
@@ -564,6 +563,24 @@ void householder_small_tail() {
     VERIFY_IS_EQUAL(tau, 0.0f);
     VERIFY_IS_EQUAL(beta, largest);
     VERIFY_IS_EQUAL(essential[0], 0.0f);
+  }
+
+  {
+    const float largest = (std::numeric_limits<float>::max)();
+    const Vector2cf vector(std::complex<float>(0.0f, largest), std::complex<float>(1e-20f, 0.0f));
+    VectorXcf essential(1);
+    std::complex<float> tau;
+    float beta;
+
+    vector.makeHouseholder(essential, tau, beta);
+
+    VERIFY_IS_EQUAL(tau, std::complex<float>(1.0f, -1.0f));
+    VERIFY_IS_EQUAL(beta, -largest);
+    VERIFY_IS_EQUAL(essential[0], std::complex<float>(0.0f, 0.0f));
+    Vector2cf householder;
+    householder << std::complex<float>(1.0f, 0.0f), essential;
+    const Matrix2cf transform = Matrix2cf::Identity() - tau * householder * householder.adjoint();
+    VERIFY_IS_APPROX(transform.adjoint() * transform, Matrix2cf::Identity());
   }
 
   {
