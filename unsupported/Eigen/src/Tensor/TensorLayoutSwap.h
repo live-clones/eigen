@@ -157,6 +157,13 @@ struct TensorEvaluator<const TensorLayoutSwapOp<ArgType>, Device> {
   const TensorEvaluator<ArgType, Device>& impl() const { return m_impl; }
 
  protected:
+  // Sizes or strides of this expression in the argument's index order.
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE DSizes<Index, NumDims> reversed(const DSizes<Index, NumDims>& sizes) {
+    DSizes<Index, NumDims> result;
+    for (int i = 0; i < NumDims; ++i) result[i] = sizes[NumDims - 1 - i];
+    return result;
+  }
+
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE internal::TensorBlockResourceRequirements getResourceRequirementsImpl(
       std::true_type /*forward_to_arg*/) const {
     return m_impl.getResourceRequirements();
@@ -181,19 +188,19 @@ struct TensorEvaluator<const TensorLayoutSwapOp<ArgType>, Device> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorBlock blockImpl(TensorBlockDesc& desc, TensorBlockScratch& scratch,
                                                               bool root_of_expr_ast,
                                                               std::true_type /*forward_to_arg*/) const {
-    DSizes<Index, NumDims> arg_dims;
-    for (int i = 0; i < NumDims; ++i) arg_dims[i] = desc.dimension(NumDims - 1 - i);
+    const DSizes<Index, NumDims> arg_dims = reversed(desc.dimensions());
     TensorBlockDesc arg_desc(desc.offset(), arg_dims);
-    const DSizes<Index, NumDims> arg_strides = internal::strides<ArgLayout>(arg_dims);
 
-    // A contiguous destination for this block is bit-for-bit a contiguous
-    // destination for the argument block. Only contiguous ones are forwarded,
-    // and deliberately so: it is what keeps the argument's prepareStorage from
-    // choosing strided storage, whose buffer carries no valid dense expression
-    // and so must not be re-wrapped as one below.
+    // A destination buffer describes flat memory, which the layout swap leaves
+    // alone: reversing its strides alongside the dimensions hands the argument
+    // the very same bytes. A strided destination carries no valid dense
+    // expression, so it is only passed on at the root of the expression tree,
+    // where the block is written once and never read back through expr().
     typedef typename TensorBlockDesc::DestinationBuffer DestinationBuffer;
-    if (desc.destination().kind() == DestinationBuffer::kContiguous) {
-      arg_desc.template AddDestinationBuffer<ArgLayout>(desc.destination().template data<ScalarNoConst>(), arg_strides);
+    const bool strided_destination = desc.destination().kind() == DestinationBuffer::kStrided;
+    if (desc.destination().kind() == DestinationBuffer::kContiguous || (strided_destination && root_of_expr_ast)) {
+      arg_desc.template AddDestinationBuffer<ArgLayout>(desc.destination().template data<ScalarNoConst>(),
+                                                        reversed(desc.destination().strides()));
     }
 
     ArgTensorBlock arg_block = m_impl.block(arg_desc, scratch, root_of_expr_ast);
@@ -201,18 +208,21 @@ struct TensorEvaluator<const TensorLayoutSwapOp<ArgType>, Device> {
     if (arg_block.data() != NULL) {
       // A materialized argument block already stores this block's values in
       // this block's flat order; re-wrap the buffer with reversed dimensions.
-      if (arg_block.kind() == internal::TensorBlockKind::kMaterializedInOutput) {
-        desc.DropDestinationBuffer();
-      }
-      return TensorBlock(arg_block.kind(), arg_block.data(), desc.dimensions());
+      const bool materialized_in_output = arg_block.kind() == internal::TensorBlockKind::kMaterializedInOutput;
+      if (materialized_in_output) desc.DropDestinationBuffer();
+      return TensorBlock(arg_block.kind(), arg_block.data(), desc.dimensions(),
+                         /*valid_expr=*/!(materialized_in_output && strided_destination));
     }
 
     // A lazy argument block has no buffer to share: materialize it into this
     // block's storage, evaluating in the argument's (flat-identical) layout.
+    // The storage strides carry whichever destination prepareStorage accepted.
     typedef internal::TensorBlockAssignment<ScalarNoConst, NumDims, typename ArgTensorBlock::XprType, Index>
         ArgBlockAssign;
-    typename TensorBlock::Storage storage = TensorBlock::prepareStorage(desc, scratch);
-    ArgBlockAssign::Run(ArgBlockAssign::target(arg_dims, arg_strides, storage.data()), arg_block.expr());
+    typename TensorBlock::Storage storage =
+        TensorBlock::prepareStorage(desc, scratch, /*allow_strided_storage=*/root_of_expr_ast);
+    ArgBlockAssign::Run(ArgBlockAssign::target(arg_dims, reversed(storage.strides()), storage.data()),
+                        arg_block.expr());
     arg_block.cleanup();
     return storage.AsTensorMaterializedBlock();
   }

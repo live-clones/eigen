@@ -328,6 +328,64 @@ static void test_eval_tensor_fft() {
                                            [&dims]() { return FixedSizeBlock(dims); });
 }
 
+// A destination buffer whose strides do not match the block's dense strides
+// cannot back a tensor expression, but it can still absorb the block when the
+// block is the root of the expression tree, because nothing reads the result
+// back through `expr()`. Verify that such a destination is used rather than
+// routed through scratch, and that the values landing in it are correct.
+template <typename T, int NumDims, int Layout, typename Expression>
+static void VerifyStridedDestinationAtRoot(Expression expr, const DSizes<Index, NumDims>& expr_dims) {
+  using Device = DefaultDevice;
+  using Desc = TensorBlockDescriptor<NumDims, Index>;
+  auto d = Device();
+
+  internal::TensorBlockScratchAllocator<Device> scratch(d);
+
+  auto eval = TensorEvaluator<const Expression, Device>(expr, d);
+  eval.evalSubExprsIfNeeded(nullptr);
+
+  // A block strictly inside the expression, and a destination strictly larger
+  // than the block, so that the destination strides are dense in no dimension
+  // but the innermost.
+  DSizes<Index, NumDims> offsets, sizes, dst_dims;
+  for (int i = 0; i < NumDims; ++i) {
+    offsets[i] = 1;
+    sizes[i] = expr_dims[i] - 2;
+    dst_dims[i] = sizes[i] + 2;
+  }
+
+  Index offset = 0;
+  const DSizes<Index, NumDims> expr_strides = internal::strides<Layout>(expr_dims);
+  for (int i = 0; i < NumDims; ++i) offset += expr_strides[i] * offsets[i];
+
+  Desc desc(offset, sizes);
+  Tensor<T, NumDims, Layout> dst(dst_dims);
+  dst.setZero();
+  desc.template AddDestinationBuffer<Layout>(dst.data(), internal::strides<Layout>(dst.dimensions()));
+  VERIFY(desc.destination().kind() == Desc::DestinationBuffer::kStrided);
+
+  auto tensor_block = eval.block(desc, scratch, /*root_of_expr_ast=*/true);
+  VERIFY(tensor_block.kind() == internal::TensorBlockKind::kMaterializedInOutput);
+  tensor_block.cleanup();
+
+  DSizes<Index, NumDims> zeros;
+  for (int i = 0; i < NumDims; ++i) zeros[i] = 0;
+  Tensor<T, NumDims, Layout> block = dst.slice(zeros, sizes);
+
+  // Reference: the same slice evaluated coefficient-wise.
+  Tensor<T, NumDims, Layout> slice(sizes);
+  auto s_expr = expr.slice(offsets, sizes);
+  using SliceAssign = TensorAssignOp<decltype(slice), const decltype(s_expr)>;
+  using SliceExecutor = TensorExecutor<const SliceAssign, Device, false, internal::TiledEvaluation::Off>;
+  SliceExecutor::run(SliceAssign(slice, s_expr), d);
+
+  for (Index i = 0; i < sizes.TotalSize(); ++i) {
+    VERIFY_IS_EQUAL(block.coeff(i), slice.coeff(i));
+  }
+
+  eval.cleanup();
+}
+
 template <typename T, int NumDims, int Layout>
 static void test_eval_tensor_layout_swap() {
   // The swap_layout expression has the opposite layout of its operand. Build
@@ -365,6 +423,15 @@ static void test_eval_tensor_layout_swap() {
   VerifyBlockEvaluator<T, NumDims, Layout>(
       (input.shuffle(reversing_shuffle) * input.shuffle(reversing_shuffle)).swap_layout(),
       [&input_dims]() { return RandomBlock<Layout>(input_dims, 1, 10); });
+
+  // Both forwarding branches must take a strided destination at the root of
+  // the expression tree instead of paying for a scratch round trip. A
+  // one-dimensional destination is never strided, so it has nothing to pin.
+  EIGEN_IF_CONSTEXPR (NumDims > 1) {
+    VerifyStridedDestinationAtRoot<T, NumDims, Layout>(input.shuffle(reversing_shuffle).swap_layout(), input_dims);
+    VerifyStridedDestinationAtRoot<T, NumDims, Layout>(
+        (input.shuffle(reversing_shuffle) * input.shuffle(reversing_shuffle)).swap_layout(), input_dims);
+  }
 }
 
 // Regression for the original failure mode this MR fixes: TensorPaddingOp's
