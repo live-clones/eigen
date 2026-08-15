@@ -8,14 +8,15 @@
 #include <Eigen/Core>
 #include <cstdint>
 
-using namespace Eigen;
+namespace Eigen {
+namespace {
 
 template <typename Scalar>
-static void BM_Negate(benchmark::State& state) {
+void BM_Negate(benchmark::State& state) {
   const Index n = state.range(0);
-  using Arr = Array<Scalar, Dynamic, 1>;
-  Arr a = Arr::Random(n);
-  Arr b(n);
+  using A = ArrayX<Scalar>;
+  A a = A::Random(n);
+  A b(n);
   for (auto _ : state) {
     b = -a;
     benchmark::DoNotOptimize(b.data());
@@ -24,11 +25,11 @@ static void BM_Negate(benchmark::State& state) {
 }
 
 template <typename Scalar>
-static void BM_Abs(benchmark::State& state) {
+void BM_Abs(benchmark::State& state) {
   const Index n = state.range(0);
-  using Arr = Array<Scalar, Dynamic, 1>;
-  Arr a = Arr::Random(n);
-  Arr b(n);
+  using A = ArrayX<Scalar>;
+  A a = A::Random(n);
+  A b(n);
   for (auto _ : state) {
     b = a.abs();
     benchmark::DoNotOptimize(b.data());
@@ -37,12 +38,12 @@ static void BM_Abs(benchmark::State& state) {
 }
 
 template <typename Scalar>
-static void BM_Mul(benchmark::State& state) {
+void BM_Mul(benchmark::State& state) {
   const Index n = state.range(0);
-  using Arr = Array<Scalar, Dynamic, 1>;
-  Arr a = Arr::Random(n);
-  Arr b = Arr::Random(n);
-  Arr c(n);
+  using A = ArrayX<Scalar>;
+  A a = A::Random(n);
+  A b = A::Random(n);
+  A c(n);
   for (auto _ : state) {
     c = a * b;
     benchmark::DoNotOptimize(c.data());
@@ -51,12 +52,12 @@ static void BM_Mul(benchmark::State& state) {
 }
 
 template <typename Scalar>
-static void BM_Min(benchmark::State& state) {
+void BM_Min(benchmark::State& state) {
   const Index n = state.range(0);
-  using Arr = Array<Scalar, Dynamic, 1>;
-  Arr a = Arr::Random(n);
-  Arr b = Arr::Random(n);
-  Arr c(n);
+  using A = ArrayX<Scalar>;
+  A a = A::Random(n);
+  A b = A::Random(n);
+  A c(n);
   for (auto _ : state) {
     c = a.min(b);
     benchmark::DoNotOptimize(c.data());
@@ -65,12 +66,12 @@ static void BM_Min(benchmark::State& state) {
 }
 
 template <typename Scalar>
-static void BM_Max(benchmark::State& state) {
+void BM_Max(benchmark::State& state) {
   const Index n = state.range(0);
-  using Arr = Array<Scalar, Dynamic, 1>;
-  Arr a = Arr::Random(n);
-  Arr b = Arr::Random(n);
-  Arr c(n);
+  using A = ArrayX<Scalar>;
+  A a = A::Random(n);
+  A b = A::Random(n);
+  A c(n);
   for (auto _ : state) {
     c = a.max(b);
     benchmark::DoNotOptimize(c.data());
@@ -83,14 +84,14 @@ static void BM_Max(benchmark::State& state) {
 // the comparison (GCC 13/x86-64 turned `BM_SelectEq<uint64_t>` into a `memcpy`).
 #define BENCH_CWISE_SELECT(NAME, OP)                                                                 \
   template <typename Scalar>                                                                         \
-  static void BM_Select##NAME(benchmark::State& state) {                                             \
+  void BM_Select##NAME(benchmark::State& state) {                                                    \
     const Index n = state.range(0);                                                                  \
-    using Arr = Array<Scalar, Dynamic, 1>;                                                           \
-    Arr a = Arr::Random(n);                                                                          \
-    Arr b = Arr::Random(n);                                                                          \
-    Arr c = Arr::Random(n);                                                                          \
-    Arr d = Arr::Random(n);                                                                          \
-    Arr out(n);                                                                                      \
+    using A = ArrayX<Scalar>;                                                                        \
+    A a = A::Random(n);                                                                              \
+    A b = A::Random(n);                                                                              \
+    A c = A::Random(n);                                                                              \
+    A d = A::Random(n);                                                                              \
+    A out(n);                                                                                        \
     for (auto _ : state) {                                                                           \
       out = (a OP b).select(c, d);                                                                   \
       benchmark::DoNotOptimize(out.data());                                                          \
@@ -114,25 +115,28 @@ BENCH_CWISE_SELECT(Eq, ==)
 // memory bandwidth/latency.
 #define INT64_SIZES ->Arg(32)->Arg(64)->Arg(128)->Arg(256)->Arg(512)
 
-BENCHMARK(BM_Negate<int64_t>) INT64_SIZES ->Name("Negate_int64");
+BENCHMARK(BM_Negate<int64_t>) INT64_SIZES->Name("Negate_int64");
 
-BENCHMARK(BM_Abs<int64_t>) INT64_SIZES ->Name("Abs_int64");
-BENCHMARK(BM_Abs<uint64_t>) INT64_SIZES ->Name("Abs_uint64");
+BENCHMARK(BM_Abs<int64_t>) INT64_SIZES->Name("Abs_int64");
+BENCHMARK(BM_Abs<uint64_t>) INT64_SIZES->Name("Abs_uint64");
 
-BENCHMARK(BM_Mul<int64_t>) INT64_SIZES ->Name("Mul_int64");
-BENCHMARK(BM_Mul<uint64_t>) INT64_SIZES ->Name("Mul_uint64");
+BENCHMARK(BM_Mul<int64_t>) INT64_SIZES->Name("Mul_int64");
+BENCHMARK(BM_Mul<uint64_t>) INT64_SIZES->Name("Mul_uint64");
 
-BENCHMARK(BM_Min<int64_t>) INT64_SIZES ->Name("Min_int64");
-BENCHMARK(BM_Min<uint64_t>) INT64_SIZES ->Name("Min_uint64");
+BENCHMARK(BM_Min<int64_t>) INT64_SIZES->Name("Min_int64");
+BENCHMARK(BM_Min<uint64_t>) INT64_SIZES->Name("Min_uint64");
 
-BENCHMARK(BM_Max<int64_t>) INT64_SIZES ->Name("Max_int64");
-BENCHMARK(BM_Max<uint64_t>) INT64_SIZES ->Name("Max_uint64");
+BENCHMARK(BM_Max<int64_t>) INT64_SIZES->Name("Max_int64");
+BENCHMARK(BM_Max<uint64_t>) INT64_SIZES->Name("Max_uint64");
 
-BENCHMARK(BM_SelectLt<int64_t>) INT64_SIZES ->Name("SelectLt_int64");
-BENCHMARK(BM_SelectLt<uint64_t>) INT64_SIZES ->Name("SelectLt_uint64");
+BENCHMARK(BM_SelectLt<int64_t>) INT64_SIZES->Name("SelectLt_int64");
+BENCHMARK(BM_SelectLt<uint64_t>) INT64_SIZES->Name("SelectLt_uint64");
 
-BENCHMARK(BM_SelectLe<int64_t>) INT64_SIZES ->Name("SelectLe_int64");
-BENCHMARK(BM_SelectLe<uint64_t>) INT64_SIZES ->Name("SelectLe_uint64");
+BENCHMARK(BM_SelectLe<int64_t>) INT64_SIZES->Name("SelectLe_int64");
+BENCHMARK(BM_SelectLe<uint64_t>) INT64_SIZES->Name("SelectLe_uint64");
 
-BENCHMARK(BM_SelectEq<int64_t>) INT64_SIZES ->Name("SelectEq_int64");
+BENCHMARK(BM_SelectEq<int64_t>) INT64_SIZES->Name("SelectEq_int64");
 BENCHMARK(BM_SelectEq<uint64_t>) INT64_SIZES->Name("SelectEq_uint64");
+
+}  // namespace
+}  // namespace Eigen
