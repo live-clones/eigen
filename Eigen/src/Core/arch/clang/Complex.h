@@ -130,53 +130,77 @@ EIGEN_CLANG_COMPLEX_LOAD_STORE(PacketXcf);
 EIGEN_CLANG_COMPLEX_LOAD_STORE(PacketXcd);
 #undef EIGEN_CLANG_COMPLEX_LOAD_STORE
 
+namespace detail {
+
+// Index sequence over the real components -- two per complex value -- of a
+// complex packet. Index Is names component Is % 2 of complex value Is / 2.
+template <typename ComplexPacket>
+using complex_real_indices = vector_indices<typename ComplexPacket::RealPacketT>;
+
+template <typename ComplexPacket, std::size_t... Is>
+EIGEN_STRONG_INLINE ComplexPacket complex_pset1_impl(const typename unpacket_traits<ComplexPacket>::type& from,
+                                                     std::index_sequence<Is...>) {
+  using RealPacket = typename ComplexPacket::RealPacketT;
+  using RealScalar = scalar_type_of_vector_t<RealPacket>;
+  const RealScalar re = numext::real(from);
+  const RealScalar im = numext::imag(from);
+  return ComplexPacket(RealPacket{(Is % 2 == 0 ? re : im)...});
+}
+
+// Negates the imaginary parts, selecting them from -a.v, whose components
+// follow those of a.v in the shuffle.
+template <typename ComplexPacket, std::size_t... Is>
+EIGEN_STRONG_INLINE ComplexPacket complex_pconj_impl(const ComplexPacket& a, std::index_sequence<Is...>) {
+  return ComplexPacket(__builtin_shufflevector(a.v, -a.v, (Is % 2 == 0 ? Is : sizeof...(Is) + Is)...));
+}
+
+// {re, im} -> {im, re}.
+template <typename ComplexPacket, std::size_t... Is>
+EIGEN_STRONG_INLINE ComplexPacket complex_pcplxflip_impl(const ComplexPacket& a, std::index_sequence<Is...>) {
+  return ComplexPacket(__builtin_shufflevector(a.v, a.v, (2 * (Is / 2) + (1 - Is % 2))...));
+}
+
+// {re, im} -> {re, re}.
+template <typename ComplexPacket, std::size_t... Is>
+EIGEN_STRONG_INLINE ComplexPacket complex_pdupreal_impl(const ComplexPacket& a, std::index_sequence<Is...>) {
+  return ComplexPacket(__builtin_shufflevector(a.v, a.v, (2 * (Is / 2))...));
+}
+
+// {re, im} -> {im, im}.
+template <typename ComplexPacket, std::size_t... Is>
+EIGEN_STRONG_INLINE ComplexPacket complex_pdupimag_impl(const ComplexPacket& a, std::index_sequence<Is...>) {
+  return ComplexPacket(__builtin_shufflevector(a.v, a.v, (2 * (Is / 2) + 1)...));
+}
+
+// Loads each complex value Repeat times in a row: Repeat == 2 implements
+// ploaddup and Repeat == 4 implements ploadquad.
+template <std::size_t Repeat, typename ComplexPacket, std::size_t... Is>
+EIGEN_STRONG_INLINE ComplexPacket complex_loadrepeat_impl(const typename unpacket_traits<ComplexPacket>::type* from,
+                                                          std::index_sequence<Is...>) {
+  using RealPacket = typename ComplexPacket::RealPacketT;
+  return ComplexPacket(
+      RealPacket{(Is % 2 == 0 ? numext::real(from[Is / (2 * Repeat)]) : numext::imag(from[Is / (2 * Repeat)]))...});
+}
+
+// Reverses the complex values, keeping each real/imaginary pair together.
+template <typename ComplexPacket, std::size_t... Is>
+EIGEN_STRONG_INLINE ComplexPacket complex_preverse_impl(const ComplexPacket& a, std::index_sequence<Is...>) {
+  constexpr std::size_t kLastValue = sizeof...(Is) - 2;
+  return ComplexPacket(__builtin_shufflevector(a.v, a.v, (kLastValue - 2 * (Is / 2) + Is % 2)...));
+}
+
+}  // namespace detail
+
 // --- pset1 for complex ---
-#if EIGEN_GENERIC_VECTOR_SIZE_BYTES == 16
+#define EIGEN_CLANG_COMPLEX_SET1(PACKET_TYPE)                                                          \
+  template <>                                                                                          \
+  EIGEN_STRONG_INLINE PACKET_TYPE pset1<PACKET_TYPE>(const unpacket_traits<PACKET_TYPE>::type& from) { \
+    return detail::complex_pset1_impl<PACKET_TYPE>(from, detail::complex_real_indices<PACKET_TYPE>{}); \
+  }
 
-template <>
-EIGEN_STRONG_INLINE PacketXcf pset1<PacketXcf>(const std::complex<float>& from) {
-  const float re = numext::real(from);
-  const float im = numext::imag(from);
-  return PacketXcf(PacketXf{re, im, re, im});
-}
-template <>
-EIGEN_STRONG_INLINE PacketXcd pset1<PacketXcd>(const std::complex<double>& from) {
-  const double re = numext::real(from);
-  const double im = numext::imag(from);
-  return PacketXcd(PacketXd{re, im});
-}
-
-#elif EIGEN_GENERIC_VECTOR_SIZE_BYTES == 32
-
-template <>
-EIGEN_STRONG_INLINE PacketXcf pset1<PacketXcf>(const std::complex<float>& from) {
-  const float re = numext::real(from);
-  const float im = numext::imag(from);
-  return PacketXcf(PacketXf{re, im, re, im, re, im, re, im});
-}
-template <>
-EIGEN_STRONG_INLINE PacketXcd pset1<PacketXcd>(const std::complex<double>& from) {
-  const double re = numext::real(from);
-  const double im = numext::imag(from);
-  return PacketXcd(PacketXd{re, im, re, im});
-}
-
-#else  // EIGEN_GENERIC_VECTOR_SIZE_BYTES == 64
-
-template <>
-EIGEN_STRONG_INLINE PacketXcf pset1<PacketXcf>(const std::complex<float>& from) {
-  const float re = numext::real(from);
-  const float im = numext::imag(from);
-  return PacketXcf(PacketXf{re, im, re, im, re, im, re, im, re, im, re, im, re, im, re, im});
-}
-template <>
-EIGEN_STRONG_INLINE PacketXcd pset1<PacketXcd>(const std::complex<double>& from) {
-  const double re = numext::real(from);
-  const double im = numext::imag(from);
-  return PacketXcd(PacketXd{re, im, re, im, re, im, re, im});
-}
-
-#endif  // EIGEN_GENERIC_VECTOR_SIZE_BYTES
+EIGEN_CLANG_COMPLEX_SET1(PacketXcf)
+EIGEN_CLANG_COMPLEX_SET1(PacketXcd)
+#undef EIGEN_CLANG_COMPLEX_SET1
 
 // ----------- Unary ops ------------------
 #define DELEGATE_UNARY_TO_REAL_OP(PACKET_TYPE, OP)                        \
@@ -197,344 +221,65 @@ EIGEN_STRONG_INLINE PacketXcd pset1<PacketXcd>(const std::complex<double>& from)
 EIGEN_CLANG_COMPLEX_UNARY_CWISE_OPS(PacketXcf);
 EIGEN_CLANG_COMPLEX_UNARY_CWISE_OPS(PacketXcd);
 
-// --- pconj ---
-#if EIGEN_GENERIC_VECTOR_SIZE_BYTES == 16
-
-template <>
-EIGEN_STRONG_INLINE PacketXcf pconj<PacketXcf>(const PacketXcf& a) {
-  return PacketXcf(__builtin_shufflevector(a.v, -a.v, 0, 5, 2, 7));
-}
-template <>
-EIGEN_STRONG_INLINE PacketXcd pconj<PacketXcd>(const PacketXcd& a) {
-  return PacketXcd(__builtin_shufflevector(a.v, -a.v, 0, 3));
-}
-
-#elif EIGEN_GENERIC_VECTOR_SIZE_BYTES == 32
-
-template <>
-EIGEN_STRONG_INLINE PacketXcf pconj<PacketXcf>(const PacketXcf& a) {
-  return PacketXcf(__builtin_shufflevector(a.v, -a.v, 0, 9, 2, 11, 4, 13, 6, 15));
-}
-template <>
-EIGEN_STRONG_INLINE PacketXcd pconj<PacketXcd>(const PacketXcd& a) {
-  return PacketXcd(__builtin_shufflevector(a.v, -a.v, 0, 5, 2, 7));
-}
-
-#else  // EIGEN_GENERIC_VECTOR_SIZE_BYTES == 64
-
-template <>
-EIGEN_STRONG_INLINE PacketXcf pconj<PacketXcf>(const PacketXcf& a) {
-  return PacketXcf(__builtin_shufflevector(a.v, -a.v, 0, 17, 2, 19, 4, 21, 6, 23, 8, 25, 10, 27, 12, 29, 14, 31));
-}
-template <>
-EIGEN_STRONG_INLINE PacketXcd pconj<PacketXcd>(const PacketXcd& a) {
-  return PacketXcd(__builtin_shufflevector(a.v, -a.v, 0, 9, 2, 11, 4, 13, 6, 15));
-}
-
-#endif  // EIGEN_GENERIC_VECTOR_SIZE_BYTES
-
-// Sub-packet pconj specializations needed for reductions.
-#if EIGEN_GENERIC_VECTOR_SIZE_BYTES >= 32
-template <>
-EIGEN_STRONG_INLINE Packet2cf pconj<Packet2cf>(const Packet2cf& a) {
-  return Packet2cf(__builtin_shufflevector(a.v, -a.v, 0, 5, 2, 7));
-}
-#endif
-#if EIGEN_GENERIC_VECTOR_SIZE_BYTES >= 64
-template <>
-EIGEN_STRONG_INLINE Packet4cf pconj<Packet4cf>(const Packet4cf& a) {
-  return Packet4cf(__builtin_shufflevector(a.v, -a.v, 0, 9, 2, 11, 4, 13, 6, 15));
-}
-template <>
-EIGEN_STRONG_INLINE Packet2cd pconj<Packet2cd>(const Packet2cd& a) {
-  return Packet2cd(__builtin_shufflevector(a.v, -a.v, 0, 5, 2, 7));
-}
-#endif
-
 #undef DELEGATE_UNARY_TO_REAL_OP
 #undef EIGEN_CLANG_COMPLEX_UNARY_CWISE_OPS
 
-// Flip real and imaginary parts, i.e. {re(a), im(a)} -> {im(a), re(a)}.
-#if EIGEN_GENERIC_VECTOR_SIZE_BYTES == 16
+// --- Operations that rearrange the real and imaginary lanes ---
+#define EIGEN_CLANG_COMPLEX_LANE_OPS(PACKET_TYPE)                                          \
+  template <>                                                                              \
+  EIGEN_STRONG_INLINE PACKET_TYPE pconj<PACKET_TYPE>(const PACKET_TYPE& a) {               \
+    return detail::complex_pconj_impl(a, detail::complex_real_indices<PACKET_TYPE>{});     \
+  }                                                                                        \
+  template <>                                                                              \
+  EIGEN_STRONG_INLINE PACKET_TYPE pcplxflip<PACKET_TYPE>(const PACKET_TYPE& a) {           \
+    return detail::complex_pcplxflip_impl(a, detail::complex_real_indices<PACKET_TYPE>{}); \
+  }                                                                                        \
+  template <>                                                                              \
+  EIGEN_STRONG_INLINE PACKET_TYPE pdupreal<PACKET_TYPE>(const PACKET_TYPE& a) {            \
+    return detail::complex_pdupreal_impl(a, detail::complex_real_indices<PACKET_TYPE>{});  \
+  }                                                                                        \
+  template <>                                                                              \
+  EIGEN_STRONG_INLINE PACKET_TYPE pdupimag<PACKET_TYPE>(const PACKET_TYPE& a) {            \
+    return detail::complex_pdupimag_impl(a, detail::complex_real_indices<PACKET_TYPE>{});  \
+  }
 
-template <>
-EIGEN_STRONG_INLINE PacketXcf pcplxflip<PacketXcf>(const PacketXcf& a) {
-  return PacketXcf(__builtin_shufflevector(a.v, a.v, 1, 0, 3, 2));
-}
-template <>
-EIGEN_STRONG_INLINE PacketXcd pcplxflip<PacketXcd>(const PacketXcd& a) {
-  return PacketXcd(__builtin_shufflevector(a.v, a.v, 1, 0));
-}
+EIGEN_CLANG_COMPLEX_LANE_OPS(PacketXcf)
+EIGEN_CLANG_COMPLEX_LANE_OPS(PacketXcd)
 
-#elif EIGEN_GENERIC_VECTOR_SIZE_BYTES == 32
-
-template <>
-EIGEN_STRONG_INLINE PacketXcf pcplxflip<PacketXcf>(const PacketXcf& a) {
-  return PacketXcf(__builtin_shufflevector(a.v, a.v, 1, 0, 3, 2, 5, 4, 7, 6));
-}
-template <>
-EIGEN_STRONG_INLINE PacketXcd pcplxflip<PacketXcd>(const PacketXcd& a) {
-  return PacketXcd(__builtin_shufflevector(a.v, a.v, 1, 0, 3, 2));
-}
-
-#else  // EIGEN_GENERIC_VECTOR_SIZE_BYTES == 64
-
-template <>
-EIGEN_STRONG_INLINE PacketXcf pcplxflip<PacketXcf>(const PacketXcf& a) {
-  return PacketXcf(__builtin_shufflevector(a.v, a.v, 1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10, 13, 12, 15, 14));
-}
-template <>
-EIGEN_STRONG_INLINE PacketXcd pcplxflip<PacketXcd>(const PacketXcd& a) {
-  return PacketXcd(__builtin_shufflevector(a.v, a.v, 1, 0, 3, 2, 5, 4, 7, 6));
-}
-
-#endif  // EIGEN_GENERIC_VECTOR_SIZE_BYTES
-
-// Sub-packet pcplxflip specializations needed for reductions.
+// Sub-packet specializations needed for reductions.
 #if EIGEN_GENERIC_VECTOR_SIZE_BYTES >= 32
-template <>
-EIGEN_STRONG_INLINE Packet2cf pcplxflip<Packet2cf>(const Packet2cf& a) {
-  return Packet2cf(__builtin_shufflevector(a.v, a.v, 1, 0, 3, 2));
-}
+EIGEN_CLANG_COMPLEX_LANE_OPS(Packet2cf)
 #endif
 #if EIGEN_GENERIC_VECTOR_SIZE_BYTES >= 64
-template <>
-EIGEN_STRONG_INLINE Packet4cf pcplxflip<Packet4cf>(const Packet4cf& a) {
-  return Packet4cf(__builtin_shufflevector(a.v, a.v, 1, 0, 3, 2, 5, 4, 7, 6));
-}
-template <>
-EIGEN_STRONG_INLINE Packet2cd pcplxflip<Packet2cd>(const Packet2cd& a) {
-  return Packet2cd(__builtin_shufflevector(a.v, a.v, 1, 0, 3, 2));
-}
+EIGEN_CLANG_COMPLEX_LANE_OPS(Packet4cf)
+EIGEN_CLANG_COMPLEX_LANE_OPS(Packet2cd)
 #endif
+#undef EIGEN_CLANG_COMPLEX_LANE_OPS
 
-// Copy real to imaginary part, i.e. {re(a), im(a)} -> {re(a), re(a)}.
-#if EIGEN_GENERIC_VECTOR_SIZE_BYTES == 16
+// --- ploaddup and ploadquad ---
+#define EIGEN_CLANG_COMPLEX_LOAD_REPEAT(PACKET_TYPE)                                                           \
+  template <>                                                                                                  \
+  EIGEN_STRONG_INLINE PACKET_TYPE ploaddup<PACKET_TYPE>(const unpacket_traits<PACKET_TYPE>::type* from) {      \
+    return detail::complex_loadrepeat_impl<2, PACKET_TYPE>(from, detail::complex_real_indices<PACKET_TYPE>{}); \
+  }                                                                                                            \
+  template <>                                                                                                  \
+  EIGEN_STRONG_INLINE PACKET_TYPE ploadquad<PACKET_TYPE>(const unpacket_traits<PACKET_TYPE>::type* from) {     \
+    return detail::complex_loadrepeat_impl<4, PACKET_TYPE>(from, detail::complex_real_indices<PACKET_TYPE>{}); \
+  }
 
-template <>
-EIGEN_STRONG_INLINE PacketXcf pdupreal<PacketXcf>(const PacketXcf& a) {
-  return PacketXcf(__builtin_shufflevector(a.v, a.v, 0, 0, 2, 2));
-}
-template <>
-EIGEN_STRONG_INLINE PacketXcd pdupreal<PacketXcd>(const PacketXcd& a) {
-  return PacketXcd(__builtin_shufflevector(a.v, a.v, 0, 0));
-}
-
-#elif EIGEN_GENERIC_VECTOR_SIZE_BYTES == 32
-
-template <>
-EIGEN_STRONG_INLINE PacketXcf pdupreal<PacketXcf>(const PacketXcf& a) {
-  return PacketXcf(__builtin_shufflevector(a.v, a.v, 0, 0, 2, 2, 4, 4, 6, 6));
-}
-template <>
-EIGEN_STRONG_INLINE PacketXcd pdupreal<PacketXcd>(const PacketXcd& a) {
-  return PacketXcd(__builtin_shufflevector(a.v, a.v, 0, 0, 2, 2));
-}
-
-#else  // EIGEN_GENERIC_VECTOR_SIZE_BYTES == 64
-
-template <>
-EIGEN_STRONG_INLINE PacketXcf pdupreal<PacketXcf>(const PacketXcf& a) {
-  return PacketXcf(__builtin_shufflevector(a.v, a.v, 0, 0, 2, 2, 4, 4, 6, 6, 8, 8, 10, 10, 12, 12, 14, 14));
-}
-template <>
-EIGEN_STRONG_INLINE PacketXcd pdupreal<PacketXcd>(const PacketXcd& a) {
-  return PacketXcd(__builtin_shufflevector(a.v, a.v, 0, 0, 2, 2, 4, 4, 6, 6));
-}
-
-#endif  // EIGEN_GENERIC_VECTOR_SIZE_BYTES
-
-// Sub-packet pdupreal specializations needed for reductions.
-#if EIGEN_GENERIC_VECTOR_SIZE_BYTES >= 32
-template <>
-EIGEN_STRONG_INLINE Packet2cf pdupreal<Packet2cf>(const Packet2cf& a) {
-  return Packet2cf(__builtin_shufflevector(a.v, a.v, 0, 0, 2, 2));
-}
-#endif
-#if EIGEN_GENERIC_VECTOR_SIZE_BYTES >= 64
-template <>
-EIGEN_STRONG_INLINE Packet4cf pdupreal<Packet4cf>(const Packet4cf& a) {
-  return Packet4cf(__builtin_shufflevector(a.v, a.v, 0, 0, 2, 2, 4, 4, 6, 6));
-}
-template <>
-EIGEN_STRONG_INLINE Packet2cd pdupreal<Packet2cd>(const Packet2cd& a) {
-  return Packet2cd(__builtin_shufflevector(a.v, a.v, 0, 0, 2, 2));
-}
-#endif
-
-// Copy imaginary to real part, i.e. {re(a), im(a)} -> {im(a), im(a)}.
-#if EIGEN_GENERIC_VECTOR_SIZE_BYTES == 16
-
-template <>
-EIGEN_STRONG_INLINE PacketXcf pdupimag<PacketXcf>(const PacketXcf& a) {
-  return PacketXcf(__builtin_shufflevector(a.v, a.v, 1, 1, 3, 3));
-}
-template <>
-EIGEN_STRONG_INLINE PacketXcd pdupimag<PacketXcd>(const PacketXcd& a) {
-  return PacketXcd(__builtin_shufflevector(a.v, a.v, 1, 1));
-}
-
-#elif EIGEN_GENERIC_VECTOR_SIZE_BYTES == 32
-
-template <>
-EIGEN_STRONG_INLINE PacketXcf pdupimag<PacketXcf>(const PacketXcf& a) {
-  return PacketXcf(__builtin_shufflevector(a.v, a.v, 1, 1, 3, 3, 5, 5, 7, 7));
-}
-template <>
-EIGEN_STRONG_INLINE PacketXcd pdupimag<PacketXcd>(const PacketXcd& a) {
-  return PacketXcd(__builtin_shufflevector(a.v, a.v, 1, 1, 3, 3));
-}
-
-#else  // EIGEN_GENERIC_VECTOR_SIZE_BYTES == 64
-
-template <>
-EIGEN_STRONG_INLINE PacketXcf pdupimag<PacketXcf>(const PacketXcf& a) {
-  return PacketXcf(__builtin_shufflevector(a.v, a.v, 1, 1, 3, 3, 5, 5, 7, 7, 9, 9, 11, 11, 13, 13, 15, 15));
-}
-template <>
-EIGEN_STRONG_INLINE PacketXcd pdupimag<PacketXcd>(const PacketXcd& a) {
-  return PacketXcd(__builtin_shufflevector(a.v, a.v, 1, 1, 3, 3, 5, 5, 7, 7));
-}
-
-#endif  // EIGEN_GENERIC_VECTOR_SIZE_BYTES
-
-// Sub-packet pdupimag specializations needed for reductions.
-#if EIGEN_GENERIC_VECTOR_SIZE_BYTES >= 32
-template <>
-EIGEN_STRONG_INLINE Packet2cf pdupimag<Packet2cf>(const Packet2cf& a) {
-  return Packet2cf(__builtin_shufflevector(a.v, a.v, 1, 1, 3, 3));
-}
-#endif
-#if EIGEN_GENERIC_VECTOR_SIZE_BYTES >= 64
-template <>
-EIGEN_STRONG_INLINE Packet4cf pdupimag<Packet4cf>(const Packet4cf& a) {
-  return Packet4cf(__builtin_shufflevector(a.v, a.v, 1, 1, 3, 3, 5, 5, 7, 7));
-}
-template <>
-EIGEN_STRONG_INLINE Packet2cd pdupimag<Packet2cd>(const Packet2cd& a) {
-  return Packet2cd(__builtin_shufflevector(a.v, a.v, 1, 1, 3, 3));
-}
-#endif
-
-// --- ploaddup ---
-#if EIGEN_GENERIC_VECTOR_SIZE_BYTES == 16
-
-template <>
-EIGEN_STRONG_INLINE PacketXcf ploaddup<PacketXcf>(const std::complex<float>* from) {
-  return pset1<PacketXcf>(*from);
-}
-template <>
-EIGEN_STRONG_INLINE PacketXcd ploaddup<PacketXcd>(const std::complex<double>* from) {
-  return pset1<PacketXcd>(*from);
-}
-
-#elif EIGEN_GENERIC_VECTOR_SIZE_BYTES == 32
-
-template <>
-EIGEN_STRONG_INLINE PacketXcf ploaddup<PacketXcf>(const std::complex<float>* from) {
-  return PacketXcf(PacketXf{std::real(from[0]), std::imag(from[0]), std::real(from[0]), std::imag(from[0]),
-                            std::real(from[1]), std::imag(from[1]), std::real(from[1]), std::imag(from[1])});
-}
-template <>
-EIGEN_STRONG_INLINE PacketXcd ploaddup<PacketXcd>(const std::complex<double>* from) {
-  return pset1<PacketXcd>(*from);
-}
-
-#else  // EIGEN_GENERIC_VECTOR_SIZE_BYTES == 64
-
-template <>
-EIGEN_STRONG_INLINE PacketXcf ploaddup<PacketXcf>(const std::complex<float>* from) {
-  return PacketXcf(PacketXf{std::real(from[0]), std::imag(from[0]), std::real(from[0]), std::imag(from[0]),
-                            std::real(from[1]), std::imag(from[1]), std::real(from[1]), std::imag(from[1]),
-                            std::real(from[2]), std::imag(from[2]), std::real(from[2]), std::imag(from[2]),
-                            std::real(from[3]), std::imag(from[3]), std::real(from[3]), std::imag(from[3])});
-}
-template <>
-EIGEN_STRONG_INLINE PacketXcd ploaddup<PacketXcd>(const std::complex<double>* from) {
-  return PacketXcd(PacketXd{std::real(from[0]), std::imag(from[0]), std::real(from[0]), std::imag(from[0]),
-                            std::real(from[1]), std::imag(from[1]), std::real(from[1]), std::imag(from[1])});
-}
-
-#endif  // EIGEN_GENERIC_VECTOR_SIZE_BYTES
-
-// --- ploadquad ---
-#if EIGEN_GENERIC_VECTOR_SIZE_BYTES == 16
-
-template <>
-EIGEN_STRONG_INLINE PacketXcf ploadquad<PacketXcf>(const std::complex<float>* from) {
-  return pset1<PacketXcf>(*from);
-}
-template <>
-EIGEN_STRONG_INLINE PacketXcd ploadquad<PacketXcd>(const std::complex<double>* from) {
-  return pset1<PacketXcd>(*from);
-}
-
-#elif EIGEN_GENERIC_VECTOR_SIZE_BYTES == 32
-
-template <>
-EIGEN_STRONG_INLINE PacketXcf ploadquad<PacketXcf>(const std::complex<float>* from) {
-  return pset1<PacketXcf>(*from);
-}
-template <>
-EIGEN_STRONG_INLINE PacketXcd ploadquad<PacketXcd>(const std::complex<double>* from) {
-  return pset1<PacketXcd>(*from);
-}
-
-#else  // EIGEN_GENERIC_VECTOR_SIZE_BYTES == 64
-
-template <>
-EIGEN_STRONG_INLINE PacketXcf ploadquad<PacketXcf>(const std::complex<float>* from) {
-  return PacketXcf(PacketXf{std::real(from[0]), std::imag(from[0]), std::real(from[0]), std::imag(from[0]),
-                            std::real(from[0]), std::imag(from[0]), std::real(from[0]), std::imag(from[0]),
-                            std::real(from[1]), std::imag(from[1]), std::real(from[1]), std::imag(from[1]),
-                            std::real(from[1]), std::imag(from[1]), std::real(from[1]), std::imag(from[1])});
-}
-template <>
-EIGEN_STRONG_INLINE PacketXcd ploadquad<PacketXcd>(const std::complex<double>* from) {
-  return pset1<PacketXcd>(*from);
-}
-
-#endif  // EIGEN_GENERIC_VECTOR_SIZE_BYTES
+EIGEN_CLANG_COMPLEX_LOAD_REPEAT(PacketXcf)
+EIGEN_CLANG_COMPLEX_LOAD_REPEAT(PacketXcd)
+#undef EIGEN_CLANG_COMPLEX_LOAD_REPEAT
 
 // --- preverse ---
-#if EIGEN_GENERIC_VECTOR_SIZE_BYTES == 16
-
 template <>
 EIGEN_STRONG_INLINE PacketXcf preverse<PacketXcf>(const PacketXcf& a) {
-  // 2 complex floats: swap pairs (0,1) and (2,3)
-  return PacketXcf(__builtin_shufflevector(a.v, a.v, 2, 3, 0, 1));
+  return detail::complex_preverse_impl(a, detail::complex_real_indices<PacketXcf>{});
 }
 template <>
 EIGEN_STRONG_INLINE PacketXcd preverse<PacketXcd>(const PacketXcd& a) {
-  // 1 complex double: identity
-  return a;
+  return detail::complex_preverse_impl(a, detail::complex_real_indices<PacketXcd>{});
 }
-
-#elif EIGEN_GENERIC_VECTOR_SIZE_BYTES == 32
-
-template <>
-EIGEN_STRONG_INLINE PacketXcf preverse<PacketXcf>(const PacketXcf& a) {
-  // 4 complex floats: reverse pairs
-  return PacketXcf(reinterpret_cast<PacketXf>(preverse(reinterpret_cast<PacketXd>(a.v))));
-}
-template <>
-EIGEN_STRONG_INLINE PacketXcd preverse<PacketXcd>(const PacketXcd& a) {
-  // 2 complex doubles: swap pairs
-  return PacketXcd(__builtin_shufflevector(a.v, a.v, 2, 3, 0, 1));
-}
-
-#else  // EIGEN_GENERIC_VECTOR_SIZE_BYTES == 64
-
-template <>
-EIGEN_STRONG_INLINE PacketXcf preverse<PacketXcf>(const PacketXcf& a) {
-  return PacketXcf(reinterpret_cast<PacketXf>(preverse(reinterpret_cast<PacketXd>(a.v))));
-}
-template <>
-EIGEN_STRONG_INLINE PacketXcd preverse<PacketXcd>(const PacketXcd& a) {
-  return PacketXcd(__builtin_shufflevector(a.v, a.v, 6, 7, 4, 5, 2, 3, 0, 1));
-}
-
-#endif  // EIGEN_GENERIC_VECTOR_SIZE_BYTES
 
 // ----------- Binary ops ------------------
 #define DELEGATE_BINARY_TO_REAL_OP(PACKET_TYPE, OP)                                             \
@@ -621,48 +366,20 @@ EIGEN_STRONG_INLINE PacketXcf pselect<PacketXcf>(const PacketXcf& mask, const Pa
 // --- zip_in_place for complex ---
 namespace detail {
 
-#if EIGEN_GENERIC_VECTOR_SIZE_BYTES == 16
-
+// Complex packets interleave whole complex values, so their real and imaginary
+// components move together.
 template <>
 EIGEN_ALWAYS_INLINE void zip_in_place<PacketXcf>(PacketXcf& p1, PacketXcf& p2) {
-  PacketXf tmp = __builtin_shufflevector(p1.v, p2.v, 0, 1, 4, 5);
-  p2.v = __builtin_shufflevector(p1.v, p2.v, 2, 3, 6, 7);
-  p1.v = tmp;
+  zip_in_place_impl<2>(p1.v, p2.v, complex_real_indices<PacketXcf>{});
 }
-// PacketXcd at 16 bytes has 1 element, no zip_in_place needed.
 
-#elif EIGEN_GENERIC_VECTOR_SIZE_BYTES == 32
-
-template <>
-EIGEN_ALWAYS_INLINE void zip_in_place<PacketXcf>(PacketXcf& p1, PacketXcf& p2) {
-  PacketXf tmp = __builtin_shufflevector(p1.v, p2.v, 0, 1, 8, 9, 2, 3, 10, 11);
-  p2.v = __builtin_shufflevector(p1.v, p2.v, 4, 5, 12, 13, 6, 7, 14, 15);
-  p1.v = tmp;
-}
+#if EIGEN_GENERIC_VECTOR_SIZE_BYTES >= 32
+// PacketXcd holds a single complex value at 16 bytes, so there is nothing to interleave.
 template <>
 EIGEN_ALWAYS_INLINE void zip_in_place<PacketXcd>(PacketXcd& p1, PacketXcd& p2) {
-  PacketXd tmp = __builtin_shufflevector(p1.v, p2.v, 0, 1, 4, 5);
-  p2.v = __builtin_shufflevector(p1.v, p2.v, 2, 3, 6, 7);
-  p1.v = tmp;
+  zip_in_place_impl<2>(p1.v, p2.v, complex_real_indices<PacketXcd>{});
 }
-
-#else  // EIGEN_GENERIC_VECTOR_SIZE_BYTES == 64
-
-template <>
-EIGEN_ALWAYS_INLINE void zip_in_place<PacketXcf>(PacketXcf& p1, PacketXcf& p2) {
-  PacketXf tmp = __builtin_shufflevector(p1.v, p2.v, 0, 1, 16, 17, 2, 3, 18, 19, 4, 5, 20, 21, 6, 7, 22, 23);
-  p2.v = __builtin_shufflevector(p1.v, p2.v, 8, 9, 24, 25, 10, 11, 26, 27, 12, 13, 28, 29, 14, 15, 30, 31);
-  p1.v = tmp;
-}
-
-template <>
-EIGEN_ALWAYS_INLINE void zip_in_place<PacketXcd>(PacketXcd& p1, PacketXcd& p2) {
-  PacketXd tmp = __builtin_shufflevector(p1.v, p2.v, 0, 1, 8, 9, 2, 3, 10, 11);
-  p2.v = __builtin_shufflevector(p1.v, p2.v, 4, 5, 12, 13, 6, 7, 14, 15);
-  p1.v = tmp;
-}
-
-#endif  // EIGEN_GENERIC_VECTOR_SIZE_BYTES
+#endif
 
 }  // namespace detail
 
