@@ -235,6 +235,17 @@ constexpr int vector_elements() {
   return static_cast<int>(sizeof(VectorT) / sizeof(scalar_type_of_vector_t<VectorT>));
 }
 
+// Signed integer vector with the same lane count and width, for sign-bit
+// tests and bitwise manipulation of floating-point packets.
+template <typename VectorT>
+struct SignedVectorHelper {
+  using SignedScalar = std::conditional_t<sizeof(scalar_type_of_vector_t<VectorT>) == 4, int32_t, int64_t>;
+  using type = VectorType<SignedScalar, vector_elements<VectorT>()>;
+};
+
+template <typename VectorT>
+using signed_vector_t = typename SignedVectorHelper<VectorT>::type;
+
 template <typename VectorT>
 using half_vector_t = VectorType<scalar_type_of_vector_t<VectorT>, vector_elements<VectorT>() / 2>;
 
@@ -469,66 +480,144 @@ EIGEN_CLANG_PACKET_CMP(PacketXf, PacketXi)
 EIGEN_CLANG_PACKET_CMP(PacketXd, PacketXl)
 #undef EIGEN_CLANG_PACKET_CMP
 
-// --- Min/Max operations ---
-// Floating-point support in __builtin_elementwise_{min,max} is deprecated because the name does not say which of the
-// several IEEE min/max flavors is meant. __builtin_elementwise_{minnum,maxnum} spell out the same IEEE 754-2008
-// minNum/maxNum semantics the deprecated builtins provided for floats, and additionally pin down +0.0 > -0.0. The
-// integer overloads are not deprecated, so PacketXi and PacketXl keep using them.
-#if EIGEN_HAS_BUILTIN(__builtin_elementwise_minnum) && EIGEN_HAS_BUILTIN(__builtin_elementwise_maxnum)
-#define EIGEN_CLANG_ELEMENTWISE_MINNUM __builtin_elementwise_minnum
-#define EIGEN_CLANG_ELEMENTWISE_MAXNUM __builtin_elementwise_maxnum
+// --- Min/Max/select operations ---
+namespace detail {
+// Functors usable at any vector width; the min/max reduction trees in
+// Reductions.h reuse them on progressively narrower vectors. The
+// compare-select forms compile to a single min/max instruction on targets
+// whose min/max returns the second operand when the inputs are unordered
+// (e.g. x86), and they spell out the NaN propagation of std::min/std::max:
+// the first argument is returned if either input is NaN.
+struct pmin_op {
+  template <typename VectorT>
+  EIGEN_STRONG_INLINE VectorT operator()(const VectorT& a, const VectorT& b) const {
+    return b < a ? b : a;
+  }
+};
+struct pmax_op {
+  template <typename VectorT>
+  EIGEN_STRONG_INLINE VectorT operator()(const VectorT& a, const VectorT& b) const {
+    return b > a ? b : a;
+  }
+};
+// IEEE 754-2008 minNum/maxNum semantics: return the other operand if one input
+// is NaN. Floating-point support in __builtin_elementwise_{min,max} is
+// deprecated because the name does not say which of the several IEEE min/max
+// flavors is meant; __builtin_elementwise_{minnum,maxnum} spell out the same
+// semantics the deprecated builtins provided for floats, and additionally pin
+// down +0.0 > -0.0. The elementwise_{min,max} fallback (always available
+// under this backend's clang >= 16 gate) has the same NaN semantics but
+// leaves the zero-sign tie unspecified.
+struct pmin_num_op {
+  template <typename VectorT>
+  EIGEN_STRONG_INLINE VectorT operator()(const VectorT& a, const VectorT& b) const {
+#if EIGEN_HAS_BUILTIN(__builtin_elementwise_minnum)
+    return __builtin_elementwise_minnum(a, b);
 #else
-#define EIGEN_CLANG_ELEMENTWISE_MINNUM __builtin_elementwise_min
-#define EIGEN_CLANG_ELEMENTWISE_MAXNUM __builtin_elementwise_max
+    return __builtin_elementwise_min(a, b);
 #endif
+  }
+};
+struct pmax_num_op {
+  template <typename VectorT>
+  EIGEN_STRONG_INLINE VectorT operator()(const VectorT& a, const VectorT& b) const {
+#if EIGEN_HAS_BUILTIN(__builtin_elementwise_maxnum)
+    return __builtin_elementwise_maxnum(a, b);
+#else
+    return __builtin_elementwise_max(a, b);
+#endif
+  }
+};
+// Return NaN if either input is NaN, otherwise the min/max. When a is NaN the
+// plain compare-select form already returns a, so only b needs an explicit
+// test.
+struct pmin_nan_op {
+  template <typename VectorT>
+  EIGEN_STRONG_INLINE VectorT operator()(const VectorT& a, const VectorT& b) const {
+    return b != b ? b : pmin_op()(a, b);
+  }
+};
+struct pmax_nan_op {
+  template <typename VectorT>
+  EIGEN_STRONG_INLINE VectorT operator()(const VectorT& a, const VectorT& b) const {
+    return b != b ? b : pmax_op()(a, b);
+  }
+};
+}  // namespace detail
 
-#if EIGEN_HAS_BUILTIN(__builtin_elementwise_min) && EIGEN_HAS_BUILTIN(__builtin_elementwise_max) && \
-    EIGEN_HAS_BUILTIN(__builtin_elementwise_abs)
-#define EIGEN_CLANG_PACKET_ELEMENTWISE(PACKET_TYPE, MIN_NUM, MAX_NUM)                                               \
-  template <>                                                                                                       \
-  EIGEN_STRONG_INLINE PACKET_TYPE pmin<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b) {                   \
-    /* Match NaN propagation of std::min. */                                                                        \
-    return a == a ? MIN_NUM(a, b) : a;                                                                              \
-  }                                                                                                                 \
-  template <>                                                                                                       \
-  EIGEN_STRONG_INLINE PACKET_TYPE pmax<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b) {                   \
-    /* Match NaN propagation of std::max. */                                                                        \
-    return a == a ? MAX_NUM(a, b) : a;                                                                              \
-  }                                                                                                                 \
+// pmin/pmax/pselect are pure compare-select code and apply to all packet types.
+#define EIGEN_CLANG_PACKET_MINMAX_SELECT(PACKET_TYPE)                                                 \
+  template <>                                                                                         \
+  EIGEN_STRONG_INLINE PACKET_TYPE pmin<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b) {     \
+    return detail::pmin_op()(a, b);                                                                   \
+  }                                                                                                   \
+  template <>                                                                                         \
+  EIGEN_STRONG_INLINE PACKET_TYPE pmax<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b) {     \
+    return detail::pmax_op()(a, b);                                                                   \
+  }                                                                                                   \
+  template <>                                                                                         \
+  EIGEN_STRONG_INLINE PACKET_TYPE pselect<PACKET_TYPE>(const PACKET_TYPE& mask, const PACKET_TYPE& a, \
+                                                       const PACKET_TYPE& b) {                        \
+    /* The mask is all-ones or all-zeros per lane, so testing the sign of the */                      \
+    /* signed integer view suffices and maps to a single blend instruction.   */                      \
+    /* Unlike a floating-point `mask != 0` test it also survives -ffast-math, */                      \
+    /* which may assume the all-ones NaN bit pattern cannot occur in a float. */                      \
+    return reinterpret_cast<detail::signed_vector_t<PACKET_TYPE>>(mask) < 0 ? a : b;                  \
+  }
+
+EIGEN_CLANG_PACKET_MINMAX_SELECT(PacketXf)
+EIGEN_CLANG_PACKET_MINMAX_SELECT(PacketXd)
+EIGEN_CLANG_PACKET_MINMAX_SELECT(PacketXi)
+EIGEN_CLANG_PACKET_MINMAX_SELECT(PacketXl)
+#undef EIGEN_CLANG_PACKET_MINMAX_SELECT
+
+// NaN-propagation variants for the floating-point packets.
+#define EIGEN_CLANG_PACKET_MINMAX_FLOAT(PACKET_TYPE)                                                                \
   template <>                                                                                                       \
   EIGEN_STRONG_INLINE PACKET_TYPE pmin<PropagateNumbers, PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b) { \
-    return MIN_NUM(a, b);                                                                                           \
+    return detail::pmin_num_op()(a, b);                                                                             \
   }                                                                                                                 \
   template <>                                                                                                       \
   EIGEN_STRONG_INLINE PACKET_TYPE pmax<PropagateNumbers, PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b) { \
-    return MAX_NUM(a, b);                                                                                           \
+    return detail::pmax_num_op()(a, b);                                                                             \
   }                                                                                                                 \
   template <>                                                                                                       \
   EIGEN_STRONG_INLINE PACKET_TYPE pmin<PropagateNaN, PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b) {     \
-    return a != a ? a : (b != b ? b : MIN_NUM(a, b));                                                               \
+    return detail::pmin_nan_op()(a, b);                                                                             \
   }                                                                                                                 \
   template <>                                                                                                       \
   EIGEN_STRONG_INLINE PACKET_TYPE pmax<PropagateNaN, PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b) {     \
-    return a != a ? a : (b != b ? b : MAX_NUM(a, b));                                                               \
-  }                                                                                                                 \
-  template <>                                                                                                       \
-  EIGEN_STRONG_INLINE PACKET_TYPE pabs<PACKET_TYPE>(const PACKET_TYPE& a) {                                         \
-    return __builtin_elementwise_abs(a);                                                                            \
-  }                                                                                                                 \
-  template <>                                                                                                       \
-  EIGEN_STRONG_INLINE PACKET_TYPE pselect<PACKET_TYPE>(const PACKET_TYPE& mask, const PACKET_TYPE& a,               \
-                                                       const PACKET_TYPE& b) {                                      \
-    return mask != 0 ? a : b;                                                                                       \
+    return detail::pmax_nan_op()(a, b);                                                                             \
   }
 
-EIGEN_CLANG_PACKET_ELEMENTWISE(PacketXf, EIGEN_CLANG_ELEMENTWISE_MINNUM, EIGEN_CLANG_ELEMENTWISE_MAXNUM)
-EIGEN_CLANG_PACKET_ELEMENTWISE(PacketXd, EIGEN_CLANG_ELEMENTWISE_MINNUM, EIGEN_CLANG_ELEMENTWISE_MAXNUM)
-EIGEN_CLANG_PACKET_ELEMENTWISE(PacketXi, __builtin_elementwise_min, __builtin_elementwise_max)
-EIGEN_CLANG_PACKET_ELEMENTWISE(PacketXl, __builtin_elementwise_min, __builtin_elementwise_max)
-#undef EIGEN_CLANG_PACKET_ELEMENTWISE
+EIGEN_CLANG_PACKET_MINMAX_FLOAT(PacketXf)
+EIGEN_CLANG_PACKET_MINMAX_FLOAT(PacketXd)
+#undef EIGEN_CLANG_PACKET_MINMAX_FLOAT
+
+#if EIGEN_HAS_BUILTIN(__builtin_elementwise_abs)
+#define EIGEN_CLANG_PACKET_ABS(PACKET_TYPE)                                 \
+  template <>                                                               \
+  EIGEN_STRONG_INLINE PACKET_TYPE pabs<PACKET_TYPE>(const PACKET_TYPE& a) { \
+    return __builtin_elementwise_abs(a);                                    \
+  }
+
+EIGEN_CLANG_PACKET_ABS(PacketXf)
+EIGEN_CLANG_PACKET_ABS(PacketXd)
+EIGEN_CLANG_PACKET_ABS(PacketXi)
+EIGEN_CLANG_PACKET_ABS(PacketXl)
+#undef EIGEN_CLANG_PACKET_ABS
 #endif
-#undef EIGEN_CLANG_ELEMENTWISE_MINNUM
-#undef EIGEN_CLANG_ELEMENTWISE_MAXNUM
+
+// psignbit: a signed compare of the integer view is a single instruction,
+// unlike the generic floating-point fallback.
+template <>
+EIGEN_STRONG_INLINE PacketXf psignbit(const PacketXf& a) {
+  return reinterpret_cast<PacketXf>(reinterpret_cast<PacketXi>(a) < 0);
+}
+template <>
+EIGEN_STRONG_INLINE PacketXd psignbit(const PacketXd& a) {
+  return reinterpret_cast<PacketXd>(reinterpret_cast<PacketXl>(a) < 0);
+}
 
 // --- Math functions (float/double only) ---
 
@@ -806,6 +895,9 @@ constexpr std::size_t zip_index(std::size_t i, std::size_t first_group) {
 template <std::size_t Group, typename VectorT, std::size_t... Is>
 EIGEN_ALWAYS_INLINE void zip_in_place_impl(VectorT& p1, VectorT& p2, std::index_sequence<Is...>) {
   constexpr std::size_t kSize = sizeof...(Is);
+  // With a single lane group per vector both output shuffles would pick group
+  // 0 and silently duplicate p1; such packets must not reach this code.
+  static_assert(kSize >= 2 * Group, "zip_in_place needs at least two lane groups per vector");
   const VectorT tmp = __builtin_shufflevector(p1, p2, zip_index<Group, kSize>(Is, 0)...);
   p2 = __builtin_shufflevector(p1, p2, zip_index<Group, kSize>(Is, kSize / (2 * Group))...);
   p1 = tmp;

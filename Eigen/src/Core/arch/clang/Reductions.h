@@ -18,9 +18,11 @@ namespace Eigen {
 namespace internal {
 
 // --- Reductions ---
-#if EIGEN_HAS_BUILTIN(__builtin_reduce_min) && EIGEN_HAS_BUILTIN(__builtin_reduce_max) && \
-    EIGEN_HAS_BUILTIN(__builtin_reduce_or)
-#define EIGEN_CLANG_PACKET_REDUX_MINMAX(PACKET_TYPE)                                        \
+// __builtin_reduce_{min,max} lower well for the integer packets only: for
+// floating point their strict NaN-ordering semantics scalarize into a serial
+// compare-blend chain, so PacketXf/PacketXd use the halving trees below.
+#if EIGEN_HAS_BUILTIN(__builtin_reduce_min) && EIGEN_HAS_BUILTIN(__builtin_reduce_max)
+#define EIGEN_CLANG_PACKET_REDUX_MINMAX_INT(PACKET_TYPE)                                    \
   template <>                                                                               \
   EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type predux_min(const PACKET_TYPE& a) { \
     return __builtin_reduce_min(a);                                                         \
@@ -28,17 +30,27 @@ namespace internal {
   template <>                                                                               \
   EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type predux_max(const PACKET_TYPE& a) { \
     return __builtin_reduce_max(a);                                                         \
-  }                                                                                         \
-  template <>                                                                               \
-  EIGEN_STRONG_INLINE bool predux_any(const PACKET_TYPE& a) {                               \
-    return __builtin_reduce_or(a != 0) != 0;                                                \
   }
 
-EIGEN_CLANG_PACKET_REDUX_MINMAX(PacketXf)
-EIGEN_CLANG_PACKET_REDUX_MINMAX(PacketXd)
-EIGEN_CLANG_PACKET_REDUX_MINMAX(PacketXi)
-EIGEN_CLANG_PACKET_REDUX_MINMAX(PacketXl)
-#undef EIGEN_CLANG_PACKET_REDUX_MINMAX
+EIGEN_CLANG_PACKET_REDUX_MINMAX_INT(PacketXi)
+EIGEN_CLANG_PACKET_REDUX_MINMAX_INT(PacketXl)
+#undef EIGEN_CLANG_PACKET_REDUX_MINMAX_INT
+#endif
+
+#if EIGEN_HAS_BUILTIN(__builtin_reduce_or)
+// Test the integer view: comparing an all-ones (NaN bit pattern) float mask
+// against zero is fair game for -ffast-math to fold away, as with pselect.
+#define EIGEN_CLANG_PACKET_REDUX_ANY(PACKET_TYPE)                                                    \
+  template <>                                                                                        \
+  EIGEN_STRONG_INLINE bool predux_any(const PACKET_TYPE& a) {                                        \
+    return __builtin_reduce_or(reinterpret_cast<detail::signed_vector_t<PACKET_TYPE>>(a) != 0) != 0; \
+  }
+
+EIGEN_CLANG_PACKET_REDUX_ANY(PacketXf)
+EIGEN_CLANG_PACKET_REDUX_ANY(PacketXd)
+EIGEN_CLANG_PACKET_REDUX_ANY(PacketXi)
+EIGEN_CLANG_PACKET_REDUX_ANY(PacketXl)
+#undef EIGEN_CLANG_PACKET_REDUX_ANY
 #endif
 
 #if EIGEN_HAS_BUILTIN(__builtin_reduce_add) && EIGEN_HAS_BUILTIN(__builtin_reduce_mul)
@@ -65,8 +77,10 @@ namespace detail {
 // (even, odd). Callers combine those two with the same operation; splitting the
 // final step out is what lets the complex reductions read off the accumulated
 // real and imaginary parts separately. The halves are shuffled inline rather
-// than through lower_half/upper_half because the last fold produces an 8-byte
-// vector, which a helper would have to return through the calling convention.
+// than through lower_half/upper_half: an 8-byte half returned by value is
+// ABI-lowered to a scalar double in IR even under forced inlining, and the
+// leftover bitcasts perturb LLVM's canonicalization of the commutative fold,
+// measurably changing the generated code.
 template <int N>
 struct halving_reduce {
   template <typename VectorT, typename Op, std::size_t... Is>
@@ -94,9 +108,12 @@ EIGEN_STRONG_INLINE scalar_pair_t<VectorT> reduce_add_pairs(const VectorT& a) {
   return halving_reduce<vector_elements<VectorT>()>::run(a, [](const auto& x, const auto& y) { return x + y; });
 }
 
-template <typename VectorT>
-EIGEN_STRONG_INLINE scalar_pair_t<VectorT> reduce_mul_pairs(const VectorT& a) {
-  return halving_reduce<vector_elements<VectorT>()>::run(a, [](const auto& x, const auto& y) { return x * y; });
+// Folds the packet all the way to a scalar with `op`, which must also be
+// applicable to bare scalars for the final step.
+template <typename VectorT, typename Op>
+EIGEN_STRONG_INLINE scalar_type_of_vector_t<VectorT> tree_reduce(const VectorT& a, Op op) {
+  const scalar_pair_t<VectorT> even_odd = halving_reduce<vector_elements<VectorT>()>::run(a, op);
+  return op(even_odd.first, even_odd.second);
 }
 
 // Multiplies the two halves of a complex packet until two complex values are
@@ -107,7 +124,8 @@ struct complex_predux_mul {
   template <typename RealScalar>
   static EIGEN_STRONG_INLINE std::complex<RealScalar> run(const complex_packet_wrapper<RealScalar, N>& a) {
     using HalfPacket = complex_packet_wrapper<RealScalar, N / 2>;
-    return complex_predux_mul<N / 2>::run(pmul<HalfPacket>(HalfPacket(lower_half(a.v)), HalfPacket(upper_half(a.v))));
+    return complex_predux_mul<N / 2>::run(complex_pmul_impl(HalfPacket(lower_half(a.v)), HalfPacket(upper_half(a.v)),
+                                                            complex_real_indices<HalfPacket>{}));
   }
 };
 
@@ -135,23 +153,56 @@ struct complex_predux_mul<1> {
 #define EIGEN_CLANG_PACKET_REDUX_FLOAT(PACKET_TYPE)                                                      \
   template <>                                                                                            \
   EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type predux<PACKET_TYPE>(const PACKET_TYPE& a) {     \
-    const auto even_odd = detail::reduce_add_pairs(a);                                                   \
-    return even_odd.first + even_odd.second;                                                             \
+    return detail::tree_reduce(a, [](const auto& x, const auto& y) { return x + y; });                   \
   }                                                                                                      \
   template <>                                                                                            \
   EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type predux_mul<PACKET_TYPE>(const PACKET_TYPE& a) { \
-    const auto even_odd = detail::reduce_mul_pairs(a);                                                   \
-    return even_odd.first * even_odd.second;                                                             \
+    return detail::tree_reduce(a, [](const auto& x, const auto& y) { return x * y; });                   \
   }
 
 EIGEN_CLANG_PACKET_REDUX_FLOAT(PacketXf)
 EIGEN_CLANG_PACKET_REDUX_FLOAT(PacketXd)
 #undef EIGEN_CLANG_PACKET_REDUX_FLOAT
 
+// --- predux_min and predux_max for float and double ---
+// Also covers the NaN-propagation variants, whose generic fallback spills the
+// packet to the stack and reduces it with a scalar loop.
+#define EIGEN_CLANG_PACKET_REDUX_MINMAX_FLOAT(PACKET_TYPE)                                                             \
+  template <>                                                                                                          \
+  EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type predux_min(const PACKET_TYPE& a) {                            \
+    return detail::tree_reduce(a, detail::pmin_op());                                                                  \
+  }                                                                                                                    \
+  template <>                                                                                                          \
+  EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type predux_max(const PACKET_TYPE& a) {                            \
+    return detail::tree_reduce(a, detail::pmax_op());                                                                  \
+  }                                                                                                                    \
+  template <>                                                                                                          \
+  EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type predux_min<PropagateNumbers, PACKET_TYPE>(                    \
+      const PACKET_TYPE& a) {                                                                                          \
+    return detail::tree_reduce(a, detail::pmin_num_op());                                                              \
+  }                                                                                                                    \
+  template <>                                                                                                          \
+  EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type predux_max<PropagateNumbers, PACKET_TYPE>(                    \
+      const PACKET_TYPE& a) {                                                                                          \
+    return detail::tree_reduce(a, detail::pmax_num_op());                                                              \
+  }                                                                                                                    \
+  template <>                                                                                                          \
+  EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type predux_min<PropagateNaN, PACKET_TYPE>(const PACKET_TYPE& a) { \
+    return detail::tree_reduce(a, detail::pmin_nan_op());                                                              \
+  }                                                                                                                    \
+  template <>                                                                                                          \
+  EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type predux_max<PropagateNaN, PACKET_TYPE>(const PACKET_TYPE& a) { \
+    return detail::tree_reduce(a, detail::pmax_nan_op());                                                              \
+  }
+
+EIGEN_CLANG_PACKET_REDUX_MINMAX_FLOAT(PacketXf)
+EIGEN_CLANG_PACKET_REDUX_MINMAX_FLOAT(PacketXd)
+#undef EIGEN_CLANG_PACKET_REDUX_MINMAX_FLOAT
+
 // --- predux and predux_mul for complex ---
 // The real vector of a complex packet interleaves real and imaginary parts, so
 // summing it into an (even, odd) pair accumulates the two parts separately.
-#define EIGEN_CLANG_COMPLEX_REDUX(PACKET_TYPE, COMPLEX_SIZE)                                             \
+#define EIGEN_CLANG_COMPLEX_REDUX(PACKET_TYPE)                                                           \
   template <>                                                                                            \
   EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type predux<PACKET_TYPE>(const PACKET_TYPE& a) {     \
     const auto re_im = detail::reduce_add_pairs(a.v);                                                    \
@@ -159,11 +210,11 @@ EIGEN_CLANG_PACKET_REDUX_FLOAT(PacketXd)
   }                                                                                                      \
   template <>                                                                                            \
   EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type predux_mul<PACKET_TYPE>(const PACKET_TYPE& a) { \
-    return detail::complex_predux_mul<COMPLEX_SIZE>::run(a);                                             \
+    return detail::complex_predux_mul<unpacket_traits<PACKET_TYPE>::size>::run(a);                       \
   }
 
-EIGEN_CLANG_COMPLEX_REDUX(PacketXcf, kComplexFloatSize)
-EIGEN_CLANG_COMPLEX_REDUX(PacketXcd, kComplexDoubleSize)
+EIGEN_CLANG_COMPLEX_REDUX(PacketXcf)
+EIGEN_CLANG_COMPLEX_REDUX(PacketXcd)
 #undef EIGEN_CLANG_COMPLEX_REDUX
 
 #endif
