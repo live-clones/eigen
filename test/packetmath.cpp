@@ -9,6 +9,7 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
+#include <utility>
 #include "packetmath_test_shared.h"
 #include "random_without_cast_overflow.h"
 
@@ -578,25 +579,41 @@ struct packetmath_64bit_boundary_test {
 template <typename Scalar, typename Packet>
 struct packetmath_64bit_boundary_test<Scalar, Packet,
                                       std::enable_if_t<NumTraits<Scalar>::IsInteger && sizeof(Scalar) == 8>> {
+  static constexpr int PacketSize = unpacket_traits<Packet>::size;
+  static constexpr int size = 2 * PacketSize;
+
   static void run() {
-    const int PacketSize = unpacket_traits<Packet>::size;
-    const int size = 2 * PacketSize;
     EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar data1[size];
     EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar data2[size];
     EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar ref[size];
 
-    auto from_bits = [](uint64_t raw) { return numext::bit_cast<Scalar>(raw); };
+    const auto ref_abs = [](const Scalar& x) { return x < Scalar(0) ? test::negate(x) : x; };
+    const auto check_ops = [&] {
+      CHECK_CWISE2_MASK(REF_PCMP_EQ, internal::pcmp_eq);
+      CHECK_CWISE2_MASK(internal::pcmp_lt, internal::pcmp_lt);
+      CHECK_CWISE2_MASK(internal::pcmp_le, internal::pcmp_le);
+      CHECK_CWISE2_IF(internal::packet_traits<Scalar>::HasMin, (std::min), internal::pmin);
+      CHECK_CWISE2_IF(internal::packet_traits<Scalar>::HasMax, (std::max), internal::pmax);
+      CHECK_CWISE2_IF(internal::packet_traits<Scalar>::HasMul, REF_MUL, internal::pmul);
+      CHECK_CWISE1_IF(internal::packet_traits<Scalar>::HasNegate, test::negate, internal::pnegate);
+      CHECK_CWISE1(ref_abs, internal::pabs);
+    };
 
-    const Scalar high_differs_a = from_bits(0x1111111100000001ull);
-    const Scalar high_differs_b = from_bits(0x2222222200000001ull);
-    const Scalar low_differs_a = from_bits(0x1111111100000001ull);
-    const Scalar low_differs_b = from_bits(0x1111111100000002ull);
-    const Scalar both_equal_a = from_bits(0x1111111100000001ull);
-    const Scalar both_equal_b = from_bits(0x1111111100000001ull);
-    const Scalar lanes_a[] = {high_differs_a, low_differs_a, both_equal_a};
-    const Scalar lanes_b[] = {high_differs_b, low_differs_b, both_equal_b};
-    const int num_lanes = sizeof(lanes_a) / sizeof(lanes_a[0]);
+    constexpr Scalar high = 0x11111111;
+    constexpr Scalar low = 0x00000001;
+    constexpr Scalar reference = (high << 32) | low;
+    constexpr Scalar high_shifted = (high << 33) | low;
+    constexpr Scalar low_shifted = (high << 32) | (low << 1);
 
+    static constexpr Scalar half_lanes[] = {high_shifted, low_shifted, reference};
+    constexpr int half_lanes_count = sizeof(half_lanes) / sizeof(half_lanes[0]);
+
+    Map<ArrayX<Scalar>>(data1, PacketSize).setConstant(reference);
+    for (int i = 0; i < PacketSize; ++i) data1[i + PacketSize] = half_lanes[i % half_lanes_count];
+    check_ops();
+
+    const auto from_bits = [](unsigned long long bits) { return numext::bit_cast<Scalar>(bits); };
+    ;
     const Scalar boundary_values[] = {
         Scalar(0),
         Scalar(1),
@@ -607,36 +624,34 @@ struct packetmath_64bit_boundary_test<Scalar, Packet,
         from_bits(0x0000000100000000ull),  // 2^32
         from_bits(0x00000001FFFFFFFFull),  // 2^33 - 1
     };
-    const int num_boundary = sizeof(boundary_values) / sizeof(boundary_values[0]);
+    constexpr int num_boundary = sizeof(boundary_values) / sizeof(boundary_values[0]);
 
-    const auto check_ops = [&] {
-      CHECK_CWISE2_MASK(REF_PCMP_EQ, internal::pcmp_eq);
-      CHECK_CWISE2_MASK(internal::pcmp_lt, internal::pcmp_lt);
-      CHECK_CWISE2_MASK(internal::pcmp_le, internal::pcmp_le);
-      CHECK_CWISE2_IF(internal::packet_traits<Scalar>::HasMin, (std::min), internal::pmin);
-      CHECK_CWISE2_IF(internal::packet_traits<Scalar>::HasMax, (std::max), internal::pmax);
-      CHECK_CWISE2_IF(internal::packet_traits<Scalar>::HasMul, REF_MUL, internal::pmul);
-      CHECK_CWISE1_IF(internal::packet_traits<Scalar>::HasNegate, test::negate, internal::pnegate);
-      CHECK_CWISE1(numext::abs, internal::pabs);
-    };
+    // Sweep every entry of `boundary_values` in packet-sized chunks in both operand roles so each
+    // boundary value reaches every lane position on every backend, including NEON `Packet2{,u}l`
+    // where `PacketSize == 2` is smaller than `num_boundary` and a single non-chunked pass over the
+    // table would only ever reach its first few entries.
+    constexpr int num_chunks = numext::div_ceil(num_boundary, PacketSize);
+    for (int chunk = 0; chunk < num_chunks; ++chunk) {
+      const int base = chunk * PacketSize;
+      for (int i = 0; i < PacketSize; ++i) {
+        const int idx = (base + i) % num_boundary;
+        const int idx2 = (base + i + 1) % num_boundary;
+        data1[i] = boundary_values[idx];
+        data1[i + PacketSize] = boundary_values[idx2];
+      }
+      check_ops();
 
-    for (int i = 0; i < PacketSize; ++i) {
-      data1[i] = lanes_a[i % num_lanes];
-      data1[i + PacketSize] = lanes_b[i % num_lanes];
+      for (int i = 0; i < PacketSize; ++i) std::swap(data1[i], data1[i + PacketSize]);
+      check_ops();
     }
-    check_ops();
 
-    for (int i = 0; i < PacketSize; ++i) {
-      data1[i] = boundary_values[i % num_boundary];
-      data1[i + PacketSize] = boundary_values[(i + 1) % num_boundary];
+    for (int chunk = 0; chunk < num_chunks; ++chunk) {
+      for (int i = 0; i < PacketSize; ++i) {
+        const int idx = (chunk * PacketSize + i) % num_boundary;
+        data1[i] = data1[i + PacketSize] = boundary_values[idx];
+      }
+      check_ops();
     }
-    check_ops();
-
-    for (int i = 0; i < PacketSize; ++i) {
-      data1[i] = boundary_values[i % num_boundary];
-      data1[i + PacketSize] = boundary_values[i % num_boundary];
-    }
-    check_ops();
   }
 };
 
