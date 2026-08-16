@@ -20,9 +20,10 @@
     # largest safe cap: hosted runners reject cache archives over 5 GB, and
     # the archive is about the size of the (already zstd-compressed) ccache
     # directory. The raised compression level packs more of the working set
-    # under that cap; hits pay only the cheap zstd decompression.
+    # under that cap; 5 is the ccache manual's recommended ceiling for live
+    # (compile-time) compression, and captures most of the density gain.
     CCACHE_MAXSIZE: 4G
-    CCACHE_COMPRESSLEVEL: 8
+    CCACHE_COMPRESSLEVEL: 5
     # Hash compile paths relative to the project directory: absolute -I/source
     # paths are part of ccache's hash, so without this a checkout-path change
     # (runner layout, concurrent build slots) turns every compile into a miss.
