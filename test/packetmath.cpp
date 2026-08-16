@@ -667,12 +667,18 @@ struct packetmath_64bit_boundary_test<Scalar, Packet,
     static constexpr Scalar half_lanes[] = {high_shifted, low_shifted, reference};
     constexpr int half_lanes_count = sizeof(half_lanes) / sizeof(half_lanes[0]);
 
-    Map<ArrayX<Scalar>>(data1, PacketSize).setConstant(reference);
-    for (int i = 0; i < PacketSize; ++i) data1[i + PacketSize] = half_lanes[i % half_lanes_count];
-    check_ops();
+    constexpr int half_lanes_chunks = numext::div_ceil(half_lanes_count, PacketSize);
+    for (int chunk = 0; chunk < half_lanes_chunks; ++chunk) {
+      Map<ArrayX<Scalar>>(data1, PacketSize).setConstant(reference);
+      for (int i = 0; i < PacketSize; ++i)
+        data1[i + PacketSize] = half_lanes[(chunk * PacketSize + i) % half_lanes_count];
+      check_ops();
+
+      for (int i = 0; i < PacketSize; ++i) std::swap(data1[i], data1[i + PacketSize]);
+      check_ops();
+    }
 
     const auto from_bits = [](unsigned long long bits) { return numext::bit_cast<Scalar>(bits); };
-    ;
     const Scalar boundary_values[] = {
         Scalar(0),
         Scalar(1),
@@ -685,26 +691,24 @@ struct packetmath_64bit_boundary_test<Scalar, Packet,
     };
     constexpr int num_boundary = sizeof(boundary_values) / sizeof(boundary_values[0]);
 
-    // Sweep every entry of `boundary_values` in packet-sized chunks in both operand roles so each
-    // boundary value reaches every lane position on every backend, including NEON `Packet2{,u}l`
-    // where `PacketSize == 2` is smaller than `num_boundary` and a single non-chunked pass over the
-    // table would only ever reach its first few entries.
-    constexpr int num_chunks = numext::div_ceil(num_boundary, PacketSize);
-    for (int chunk = 0; chunk < num_chunks; ++chunk) {
-      const int base = chunk * PacketSize;
-      for (int i = 0; i < PacketSize; ++i) {
-        const int idx = (base + i) % num_boundary;
-        const int idx2 = (base + i + 1) % num_boundary;
-        data1[i] = boundary_values[idx];
-        data1[i + PacketSize] = boundary_values[idx2];
-      }
-      check_ops();
+    // Test every distinct pair of `boundary_values` entries against each other.  Broadcast each
+    // pair across all lanes; lane-position coverage is already exercised above and in the
+    // self-value sweep below.
+    for (int i = 0; i < num_boundary; ++i) {
+      for (int j = i + 1; j < num_boundary; ++j) {
+        for (int k = 0; k < PacketSize; ++k) {
+          data1[k] = boundary_values[i];
+          data1[k + PacketSize] = boundary_values[j];
+        }
+        check_ops();
 
-      for (int i = 0; i < PacketSize; ++i) std::swap(data1[i], data1[i + PacketSize]);
-      check_ops();
+        for (int k = 0; k < PacketSize; ++k) std::swap(data1[k], data1[k + PacketSize]);
+        check_ops();
+      }
     }
 
-    for (int chunk = 0; chunk < num_chunks; ++chunk) {
+    constexpr int num_self_chunks = numext::div_ceil(num_boundary, PacketSize);
+    for (int chunk = 0; chunk < num_self_chunks; ++chunk) {
       for (int i = 0; i < PacketSize; ++i) {
         const int idx = (chunk * PacketSize + i) % num_boundary;
         data1[i] = data1[i + PacketSize] = boundary_values[idx];
