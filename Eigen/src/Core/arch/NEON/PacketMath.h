@@ -3317,9 +3317,12 @@ EIGEN_STRONG_INLINE Packet2l pabs(const Packet2l& a) {
 #if EIGEN_ARCH_ARM64
   return vabsq_s64(a);
 #else
-  // NOTE: From <https://graphics.stanford.edu/~seander/bithacks.html#IntegerAbs>.
+  // NOTE: From <https://graphics.stanford.edu/~seander/bithacks.html#IntegerAbs>. The addition is
+  // done in the unsigned domain: at `a == INT64_MIN`, `mask == -1`, so the signed `a + mask` is UB
+  // (it wraps to INT64_MIN on every real target, which is exactly what's needed here).
   const int64x2_t mask = vshrq_n_s64(a, 63);
-  return veorq_s64(vaddq_s64(a, mask), mask);
+  const uint64x2_t sum = vaddq_u64(vreinterpretq_u64_s64(a), vreinterpretq_u64_s64(mask));
+  return veorq_s64(vreinterpretq_s64_u64(sum), mask);
 #endif
 }
 template <>

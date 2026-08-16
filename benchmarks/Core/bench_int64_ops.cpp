@@ -6,10 +6,40 @@
 
 #include <benchmark/benchmark.h>
 #include <Eigen/Core>
+#include <algorithm>
 #include <cstdint>
+#include <type_traits>
 
 namespace Eigen {
 namespace {
+
+// Scalar references for the signed integer types benchmarked below, computed through the
+// unsigned type so they don't invoke the UB `-x`/`x*y` hit at the minimum representable value
+// or on signed overflow -- matching what the vectorized ops actually (wrap around to) compute.
+template <typename Scalar, std::enable_if_t<std::is_signed<Scalar>::value, int> = 0>
+Scalar RefNegate(Scalar x) {
+  using UScalar = typename std::make_unsigned<Scalar>::type;
+  return static_cast<Scalar>(UScalar(0) - static_cast<UScalar>(x));
+}
+template <typename Scalar, std::enable_if_t<!std::is_signed<Scalar>::value, int> = 0>
+Scalar RefNegate(Scalar x) {
+  return static_cast<Scalar>(Scalar(0) - x);
+}
+
+template <typename Scalar, std::enable_if_t<std::is_signed<Scalar>::value, int> = 0>
+Scalar RefAbs(Scalar x) {
+  return x < Scalar(0) ? RefNegate(x) : x;
+}
+template <typename Scalar, std::enable_if_t<!std::is_signed<Scalar>::value, int> = 0>
+Scalar RefAbs(Scalar x) {
+  return x;
+}
+
+template <typename Scalar>
+Scalar RefMul(Scalar a, Scalar b) {
+  using UScalar = typename std::make_unsigned<Scalar>::type;
+  return static_cast<Scalar>(static_cast<UScalar>(a) * static_cast<UScalar>(b));
+}
 
 template <typename Scalar>
 void BM_Negate(benchmark::State& state) {
@@ -20,6 +50,12 @@ void BM_Negate(benchmark::State& state) {
   for (auto _ : state) {
     b = -a;
     benchmark::DoNotOptimize(b.data());
+  }
+  for (Index i = 0; i < n; ++i) {
+    if (b[i] != RefNegate(a[i])) {
+      state.SkipWithError("Negate: materialized result does not match scalar reference");
+      break;
+    }
   }
   state.SetBytesProcessed(state.iterations() * n * sizeof(Scalar) * 2);
 }
@@ -33,6 +69,12 @@ void BM_Abs(benchmark::State& state) {
   for (auto _ : state) {
     b = a.abs();
     benchmark::DoNotOptimize(b.data());
+  }
+  for (Index i = 0; i < n; ++i) {
+    if (b[i] != RefAbs(a[i])) {
+      state.SkipWithError("Abs: materialized result does not match scalar reference");
+      break;
+    }
   }
   state.SetBytesProcessed(state.iterations() * n * sizeof(Scalar) * 2);
 }
@@ -48,6 +90,12 @@ void BM_Mul(benchmark::State& state) {
     c = a * b;
     benchmark::DoNotOptimize(c.data());
   }
+  for (Index i = 0; i < n; ++i) {
+    if (c[i] != RefMul(a[i], b[i])) {
+      state.SkipWithError("Mul: materialized result does not match scalar reference");
+      break;
+    }
+  }
   state.SetBytesProcessed(state.iterations() * n * sizeof(Scalar) * 3);
 }
 
@@ -62,6 +110,12 @@ void BM_Min(benchmark::State& state) {
     c = a.min(b);
     benchmark::DoNotOptimize(c.data());
   }
+  for (Index i = 0; i < n; ++i) {
+    if (c[i] != (std::min)(a[i], b[i])) {
+      state.SkipWithError("Min: materialized result does not match scalar reference");
+      break;
+    }
+  }
   state.SetBytesProcessed(state.iterations() * n * sizeof(Scalar) * 3);
 }
 
@@ -75,6 +129,12 @@ void BM_Max(benchmark::State& state) {
   for (auto _ : state) {
     c = a.max(b);
     benchmark::DoNotOptimize(c.data());
+  }
+  for (Index i = 0; i < n; ++i) {
+    if (c[i] != (std::max)(a[i], b[i])) {
+      state.SkipWithError("Max: materialized result does not match scalar reference");
+      break;
+    }
   }
   state.SetBytesProcessed(state.iterations() * n * sizeof(Scalar) * 3);
 }
