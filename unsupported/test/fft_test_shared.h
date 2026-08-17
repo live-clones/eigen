@@ -17,6 +17,8 @@
 #define EIGEN_RUNTIME_NO_MALLOC
 
 #include "main.h"
+
+#include <thread>
 #include <unsupported/Eigen/FFT>
 
 template <typename T>
@@ -443,6 +445,38 @@ void test_reuse_real_and_complex(int nfft) {
   VERIFY(T(dif_rmse(complex_in, complex_round)) < test_precision<T>());
 }
 
+#if defined EIGEN_FFTW_DEFAULT
+// Distinct FFT objects must be usable from distinct threads concurrently.
+// FFTW's planner is not thread-safe, so the FFTW backend serializes plan
+// creation and destruction internally (issue #1483); each thread here creates
+// fresh plans of many sizes while verifying its round trips.
+void test_concurrent_transforms() {
+  const int num_threads = 8;
+  const int num_ffts = 24;
+  std::vector<int> failures(num_threads, 0);
+  std::vector<std::thread> workers;
+  for (int t = 0; t < num_threads; ++t) {
+    workers.emplace_back([t, &failures]() {
+      for (int k = 0; k < num_ffts; ++k) {
+        const int nfft = 16 + 3 * ((t + k) % 40);
+        Eigen::FFT<double> fft;
+        std::vector<std::complex<double>> src(nfft), freq, back;
+        for (int i = 0; i < nfft; ++i)
+          src[i] = std::complex<double>(std::cos(0.3 * i * (t + 1)), std::sin(0.7 * i + k));
+        fft.fwd(freq, src);
+        fft.inv(back, freq);
+        double max_err = 0;
+        for (int i = 0; i < nfft; ++i) max_err = numext::maxi(max_err, std::abs(back[i] - src[i]));
+        // VERIFY is not thread-safe; record and check after joining.
+        if (!(max_err < 100 * nfft * NumTraits<double>::epsilon())) ++failures[t];
+      }
+    });
+  }
+  for (std::size_t t = 0; t < workers.size(); ++t) workers[t].join();
+  for (int t = 0; t < num_threads; ++t) VERIFY_IS_EQUAL(failures[t], 0);
+}
+#endif  // EIGEN_FFTW_DEFAULT
+
 EIGEN_DECLARE_TEST(FFTW) {
   CALL_SUBTEST(test_return_by_value(32));
   // Regression test for #1537 -- reuse one FFT object for both real and
@@ -518,6 +552,10 @@ EIGEN_DECLARE_TEST(FFTW) {
   CALL_SUBTEST((test_complex2d<double, 60, 60>()));
   CALL_SUBTEST((test_complex2d<double, 24, 60>()));
   CALL_SUBTEST((test_complex2d<double, 60, 24>()));
+#endif
+
+#if defined EIGEN_FFTW_DEFAULT
+  CALL_SUBTEST(test_concurrent_transforms());
 #endif
 }
 
