@@ -540,12 +540,12 @@ struct packetmath_split_half_compare_test<
       return Scalar(Unsigned(Unsigned(high_parts[high_index] << kHalfBits) | low_parts[low_index]));
     };
 
-    for (int h = 0; h < kNumHigh; ++h) {
-      for (int i = 0; i < kNumLow; ++i) {
-        for (int j = 0; j < kNumLow; ++j) {
-          for (int k = 0; k < PacketSize; ++k) {
-            data1[k] = compose(h, i);
-            data1[k + PacketSize] = compose(h, j);
+    for (int high_index = 0; high_index < kNumHigh; ++high_index) {
+      for (int lhs_low_index = 0; lhs_low_index < kNumLow; ++lhs_low_index) {
+        for (int rhs_low_index = 0; rhs_low_index < kNumLow; ++rhs_low_index) {
+          for (int lane = 0; lane < PacketSize; ++lane) {
+            data1[lane] = compose(high_index, lhs_low_index);
+            data1[lane + PacketSize] = compose(high_index, rhs_low_index);
           }
           CHECK_CWISE2_MASK(internal::pcmp_le, internal::pcmp_le);
           CHECK_CWISE2_MASK(internal::pcmp_lt, internal::pcmp_lt);
