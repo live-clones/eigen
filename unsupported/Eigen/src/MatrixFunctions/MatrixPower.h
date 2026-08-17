@@ -19,6 +19,97 @@ namespace Eigen {
 template <typename MatrixType>
 class MatrixPower;
 
+namespace internal {
+
+// Free functions: these depend only on the scalar type, so keeping them as static members
+// would replicate every overload in each MatrixPowerAtomic instantiation.
+inline int matrix_power_get_pade_degree(float normIminusT) {
+  const float maxNormForPade[] = {2.8064004e-1f /* degree = 3 */, 4.3386528e-1f};
+  int degree = 3;
+  for (; degree <= 4; ++degree)
+    if (normIminusT <= maxNormForPade[degree - 3]) break;
+  return degree;
+}
+
+inline int matrix_power_get_pade_degree(double normIminusT) {
+  const double maxNormForPade[] = {1.884160592658218e-2 /* degree = 3 */, 6.038881904059573e-2, 1.239917516308172e-1,
+                                   1.999045567181744e-1, 2.789358995219730e-1};
+  int degree = 3;
+  for (; degree <= 7; ++degree)
+    if (normIminusT <= maxNormForPade[degree - 3]) break;
+  return degree;
+}
+
+inline int matrix_power_get_pade_degree(long double normIminusT) {
+#if LDBL_MANT_DIG == 53
+  const int maxPadeDegree = 7;
+  const double maxNormForPade[] = {1.884160592658218e-2L /* degree = 3 */, 6.038881904059573e-2L, 1.239917516308172e-1L,
+                                   1.999045567181744e-1L, 2.789358995219730e-1L};
+#elif LDBL_MANT_DIG <= 64
+  const int maxPadeDegree = 8;
+  const long double maxNormForPade[] = {6.3854693117491799460e-3L /* degree = 3 */,
+                                        2.6394893435456973676e-2L,
+                                        6.4216043030404063729e-2L,
+                                        1.1701165502926694307e-1L,
+                                        1.7904284231268670284e-1L,
+                                        2.4471944416607995472e-1L};
+#elif LDBL_MANT_DIG <= 106
+  const int maxPadeDegree = 10;
+  const double maxNormForPade[] = {1.0007161601787493236741409687186e-4L /* degree = 3 */,
+                                   1.0007161601787493236741409687186e-3L,
+                                   4.7069769360887572939882574746264e-3L,
+                                   1.3220386624169159689406653101695e-2L,
+                                   2.8063482381631737920612944054906e-2L,
+                                   4.9625993951953473052385361085058e-2L,
+                                   7.7367040706027886224557538328171e-2L,
+                                   1.1016843812851143391275867258512e-1L};
+#else
+  const int maxPadeDegree = 10;
+  const double maxNormForPade[] = {5.524506147036624377378713555116378e-5L /* degree = 3 */,
+                                   6.640600568157479679823602193345995e-4L,
+                                   3.227716520106894279249709728084626e-3L,
+                                   9.619593944683432960546978734646284e-3L,
+                                   2.134595382433742403911124458161147e-2L,
+                                   3.908166513900489428442993794761185e-2L,
+                                   6.266780814639442865832535460550138e-2L,
+                                   9.134603732914548552537150753385375e-2L};
+#endif
+  int degree = 3;
+  for (; degree <= maxPadeDegree; ++degree)
+    if (normIminusT <= static_cast<long double>(maxNormForPade[degree - 3])) break;
+  return degree;
+}
+
+template <typename RealScalar>
+inline std::complex<RealScalar> matrix_power_compute_superdiag(const std::complex<RealScalar>& curr,
+                                                               const std::complex<RealScalar>& prev, RealScalar p) {
+  typedef std::complex<RealScalar> ComplexScalar;
+  using std::ceil;
+  using std::exp;
+  using std::log;
+  using std::sinh;
+
+  ComplexScalar logCurr = log(curr);
+  ComplexScalar logPrev = log(prev);
+  RealScalar unwindingNumber =
+      ceil((numext::imag(logCurr - logPrev) - RealScalar(EIGEN_PI)) / RealScalar(2 * EIGEN_PI));
+  ComplexScalar w =
+      numext::log1p((curr - prev) / prev) / RealScalar(2) + ComplexScalar(0, RealScalar(EIGEN_PI) * unwindingNumber);
+  return RealScalar(2) * exp(RealScalar(0.5) * p * (logCurr + logPrev)) * sinh(p * w) / (curr - prev);
+}
+
+template <typename RealScalar>
+inline RealScalar matrix_power_compute_superdiag(RealScalar curr, RealScalar prev, RealScalar p) {
+  using std::exp;
+  using std::log;
+  using std::sinh;
+
+  RealScalar w = numext::log1p((curr - prev) / prev) / RealScalar(2);
+  return 2 * exp(p * (log(curr) + log(prev)) / 2) * sinh(p * w) / (curr - prev);
+}
+
+}  // namespace internal
+
 /**
  * \ingroup MatrixFunctions_Module
  *
@@ -101,11 +192,6 @@ class MatrixPowerAtomic {
   void computePade(int degree, const MatrixType& IminusT, ResultType& res) const;
   void compute2x2(ResultType& res, RealScalar p) const;
   void computeBig(ResultType& res) const;
-  static int getPadeDegree(float normIminusT);
-  static int getPadeDegree(double normIminusT);
-  static int getPadeDegree(long double normIminusT);
-  static ComplexScalar computeSuperDiag(const ComplexScalar&, const ComplexScalar&, RealScalar p);
-  static RealScalar computeSuperDiag(RealScalar, RealScalar, RealScalar p);
 
  public:
   MatrixPowerAtomic(const MatrixPowerAtomic&) = delete;
@@ -192,7 +278,7 @@ void MatrixPowerAtomic<MatrixType>::compute2x2(ResultType& res, RealScalar p) co
     else if (2 * abs(a) < abs(b) || 2 * abs(b) < abs(a))
       res.coeffRef(i - 1, i) = (res.coeff(i, i) - res.coeff(i - 1, i - 1)) / diff;
     else
-      res.coeffRef(i - 1, i) = computeSuperDiag(b, a, p);
+      res.coeffRef(i - 1, i) = internal::matrix_power_compute_superdiag(b, a, p);
     res.coeffRef(i - 1, i) *= m_A.coeff(i - 1, i);
   }
 }
@@ -218,8 +304,8 @@ void MatrixPowerAtomic<MatrixType>::computeBig(ResultType& res) const {
     IminusT = MatrixType::Identity(m_A.rows(), m_A.cols()) - T;
     normIminusT = IminusT.cwiseAbs().colwise().sum().maxCoeff();
     if (normIminusT < maxNormForPade) {
-      degree = getPadeDegree(normIminusT);
-      degree2 = getPadeDegree(normIminusT / 2);
+      degree = internal::matrix_power_get_pade_degree(normIminusT);
+      degree2 = internal::matrix_power_get_pade_degree(normIminusT / 2);
       if (degree - degree2 <= 1 || hasExtraSquareRoot) break;
       hasExtraSquareRoot = true;
     }
@@ -234,94 +320,6 @@ void MatrixPowerAtomic<MatrixType>::computeBig(ResultType& res) const {
     res = res.template triangularView<Upper>() * res;
   }
   compute2x2(res, m_p);
-}
-
-template <typename MatrixType>
-inline int MatrixPowerAtomic<MatrixType>::getPadeDegree(float normIminusT) {
-  const float maxNormForPade[] = {2.8064004e-1f /* degree = 3 */, 4.3386528e-1f};
-  int degree = 3;
-  for (; degree <= 4; ++degree)
-    if (normIminusT <= maxNormForPade[degree - 3]) break;
-  return degree;
-}
-
-template <typename MatrixType>
-inline int MatrixPowerAtomic<MatrixType>::getPadeDegree(double normIminusT) {
-  const double maxNormForPade[] = {1.884160592658218e-2 /* degree = 3 */, 6.038881904059573e-2, 1.239917516308172e-1,
-                                   1.999045567181744e-1, 2.789358995219730e-1};
-  int degree = 3;
-  for (; degree <= 7; ++degree)
-    if (normIminusT <= maxNormForPade[degree - 3]) break;
-  return degree;
-}
-
-template <typename MatrixType>
-inline int MatrixPowerAtomic<MatrixType>::getPadeDegree(long double normIminusT) {
-#if LDBL_MANT_DIG == 53
-  const int maxPadeDegree = 7;
-  const double maxNormForPade[] = {1.884160592658218e-2L /* degree = 3 */, 6.038881904059573e-2L, 1.239917516308172e-1L,
-                                   1.999045567181744e-1L, 2.789358995219730e-1L};
-#elif LDBL_MANT_DIG <= 64
-  const int maxPadeDegree = 8;
-  const long double maxNormForPade[] = {6.3854693117491799460e-3L /* degree = 3 */,
-                                        2.6394893435456973676e-2L,
-                                        6.4216043030404063729e-2L,
-                                        1.1701165502926694307e-1L,
-                                        1.7904284231268670284e-1L,
-                                        2.4471944416607995472e-1L};
-#elif LDBL_MANT_DIG <= 106
-  const int maxPadeDegree = 10;
-  const double maxNormForPade[] = {1.0007161601787493236741409687186e-4L /* degree = 3 */,
-                                   1.0007161601787493236741409687186e-3L,
-                                   4.7069769360887572939882574746264e-3L,
-                                   1.3220386624169159689406653101695e-2L,
-                                   2.8063482381631737920612944054906e-2L,
-                                   4.9625993951953473052385361085058e-2L,
-                                   7.7367040706027886224557538328171e-2L,
-                                   1.1016843812851143391275867258512e-1L};
-#else
-  const int maxPadeDegree = 10;
-  const double maxNormForPade[] = {5.524506147036624377378713555116378e-5L /* degree = 3 */,
-                                   6.640600568157479679823602193345995e-4L,
-                                   3.227716520106894279249709728084626e-3L,
-                                   9.619593944683432960546978734646284e-3L,
-                                   2.134595382433742403911124458161147e-2L,
-                                   3.908166513900489428442993794761185e-2L,
-                                   6.266780814639442865832535460550138e-2L,
-                                   9.134603732914548552537150753385375e-2L};
-#endif
-  int degree = 3;
-  for (; degree <= maxPadeDegree; ++degree)
-    if (normIminusT <= static_cast<long double>(maxNormForPade[degree - 3])) break;
-  return degree;
-}
-
-template <typename MatrixType>
-inline typename MatrixPowerAtomic<MatrixType>::ComplexScalar MatrixPowerAtomic<MatrixType>::computeSuperDiag(
-    const ComplexScalar& curr, const ComplexScalar& prev, RealScalar p) {
-  using std::ceil;
-  using std::exp;
-  using std::log;
-  using std::sinh;
-
-  ComplexScalar logCurr = log(curr);
-  ComplexScalar logPrev = log(prev);
-  RealScalar unwindingNumber =
-      ceil((numext::imag(logCurr - logPrev) - RealScalar(EIGEN_PI)) / RealScalar(2 * EIGEN_PI));
-  ComplexScalar w =
-      numext::log1p((curr - prev) / prev) / RealScalar(2) + ComplexScalar(0, RealScalar(EIGEN_PI) * unwindingNumber);
-  return RealScalar(2) * exp(RealScalar(0.5) * p * (logCurr + logPrev)) * sinh(p * w) / (curr - prev);
-}
-
-template <typename MatrixType>
-inline typename MatrixPowerAtomic<MatrixType>::RealScalar MatrixPowerAtomic<MatrixType>::computeSuperDiag(
-    RealScalar curr, RealScalar prev, RealScalar p) {
-  using std::exp;
-  using std::log;
-  using std::sinh;
-
-  RealScalar w = numext::log1p((curr - prev) / prev) / RealScalar(2);
-  return 2 * exp(p * (log(curr) + log(prev)) / 2) * sinh(p * w) / (curr - prev);
 }
 
 /**
@@ -391,8 +389,11 @@ class MatrixPower {
 
  private:
   typedef internal::make_complex_t<Scalar> ComplexScalar;
-  typedef Matrix<ComplexScalar, Dynamic, Dynamic, 0, MatrixType::RowsAtCompileTime, MatrixType::ColsAtCompileTime>
-      ComplexMatrix;
+  // The maximum dimensions keep the Schur factors of a fixed-size MatrixType inline, which is
+  // what lets a.pow(p) run without heap allocation; dropping them so that all source types of
+  // one scalar share a MatrixPowerAtomic instantiation would break that contract.
+  using ComplexMatrix =
+      Matrix<ComplexScalar, Dynamic, Dynamic, 0, MatrixType::RowsAtCompileTime, MatrixType::ColsAtCompileTime>;
 
   /** \brief Reference to the base of matrix power. */
   typename MatrixType::Nested m_A;
@@ -440,13 +441,13 @@ class MatrixPower {
   template <typename ResultType>
   void computeFracPower(ResultType& res, RealScalar p);
 
-  template <int Rows, int Cols, int Options, int MaxRows, int MaxCols>
-  static void revertSchur(Matrix<ComplexScalar, Rows, Cols, Options, MaxRows, MaxCols>& res, const ComplexMatrix& T,
-                          const ComplexMatrix& U);
-
-  template <int Rows, int Cols, int Options, int MaxRows, int MaxCols>
-  static void revertSchur(Matrix<RealScalar, Rows, Cols, Options, MaxRows, MaxCols>& res, const ComplexMatrix& T,
-                          const ComplexMatrix& U);
+  // Dispatched on whether Scalar is complex rather than overloaded on the destination's
+  // Matrix template arguments, which instantiated a separate overload per destination shape.
+  static void revertSchur(MatrixType& res, const ComplexMatrix& T, const ComplexMatrix& U) {
+    revertSchurImpl(res, T, U, internal::bool_constant<NumTraits<Scalar>::IsComplex>());
+  }
+  static void revertSchurImpl(MatrixType& res, const ComplexMatrix& T, const ComplexMatrix& U, std::true_type);
+  static void revertSchurImpl(MatrixType& res, const ComplexMatrix& T, const ComplexMatrix& U, std::false_type);
 };
 
 template <typename MatrixType>
@@ -562,16 +563,14 @@ void MatrixPower<MatrixType>::computeFracPower(ResultType& res, RealScalar p) {
 }
 
 template <typename MatrixType>
-template <int Rows, int Cols, int Options, int MaxRows, int MaxCols>
-inline void MatrixPower<MatrixType>::revertSchur(Matrix<ComplexScalar, Rows, Cols, Options, MaxRows, MaxCols>& res,
-                                                 const ComplexMatrix& T, const ComplexMatrix& U) {
+inline void MatrixPower<MatrixType>::revertSchurImpl(MatrixType& res, const ComplexMatrix& T, const ComplexMatrix& U,
+                                                     std::true_type) {
   res.noalias() = U * (T.template triangularView<Upper>() * U.adjoint());
 }
 
 template <typename MatrixType>
-template <int Rows, int Cols, int Options, int MaxRows, int MaxCols>
-inline void MatrixPower<MatrixType>::revertSchur(Matrix<RealScalar, Rows, Cols, Options, MaxRows, MaxCols>& res,
-                                                 const ComplexMatrix& T, const ComplexMatrix& U) {
+inline void MatrixPower<MatrixType>::revertSchurImpl(MatrixType& res, const ComplexMatrix& T, const ComplexMatrix& U,
+                                                     std::false_type) {
   res.noalias() = (U * (T.template triangularView<Upper>() * U.adjoint())).real();
 }
 

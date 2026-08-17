@@ -8,6 +8,9 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
+// A fixed-size base keeps every intermediate of pow() inline; testNoMalloc() pins that.
+#define EIGEN_RUNTIME_NO_MALLOC
+
 #include "matrix_functions.h"
 
 template <typename T>
@@ -159,6 +162,25 @@ void testLogThenExp(const MatrixType& m_const, const typename MatrixType::RealSc
   }
 }
 
+// The Schur factors MatrixPower keeps are bounded by the base's compile-time dimensions, so a
+// fixed-size base must reach the result without touching the heap.
+template <typename MatrixType>
+void testNoMalloc(const MatrixType& m_const, const typename MatrixType::RealScalar& tol) {
+  MatrixType& m = const_cast<MatrixType&>(m_const);
+  typedef typename MatrixType::Scalar Scalar;
+  typedef typename MatrixType::RealScalar RealScalar;
+
+  // The perturbation's norm stays below one, so the base is invertible however Random() falls.
+  m = MatrixType::Identity() + MatrixType::Random() / Scalar(2 * MatrixType::RowsAtCompileTime);
+
+  MatrixType root;
+  internal::set_is_malloc_allowed(false);
+  root = m.pow(RealScalar(0.5));
+  internal::set_is_malloc_allowed(true);
+
+  VERIFY((root * root).isApprox(m, tol));
+}
+
 typedef Matrix<double, 3, 3, RowMajor> Matrix3dRowMajor;
 typedef Matrix<long double, 3, 3> Matrix3e;
 typedef Matrix<long double, Dynamic, Dynamic> MatrixXe;
@@ -217,4 +239,10 @@ EIGEN_DECLARE_TEST(matrix_power) {
   CALL_SUBTEST_10(testLogThenExp(Matrix3d(), 128 * NumTraits<double>::epsilon()));
   CALL_SUBTEST_11(testLogThenExp(Matrix3f(), 128 * NumTraits<float>::epsilon()));
   CALL_SUBTEST_12(testLogThenExp(Matrix3e(), 128 * NumTraits<long double>::epsilon()));
+
+  // 2-by-2 takes MatrixPowerAtomic's closed form, the larger sizes its Pade path.
+  CALL_SUBTEST_2(testNoMalloc(Matrix2d(), 128 * NumTraits<double>::epsilon()));
+  CALL_SUBTEST_10(testNoMalloc(Matrix3d(), 128 * NumTraits<double>::epsilon()));
+  CALL_SUBTEST_8(testNoMalloc(Matrix4f(), 128 * NumTraits<float>::epsilon()));
+  CALL_SUBTEST_3(testNoMalloc(Matrix4cd(), 128 * NumTraits<std::complex<double>>::epsilon()));
 }
