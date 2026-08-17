@@ -283,7 +283,6 @@ class Hyperplane {
   EIGEN_DEVICE_FUNC bool isCoincident(
       const Hyperplane<Scalar, AmbientDimAtCompileTime, OtherOptions>& other,
       const typename NumTraits<Scalar>::Real& prec = NumTraits<Scalar>::dummy_precision()) const {
-    typedef typename NumTraits<Scalar>::Real RealScalar;
     // The only candidate for conj(gamma) is the coefficient projecting one normal onto the
     // other; whatever it leaves unexplained lands in the residual.
     const Scalar conj_gamma = normal().dot(other.normal()) / Scalar(normal().squaredNorm());

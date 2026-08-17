@@ -22,8 +22,8 @@ void hyperplane_unit_phase(const HyperplaneType &, std::false_type) {}
 
 template <typename HyperplaneType>
 void hyperplane_unit_phase(const HyperplaneType &plane, std::true_type) {
-  typedef typename HyperplaneType::Scalar Scalar;
-  typedef typename HyperplaneType::VectorType VectorType;
+  using Scalar = typename HyperplaneType::Scalar;
+  using VectorType = typename HyperplaneType::VectorType;
   const Scalar gamma(0, 1);
 
   HyperplaneType rotated(numext::conj(gamma) * plane.normal(), gamma * plane.offset());
