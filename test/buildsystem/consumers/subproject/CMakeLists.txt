@@ -12,6 +12,13 @@
 cmake_minimum_required(VERSION 3.17)
 project(eigen_subproject_consumer CXX)
 
+# The consumer runs a test of its own, so the scenario can require that CTest
+# in this build directory sees exactly that one test.  Without a test to find,
+# "Eigen contributed nothing" and "CTest read the wrong directory" produce the
+# same empty listing.  enable_testing() precedes add_subdirectory so that any
+# test Eigen registered would be generated into this tree too.
+enable_testing()
+
 set(EIGEN_BUILD_TESTING OFF CACHE BOOL "" FORCE)
 set(EIGEN_BUILD_DOC OFF CACHE BOOL "" FORCE)
 set(EIGEN_BUILD_DEMOS OFF CACHE BOOL "" FORCE)
@@ -25,6 +32,7 @@ endif()
 
 add_executable(consumer ../main.cpp)
 target_link_libraries(consumer Eigen3::Eigen)
+add_test(NAME consumer_runs COMMAND consumer)
 
 # The consumer's own install rule must keep working whatever Eigen's does, so
 # the scenarios can tell "Eigen installed nothing" apart from "nothing ran".

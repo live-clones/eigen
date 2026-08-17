@@ -16,13 +16,20 @@ endif()
 
 set(EIGEN_BUILDSYSTEM_SCENARIOS
     find_package
-    find_package_version_range
     find_package_version_reject
     add_subdirectory
     install_default
     install_off
     exclude_from_all
     )
+
+# find_package version ranges are CMake 3.19 syntax.  On the 3.17 Eigen still
+# supports, "3.4...5" reaches Eigen3ConfigVersion.cmake as one unparsable
+# version string and the consumer configure fails, so the claim this scenario
+# tests cannot be stated there at all.
+if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.19)
+  list(APPEND EIGEN_BUILDSYSTEM_SCENARIOS find_package_version_range)
+endif()
 
 # EIGEN_BUILD_PKGCONFIG only exists off Windows, so the scenario asserting
 # that it suppresses eigen3.pc has nothing to assert there.

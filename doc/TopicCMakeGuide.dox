@@ -42,6 +42,9 @@ Starting with Eigen 3.4.1, we also support a range spanning major versions:
 ```
 find_package(Eigen3 3.4...5 REQUIRED NO_MODULE)  # Any version >=3.4.1 but <6.0.0.
 ```
+\note Version ranges are `find_package` syntax introduced in %CMake 3.19. Older %CMake
+passes `3.4...5` through as a single version string, which `Eigen3ConfigVersion.cmake`
+cannot parse and therefore rejects.
 
 Do not forget to set the <a href="https://cmake.org/cmake/help/v3.7/variable/CMAKE_PREFIX_PATH.html">\c CMAKE_PREFIX_PATH </a> variable if Eigen is not installed in a default location or if you want to pick a specific version. For instance:
 \code{.sh}
