@@ -19,7 +19,7 @@ namespace Eigen {
 namespace internal {
 
 template <DenseIndex Rows, DenseIndex Cols, typename XprType>
-struct traits<TensorImagePatchOp<Rows, Cols, XprType>> : public traits<XprType> {
+struct traits<TensorImagePatchOp<Rows, Cols, XprType>> : traits<XprType> {
   typedef std::remove_const_t<typename XprType::Scalar> Scalar;
   typedef traits<XprType> XprTraits;
   typedef typename XprTraits::StorageKind StorageKind;

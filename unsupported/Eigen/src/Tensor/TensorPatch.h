@@ -18,7 +18,7 @@ namespace Eigen {
 
 namespace internal {
 template <typename PatchDim, typename XprType>
-struct traits<TensorPatchOp<PatchDim, XprType> > : public traits<XprType> {
+struct traits<TensorPatchOp<PatchDim, XprType> > : traits<XprType> {
   typedef typename XprType::Scalar Scalar;
   typedef traits<XprType> XprTraits;
   typedef typename XprTraits::StorageKind StorageKind;
