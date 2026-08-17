@@ -457,8 +457,8 @@ void scalar_erf_erfc() {
 
 namespace custom_scalar {
 // Minimal custom real scalar providing erf/erfc via argument-dependent lookup,
-// the way interval and multiprecision types do. numext::erf/erfc must route to
-// these instead of the float/double-tuned polynomials (issue #3023).
+// the way multiprecision types do. numext::erf/erfc must route to these instead
+// of the float/double-tuned polynomials (issue #3023).
 struct CustomReal {
   double value;
   CustomReal() : value(0) {}
@@ -466,19 +466,35 @@ struct CustomReal {
 };
 inline CustomReal erf(const CustomReal& x) { return CustomReal(std::erf(x.value)); }
 inline CustomReal erfc(const CustomReal& x) { return CustomReal(std::erfc(x.value)); }
+
+// The shape of boost::numeric::interval: neither erf nor erfc. Eigen's
+// approximations are not valid for such a type, so it must not be routed into
+// them; see failtest/erf_no_scalar_overload.cpp for the resulting error.
+struct NoErfReal {
+  double value;
+};
 }  // namespace custom_scalar
 
 namespace Eigen {
 template <>
 struct NumTraits<custom_scalar::CustomReal> : NumTraits<double> {
-  typedef custom_scalar::CustomReal Real;
-  typedef custom_scalar::CustomReal NonInteger;
-  typedef custom_scalar::CustomReal Nested;
+  using Real = custom_scalar::CustomReal;
+  using NonInteger = custom_scalar::CustomReal;
+  using Nested = custom_scalar::CustomReal;
 };
 }  // namespace Eigen
 
 void custom_scalar_erf_erfc() {
   using custom_scalar::CustomReal;
+  using custom_scalar::NoErfReal;
+  // Pin the routing decision in both directions.
+  STATIC_CHECK((internal::has_erf<CustomReal>::value));
+  STATIC_CHECK((internal::has_erfc<CustomReal>::value));
+  STATIC_CHECK((internal::has_erf<long double>::value));
+  STATIC_CHECK((internal::has_erfc<long double>::value));
+  STATIC_CHECK((!internal::has_erf<NoErfReal>::value));
+  STATIC_CHECK((!internal::has_erfc<NoErfReal>::value));
+
   Eigen::Array<CustomReal, 4, 1> x;
   x(0) = CustomReal(-2.5);
   x(1) = CustomReal(-0.5);

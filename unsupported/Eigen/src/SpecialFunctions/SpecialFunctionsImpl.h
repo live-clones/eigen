@@ -259,6 +259,27 @@ struct digamma_impl {
   }
 };
 
+// Does unqualified lookup of erf/erfc succeed for T? The lookup below mirrors
+// the one at the call sites in erf_impl/erfc_impl, so it finds std::erf/std::erfc
+// and any overload visible through argument-dependent lookup.
+namespace unqualified_erf {
+EIGEN_USING_STD(erf)
+EIGEN_USING_STD(erfc)
+template <typename T>
+auto test_erf(int) -> decltype(void(erf(std::declval<const T&>())), std::true_type{});
+template <typename T>
+std::false_type test_erf(...);
+template <typename T>
+auto test_erfc(int) -> decltype(void(erfc(std::declval<const T&>())), std::true_type{});
+template <typename T>
+std::false_type test_erfc(...);
+}  // namespace unqualified_erf
+
+template <typename T>
+struct has_erf : decltype(unqualified_erf::test_erf<T>(0)) {};
+template <typename T>
+struct has_erfc : decltype(unqualified_erf::test_erfc<T>(0)) {};
+
 /***************************************************************************
  * Implementation of erfc.
  ****************************************************************************/
@@ -428,8 +449,19 @@ struct erfc_impl {
   // of the float/double-tuned polynomials.
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run_impl(const T& x, std::true_type) {
     EIGEN_STATIC_ASSERT_NON_INTEGER(T)
+    return run_scalar(x, has_erfc<T>());
+  }
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run_scalar(const T& x, std::true_type) {
     EIGEN_USING_STD(erfc);
     return erfc(x);
+  }
+  // Reject the type here instead of letting overload resolution fail inside the
+  // call above: the approximations in this file are tuned for float and double
+  // and are not valid for an arbitrary scalar, so a scalar type that wants erfc
+  // has to supply it.
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run_scalar(const T& x, std::false_type) {
+    EIGEN_STATIC_ASSERT(has_erfc<T>::value, SCALAR_TYPE_MUST_PROVIDE_AN_ERFC_OVERLOAD_FOUND_BY_ADL_OR_IN_NAMESPACE_STD)
+    return x;
   }
 };
 
@@ -537,8 +569,19 @@ struct erf_impl {
   // of the float/double-tuned polynomials.
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run_impl(const T& x, std::true_type) {
     EIGEN_STATIC_ASSERT_NON_INTEGER(T)
+    return run_scalar(x, has_erf<T>());
+  }
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run_scalar(const T& x, std::true_type) {
     EIGEN_USING_STD(erf);
     return erf(x);
+  }
+  // Reject the type here instead of letting overload resolution fail inside the
+  // call above: the approximations in this file are tuned for float and double
+  // and are not valid for an arbitrary scalar, so a scalar type that wants erf
+  // has to supply it.
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run_scalar(const T& x, std::false_type) {
+    EIGEN_STATIC_ASSERT(has_erf<T>::value, SCALAR_TYPE_MUST_PROVIDE_AN_ERF_OVERLOAD_FOUND_BY_ADL_OR_IN_NAMESPACE_STD)
+    return x;
   }
 };
 
