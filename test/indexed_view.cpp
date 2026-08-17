@@ -534,7 +534,7 @@ void check_tutorial_examples() {
   constexpr int kCols = 21;
   // Several slices below are checked against a Map built from A.data() with column-major
   // offsets and strides, so pin A's storage order.
-  typedef Matrix<double, kRows, kCols, ColMajor> MatrixA;
+  using MatrixA = Matrix<double, kRows, kCols, ColMajor>;
   MatrixA A = MatrixA::Random();
   Vector<double, kRows> v = Vector<double, kRows>::Random();
 
@@ -939,8 +939,8 @@ void check_indexed_view_storage_order() {
   ArrayXi indices(5);
   indices << 0, 1, 2, 1, 0;
 
-  typedef std::decay_t<decltype(values(indices, 1))> ColumnView;
-  typedef std::decay_t<decltype(values(1, indices))> RowView;
+  using ColumnView = std::decay_t<decltype(values(indices, 1))>;
+  using RowView = std::decay_t<decltype(values(1, indices))>;
   STATIC_CHECK((int(internal::traits<ColumnView>::Flags) & RowMajorBit) == 0);
   STATIC_CHECK((int(internal::traits<RowView>::Flags) & RowMajorBit) == RowMajorBit);
 
