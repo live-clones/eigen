@@ -20,6 +20,9 @@ inline void on_temporary_creation() {
 
 #include "sparse.h"
 
+#define EIGEN_TEST_ANNOYING_SCALAR_DONT_THROW
+#include "AnnoyingScalar.h"
+
 #define VERIFY_EVALUATION_COUNT(XPR, N)                                                   \
   {                                                                                       \
     nb_temporaries = 0;                                                                   \
@@ -599,6 +602,49 @@ void test_mixed_storage() {
   test_mixed_storage_imp<ColMajor, ColMajor, ColMajor>();
 }
 
+// The pruned sparse*sparse product accumulates each column into an AmbiVector,
+// which stores its coefficients either in a dense buffer or in a linked list of
+// (index, value) nodes depending on the estimated density. Both storage modes
+// must construct, move, and destroy the coefficients properly for
+// non-trivially-copyable scalars (issue #2873).
+void test_pruned_product_custom_scalar() {
+  typedef SparseMatrix<AnnoyingScalar> SpMat;
+  typedef Matrix<AnnoyingScalar, Dynamic, Dynamic> DenseMat;
+  int instances_before = AnnoyingScalar::instances;
+  {
+    // Low density runs the AmbiVector in linked-list mode, high density in
+    // dense-buffer mode.
+    for (double density : {0.02, 0.3}) {
+      const Index n = 50;
+      SpMat A(n, n), B(n, n);
+      for (Index k = 0; k < Index(density * n * n); ++k) {
+        A.coeffRef(internal::random<Index>(0, n - 1), internal::random<Index>(0, n - 1)) =
+            AnnoyingScalar(internal::random<float>());
+        B.coeffRef(internal::random<Index>(0, n - 1), internal::random<Index>(0, n - 1)) =
+            AnnoyingScalar(internal::random<float>());
+      }
+      SpMat C = (A * B).pruned();
+      DenseMat refC = DenseMat(A).lazyProduct(DenseMat(B));
+      VERIFY_IS_APPROX(DenseMat(C), refC);
+    }
+    // A single dense column in a large matrix overflows the initial node
+    // capacity and exercises the linked-list reallocation path.
+    {
+      const Index n = 1200;
+      SpMat A(n, n), B(n, n);
+      for (Index i = 0; i < 900; ++i) A.coeffRef(i, 0) = AnnoyingScalar(float(i % 7) + 1.0f);
+      B.coeffRef(0, 0) = AnnoyingScalar(2.0f);
+      SpMat C = (A * B).pruned();
+      VERIFY_IS_EQUAL(C.nonZeros(), 900);
+      for (Index i = 0; i < 900; i += 123) {
+        VERIFY_IS_APPROX(C.coeff(i, 0), AnnoyingScalar(2.0f * (float(i % 7) + 1.0f)));
+      }
+    }
+  }
+  // Every constructed AnnoyingScalar must have been destroyed again.
+  VERIFY_IS_EQUAL(AnnoyingScalar::instances, instances_before);
+}
+
 void test_sparse_vector_dense_product() {
   SparseVector<double> sv(3);
   sv.insert(0) = 1.0;
@@ -627,5 +673,7 @@ EIGEN_DECLARE_TEST(sparse_product) {
 
     CALL_SUBTEST_5((test_mixing_types<float>()));
     CALL_SUBTEST_5((test_mixed_storage()));
+
+    CALL_SUBTEST_6((test_pruned_product_custom_scalar()));
   }
 }
