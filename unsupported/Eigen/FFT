@@ -185,20 +185,27 @@ struct fft_inv_proxy : public ReturnByValue<fft_inv_proxy<T_SrcMat, T_FftIfc> > 
 
 namespace internal {
 
-// The transforms are one-dimensional, but a dynamically sized matrix only
-// knows at run time whether it holds a single row or column, so it cannot be
-// rejected at compile time the way a fixed-size 2-D matrix can.
+// The transforms are one-dimensional, but a matrix with a dynamic dimension only knows at run
+// time whether that dimension is one, so it cannot be rejected at compile time the way a matrix
+// of known two-dimensional shape can. Only the latter is excluded here.
 template <typename Derived>
 struct fft_accepts_as_vector {
-  static constexpr bool value = bool(Derived::IsVectorAtCompileTime) || (int(Derived::RowsAtCompileTime) == Dynamic &&
-                                                                         int(Derived::ColsAtCompileTime) == Dynamic);
+  static constexpr bool value = bool(Derived::IsVectorAtCompileTime) || int(Derived::RowsAtCompileTime) == Dynamic ||
+                                int(Derived::ColsAtCompileTime) == Dynamic;
 };
 
-// Resize a one-dimensional destination, keeping the orientation it already has
-// at compile time, or that of the source when it has none.
+// Resize a one-dimensional destination. Every orientation a compile-time dimension leaves open
+// is settled here: a fixed dimension other than one can only be the long one, and a destination
+// with two dynamic dimensions takes the orientation of the source.
 template <typename Derived>
 EIGEN_STRONG_INLINE void fft_resize_as_vector(DenseBase<Derived>& dst, Index size, bool source_is_row) {
-  const bool row = int(Derived::IsVectorAtCompileTime) ? int(Derived::RowsAtCompileTime) == 1 : source_is_row;
+  constexpr int Rows = int(Derived::RowsAtCompileTime);
+  constexpr int Cols = int(Derived::ColsAtCompileTime);
+  const bool row = Rows == 1         ? true
+                   : Cols == 1       ? false
+                   : Cols != Dynamic ? true
+                   : Rows != Dynamic ? false
+                                     : source_is_row;
   dst.derived().resize(row ? 1 : size, row ? size : 1);
 }
 

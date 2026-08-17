@@ -490,10 +490,53 @@ void test_dynamic_matrix_operands(int nfft) {
   VERIFY(T(dif_rmse(row_vector_freq.reshaped(), reference_freq)) < test_precision<T>());
 }
 
+// A matrix with only one dynamic dimension is one-dimensional at run time in exactly one
+// orientation: the fixed dimension, when it is not one, has to be the long one. Such an operand
+// is as acceptable as a fully dynamic one, and it pins the orientation of a destination.
+template <typename T, int N>
+void test_partially_dynamic_matrix_operands() {
+  typedef typename FFT<T>::Complex Complex;
+
+  FFT<T> fft;
+  Matrix<T, N, 1> reference;
+  for (int k = 0; k < N; ++k) reference[k] = T(rand() / (double)RAND_MAX - .5);
+  Matrix<Complex, N, 1> reference_freq;
+  fft.fwd(reference_freq, reference);
+
+  // A dynamic row count with N columns can only be a row.
+  Matrix<T, Dynamic, N> row_src(1, N);
+  row_src.row(0) = reference.transpose();
+  Matrix<Complex, Dynamic, N> row_freq;
+  fft.fwd(row_freq, row_src);
+  VERIFY_IS_EQUAL(row_freq.rows(), 1);
+  VERIFY(T(dif_rmse(row_freq.reshaped(), reference_freq)) < test_precision<T>());
+
+  Matrix<T, Dynamic, N> row_back;
+  fft.inv(row_back, row_freq);
+  VERIFY_IS_EQUAL(row_back.rows(), 1);
+  VERIFY(T(dif_rmse(row_back.reshaped(), reference)) < test_precision<T>());
+
+  // A dynamic column count with N rows can only be a column.
+  Matrix<T, N, Dynamic> col_src(N, 1);
+  col_src.col(0) = reference;
+  Matrix<Complex, N, Dynamic> col_freq;
+  fft.fwd(col_freq, col_src);
+  VERIFY_IS_EQUAL(col_freq.cols(), 1);
+  VERIFY(T(dif_rmse(col_freq.reshaped(), reference_freq)) < test_precision<T>());
+
+  Matrix<T, N, Dynamic> col_back;
+  fft.inv(col_back, col_freq);
+  VERIFY_IS_EQUAL(col_back.cols(), 1);
+  VERIFY(T(dif_rmse(col_back.reshaped(), reference)) < test_precision<T>());
+}
+
 EIGEN_DECLARE_TEST(FFTW) {
   CALL_SUBTEST(test_dynamic_matrix_operands<float>(32));
   CALL_SUBTEST(test_dynamic_matrix_operands<double>(32));
   CALL_SUBTEST(test_dynamic_matrix_operands<double>(2 * 3 * 4 * 5));
+  CALL_SUBTEST((test_partially_dynamic_matrix_operands<float, 32>()));
+  CALL_SUBTEST((test_partially_dynamic_matrix_operands<double, 32>()));
+  CALL_SUBTEST((test_partially_dynamic_matrix_operands<double, 2 * 3 * 4 * 5>()));
   CALL_SUBTEST(test_return_by_value(32));
   // Regression test for #1537 -- reuse one FFT object for both real and
   // complex inputs of the same size.
