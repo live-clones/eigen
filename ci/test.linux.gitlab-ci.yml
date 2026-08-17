@@ -731,3 +731,42 @@ test:linux:aarch64:clang-14:default:smoketest:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   tags:
     - saas-linux-small-arm64
+
+##### Build-System Integration #################################################
+
+# Grounds the CMake behavior doc/TopicCMakeGuide.dox documents: find_package
+# against an installed tree, the version-range contract of the hand-written
+# Eigen3ConfigVersion.cmake, embedding via add_subdirectory, and the ways an
+# embedding project opts out of Eigen's install rules.
+#
+# Self-contained, so it neither extends .test:linux nor needs a build job: the
+# scenarios run their own nested configures against the checkout, and the
+# enclosing build directory holds only the CTest definitions.  Staying off
+# .test:linux also keeps it off the pass cache, which keys on a test's
+# executable -- these tests have none, so a recorded pass would outlive any
+# change to Eigen's CMake files.
+#
+# Cheap enough (a nested configure and a small compile per scenario) to run on
+# every merge request rather than behind the all-tests label. That matters:
+# the documentation job it complements does sit behind that label, which is how
+# an incorrect claim in the CMake guide reached a release unnoticed.
+test:linux:buildsystem:
+  extends: .common:linux:cross
+  image: ${EIGEN_CI_IMAGE_LINUX_AMD64_SMOKETEST_BUILD}
+  stage: test
+  needs: []
+  variables:
+    EIGEN_CI_TARGET_ARCH: x86_64
+    EIGEN_CI_CROSS_TARGET_TRIPLE: x86_64-linux-gnu
+    EIGEN_CI_C_COMPILER: gcc-10
+    EIGEN_CI_CXX_COMPILER: g++-10
+    EIGEN_CI_SKIP_APT: "true"
+  script:
+    - . ci/scripts/test.buildsystem.script.sh
+  tags:
+    - saas-linux-medium-amd64
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

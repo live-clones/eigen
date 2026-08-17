@@ -1,0 +1,52 @@
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
+
+# Build-system integration tests.  Each scenario drives a real configure,
+# build, and install of Eigen through CMake and asserts a claim that
+# doc/TopicCMakeGuide.dox makes about consuming Eigen, so documented CMake
+# behavior cannot drift from the tree without a test failing.
+#
+# Registered only for a top-level, non-cross-compiling build: a scenario
+# configures and runs a nested project, which needs a usable host toolchain
+# rather than the artifacts of the enclosing build.
+
+if(NOT PROJECT_IS_TOP_LEVEL OR CMAKE_CROSSCOMPILING)
+  return()
+endif()
+
+set(EIGEN_BUILDSYSTEM_SCENARIOS
+    find_package
+    find_package_version_range
+    find_package_version_reject
+    add_subdirectory
+    install_default
+    install_off
+    exclude_from_all
+    )
+
+# EIGEN_BUILD_PKGCONFIG only exists off Windows, so the scenario asserting
+# that it suppresses eigen3.pc has nothing to assert there.
+if(NOT WIN32 OR NOT CMAKE_HOST_SYSTEM_NAME MATCHES Windows)
+  list(APPEND EIGEN_BUILDSYSTEM_SCENARIOS pkgconfig_off)
+endif()
+
+set(EIGEN_BUILDSYSTEM_CONFIG "${CMAKE_BUILD_TYPE}")
+if(NOT EIGEN_BUILDSYSTEM_CONFIG)
+  set(EIGEN_BUILDSYSTEM_CONFIG "Release")
+endif()
+
+foreach(scenario IN LISTS EIGEN_BUILDSYSTEM_SCENARIOS)
+  add_test(NAME buildsystem_${scenario}
+    COMMAND ${CMAKE_COMMAND}
+      "-DEIGEN_SOURCE_DIR=${Eigen_SOURCE_DIR}"
+      "-DSCENARIO=${scenario}"
+      "-DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/${scenario}"
+      "-DGENERATOR=${CMAKE_GENERATOR}"
+      "-DCXX_COMPILER=${CMAKE_CXX_COMPILER}"
+      "-DBUILD_CONFIG=${EIGEN_BUILDSYSTEM_CONFIG}"
+      -P "${CMAKE_CURRENT_SOURCE_DIR}/run_scenario.cmake")
+  # Each scenario runs several nested CMake invocations; the default 1500s
+  # ceiling is ample, but a hung nested build should fail rather than hang.
+  set_tests_properties(buildsystem_${scenario} PROPERTIES
+                       LABELS "buildsystem" TIMEOUT 900)
+endforeach()
