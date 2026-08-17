@@ -8,11 +8,16 @@
 # DartConfiguration.tcl so `ctest -T test` can initialize the dashboard and
 # write Testing/, which the JUnit conversion in the after script needs.
 
+# Write-Information is preferred over Write-Host, but the information stream is
+# discarded unless this is set: $InformationPreference defaults to
+# SilentlyContinue, so the messages below would never reach the job log.
+$InformationPreference = 'Continue'
+
 $builddir = (Get-Item ${EIGEN_CI_BUILDDIR}).FullName -replace '\\','/'
 $stamp = Join-Path ${EIGEN_CI_BUILDDIR} '.eigen_ci_builddir'
 $origdir = (Get-Content $stamp -First 1).Trim()
 
-Write-Host "Repointing CTest files: ${origdir} -> ${builddir}"
+Write-Information "Repointing CTest files: ${origdir} -> ${builddir}"
 
 Get-ChildItem -Path ${EIGEN_CI_BUILDDIR} -Recurse -File |
   Where-Object { $_.Name -in 'CTestTestfile.cmake', 'DartConfiguration.tcl' } |
