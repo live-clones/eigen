@@ -255,12 +255,31 @@ class Hyperplane {
   /** \returns \c true if \c *this is approximately equal to \a other, within the precision
    * determined by \a prec.
    *
-   * \sa MatrixBase::isApprox() */
+   * Hyperplanes are oriented: the sign of their coefficients decides which side signedDistance()
+   * reports as positive, so a hyperplane and its negation are not approximately equal here even
+   * though they describe the same point set. Use isCoincident() to compare them as point sets.
+   *
+   * \sa isCoincident(), MatrixBase::isApprox() */
   template <int OtherOptions>
   EIGEN_DEVICE_FUNC bool isApprox(
       const Hyperplane<Scalar, AmbientDimAtCompileTime, OtherOptions>& other,
       const typename NumTraits<Scalar>::Real& prec = NumTraits<Scalar>::dummy_precision()) const {
     return m_coeffs.isApprox(other.m_coeffs, prec);
+  }
+
+  /** \returns \c true if \c *this and \a other describe approximately the same set of points,
+   * within the precision determined by \a prec, regardless of orientation.
+   *
+   * This holds when their coefficient vectors are approximately equal up to a common sign, so
+   * unlike isApprox() a hyperplane is coincident with its negation. Both hyperplanes are
+   * assumed normalized; see normalize().
+   *
+   * \sa isApprox(), normalize() */
+  template <int OtherOptions>
+  EIGEN_DEVICE_FUNC bool isCoincident(
+      const Hyperplane<Scalar, AmbientDimAtCompileTime, OtherOptions>& other,
+      const typename NumTraits<Scalar>::Real& prec = NumTraits<Scalar>::dummy_precision()) const {
+    return m_coeffs.isApprox(other.coeffs(), prec) || m_coeffs.isApprox(-other.coeffs(), prec);
   }
 
  protected:

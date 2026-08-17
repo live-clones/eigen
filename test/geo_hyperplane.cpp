@@ -50,6 +50,18 @@ void hyperplane(const HyperplaneType &_plane) {
   VERIFY_IS_MUCH_SMALLER_THAN(pl1.signedDistance(pl1.projection(p0)), Scalar(1));
   VERIFY_IS_MUCH_SMALLER_THAN(pl1.absDistance(p1 + pl1.normal().unitOrthogonal() * s1), Scalar(1));
 
+  // isCoincident() compares hyperplanes as point sets, so it ignores the orientation that
+  // isApprox() distinguishes (issue #2033).
+  {
+    HyperplaneType flipped(-pl1.normal(), -pl1.offset());
+    VERIFY(pl1.isCoincident(pl1));
+    VERIFY(pl1.isCoincident(flipped));
+    VERIFY(flipped.isCoincident(pl1));
+    VERIFY(!pl1.isApprox(flipped));
+    // A genuinely different hyperplane is neither.
+    VERIFY(!pl1.isCoincident(pl0) || pl1.coeffs().isApprox(pl0.coeffs()) || pl1.coeffs().isApprox(-pl0.coeffs()));
+  }
+
   // transform
   if (!NumTraits<Scalar>::IsComplex) {
     MatrixType rot = MatrixType::Random(dim, dim).householderQr().householderQ();
