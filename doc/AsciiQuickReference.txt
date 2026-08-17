@@ -86,7 +86,7 @@ P.bottomRightCorner<rows,cols>()   // P(end-rows+1:end, end-cols+1:end)
 // using namespace Eigen::indexing; provides seq, seqN, all, last, lastN.
 // Eigen                           // Matlab
 x(seq(i, j))                       // x(i+1 : j+1)
-x(seq(i, j, s))                    // x(i+1 : s : j+1)
+x(seq(i, j, step))                 // x(i+1 : step : j+1)
 x(seqN(i, n))                      // x(i+1 : i+n)
 x(lastN(n))                        // x(end-n+1 : end)
 P(all, j)                          // P(:, j+1)
@@ -98,18 +98,18 @@ P(ind, all)                        // P(ind, :)      // ind: vector/array of ind
 R.row(i) = P.col(j);               // R(i, :) = P(:, j)
 R.col(j1).swap(R.col(j2));         // R(:, [j1 j2]) = R(:, [j2, j1])
 
-// Views, transpose, reshape, etc; all read-write except .adjoint().
+// Views, transpose, reshape, etc.
 // Eigen                           // Matlab
 R.adjoint()                        // R'
 R.transpose()                      // R.' or conj(R')       // Read-write
 R.diagonal()                       // diag(R)               // Read-write
 x.asDiagonal()                     // diag(x)
 R.transpose().colwise().reverse()  // rot90(R)              // Read-write
-R.rowwise().reverse()              // fliplr(R)
-R.colwise().reverse()              // flipud(R)
+R.rowwise().reverse()              // fliplr(R)             // Read-write
+R.colwise().reverse()              // flipud(R)             // Read-write
 R.replicate(i,j)                   // repmat(P,i,j)
-R.reshaped(m,n)                    // reshape(R,m,n)        // column-major view
-R.reshaped()                       // R(:)                  // 1D column-major view
+R.reshaped(m,n)                    // reshape(R,m,n)        // Read-write, column-major view
+R.reshaped()                       // R(:)                  // Read-write, 1D column-major view
 
 
 // All the same as Matlab, but matlab doesn't have *= style operators.

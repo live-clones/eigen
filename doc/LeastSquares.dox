@@ -11,7 +11,7 @@ The methods discussed on this page are the complete orthogonal decomposition (CO
 decomposition, other QR decompositions, and normal equations. For most problems, we recommend
 CompleteOrthogonalDecomposition: it robustly computes the minimum-norm least squares solution
 (like the SVD) for both over- and under-determined systems, including rank-deficient ones, but at
-QR-like speed. For large problems, RandCompleteOrthogonalDecomposition computes the same
+QR-like speed. For large problems, RandCompleteOrthogonalDecomposition computes the same kind of
 factorization with a randomized blocked rank-revealing QR. The SVD is the most robust but also the
 slowest; use it when you also need singular values or vectors. Normal equations are the fastest but
 least robust.
@@ -35,11 +35,12 @@ step, so it is significantly faster than SVD while providing comparable robustne
 </tr>
 </table>
 
-For large problems, RandCompleteOrthogonalDecomposition computes the same factorization through a
-randomized blocked rank-revealing QR (RandColPivHouseholderQR) instead. It selects each block of
-pivots from a small Gaussian sketch of the matrix, which keeps nearly all of the work in level-3
-BLAS kernels rather than in the memory-bound column scan that classical column pivoting requires;
-the pivot-quality difference is empirically minor. It has the same interface, so it is a drop-in
+For large problems, RandCompleteOrthogonalDecomposition computes the same kind of factorization
+through a randomized blocked rank-revealing QR (RandColPivHouseholderQR) instead. It selects each
+block of pivots from a small Gaussian sketch of the matrix, which keeps nearly all of the work in
+level-3 BLAS kernels rather than in the memory-bound column scan that classical column pivoting
+requires. The pivots therefore differ from the ones classical column pivoting would choose, and so
+do the resulting factors, but the pivot-quality difference is empirically minor. It has the same interface, so it is a drop-in
 replacement in the example above, and additionally exposes setBlockSize() and setSeed() to control
 the underlying QR. For small matrices the cost of forming the sketch dominates, so prefer
 CompleteOrthogonalDecomposition there.
