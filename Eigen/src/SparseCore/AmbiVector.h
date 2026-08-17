@@ -30,7 +30,14 @@ class AmbiVector {
   using StorageIndex = StorageIndex_;
 
   explicit AmbiVector(Index size)
-      : m_buffer(0), m_zero(0), m_size(0), m_end(0), m_allocatedSize(0), m_allocatedElements(0), m_mode(-1) {
+      : m_buffer(0),
+        m_zero(0),
+        m_size(0),
+        m_end(0),
+        m_allocatedSize(0),
+        m_allocatedElements(0),
+        m_denseConstructed(0),
+        m_mode(-1) {
     resize(size);
   }
 
@@ -53,7 +60,10 @@ class AmbiVector {
 
   class Iterator;
 
-  ~AmbiVector() { delete[] m_buffer; }
+  ~AmbiVector() {
+    destructElements();
+    internal::aligned_free(m_buffer);
+  }
 
   void resize(Index size) {
     if (m_allocatedSize < size) reallocate(size);
@@ -78,29 +88,47 @@ class AmbiVector {
   void reallocate(Index size) {
     // if the size of the matrix is not too large, let's allocate a bit more than needed such
     // that we can handle dense vector even in sparse mode.
-    delete[] m_buffer;
+    destructElements();
+    internal::aligned_free(m_buffer);
+    Index allocSize;
     if (size < 1000) {
-      Index allocSize = (size * sizeof(ListEl) + sizeof(Scalar) - 1) / sizeof(Scalar);
+      allocSize = (size * sizeof(ListEl) + sizeof(Scalar) - 1) / sizeof(Scalar);
       m_allocatedElements = convert_index((allocSize * sizeof(Scalar)) / sizeof(ListEl));
-      m_buffer = new Scalar[allocSize];
     } else {
+      allocSize = size;
       m_allocatedElements = convert_index((size * sizeof(Scalar)) / sizeof(ListEl));
-      m_buffer = new Scalar[size];
     }
+    // The buffer is raw storage: init() constructs the elements the mode needs.
+    m_buffer = static_cast<Scalar*>(internal::aligned_malloc(allocSize * sizeof(Scalar)));
+    m_allocatedSize = convert_index(allocSize);
+    m_mode = -1;
     m_size = convert_index(size);
     m_start = 0;
     m_end = m_size;
   }
 
   void reallocateSparse() {
-    Index copyElements = m_allocatedElements;
+    Index copyElements = m_llSize;
     m_allocatedElements = (std::min)(StorageIndex(m_allocatedElements * 1.5), m_size);
     Index allocSize = m_allocatedElements * sizeof(ListEl);
     allocSize = (allocSize + sizeof(Scalar) - 1) / sizeof(Scalar);
-    Scalar* newBuffer = new Scalar[allocSize];
-    std::memcpy(newBuffer, m_buffer, copyElements * sizeof(ListEl));
-    delete[] m_buffer;
+    Scalar* newBuffer = static_cast<Scalar*>(internal::aligned_malloc(allocSize * sizeof(Scalar)));
+    ListEl* newElements = static_cast<ListEl*>(static_cast<void*>(newBuffer));
+    internal::move_construct_elements_of_array(newElements, listElements(), copyElements);
+    internal::destruct_elements_of_array(listElements(), copyElements);
+    internal::aligned_free(m_buffer);
     m_buffer = newBuffer;
+  }
+
+  // Destroy whatever elements are currently alive in the raw buffer.
+  void destructElements() {
+    if (m_mode == IsDense) {
+      internal::destruct_elements_of_array(m_buffer, m_denseConstructed);
+      m_denseConstructed = 0;
+    } else if (m_mode == IsSparse) {
+      internal::destruct_elements_of_array(listElements(), m_llSize);
+      m_llSize = 0;
+    }
   }
 
   // used to store data in both modes
@@ -111,6 +139,7 @@ class AmbiVector {
   StorageIndex m_end;
   StorageIndex m_allocatedSize;
   StorageIndex m_allocatedElements;
+  StorageIndex m_denseConstructed;  // number of live Scalar objects in dense mode
   StorageIndex m_mode;
 
   // linked list mode
@@ -138,7 +167,19 @@ void AmbiVector<Scalar_, StorageIndex_>::init(double estimatedDensity) {
 
 template <typename Scalar_, typename StorageIndex_>
 void AmbiVector<Scalar_, StorageIndex_>::init(int mode) {
-  m_mode = mode;
+  if (mode != m_mode) {
+    destructElements();
+    m_mode = convert_index(mode);
+  } else if (m_mode == IsSparse) {
+    // Re-initializing in sparse mode discards the previous list.
+    internal::destruct_elements_of_array(listElements(), m_llSize);
+  }
+  if (m_mode == IsDense && m_denseConstructed < m_size) {
+    // Construct the dense coefficients this mode reads and writes; they stay
+    // alive across subsequent dense inits, like the values they carry.
+    internal::default_construct_elements_of_array(m_buffer + m_denseConstructed, m_size - m_denseConstructed);
+    m_denseConstructed = m_size;
+  }
   // This is only necessary in sparse mode, but we set these unconditionally to avoid some maybe-uninitialized warnings
   // if (m_mode==IsSparse)
   {
@@ -182,13 +223,14 @@ Scalar_& AmbiVector<Scalar_, StorageIndex_>::coeffRef(Index i) {
       m_llStart = 0;
       m_llCurrent = 0;
       ++m_llSize;
-      llElements[0].value = Scalar(0);
-      llElements[0].index = convert_index(i);
-      llElements[0].next = -1;
-      return llElements[0].value;
+      ListEl& el = *internal::default_construct_elements_of_array(llElements, 1);
+      el.value = Scalar(0);
+      el.index = convert_index(i);
+      el.next = -1;
+      return el.value;
     } else if (i < llElements[m_llStart].index) {
       // this is going to be the new first element of the list
-      ListEl& el = llElements[m_llSize];
+      ListEl& el = *internal::default_construct_elements_of_array(llElements + m_llSize, 1);
       el.value = Scalar(0);
       el.index = convert_index(i);
       el.next = m_llStart;
@@ -215,7 +257,7 @@ Scalar_& AmbiVector<Scalar_, StorageIndex_>::coeffRef(Index i) {
         }
         eigen_internal_assert(m_llSize < m_allocatedElements && "internal error: overflow in sparse mode");
         // let's insert a new coefficient
-        ListEl& el = llElements[m_llSize];
+        ListEl& el = *internal::default_construct_elements_of_array(llElements + m_llSize, 1);
         el.value = Scalar(0);
         el.index = convert_index(i);
         el.next = llElements[m_llCurrent].next;
