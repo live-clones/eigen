@@ -194,11 +194,23 @@ struct fft_accepts_as_vector {
                                 int(Derived::ColsAtCompileTime) == Dynamic;
 };
 
+// Distance between consecutive elements of a one-dimensional operand. The inner stride does not
+// answer this once matrices are accepted: a matrix holding a single row steps along its outer
+// stride, and only a unit distance lets the transform run over the operand's own memory.
+template <typename Derived>
+EIGEN_STRONG_INLINE Index fft_linear_stride(const DenseBase<Derived>& x) {
+  return x.rows() == 1 ? x.derived().colStride() : x.derived().rowStride();
+}
+
 // Resize a one-dimensional destination. Every orientation a compile-time dimension leaves open
 // is settled here: a fixed dimension other than one can only be the long one, and a destination
 // with two dynamic dimensions takes the orientation of the source.
 template <typename Derived>
 EIGEN_STRONG_INLINE void fft_resize_as_vector(DenseBase<Derived>& dst, Index size, bool source_is_row) {
+  // A destination already holding the transform's length in one dimension keeps that shape, which
+  // is the only one a view such as a Map can be given at all.
+  if ((dst.rows() == 1 && dst.cols() == size) || (dst.cols() == 1 && dst.rows() == size)) return;
+
   constexpr int Rows = int(Derived::RowsAtCompileTime);
   constexpr int Cols = int(Derived::ColsAtCompileTime);
   const bool row = Rows == 1         ? true
@@ -288,14 +300,14 @@ class FFT {
     }
     internal::fft_resize_as_vector(dst, dst_size, src.rows() == 1);
 
-    if (src.innerStride() != 1 || src.size() < nfft) {
+    if (internal::fft_linear_stride(src) != 1 || src.size() < nfft) {
       Matrix<src_type, 1, Dynamic> tmp(1, nfft);
       const Index copy_size = (std::min)(src.size(), nfft);
       if (copy_size > 0) {
         tmp.head(copy_size) = src.reshaped().head(copy_size);
       }
       if (copy_size < nfft) tmp.tail(nfft - copy_size).setZero();
-      if (dst.innerStride() != 1) {
+      if (internal::fft_linear_stride(dst) != 1) {
         Matrix<dst_type, 1, Dynamic> out(1, dst_size);
         fwd(out.data(), tmp.data(), nfft);
         dst.derived() = out.reshaped(dst.rows(), dst.cols());
@@ -303,7 +315,7 @@ class FFT {
         fwd(dst.derived().data(), tmp.data(), nfft);
       }
     } else {
-      if (dst.innerStride() != 1) {
+      if (internal::fft_linear_stride(dst) != 1) {
         Matrix<dst_type, 1, Dynamic> out(1, dst_size);
         fwd(out.data(), src.derived().data(), nfft);
         dst.derived() = out.reshaped(dst.rows(), dst.cols());
@@ -362,7 +374,7 @@ class FFT {
     // check for nfft that does not fit the input data size
     Index resize_input = (realfft && HasFlag(HalfSpectrum)) ? ((nfft / 2 + 1) - src.size()) : (nfft - src.size());
 
-    if (src.innerStride() != 1 || resize_input) {
+    if (internal::fft_linear_stride(src) != 1 || resize_input) {
       // if the vector is strided, then we need to copy it to a packed temporary
       const auto src_lin = src.reshaped();
       Matrix<src_type, 1, Dynamic> tmp;
@@ -391,7 +403,7 @@ class FFT {
         tmp = src_lin;
       }
 
-      if (dst.innerStride() != 1) {
+      if (internal::fft_linear_stride(dst) != 1) {
         Matrix<dst_type, 1, Dynamic> out(1, nfft);
         inv(out.data(), tmp.data(), nfft);
         dst.derived() = out.reshaped(dst.rows(), dst.cols());
@@ -399,7 +411,7 @@ class FFT {
         inv(dst.derived().data(), tmp.data(), nfft);
       }
     } else {
-      if (dst.innerStride() != 1) {
+      if (internal::fft_linear_stride(dst) != 1) {
         Matrix<dst_type, 1, Dynamic> out(1, nfft);
         inv(out.data(), src.derived().data(), nfft);
         dst.derived() = out.reshaped(dst.rows(), dst.cols());

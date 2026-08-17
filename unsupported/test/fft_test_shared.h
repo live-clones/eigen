@@ -530,6 +530,40 @@ void test_partially_dynamic_matrix_operands() {
   VERIFY(T(dif_rmse(col_back.reshaped(), reference)) < test_precision<T>());
 }
 
+// Once matrices are accepted, a unit inner stride no longer means the operand is packed: a view
+// holding a single row of a wider buffer steps along its outer stride instead.
+template <typename T>
+void test_strided_row_operands(int nfft) {
+  typedef typename FFT<T>::Complex Complex;
+  typedef Matrix<T, Dynamic, Dynamic> DynMatrix;
+  typedef Matrix<Complex, Dynamic, Dynamic> DynCMatrix;
+  const Index stride = 3;
+
+  FFT<T> fft;
+  Matrix<T, Dynamic, 1> reference(nfft);
+  for (int k = 0; k < nfft; ++k) reference[k] = T(rand() / (double)RAND_MAX - .5);
+  Matrix<Complex, Dynamic, 1> reference_freq;
+  fft.fwd(reference_freq, reference);
+
+  // Strided source.
+  DynMatrix storage = DynMatrix::Zero(stride, nfft);
+  Map<DynMatrix, 0, OuterStride<>> src(storage.data(), 1, nfft, OuterStride<>(stride));
+  src.row(0) = reference.transpose();
+  Matrix<Complex, Dynamic, 1> freq;
+  fft.fwd(freq, src);
+  VERIFY(T(dif_rmse(freq, reference_freq)) < test_precision<T>());
+
+  // Strided destination, and back again as a strided source.
+  DynCMatrix freq_storage = DynCMatrix::Zero(stride, nfft);
+  Map<DynCMatrix, 0, OuterStride<>> freq_dst(freq_storage.data(), 1, nfft, OuterStride<>(stride));
+  fft.fwd(freq_dst, reference);
+  VERIFY(T(dif_rmse(freq_storage.row(0), reference_freq)) < test_precision<T>());
+
+  Matrix<T, Dynamic, 1> back;
+  fft.inv(back, freq_dst);
+  VERIFY(T(dif_rmse(back, reference)) < test_precision<T>());
+}
+
 EIGEN_DECLARE_TEST(FFTW) {
   CALL_SUBTEST(test_dynamic_matrix_operands<float>(32));
   CALL_SUBTEST(test_dynamic_matrix_operands<double>(32));
@@ -537,6 +571,9 @@ EIGEN_DECLARE_TEST(FFTW) {
   CALL_SUBTEST((test_partially_dynamic_matrix_operands<float, 32>()));
   CALL_SUBTEST((test_partially_dynamic_matrix_operands<double, 32>()));
   CALL_SUBTEST((test_partially_dynamic_matrix_operands<double, 2 * 3 * 4 * 5>()));
+  CALL_SUBTEST(test_strided_row_operands<float>(32));
+  CALL_SUBTEST(test_strided_row_operands<double>(32));
+  CALL_SUBTEST(test_strided_row_operands<double>(2 * 3 * 4 * 5));
   CALL_SUBTEST(test_return_by_value(32));
   // Regression test for #1537 -- reuse one FFT object for both real and
   // complex inputs of the same size.
