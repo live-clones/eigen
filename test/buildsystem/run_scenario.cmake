@@ -75,12 +75,18 @@ function(bs_run)
   endif()
 endfunction()
 
+# Eigen's own project() call enables C as well as CXX, so a nested configure of
+# Eigen needs both compilers.  An image whose compilers are versioned names such
+# as gcc-10/g++-10, with no plain cc on PATH, has none to detect on its own.
 function(bs_cmake_compiler_args out_var)
-  if(CXX_COMPILER)
-    set(${out_var} "-DCMAKE_CXX_COMPILER=${CXX_COMPILER}" PARENT_SCOPE)
-  else()
-    set(${out_var} "" PARENT_SCOPE)
+  set(args "")
+  if(C_COMPILER)
+    list(APPEND args "-DCMAKE_C_COMPILER=${C_COMPILER}")
   endif()
+  if(CXX_COMPILER)
+    list(APPEND args "-DCMAKE_CXX_COMPILER=${CXX_COMPILER}")
+  endif()
+  set(${out_var} "${args}" PARENT_SCOPE)
 endfunction()
 
 # Configures <src> into <bin>.  Remaining arguments are passed to CMake.
