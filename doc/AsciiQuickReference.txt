@@ -156,7 +156,8 @@ R.cwiseAbs2()                  // abs(P.^2)
 R.array().abs2()               // abs(P.^2)
 (R.array() < s).select(P,Q );  // (R < s ? P : Q)
 R = (Q.array()==0).select(P,R) // R(Q==0) = P(Q==0)
-R = P.unaryExpr([](double x) { return func(x); });        // R = arrayfun(func, P)
+R = P.unaryExpr([](float x) -> float { return func(x); }); // R = arrayfun(func, P). The lambda must
+                                                           // preserve P's scalar type.
 
 
 // Reductions.
@@ -209,15 +210,16 @@ Matrix2i mat2x2(data);                    // copies data into mat2x2
 Matrix2i::Map(data) = 2*mat2x2;           // overwrite elements of data with 2*mat2x2
 MatrixXi::Map(data, 2, 2) += mat2x2;      // adds mat2x2 to elements of data (alternative syntax if size is not know at compile time)
 
-// Solve Ax = b. Result stored in x. Matlab: x = A \ b.
-x = A.ldlt().solve(b);                        // A sym. p.s.d.       #include <Eigen/Cholesky>
-x = A.llt().solve(b);                         // A sym. p.d.         #include <Eigen/Cholesky>
-x = A.lu().solve(b);                          // A invertible; fast. #include <Eigen/LU>
-x = A.householderQr().solve(b);               // Least squares, full rank.       #include <Eigen/QR>
-x = A.completeOrthogonalDecomposition()
-     .solve(b);                               // Least squares, rank-deficient OK. #include <Eigen/QR>
-x = A.bdcSvd<ComputeThinU |
-             ComputeThinV>().solve(b);        // Most robust, slowest. #include <Eigen/SVD>
+// Solve A*xd = bd. Result stored in xd. Matlab: xd = A \ bd.
+Vector3d bd, xd;                              // A is double, so the RHS and result are too.
+xd = A.ldlt().solve(bd);                      // A sym. p.s.d.       #include <Eigen/Cholesky>
+xd = A.llt().solve(bd);                       // A sym. p.d.         #include <Eigen/Cholesky>
+xd = A.lu().solve(bd);                        // A invertible; fast. #include <Eigen/LU>
+xd = A.householderQr().solve(bd);             // Least squares, full rank.       #include <Eigen/QR>
+xd = A.completeOrthogonalDecomposition()
+      .solve(bd);                             // Least squares, rank-deficient OK. #include <Eigen/QR>
+xd = A.bdcSvd<ComputeThinU |
+              ComputeThinV>().solve(bd);      // Most robust, slowest. #include <Eigen/SVD>
 // .ldlt()             -> .matrixL() and .vectorD()
 // .llt()              -> .matrixL()
 // .lu()               -> .matrixLU(), .permutationP()

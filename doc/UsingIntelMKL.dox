@@ -42,7 +42,7 @@ Since %Eigen version 3.1 and later, users can benefit from built-in Intel® Math
 Intel MKL is available on Linux, macOS and Windows.
 
 \note
-Intel® MKL is a proprietary software and it is the responsibility of users to buy or register for community (free) Intel MKL licenses for their products. Moreover, the license of the user product has to allow linking to proprietary software that excludes any unmodified versions of the GPL.
+Intel® oneMKL is closed source, but it is distributed under the Intel Simplified Software License: there is no license to buy and no community-license registration to complete, and the terms grant royalty-free use and redistribution with no limit on the number of copies. See the <a href="https://www.intel.com/content/www/us/en/developer/articles/tool/onemkl-license-faq.html">oneMKL license FAQ</a> for the terms that apply to your own product.
 
 Using Intel MKL through %Eigen is easy:
 -# define the \c EIGEN_USE_MKL_ALL macro before including any %Eigen's header
