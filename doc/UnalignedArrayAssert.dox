@@ -4,9 +4,9 @@ namespace Eigen {
 
 Hello! You are seeing this webpage because your program terminated on an assertion failure like this one:
 <pre>
-my_program: path/to/eigen/Eigen/src/Core/DenseStorage.h:60:
-Eigen::internal::plain_array<T, Size, MatrixOrArrayOptions, Alignment>::plain_array()
-[with T = double; int Size = 2; int MatrixOrArrayOptions = 2; int Alignment = 16]:
+my_program: path/to/eigen/Eigen/src/Core/DenseStorage.h:61:
+constexpr Eigen::internal::plain_array<T, Size, MatrixOrArrayOptions, Alignment>::plain_array()
+[with T = double; int Size = 2; int MatrixOrArrayOptions = 0; int Alignment = 16]:
 Assertion `(is_constant_evaluated() || (std::uintptr_t(array) % Alignment == 0)) &&
 "this assertion is explained here: "
 "http://eigen.tuxfamily.org/dox-devel/group__TopicUnalignedArrayAssert.html"

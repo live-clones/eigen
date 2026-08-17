@@ -13,7 +13,8 @@ and points to the mechanism for adding new ones.
 The following types are supported without any additional work:
 
   - the standard floating-point types \c float, \c double, and <tt>long double</tt>;
-  - the complex types <tt>std::complex<float></tt> and <tt>std::complex<double></tt>;
+  - <tt>std::complex</tt> of any of those, most commonly <tt>std::complex<float></tt> and
+    <tt>std::complex<double></tt>;
   - all standard integer types, signed and unsigned (e.g. \c int, <tt>unsigned int</tt>,
     \c short, <tt>std::int64_t</tt>, ...);
   - \c bool, with the arithmetic operators interpreted in the Boolean semiring
