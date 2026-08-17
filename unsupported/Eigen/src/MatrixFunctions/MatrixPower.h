@@ -389,10 +389,11 @@ class MatrixPower {
 
  private:
   typedef internal::make_complex_t<Scalar> ComplexScalar;
-  // Deliberately not carrying MatrixType's Max{Rows,Cols}AtCompileTime: this only ever holds
-  // the O(n^2) Schur factors, so the stack-allocation those bounds would allow does not apply,
-  // while distinct bounds would instantiate MatrixPowerAtomic once per source matrix type.
-  typedef Matrix<ComplexScalar, Dynamic, Dynamic> ComplexMatrix;
+  // The maximum dimensions keep the Schur factors of a fixed-size MatrixType inline, which is
+  // what lets a.pow(p) run without heap allocation; dropping them so that all source types of
+  // one scalar share a MatrixPowerAtomic instantiation would break that contract.
+  using ComplexMatrix =
+      Matrix<ComplexScalar, Dynamic, Dynamic, 0, MatrixType::RowsAtCompileTime, MatrixType::ColsAtCompileTime>;
 
   /** \brief Reference to the base of matrix power. */
   typename MatrixType::Nested m_A;
