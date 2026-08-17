@@ -46,17 +46,30 @@ inline fftwl_complex *fftw_cast(const std::complex<long double> *p) {
   return const_cast<fftwl_complex *>(reinterpret_cast<const fftwl_complex *>(p));
 }
 
-// The FFTW planner is not thread-safe: fftw_execute is the only entry point
+// The FFTW planner is not thread-safe: fftw_execute and its new-array variants,
+// which is what this backend runs transforms through, are the only entry points
 // that may be called concurrently (FFTW manual, "Thread safety"), so plan
 // creation and destruction are serialized through this mutex. A template
 // static gives the header-only definition; std::mutex is
 // constexpr-constructible, so the mutex is ready before any thread starts.
+// The planner state it stands in for is one per process, so the mutex must be
+// too: the explicit default visibility is what keeps the definition from being
+// bound locally under -fvisibility=hidden, where each library planning through
+// Eigen would get a mutex of its own and serialize nothing between them. The
+// module documentation covers what no header can reach, which needs FFTW's own
+// fftw_make_planner_thread_safe().
+#if EIGEN_HAS_ATTRIBUTE(visibility) && !EIGEN_OS_WIN
+#define EIGEN_FFTW_PLANNER_MUTEX_VISIBILITY __attribute__((visibility("default")))
+#else
+#define EIGEN_FFTW_PLANNER_MUTEX_VISIBILITY
+#endif
+
 template <typename Dummy = void>
 struct fftw_planner_lock {
-  static std::mutex mutex;
+  static EIGEN_FFTW_PLANNER_MUTEX_VISIBILITY std::mutex mutex;
 };
 template <typename Dummy>
-std::mutex fftw_planner_lock<Dummy>::mutex;
+EIGEN_FFTW_PLANNER_MUTEX_VISIBILITY std::mutex fftw_planner_lock<Dummy>::mutex;
 
 inline std::mutex &fftw_planner_mutex() { return fftw_planner_lock<>::mutex; }
 
