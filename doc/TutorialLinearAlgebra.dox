@@ -158,12 +158,14 @@ All of these decompositions offer a solve() method that works as in the above ex
     you need singular values/vectors, not just the solution.
 \li \b HouseholderQR is the fastest option for full-rank least squares problems, but it does not
     reveal rank and cannot compute minimum-norm solutions for rank-deficient problems.
-\li FullPivLU and FullPivHouseholderQR use complete pivoting, which is significantly slower due to
-    lack of blocking. In practice, they rarely provide meaningful benefits over PartialPivLU and
-    ColPivHouseholderQR, respectively, and are not recommended for general use. LAPACK reflects the
-    same judgement for LU and QR: it offers no complete-pivoting driver for either, having settled on
-    partial-pivoting LU and column-pivoted QR as the standard tools. The full-pivoting classes are
-    primarily useful for debugging or for pedagogical purposes.
+\li FullPivLU and FullPivHouseholderQR use complete pivoting, which rules out blocking and so makes
+    them substantially slower, increasingly so as the matrix grows. The smaller growth factor rarely
+    repays that cost on its own, so PartialPivLU and ColPivHouseholderQR are the better default;
+    LAPACK made the same call, offering no complete-pivoting LU or QR driver. Where complete pivoting
+    does earn its cost is rank determination, since column pivoting is reliable in practice but not
+    guaranteed. If your application depends on getting the rank right, the full-pivoting classes are
+    a reasonable choice, especially for small matrices, where the lost blocking costs comparatively
+    little.
 
 Here's an example showing the use of LLT for a symmetric positive definite system, also demonstrating
 that using a general matrix (not a vector) as right hand side is possible:
