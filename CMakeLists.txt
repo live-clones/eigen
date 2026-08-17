@@ -103,9 +103,10 @@ endif()
 # CMake Project.
 #==============================================================================
 
-# The version is derived above so that project() can declare it: without it
-# Eigen3_VERSION is empty, and a find_package(Eigen3 <version>) resolved through
-# FetchContent's find_package integration has nothing to compare against.
+# The version is derived above so that project() can declare it here. Declaring
+# it is what populates PROJECT_VERSION, Eigen3_VERSION and, for a top-level
+# build, CMAKE_PROJECT_VERSION; all three are empty otherwise. See the
+# cmake_project_version test.
 project(Eigen3 VERSION ${EIGEN_VERSION_NUMBER})
 
 # Remove this block after bumping CMake to v3.21.0
