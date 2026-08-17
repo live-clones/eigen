@@ -77,9 +77,13 @@ Vectorization is meant to be transparent, but the following macros, all document
     aligned.
   - \c EIGEN_FAST_MATH selects between faster and more accurate vectorized math functions.
 
-Disabling vectorization does not lift the alignment requirements of fixed-size vectorizable types,
-because that would silently break the ABI between translation units compiled with and without
-vectorization; see \ref TopicUnalignedArrayAssert for the details.
+Disabling vectorization also drops %Eigen's alignment: outside GPU compilation,
+\c EIGEN_DONT_VECTORIZE sets the ideal alignment to zero, and the defaults for
+\c EIGEN_MAX_STATIC_ALIGN_BYTES and \c EIGEN_MAX_ALIGN_BYTES follow it. Fixed-size vectorizable
+types then lose their over-alignment — \c alignof(Vector4f) drops from 16 to 4 on a typical x86-64
+build — so translation units that disagree about \c EIGEN_DONT_VECTORIZE disagree about the ABI.
+Define the alignment macros explicitly and identically everywhere if you need the boundary to stay
+fixed. See \ref TopicUnalignedArrayAssert for what the alignment is there for.
 
 When compiling CUDA sources, host-side SIMD must be disabled; see \ref TopicCUDA.
 
