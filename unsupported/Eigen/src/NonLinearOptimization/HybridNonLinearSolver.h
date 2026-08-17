@@ -306,8 +306,8 @@ HybridNonLinearSolverSpace::Status HybridNonLinearSolver<FunctorType, Scalar>::s
 
     /* compute the qr factorization of the updated jacobian. */
     internal::r1updt<Scalar>(R, wa1, v_givens, w_givens, wa2, wa3, &sing);
-    internal::r1mpyq<Scalar>(n, n, fjac.data(), v_givens, w_givens);
-    internal::r1mpyq<Scalar>(1, n, qtf.data(), v_givens, w_givens);
+    internal::r1mpyq<Scalar>(fjac, v_givens, w_givens);
+    internal::r1mpyq<Scalar>(qtf.transpose(), v_givens, w_givens);
 
     jeval = false;
   }
@@ -522,8 +522,8 @@ HybridNonLinearSolverSpace::Status HybridNonLinearSolver<FunctorType, Scalar>::s
 
     /* compute the qr factorization of the updated jacobian. */
     internal::r1updt<Scalar>(R, wa1, v_givens, w_givens, wa2, wa3, &sing);
-    internal::r1mpyq<Scalar>(n, n, fjac.data(), v_givens, w_givens);
-    internal::r1mpyq<Scalar>(1, n, qtf.data(), v_givens, w_givens);
+    internal::r1mpyq<Scalar>(fjac, v_givens, w_givens);
+    internal::r1mpyq<Scalar>(qtf.transpose(), v_givens, w_givens);
 
     jeval = false;
   }
