@@ -984,7 +984,7 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Eigen::half nextafter(const Eigen::half& f
     // From ±0 toward a nonzero value: the neighbor is the smallest subnormal
     // carrying the sign of the direction (IEEE-754 nextUp/nextDown of zero).
     from_bits = (to > from) ? uint16_t(0x0001) : uint16_t(0x8001);
-  } else if ((to > from) == !from_sign) {
+  } else if ((to > from) != from_sign) {
     // Toward the infinity with the same sign as from: increase the magnitude.
     ++from_bits;
   } else {
