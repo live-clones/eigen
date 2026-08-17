@@ -14,6 +14,28 @@
 #include <Eigen/LU>
 #include <Eigen/QR>
 
+// A complex plane equation may be scaled by any unit-modulus gamma without moving its zero set,
+// which carries (normal, offset) to (conj(gamma) * normal, gamma * offset) because dot() is
+// conjugate-linear in the normal. gamma = i is far enough from +-1 for isApprox() to separate.
+template <typename HyperplaneType>
+void hyperplane_unit_phase(const HyperplaneType &, std::false_type) {}
+
+template <typename HyperplaneType>
+void hyperplane_unit_phase(const HyperplaneType &plane, std::true_type) {
+  typedef typename HyperplaneType::Scalar Scalar;
+  typedef typename HyperplaneType::VectorType VectorType;
+  const Scalar gamma(0, 1);
+
+  HyperplaneType rotated(numext::conj(gamma) * plane.normal(), gamma * plane.offset());
+  VERIFY(plane.isCoincident(rotated));
+  VERIFY(rotated.isCoincident(plane));
+  VERIFY(!plane.isApprox(rotated));
+
+  // The scaling is exactly what signedDistance() reports, so the two zero sets agree.
+  const VectorType p = VectorType::Random(plane.dim());
+  VERIFY_IS_APPROX(rotated.signedDistance(p), gamma * plane.signedDistance(p));
+}
+
 template <typename HyperplaneType>
 void hyperplane(const HyperplaneType &_plane) {
   /* this test covers the following files:
@@ -58,8 +80,11 @@ void hyperplane(const HyperplaneType &_plane) {
     VERIFY(pl1.isCoincident(flipped));
     VERIFY(flipped.isCoincident(pl1));
     VERIFY(!pl1.isApprox(flipped));
-    // A genuinely different hyperplane is neither.
-    VERIFY(!pl1.isCoincident(pl0) || pl1.coeffs().isApprox(pl0.coeffs()) || pl1.coeffs().isApprox(-pl0.coeffs()));
+    // Same normal, shifted by one unit along it: still a hyperplane, no longer the same one.
+    HyperplaneType shifted(pl1.normal(), pl1.offset() + Scalar(1));
+    VERIFY(!pl1.isCoincident(shifted));
+    VERIFY(!shifted.isCoincident(pl1));
+    hyperplane_unit_phase(pl1, internal::bool_constant<NumTraits<Scalar>::IsComplex>());
   }
 
   // transform

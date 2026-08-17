@@ -270,16 +270,26 @@ class Hyperplane {
   /** \returns \c true if \c *this and \a other describe approximately the same set of points,
    * within the precision determined by \a prec, regardless of orientation.
    *
-   * This holds when their coefficient vectors are approximately equal up to a common sign, so
-   * unlike isApprox() a hyperplane is coincident with its negation. Both hyperplanes are
-   * assumed normalized; see normalize().
+   * Scaling the equation signedDistance() evaluates by a nonzero \f$ \gamma \f$ leaves its zero
+   * set unchanged. Because dot() is conjugate-linear in the normal, that carries
+   * \f$ (n, d) \f$ to \f$ (\bar{\gamma} n, \gamma d) \f$: for a real \c Scalar the coefficients
+   * agree up to a common sign, so unlike isApprox() a hyperplane is coincident with its
+   * negation, while for a complex \c Scalar any unit-modulus phase relates them as well.
    *
-   * \sa isApprox(), normalize() */
+   * The normal must be nonzero.
+   *
+   * \sa isApprox(), signedDistance(), normalize() */
   template <int OtherOptions>
   EIGEN_DEVICE_FUNC bool isCoincident(
       const Hyperplane<Scalar, AmbientDimAtCompileTime, OtherOptions>& other,
       const typename NumTraits<Scalar>::Real& prec = NumTraits<Scalar>::dummy_precision()) const {
-    return m_coeffs.isApprox(other.coeffs(), prec) || m_coeffs.isApprox(-other.coeffs(), prec);
+    typedef typename NumTraits<Scalar>::Real RealScalar;
+    // The only candidate for conj(gamma) is the coefficient projecting one normal onto the
+    // other; whatever it leaves unexplained lands in the residual.
+    const Scalar conj_gamma = normal().dot(other.normal()) / Scalar(normal().squaredNorm());
+    const RealScalar residual = (other.normal() - conj_gamma * normal()).squaredNorm() +
+                                numext::abs2(other.offset() - numext::conj(conj_gamma) * offset());
+    return residual <= prec * prec * numext::mini(m_coeffs.squaredNorm(), other.coeffs().squaredNorm());
   }
 
  protected:
