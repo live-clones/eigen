@@ -338,7 +338,7 @@ To get an overview of the true relative speed of the different decompositions, c
 <li><a name="note1">\b 1: </a>There exist two variants of the LDLT algorithm. %Eigen's LDLT produces a pure diagonal D matrix and therefore cannot handle indefinite matrices; it uses symmetric pivoting, which keeps the factorization stable when pivots are tiny or zero. The other variant, which produces the block-diagonal D needed for indefinite self-adjoint matrices, is provided by the BunchKaufman class.</li>
 <li><a name="note2">\b 2: </a>Eigenvalues, SVD and Schur decompositions rely on iterative algorithms. Their convergence speed depends on how well the eigenvalues are separated.</li>
 <li><a name="note3">\b 3: </a>Our JacobiSVD is two-sided, which achieves high relative accuracy on square matrices: each singular value is computed to high relative precision, even when it is tiny compared to the largest one. For non-square matrices, we have to use a QR preconditioner first. Both available preconditioners have rigorous error bounds; the default, \c ColPivHouseholderQRPreconditioner, has looser constants than \c FullPivHouseholderQRPreconditioner, but they are well understood and sufficient for essentially all practical problems, and it is considerably faster. See the guidance below on complete pivoting.</li>
-<li><a name="note4">\b 4: </a>The pivoted LU and QR factorizations are all backward stable; what differs between pivoting strategies is the constant in the bound, governed by the growth factor. Complete pivoting admits the tightest worst-case bound, but partial pivoting (LU) and column pivoting (QR) have well-understood bounds that are more than sufficient for essentially all practical problems, and their worst cases are not observed on real matrices. Since complete pivoting also rules out the cache-friendly blocked algorithms, LAPACK and %Eigen both treat partial and column pivoting as the defaults; see the guidance below.</li>
+<li><a name="note4">\b 4: </a>The pivoted LU and QR factorizations are all backward stable; what differs between pivoting strategies is the constant in the bound, governed by the growth factor. Complete pivoting admits the tightest worst-case bound, but partial pivoting (LU) and column pivoting (QR) have well-understood bounds that are more than sufficient for essentially all practical problems, and their worst cases are not observed on real matrices. Since complete pivoting also rules out the cache-friendly blocked algorithms, LAPACK and %Eigen both treat partial and column pivoting as the defaults for LU and QR; see the guidance below. This is a judgement about those two factorizations rather than about complete pivoting in general: LAPACK does provide a complete-pivoting Cholesky (\c pstrf) for positive semidefinite matrices, where the pivoting also determines the rank.</li>
 </ul>
 
 \section TopicLinAlgPracticalGuidance Practical guidance
@@ -372,10 +372,10 @@ The following recommendations apply to the most common use cases:
 \li <b>FullPivLU and FullPivHouseholderQR</b> use complete pivoting, which prevents the use of
     cache-friendly blocking algorithms and makes them significantly slower than their partial/column
     pivoting counterparts. In practice, complete pivoting rarely provides meaningful accuracy benefits.
-    LAPACK reflects the same judgement: it exposes no general-purpose complete-pivoting driver,
-    standardizing instead on partial-pivoting LU (\c getrf) and column-pivoted QR (\c geqp3).
-    Complete-pivoting LU survives there only as the auxiliary routine \c getc2, used internally by the
-    generalized Sylvester solver, and complete-pivoting QR has no LAPACK counterpart at all.
+    LAPACK reflects the same judgement for LU and QR: it exposes no complete-pivoting driver for
+    either, standardizing instead on partial-pivoting LU (\c getrf) and column-pivoted QR (\c geqp3,
+    \c geqp3rk). Complete-pivoting LU survives there only as the auxiliary routine \c getc2, called by
+    the generalized Sylvester solver, and complete pivoting has no QR counterpart at all.
     Prefer PartialPivLU and ColPivHouseholderQR. The full-pivoting classes are primarily useful for
     debugging, pedagogy, or the rare case where column pivoting is demonstrably insufficient.
 
