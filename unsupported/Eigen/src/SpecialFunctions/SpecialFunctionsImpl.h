@@ -416,7 +416,21 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erfc<double>::run(const T& 
 template <typename T>
 struct erfc_impl {
   typedef typename unpacket_traits<T>::type Scalar;
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T& x) { return generic_fast_erfc<Scalar>::run(x); }
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T& x) { return run_impl(x, std::is_same<T, Scalar>()); }
+
+ private:
+  // Packets of float/double: vectorized rational approximation.
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run_impl(const T& x, std::false_type) {
+    return generic_fast_erfc<Scalar>::run(x);
+  }
+  // Any other scalar type: defer to an erfc found by argument-dependent lookup
+  // (or std::erfc), keeping custom scalars on their own implementation instead
+  // of the float/double-tuned polynomials.
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run_impl(const T& x, std::true_type) {
+    EIGEN_STATIC_ASSERT_NON_INTEGER(T)
+    EIGEN_USING_STD(erfc);
+    return erfc(x);
+  }
 };
 
 template <>
@@ -511,7 +525,21 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erf<double>::run(const T& x
 template <typename T>
 struct erf_impl {
   typedef typename unpacket_traits<T>::type Scalar;
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T& x) { return generic_fast_erf<Scalar>::run(x); }
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T& x) { return run_impl(x, std::is_same<T, Scalar>()); }
+
+ private:
+  // Packets of float/double: vectorized rational approximation.
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run_impl(const T& x, std::false_type) {
+    return generic_fast_erf<Scalar>::run(x);
+  }
+  // Any other scalar type: defer to an erf found by argument-dependent lookup
+  // (or std::erf), keeping custom scalars on their own implementation instead
+  // of the float/double-tuned polynomials.
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run_impl(const T& x, std::true_type) {
+    EIGEN_STATIC_ASSERT_NON_INTEGER(T)
+    EIGEN_USING_STD(erf);
+    return erf(x);
+  }
 };
 
 template <>
