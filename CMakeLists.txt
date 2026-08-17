@@ -43,67 +43,12 @@ if (POLICY CMP0074)
 endif ()
 
 #==============================================================================
-# CMake Project.
-#==============================================================================
-
-project(Eigen3)
-
-# Remove this block after bumping CMake to v3.21.0
-# PROJECT_IS_TOP_LEVEL is defined then by default
-if(CMAKE_VERSION VERSION_LESS 3.21.0)
-  if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
-    set(PROJECT_IS_TOP_LEVEL ON)
-  else()
-    set(PROJECT_IS_TOP_LEVEL OFF)
-  endif()
-endif()
-
-#==============================================================================
-# Build ON/OFF Settings.
-#==============================================================================
-# Determine if we should build tests.
-include(CMakeDependentOption)
-cmake_dependent_option(BUILD_TESTING "Enable creation of tests." ON "PROJECT_IS_TOP_LEVEL" OFF)
-option(EIGEN_BUILD_TESTING "Enable creation of Eigen tests." ${BUILD_TESTING})
-option(EIGEN_LEAVE_TEST_IN_ALL_TARGET "Leaves tests in the all target, needed by ctest for automatic building." OFF)
-
-# Determine if we should build BLAS/LAPACK implementations.
-option(EIGEN_BUILD_BLAS "Toggles the building of the Eigen Blas library" ${PROJECT_IS_TOP_LEVEL})
-option(EIGEN_BUILD_LAPACK "Toggles the building of the included Eigen LAPACK library" ${PROJECT_IS_TOP_LEVEL})
-if (EIGEN_BUILD_BLAS OR EIGEN_BUILD_LAPACK)
-  # Determine if we should build shared libraries for BLAS/LAPACK on this platform.
-  if (NOT EIGEN_BUILD_SHARED_LIBS)
-    get_cmake_property(EIGEN_BUILD_SHARED_LIBS TARGET_SUPPORTS_SHARED_LIBS)
-  endif()
-endif()
-
-# Avoid building docs if included from another project.
-# Building documentation requires creating and running executables on the host
-# platform.  We shouldn't do this if cross-compiling.
-if (PROJECT_IS_TOP_LEVEL AND NOT CMAKE_CROSSCOMPILING)
-  set(EIGEN_BUILD_DOC_DEFAULT ON)
-endif()
-option(EIGEN_BUILD_DOC "Enable creation of Eigen documentation" ${EIGEN_BUILD_DOC_DEFAULT})
-
-option(EIGEN_BUILD_DEMOS "Toggles the building of the Eigen demos" ${PROJECT_IS_TOP_LEVEL})
-
-# Disable pkgconfig only for native Windows builds
-if(NOT WIN32 OR NOT CMAKE_HOST_SYSTEM_NAME MATCHES Windows)
-  option(EIGEN_BUILD_PKGCONFIG "Build pkg-config .pc file for Eigen" ${PROJECT_IS_TOP_LEVEL})
-endif()
-option(EIGEN_BUILD_CMAKE_PACKAGE "Enables the creation of EigenConfig.cmake and related files" ${PROJECT_IS_TOP_LEVEL})
-
-if (EIGEN_BUILD_TESTING OR EIGEN_BUILD_BLAS OR EIGEN_BUILD_LAPACK OR EIGEN_BUILD_DOC OR EIGEN_BUILD_DEMOS)
-  set(EIGEN_IS_BUILDING_ ON)
-endif()
-
-#==============================================================================
 # Version Info.
 #==============================================================================
 
 # If version information is not provided, automatically parse the version number
 # from header files.
-file(READ "${PROJECT_SOURCE_DIR}/Eigen/Version" _eigen_version_header)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/Eigen/Version" _eigen_version_header)
 if (NOT DEFINED EIGEN_WORLD_VERSION)
   string(REGEX MATCH "define[ \t]+EIGEN_WORLD_VERSION[ \t]+([0-9]+)" _eigen_world_version_match "${_eigen_version_header}")
   set(EIGEN_WORLD_VERSION "${CMAKE_MATCH_1}" CACHE STRING "")
@@ -154,6 +99,63 @@ if (NOT "x${EIGEN_BUILD_VERSION}" STREQUAL "x")
   set(EIGEN_VERSION_STRING "${EIGEN_VERSION_STRING}+${EIGEN_BUILD_VERSION}" CACHE STRING "")
 endif()
 
+#==============================================================================
+# CMake Project.
+#==============================================================================
+
+# The version is derived above so that project() can declare it: without it
+# Eigen3_VERSION is empty, and a find_package(Eigen3 <version>) resolved through
+# FetchContent's find_package integration has nothing to compare against.
+project(Eigen3 VERSION ${EIGEN_VERSION_NUMBER})
+
+# Remove this block after bumping CMake to v3.21.0
+# PROJECT_IS_TOP_LEVEL is defined then by default
+if(CMAKE_VERSION VERSION_LESS 3.21.0)
+  if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    set(PROJECT_IS_TOP_LEVEL ON)
+  else()
+    set(PROJECT_IS_TOP_LEVEL OFF)
+  endif()
+endif()
+
+#==============================================================================
+# Build ON/OFF Settings.
+#==============================================================================
+# Determine if we should build tests.
+include(CMakeDependentOption)
+cmake_dependent_option(BUILD_TESTING "Enable creation of tests." ON "PROJECT_IS_TOP_LEVEL" OFF)
+option(EIGEN_BUILD_TESTING "Enable creation of Eigen tests." ${BUILD_TESTING})
+option(EIGEN_LEAVE_TEST_IN_ALL_TARGET "Leaves tests in the all target, needed by ctest for automatic building." OFF)
+
+# Determine if we should build BLAS/LAPACK implementations.
+option(EIGEN_BUILD_BLAS "Toggles the building of the Eigen Blas library" ${PROJECT_IS_TOP_LEVEL})
+option(EIGEN_BUILD_LAPACK "Toggles the building of the included Eigen LAPACK library" ${PROJECT_IS_TOP_LEVEL})
+if (EIGEN_BUILD_BLAS OR EIGEN_BUILD_LAPACK)
+  # Determine if we should build shared libraries for BLAS/LAPACK on this platform.
+  if (NOT EIGEN_BUILD_SHARED_LIBS)
+    get_cmake_property(EIGEN_BUILD_SHARED_LIBS TARGET_SUPPORTS_SHARED_LIBS)
+  endif()
+endif()
+
+# Avoid building docs if included from another project.
+# Building documentation requires creating and running executables on the host
+# platform.  We shouldn't do this if cross-compiling.
+if (PROJECT_IS_TOP_LEVEL AND NOT CMAKE_CROSSCOMPILING)
+  set(EIGEN_BUILD_DOC_DEFAULT ON)
+endif()
+option(EIGEN_BUILD_DOC "Enable creation of Eigen documentation" ${EIGEN_BUILD_DOC_DEFAULT})
+
+option(EIGEN_BUILD_DEMOS "Toggles the building of the Eigen demos" ${PROJECT_IS_TOP_LEVEL})
+
+# Disable pkgconfig only for native Windows builds
+if(NOT WIN32 OR NOT CMAKE_HOST_SYSTEM_NAME MATCHES Windows)
+  option(EIGEN_BUILD_PKGCONFIG "Build pkg-config .pc file for Eigen" ${PROJECT_IS_TOP_LEVEL})
+endif()
+option(EIGEN_BUILD_CMAKE_PACKAGE "Enables the creation of EigenConfig.cmake and related files" ${PROJECT_IS_TOP_LEVEL})
+
+if (EIGEN_BUILD_TESTING OR EIGEN_BUILD_BLAS OR EIGEN_BUILD_LAPACK OR EIGEN_BUILD_DOC OR EIGEN_BUILD_DEMOS)
+  set(EIGEN_IS_BUILDING_ ON)
+endif()
 
 # Generate version file.
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/Version.in"
