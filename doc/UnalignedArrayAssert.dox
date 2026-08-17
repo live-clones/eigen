@@ -63,7 +63,7 @@ then you need to read this separate page: \ref TopicStlContainers "Using STL Con
 
 Note that here, Eigen::Matrix2d is only used as an example, more generally the issue arises for all \ref TopicFixedSizeVectorizable "fixed-size vectorizable Eigen types" and \ref TopicStructHavingEigenMembers "structures having such Eigen objects as member".
 
-The same issue will be exhibited by any classes/functions by-passing operator new to allocate memory, that is, by performing custom memory allocation followed by calls to the placement new operator. This is for instance typically the case of \c `std::make_shared` or `std::allocate_shared` for which is the solution is to use an \ref aligned_allocator "aligned allocator" as detailed in the \ref TopicStlContainers "solution for STL containers".
+The same issue will be exhibited by any classes/functions bypassing operator new to allocate memory, that is, by performing custom memory allocation followed by calls to the placement new operator. This is for instance typically the case of `std::make_shared` or `std::allocate_shared`, for which the solution is to use an \ref aligned_allocator "aligned allocator" as detailed in the \ref TopicStlContainers "solution for STL containers".
 
 \section c3 Cause 3: Passing Eigen objects by value
 
