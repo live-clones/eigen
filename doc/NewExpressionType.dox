@@ -118,11 +118,14 @@ size of the corresponding circulant matrix. As explained above, this
 is a square matrix with as many columns as the vector used to
 construct the matrix.
 
-The \c Nested typedef is required by %Eigen's expression nesting
-machinery: when the new expression appears inside a larger expression,
-helpers such as \c internal::ref_selector and \c internal::nested_eval
-consult it to decide whether the sub-expression is stored by reference
-or evaluated into a temporary.
+The \c Nested typedef is what an enclosing expression stores this one
+as: \c CwiseUnaryOp, \c CwiseBinaryOp and their kin declare their
+operand members as \c ArgType::Nested. Define it from
+\c internal::ref_selector, as above, which selects a reference or a
+value from the expression's own \c NestByRefBit. Whether a
+sub-expression is instead evaluated into a temporary is a separate
+decision, taken by \c internal::nested_eval from the evaluator's flags
+and costs rather than from this typedef.
 
 \include make_circulant.cpp.expression
 

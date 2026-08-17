@@ -333,7 +333,7 @@ Packet scalar_sum_op::packetOp(const Packet& a, const Packet& b) const {
 \endcode
 and internal::padd's SSE specialization is a single _mm_add_ps instruction.
 
-To summarize, the vectorized loop has been compiled to the following code: for \a index going from 0 to 11 ( = 48/4 - 1), read the index-th packet (of 4 floats) from the vector v and the index-th packet from the vector w using two _mm_load_ps SSE instructions, add them together using an _mm_add_ps instruction, then store the result using an _mm_store_ps instruction.
+To summarize, the vectorized loop has been compiled to the following code: for \a index taking the values 0, 4, 8, ..., 44 -- twelve iterations covering the first 48 coefficients -- read the packet of 4 floats starting at v[index] and the packet starting at w[index] using two _mm_load_ps SSE instructions, add them together using an _mm_add_ps instruction, then store the result using an _mm_store_ps instruction.
 
 There remains the tail loop handling the last few (here, the last 2) coefficients. Depending on the instruction set it either uses partial-packet loads and stores, or falls back to kernel.assignCoeff(index), which does the same walk through the evaluators coefficient by coefficient: assignPacket() becomes assignCoeff(), packet() becomes coeff(), and pstore() becomes a plain scalar store. If you followed us this far, you can probably understand this part by yourself.
 
