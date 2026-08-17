@@ -443,7 +443,57 @@ void test_reuse_real_and_complex(int nfft) {
   VERIFY(T(dif_rmse(complex_in, complex_round)) < test_precision<T>());
 }
 
+// Regression test for issue #690: a dynamically sized matrix is only known to
+// hold a single row or column at run time, so it must be accepted like any
+// other one-dimensional operand, with the destination keeping its shape.
+template <typename T>
+void test_dynamic_matrix_operands(int nfft) {
+  typedef typename FFT<T>::Complex Complex;
+  typedef Matrix<T, Dynamic, Dynamic> DynMatrix;
+  typedef Matrix<Complex, Dynamic, Dynamic> DynCMatrix;
+
+  FFT<T> fft;
+  Matrix<T, Dynamic, 1> reference(nfft);
+  for (int k = 0; k < nfft; ++k) reference[k] = T(rand() / (double)RAND_MAX - .5);
+  Matrix<Complex, Dynamic, 1> reference_freq;
+  fft.fwd(reference_freq, reference);
+
+  // A 1-by-n source produces a 1-by-n spectrum with the same values.
+  DynMatrix row_src(1, nfft);
+  row_src.row(0) = reference.transpose();
+  DynCMatrix row_freq;
+  fft.fwd(row_freq, row_src);
+  VERIFY_IS_EQUAL(row_freq.rows(), 1);
+  VERIFY_IS_EQUAL(row_freq.cols(), Index(nfft));
+  VERIFY(T(dif_rmse(row_freq.reshaped(), reference_freq)) < test_precision<T>());
+
+  // ... and round trips back through the inverse transform.
+  DynMatrix row_back;
+  fft.inv(row_back, row_freq);
+  VERIFY_IS_EQUAL(row_back.rows(), 1);
+  VERIFY_IS_EQUAL(row_back.cols(), Index(nfft));
+  VERIFY(T(dif_rmse(row_back.reshaped(), reference)) < test_precision<T>());
+
+  // An n-by-1 source keeps the column shape.
+  DynMatrix col_src(nfft, 1);
+  col_src.col(0) = reference;
+  DynCMatrix col_freq;
+  fft.fwd(col_freq, col_src);
+  VERIFY_IS_EQUAL(col_freq.rows(), Index(nfft));
+  VERIFY_IS_EQUAL(col_freq.cols(), 1);
+  VERIFY(T(dif_rmse(col_freq.reshaped(), reference_freq)) < test_precision<T>());
+
+  // A destination whose orientation is fixed at compile time keeps it.
+  Matrix<Complex, 1, Dynamic> row_vector_freq;
+  fft.fwd(row_vector_freq, reference);
+  VERIFY_IS_EQUAL(row_vector_freq.rows(), 1);
+  VERIFY(T(dif_rmse(row_vector_freq.reshaped(), reference_freq)) < test_precision<T>());
+}
+
 EIGEN_DECLARE_TEST(FFTW) {
+  CALL_SUBTEST(test_dynamic_matrix_operands<float>(32));
+  CALL_SUBTEST(test_dynamic_matrix_operands<double>(32));
+  CALL_SUBTEST(test_dynamic_matrix_operands<double>(2 * 3 * 4 * 5));
   CALL_SUBTEST(test_return_by_value(32));
   // Regression test for #1537 -- reuse one FFT object for both real and
   // complex inputs of the same size.
