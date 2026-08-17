@@ -653,11 +653,18 @@ EIGEN_DECLARE_TEST(qr_rand_colpivoting) {
     CALL_SUBTEST_4((rqr_fixedsize<Matrix<float, 8, 10>, 4>()));
     CALL_SUBTEST_5((rqr_fixedsize<Matrix<double, 12, 6>, 3>()));
 
+    // The panel factorization wraps a block of the stored matrix in a Ref, so it has to follow
+    // MatrixType's storage order rather than the workspaces' column-major one.
+    CALL_SUBTEST_1((rqr<Matrix<float, Dynamic, Dynamic, RowMajor>>()));
+    CALL_SUBTEST_2((rqr<Matrix<double, Dynamic, Dynamic, RowMajor>>()));
+    CALL_SUBTEST_4((rqr_fixedsize<Matrix<float, 8, 10, RowMajor>, 4>()));
+
     CALL_SUBTEST_1(rcod<MatrixXf>());
     CALL_SUBTEST_2(rcod<MatrixXd>());
     CALL_SUBTEST_3(rcod<MatrixXcd>());
     CALL_SUBTEST_4((rcod_fixedsize<Matrix<float, 8, 10>, 4>()));
     CALL_SUBTEST_5((rcod_fixedsize<Matrix<double, 12, 6>, 3>()));
+    CALL_SUBTEST_2((rcod<Matrix<double, Dynamic, Dynamic, RowMajor>>()));
   }
 
   for (int i = 0; i < g_repeat; i++) {
