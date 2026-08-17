@@ -161,7 +161,7 @@ All of these decompositions offer a solve() method that works as in the above ex
 \li FullPivLU and FullPivHouseholderQR use complete pivoting, which is significantly slower due to
     lack of blocking. In practice, they rarely provide meaningful benefits over PartialPivLU and
     ColPivHouseholderQR, respectively, and are not recommended for general use. LAPACK reflects the
-    same judgement: it offers no general-purpose complete-pivoting driver, having settled on
+    same judgement for LU and QR: it offers no complete-pivoting driver for either, having settled on
     partial-pivoting LU and column-pivoted QR as the standard tools. The full-pivoting classes are
     primarily useful for debugging or for pedagogical purposes.
 
