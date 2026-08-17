@@ -448,9 +448,9 @@ void test_reuse_real_and_complex(int nfft) {
 // other one-dimensional operand, with the destination keeping its shape.
 template <typename T>
 void test_dynamic_matrix_operands(int nfft) {
-  typedef typename FFT<T>::Complex Complex;
-  typedef Matrix<T, Dynamic, Dynamic> DynMatrix;
-  typedef Matrix<Complex, Dynamic, Dynamic> DynCMatrix;
+  using Complex = typename FFT<T>::Complex;
+  using DynMatrix = Matrix<T, Dynamic, Dynamic>;
+  using DynCMatrix = Matrix<Complex, Dynamic, Dynamic>;
 
   FFT<T> fft;
   Matrix<T, Dynamic, 1> reference(nfft);
@@ -495,7 +495,7 @@ void test_dynamic_matrix_operands(int nfft) {
 // is as acceptable as a fully dynamic one, and it pins the orientation of a destination.
 template <typename T, int N>
 void test_partially_dynamic_matrix_operands() {
-  typedef typename FFT<T>::Complex Complex;
+  using Complex = typename FFT<T>::Complex;
 
   FFT<T> fft;
   Matrix<T, N, 1> reference;
@@ -534,9 +534,9 @@ void test_partially_dynamic_matrix_operands() {
 // holding a single row of a wider buffer steps along its outer stride instead.
 template <typename T>
 void test_strided_row_operands(int nfft) {
-  typedef typename FFT<T>::Complex Complex;
-  typedef Matrix<T, Dynamic, Dynamic> DynMatrix;
-  typedef Matrix<Complex, Dynamic, Dynamic> DynCMatrix;
+  using Complex = typename FFT<T>::Complex;
+  using DynMatrix = Matrix<T, Dynamic, Dynamic>;
+  using DynCMatrix = Matrix<Complex, Dynamic, Dynamic>;
   const Index stride = 3;
 
   FFT<T> fft;
