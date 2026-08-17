@@ -645,6 +645,38 @@ void test_pruned_product_custom_scalar() {
   VERIFY_IS_EQUAL(AnnoyingScalar::instances, instances_before);
 }
 
+// setZero() drops the AmbiVector's whole linked list, and the pruned product
+// reaches it through init(), which drops the list too. Neither may abandon the
+// coefficients the dropped nodes own, and neither may leave a node behind for
+// the next coeffRef() to construct over.
+void test_ambivector_discard_custom_scalar() {
+  typedef internal::AmbiVector<AnnoyingScalar, int> AmbiVec;
+  const Index n = 32;
+  int instances_before = AnnoyingScalar::instances;
+  {
+    AmbiVec v(n);
+    for (int discard = 0; discard < 2; ++discard) {
+      v.init(IsSparse);
+      v.restart();
+      for (Index i = 0; i < n; i += 3) v.coeffRef(i) = AnnoyingScalar(float(i) + 1.0f);
+      VERIFY_IS_EQUAL(v.nonZeros(), (n + 2) / 3);
+
+      if (discard == 0)
+        v.setZero();
+      else
+        v.init(IsSparse);
+      VERIFY_IS_EQUAL(v.nonZeros(), 0);
+
+      // Reinserting must find storage no live node occupies.
+      v.restart();
+      v.coeffRef(1) = AnnoyingScalar(5.0f);
+      VERIFY_IS_APPROX(v.coeff(1), AnnoyingScalar(5.0f));
+      VERIFY_IS_APPROX(v.coeff(0), AnnoyingScalar(0.0f));
+    }
+  }
+  VERIFY_IS_EQUAL(AnnoyingScalar::instances, instances_before);
+}
+
 void test_sparse_vector_dense_product() {
   SparseVector<double> sv(3);
   sv.insert(0) = 1.0;
@@ -675,5 +707,6 @@ EIGEN_DECLARE_TEST(sparse_product) {
     CALL_SUBTEST_5((test_mixed_storage()));
 
     CALL_SUBTEST_6((test_pruned_product_custom_scalar()));
+    CALL_SUBTEST_6((test_ambivector_discard_custom_scalar()));
   }
 }

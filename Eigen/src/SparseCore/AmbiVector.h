@@ -118,6 +118,7 @@ class AmbiVector {
     internal::destruct_elements_of_array(listElements(), copyElements);
     internal::aligned_free(m_buffer);
     m_buffer = newBuffer;
+    m_allocatedSize = convert_index(allocSize);
   }
 
   // Destroy whatever elements are currently alive in the raw buffer.
@@ -205,6 +206,9 @@ void AmbiVector<Scalar_, StorageIndex_>::setZero() {
     for (Index i = m_start; i < m_end; ++i) m_buffer[i] = Scalar(0);
   } else {
     eigen_assert(m_mode == IsSparse);
+    // The nodes being dropped own their coefficients, and a later coeffRef()
+    // constructs its node in place over this storage.
+    internal::destruct_elements_of_array(listElements(), m_llSize);
     m_llSize = 0;
     m_llStart = -1;
   }
