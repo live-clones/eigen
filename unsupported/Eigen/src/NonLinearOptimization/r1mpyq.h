@@ -16,9 +16,9 @@ namespace internal {
 // Each rotation mixes a column of a with its last column, so a row vector is
 // passed as the transpose of the column vector holding it.
 template <typename Scalar, typename Derived>
-void r1mpyq(const MatrixBase<Derived> &a_, const std::vector<JacobiRotation<Scalar> > &v_givens,
+void r1mpyq(MatrixBase<Derived> &a_, const std::vector<JacobiRotation<Scalar> > &v_givens,
             const std::vector<JacobiRotation<Scalar> > &w_givens) {
-  Derived &a = a_.const_cast_derived();
+  Derived &a = a_.derived();
   const Index n = a.cols();
 
   /*     apply the first set of givens rotations to a. */

@@ -1830,7 +1830,8 @@ void testR1mpyq() {
 
   // HybridNonLinearSolver also rotates qtf, which it passes as a single row.
   VectorXd qtf = a.row(0).transpose();
-  internal::r1mpyq<double>(qtf.transpose(), v_givens, w_givens);
+  Transpose<VectorXd> qtf_row = qtf.transpose();
+  internal::r1mpyq<double>(qtf_row, v_givens, w_givens);
   VERIFY_IS_APPROX(qtf.transpose(), expected.row(0));
 }
 
