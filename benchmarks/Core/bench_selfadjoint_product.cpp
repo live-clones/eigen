@@ -102,10 +102,10 @@ BENCHMARK(BM_SYMM_Left<float>)->Arg(64)->Arg(128)->Arg(256)->Arg(512)->Arg(1024)
 BENCHMARK(BM_SYMM_Left<double>)->Arg(64)->Arg(128)->Arg(256)->Arg(512)->Arg(1024)->Name("SYMM_Left_double");
 BENCHMARK(BM_SYMM_Right<float>)->Arg(64)->Arg(128)->Arg(256)->Arg(512)->Arg(1024)->Name("SYMM_Right_float");
 BENCHMARK(BM_SYMM_Right<double>)->Arg(64)->Arg(128)->Arg(256)->Arg(512)->Arg(1024)->Name("SYMM_Right_double");
-BENCHMARK(BM_SYMM_Left_Thin<float>)->ArgsProduct({{256, 512, 1024}, {4, 8, 32}})->Name("SYMM_Left_Thin_float");
-BENCHMARK(BM_SYMM_Left_Thin<double>)->ArgsProduct({{256, 512, 1024}, {4, 8, 32}})->Name("SYMM_Left_Thin_double");
-BENCHMARK(BM_SYMM_Right_Thin<float>)->ArgsProduct({{256, 512, 1024}, {4, 8, 32}})->Name("SYMM_Right_Thin_float");
-BENCHMARK(BM_SYMM_Right_Thin<double>)->ArgsProduct({{256, 512, 1024}, {4, 8, 32}})->Name("SYMM_Right_Thin_double");
+BENCHMARK(BM_SYMM_Left_Thin<float>)->ArgsProduct({{256, 512, 1024, 2048}, {4, 8, 32}})->Name("SYMM_Left_Thin_float");
+BENCHMARK(BM_SYMM_Left_Thin<double>)->ArgsProduct({{256, 512, 1024, 2048}, {4, 8, 32}})->Name("SYMM_Left_Thin_double");
+BENCHMARK(BM_SYMM_Right_Thin<float>)->ArgsProduct({{256, 512, 1024, 2048}, {4, 8, 32}})->Name("SYMM_Right_Thin_float");
+BENCHMARK(BM_SYMM_Right_Thin<double>)->ArgsProduct({{256, 512, 1024, 2048}, {4, 8, 32}})->Name("SYMM_Right_Thin_double");
 BENCHMARK(BM_RankUpdate<float>)->ArgsProduct({{64, 128, 256, 512}, {16, 64, 256}})->Name("RankUpdate_float");
 BENCHMARK(BM_RankUpdate<double>)->ArgsProduct({{64, 128, 256, 512}, {16, 64, 256}})->Name("RankUpdate_double");
 // clang-format on

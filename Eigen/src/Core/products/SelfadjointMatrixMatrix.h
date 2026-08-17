@@ -141,6 +141,11 @@ struct symm_pack_rhs {
     // first part: whole panels left of the diagonal block, read directly.
     // k2 is a multiple of the panel width (blocking rounds kc to a multiple
     // of 8), so this region and the delegate lie on the same panel grid.
+    // The delegates re-derive that grid from the extent they are handed, so a
+    // k2 or end_k off the grid would silently pack a correctly sized buffer
+    // with the wrong panel shape.
+    eigen_internal_assert(k2 % nr == 0);
+    eigen_internal_assert(end_k % nr == 0 || end_k == cols);
     if (k2 > 0) {
       DirectPacker()(blockB, rhs.getSubMapper(k2, 0), rows, k2);
       count += k2 * rows;
