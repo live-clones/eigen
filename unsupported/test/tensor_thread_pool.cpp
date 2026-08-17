@@ -763,6 +763,23 @@ void test_multithreaded_reductions() {
   VERIFY_IS_APPROX(full_redux(), full_redux_tp());
 }
 
+void test_multithreaded_complex_reduction() {
+  using Scalar = std::complex<float>;
+  constexpr Index size = 4096;
+
+  Tensor<Scalar, 1, RowMajor> storage(size);
+  storage.setConstant(Scalar(1.0f, 2.0f));
+  TensorMap<Tensor<Scalar, 1, RowMajor>> input(storage.data(), size);
+  EIGEN_ALIGN_MAX Scalar output_storage;
+  TensorMap<TensorFixedSize<Scalar, Sizes<>, RowMajor>, Aligned> output(&output_storage);
+
+  ThreadPool thread_pool(2);
+  ThreadPoolDevice thread_pool_device(&thread_pool, 2);
+  output.device(thread_pool_device) = input.sum();
+
+  VERIFY_IS_EQUAL(output(), Scalar(static_cast<float>(size), static_cast<float>(2 * size)));
+}
+
 void test_memcpy() {
   for (int i = 0; i < 5; ++i) {
     const int num_threads = internal::random<int>(3, 11);
@@ -872,6 +889,7 @@ EIGEN_DECLARE_TEST(tensor_thread_pool) {
 
   CALL_SUBTEST_11(test_multithreaded_reductions<ColMajor>());
   CALL_SUBTEST_11(test_multithreaded_reductions<RowMajor>());
+  CALL_SUBTEST_11(test_multithreaded_complex_reduction());
 
   CALL_SUBTEST_12(test_memcpy());
   CALL_SUBTEST_12(test_multithread_random());

@@ -914,8 +914,11 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
       const Index firstIndex = firstInput(index);
       for (Index i = 0; i < PacketSize; ++i) {
         Op reducer(m_reducer);
-        values[i] = internal::InnerMostDimReducer<Self, Op>::reduce(*this, firstIndex + i * num_values_to_reduce,
-                                                                    num_values_to_reduce, reducer);
+        // Materializing the result avoids a GCC 6.3/7.3 compiler crash when the reduction call is assigned directly.
+        // See https://gcc.gnu.org/bugzilla/show_bug.cgi?id=85496.
+        const CoeffReturnType value = internal::InnerMostDimReducer<Self, Op>::reduce(
+            *this, firstIndex + i * num_values_to_reduce, num_values_to_reduce, reducer);
+        values[i] = value;
       }
     } else EIGEN_IF_CONSTEXPR (PreservingInnerMostDims) {
       const Index firstIndex = firstInput(index);
