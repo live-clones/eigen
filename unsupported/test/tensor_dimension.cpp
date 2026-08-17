@@ -74,10 +74,21 @@ static void test_index_type_promotion() {
   VERIFY_IS_EQUAL(dst1[2], 6L);
 }
 
+// Regression test for issue #1616: unsigned dimension types must not trigger
+// narrowing errors in the variadic constructor.
+static void test_unsigned_dimensions() {
+  Eigen::DSizes<int, 3> dimensions(2u, 3ul, std::size_t(7));
+
+  VERIFY_IS_EQUAL((int)dimensions[0], 2);
+  VERIFY_IS_EQUAL((int)dimensions[1], 3);
+  VERIFY_IS_EQUAL((int)dimensions[2], 7);
+}
+
 EIGEN_DECLARE_TEST(tensor_dimension) {
   CALL_SUBTEST(test_dynamic_size());
   CALL_SUBTEST(test_fixed_size());
   CALL_SUBTEST(test_match());
   CALL_SUBTEST(test_rank_zero());
   CALL_SUBTEST(test_index_type_promotion());
+  CALL_SUBTEST(test_unsigned_dimensions());
 }

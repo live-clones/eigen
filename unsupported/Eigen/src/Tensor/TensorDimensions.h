@@ -237,7 +237,7 @@ struct DSizes : array<DenseIndex, NumDims> {
   template <typename... IndexTypes>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit DSizes(DenseIndex firstDimension, DenseIndex secondDimension,
                                                         IndexTypes... otherDimensions)
-      : Base({{firstDimension, secondDimension, otherDimensions...}}) {
+      : Base({{firstDimension, secondDimension, static_cast<DenseIndex>(otherDimensions)...}}) {
     EIGEN_STATIC_ASSERT(sizeof...(otherDimensions) + 2 == NumDims, YOU_MADE_A_PROGRAMMING_MISTAKE)
   }
 

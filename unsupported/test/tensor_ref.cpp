@@ -243,6 +243,18 @@ static void test_nested_ops_with_ref() {
   }
 }
 
+// Regression test for issue #1616: unsigned index types must not trigger
+// narrowing errors in the variadic accessors.
+static void test_unsigned_indices() {
+  Tensor<float, 3> tensor(2, 3, 7);
+  tensor.setRandom();
+
+  TensorRef<Tensor<float, 3>> ref(tensor);
+  VERIFY_IS_EQUAL(ref(1u, std::size_t(2), 6ul), tensor(1, 2, 6));
+  ref.coeffRef(1u, 2ul, std::size_t(6)) = 5.0f;
+  VERIFY_IS_EQUAL(tensor(1, 2, 6), 5.0f);
+}
+
 EIGEN_DECLARE_TEST(tensor_ref) {
   CALL_SUBTEST(test_simple_lvalue_ref());
   CALL_SUBTEST(test_simple_rvalue_ref());
@@ -254,4 +266,5 @@ EIGEN_DECLARE_TEST(tensor_ref) {
   CALL_SUBTEST(test_ref_in_expr());
   CALL_SUBTEST(test_coeff_ref());
   CALL_SUBTEST(test_nested_ops_with_ref());
+  CALL_SUBTEST(test_unsigned_indices());
 }

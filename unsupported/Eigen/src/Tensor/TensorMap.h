@@ -130,12 +130,12 @@ class TensorMap : public TensorBase<TensorMap<PlainObjectType, Options_, MakePoi
     EIGEN_STATIC_ASSERT(sizeof...(otherIndices) + 2 == NumIndices, YOU_MADE_A_PROGRAMMING_MISTAKE)
     eigen_assert(internal::all((Eigen::NumTraits<Index>::highest() >= otherIndices)...));
     EIGEN_IF_CONSTEXPR (PlainObjectType::Options & RowMajor) {
-      const Index index =
-          m_dimensions.IndexOfRowMajor(array<Index, NumIndices>{{firstIndex, secondIndex, otherIndices...}});
+      const Index index = m_dimensions.IndexOfRowMajor(
+          array<Index, NumIndices>{{firstIndex, secondIndex, static_cast<Index>(otherIndices)...}});
       return m_data[index];
     } else {
-      const Index index =
-          m_dimensions.IndexOfColMajor(array<Index, NumIndices>{{firstIndex, secondIndex, otherIndices...}});
+      const Index index = m_dimensions.IndexOfColMajor(
+          array<Index, NumIndices>{{firstIndex, secondIndex, static_cast<Index>(otherIndices)...}});
       return m_data[index];
     }
   }
@@ -168,12 +168,12 @@ class TensorMap : public TensorBase<TensorMap<PlainObjectType, Options_, MakePoi
     eigen_assert(internal::all((Eigen::NumTraits<Index>::highest() >= otherIndices)...));
     const std::size_t NumDims = sizeof...(otherIndices) + 2;
     EIGEN_IF_CONSTEXPR (PlainObjectType::Options & RowMajor) {
-      const Index index =
-          m_dimensions.IndexOfRowMajor(array<Index, NumDims>{{firstIndex, secondIndex, otherIndices...}});
+      const Index index = m_dimensions.IndexOfRowMajor(
+          array<Index, NumDims>{{firstIndex, secondIndex, static_cast<Index>(otherIndices)...}});
       return m_data[index];
     } else {
-      const Index index =
-          m_dimensions.IndexOfColMajor(array<Index, NumDims>{{firstIndex, secondIndex, otherIndices...}});
+      const Index index = m_dimensions.IndexOfColMajor(
+          array<Index, NumDims>{{firstIndex, secondIndex, static_cast<Index>(otherIndices)...}});
       return m_data[index];
     }
   }
