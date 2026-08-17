@@ -31,7 +31,7 @@ To get an overview of the true relative speed of the different decompositions, c
         <td>PartialPivLU</td>
         <td>Invertible</td>
         <td>Fast</td>
-        <td>Depends on condition number</td>
+        <td>Good<sup><a href="#note4">4</a></sup></td>
         <td>-</td>
         <td>-</td>
         <td>Yes</td>
@@ -43,7 +43,7 @@ To get an overview of the true relative speed of the different decompositions, c
         <td>FullPivLU</td>
         <td>-</td>
         <td>Slow (no blocking)</td>
-        <td>Proven</td>
+        <td>Good<sup><a href="#note4">4</a></sup></td>
         <td>Yes</td>
         <td>Rank, kernel, image</td>
         <td>Yes</td>
@@ -67,7 +67,7 @@ To get an overview of the true relative speed of the different decompositions, c
         <td>ColPivHouseholderQR</td>
         <td>-</td>
         <td>Fast</td>
-        <td>Good</td>
+        <td>Good<sup><a href="#note4">4</a></sup></td>
         <td>Yes</td>
         <td>Orthogonalization, least squares for overdetermined systems</td>
         <td>Yes (and does least squares)</td>
@@ -78,8 +78,8 @@ To get an overview of the true relative speed of the different decompositions, c
     <tr>
         <td>RandColPivHouseholderQR</td>
         <td>-</td>
-        <td>Fast</td>
-        <td>Good</td>
+        <td>Fast (large matrices)</td>
+        <td>Good<sup><a href="#note4">4</a></sup></td>
         <td>Yes</td>
         <td>Orthogonalization, least squares for overdetermined systems</td>
         <td>Yes (and does least squares)</td>
@@ -91,7 +91,7 @@ To get an overview of the true relative speed of the different decompositions, c
         <td>FullPivHouseholderQR</td>
         <td>-</td>
         <td>Slow (no blocking)</td>
-        <td>Proven</td>
+        <td>Good<sup><a href="#note4">4</a></sup></td>
         <td>Yes</td>
         <td>Orthogonalization, least squares for overdetermined systems</td>
         <td>Yes (and does least squares)</td>
@@ -99,16 +99,28 @@ To get an overview of the true relative speed of the different decompositions, c
         <td>-</td>
     </tr>
 
-    <tr class="alt">
+    <tr>
         <td>CompleteOrthogonalDecomposition</td>
         <td>-</td>
         <td>Fast</td>
-        <td>Good</td>
+        <td>Good<sup><a href="#note4">4</a></sup></td>
         <td>Yes</td>
-        <td>Orthogonalization, least squares for overdetermined systems</td>
+        <td>Orthogonalization, minimum-norm least squares, pseudo-inverse</td>
         <td>Yes (and does least squares)</td>
         <td>Excellent</td>
         <td><em>-</em></td>
+    </tr>
+
+    <tr class="alt">
+        <td>RandCompleteOrthogonalDecomposition</td>
+        <td>-</td>
+        <td>Fast (large matrices)</td>
+        <td>Good<sup><a href="#note4">4</a></sup></td>
+        <td>Yes</td>
+        <td>Orthogonalization, minimum-norm least squares, pseudo-inverse</td>
+        <td>Yes (and does least squares)</td>
+        <td>Good</td>
+        <td>Blocking, randomized pivot selection</td>
     </tr>
 
     <tr>
@@ -165,7 +177,7 @@ To get an overview of the true relative speed of the different decompositions, c
         <td>JacobiSVD (two-sided)</td>
         <td>-</td>
         <td>Slow (but fast for small matrices)</td>
-        <td>Proven<sup><a href="#note3">3</a></sup></td>
+        <td>High relative accuracy<sup><a href="#note3">3</a></sup></td>
         <td>Yes</td>
         <td>Singular values/vectors, least squares</td>
         <td>Yes (and does least squares)</td>
@@ -323,9 +335,10 @@ To get an overview of the true relative speed of the different decompositions, c
 
 \b Notes:
 <ul>
-<li><a name="note1">\b 1: </a>There exist two variants of the LDLT algorithm. Eigen's one produces a pure diagonal D matrix, and therefore it cannot handle indefinite matrices, unlike Lapack's one which produces a block diagonal D matrix.</li>
+<li><a name="note1">\b 1: </a>There exist two variants of the LDLT algorithm. %Eigen's LDLT produces a pure diagonal D matrix and therefore cannot handle indefinite matrices; it uses symmetric pivoting, which keeps the factorization stable when pivots are tiny or zero. The other variant, which produces the block-diagonal D needed for indefinite self-adjoint matrices, is provided by the BunchKaufman class.</li>
 <li><a name="note2">\b 2: </a>Eigenvalues, SVD and Schur decompositions rely on iterative algorithms. Their convergence speed depends on how well the eigenvalues are separated.</li>
-<li><a name="note3">\b 3: </a>Our JacobiSVD is two-sided, making for proven and optimal precision for square matrices. For non-square matrices, we have to use a QR preconditioner first. The default choice, ColPivHouseholderQR, is already very reliable, but if you want it to be proven, use FullPivHouseholderQR instead.</li>
+<li><a name="note3">\b 3: </a>Our JacobiSVD is two-sided, which achieves high relative accuracy on square matrices: each singular value is computed to high relative precision, even when it is tiny compared to the largest one. For non-square matrices, we have to use a QR preconditioner first. Both available preconditioners have rigorous error bounds; the default, \c ColPivHouseholderQRPreconditioner, has looser constants than \c FullPivHouseholderQRPreconditioner, but they are well understood and sufficient for essentially all practical problems, and it is considerably faster. See the guidance below on complete pivoting.</li>
+<li><a name="note4">\b 4: </a>The pivoted LU and QR factorizations are all backward stable; what differs between pivoting strategies is the constant in the bound, governed by the growth factor. Complete pivoting admits the tightest worst-case bound, but partial pivoting (LU) and column pivoting (QR) have well-understood bounds that are more than sufficient for essentially all practical problems, and their worst cases are not observed on real matrices. Since complete pivoting also rules out the cache-friendly blocked algorithms, LAPACK and %Eigen both treat partial and column pivoting as the defaults; see the guidance below.</li>
 </ul>
 
 \section TopicLinAlgPracticalGuidance Practical guidance
@@ -345,14 +358,26 @@ The following recommendations apply to the most common use cases:
     the default. Like the SVD, it robustly computes the minimum-norm solution for rank-deficient and
     under-determined problems, but at QR-like speed. Use \b BDCSVD when you also need singular values
     or vectors, not just the least squares solution.
+\li <b>Large least squares problems:</b> Use \b RandCompleteOrthogonalDecomposition. It produces the
+    same factorization as \b CompleteOrthogonalDecomposition, but chooses pivots from a small random
+    sketch so that nearly all of the work happens in level-3 BLAS kernels rather than in the
+    memory-bound column scan of classical column pivoting. The pivot-quality difference is empirically
+    minor. On small matrices the sketch overhead dominates, so prefer the non-randomized class there.
+\li <b>Pseudo-inverse:</b> \b CompleteOrthogonalDecomposition and \b RandCompleteOrthogonalDecomposition
+    are the only decompositions that provide pseudoInverse() directly. Prefer solve() over multiplying
+    by an explicitly formed pseudo-inverse.
 \li <b>Full-rank least squares (overdetermined systems):</b> When the matrix is known to be full rank,
     \b HouseholderQR is the fastest option. For very tall and skinny well-conditioned matrices,
     solving via the normal equations with \b LLT can be faster still.
 \li <b>FullPivLU and FullPivHouseholderQR</b> use complete pivoting, which prevents the use of
     cache-friendly blocking algorithms and makes them significantly slower than their partial/column
     pivoting counterparts. In practice, complete pivoting rarely provides meaningful accuracy benefits.
-    These decompositions are primarily useful for debugging, pedagogy, or the very rare case
-    where column pivoting is insufficient.
+    LAPACK reflects the same judgement: it exposes no general-purpose complete-pivoting driver,
+    standardizing instead on partial-pivoting LU (\c getrf) and column-pivoted QR (\c geqp3).
+    Complete-pivoting LU survives there only as the auxiliary routine \c getc2, used internally by the
+    generalized Sylvester solver, and complete-pivoting QR has no LAPACK counterpart at all.
+    Prefer PartialPivLU and ColPivHouseholderQR. The full-pivoting classes are primarily useful for
+    debugging, pedagogy, or the rare case where column pivoting is demonstrably insufficient.
 
 \section TopicLinAlgTerminology Terminology
 
