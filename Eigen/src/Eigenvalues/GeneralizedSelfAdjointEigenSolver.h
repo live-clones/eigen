@@ -62,7 +62,7 @@ class GeneralizedSelfAdjointEigenSolver : public SelfAdjointEigenSolver<MatrixTy
    * can only be used if \p MatrixType_ is a fixed-size matrix; use
    * GeneralizedSelfAdjointEigenSolver(Index) for dynamic-size matrices.
    */
-  GeneralizedSelfAdjointEigenSolver() : Base(), m_cholB(), m_matC(), m_tmp() {}
+  GeneralizedSelfAdjointEigenSolver() : Base(), m_cholB(), m_matC() {}
 
   /** \brief Constructor, pre-allocates memory for dynamic-size matrices.
    *
@@ -76,8 +76,7 @@ class GeneralizedSelfAdjointEigenSolver : public SelfAdjointEigenSolver<MatrixTy
    *
    * \sa compute() for an example
    */
-  explicit GeneralizedSelfAdjointEigenSolver(Index size)
-      : Base(size), m_cholB(size), m_matC(size, size), m_tmp(size, size) {}
+  explicit GeneralizedSelfAdjointEigenSolver(Index size) : Base(size), m_cholB(size), m_matC(size, size) {}
 
   /** \brief Constructor; computes generalized eigendecomposition of given matrix pencil.
    *
@@ -159,12 +158,9 @@ class GeneralizedSelfAdjointEigenSolver : public SelfAdjointEigenSolver<MatrixTy
 
  protected:
   // Reused across compute() calls so that a solver constructed with its size,
-  // or computed with once, does not allocate again. m_tmp holds the
-  // intermediate product of the ABx_lx and BAx_lx paths, whose operands alias
-  // their result.
+  // or computed with once, does not allocate again.
   LLT<MatrixType> m_cholB;
   MatrixType m_matC;
-  MatrixType m_tmp;
 };
 
 template <typename MatrixType>
@@ -196,9 +192,10 @@ GeneralizedSelfAdjointEigenSolver<MatrixType>& GeneralizedSelfAdjointEigenSolver
     // transform back the eigen vectors: evecs = inv(U) * evecs
     if (computeEigVecs) m_cholB.matrixU().solveInPlace(Base::m_eivec);
   } else if (type == ABx_lx) {
-    // compute C = L' A L
-    m_tmp.noalias() = m_matC * m_cholB.matrixL();
-    m_matC.noalias() = m_cholB.matrixU() * m_tmp;
+    // compute C = L' A L, using Base::m_eivec for the intermediate product: Base::compute()
+    // overwrites it before reading it.
+    Base::m_eivec.noalias() = m_matC * m_cholB.matrixL();
+    m_matC.noalias() = m_cholB.matrixU() * Base::m_eivec;
 
     Base::compute(m_matC, computeEigVecs ? ComputeEigenvectors : EigenvaluesOnly);
 
@@ -206,15 +203,16 @@ GeneralizedSelfAdjointEigenSolver<MatrixType>& GeneralizedSelfAdjointEigenSolver
     if (computeEigVecs) m_cholB.matrixU().solveInPlace(Base::m_eivec);
   } else if (type == BAx_lx) {
     // compute C = L' A L
-    m_tmp.noalias() = m_matC * m_cholB.matrixL();
-    m_matC.noalias() = m_cholB.matrixU() * m_tmp;
+    Base::m_eivec.noalias() = m_matC * m_cholB.matrixL();
+    m_matC.noalias() = m_cholB.matrixU() * Base::m_eivec;
 
     Base::compute(m_matC, computeEigVecs ? ComputeEigenvectors : EigenvaluesOnly);
 
-    // transform back the eigen vectors: evecs = L * evecs
+    // transform back the eigen vectors: evecs = L * evecs, using m_matC as the
+    // intermediate: Base::compute() has consumed it.
     if (computeEigVecs) {
-      m_tmp.noalias() = m_cholB.matrixL() * Base::m_eivec;
-      Base::m_eivec = m_tmp;
+      m_matC.noalias() = m_cholB.matrixL() * Base::m_eivec;
+      Base::m_eivec = m_matC;
     }
   }
 
