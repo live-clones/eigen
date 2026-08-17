@@ -26,19 +26,19 @@ namespace internal {
 // stored triangle directly, depth [i + bw, cols) reads its conjugated mirror
 // through a transposed-order mapper, and both rectangles delegate to the
 // (vectorized) gemm_pack_lhs; only the bw x bw diagonal band is packed per row.
-template <typename Scalar, typename Index, int Pack1, int Pack2_dummy, int StorageOrder>
+template <typename Scalar, typename Index, int Pack1, int Pack2, int StorageOrder>
 struct symm_pack_lhs {
   static constexpr int TransposedStorageOrder = StorageOrder == ColMajor ? RowMajor : ColMajor;
   static constexpr int PacketSize = packet_traits<Scalar>::size;
   using PacketType = typename packet_traits<Scalar>::type;
   using Mapper = const_blas_data_mapper<Scalar, Index, StorageOrder>;
   using TransposedMapper = const_blas_data_mapper<Scalar, Index, TransposedStorageOrder>;
-  // Pack2 = PacketSize keeps the delegates out of their Pack2 < PacketSize
-  // packing section, which exists for mixed-scalar products; a selfadjoint
-  // operand is packed for a same-scalar product.
-  using DirectPacker = gemm_pack_lhs<Scalar, Index, Mapper, Pack1, PacketSize, PacketType, StorageOrder, false, false>;
-  using MirroredPacker = gemm_pack_lhs<Scalar, Index, TransposedMapper, Pack1, PacketSize, PacketType,
-                                       TransposedStorageOrder, true, false>;
+  // Pack2 is Traits::LhsProgress, the same value the driver hands its
+  // gemm_pack_lhs for the off-diagonal panels: the diagonal block has to be
+  // packed the way those are, since gebp_kernel consumes them alike.
+  using DirectPacker = gemm_pack_lhs<Scalar, Index, Mapper, Pack1, Pack2, PacketType, StorageOrder, false, false>;
+  using MirroredPacker =
+      gemm_pack_lhs<Scalar, Index, TransposedMapper, Pack1, Pack2, PacketType, TransposedStorageOrder, true, false>;
 
   void pack_panel(Scalar* blockA, const Mapper& lhs, const TransposedMapper& lhs_t, Index cols, Index i, Index bw,
                   Index& count) const {
