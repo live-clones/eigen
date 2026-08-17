@@ -375,8 +375,6 @@ The following recommendations apply to the most common use cases:
     <dd>Means the algorithm is explicitly parallelized to take advantage of multicore processors via OpenMP.</dd>
   <dt><b>Meta-unroller</b></dt>
     <dd>Means the algorithm is automatically and explicitly unrolled for very small fixed size matrices.</dd>
-  <dt><b></b></dt>
-    <dd></dd>
 </dl>
 
 
