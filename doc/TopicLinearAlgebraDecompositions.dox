@@ -369,15 +369,23 @@ The following recommendations apply to the most common use cases:
 \li <b>Full-rank least squares (overdetermined systems):</b> When the matrix is known to be full rank,
     \b HouseholderQR is the fastest option. For very tall and skinny well-conditioned matrices,
     solving via the normal equations with \b LLT can be faster still.
-\li <b>FullPivLU and FullPivHouseholderQR</b> use complete pivoting, which prevents the use of
-    cache-friendly blocking algorithms and makes them significantly slower than their partial/column
-    pivoting counterparts. In practice, complete pivoting rarely provides meaningful accuracy benefits.
-    LAPACK reflects the same judgement for LU and QR: it exposes no complete-pivoting driver for
-    either, standardizing instead on partial-pivoting LU (\c getrf) and column-pivoted QR (\c geqp3,
-    \c geqp3rk). Complete-pivoting LU survives there only as the auxiliary routine \c getc2, called by
-    the generalized Sylvester solver, and complete pivoting has no QR counterpart at all.
-    Prefer PartialPivLU and ColPivHouseholderQR. The full-pivoting classes are primarily useful for
-    debugging, pedagogy, or the rare case where column pivoting is demonstrably insufficient.
+\li <b>FullPivLU and FullPivHouseholderQR</b> use complete pivoting, which rules out the
+    cache-friendly blocked algorithms and so makes them substantially slower than their partial- and
+    column-pivoting counterparts, increasingly so as the matrix grows. The smaller growth factor
+    complete pivoting buys rarely repays that cost on its own, so PartialPivLU and
+    ColPivHouseholderQR are the right default. LAPACK reflects the same trade-off for LU and QR: it
+    exposes no complete-pivoting driver for either, standardizing instead on partial-pivoting LU
+    (\c getrf) and column-pivoted QR (\c geqp3, \c geqp3rk). Complete-pivoting LU survives there only
+    as the auxiliary routine \c getc2, called by the generalized Sylvester solver, and complete
+    pivoting has no QR counterpart at all.
+\li <b>When complete pivoting is worth it:</b> rank determination. Column pivoting is reliable in
+    practice but not guaranteed (Kahan's matrix is the standard example of a nearly rank-deficient
+    matrix whose column-pivoted QR exposes no small trailing diagonal entry), whereas complete
+    pivoting inspects the whole trailing submatrix at each step. If your application depends on
+    getting the rank right, FullPivLU or FullPivHouseholderQR is a defensible choice, and the
+    argument is strongest for small matrices, where the lost blocking costs comparatively little.
+    When rank is the whole point and the cost is acceptable, BDCSVD remains the most reliable answer,
+    since the singular values let you choose the threshold yourself.
 
 \section TopicLinAlgTerminology Terminology
 
