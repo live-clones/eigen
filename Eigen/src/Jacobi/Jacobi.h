@@ -415,10 +415,13 @@ struct apply_rotation_in_the_plane_selector<Scalar, OtherScalar, SizeAtCompileTi
         }
         return;
       }
-    }
-
-    EIGEN_IF_CONSTEXPR (SizeAtCompileTime != Dynamic && MinAlignment >= RequiredAlignment) {
+      /*** non-vectorized dynamic-size path ***/
+      apply_rotation_in_the_plane_selector<Scalar, OtherScalar, SizeAtCompileTime, MinAlignment, false>::run(
+          x, incrx, y, incry, size, c, s);
+    } else EIGEN_IF_CONSTEXPR (MinAlignment >= RequiredAlignment) {
       /*** fixed-size vectorized path ***/
+      EIGEN_UNUSED_VARIABLE(incrx);
+      EIGEN_UNUSED_VARIABLE(incry);
       const OtherPacket pc = pset1<OtherPacket>(c);
       const OtherPacket ps = pset1<OtherPacket>(s);
       conj_helper<OtherPacket, Packet, NumTraits<OtherScalar>::IsComplex, false> pcj;
@@ -434,11 +437,11 @@ struct apply_rotation_in_the_plane_selector<Scalar, OtherScalar, SizeAtCompileTi
         py += PacketSize;
       }
       return;
+    } else {
+      /*** non-vectorized fixed-size path ***/
+      apply_rotation_in_the_plane_selector<Scalar, OtherScalar, SizeAtCompileTime, MinAlignment, false>::run(
+          x, incrx, y, incry, size, c, s);
     }
-
-    /*** non-vectorized path ***/
-    apply_rotation_in_the_plane_selector<Scalar, OtherScalar, SizeAtCompileTime, MinAlignment, false>::run(
-        x, incrx, y, incry, size, c, s);
   }
 };
 

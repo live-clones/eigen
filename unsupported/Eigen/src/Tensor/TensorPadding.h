@@ -187,8 +187,9 @@ struct TensorEvaluator<const TensorPaddingOp<PaddingDimensions, ArgType>, Device
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketReturnType packet(Index index) const {
     EIGEN_IF_CONSTEXPR (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
       return packetColMajor(index);
+    } else {
+      return packetRowMajor(index);
     }
-    return packetRowMajor(index);
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorOpCost costPerCoeff(bool vectorized) const {

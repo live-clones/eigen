@@ -59,8 +59,9 @@ EIGEN_ALWAYS_INLINE auto remMask(int64_t m) {
     return 0xFF >> (8 - m);
   } else EIGEN_IF_CONSTEXPR (N == 4) {
     return 0x0F >> (4 - m);
+  } else {
+    return 0;
   }
-  return 0;
 }
 
 template <typename Packet>

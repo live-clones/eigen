@@ -1015,37 +1015,38 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
       } else {
         return index * m_preservedStrides[NumPreservedStrides - 1];
       }
-    }
-    // TBD: optimize the case where we preserve the innermost dimensions.
-    Index startInput = 0;
-    EIGEN_IF_CONSTEXPR (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
-      for (int i = NumOutputDims - 1; i > 0; --i) {
-        // This is index_i in the output tensor.
-        const Index idx = index / m_outputStrides[i];
-        startInput += idx * m_preservedStrides[i];
-        index -= idx * m_outputStrides[i];
-      }
-      EIGEN_IF_CONSTEXPR (PreservingInnerMostDims) {
-        eigen_assert(m_preservedStrides[0] == 1);
-        startInput += index;
-      } else {
-        startInput += index * m_preservedStrides[0];
-      }
     } else {
-      for (int i = 0; i < NumOutputDims - 1; ++i) {
-        // This is index_i in the output tensor.
-        const Index idx = index / m_outputStrides[i];
-        startInput += idx * m_preservedStrides[i];
-        index -= idx * m_outputStrides[i];
-      }
-      EIGEN_IF_CONSTEXPR (PreservingInnerMostDims) {
-        eigen_assert(m_preservedStrides[NumPreservedStrides - 1] == 1);
-        startInput += index;
+      // TBD: optimize the case where we preserve the innermost dimensions.
+      Index startInput = 0;
+      EIGEN_IF_CONSTEXPR (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+        for (int i = NumOutputDims - 1; i > 0; --i) {
+          // This is index_i in the output tensor.
+          const Index idx = index / m_outputStrides[i];
+          startInput += idx * m_preservedStrides[i];
+          index -= idx * m_outputStrides[i];
+        }
+        EIGEN_IF_CONSTEXPR (PreservingInnerMostDims) {
+          eigen_assert(m_preservedStrides[0] == 1);
+          startInput += index;
+        } else {
+          startInput += index * m_preservedStrides[0];
+        }
       } else {
-        startInput += index * m_preservedStrides[NumPreservedStrides - 1];
+        for (int i = 0; i < NumOutputDims - 1; ++i) {
+          // This is index_i in the output tensor.
+          const Index idx = index / m_outputStrides[i];
+          startInput += idx * m_preservedStrides[i];
+          index -= idx * m_outputStrides[i];
+        }
+        EIGEN_IF_CONSTEXPR (PreservingInnerMostDims) {
+          eigen_assert(m_preservedStrides[NumPreservedStrides - 1] == 1);
+          startInput += index;
+        } else {
+          startInput += index * m_preservedStrides[NumPreservedStrides - 1];
+        }
       }
+      return startInput;
     }
-    return startInput;
   }
 
   // Bitmap indicating if an input dimension is reduced or not.
