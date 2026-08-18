@@ -43,11 +43,7 @@ struct direct_selfadjoint_eigensolver_matrix_scaling<MatrixType, true> {
       return;
     }
     const double wideScale = double(scale);
-    for (Index col = 0; col < matrix.cols(); ++col) {
-      for (Index row = 0; row < matrix.rows(); ++row) {
-        matrix.coeffRef(row, col) = float(double(matrix.coeff(row, col)) / wideScale);
-      }
-    }
+    matrix.array() = (matrix.array().template cast<double>() / wideScale).template cast<float>();
   }
 };
 
