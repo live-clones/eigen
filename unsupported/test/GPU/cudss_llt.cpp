@@ -196,6 +196,35 @@ void test_config(Index n) {
     Vec x = llt.solve(b);
     VERIFY((A * x - b).norm() / b.norm() < tol);
   }
+
+  // The "let cuDSS decide" sentinel for the hybrid device budget is negative,
+  // as it is in cuDSS itself, so that a budget of zero bytes stays a budget a
+  // caller can ask for rather than a second spelling of the default.
+  {
+    gpu::SparseSolverConfig cfg;
+    VERIFY(cfg.isDefault());
+    VERIFY(cfg.hybridMemoryDeviceLimit < 0);
+    cfg.hybridMemoryDeviceLimit = 0;
+    VERIFY(!cfg.isDefault());
+  }
+
+  // Hybrid memory mode, with the budget left to cuDSS and pinned explicitly.
+  // Zero is deliberately not exercised end to end: cuDSS then has no device
+  // memory to factor in and fails the factorization, which EIGEN_CUDSS_CHECK
+  // turns into an assertion rather than an info() code.
+  const int64_t limits[] = {-1, int64_t(1) << 26};
+  for (int64_t limit : limits) {
+    gpu::SparseSolverConfig cfg;
+    cfg.hybridMemory = true;
+    cfg.hybridMemoryDeviceLimit = limit;
+    gpu::SparseLLT<Scalar> llt;
+    llt.setConfig(cfg);
+    VERIFY_IS_EQUAL(llt.config().hybridMemoryDeviceLimit, limit);
+    llt.compute(A);
+    VERIFY_IS_EQUAL(llt.info(), Success);
+    Vec x = llt.solve(b);
+    VERIFY((A * x - b).norm() / b.norm() < tol);
+  }
 }
 
 // ---- Empty matrix -----------------------------------------------------------

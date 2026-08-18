@@ -101,8 +101,10 @@ struct SparseSolverConfig {
   double refinementTolerance = -1.0;
   /** Let factor data spill to host memory when device memory is insufficient. */
   bool hybridMemory = false;
-  /** Device-memory budget in bytes for hybridMemory; non-positive lets cuDSS decide. */
-  int64_t hybridMemoryDeviceLimit = 0;
+  /** Device-memory budget in bytes for hybridMemory; negative keeps the cuDSS
+   * default heuristic, which is what cuDSS itself spells as -1. Zero is a
+   * budget of its own and is passed through. */
+  int64_t hybridMemoryDeviceLimit = -1;
   /** Split factorization/solve work between host and device. */
   bool hybridExecute = false;
 
@@ -110,7 +112,7 @@ struct SparseSolverConfig {
   bool isDefault() const {
     return reordering == SparseReordering::Default && matching == SparseMatching::Default &&
            pivoting == SparsePivoting::Default && pivotThreshold < 0 && pivotEpsilon < 0 && refinementSteps < 0 &&
-           refinementTolerance < 0 && !hybridMemory && !hybridExecute;
+           refinementTolerance < 0 && !hybridMemory && hybridMemoryDeviceLimit < 0 && !hybridExecute;
   }
 };
 
@@ -438,7 +440,7 @@ class SparseSolverBase {
     if (c.hybridMemory) {
       const int v = 1;
       EIGEN_CUDSS_CHECK(cudssConfigSet(config_, CUDSS_CONFIG_HYBRID_MEMORY_MODE, &v, sizeof(v)));
-      if (c.hybridMemoryDeviceLimit > 0) {
+      if (c.hybridMemoryDeviceLimit >= 0) {
         const int64_t limit = c.hybridMemoryDeviceLimit;
         EIGEN_CUDSS_CHECK(cudssConfigSet(config_, CUDSS_CONFIG_HYBRID_DEVICE_MEMORY_LIMIT, &limit, sizeof(limit)));
       }
