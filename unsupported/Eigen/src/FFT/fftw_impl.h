@@ -74,7 +74,7 @@ EIGEN_FFTW_PLANNER_MUTEX_VISIBILITY std::mutex fftw_planner_lock<Dummy>::mutex;
 inline std::mutex &fftw_planner_mutex() { return fftw_planner_lock<>::mutex; }
 
 template <typename PlanFactory>
-inline auto fftw_make_plan(PlanFactory factory) -> decltype(factory()) {
+inline decltype(auto) fftw_make_plan(PlanFactory factory) {
   std::lock_guard<std::mutex> lock(fftw_planner_mutex());
   return factory();
 }

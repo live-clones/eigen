@@ -576,13 +576,12 @@ void test_concurrent_transforms() {
   std::vector<int> failures(num_threads, 0);
   std::vector<std::thread> workers;
   for (int t = 0; t < num_threads; ++t) {
-    workers.emplace_back([t, &failures]() {
+    workers.emplace_back([t, &failures] {
       for (int k = 0; k < num_ffts; ++k) {
         const int nfft = 16 + 3 * ((t + k) % 40);
         Eigen::FFT<double> fft;
         std::vector<std::complex<double>> src(nfft), freq, back;
-        for (int i = 0; i < nfft; ++i)
-          src[i] = std::complex<double>(std::cos(0.3 * i * (t + 1)), std::sin(0.7 * i + k));
+        for (int i = 0; i < nfft; ++i) src[i] = {std::cos(0.3 * i * (t + 1)), std::sin(0.7 * i + k)};
         fft.fwd(freq, src);
         fft.inv(back, freq);
         double max_err = 0;
