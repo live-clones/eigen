@@ -24,3 +24,31 @@ bs_configure("consumer with range 3.4...${major}" "${BS_CONSUMER_DIR}/installed"
              "-DEIGEN_VERSION_SPEC=3.4...${major}"
              ${BS_FIND_PACKAGE_ISOLATION})
 bs_build_and_run_consumer("consumer with a version range" "${WORK_DIR}/consumer")
+
+# An in-range success alone would also be produced by a range branch that
+# accepted every range, and find_package_version_reject cannot catch that: it
+# only reaches the non-range branch.  Bracket the installed version instead, so
+# a bound that stops being enforced fails here.
+math(EXPR above_major "${major}+1")
+math(EXPR above_major_end "${major}+2")
+bs_configure_expect_failure("consumer with range ${above_major}...${above_major_end}"
+                            "${BS_CONSUMER_DIR}/installed" "${WORK_DIR}/consumer-above" output
+                            "-DCMAKE_PREFIX_PATH=${BS_PREFIX}"
+                            "-DEIGEN_EXPECTED_PREFIX=${BS_PREFIX}"
+                            "-DEIGEN_VERSION_SPEC=${above_major}...${above_major_end}"
+                            ${BS_FIND_PACKAGE_ISOLATION})
+if(NOT output MATCHES "Eigen3")
+  bs_fail("configure failed for some reason other than the version check\n----\n${output}\n----")
+endif()
+
+# "...<" is the exclusive upper bound, so this range stops just below the
+# installed major and must not match it.
+bs_configure_expect_failure("consumer with range 1...<${major}"
+                            "${BS_CONSUMER_DIR}/installed" "${WORK_DIR}/consumer-below" output
+                            "-DCMAKE_PREFIX_PATH=${BS_PREFIX}"
+                            "-DEIGEN_EXPECTED_PREFIX=${BS_PREFIX}"
+                            "-DEIGEN_VERSION_SPEC=1...<${major}"
+                            ${BS_FIND_PACKAGE_ISOLATION})
+if(NOT output MATCHES "Eigen3")
+  bs_fail("configure failed for some reason other than the version check\n----\n${output}\n----")
+endif()

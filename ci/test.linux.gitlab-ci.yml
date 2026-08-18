@@ -778,6 +778,7 @@ test:linux:buildsystem:
       changes:
         - CMakeLists.txt
         - cmake/**/*
+        - Eigen/Version
         - blas/CMakeLists.txt
         - lapack/CMakeLists.txt
         - unsupported/**/CMakeLists.txt

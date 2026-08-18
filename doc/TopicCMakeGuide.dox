@@ -36,7 +36,7 @@ instances of %Eigen installed, `find_package` will use the first one
 encountered.  To request a specific version of %Eigen, use the `<version>`
 option in `find_package`:
 ```
-find_package(Eigen3 3.4 REQUIRED NO_MODULE)  # Restricts to 3.4.z
+find_package(Eigen3 3.4 REQUIRED NO_MODULE)  # Any version >=3.4 but <4.0.0.
 ```
 Starting with Eigen 3.4.1, we also support a range spanning major versions:
 ```
@@ -84,7 +84,6 @@ FetchContent_Declare(
   GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
   GIT_TAG        master
   GIT_SHALLOW    TRUE
-  EXCLUDE_FROM_ALL
 )
 FetchContent_MakeAvailable(Eigen)
 
@@ -111,12 +110,31 @@ FetchContent_MakeAvailable(Eigen)
 Projects that depend on %Eigen should typically exclude installing %Eigen by
 default to avoid overwriting a previous installation. Passing
 \c EXCLUDE_FROM_ALL to \c add_subdirectory drops %Eigen's install rules, and in
-addition keeps %Eigen's targets out of the default build.
+addition keeps %Eigen's targets out of the default build. That form works on
+every %CMake version %Eigen supports:
+\code{.cmake}
+add_subdirectory(path/to/eigen eigen-build EXCLUDE_FROM_ALL)
+\endcode
 
-\warning \c FetchContent_Declare gained \c EXCLUDE_FROM_ALL in %CMake 3.28.
-Older %CMake accepts the keyword without complaint and ignores it, so %Eigen is
-installed anyway. Only the \c add_subdirectory form is reliable across the
-%CMake versions %Eigen supports.
+\c FetchContent_Declare accepts the same keyword, but only from %CMake 3.28
+onwards, so a project using it has to say so:
+\code{.cmake}
+cmake_minimum_required(VERSION 3.28)
+
+include(FetchContent)
+FetchContent_Declare(
+  Eigen
+  GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
+  GIT_TAG        master
+  GIT_SHALLOW    TRUE
+  EXCLUDE_FROM_ALL
+)
+FetchContent_MakeAvailable(Eigen)
+\endcode
+
+\warning %CMake 3.17 through 3.27 accept \c EXCLUDE_FROM_ALL in
+\c FetchContent_Declare without complaint and ignore it, so %Eigen is installed
+anyway.
 
 \subsection title_fetchcontent_cmake330 Note for CMake 3.30 and later
 

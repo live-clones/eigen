@@ -121,8 +121,12 @@ documentation job only builds the docs, it does not run what they describe.
 
 ```bash
 cmake -G Ninja -S . -B build -DEIGEN_BUILD_TESTING=ON
-ctest --test-dir build -L buildsystem --output-on-failure
+cmake -E chdir build ctest -L buildsystem --output-on-failure
 ```
+
+`ctest --test-dir` would be the shorter spelling, but that option arrived in CMake 3.20; the 3.17 Eigen supports
+accepts and ignores it, inspects the source directory instead, reports that no tests were found, and exits
+successfully.
 
 No target needs building first: each scenario runs its own nested configure, build, and install into the CTest
 binary directory. Add a claim by dropping a scenario in `scenarios/` and naming it in the list in

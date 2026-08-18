@@ -14,6 +14,14 @@ bs_assert_installed("Eigen3ConfigVersion\\.cmake$" "Eigen3 package version file"
 bs_assert_installed("Eigen3Targets\\.cmake$" "Eigen3 exported targets")
 bs_assert_installed("/Eigen/Version$" "generated Eigen/Version header")
 
+# pkgconfig_off only asserts that eigen3.pc is absent, so without the positive
+# case here it would stay green even if pkg-config installation broke for every
+# configuration.  EIGEN_BUILD_PKGCONFIG, and with it eigen3.pc, exists only
+# where the top-level CMakeLists offers the option.
+if(NOT WIN32 OR NOT CMAKE_HOST_SYSTEM_NAME MATCHES Windows)
+  bs_assert_installed("eigen3\\.pc$" "eigen3.pc")
+endif()
+
 bs_configure("consumer" "${BS_CONSUMER_DIR}/installed" "${WORK_DIR}/consumer"
              "-DCMAKE_PREFIX_PATH=${BS_PREFIX}"
              "-DEIGEN_EXPECTED_PREFIX=${BS_PREFIX}"
