@@ -645,8 +645,14 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename internal::traits<Derived>::Scalar
  */
 template <typename Derived>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename internal::traits<Derived>::Scalar DenseBase<Derived>::sum() const {
-  if (SizeAtCompileTime == 0 || (SizeAtCompileTime == Dynamic && size() == 0)) return Scalar(0);
-  return derived().redux(Eigen::internal::scalar_sum_op<Scalar, Scalar>());
+  EIGEN_IF_CONSTEXPR (SizeAtCompileTime == 0) {
+    return Scalar(0);
+  } else {
+    EIGEN_IF_CONSTEXPR (SizeAtCompileTime == Dynamic) {
+      if (size() == 0) return Scalar(0);
+    }
+    return derived().redux(Eigen::internal::scalar_sum_op<Scalar, Scalar>());
+  }
 }
 
 /** \returns the mean of all coefficients of *this
@@ -674,8 +680,14 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename internal::traits<Derived>::Scalar
  */
 template <typename Derived>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename internal::traits<Derived>::Scalar DenseBase<Derived>::prod() const {
-  if (SizeAtCompileTime == 0 || (SizeAtCompileTime == Dynamic && size() == 0)) return Scalar(1);
-  return derived().redux(Eigen::internal::scalar_product_op<Scalar>());
+  EIGEN_IF_CONSTEXPR (SizeAtCompileTime == 0) {
+    return Scalar(1);
+  } else {
+    EIGEN_IF_CONSTEXPR (SizeAtCompileTime == Dynamic) {
+      if (size() == 0) return Scalar(1);
+    }
+    return derived().redux(Eigen::internal::scalar_product_op<Scalar>());
+  }
 }
 
 /** \returns the trace of \c *this, i.e. the sum of the coefficients on the main diagonal.

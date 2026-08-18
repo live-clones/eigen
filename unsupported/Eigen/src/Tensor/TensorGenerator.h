@@ -206,19 +206,21 @@ struct TensorEvaluator<const TensorGeneratorOp<Generator, ArgType>, Device> {
       }
       coords[inner_dim] = initial_coords[inner_dim];
 
-      // For the 1d tensor we need to generate only one inner-most dimension.
-      EIGEN_IF_CONSTEXPR (NumDims == 1) break;
-
-      // Update offset.
-      for (i = 1; i < NumDims; ++i) {
-        if (++it[i].count < it[i].size) {
-          offset += it[i].stride;
-          coords[is_col_major ? i : NumDims - 1 - i]++;
-          break;
+      EIGEN_IF_CONSTEXPR (NumDims == 1) {
+        // For the 1d tensor we need to generate only one inner-most dimension.
+        break;
+      } else {
+        // Update offset.
+        for (i = 1; i < NumDims; ++i) {
+          if (++it[i].count < it[i].size) {
+            offset += it[i].stride;
+            coords[is_col_major ? i : NumDims - 1 - i]++;
+            break;
+          }
+          if (i != NumDims - 1) it[i].count = 0;
+          coords[is_col_major ? i : NumDims - 1 - i] = initial_coords[is_col_major ? i : NumDims - 1 - i];
+          offset -= it[i].span;
         }
-        if (i != NumDims - 1) it[i].count = 0;
-        coords[is_col_major ? i : NumDims - 1 - i] = initial_coords[is_col_major ? i : NumDims - 1 - i];
-        offset -= it[i].span;
       }
     }
 

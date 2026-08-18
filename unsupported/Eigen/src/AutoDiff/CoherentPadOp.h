@@ -116,9 +116,12 @@ struct unary_evaluator<CoherentPadOp<ArgType, SizeAtCompileTime>>
     // AutoDiff scalar's derivative must be a vector, which is enforced by static assert.
     // Defer to linear access for simplicity.
     EIGEN_IF_CONSTEXPR (XprType::IsRowMajor) {
+      EIGEN_UNUSED_VARIABLE(row);
       return packet(col);
+    } else {
+      EIGEN_UNUSED_VARIABLE(col);
+      return packet(row);
     }
-    return packet(row);
   }
 
   template <int LoadMode, typename PacketType>

@@ -269,51 +269,52 @@ void evaluateProductBlockingSizesHeuristic(Index& k, Index& m, Index& n, Index n
 #ifdef EIGEN_VECTORIZE_SME
     // Only float×float uses the SME kernel; other scalar pairs run the generic
     // kernel below and would thrash L1/L2 with the SME-sized budgets.
-    if (std::is_same<LhsScalar, float>::value && std::is_same<RhsScalar, float>::value) {
+    EIGEN_IF_CONSTEXPR (std::is_same<LhsScalar, float>::value && std::is_same<RhsScalar, float>::value) {
       evaluateProductBlockingSizesHeuristicForSme<LhsScalar, RhsScalar>(k, m, n);
       return;
-    }
+    } else {
 #endif
 
-    using ResScalar = typename Traits::ResScalar;
-    enum {
-      k_peeling = 8,
-      k_div = KcFactor * (Traits::mr * sizeof(LhsScalar) + Traits::nr * sizeof(RhsScalar)),
-      k_sub = Traits::mr * (Traits::nr * sizeof(ResScalar))
-    };
+      using ResScalar = typename Traits::ResScalar;
+      enum {
+        k_peeling = 8,
+        k_div = KcFactor * (Traits::mr * sizeof(LhsScalar) + Traits::nr * sizeof(RhsScalar)),
+        k_sub = Traits::mr * (Traits::nr * sizeof(ResScalar))
+      };
 
-    // ---- 1st level of blocking on L1, yields kc ----
+      // ---- 1st level of blocking on L1, yields kc ----
 
-    // Blocking on the third dimension (i.e., k) is chosen so that an horizontal panel
-    // of size mr x kc of the lhs plus a vertical panel of kc x nr of the rhs both fits within L1 cache.
-    // We also include a register-level block of the result (mx x nr).
-    // (In an ideal world only the lhs panel would stay in L1)
-    // Moreover, kc has to be a multiple of 8 to be compatible with loop peeling, leading to a maximum blocking size of:
-    const Index max_kc = numext::maxi<Index>(static_cast<Index>(((l1 - k_sub) / k_div) & (~(k_peeling - 1))), 1);
-    const Index old_k = k;
-    if (k > max_kc) {
-      // We are really blocking on the third dimension:
-      // -> reduce blocking size to make sure the last block is as large as possible
-      //    while keeping the same number of sweeps over the result.
-      k = (k % max_kc) == 0 ? max_kc
-                            : max_kc - k_peeling * ((max_kc - 1 - (k % max_kc)) / (k_peeling * (k / max_kc + 1)));
+      // Blocking on the third dimension (i.e., k) is chosen so that an horizontal panel
+      // of size mr x kc of the lhs plus a vertical panel of kc x nr of the rhs both fits within L1 cache.
+      // We also include a register-level block of the result (mx x nr).
+      // (In an ideal world only the lhs panel would stay in L1)
+      // Moreover, kc has to be a multiple of 8 to be compatible with loop peeling, leading to a maximum blocking size
+      // of:
+      const Index max_kc = numext::maxi<Index>(static_cast<Index>(((l1 - k_sub) / k_div) & (~(k_peeling - 1))), 1);
+      const Index old_k = k;
+      if (k > max_kc) {
+        // We are really blocking on the third dimension:
+        // -> reduce blocking size to make sure the last block is as large as possible
+        //    while keeping the same number of sweeps over the result.
+        k = (k % max_kc) == 0 ? max_kc
+                              : max_kc - k_peeling * ((max_kc - 1 - (k % max_kc)) / (k_peeling * (k / max_kc + 1)));
 
-      eigen_internal_assert(((old_k / k) == (old_k / max_kc)) && "the number of sweeps has to remain the same");
-    }
+        eigen_internal_assert(((old_k / k) == (old_k / max_kc)) && "the number of sweeps has to remain the same");
+      }
 
 #ifdef EIGEN_VECTORIZE_AVX512
-    // The l1 *= 4 inflation above allows larger kc for better accumulator reuse,
-    // but can overfill the physical L1. Recompute max_kc using 85% of actual L1
-    // to leave headroom for RHS streaming, prefetch buffers, and stack.
-    {
-      const Index phys_l1_eff = phys_l1 * 85 / 100;
-      const Index max_kc_phys = numext::maxi<Index>(((phys_l1_eff - k_sub) / k_div) & (~(k_peeling - 1)), k_peeling);
-      if (max_kc_phys < k) {
-        k = (old_k % max_kc_phys) == 0 ? max_kc_phys
-                                       : max_kc_phys - k_peeling * ((max_kc_phys - 1 - (old_k % max_kc_phys)) /
-                                                                    (k_peeling * (old_k / max_kc_phys + 1)));
+      // The l1 *= 4 inflation above allows larger kc for better accumulator reuse,
+      // but can overfill the physical L1. Recompute max_kc using 85% of actual L1
+      // to leave headroom for RHS streaming, prefetch buffers, and stack.
+      {
+        const Index phys_l1_eff = phys_l1 * 85 / 100;
+        const Index max_kc_phys = numext::maxi<Index>(((phys_l1_eff - k_sub) / k_div) & (~(k_peeling - 1)), k_peeling);
+        if (max_kc_phys < k) {
+          k = (old_k % max_kc_phys) == 0 ? max_kc_phys
+                                         : max_kc_phys - k_peeling * ((max_kc_phys - 1 - (old_k % max_kc_phys)) /
+                                                                      (k_peeling * (old_k / max_kc_phys + 1)));
+        }
       }
-    }
 #endif
 
 // ---- 2nd level of blocking on max(L2,L3), yields nc ----
@@ -323,68 +324,71 @@ void evaluateProductBlockingSizesHeuristic(Index& k, Index& m, Index& n, Index n
 // that spills to L3 but remains accessible with low latency. This matches
 // the empirically-tuned constant (1.5MB) previously used when L2 was 1MB.
 #ifdef EIGEN_DEBUG_SMALL_PRODUCT_BLOCKS
-    const Index actual_l2 = static_cast<Index>(l3);
+      const Index actual_l2 = static_cast<Index>(l3);
 #else
     const Index actual_l2 = static_cast<Index>(l2 * 3 / 2);
 #endif
 
-    // Here, nc is chosen such that a block of kc x nc of the rhs fit within half of L2.
-    // The second half is implicitly reserved to access the result and lhs coefficients.
-    // When k<max_kc, then nc can grow without bound. In practice, it seems to be fruitful
-    // to limit this growth: we bound nc growth to a factor of 1.5x.
-    // However, if the entire lhs block fit within L1, then we are not going to block on the rows at all,
-    // and it becomes fruitful to keep the packed rhs blocks in L1 if there is enough remaining space.
-    Index max_nc;
-    const Index lhs_bytes = m * k * sizeof(LhsScalar);
-    const Index remaining_l1 = static_cast<Index>(l1 - k_sub - lhs_bytes);
-    if (remaining_l1 >= Index(Traits::nr * sizeof(RhsScalar)) * k) {
-      // L1 blocking
-      max_nc = remaining_l1 / (k * sizeof(RhsScalar));
-    } else {
-      // L2 blocking: use actual kc (k) rather than max_kc so that nc is not
-      // unnecessarily squeezed when k < max_kc (e.g. on CPUs with large L1).
-      max_nc = (3 * actual_l2) / (2 * 2 * k * sizeof(RhsScalar));
-    }
-    // WARNING Below, we assume that Traits::nr is a power of two.
-    Index nc = numext::mini<Index>(actual_l2 / (2 * k * sizeof(RhsScalar)), max_nc) & (~(Traits::nr - 1));
-    if (n > nc) {
-      // We are really blocking over the columns:
-      // -> reduce blocking size to make sure the last block is as large as possible
-      //    while keeping the same number of sweeps over the packed lhs.
-      //    Here we allow one more sweep if this gives us a perfect match, thus the commented "-1"
-      n = (n % nc) == 0 ? nc : (nc - Traits::nr * ((nc /*-1*/ - (n % nc)) / (Traits::nr * (n / nc + 1))));
-    } else if (old_k == k) {
-      // No k- or n-blocking happened yet (kc==depth, nc>=n). gebp already
-      // strip-chunks the packed lhs via its own `actual_panel_rows` budget,
-      // so cache residency is honored whatever mc we pick here. What this
-      // branch actually governs is the size of the `mc * kc` packing buffer
-      // (blockA) that the caller allocates — capping mc keeps it bounded for
-      // tall-m / small-k shapes, where leaving mc=m would allocate up to
-      // `rows * depth * sizeof(LhsScalar)`. A budget-based alternative
-      // (e.g. cap blockA at ~L3/4) is no faster in benchmarks and increases
-      // heap use, so the original L1/L2-residency tuning is kept.
-      Index problem_size = k * n * sizeof(LhsScalar);
-      Index actual_lm = actual_l2;
-      Index max_mc = m;
-      if (problem_size <= 1024) {
-        // problem is small enough to keep in L1
-        // Let's choose m such that lhs's block fit in 1/3 of L1
-        actual_lm = static_cast<Index>(l1);
-      } else if (l3 != 0 && problem_size <= l1) {
-        // We have both L2 and L3, and the rhs panel still fits in L1. Choose mc so the
-        // lhs block fits in 1/3 of L2 and avoid spilling into the L2+50% fallback band.
-        // The 32768 byte threshold previously used here was a stand-in for typical x86
-        // L1 size; using the runtime-detected l1 generalizes this to current cache sizes.
-        actual_lm = static_cast<Index>(l2);
-        max_mc = (numext::mini<Index>)(576, max_mc);
+      // Here, nc is chosen such that a block of kc x nc of the rhs fit within half of L2.
+      // The second half is implicitly reserved to access the result and lhs coefficients.
+      // When k<max_kc, then nc can grow without bound. In practice, it seems to be fruitful
+      // to limit this growth: we bound nc growth to a factor of 1.5x.
+      // However, if the entire lhs block fit within L1, then we are not going to block on the rows at all,
+      // and it becomes fruitful to keep the packed rhs blocks in L1 if there is enough remaining space.
+      Index max_nc;
+      const Index lhs_bytes = m * k * sizeof(LhsScalar);
+      const Index remaining_l1 = static_cast<Index>(l1 - k_sub - lhs_bytes);
+      if (remaining_l1 >= Index(Traits::nr * sizeof(RhsScalar)) * k) {
+        // L1 blocking
+        max_nc = remaining_l1 / (k * sizeof(RhsScalar));
+      } else {
+        // L2 blocking: use actual kc (k) rather than max_kc so that nc is not
+        // unnecessarily squeezed when k < max_kc (e.g. on CPUs with large L1).
+        max_nc = (3 * actual_l2) / (2 * 2 * k * sizeof(RhsScalar));
       }
-      Index mc = (numext::mini<Index>)(actual_lm / (3 * k * sizeof(LhsScalar)), max_mc);
-      if (mc > Traits::mr)
-        mc -= mc % Traits::mr;
-      else if (mc == 0)
-        return;
-      m = (m % mc) == 0 ? mc : (mc - Traits::mr * ((mc /*-1*/ - (m % mc)) / (Traits::mr * (m / mc + 1))));
+      // WARNING Below, we assume that Traits::nr is a power of two.
+      Index nc = numext::mini<Index>(actual_l2 / (2 * k * sizeof(RhsScalar)), max_nc) & (~(Traits::nr - 1));
+      if (n > nc) {
+        // We are really blocking over the columns:
+        // -> reduce blocking size to make sure the last block is as large as possible
+        //    while keeping the same number of sweeps over the packed lhs.
+        //    Here we allow one more sweep if this gives us a perfect match, thus the commented "-1"
+        n = (n % nc) == 0 ? nc : (nc - Traits::nr * ((nc /*-1*/ - (n % nc)) / (Traits::nr * (n / nc + 1))));
+      } else if (old_k == k) {
+        // No k- or n-blocking happened yet (kc==depth, nc>=n). gebp already
+        // strip-chunks the packed lhs via its own `actual_panel_rows` budget,
+        // so cache residency is honored whatever mc we pick here. What this
+        // branch actually governs is the size of the `mc * kc` packing buffer
+        // (blockA) that the caller allocates — capping mc keeps it bounded for
+        // tall-m / small-k shapes, where leaving mc=m would allocate up to
+        // `rows * depth * sizeof(LhsScalar)`. A budget-based alternative
+        // (e.g. cap blockA at ~L3/4) is no faster in benchmarks and increases
+        // heap use, so the original L1/L2-residency tuning is kept.
+        Index problem_size = k * n * sizeof(LhsScalar);
+        Index actual_lm = actual_l2;
+        Index max_mc = m;
+        if (problem_size <= 1024) {
+          // problem is small enough to keep in L1
+          // Let's choose m such that lhs's block fit in 1/3 of L1
+          actual_lm = static_cast<Index>(l1);
+        } else if (l3 != 0 && problem_size <= l1) {
+          // We have both L2 and L3, and the rhs panel still fits in L1. Choose mc so the
+          // lhs block fits in 1/3 of L2 and avoid spilling into the L2+50% fallback band.
+          // The 32768 byte threshold previously used here was a stand-in for typical x86
+          // L1 size; using the runtime-detected l1 generalizes this to current cache sizes.
+          actual_lm = static_cast<Index>(l2);
+          max_mc = (numext::mini<Index>)(576, max_mc);
+        }
+        Index mc = (numext::mini<Index>)(actual_lm / (3 * k * sizeof(LhsScalar)), max_mc);
+        if (mc > Traits::mr)
+          mc -= mc % Traits::mr;
+        else if (mc == 0)
+          return;
+        m = (m % mc) == 0 ? mc : (mc - Traits::mr * ((mc /*-1*/ - (m % mc)) / (Traits::mr * (m / mc + 1))));
+      }
+#ifdef EIGEN_VECTORIZE_SME
     }
+#endif
   }
 }
 
@@ -408,10 +412,9 @@ inline bool useSpecificBlockingSizes(Index& k, Index& m, Index& n) {
 /** \brief Computes the blocking parameters for a m x k times k x n matrix product
  *
  * \param[in,out] k Input: the third dimension of the product. Output: the blocking size along the same dimension.
- * \param[in,out] m Input: the number of rows of the left hand side. Output: the blocking size along the same dimension.
- * \param[in,out] n Input: the number of columns of the right hand side. Output: the blocking size along the same
- *                         dimension.
- * \param[in] num_threads Input: the number of threads used for the computation.
+ * \param[in,out] m Input: the number of rows of the left hand side. Output: the blocking size along the same
+ * dimension. \param[in,out] n Input: the number of columns of the right hand side. Output: the blocking size along
+ * the same dimension. \param[in] num_threads Input: the number of threads used for the computation.
  *
  * Given a m x k times k x n matrix product of scalar types \c LhsScalar and \c RhsScalar,
  * this function computes the blocking size parameters along the respective dimensions

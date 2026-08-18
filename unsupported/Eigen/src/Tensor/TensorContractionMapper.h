@@ -265,35 +265,35 @@ class BaseTensorContractionMapper
       const Index index = this->computeIndex(i, j);
       eigen_assert(this->computeIndex(i + packet_size - 1, j) == index + packet_size - 1);
       return this->m_tensor.template packet<AlignmentType>(index);
-    }
+    } else {
+      const IndexPair<Index> indexPair = this->computeIndexPair(i, j, packet_size - 1);
+      const Index first = indexPair.first;
+      const Index lastIdx = indexPair.second;
 
-    const IndexPair<Index> indexPair = this->computeIndexPair(i, j, packet_size - 1);
-    const Index first = indexPair.first;
-    const Index lastIdx = indexPair.second;
-
-    // We can always do optimized packet reads from left hand side right now, because
-    // the vertical matrix dimension on the left hand side is never contracting.
-    // On the right hand side we need to check if the contracting dimensions may have
-    // been shuffled first.
-    EIGEN_IF_CONSTEXPR (Tensor::PacketAccess &&
-                        (side == Lhs || internal::array_size<contract_t>::value <= 1 || !inner_dim_reordered)) {
-      if ((lastIdx - first) == (packet_size - 1)) {
-        return this->m_tensor.template packet<AlignmentType>(first);
+      // We can always do optimized packet reads from left hand side right now, because
+      // the vertical matrix dimension on the left hand side is never contracting.
+      // On the right hand side we need to check if the contracting dimensions may have
+      // been shuffled first.
+      EIGEN_IF_CONSTEXPR (Tensor::PacketAccess &&
+                          (side == Lhs || internal::array_size<contract_t>::value <= 1 || !inner_dim_reordered)) {
+        if ((lastIdx - first) == (packet_size - 1)) {
+          return this->m_tensor.template packet<AlignmentType>(first);
+        }
       }
+
+      EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<PacketT>::alignment) Scalar data[packet_size];
+
+      data[0] = this->m_tensor.coeff(first);
+      EIGEN_UNROLL_LOOP
+      for (Index k = 1; k < packet_size - 1; k += 2) {
+        const IndexPair<Index> internal_pair = this->computeIndexPair(i + k, j, 1);
+        data[k] = this->m_tensor.coeff(internal_pair.first);
+        data[k + 1] = this->m_tensor.coeff(internal_pair.second);
+      }
+      data[packet_size - 1] = this->m_tensor.coeff(lastIdx);
+
+      return pload<PacketT>(data);
     }
-
-    EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<PacketT>::alignment) Scalar data[packet_size];
-
-    data[0] = this->m_tensor.coeff(first);
-    EIGEN_UNROLL_LOOP
-    for (Index k = 1; k < packet_size - 1; k += 2) {
-      const IndexPair<Index> internal_pair = this->computeIndexPair(i + k, j, 1);
-      data[k] = this->m_tensor.coeff(internal_pair.first);
-      data[k + 1] = this->m_tensor.coeff(internal_pair.second);
-    }
-    data[packet_size - 1] = this->m_tensor.coeff(lastIdx);
-
-    return pload<PacketT>(data);
   }
 
   template <typename PacketT, int AlignmentType>
@@ -383,46 +383,52 @@ class TensorContractionSubMapper {
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar operator()(Index i) const {
     EIGEN_IF_CONSTEXPR (UseDirectOffsets) {
       return m_base_mapper(i, 0);
+    } else {
+      return m_base_mapper(i + m_vert_offset, m_horiz_offset);
     }
-    return m_base_mapper(i + m_vert_offset, m_horiz_offset);
   }
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar operator()(Index i, Index j) const {
     EIGEN_IF_CONSTEXPR (UseDirectOffsets) {
       return m_base_mapper(i, j);
+    } else {
+      return m_base_mapper(i + m_vert_offset, j + m_horiz_offset);
     }
-    return m_base_mapper(i + m_vert_offset, j + m_horiz_offset);
   }
 
   template <typename PacketT>
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE PacketT loadPacket(Index i) const {
     EIGEN_IF_CONSTEXPR (UseDirectOffsets) {
       return m_base_mapper.template loadPacket<PacketT, Alignment>(i, 0);
+    } else {
+      return m_base_mapper.template loadPacket<PacketT, Alignment>(i + m_vert_offset, m_horiz_offset);
     }
-    return m_base_mapper.template loadPacket<PacketT, Alignment>(i + m_vert_offset, m_horiz_offset);
   }
 
   template <typename PacketT>
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE PacketT loadPacket(Index i, Index j) const {
     EIGEN_IF_CONSTEXPR (UseDirectOffsets) {
       return m_base_mapper.template loadPacket<PacketT, Alignment>(i, j);
+    } else {
+      return m_base_mapper.template loadPacket<PacketT, Alignment>(i + m_vert_offset, j + m_horiz_offset);
     }
-    return m_base_mapper.template loadPacket<PacketT, Alignment>(i + m_vert_offset, j + m_horiz_offset);
   }
 
   template <typename PacketT>
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE PacketT loadPacketPartial(Index i, Index j, Index, Index = 0) const {
     EIGEN_IF_CONSTEXPR (UseDirectOffsets) {
       return m_base_mapper.template loadPacket<PacketT, Alignment>(i, j);
+    } else {
+      return m_base_mapper.template loadPacket<PacketT, Alignment>(i + m_vert_offset, j + m_horiz_offset);
     }
-    return m_base_mapper.template loadPacket<PacketT, Alignment>(i + m_vert_offset, j + m_horiz_offset);
   }
 
   template <typename PacketT, int AlignmentType>
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE PacketT loadPacket(Index i, Index j) const {
     EIGEN_IF_CONSTEXPR (UseDirectOffsets) {
       return m_base_mapper.template load<PacketT, AlignmentType>(i, j);
+    } else {
+      return m_base_mapper.template loadPacket<PacketT, AlignmentType>(i + m_vert_offset, j + m_horiz_offset);
     }
-    return m_base_mapper.template loadPacket<PacketT, AlignmentType>(i + m_vert_offset, j + m_horiz_offset);
   }
 
   template <typename PacketT>
@@ -437,15 +443,17 @@ class TensorContractionSubMapper {
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE LinearMapper getLinearMapper(Index i, Index j) const {
     EIGEN_IF_CONSTEXPR (UseDirectOffsets) {
       return LinearMapper(m_base_mapper, i, j);
+    } else {
+      return LinearMapper(m_base_mapper, i + m_vert_offset, j + m_horiz_offset);
     }
-    return LinearMapper(m_base_mapper, i + m_vert_offset, j + m_horiz_offset);
   }
 
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE SubMapper getSubMapper(Index i, Index j) const {
     EIGEN_IF_CONSTEXPR (UseDirectOffsets) {
       return SubMapper(m_base_mapper, i, j);
+    } else {
+      return SubMapper(m_base_mapper, i + m_vert_offset, j + m_horiz_offset);
     }
-    return SubMapper(m_base_mapper, i + m_vert_offset, j + m_horiz_offset);
   }
 
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE const Index stride() const { return m_base_mapper.stride(); }
@@ -456,8 +464,9 @@ class TensorContractionSubMapper {
     constexpr int ActualAlignment = (AlignmentType == Aligned) && (Alignment == Aligned) ? Aligned : Unaligned;
     EIGEN_IF_CONSTEXPR (UseDirectOffsets) {
       return m_base_mapper.template loadPacket<PacketT, ActualAlignment>(i, 0);
+    } else {
+      return m_base_mapper.template loadPacket<PacketT, ActualAlignment>(i + m_vert_offset, m_horiz_offset);
     }
-    return m_base_mapper.template loadPacket<PacketT, ActualAlignment>(i + m_vert_offset, m_horiz_offset);
   }
 
   template <typename PacketT>

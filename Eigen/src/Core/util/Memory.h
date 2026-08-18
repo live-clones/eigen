@@ -508,12 +508,12 @@ template <typename T, bool Align>
 EIGEN_DEVICE_FUNC inline T* conditional_aligned_realloc_new_auto(T* pts, std::size_t new_size, std::size_t old_size) {
   EIGEN_IF_CONSTEXPR (NumTraits<T>::RequireInitialization) {
     return conditional_aligned_realloc_new<T, Align>(pts, new_size, old_size);
+  } else {
+    check_size_for_overflow<T>(new_size);
+    check_size_for_overflow<T>(old_size);
+    return static_cast<T*>(
+        conditional_aligned_realloc<Align>(static_cast<void*>(pts), sizeof(T) * new_size, sizeof(T) * old_size));
   }
-
-  check_size_for_overflow<T>(new_size);
-  check_size_for_overflow<T>(old_size);
-  return static_cast<T*>(
-      conditional_aligned_realloc<Align>(static_cast<void*>(pts), sizeof(T) * new_size, sizeof(T) * old_size));
 }
 
 template <typename T, bool Align>

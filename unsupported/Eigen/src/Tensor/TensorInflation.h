@@ -293,17 +293,19 @@ struct TensorEvaluator<const TensorInflationOp<Strides, ArgType>, Device> {
         block_buffer[dst + j * inner_dst_stride] = m_impl.coeff(src + j);
       }
 
-      EIGEN_IF_CONSTEXPR (NumDims == 1) break;
-
-      for (int i = 1; i < NumDims; ++i) {
-        if (++it[i].count < it[i].size) {
-          dst += it[i].dst_stride;
-          src += it[i].src_stride;
-          break;
+      EIGEN_IF_CONSTEXPR (NumDims == 1) {
+        break;
+      } else {
+        for (int i = 1; i < NumDims; ++i) {
+          if (++it[i].count < it[i].size) {
+            dst += it[i].dst_stride;
+            src += it[i].src_stride;
+            break;
+          }
+          if (i != NumDims - 1) it[i].count = 0;
+          dst -= it[i].dst_span;
+          src -= it[i].src_span;
         }
-        if (i != NumDims - 1) it[i].count = 0;
-        dst -= it[i].dst_span;
-        src -= it[i].src_span;
       }
     }
 

@@ -203,27 +203,29 @@ struct evaluator<PartialReduxExpr<ArgType, MemberOp, Direction> >
   template <int LoadMode, typename PacketType>
   EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC PacketType packet(Index idx) const {
     static constexpr int PacketSize = internal::unpacket_traits<PacketType>::size;
-    static constexpr int PanelRows = Direction == Vertical ? ArgType::RowsAtCompileTime : PacketSize;
-    static constexpr int PanelCols = Direction == Vertical ? PacketSize : ArgType::ColsAtCompileTime;
-    using PanelType = Block<const ArgTypeNestedCleaned, PanelRows, PanelCols, true /* InnerPanel */>;
-    using PanelEvaluator = typename internal::redux_evaluator<PanelType>;
-    using BinaryOp = typename MemberOp::BinaryOp;
-    using Impl = internal::packetwise_redux_impl<BinaryOp, PanelEvaluator>;
-
     // Workaround for issue 1612 (closed): when PacketSize==1 (i.e. complex<double> with 128bits registers) the
     // storage-order of panel gets reversed and methods like packetByOuterInner do not make sense in this context, so
     // bypass "vectorization":
-    EIGEN_IF_CONSTEXPR (PacketSize == 1) return internal::pset1<PacketType>(coeff(idx));
+    EIGEN_IF_CONSTEXPR (PacketSize == 1) {
+      return internal::pset1<PacketType>(coeff(idx));
+    } else {
+      static constexpr int PanelRows = Direction == Vertical ? ArgType::RowsAtCompileTime : PacketSize;
+      static constexpr int PanelCols = Direction == Vertical ? PacketSize : ArgType::ColsAtCompileTime;
+      using PanelType = Block<const ArgTypeNestedCleaned, PanelRows, PanelCols, true /* InnerPanel */>;
+      using PanelEvaluator = typename internal::redux_evaluator<PanelType>;
+      using BinaryOp = typename MemberOp::BinaryOp;
+      using Impl = internal::packetwise_redux_impl<BinaryOp, PanelEvaluator>;
 
-    Index startRow = Direction == Vertical ? 0 : idx;
-    Index startCol = Direction == Vertical ? idx : 0;
-    Index numRows = Direction == Vertical ? m_arg.rows() : PacketSize;
-    Index numCols = Direction == Vertical ? PacketSize : m_arg.cols();
+      Index startRow = Direction == Vertical ? 0 : idx;
+      Index startCol = Direction == Vertical ? idx : 0;
+      Index numRows = Direction == Vertical ? m_arg.rows() : PacketSize;
+      Index numCols = Direction == Vertical ? PacketSize : m_arg.cols();
 
-    PanelType panel(m_arg, startRow, startCol, numRows, numCols);
-    PanelEvaluator panel_eval(panel);
-    PacketType p = Impl::template run<PacketType>(panel_eval, m_functor.binaryFunc(), m_arg.outerSize());
-    return p;
+      PanelType panel(m_arg, startRow, startCol, numRows, numCols);
+      PanelEvaluator panel_eval(panel);
+      PacketType p = Impl::template run<PacketType>(panel_eval, m_functor.binaryFunc(), m_arg.outerSize());
+      return p;
+    }
   }
 
   template <int LoadMode, typename PacketType>

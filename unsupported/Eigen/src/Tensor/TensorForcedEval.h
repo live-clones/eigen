@@ -72,8 +72,11 @@ struct non_integral_type_placement_new {
     EIGEN_IF_CONSTEXPR (NumTraits<CoeffReturnType>::RequireInitialization) {
       default_construct_elements_of_array(m_buffer, numValues);
       return true;
+    } else {
+      EIGEN_UNUSED_VARIABLE(numValues);
+      EIGEN_UNUSED_VARIABLE(m_buffer);
+      return false;
     }
-    return false;
   }
 };
 

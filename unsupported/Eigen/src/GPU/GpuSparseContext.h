@@ -421,17 +421,20 @@ class SparseContext {
   // Identity on cuSPARSE 12+ (descriptor is CSC of A); inverted on 11.x
   // (descriptor is CSR of A^T).
   static cusparseOperation_t descriptor_op(cusparseOperation_t user_op) {
-    EIGEN_IF_CONSTEXPR (!kUseCsrOfTranspose) return user_op;
-    switch (user_op) {
-      case CUSPARSE_OPERATION_NON_TRANSPOSE:
-        return CUSPARSE_OPERATION_TRANSPOSE;
-      case CUSPARSE_OPERATION_TRANSPOSE:
-        return CUSPARSE_OPERATION_NON_TRANSPOSE;
-      default:
-        // CONJUGATE_TRANSPOSE on the CSR-of-A^T descriptor would compute
-        // conj(A) * x, not A^H * x — not supported via this representation.
-        eigen_assert(false && "CUSPARSE_OPERATION_CONJUGATE_TRANSPOSE not supported on cuSPARSE < 12.0");
-        return user_op;
+    EIGEN_IF_CONSTEXPR (!kUseCsrOfTranspose) {
+      return user_op;
+    } else {
+      switch (user_op) {
+        case CUSPARSE_OPERATION_NON_TRANSPOSE:
+          return CUSPARSE_OPERATION_TRANSPOSE;
+        case CUSPARSE_OPERATION_TRANSPOSE:
+          return CUSPARSE_OPERATION_NON_TRANSPOSE;
+        default:
+          // CONJUGATE_TRANSPOSE on the CSR-of-A^T descriptor would compute
+          // conj(A) * x, not A^H * x — not supported via this representation.
+          eigen_assert(false && "CUSPARSE_OPERATION_CONJUGATE_TRANSPOSE not supported on cuSPARSE < 12.0");
+          return user_op;
+      }
     }
   }
 

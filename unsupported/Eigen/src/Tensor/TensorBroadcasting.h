@@ -206,20 +206,21 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device> {
 
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE CoeffReturnType coeff(Index index) const {
     EIGEN_IF_CONSTEXPR ((internal::is_input_scalar<internal::remove_all_t<InputDimensions>>::value)) {
+      EIGEN_UNUSED_VARIABLE(index);
       return m_impl.coeff(0);
-    }
-
-    EIGEN_IF_CONSTEXPR (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
-      if (isCopy) {
-        return m_impl.coeff(index);
-      } else {
-        return coeffColMajor(index);
-      }
     } else {
-      if (isCopy) {
-        return m_impl.coeff(index);
+      EIGEN_IF_CONSTEXPR (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+        if (isCopy) {
+          return m_impl.coeff(index);
+        } else {
+          return coeffColMajor(index);
+        }
       } else {
-        return coeffRowMajor(index);
+        if (isCopy) {
+          return m_impl.coeff(index);
+        } else {
+          return coeffRowMajor(index);
+        }
       }
     }
   }
@@ -301,43 +302,44 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device> {
   template <int LoadMode>
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE PacketReturnType packet(Index index) const {
     EIGEN_IF_CONSTEXPR ((internal::is_input_scalar<internal::remove_all_t<InputDimensions>>::value)) {
+      EIGEN_UNUSED_VARIABLE(index);
       return internal::pset1<PacketReturnType>(m_impl.coeff(0));
-    }
-
-    EIGEN_IF_CONSTEXPR (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
-      if (isCopy) {
-#ifdef EIGEN_GPU_COMPILE_PHASE
-        // See PR 437: on NVIDIA P100 and K20m we observed a x3-4 speed up by enforcing
-        // unaligned loads here. The reason is unclear though.
-        return m_impl.template packet<Unaligned>(index);
-#else
-        return m_impl.template packet<LoadMode>(index);
-#endif
-      } else if (oneByN && !nByOne) {
-        return packetNByOne<LoadMode>(index);
-      } else if (!oneByN && nByOne) {
-        return packetOneByN<LoadMode>(index);
-      } else if (oneByN && nByOne) {
-        return packetOneByNByOne<LoadMode>(index);
-      } else {
-        return packetColMajor<LoadMode>(index);
-      }
     } else {
-      if (isCopy) {
+      EIGEN_IF_CONSTEXPR (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+        if (isCopy) {
 #ifdef EIGEN_GPU_COMPILE_PHASE
-        // See above.
-        return m_impl.template packet<Unaligned>(index);
+          // See PR 437: on NVIDIA P100 and K20m we observed a x3-4 speed up by enforcing
+          // unaligned loads here. The reason is unclear though.
+          return m_impl.template packet<Unaligned>(index);
 #else
-        return m_impl.template packet<LoadMode>(index);
+          return m_impl.template packet<LoadMode>(index);
 #endif
-      } else if (oneByN && !nByOne) {
-        return packetOneByN<LoadMode>(index);
-      } else if (!oneByN && nByOne) {
-        return packetNByOne<LoadMode>(index);
-      } else if (oneByN && nByOne) {
-        return packetOneByNByOne<LoadMode>(index);
+        } else if (oneByN && !nByOne) {
+          return packetNByOne<LoadMode>(index);
+        } else if (!oneByN && nByOne) {
+          return packetOneByN<LoadMode>(index);
+        } else if (oneByN && nByOne) {
+          return packetOneByNByOne<LoadMode>(index);
+        } else {
+          return packetColMajor<LoadMode>(index);
+        }
       } else {
-        return packetRowMajor<LoadMode>(index);
+        if (isCopy) {
+#ifdef EIGEN_GPU_COMPILE_PHASE
+          // See above.
+          return m_impl.template packet<Unaligned>(index);
+#else
+          return m_impl.template packet<LoadMode>(index);
+#endif
+        } else if (oneByN && !nByOne) {
+          return packetOneByN<LoadMode>(index);
+        } else if (!oneByN && nByOne) {
+          return packetNByOne<LoadMode>(index);
+        } else if (oneByN && nByOne) {
+          return packetOneByNByOne<LoadMode>(index);
+        } else {
+          return packetRowMajor<LoadMode>(index);
+        }
       }
     }
   }

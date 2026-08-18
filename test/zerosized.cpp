@@ -17,6 +17,7 @@ void zeroReduction(const MatrixType& m) {
   VERIFY(!m.any());
   VERIFY(m.prod() == 1);
   VERIFY(m.sum() == 0);
+  VERIFY(m.template lpNorm<Infinity>() == 0);
   VERIFY(m.norm() == 0);
   VERIFY(m.squaredNorm() == 0);
   VERIFY(m.count() == 0);
