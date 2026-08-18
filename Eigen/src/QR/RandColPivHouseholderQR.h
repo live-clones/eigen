@@ -82,6 +82,9 @@ EIGEN_STRONG_INLINE void lawn176_norm_downdate(RealScalar& norm_updated, RealSca
  * \tparam MatrixType_ the type of the matrix being decomposed.
  * \tparam PermutationIndex_ the type of the permutation indices.
  *
+ * \warning This decomposition is significantly slower when \c MatrixType_
+ * uses \c RowMajor storage. Prefer \c ColMajor storage when performance matters.
+ *
  * Computes \f$ \mathbf{A} \mathbf{P} = \mathbf{Q} \mathbf{R} \f$ using the
  * BQRRP framework introduced by Melnichenko, Murray, Killian, Demmel,
  * Mahoney, Luszczek, and Gates, *Anatomy of High-Performance Column-Pivoted
