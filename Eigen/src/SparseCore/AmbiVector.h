@@ -97,7 +97,7 @@ class AmbiVector {
     internal::aligned_free(m_buffer);
     Index allocSize;
     if (size < 1000) {
-      allocSize = (size * sizeof(ListEl) + sizeof(Scalar) - 1) / sizeof(Scalar);
+      allocSize = numext::div_ceil<Index>(size * sizeof(ListEl), sizeof(Scalar));
       m_allocatedElements = convert_index((allocSize * sizeof(Scalar)) / sizeof(ListEl));
     } else {
       allocSize = size;
@@ -113,7 +113,7 @@ class AmbiVector {
     Index copyElements = m_llSize;
     StorageIndex newAllocatedElements = (std::min)(StorageIndex(m_allocatedElements * 1.5), m_size);
     Index allocSize = newAllocatedElements * sizeof(ListEl);
-    allocSize = (allocSize + sizeof(Scalar) - 1) / sizeof(Scalar);
+    allocSize = numext::div_ceil<Index>(allocSize, sizeof(Scalar));
     Scalar* newBuffer = static_cast<Scalar*>(internal::aligned_malloc(allocSize * sizeof(Scalar)));
     ListEl* newElements = static_cast<ListEl*>(static_cast<void*>(newBuffer));
     // A throwing move leaves the nodes where they are, so the vector stays
