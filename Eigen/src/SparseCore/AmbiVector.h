@@ -68,6 +68,11 @@ class AmbiVector {
   void resize(Index size) {
     if (m_allocatedSize < size) reallocate(size);
     m_size = convert_index(size);
+    // The bounds describe a sub-vector of the old size, so they cannot survive a
+    // resize that reuses the allocation: a smaller one would leave the iterators
+    // running past the end, a larger one would stop them short of it.
+    m_start = 0;
+    m_end = m_size;
   }
 
   StorageIndex size() const { return m_size; }
@@ -102,23 +107,36 @@ class AmbiVector {
     m_buffer = static_cast<Scalar*>(internal::aligned_malloc(allocSize * sizeof(Scalar)));
     m_allocatedSize = convert_index(allocSize);
     m_mode = -1;
-    m_size = convert_index(size);
-    m_start = 0;
-    m_end = m_size;
   }
 
   void reallocateSparse() {
     Index copyElements = m_llSize;
-    m_allocatedElements = (std::min)(StorageIndex(m_allocatedElements * 1.5), m_size);
-    Index allocSize = m_allocatedElements * sizeof(ListEl);
+    StorageIndex newAllocatedElements = (std::min)(StorageIndex(m_allocatedElements * 1.5), m_size);
+    Index allocSize = newAllocatedElements * sizeof(ListEl);
     allocSize = (allocSize + sizeof(Scalar) - 1) / sizeof(Scalar);
     Scalar* newBuffer = static_cast<Scalar*>(internal::aligned_malloc(allocSize * sizeof(Scalar)));
     ListEl* newElements = static_cast<ListEl*>(static_cast<void*>(newBuffer));
-    internal::move_construct_elements_of_array(newElements, listElements(), copyElements);
+    // A throwing move leaves the nodes where they are, so the vector stays
+    // destructible; the new buffer, which nothing points to yet, must be
+    // released, and the capacity must not describe it either.
+    EIGEN_TRY { internal::move_construct_elements_of_array(newElements, listElements(), copyElements); }
+    EIGEN_CATCH(...) {
+      internal::aligned_free(newBuffer);
+      EIGEN_THROW;
+    }
     internal::destruct_elements_of_array(listElements(), copyElements);
     internal::aligned_free(m_buffer);
     m_buffer = newBuffer;
+    m_allocatedElements = newAllocatedElements;
     m_allocatedSize = convert_index(allocSize);
+  }
+
+  // Constructs a node holding a zero coefficient. Initializing the coefficient
+  // as part of the construction keeps it atomic: a throwing Scalar leaves no
+  // ListEl behind, so the caller can commit the node to the list - and to
+  // m_llSize, which is what destructElements() destroys - only once it exists.
+  static ListEl* constructListEl(ListEl* dst, StorageIndex index, StorageIndex next) {
+    return ::new (static_cast<void*>(dst)) ListEl{next, index, Scalar(0)};
   }
 
   // Destroy whatever elements are currently alive in the raw buffer.
@@ -224,23 +242,17 @@ Scalar_& AmbiVector<Scalar_, StorageIndex_>::coeffRef(Index i) {
     eigen_assert(m_mode == IsSparse);
     if (m_llSize == 0) {
       // this is the first element
+      ListEl& el = *constructListEl(llElements, convert_index(i), -1);
       m_llStart = 0;
       m_llCurrent = 0;
-      ++m_llSize;
-      ListEl& el = *internal::default_construct_elements_of_array(llElements, 1);
-      el.value = Scalar(0);
-      el.index = convert_index(i);
-      el.next = -1;
+      m_llSize = 1;
       return el.value;
     } else if (i < llElements[m_llStart].index) {
       // this is going to be the new first element of the list
-      ListEl& el = *internal::default_construct_elements_of_array(llElements + m_llSize, 1);
-      el.value = Scalar(0);
-      el.index = convert_index(i);
-      el.next = m_llStart;
+      ListEl& el = *constructListEl(llElements + m_llSize, convert_index(i), m_llStart);
       m_llStart = m_llSize;
-      ++m_llSize;
       m_llCurrent = m_llStart;
+      ++m_llSize;
       return el.value;
     } else {
       StorageIndex nextel = llElements[m_llCurrent].next;
@@ -261,10 +273,7 @@ Scalar_& AmbiVector<Scalar_, StorageIndex_>::coeffRef(Index i) {
         }
         eigen_internal_assert(m_llSize < m_allocatedElements && "internal error: overflow in sparse mode");
         // let's insert a new coefficient
-        ListEl& el = *internal::default_construct_elements_of_array(llElements + m_llSize, 1);
-        el.value = Scalar(0);
-        el.index = convert_index(i);
-        el.next = llElements[m_llCurrent].next;
+        ListEl& el = *constructListEl(llElements + m_llSize, convert_index(i), llElements[m_llCurrent].next);
         llElements[m_llCurrent].next = m_llSize;
         ++m_llSize;
         return el.value;
