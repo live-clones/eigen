@@ -324,6 +324,22 @@ static void test_unsigned_indices() {
   VERIFY_IS_EQUAL(const_map(1u, 2ul, std::size_t(6)), 5);
 }
 
+// An index or dimension the tensor's index type cannot represent must assert rather than silently truncate.
+static void test_narrowing_indices() {
+  const std::size_t too_large = std::size_t(1) << 40;
+
+  Tensor<int, 3, ColMajor, int> tensor(2, 3, 7);
+  tensor.setZero();
+
+  VERIFY_RAISES_ASSERT((TensorMap<Tensor<int, 3, ColMajor, int>>(tensor.data(), 2, 3, too_large)));
+
+  TensorMap<Tensor<int, 3, ColMajor, int>> map(tensor.data(), 2, 3, 7);
+  VERIFY_RAISES_ASSERT(map(0, 0, too_large) = 1);
+
+  TensorMap<const Tensor<int, 3, ColMajor, int>> const_map(tensor.data(), 2, 3, 7);
+  VERIFY_RAISES_ASSERT(const_map(0, 0, too_large));
+}
+
 EIGEN_DECLARE_TEST(tensor_map) {
   CALL_SUBTEST(test_0d());
   CALL_SUBTEST(test_1d());
@@ -337,4 +353,5 @@ EIGEN_DECLARE_TEST(tensor_map) {
   CALL_SUBTEST(test_0d_const_tensor_map());
 
   CALL_SUBTEST(test_unsigned_indices());
+  CALL_SUBTEST(test_narrowing_indices());
 }

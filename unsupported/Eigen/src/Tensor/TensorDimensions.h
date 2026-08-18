@@ -239,6 +239,7 @@ struct DSizes : array<DenseIndex, NumDims> {
                                                         IndexTypes... otherDimensions)
       : Base({{firstDimension, secondDimension, static_cast<DenseIndex>(otherDimensions)...}}) {
     EIGEN_STATIC_ASSERT(sizeof...(otherDimensions) + 2 == NumDims, YOU_MADE_A_PROGRAMMING_MISTAKE)
+    eigen_assert(internal::indices_fit<DenseIndex>(otherDimensions...));
   }
 
   EIGEN_DEVICE_FUNC DSizes& operator=(const array<DenseIndex, NumDims>& other) {

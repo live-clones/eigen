@@ -255,6 +255,17 @@ static void test_unsigned_indices() {
   VERIFY_IS_EQUAL(tensor(1, 2, 6), 5.0f);
 }
 
+// An index the ref's index type cannot represent must assert rather than silently truncate. size_t(-1) is
+// representable by no signed index type, so this holds whichever index type the accessor takes.
+static void test_narrowing_indices() {
+  Tensor<float, 3> tensor(2, 3, 7);
+  tensor.setRandom();
+
+  TensorRef<Tensor<float, 3>> ref(tensor);
+  VERIFY_RAISES_ASSERT(ref(0, 0, std::size_t(-1)));
+  VERIFY_RAISES_ASSERT(ref.coeffRef(0, 0, std::size_t(-1)) = 1.0f);
+}
+
 EIGEN_DECLARE_TEST(tensor_ref) {
   CALL_SUBTEST(test_simple_lvalue_ref());
   CALL_SUBTEST(test_simple_rvalue_ref());
@@ -267,4 +278,5 @@ EIGEN_DECLARE_TEST(tensor_ref) {
   CALL_SUBTEST(test_coeff_ref());
   CALL_SUBTEST(test_nested_ops_with_ref());
   CALL_SUBTEST(test_unsigned_indices());
+  CALL_SUBTEST(test_narrowing_indices());
 }

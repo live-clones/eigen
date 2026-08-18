@@ -128,7 +128,7 @@ class TensorMap : public TensorBase<TensorMap<PlainObjectType, Options_, MakePoi
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE StorageRefType operator()(Index firstIndex, Index secondIndex,
                                                                   IndexTypes... otherIndices) const {
     EIGEN_STATIC_ASSERT(sizeof...(otherIndices) + 2 == NumIndices, YOU_MADE_A_PROGRAMMING_MISTAKE)
-    eigen_assert(internal::all((Eigen::NumTraits<Index>::highest() >= otherIndices)...));
+    eigen_assert(internal::indices_fit<Index>(otherIndices...));
     EIGEN_IF_CONSTEXPR (PlainObjectType::Options & RowMajor) {
       const Index index = m_dimensions.IndexOfRowMajor(
           array<Index, NumIndices>{{firstIndex, secondIndex, static_cast<Index>(otherIndices)...}});
@@ -165,7 +165,7 @@ class TensorMap : public TensorBase<TensorMap<PlainObjectType, Options_, MakePoi
                                                                   IndexTypes... otherIndices) {
     static_assert(sizeof...(otherIndices) + 2 == NumIndices || NumIndices == Dynamic,
                   "Number of indices used to access a tensor coefficient must be equal to the rank of the tensor.");
-    eigen_assert(internal::all((Eigen::NumTraits<Index>::highest() >= otherIndices)...));
+    eigen_assert(internal::indices_fit<Index>(otherIndices...));
     const std::size_t NumDims = sizeof...(otherIndices) + 2;
     EIGEN_IF_CONSTEXPR (PlainObjectType::Options & RowMajor) {
       const Index index = m_dimensions.IndexOfRowMajor(

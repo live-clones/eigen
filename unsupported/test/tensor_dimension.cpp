@@ -84,6 +84,12 @@ static void test_unsigned_dimensions() {
   VERIFY_IS_EQUAL((int)dimensions[2], 7);
 }
 
+// A dimension the index type cannot represent must assert rather than silently truncate.
+static void test_narrowing_dimensions() {
+  VERIFY_RAISES_ASSERT((Eigen::DSizes<int, 3>(2, 3, std::size_t(1) << 40)));
+  VERIFY_RAISES_ASSERT((Eigen::DSizes<std::ptrdiff_t, 3>(2, 3, std::size_t(-1))));
+}
+
 EIGEN_DECLARE_TEST(tensor_dimension) {
   CALL_SUBTEST(test_dynamic_size());
   CALL_SUBTEST(test_fixed_size());
@@ -91,4 +97,5 @@ EIGEN_DECLARE_TEST(tensor_dimension) {
   CALL_SUBTEST(test_rank_zero());
   CALL_SUBTEST(test_index_type_promotion());
   CALL_SUBTEST(test_unsigned_dimensions());
+  CALL_SUBTEST(test_narrowing_dimensions());
 }

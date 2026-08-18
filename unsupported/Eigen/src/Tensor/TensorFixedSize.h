@@ -78,6 +78,7 @@ class TensorFixedSize : public TensorBase<TensorFixedSize<Scalar_, Dimensions_, 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar& coeff(Index firstIndex, IndexTypes... otherIndices) const {
     // The number of indices used to access a tensor coefficient must be equal to the rank of the tensor.
     EIGEN_STATIC_ASSERT(sizeof...(otherIndices) + 1 == NumIndices, YOU_MADE_A_PROGRAMMING_MISTAKE)
+    eigen_assert(internal::indices_fit<Index>(otherIndices...));
     return coeff(array<Index, NumIndices>{{firstIndex, static_cast<Index>(otherIndices)...}});
   }
 
@@ -100,6 +101,7 @@ class TensorFixedSize : public TensorBase<TensorFixedSize<Scalar_, Dimensions_, 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar& coeffRef(Index firstIndex, IndexTypes... otherIndices) {
     // The number of indices used to access a tensor coefficient must be equal to the rank of the tensor.
     EIGEN_STATIC_ASSERT(sizeof...(otherIndices) + 1 == NumIndices, YOU_MADE_A_PROGRAMMING_MISTAKE)
+    eigen_assert(internal::indices_fit<Index>(otherIndices...));
     return coeffRef(array<Index, NumIndices>{{firstIndex, static_cast<Index>(otherIndices)...}});
   }
 
@@ -122,6 +124,7 @@ class TensorFixedSize : public TensorBase<TensorFixedSize<Scalar_, Dimensions_, 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar& operator()(Index firstIndex, IndexTypes... otherIndices) const {
     // The number of indices used to access a tensor coefficient must be equal to the rank of the tensor.
     EIGEN_STATIC_ASSERT(sizeof...(otherIndices) + 1 == NumIndices, YOU_MADE_A_PROGRAMMING_MISTAKE)
+    eigen_assert(internal::indices_fit<Index>(otherIndices...));
     return this->operator()(array<Index, NumIndices>{{firstIndex, static_cast<Index>(otherIndices)...}});
   }
 
@@ -150,6 +153,7 @@ class TensorFixedSize : public TensorBase<TensorFixedSize<Scalar_, Dimensions_, 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar& operator()(Index firstIndex, IndexTypes... otherIndices) {
     // The number of indices used to access a tensor coefficient must be equal to the rank of the tensor.
     EIGEN_STATIC_ASSERT(sizeof...(otherIndices) + 1 == NumIndices, YOU_MADE_A_PROGRAMMING_MISTAKE)
+    eigen_assert(internal::indices_fit<Index>(otherIndices...));
     return operator()(array<Index, NumIndices>{{firstIndex, static_cast<Index>(otherIndices)...}});
   }
 
