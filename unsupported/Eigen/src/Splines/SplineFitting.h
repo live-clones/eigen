@@ -53,8 +53,8 @@ void KnotAveraging(const KnotVectorType& parameters, DenseIndex degree, KnotVect
 
   // The boundary knots replicate the first and last parameter so that the
   // spline domain matches the parameter range, whatever interval it spans.
-  knots.segment(0, degree + 1).setConstant(parameters(0));
-  knots.segment(knots.size() - degree - 1, degree + 1).setConstant(parameters(parameters.size() - 1));
+  knots.head(degree + 1).setConstant(parameters(0));
+  knots.tail(degree + 1).setConstant(parameters(placeholders::last));
 }
 
 /**
