@@ -42,6 +42,9 @@ Starting with Eigen 3.4.1, we also support a range spanning major versions:
 ```
 find_package(Eigen3 3.4...5 REQUIRED NO_MODULE)  # Any version >=3.4.1 but <6.0.0.
 ```
+\note Version ranges are `find_package` syntax introduced in %CMake 3.19. Older %CMake
+passes `3.4...5` through as a single version string, which `Eigen3ConfigVersion.cmake`
+cannot parse and therefore rejects.
 
 Do not forget to set the <a href="https://cmake.org/cmake/help/v3.7/variable/CMAKE_PREFIX_PATH.html">\c CMAKE_PREFIX_PATH </a> variable if Eigen is not installed in a default location or if you want to pick a specific version. For instance:
 \code{.sh}
@@ -106,10 +109,14 @@ FetchContent_MakeAvailable(Eigen)
 \subsection title_fetchcontent_exclude Using EXCLUDE_FROM_ALL
 
 Projects that depend on %Eigen should typically exclude installing %Eigen by
-default to avoid overwriting a previous installation. Pass
-\c EXCLUDE_FROM_ALL in the \c FetchContent_Declare call (as shown above) or
-the equivalent \c add_subdirectory option so that %Eigen's install rules are
-not included in the default install target.
+default to avoid overwriting a previous installation. Passing
+\c EXCLUDE_FROM_ALL to \c add_subdirectory drops %Eigen's install rules, and in
+addition keeps %Eigen's targets out of the default build.
+
+\warning \c FetchContent_Declare gained \c EXCLUDE_FROM_ALL in %CMake 3.28.
+Older %CMake accepts the keyword without complaint and ignores it, so %Eigen is
+installed anyway. Only the \c add_subdirectory form is reliable across the
+%CMake versions %Eigen supports.
 
 \subsection title_fetchcontent_cmake330 Note for CMake 3.30 and later
 
