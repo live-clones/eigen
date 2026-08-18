@@ -1410,8 +1410,9 @@ EIGEN_ALWAYS_INLINE LhsPacket loadLhsPacket(LhsMapper& lhs, Index i, Index j) {
   EIGEN_IF_CONSTEXPR (sizeof(Scalar) == sizeof(LhsScalar)) {
     const LhsScalar& src = lhs(i + 0, j);
     return LhsPacket(pload_real_full(const_cast<LhsScalar*>(&src)));
+  } else {
+    return lhs.template load<LhsPacket, Unaligned>(i + 0, j);
   }
-  return lhs.template load<LhsPacket, Unaligned>(i + 0, j);
 }
 
 /** \internal madd for complex times complex */
