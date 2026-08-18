@@ -3431,10 +3431,10 @@ template <typename Index, typename DataMapper, int mr, int nr, bool ConjugateLhs
 void gebp_kernel<float, float, Index, DataMapper, mr, nr, ConjugateLhs, ConjugateRhs>::operator()(
     const DataMapper& res, const float* blockA, const float* blockB, Index rows, Index depth, Index cols, float alpha,
     Index strideA, Index strideB, Index offsetA, Index offsetB) {
-  const Index accRows = quad_traits<float>::rows;
-  const Index accCols = quad_traits<float>::size;
-  static void (*gemm_function)(const DataMapper&, const float*, const float*, Index, Index, Index, float, Index, Index,
-                               Index, Index) =
+  const Eigen::Index accRows = quad_traits<float>::rows;
+  const Eigen::Index accCols = quad_traits<float>::size;
+  static void (*gemm_function)(const DataMapper&, const float*, const float*, Eigen::Index, Eigen::Index, Eigen::Index,
+                               float, Eigen::Index, Eigen::Index, Eigen::Index, Eigen::Index) =
 #ifdef EIGEN_MATRIX_PRODUCT_MMA_ALTIVEC_H
       (supportsMMA()) ? &Eigen::internal::gemmMMA<float, Packet, RhsPacket, DataMapper, accRows, accCols> :
 #endif
@@ -3459,10 +3459,11 @@ void gebp_kernel<std::complex<float>, std::complex<float>, Index, DataMapper, mr
                                            const std::complex<float>* blockB, Index rows, Index depth, Index cols,
                                            std::complex<float> alpha, Index strideA, Index strideB, Index offsetA,
                                            Index offsetB) {
-  const Index accRows = quad_traits<float>::rows;
-  const Index accCols = quad_traits<float>::size;
-  static void (*gemm_function)(const DataMapper&, const std::complex<float>*, const std::complex<float>*, Index, Index,
-                               Index, std::complex<float>, Index, Index, Index, Index) =
+  const Eigen::Index accRows = quad_traits<float>::rows;
+  const Eigen::Index accCols = quad_traits<float>::size;
+  static void (*gemm_function)(const DataMapper&, const std::complex<float>*, const std::complex<float>*, Eigen::Index,
+                               Eigen::Index, Eigen::Index, std::complex<float>, Eigen::Index, Eigen::Index,
+                               Eigen::Index, Eigen::Index) =
 #ifdef EIGEN_MATRIX_PRODUCT_MMA_ALTIVEC_H
       (supportsMMA()) ? &Eigen::internal::gemm_complexMMA<std::complex<float>, std::complex<float>, std::complex<float>,
                                                           float, Packet, Packetc, RhsPacket, DataMapper, accRows,
@@ -3490,10 +3491,11 @@ template <typename Index, typename DataMapper, int mr, int nr, bool ConjugateLhs
 void gebp_kernel<float, std::complex<float>, Index, DataMapper, mr, nr, ConjugateLhs, ConjugateRhs>::operator()(
     const DataMapper& res, const float* blockA, const std::complex<float>* blockB, Index rows, Index depth, Index cols,
     std::complex<float> alpha, Index strideA, Index strideB, Index offsetA, Index offsetB) {
-  const Index accRows = quad_traits<float>::rows;
-  const Index accCols = quad_traits<float>::size;
-  static void (*gemm_function)(const DataMapper&, const float*, const std::complex<float>*, Index, Index, Index,
-                               std::complex<float>, Index, Index, Index, Index) =
+  const Eigen::Index accRows = quad_traits<float>::rows;
+  const Eigen::Index accCols = quad_traits<float>::size;
+  static void (*gemm_function)(const DataMapper&, const float*, const std::complex<float>*, Eigen::Index, Eigen::Index,
+                               Eigen::Index, std::complex<float>, Eigen::Index, Eigen::Index, Eigen::Index,
+                               Eigen::Index) =
 #ifdef EIGEN_MATRIX_PRODUCT_MMA_ALTIVEC_H
       (supportsMMA()) ? &Eigen::internal::gemm_complexMMA<float, std::complex<float>, std::complex<float>, float,
                                                           Packet, Packetc, RhsPacket, DataMapper, accRows, accCols,
@@ -3521,10 +3523,11 @@ template <typename Index, typename DataMapper, int mr, int nr, bool ConjugateLhs
 void gebp_kernel<std::complex<float>, float, Index, DataMapper, mr, nr, ConjugateLhs, ConjugateRhs>::operator()(
     const DataMapper& res, const std::complex<float>* blockA, const float* blockB, Index rows, Index depth, Index cols,
     std::complex<float> alpha, Index strideA, Index strideB, Index offsetA, Index offsetB) {
-  const Index accRows = quad_traits<float>::rows;
-  const Index accCols = quad_traits<float>::size;
-  static void (*gemm_function)(const DataMapper&, const std::complex<float>*, const float*, Index, Index, Index,
-                               std::complex<float>, Index, Index, Index, Index) =
+  const Eigen::Index accRows = quad_traits<float>::rows;
+  const Eigen::Index accCols = quad_traits<float>::size;
+  static void (*gemm_function)(const DataMapper&, const std::complex<float>*, const float*, Eigen::Index, Eigen::Index,
+                               Eigen::Index, std::complex<float>, Eigen::Index, Eigen::Index, Eigen::Index,
+                               Eigen::Index) =
 #ifdef EIGEN_MATRIX_PRODUCT_MMA_ALTIVEC_H
       (supportsMMA()) ? &Eigen::internal::gemm_complexMMA<std::complex<float>, float, std::complex<float>, float,
                                                           Packet, Packetc, RhsPacket, DataMapper, accRows, accCols,
@@ -3551,10 +3554,10 @@ template <typename Index, typename DataMapper, int mr, int nr, bool ConjugateLhs
 void gebp_kernel<double, double, Index, DataMapper, mr, nr, ConjugateLhs, ConjugateRhs>::operator()(
     const DataMapper& res, const double* blockA, const double* blockB, Index rows, Index depth, Index cols,
     double alpha, Index strideA, Index strideB, Index offsetA, Index offsetB) {
-  const Index accRows = quad_traits<double>::rows;
-  const Index accCols = quad_traits<double>::size;
-  static void (*gemm_function)(const DataMapper&, const double*, const double*, Index, Index, Index, double, Index,
-                               Index, Index, Index) =
+  const Eigen::Index accRows = quad_traits<double>::rows;
+  const Eigen::Index accCols = quad_traits<double>::size;
+  static void (*gemm_function)(const DataMapper&, const double*, const double*, Eigen::Index, Eigen::Index,
+                               Eigen::Index, double, Eigen::Index, Eigen::Index, Eigen::Index, Eigen::Index) =
 #ifdef EIGEN_MATRIX_PRODUCT_MMA_ALTIVEC_H
       (supportsMMA()) ? &Eigen::internal::gemmMMA<double, Packet, RhsPacket, DataMapper, accRows, accCols> :
 #endif
@@ -3579,10 +3582,11 @@ void gebp_kernel<std::complex<double>, std::complex<double>, Index, DataMapper, 
                                            const std::complex<double>* blockB, Index rows, Index depth, Index cols,
                                            std::complex<double> alpha, Index strideA, Index strideB, Index offsetA,
                                            Index offsetB) {
-  const Index accRows = quad_traits<double>::rows;
-  const Index accCols = quad_traits<double>::size;
-  static void (*gemm_function)(const DataMapper&, const std::complex<double>*, const std::complex<double>*, Index,
-                               Index, Index, std::complex<double>, Index, Index, Index, Index) =
+  const Eigen::Index accRows = quad_traits<double>::rows;
+  const Eigen::Index accCols = quad_traits<double>::size;
+  static void (*gemm_function)(const DataMapper&, const std::complex<double>*, const std::complex<double>*,
+                               Eigen::Index, Eigen::Index, Eigen::Index, std::complex<double>, Eigen::Index,
+                               Eigen::Index, Eigen::Index, Eigen::Index) =
 #ifdef EIGEN_MATRIX_PRODUCT_MMA_ALTIVEC_H
       (supportsMMA())
           ? &Eigen::internal::gemm_complexMMA<std::complex<double>, std::complex<double>, std::complex<double>, double,
@@ -3611,10 +3615,11 @@ template <typename Index, typename DataMapper, int mr, int nr, bool ConjugateLhs
 void gebp_kernel<std::complex<double>, double, Index, DataMapper, mr, nr, ConjugateLhs, ConjugateRhs>::operator()(
     const DataMapper& res, const std::complex<double>* blockA, const double* blockB, Index rows, Index depth,
     Index cols, std::complex<double> alpha, Index strideA, Index strideB, Index offsetA, Index offsetB) {
-  const Index accRows = quad_traits<double>::rows;
-  const Index accCols = quad_traits<double>::size;
-  static void (*gemm_function)(const DataMapper&, const std::complex<double>*, const double*, Index, Index, Index,
-                               std::complex<double>, Index, Index, Index, Index) =
+  const Eigen::Index accRows = quad_traits<double>::rows;
+  const Eigen::Index accCols = quad_traits<double>::size;
+  static void (*gemm_function)(const DataMapper&, const std::complex<double>*, const double*, Eigen::Index,
+                               Eigen::Index, Eigen::Index, std::complex<double>, Eigen::Index, Eigen::Index,
+                               Eigen::Index, Eigen::Index) =
 #ifdef EIGEN_MATRIX_PRODUCT_MMA_ALTIVEC_H
       (supportsMMA()) ? &Eigen::internal::gemm_complexMMA<std::complex<double>, double, std::complex<double>, double,
                                                           Packet, Packetc, RhsPacket, DataMapper, accRows, accCols,
@@ -3642,10 +3647,11 @@ template <typename Index, typename DataMapper, int mr, int nr, bool ConjugateLhs
 void gebp_kernel<double, std::complex<double>, Index, DataMapper, mr, nr, ConjugateLhs, ConjugateRhs>::operator()(
     const DataMapper& res, const double* blockA, const std::complex<double>* blockB, Index rows, Index depth,
     Index cols, std::complex<double> alpha, Index strideA, Index strideB, Index offsetA, Index offsetB) {
-  const Index accRows = quad_traits<double>::rows;
-  const Index accCols = quad_traits<double>::size;
-  static void (*gemm_function)(const DataMapper&, const double*, const std::complex<double>*, Index, Index, Index,
-                               std::complex<double>, Index, Index, Index, Index) =
+  const Eigen::Index accRows = quad_traits<double>::rows;
+  const Eigen::Index accCols = quad_traits<double>::size;
+  static void (*gemm_function)(const DataMapper&, const double*, const std::complex<double>*, Eigen::Index,
+                               Eigen::Index, Eigen::Index, std::complex<double>, Eigen::Index, Eigen::Index,
+                               Eigen::Index, Eigen::Index) =
 #ifdef EIGEN_MATRIX_PRODUCT_MMA_ALTIVEC_H
       (supportsMMA()) ? &Eigen::internal::gemm_complexMMA<double, std::complex<double>, std::complex<double>, double,
                                                           Packet, Packetc, RhsPacket, DataMapper, accRows, accCols,
@@ -3672,8 +3678,8 @@ template <typename Index, typename DataMapper, int mr, int nr, bool ConjugateLhs
 void gebp_kernel<bfloat16, bfloat16, Index, DataMapper, mr, nr, ConjugateLhs, ConjugateRhs>::operator()(
     const DataMapper& res, const bfloat16* blockA, const bfloat16* blockB, Index rows, Index depth, Index cols,
     bfloat16 alpha, Index strideA, Index strideB, Index offsetA, Index offsetB) {
-  static void (*gemm_function)(const DataMapper&, const bfloat16*, const bfloat16*, Index, Index, Index, bfloat16,
-                               Index, Index, Index, Index) =
+  static void (*gemm_function)(const DataMapper&, const bfloat16*, const bfloat16*, Eigen::Index, Eigen::Index,
+                               Eigen::Index, bfloat16, Eigen::Index, Eigen::Index, Eigen::Index, Eigen::Index) =
 #ifdef EIGEN_MATRIX_PRODUCT_MMA_ALTIVEC_H
       (supportsMMA()) ? &Eigen::internal::gemmMMAbfloat16<DataMapper> :
 #endif
