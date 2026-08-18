@@ -462,9 +462,14 @@ template <typename Derived>
 struct lpNorm_selector<Derived, Infinity> {
   using RealScalar = typename NumTraits<typename traits<Derived>::Scalar>::Real;
   EIGEN_DEVICE_FUNC static inline RealScalar run(const MatrixBase<Derived>& m) {
-    if (Derived::SizeAtCompileTime == 0 || (Derived::SizeAtCompileTime == Dynamic && m.size() == 0))
+    EIGEN_IF_CONSTEXPR (Derived::SizeAtCompileTime == 0) {
       return RealScalar(0);
-    return m.cwiseAbs().maxCoeff();
+    } else {
+      EIGEN_IF_CONSTEXPR (Derived::SizeAtCompileTime == Dynamic) {
+        if (m.size() == 0) return RealScalar(0);
+      }
+      return m.cwiseAbs().maxCoeff();
+    }
   }
 };
 
