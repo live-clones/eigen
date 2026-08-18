@@ -20,6 +20,7 @@ set(EIGEN_BUILDSYSTEM_SCENARIOS
     add_subdirectory
     install_default
     install_off
+    install_off_all_options
     exclude_from_all
     )
 

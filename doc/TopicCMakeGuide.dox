@@ -117,7 +117,8 @@ set(EIGEN_INSTALL OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(Eigen)
 \endcode
 
-%Eigen then places no file at all under \c CMAKE_INSTALL_PREFIX.
+%Eigen then places no file at all under \c CMAKE_INSTALL_PREFIX, the generated
+documentation included.
 
 \note %CMake refuses to generate an \c install(EXPORT ...) whose targets link a
 target that no installed export set provides. So if you export your own targets
