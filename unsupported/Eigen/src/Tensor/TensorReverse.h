@@ -402,6 +402,24 @@ struct TensorEvaluator<TensorReverseOp<ReverseDimensions, ArgType>, Device>
     return this->m_impl.coeffRef(this->reverseIndex(index));
   }
 
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE internal::TensorBlockResourceRequirements getResourceRequirements() const {
+    // Deliberately not the rvalue evaluator's requirements. Reading a block
+    // reverses memory as it materializes it straight into the output, which is
+    // why that side asks for a last-level-cache sized, inner-dim-skewed block.
+    // As a write destination we have no such preference: writeBlock() only
+    // copies the block into a strided box. Since merge() lets kSkewedInnerDims
+    // win over kUniformAllDims and keeps the larger size, inheriting them would
+    // silently override the shape the right-hand side asked for -- a shuffle
+    // that permutes the inner dimension requests small uniform tiles precisely
+    // because that is what keeps a transpose cache-resident, and turning those
+    // into one cache-sized skewed strip costs more than the block path wins.
+    // Only impose a lower bound on the block size, so that a right-hand side
+    // without any preference still gets sensibly sized blocks.
+    return internal::TensorBlockResourceRequirements::merge(
+        this->m_impl.getResourceRequirements(),
+        internal::TensorBlockResourceRequirements::uniform<Scalar>(this->m_device.firstLevelCacheSize()));
+  }
+
   template <int StoreMode>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacket(Index index, const PacketReturnType& x) const {
     eigen_assert(index + PacketSize - 1 < dimensions().TotalSize());
