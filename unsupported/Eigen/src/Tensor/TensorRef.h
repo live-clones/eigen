@@ -244,6 +244,9 @@ class TensorRef : public internal::TensorRefBase<TensorRef<PlainObjectType>> {
  public:
   using Scalar = typename Base::Scalar;
   using Dimensions = typename Base::Dimensions;
+  // Without this, unqualified Index below does not find the dependent base's typedef and resolves to Eigen::Index,
+  // giving the accessors a different index type than the rest of the class.
+  using Index = typename Base::Index;
 
   EIGEN_STRONG_INLINE TensorRef() = default;
 
