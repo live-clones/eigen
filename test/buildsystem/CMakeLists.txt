@@ -19,6 +19,7 @@ set(EIGEN_BUILDSYSTEM_SCENARIOS
     find_package_version_reject
     add_subdirectory
     install_default
+    install_off
     exclude_from_all
     )
 
