@@ -269,7 +269,7 @@ void evaluateProductBlockingSizesHeuristic(Index& k, Index& m, Index& n, Index n
 #ifdef EIGEN_VECTORIZE_SME
     // Only float×float uses the SME kernel; other scalar pairs run the generic
     // kernel below and would thrash L1/L2 with the SME-sized budgets.
-    if (std::is_same<LhsScalar, float>::value && std::is_same<RhsScalar, float>::value) {
+    EIGEN_IF_CONSTEXPR (std::is_same<LhsScalar, float>::value && std::is_same<RhsScalar, float>::value) {
       evaluateProductBlockingSizesHeuristicForSme<LhsScalar, RhsScalar>(k, m, n);
       return;
     }

@@ -31,7 +31,7 @@ struct BunchKaufman_Traits;
 // Panel width for the blocked factorization (defined below); forward-declared so the size
 // constructor can pre-allocate the panel workspace.
 template <typename Scalar>
-inline Index bunch_kaufman_blocksize();
+constexpr Index bunch_kaufman_blocksize();
 }  // namespace internal
 
 /** \ingroup Cholesky_Module
@@ -332,7 +332,7 @@ EIGEN_DEVICE_FUNC inline RealScalar bunch_kaufman_alpha() {
 /** \internal Panel width for the blocked (level-3) Bunch-Kaufman factorization. Can be overridden (mainly
  * for testing the panel logic at small sizes) by defining EIGEN_BUNCHKAUFMAN_BLOCKSIZE. */
 template <typename Scalar>
-inline Index bunch_kaufman_blocksize() {
+constexpr Index bunch_kaufman_blocksize() {
 #ifdef EIGEN_BUNCHKAUFMAN_BLOCKSIZE
   return Index(EIGEN_BUNCHKAUFMAN_BLOCKSIZE);
 #else
@@ -669,34 +669,38 @@ struct bunch_kaufman<Lower> {
   static Index blocked(MatrixType& mat, TranspositionType& transpositions, SubDiagType& subdiag,
                        WorkspaceType& workspace) {
     const Index n = mat.rows();
-    const Index nb = bunch_kaufman_blocksize<typename MatrixType::Scalar>();
-    if (nb < 2 || n <= nb) return unblocked(mat, transpositions, subdiag, 0);
+    constexpr Index nb = bunch_kaufman_blocksize<typename MatrixType::Scalar>();
+    EIGEN_IF_CONSTEXPR (nb < 2) {
+      return unblocked(mat, transpositions, subdiag, 0);
+    } else {
+      if (n <= nb) return unblocked(mat, transpositions, subdiag, 0);
 
-    // One extra workspace column holds the candidate ("imax") column examined during pivot selection.
-    workspace.resize(n, nb + 1);
-    Index info = 0;
-    Index k = 0;
-    while (k < n) {
-      if (n - k > nb) {
-        const Index kb = partial_factor(mat, k, nb, workspace, transpositions, subdiag, info);
-        const Index rs = n - k - kb;
-        if (rs > 0) {
-          // Deferred trailing update of the lower triangle: A22 <- A22 - L21 * (L21*D)^*.
-          mat.block(k + kb, k + kb, rs, rs).template triangularView<Lower>() -=
-              mat.block(k + kb, k, rs, kb) * workspace.block(k + kb, 0, rs, kb).adjoint();
-        }
-        if (kb == 0) {  // defensive: avoid an infinite loop (should not happen for nb >= 2)
-          info = (info == 0) ? unblocked(mat, transpositions, subdiag, k) : info;
+      // One extra workspace column holds the candidate ("imax") column examined during pivot selection.
+      workspace.resize(n, nb + 1);
+      Index info = 0;
+      Index k = 0;
+      while (k < n) {
+        if (n - k > nb) {
+          const Index kb = partial_factor(mat, k, nb, workspace, transpositions, subdiag, info);
+          const Index rs = n - k - kb;
+          if (rs > 0) {
+            // Deferred trailing update of the lower triangle: A22 <- A22 - L21 * (L21*D)^*.
+            mat.block(k + kb, k + kb, rs, rs).template triangularView<Lower>() -=
+                mat.block(k + kb, k, rs, kb) * workspace.block(k + kb, 0, rs, kb).adjoint();
+          }
+          if (kb == 0) {  // defensive: avoid an infinite loop (should not happen for nb >= 2)
+            info = (info == 0) ? unblocked(mat, transpositions, subdiag, k) : info;
+            break;
+          }
+          k += kb;
+        } else {
+          const Index info2 = unblocked(mat, transpositions, subdiag, k);
+          if (info == 0) info = info2;
           break;
         }
-        k += kb;
-      } else {
-        const Index info2 = unblocked(mat, transpositions, subdiag, k);
-        if (info == 0) info = info2;
-        break;
       }
+      return info;
     }
-    return info;
   }
 };
 

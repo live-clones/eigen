@@ -410,15 +410,16 @@ struct ptrue_impl<bool, void> {
 /** \internal \returns one bits. */
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet ptrue(const Packet& a) {
-  if (is_scalar<Packet>::value || std::is_same<Packet, bool>::value) {
+  EIGEN_IF_CONSTEXPR (is_scalar<Packet>::value || std::is_same<Packet, bool>::value) {
     // Scalar and boolean "masks" hold the value one, which is a legal value class; delegating
     // to ptrue_impl (and its specializations) is safe here.
     return ptrue_impl<Packet>::run(a);
+  } else {
+    Packet b;
+    memset(static_cast<void*>(&b), 0xff, sizeof(Packet));
+    EIGEN_FAST_MATH_CONSTANT_BARRIER(b);
+    return b;
   }
-  Packet b;
-  memset(static_cast<void*>(&b), 0xff, sizeof(Packet));
-  EIGEN_FAST_MATH_CONSTANT_BARRIER(b);
-  return b;
 }
 
 // In the general packet case, memset to zero.
@@ -1037,18 +1038,19 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet plset(const typename unpacket_trait
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet peven_mask(const Packet& /*a*/) {
   using Scalar = typename unpacket_traits<Packet>::type;
-  if (is_scalar<Packet>::value) {
+  EIGEN_IF_CONSTEXPR (is_scalar<Packet>::value) {
     // The scalar "mask" is numeric: true is represented by the value one.
     return pset1<Packet>(Scalar(1));
+  } else {
+    const size_t n = unpacket_traits<Packet>::size;
+    Packet b;
+    char* bytes = reinterpret_cast<char*>(&b);
+    for (size_t i = 0; i < n; ++i) {
+      memset(bytes + i * sizeof(Scalar), ((i & 1) == 0 ? 0xff : 0), sizeof(Scalar));
+    }
+    EIGEN_FAST_MATH_CONSTANT_BARRIER(b);
+    return b;
   }
-  const size_t n = unpacket_traits<Packet>::size;
-  Packet b;
-  char* bytes = reinterpret_cast<char*>(&b);
-  for (size_t i = 0; i < n; ++i) {
-    memset(bytes + i * sizeof(Scalar), ((i & 1) == 0 ? 0xff : 0), sizeof(Scalar));
-  }
-  EIGEN_FAST_MATH_CONSTANT_BARRIER(b);
-  return b;
 }
 
 /** \internal copy the packet \a from to \a *to, \a to must be properly aligned */

@@ -1007,7 +1007,7 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::toS
   SparseMatrix<Scalar_, Options_, StorageIndex_> result(rows(), cols());
   result.reserve(nonZeroBlocks() * BlockSize);
 
-  if (!IsRowMajor) {
+  EIGEN_IF_CONSTEXPR (!IsRowMajor) {
     // ColMajor: outer = block-column j.  Emit scalar columns j*BlockCols+c
     // in order c = 0..BlockCols-1.  Within each scalar column, blocks are
     // sorted by bi (block-row), so scalar rows bi*BlockRows+r are increasing.
@@ -1164,7 +1164,7 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::ope
   for (Index out = 0; out < cOuterSize; ++out) {
     result.m_outerIndex(out) = StorageIndex_(nnz);
 
-    if (!IsRowMajor) {
+    EIGEN_IF_CONSTEXPR (!IsRowMajor) {
       // ColMajor: out is block-column j of the result.
       // For each block B(k,j) and each block A(bi,k): C(bi,j) += A(bi,k)*B(k,j).
       Index j = out;
