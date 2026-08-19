@@ -157,7 +157,11 @@ EIGEN_DEVICE_FUNC void MatrixBase<Derived>::makeHouseholder(EssentialPart& essen
     unscaledNormThreshold = (tol / precision) * componentCount;
   }
 
-  if (tailSqNorm <= unscaledNormThreshold && !(numext::isnan)(c0)) {
+  // The direct construction below squares the head and adds the tail's squared norm. Both overflow well before the
+  // norm itself stops being representable, so route an unrepresentable sum through the scaled path too: it forms the
+  // reflector from ratios of the largest component and never squares an unscaled coefficient.
+  const RealScalar unscaledSqNorm = numext::abs2(c0) + tailSqNorm;
+  if ((tailSqNorm <= unscaledNormThreshold || (numext::isinf)(unscaledSqNorm)) && !(numext::isnan)(c0)) {
     using Accumulator = typename internal::householder_norm_accumulator<RealScalar>::type;
     const auto tailView = tail.unwind();
     const auto tailComponents = tailView.realView();
@@ -215,7 +219,7 @@ EIGEN_DEVICE_FUNC void MatrixBase<Derived>::makeHouseholder(EssentialPart& essen
     tau = conj(Scalar(RealScalar(1)) - scaledC0 / scaledBeta);
     return;
   }
-  beta = numext::sqrt(numext::abs2(c0) + tailSqNorm);
+  beta = numext::sqrt(unscaledSqNorm);
   if (numext::real(c0) >= RealScalar(0)) beta = -beta;
   essential = tail.unwind() / (c0 - beta);
   tau = conj((beta - c0) / beta);
