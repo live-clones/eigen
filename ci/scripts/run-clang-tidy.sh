@@ -121,77 +121,18 @@ module_include_for_header() {
 # and clang-tidy parses the file once for every entry that names it: 17 for
 # test/eigensolver_selfadjoint.cpp, 41 for test/array_cwise.cpp, at roughly a
 # minute and 3 GB each. That exhausts the job timeout on a single file and
-# leaves every later file unchecked, silently, so narrow the database to one
-# entry per source file.
+# leaves every later file unchecked, silently. Narrow the database to the
+# entries the changed lines need, which scripts/tidy_compile_db.py selects:
+# one per distinct compiler configuration, and within a configuration split
+# into parts, the parts that compile the added lines.
 #
-# The parts differ only in which -DEIGEN_TEST_PART_<n> is defined, and the
-# enabled checks are syntactic: they fire on declarations, not on template
-# instantiations, so one part reaches the added lines. The exception is the
-# CALL_SUBTEST_<n>(...) invocation itself, which the split helper expands to
-# nothing unless part <n> is defined -- hence prefer an entry for a part the
-# added lines actually name, and fall back to the first entry otherwise.
-#
-# CMake normally records absolute source paths, so a textual search for the
-# repository-relative path does not reliably establish membership.
-#
-# Writes the reduced database to <outdir>/compile_commands.json and succeeds
-# only when the file is present in the full database.
-single_entry_database() {
-  python3 - "${BUILD_DIR}/compile_commands.json" "${REPO_ROOT}/$1" "$2" "$3" <<'PY'
-import json
-import os
-import re
-import sys
-
-database, target, outdir, added = sys.argv[1:]
-try:
-    with open(database, encoding="utf-8") as handle:
-        commands = json.load(handle)
-except (OSError, ValueError) as error:
-    print("ERROR: could not read %s: %s" % (database, error), file=sys.stderr)
-    sys.exit(2)
-if not isinstance(commands, list):
-    print("ERROR: %s does not contain a JSON array" % database, file=sys.stderr)
-    sys.exit(2)
-
-target = os.path.realpath(target)
-matches = []
-for command in commands:
-    if not isinstance(command, dict):
-        continue
-    source = command.get("file")
-    if not source:
-        continue
-    if not os.path.isabs(source):
-        source = os.path.join(command.get("directory", ""), source)
-    if os.path.realpath(source) == target:
-        matches.append(command)
-
-if not matches:
-    sys.exit(1)
-
-wanted = set(re.findall(r"(?:CALL_SUBTEST|EIGEN_TEST_PART)_([0-9]+)", added))
-
-
-def part_of(command):
-    text = command.get("command") or " ".join(command.get("arguments", ()))
-    found = re.search(r"-DEIGEN_TEST_PART_([0-9]+)\b", text)
-    return found.group(1) if found else None
-
-
-chosen = matches[0]
-for command in matches:
-    if part_of(command) in wanted:
-        chosen = command
-        break
-
-os.makedirs(outdir, exist_ok=True)
-with open(os.path.join(outdir, "compile_commands.json"), "w", encoding="utf-8") as handle:
-    json.dump([chosen], handle)
-if len(matches) > 1:
-    print("(%d compilation-database entries; checking part %s only)" % (len(matches), part_of(chosen) or "?"))
-sys.exit(0)
-PY
+# Writes the reduced database to <outdir>/compile_commands.json, reports on
+# stdout what it left out, and succeeds only when the file is present in the
+# full database. CMake normally records absolute source paths, so establishing
+# membership takes path resolution rather than a textual search.
+reduced_database() {
+  python3 "${REPO_ROOT}/scripts/tidy_compile_db.py" \
+          "${BUILD_DIR}/compile_commands.json" "${REPO_ROOT}/$1" "$2" "$3"
 }
 
 # Restrict diagnostics to the lines this merge request adds. Without it the
@@ -202,12 +143,6 @@ PY
 # rather than linted whole.
 line_filter_for() {
   python3 "${REPO_ROOT}/scripts/style_common.py" --line-filter "${BASE_SHA}" "$1"
-}
-
-# Text of the lines this merge request adds, used only to pick which
-# EIGEN_TEST_PART a split test should be checked under.
-added_lines_for() {
-  git diff -U0 "${BASE_SHA}" HEAD -- "$1" | grep '^+' || true
 }
 
 echo "Checking changed files with clang-tidy..."
@@ -239,8 +174,8 @@ for file in "${CHANGED_FILES[@]}"; do
     *.cpp|*.cc|*.cxx)
       # Source file: run clang-tidy directly if it's in the compilation database.
       FILE_DB="${TIDY_TMPDIR}/db_${file//\//_}"
-      if SELECTION=$(single_entry_database "${file}" "${FILE_DB}" "$(added_lines_for "${file}")"); then
-        echo "=== ${file} === ${SELECTION}"
+      if SELECTION=$(reduced_database "${file}" "${FILE_DB}" "${LINE_FILTER}"); then
+        echo "=== ${file} ===${SELECTION:+ ${SELECTION}}"
         if ! clang-tidy \
               -p "${FILE_DB}" \
               "${TIDY_ARGS[@]}" \
