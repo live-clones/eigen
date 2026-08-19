@@ -1498,6 +1498,67 @@ Scalar propagate_number_min(const Scalar& a, const Scalar& b) {
   return (numext::mini)(a, b);
 }
 
+// The packet forms of pmin/pmax<PropagateNaN|PropagateNumbers> must select the same operand
+// as their scalar counterparts, down to the sign of a zero result. When the two disagree on
+// a signed-zero tie, the value a reduction returns depends on the packet width, so the same
+// vector reduced on two ISAs -- or on either side of the vectorized/tail boundary -- yields
+// zeros of opposite sign. isApprox cannot see that difference, so compare the bits.
+template <typename Scalar, typename Packet, typename EnableIf = void>
+struct packetmath_minmax_matches_scalar_test {
+  static void run() {}
+};
+
+template <typename Scalar, typename Packet>
+struct packetmath_minmax_matches_scalar_test<Scalar, Packet, std::enable_if_t<!NumTraits<Scalar>::IsInteger>> {
+  static void run() {
+    using PacketTraits = internal::packet_traits<Scalar>;
+    using Bits = std::make_unsigned_t<typename internal::make_integer<Scalar>::type>;
+    constexpr int PacketSize = internal::unpacket_traits<Packet>::size;
+
+    const Scalar values[] = {Scalar(0),
+                             Scalar(-0.0),
+                             Scalar(1),
+                             Scalar(-1),
+                             NumTraits<Scalar>::infinity(),
+                             -NumTraits<Scalar>::infinity(),
+                             NumTraits<Scalar>::quiet_NaN()};
+    constexpr int kNumValues = int(sizeof(values) / sizeof(values[0]));
+
+    EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<Packet>::alignment) Scalar lhs[PacketSize];
+    EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<Packet>::alignment) Scalar rhs[PacketSize];
+    EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<Packet>::alignment) Scalar out[PacketSize];
+
+    // NaN payloads are not pinned down across backends, so only require that a NaN stays a NaN.
+    const auto verify_matches = [&](const Scalar& expected, const Scalar& actual) {
+      if ((numext::isnan)(expected)) {
+        VERIFY((numext::isnan)(actual));
+      } else {
+        VERIFY(!(numext::isnan)(actual));
+        VERIFY_IS_EQUAL(numext::bit_cast<Bits>(expected), numext::bit_cast<Bits>(actual));
+      }
+    };
+
+    test::packet_helper<PacketTraits::HasMin, Packet> hmin;
+    test::packet_helper<PacketTraits::HasMax, Packet> hmax;
+    for (int i = 0; i < kNumValues; ++i) {
+      for (int j = 0; j < kNumValues; ++j) {
+        for (int k = 0; k < PacketSize; ++k) {
+          lhs[k] = values[i];
+          rhs[k] = values[j];
+        }
+        hmin.store(out, internal::pmin<PropagateNaN>(hmin.load(lhs), hmin.load(rhs)));
+        verify_matches(internal::pmin<PropagateNaN>(values[i], values[j]), out[0]);
+        hmax.store(out, internal::pmax<PropagateNaN>(hmax.load(lhs), hmax.load(rhs)));
+        verify_matches(internal::pmax<PropagateNaN>(values[i], values[j]), out[0]);
+        hmin.store(out, internal::pmin<PropagateNumbers>(hmin.load(lhs), hmin.load(rhs)));
+        verify_matches(internal::pmin<PropagateNumbers>(values[i], values[j]), out[0]);
+        hmax.store(out, internal::pmax<PropagateNumbers>(hmax.load(lhs), hmax.load(rhs)));
+        verify_matches(internal::pmax<PropagateNumbers>(values[i], values[j]), out[0]);
+      }
+    }
+  }
+};
+
 template <bool Cond, typename Scalar, typename Packet, bool SkipDenorms = EIGEN_ARCH_ARM, typename FunctorT>
 std::enable_if_t<!Cond, void> run_ieee_cases(const FunctorT&) {}
 
@@ -1664,6 +1725,8 @@ void packetmath_notcomplex() {
 
   // Test NaN propagation.
   if (!NumTraits<Scalar>::IsInteger) {
+    packetmath_minmax_matches_scalar_test<Scalar, Packet>::run();
+
     // Test reductions with no NaNs.
     ref[0] = data1[0];
     for (int i = 0; i < PacketSize; ++i) ref[0] = internal::pmin<PropagateNumbers>(ref[0], data1[i]);
