@@ -1182,8 +1182,12 @@ EIGEN_DONT_INLINE void trsmKernelL<float, Index, Mode, false, TriStorageOrder, 1
   EIGEN_UNUSED_VARIABLE(otherIncr);
 #ifdef EIGEN_RUNTIME_NO_MALLOC
   if (!is_malloc_allowed()) {
+    // The unspecialized kernel takes an upper-triangular panel by the corner one past its
+    // bottom-right and indexes it backwards, while triangular_solve_matrix() hands these
+    // specializations the panel's top-left corner. Move the origin back before delegating.
+    const Index shift = ((Mode & Lower) == Lower) ? Index(0) : size;
     trsmKernelL<float, Index, Mode, false, TriStorageOrder, 1, /*Specialized=*/false>::kernel(
-        size, otherSize, _tri, triStride, _other, otherIncr, otherStride);
+        size, otherSize, _tri + shift + shift * triStride, triStride, _other + shift, otherIncr, otherStride);
     return;
   }
 #endif
@@ -1198,8 +1202,12 @@ EIGEN_DONT_INLINE void trsmKernelL<double, Index, Mode, false, TriStorageOrder, 
   EIGEN_UNUSED_VARIABLE(otherIncr);
 #ifdef EIGEN_RUNTIME_NO_MALLOC
   if (!is_malloc_allowed()) {
+    // The unspecialized kernel takes an upper-triangular panel by the corner one past its
+    // bottom-right and indexes it backwards, while triangular_solve_matrix() hands these
+    // specializations the panel's top-left corner. Move the origin back before delegating.
+    const Index shift = ((Mode & Lower) == Lower) ? Index(0) : size;
     trsmKernelL<double, Index, Mode, false, TriStorageOrder, 1, /*Specialized=*/false>::kernel(
-        size, otherSize, _tri, triStride, _other, otherIncr, otherStride);
+        size, otherSize, _tri + shift + shift * triStride, triStride, _other + shift, otherIncr, otherStride);
     return;
   }
 #endif
