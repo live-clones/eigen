@@ -452,6 +452,17 @@ inline int maybe_skip_gpu_tests() {
 }
 #endif
 
+// GCC's AddressSanitizer instrumentation relocates a function's locals into the fake stack it uses
+// for stack-use-after-return detection, and it lays that frame out on a 32-byte grid. A frame GCC
+// aligned to EIGEN_MAX_ALIGN_BYTES then faults on its own aligned vector accesses, since vmovdqa64
+// raises #GP off an address that is not 64-byte aligned. An AVX-512 build under ASan therefore
+// dies with a SEGV unrelated to the code under test, in whichever frame the layout happens to hit.
+// Opt those builds out of the fake stack; clang aligns its fake frames correctly and keeps the
+// detector. ASAN_OPTIONS from the environment still overrides this.
+#if defined(__SANITIZE_ADDRESS__) && EIGEN_COMP_GNUC_STRICT && EIGEN_MAX_ALIGN_BYTES > 32
+extern "C" const char* __asan_default_options() { return "detect_stack_use_after_return=0"; }
+#endif
+
 int main(int argc, char* argv[]) {
   g_has_set_repeat = false;
   g_has_set_seed = false;
