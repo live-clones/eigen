@@ -132,12 +132,14 @@ struct copy_using_evaluator_traits {
   static constexpr int ActualPacketSize = Vectorized ? unpacket_traits<PacketType>::size : 1;
   static constexpr int UnrollingLimit = EIGEN_UNROLLING_LIMIT * ActualPacketSize;
   static constexpr int CoeffReadCost = int(DstEvaluator::CoeffReadCost) + int(SrcEvaluator::CoeffReadCost);
-  static constexpr bool MayUnrollCompletely =
-      (SizeAtCompileTime != Dynamic) && (SizeAtCompileTime * CoeffReadCost <= UnrollingLimit);
   static constexpr bool MayUnrollInner =
       (InnerSizeAtCompileTime != Dynamic) && (InnerSizeAtCompileTime * CoeffReadCost <= UnrollingLimit);
 
  public:
+  // True when the whole assignment is a fixed-size kernel cheap enough to emit as straight-line
+  // code. Selects CompleteUnrolling, and gates the scalar tail in the SliceVectorized loop below.
+  static constexpr bool MayUnrollCompletely =
+      (SizeAtCompileTime != Dynamic) && (SizeAtCompileTime * CoeffReadCost <= UnrollingLimit);
   static constexpr int Unrolling =
       (Traversal == InnerVectorizedTraversal || Traversal == DefaultTraversal)
           ? (MayUnrollCompletely ? CompleteUnrolling
@@ -705,15 +707,17 @@ struct dense_assignment_loop_impl<Kernel, SliceVectorizedTraversal, InnerUnrolli
   static constexpr int InnerSize = Kernel::AssignmentTraits::InnerSizeAtCompileTime;
   static constexpr int VectorizableSize = numext::round_down(InnerSize, PacketSize);
 
+  // The tail length is a compile-time constant here, so it can be emitted as a masked packet
+  // segment or as scalars. Scalars win for the same fixed-size kernels LinearVectorizedTraversal
+  // already emits them for: their destination is a temporary the enclosing expression reloads by
+  // packet, and on AVX a masked store forwards poorly to those loads. Everything else keeps the
+  // segment, where one packet evaluation replaces up to PacketSize - 1 scalar ones.
+  static constexpr bool UsePacketSegment =
+      Kernel::AssignmentTraits::UsePacketSegment && !Kernel::AssignmentTraits::MayUnrollCompletely;
+
   using packet_loop = copy_using_evaluator_innervec_InnerUnrolling<Kernel, 0, VectorizableSize, Unaligned, Unaligned>;
-  // The inner size is a compile-time constant here, so the partial-packet tail is a fixed
-  // handful (fewer than PacketSize) of scalar assignments, as in the LinearVectorized
-  // CompleteUnrolling case above. Force UsePacketSegment = false to emit them directly: a
-  // masked packet segment has no runtime-variable trip count to collapse, and on the AVX
-  // backend it lowers to a masked store that forwards poorly to the loads of whatever reads
-  // the destination next. Traversals whose tail length is a runtime value keep the segment.
   using packet_segment_loop = copy_using_evaluator_innervec_segment<Kernel, VectorizableSize, InnerSize, Unaligned,
-                                                                    Unaligned, /*UsePacketSegment=*/false>;
+                                                                    Unaligned, UsePacketSegment>;
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(Kernel& kernel) {
     for (Index outer = 0; outer < kernel.outerSize(); ++outer) {
