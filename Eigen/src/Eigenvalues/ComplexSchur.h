@@ -327,8 +327,10 @@ ComplexSchur<MatrixType>& ComplexSchur<MatrixType>::compute(const EigenBase<Inpu
   // Reduce to Hessenberg form at unit scale, as RealSchur does: HessenbergDecomposition treats a subdiagonal tail
   // whose squared norm underflows as already zero, so an unscaled matrix near the bottom of the exponent range loses
   // its whole subdiagonal. The scale is the power of two just below the largest coefficient, floored at the smallest
-  // normal, so every coefficient divides and multiplies back exactly and the divisor is never subnormal. maxCoeff
-  // propagates NaN; a zero or non-finite maxCoeff carries no usable exponent and is left unscaled.
+  // normal, so the divisor is never subnormal and every coefficient that stays representable divides and multiplies
+  // back exactly. A scale above one underflows coefficients more than the exponent range below the largest one, a
+  // perturbation bounded by the smallest subnormal relative to that largest coefficient. maxCoeff propagates NaN; a
+  // zero or non-finite maxCoeff carries no usable exponent and is left unscaled.
   const RealScalar maxCoeff = matrix.derived().cwiseAbs().template maxCoeff<PropagateNaN>();
   RealScalar scale = RealScalar(1);
   if ((numext::isfinite)(maxCoeff) && !numext::is_exactly_zero(maxCoeff)) {

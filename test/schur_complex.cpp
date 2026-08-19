@@ -9,6 +9,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
+#include "fp_control.h"
 #include <limits>
 #include <Eigen/Eigenvalues>
 
@@ -98,7 +99,12 @@ void schur_underflow_scale(Index size) {
   const ComplexMatrixType& U = schurOfA.matrixU();
   const ComplexMatrixType& T = schurOfA.matrixT();
 
-  VERIFY_IS_APPROX(A.template cast<ComplexScalar>(), U * T * U.adjoint());
+  // isApprox squares its operands, and every square here is subnormal: under flush-to-zero both sides of the
+  // reconstruction collapse to zero and any T passes. scale is an exact power of two, so multiplying by its
+  // reciprocal is lossless and puts the comparison back in the normal range.
+  const ComplexScalar invScale = ComplexScalar(RealScalar(1) / scale);
+  VERIFY_IS_APPROX(ComplexMatrixType(A.template cast<ComplexScalar>() * invScale),
+                   ComplexMatrixType(U * T * U.adjoint() * invScale));
   VERIFY_IS_APPROX(U * U.adjoint(), ComplexMatrixType::Identity(size, size));
   for (Index row = 1; row < size; ++row)
     for (Index col = 0; col < row; ++col) VERIFY(numext::is_exactly_zero(T(row, col)));
@@ -161,7 +167,11 @@ void schur_dynamic_range(Index size) {
 
   VERIFY(U.allFinite() && T.allFinite());
   VERIFY_IS_APPROX(U * U.adjoint(), ComplexMatrixType::Identity(size, size));
-  VERIFY_IS_APPROX(A.template cast<ComplexScalar>(), U * T * U.adjoint());
+  // Both Frobenius norms overflow at this scale, so isApprox would compare infinity against infinity and any T would
+  // pass. Compare at unit scale instead; huge is not a power of two, so this costs one rounding per coefficient.
+  const ComplexScalar invHuge = ComplexScalar(RealScalar(1) / huge);
+  VERIFY_IS_APPROX(ComplexMatrixType(A.template cast<ComplexScalar>() * invHuge),
+                   ComplexMatrixType(U * T * U.adjoint() * invHuge));
 }
 
 // A NaN must not be scaled away. maxCoeff has to propagate it, or a matrix that is zero apart from a NaN looks like
@@ -205,6 +215,16 @@ EIGEN_DECLARE_TEST(schur_complex) {
   CALL_SUBTEST_6((schur_underflow_scale<Matrix4cd>(4)));
   CALL_SUBTEST_6((schur_underflow_scale<MatrixXcf>(8)));
   CALL_SUBTEST_6((schur_underflow_scale<MatrixXf>(8)));
+  {
+    // Every square this reconstruction compares is subnormal, so run it again with subnormals flushed to zero: that
+    // is the configuration in which the unscaled reduction it guards against also passes.
+    Eigen::ScopedFlushToZero flush_to_zero;
+    if (flush_to_zero.isSupported()) {
+      CALL_SUBTEST_6((schur_underflow_scale<Matrix4cd>(4)));
+      CALL_SUBTEST_6((schur_underflow_scale<MatrixXcf>(8)));
+      CALL_SUBTEST_6((schur_underflow_scale<MatrixXf>(8)));
+    }
+  }
 
   CALL_SUBTEST_7((schur_subnormal_scale<Matrix4cd>(4)));
   CALL_SUBTEST_7((schur_subnormal_scale<MatrixXcf>(8)));
