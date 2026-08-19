@@ -32,9 +32,11 @@ set(Eigen_LegacyShim_HEADERS
   ThreadPool
   )
 
-install(FILES
-  ${Eigen_LegacyShim_HEADERS}
-  DESTINATION ${INCLUDE_INSTALL_DIR}/unsupported/Eigen COMPONENT Devel
-  )
+if(EIGEN_INSTALL)
+  install(FILES
+    ${Eigen_LegacyShim_HEADERS}
+    DESTINATION ${INCLUDE_INSTALL_DIR}/unsupported/Eigen COMPONENT Devel
+    )
+endif()
 
 add_subdirectory(CXX11)
