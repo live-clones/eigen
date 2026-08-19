@@ -9,7 +9,9 @@ set(Eigen_LegacyShim_CXX11_HEADERS
   ThreadPool
   )
 
-install(FILES
-  ${Eigen_LegacyShim_CXX11_HEADERS}
-  DESTINATION ${INCLUDE_INSTALL_DIR}/unsupported/Eigen/CXX11 COMPONENT Devel
-  )
+if(EIGEN_INSTALL)
+  install(FILES
+    ${Eigen_LegacyShim_CXX11_HEADERS}
+    DESTINATION ${INCLUDE_INSTALL_DIR}/unsupported/Eigen/CXX11 COMPONENT Devel
+    )
+endif()
