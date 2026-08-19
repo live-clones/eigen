@@ -9,7 +9,7 @@
 
 #include "main.h"
 
-#include <unsupported/Eigen/StructuredMatrices>
+#include <contrib/Eigen/StructuredMatrices>
 
 using namespace Eigen;
 
