@@ -80,6 +80,30 @@ void schur(int size = MatrixType::ColsAtCompileTime) {
   }
 }
 
+// The Hessenberg reduction treats a subdiagonal tail whose squared norm underflows as already zero. ComplexSchur used
+// to reduce the caller's matrix directly, so at this scale it returned the diagonal of the input as the Schur form.
+template <typename MatrixType>
+void schur_underflow_scale(Index size) {
+  typedef typename MatrixType::Scalar Scalar;
+  typedef typename MatrixType::RealScalar RealScalar;
+  typedef typename ComplexSchur<MatrixType>::ComplexScalar ComplexScalar;
+  typedef typename ComplexSchur<MatrixType>::ComplexMatrixType ComplexMatrixType;
+
+  // Representable, but every product of two coefficients underflows.
+  const RealScalar scale = numext::sqrt((std::numeric_limits<RealScalar>::min)()) / RealScalar(1024);
+  const MatrixType A = MatrixType::Random(size, size) * Scalar(scale);
+
+  ComplexSchur<MatrixType> schurOfA(A);
+  VERIFY_IS_EQUAL(schurOfA.info(), Success);
+  const ComplexMatrixType U = schurOfA.matrixU();
+  const ComplexMatrixType T = schurOfA.matrixT();
+
+  VERIFY_IS_APPROX(A.template cast<ComplexScalar>(), U * T * U.adjoint());
+  VERIFY_IS_APPROX(U * U.adjoint(), ComplexMatrixType::Identity(size, size));
+  for (Index row = 1; row < size; ++row)
+    for (Index col = 0; col < row; ++col) VERIFY(numext::is_exactly_zero(T(row, col)));
+}
+
 EIGEN_DECLARE_TEST(schur_complex) {
   CALL_SUBTEST_1((schur<Matrix4cd>()));
   CALL_SUBTEST_2((schur<MatrixXcf>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4))));
@@ -88,4 +112,8 @@ EIGEN_DECLARE_TEST(schur_complex) {
 
   // Test problem size constructors
   CALL_SUBTEST_5(ComplexSchur<MatrixXf>(10));
+
+  CALL_SUBTEST_6((schur_underflow_scale<Matrix4cd>(4)));
+  CALL_SUBTEST_6((schur_underflow_scale<MatrixXcf>(8)));
+  CALL_SUBTEST_6((schur_underflow_scale<MatrixXf>(8)));
 }
