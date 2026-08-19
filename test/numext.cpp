@@ -143,10 +143,11 @@ void check_negate() {
 template <typename T>
 void check_complex_exp() {
   using Complex = std::complex<T>;
+  const T highest = (std::numeric_limits<T>::max)();
   const T inf = std::numeric_limits<T>::infinity();
   const T nan = std::numeric_limits<T>::quiet_NaN();
 
-  const Complex finite_inf = numext::exp(Complex(T(1), inf));
+  const Complex finite_inf = numext::exp(Complex(highest, inf));
   VERIFY((numext::isnan)(finite_inf.real()));
   VERIFY((numext::isnan)(finite_inf.imag()));
 
