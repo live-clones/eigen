@@ -704,11 +704,16 @@ struct dense_assignment_loop_impl<Kernel, SliceVectorizedTraversal, InnerUnrolli
   static constexpr int PacketSize = unpacket_traits<PacketType>::size;
   static constexpr int InnerSize = Kernel::AssignmentTraits::InnerSizeAtCompileTime;
   static constexpr int VectorizableSize = numext::round_down(InnerSize, PacketSize);
-  static constexpr bool UsePacketSegment = Kernel::AssignmentTraits::UsePacketSegment;
 
   using packet_loop = copy_using_evaluator_innervec_InnerUnrolling<Kernel, 0, VectorizableSize, Unaligned, Unaligned>;
+  // The inner size is a compile-time constant here, so the partial-packet tail is a fixed
+  // handful (fewer than PacketSize) of scalar assignments, as in the LinearVectorized
+  // CompleteUnrolling case above. Force UsePacketSegment = false to emit them directly: a
+  // masked packet segment has no runtime-variable trip count to collapse, and on the AVX
+  // backend it lowers to a masked store that forwards poorly to the loads of whatever reads
+  // the destination next. Traversals whose tail length is a runtime value keep the segment.
   using packet_segment_loop = copy_using_evaluator_innervec_segment<Kernel, VectorizableSize, InnerSize, Unaligned,
-                                                                    Unaligned, UsePacketSegment>;
+                                                                    Unaligned, /*UsePacketSegment=*/false>;
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(Kernel& kernel) {
     for (Index outer = 0; outer < kernel.outerSize(); ++outer) {
