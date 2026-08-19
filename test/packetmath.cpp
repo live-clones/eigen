@@ -1498,23 +1498,45 @@ Scalar propagate_number_min(const Scalar& a, const Scalar& b) {
   return (numext::mini)(a, b);
 }
 
-// The packet forms of pmin/pmax<PropagateNaN|PropagateNumbers> must select the same operand
-// as their scalar counterparts, down to the sign of a zero result. When the two disagree on
-// a signed-zero tie, the value a reduction returns depends on the packet width, so the same
-// vector reduced on two ISAs -- or on either side of the vectorized/tail boundary -- yields
-// zeros of opposite sign. isApprox cannot see that difference, so compare the bits.
+// pmin/pmax<PropagateNaN> may differ from plain pmin/pmax only where a NaN is involved: on two
+// ordered operands both must select the same one, down to the sign of a zero result. Signed
+// zeros are the only operands that compare equal while differing in their bits, and isApprox
+// cannot tell them apart, so compare the bits. Which operand a tie selects stays unspecified:
+// it varies with the backend and with the packet width wherever the hardware min/max resolves
+// a tie by sign rather than by position (issue #3116).
 template <typename Scalar, typename Packet, typename EnableIf = void>
-struct packetmath_minmax_matches_scalar_test {
+struct packetmath_minmax_propagation_test {
   static void run() {}
 };
 
 template <typename Scalar, typename Packet>
-struct packetmath_minmax_matches_scalar_test<Scalar, Packet, std::enable_if_t<!NumTraits<Scalar>::IsInteger>> {
-  static void run() {
-    using PacketTraits = internal::packet_traits<Scalar>;
-    using Bits = std::make_unsigned_t<typename internal::make_integer<Scalar>::type>;
-    constexpr int PacketSize = internal::unpacket_traits<Packet>::size;
+struct packetmath_minmax_propagation_test<Scalar, Packet, std::enable_if_t<!NumTraits<Scalar>::IsInteger>> {
+  using PacketTraits = internal::packet_traits<Scalar>;
+  using Bits = std::make_unsigned_t<typename internal::make_integer<Scalar>::type>;
 
+  static bool same_bits(const Scalar& a, const Scalar& b) {
+    return numext::bit_cast<Bits>(a) == numext::bit_cast<Bits>(b);
+  }
+
+  // NaN payloads are not pinned down across backends, so a NaN result only has to stay a NaN.
+  static void verify_semantics(const Scalar& a, const Scalar& b, const Scalar& plain, const Scalar& fast,
+                               const Scalar& nan, const Scalar& numbers) {
+    const bool a_is_nan = (numext::isnan)(a), b_is_nan = (numext::isnan)(b);
+    if (a_is_nan || b_is_nan) {
+      VERIFY((numext::isnan)(nan));
+      if (a_is_nan && b_is_nan) {
+        VERIFY((numext::isnan)(numbers));
+      } else {
+        VERIFY(same_bits(numbers, a_is_nan ? b : a));
+      }
+    } else {
+      VERIFY(same_bits(nan, plain));
+      VERIFY(same_bits(fast, plain));
+    }
+  }
+
+  static void run() {
+    constexpr int PacketSize = internal::unpacket_traits<Packet>::size;
     const Scalar values[] = {Scalar(0),
                              Scalar(-0.0),
                              Scalar(1),
@@ -1526,34 +1548,41 @@ struct packetmath_minmax_matches_scalar_test<Scalar, Packet, std::enable_if_t<!N
 
     EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<Packet>::alignment) Scalar lhs[PacketSize];
     EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<Packet>::alignment) Scalar rhs[PacketSize];
-    EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<Packet>::alignment) Scalar out[PacketSize];
+    EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<Packet>::alignment) Scalar plain[PacketSize];
+    EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<Packet>::alignment) Scalar fast[PacketSize];
+    EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<Packet>::alignment) Scalar nan[PacketSize];
+    EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<Packet>::alignment) Scalar numbers[PacketSize];
 
-    // NaN payloads are not pinned down across backends, so only require that a NaN stays a NaN.
-    const auto verify_matches = [&](const Scalar& expected, const Scalar& actual) {
-      if ((numext::isnan)(expected)) {
-        VERIFY((numext::isnan)(actual));
-      } else {
-        VERIFY(!(numext::isnan)(actual));
-        VERIFY_IS_EQUAL(numext::bit_cast<Bits>(expected), numext::bit_cast<Bits>(actual));
-      }
-    };
+    // Without HasMin/HasMax the helper degrades to the scalar op and writes only one element.
+    constexpr int kMinLanes = PacketTraits::HasMin ? PacketSize : 1;
+    constexpr int kMaxLanes = PacketTraits::HasMax ? PacketSize : 1;
 
     test::packet_helper<PacketTraits::HasMin, Packet> hmin;
     test::packet_helper<PacketTraits::HasMax, Packet> hmax;
     for (int i = 0; i < kNumValues; ++i) {
+      const Scalar& a = values[i];
       for (int j = 0; j < kNumValues; ++j) {
+        const Scalar& b = values[j];
+        verify_semantics(a, b, internal::pmin(a, b), internal::pmin<PropagateFast>(a, b),
+                         internal::pmin<PropagateNaN>(a, b), internal::pmin<PropagateNumbers>(a, b));
+        verify_semantics(a, b, internal::pmax(a, b), internal::pmax<PropagateFast>(a, b),
+                         internal::pmax<PropagateNaN>(a, b), internal::pmax<PropagateNumbers>(a, b));
+
         for (int k = 0; k < PacketSize; ++k) {
-          lhs[k] = values[i];
-          rhs[k] = values[j];
+          lhs[k] = a;
+          rhs[k] = b;
         }
-        hmin.store(out, internal::pmin<PropagateNaN>(hmin.load(lhs), hmin.load(rhs)));
-        verify_matches(internal::pmin<PropagateNaN>(values[i], values[j]), out[0]);
-        hmax.store(out, internal::pmax<PropagateNaN>(hmax.load(lhs), hmax.load(rhs)));
-        verify_matches(internal::pmax<PropagateNaN>(values[i], values[j]), out[0]);
-        hmin.store(out, internal::pmin<PropagateNumbers>(hmin.load(lhs), hmin.load(rhs)));
-        verify_matches(internal::pmin<PropagateNumbers>(values[i], values[j]), out[0]);
-        hmax.store(out, internal::pmax<PropagateNumbers>(hmax.load(lhs), hmax.load(rhs)));
-        verify_matches(internal::pmax<PropagateNumbers>(values[i], values[j]), out[0]);
+        hmin.store(plain, internal::pmin(hmin.load(lhs), hmin.load(rhs)));
+        hmin.store(fast, internal::pmin<PropagateFast>(hmin.load(lhs), hmin.load(rhs)));
+        hmin.store(nan, internal::pmin<PropagateNaN>(hmin.load(lhs), hmin.load(rhs)));
+        hmin.store(numbers, internal::pmin<PropagateNumbers>(hmin.load(lhs), hmin.load(rhs)));
+        for (int k = 0; k < kMinLanes; ++k) verify_semantics(a, b, plain[k], fast[k], nan[k], numbers[k]);
+
+        hmax.store(plain, internal::pmax(hmax.load(lhs), hmax.load(rhs)));
+        hmax.store(fast, internal::pmax<PropagateFast>(hmax.load(lhs), hmax.load(rhs)));
+        hmax.store(nan, internal::pmax<PropagateNaN>(hmax.load(lhs), hmax.load(rhs)));
+        hmax.store(numbers, internal::pmax<PropagateNumbers>(hmax.load(lhs), hmax.load(rhs)));
+        for (int k = 0; k < kMaxLanes; ++k) verify_semantics(a, b, plain[k], fast[k], nan[k], numbers[k]);
       }
     }
   }
@@ -1725,7 +1754,7 @@ void packetmath_notcomplex() {
 
   // Test NaN propagation.
   if (!NumTraits<Scalar>::IsInteger) {
-    packetmath_minmax_matches_scalar_test<Scalar, Packet>::run();
+    packetmath_minmax_propagation_test<Scalar, Packet>::run();
 
     // Test reductions with no NaNs.
     ref[0] = data1[0];

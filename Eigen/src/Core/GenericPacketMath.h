@@ -637,12 +637,12 @@ template <>
 struct pminmax_impl<PropagateNaN, false> {
   template <typename Packet, typename Op>
   static EIGEN_DEVICE_FUNC inline Packet run(const Packet& a, const Packet& b, Op op) {
-    // A signed-zero tie resolves to b, and a pair of NaNs yields a. op sees only ordered
-    // operands, so it need not propagate NaN itself; it takes them reversed because it
-    // returns its first argument on a tie.
+    // op is reached only with two non-NaN operands, so it need not propagate NaN itself.
+    // It receives them in the caller's order so that it selects the same operand on a
+    // signed-zero tie as plain pmin/pmax does for this Packet.
     Packet not_nan_mask_a = pcmp_eq(a, a);
     Packet not_nan_mask_b = pcmp_eq(b, b);
-    return pselect(not_nan_mask_a, pselect(not_nan_mask_b, op(b, a), b), a);
+    return pselect(not_nan_mask_a, pselect(not_nan_mask_b, op(a, b), b), a);
   }
 };
 
