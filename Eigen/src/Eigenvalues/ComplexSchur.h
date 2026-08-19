@@ -324,28 +324,17 @@ ComplexSchur<MatrixType>& ComplexSchur<MatrixType>::compute(const EigenBase<Inpu
     return *this;
   }
 
-  // Reduce to Hessenberg form at unit scale, as RealSchur does. HessenbergDecomposition treats a subdiagonal tail
+  // Reduce to Hessenberg form at unit scale, as RealSchur does: HessenbergDecomposition treats a subdiagonal tail
   // whose squared norm underflows as already zero, so an unscaled matrix near the bottom of the exponent range loses
-  // its whole subdiagonal and the Schur form degenerates to the diagonal of the input.
-  const RealScalar considerAsZero = (std::numeric_limits<RealScalar>::min)();
-  const RealScalar maxCoeff = matrix.derived().cwiseAbs().maxCoeff();
-  if (maxCoeff < considerAsZero) {
-    m_matT.setZero(matrix.rows(), matrix.cols());
-    if (computeU) m_matU = ComplexMatrixType::Identity(matrix.rows(), matrix.cols());
-    m_info = Success;
-    m_isInitialized = true;
-    m_matUisUptodate = computeU;
-    return *this;
-  }
-
-  // Scale by the power of two just below maxCoeff. Every coefficient then divides and multiplies back exactly, so a
-  // matrix that is already triangular still comes out of the reduction bit for bit unchanged. A non-finite maxCoeff
-  // carries no usable exponent; leave those inputs alone and let the iteration report NoConvergence as before.
+  // its whole subdiagonal. The scale is the power of two just below the largest coefficient, floored at the smallest
+  // normal, so every coefficient divides and multiplies back exactly and the divisor is never subnormal. maxCoeff
+  // propagates NaN; a zero or non-finite maxCoeff carries no usable exponent and is left unscaled.
+  const RealScalar maxCoeff = matrix.derived().cwiseAbs().template maxCoeff<PropagateNaN>();
   RealScalar scale = RealScalar(1);
-  if ((numext::isfinite)(maxCoeff)) {
+  if ((numext::isfinite)(maxCoeff) && !numext::is_exactly_zero(maxCoeff)) {
     RealScalar exponent;
     internal::pfrexp<RealScalar>(maxCoeff, exponent);
-    scale = numext::ldexp(RealScalar(1), int(exponent) - 1);
+    scale = numext::maxi(numext::ldexp(RealScalar(1), int(exponent) - 1), (std::numeric_limits<RealScalar>::min)());
   }
 
   internal::complex_schur_reduce_to_hessenberg<MatrixType, NumTraits<Scalar>::IsComplex>::run(
