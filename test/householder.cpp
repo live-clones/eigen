@@ -698,7 +698,8 @@ void verify_large_householder_result(const VectorType& vector, const EssentialTy
 
 void householder_large_components() {
   {
-    // The squares of both coefficients overflow float, so the direct construction produced beta = -inf and tau = NaN.
+    // The head coefficient squares out of the float range; the tail coefficient does not. The direct
+    // construction forms their sum regardless, so it produced beta = -inf and tau = NaN.
     Vector2f vector(4e19f, -5.2e18f);
     Matrix<float, 1, 1> essential;
     float tau;
