@@ -35,18 +35,23 @@ namespace Eigen {
  *     eigendecomposition, SVD, inverse and determinant all factor through the
  *     operands, and diagonal (in particular identity) factors are stored and
  *     applied in diagonal form.
+ *   - \c Cauchy    : a Cauchy matrix stored as its node vectors, solved in
+ *     O(n^2) with genuine partial pivoting through the displacement structure
+ *     (\c CauchyLU, Gohberg-Kailath-Olshevsky).
  *
  * The operator types derive from \c EigenBase and store only compact generators
  * or factors. The FFT-backed operators (\c Circulant, \c Toeplitz and \c Hankel)
  * also keep a precomputed DFT symbol that every product reuses.
+ * The operator types derive from \c EigenBase and store only compact generators.
+ * The FFT-based types also cache DFT symbols that their products reuse.
  * Because they expose \c operator* returning an Eigen product expression, they
  * also plug directly into the matrix-free iterative solvers
  * (\c ConjugateGradient, \c GMRES, \c MINRES, ...) without forming the dense
  * matrix; and since they hook into the evaluator system, they can be assigned
  * to a dense matrix when an explicit representation is needed. Like every
- * matrix-free operator, they carry no coefficient storage the default
- * preconditioners could read, so the iterative solvers must be instantiated
- * with \c IdentityPreconditioner.
+ * matrix-free operator, they expose no coefficient storage to the default
+ * preconditioners, so the iterative solvers must be instantiated with
+ * \c IdentityPreconditioner.
  *
  * All operator types are closed under transposition (\c transpose(),
  * \c conjugate(), \c adjoint() return operators of the same kind, the FFT-based
@@ -56,6 +61,13 @@ namespace Eigen {
  * \c Circulant additionally exposes its closed-form eigendecomposition and SVD
  * in the Fourier basis, a pseudo-inverse (minimum-norm least-squares) solve,
  * \c rank(), \c inverse() and \c determinant().
+ * \c conjugate(), \c adjoint() return operators of the same kind, with the
+ * FFT-based types reusing their cached symbols), which in particular feeds the
+ * least-squares solvers \c LSMR and \c LeastSquaresConjugateGradient (again
+ * with \c IdentityPreconditioner). \c Circulant additionally exposes its
+ * closed-form eigendecomposition and SVD in the Fourier basis, a pseudo-inverse
+ * (minimum-norm least-squares) solve, \c rank(), \c inverse() and
+ * \c determinant().
  *
  * \code
  * #include <unsupported/Eigen/StructuredMatrices>
@@ -73,6 +85,7 @@ namespace Eigen {
 #include "src/StructuredMatrices/LookAheadLevinson.h"
 #include "src/StructuredMatrices/Hankel.h"
 #include "src/StructuredMatrices/KroneckerOperator.h"
+#include "src/StructuredMatrices/Cauchy.h"
 // IWYU pragma: end_exports
 
 #include "../../Eigen/src/Core/util/ReenableStupidWarnings.h"
