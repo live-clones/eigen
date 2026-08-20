@@ -388,7 +388,12 @@ typename bdcsvd_impl<RealScalar_>::RealScalar bdcsvd_impl<RealScalar_>::secularE
     Index j = perm(i);
     // The following expression could be rewritten to involve only a single division,
     // but this would make the expression more sensitive to overflow.
-    res += (col0(j) / (diagShifted(j) - mu)) * (col0(j) / (diag(j) + shift + mu));
+    RealScalar firstQuotient = col0(j) / (diagShifted(j) - mu);
+    RealScalar secondQuotient = col0(j) / (diag(j) + shift + mu);
+    // Keep fast-math from reassociating the product back into that less stable form.
+    EIGEN_OPTIMIZATION_BARRIER(firstQuotient)
+    EIGEN_OPTIMIZATION_BARRIER(secondQuotient)
+    res += firstQuotient * secondQuotient;
   }
   return res;
 }
