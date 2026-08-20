@@ -5,6 +5,17 @@
 
 find_package(CUDAToolkit QUIET)
 
+# These tests compile the GPU headers against the test harness, where
+# eigen_assert throws. A noexcept function that reaches such an assert therefore
+# calls std::terminate, which GCC diagnoses as -Wterminate; the headers destroy
+# CUDA events unchecked in their noexcept move assignments for exactly that
+# reason. Promote the diagnostic to an error so the pattern cannot return
+# unnoticed. GCC-only: -Wterminate is its spelling of the check.
+set(EIGEN_GPU_TEST_CXX_FLAGS "")
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+  set(EIGEN_GPU_TEST_CXX_FLAGS "-Werror=terminate")
+endif()
+
 # ei_add_gpu_test(<name> [EXTRA_LIBS <lib>...] [EXTRA_INCLUDES <dir>...] [EXTRA_DEFINES <def>...])
 #
 # Thin wrapper around ei_add_test for GPU module tests. Delegates to
@@ -25,7 +36,7 @@ function(ei_add_gpu_test test_name)
   # Delegate to ei_add_test. The third arg is a semicolon-separated library
   # list; CUDA::cudart_static is always needed for any host test that
   # touches a device-allocated buffer.
-  ei_add_test(${test_name} "" "CUDA::cudart_static;${ARG_EXTRA_LIBS}")
+  ei_add_test(${test_name} "${EIGEN_GPU_TEST_CXX_FLAGS}" "CUDA::cudart_static;${ARG_EXTRA_LIBS}")
 
   # Discover targets ei_add_test created. The scan mirrors ei_add_test's own
   # scan so we see the same set of suffixes: one target per distinct
