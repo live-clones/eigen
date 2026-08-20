@@ -810,6 +810,19 @@ template <typename Scalar_>
 void DeviceMatrix<Scalar_>::setZero() {
   setZero(Context::threadLocal());
 }
+
+// Declared in DeviceMatrix.h; defined here where Context is complete.
+template <typename Scalar>
+void DeviceMatrix<Scalar>::syncHost(Context& ctx) {
+  eigen_assert(isHostAccessible() && "syncHost() on a device-only DeviceMatrix");
+  waitReady(ctx.stream());
+  if (resource_ != nullptr && !resource_->allowsConcurrentHostAccess()) {
+    EIGEN_CUDA_RUNTIME_CHECK(cudaDeviceSynchronize());
+  } else {
+    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(ctx.stream()));
+  }
+}
+
 }  // namespace gpu
 }  // namespace Eigen
 
