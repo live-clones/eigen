@@ -57,7 +57,9 @@ move are evaluated; an old path absent from the current graph safely forces the 
 The selector derives source-to-target mappings from test CMake registration, including multi-translation-unit
 executables and the GPU tests, whose sources are `.cu` because `ei_add_test` takes the extension from
 `EIGEN_ADD_TEST_FILENAME_EXTENSION`. A changed test source without a registration is an error rather than an
-unconfigured target to drop. Targets absent from one configuration (optional dependencies such as CHOLMOD, CUDA or
+unconfigured target to drop. `test/buildsystem/` is skipped: its consumers are separate CMake projects that only
+`test:linux:buildsystem` configures, so an `add_executable` there is not a registration and its sources reach no
+test here. Targets absent from one configuration (optional dependencies such as CHOLMOD, CUDA or
 SYCL) are still filtered against `ninja -t targets` after cmake configure, because ninja aborts on an unknown target;
 a selection consisting only of such targets is a no-op, not a failure. A missing selection artifact must also fail the
 job rather than fall through to the default target, which would silently build everything.
@@ -95,6 +97,7 @@ configuration that targets the backend the diff touches, through `rules:changes:
 | `arch/LSX` | loongarch64 gcc-14 |
 | `arch/RVV10` | riscv64 gcc-15 |
 | `arch/SVE`, `arch/SME` | the full SME build, compile-only |
+| `arch/GPU`, `test/*.cu`, `test/gpu_common.h`, `unsupported/test/*.cu`, `unsupported/test/GPU/**` | the CUDA build and test jobs |
 
 A wider x86 configuration compiles the narrower backends' headers, which is why SSE fans out to three builds. SVE and
 SME get compile coverage rather than a selection because their per-SVL test jobs already filter to a curated target
@@ -104,9 +107,19 @@ AVX512-FP16 headers are guarded by `EIGEN_VECTORIZE_AVX512FP16`, so an AVX512DQ 
 files matching `arch/AVX512/*FP16*` therefore also trigger the existing gcc-13 AVX512-FP16 official and unsupported
 builds. Those jobs are compile-only because no current runner can execute AVX512-FP16 instructions.
 
-`arch/ZVector`, `arch/MSA`, `arch/HVX` and the `arch/GPU`, `arch/HIP` and `arch/SYCL` backends have no matching test
-configuration, so a change there gets only the two unconditional jobs. The GPU backends have their own `gpu-tests`
-label. When adding a runner for one of these, add the trigger here too.
+The GPU row is the one entry that adds jobs outside the tier rather than an affected build and test pair, because no
+affected-tier configuration enables CUDA, HIP or SYCL. In a host-only build there is no `gpu_basic`, `tensor_gpu`,
+`cusolver_*` or `cudss_*` target at all, so a diff confined to the GPU test sources selects names that every affected
+build reports as unconfigured and hands the test jobs a `-R` regex matching nothing: every step exits 0 and the tier
+reads as green having compiled and run nothing. Those paths therefore add the existing CUDA jobs, through the
+`affected-tests` entry in `.rules:libeigen:gpu`. They ignore the selection — `EIGEN_CI_BUILD_TARGET` is
+`buildtests_gpu` and the test jobs filter on the `gpu` CTest label — so this is coverage of the whole GPU suite, not
+of the affected subset.
+
+`arch/ZVector`, `arch/MSA`, `arch/HVX` and the `arch/HIP` and `arch/SYCL` backends have no matching test
+configuration, so a change there gets only the two unconditional jobs and the same hollow result; `gpu-tests` is no
+help either, since the GPU jobs it gates are all CUDA. When adding a runner for one of these, add the trigger here
+too.
 
 ## Worktree-Safe Formatting
 

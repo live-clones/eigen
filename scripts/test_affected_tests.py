@@ -54,6 +54,14 @@ ei_add_test(gpu_basic)
 unset(EIGEN_ADD_TEST_FILENAME_EXTENSION)
 ei_add_test(after_gpu)
 """,
+    # Standalone CMake projects, configured by test:linux:buildsystem alone.
+    # The two target names differ so that a source shared between them would
+    # be a duplicate registration if the scan looked at them at all.
+    "test/buildsystem/consumers/main.cpp": "#include <Eigen/Dense>\n",
+    "test/buildsystem/consumers/installed/CMakeLists.txt":
+        "add_executable(installed_consumer ../main.cpp)\n",
+    "test/buildsystem/consumers/subproject/CMakeLists.txt":
+        "add_executable(subproject_consumer ../main.cpp)\n",
     "unsupported/test/extra.cpp": '#include "../../test/main.h"\n',
     "unsupported/test/CMakeLists.txt": "ei_add_test(extra)\n",
     "failtest/svd_int.cpp": "#include <Eigen/SVD>\n",
@@ -172,6 +180,39 @@ def test_fixture_graph(root):
     sel = select(graph, ["Eigen/src/SVD/BDCSVD.h", "unsupported/test/extra.cpp"])
     check(sel.mode == "targets" and targets_of(sel) == ["bdcsvd", "dense", "extra"],
           "mixed changes union, got %s" % targets_of(sel))
+
+
+def test_buildsystem_fixtures(root):
+    """test/buildsystem/ registers nothing: it is not part of this build."""
+    graph = IncludeGraph(root)
+    registered = test_registrations(graph)
+    check("test/buildsystem/consumers/main.cpp" not in registered.targets,
+          "a buildsystem consumer is not a test translation unit")
+    check("installed_consumer" not in registered.standalone
+          and "subproject_consumer" not in registered.standalone,
+          "a buildsystem consumer is not a standalone target, got %s"
+          % sorted(registered.standalone))
+    check("consumer" not in full_suite(graph, []).targets_file,
+          "full mode does not name a target no configuration has, got %r"
+          % full_suite(graph, []).targets_file)
+
+    # Falling to "reaches no test" is the honest answer: test:linux:buildsystem
+    # covers these on every merge request through its own changes: rule.
+    sel = select(graph, ["test/buildsystem/consumers/main.cpp"])
+    check(sel.mode == "none",
+          "a buildsystem source reaches no test, got %s (%s)" % (sel.mode, sel.reasons))
+
+    # A .cpp there is not an unregistered test source either, so adding one
+    # must not fail the selection.
+    extra = os.path.join(root, "test", "buildsystem", "consumers", "extra.cpp")
+    with open(extra, "w") as handle:
+        handle.write("#include <Eigen/Core>\n")
+    try:
+        sel = select(IncludeGraph(root), ["test/buildsystem/consumers/extra.cpp"])
+        check(sel.mode == "none",
+              "a new buildsystem source is not an unregistered test, got %s" % sel.mode)
+    finally:
+        os.remove(extra)
 
 
 def test_failtests(root):
@@ -403,16 +444,21 @@ def test_real_tree():
     check(len(source_targets) > 200,
           "real tree has many test sources, got %d" % len(source_targets))
 
-    # bug1213 is a manual multi-source add_executable: nothing aggregates it,
-    # so the full-suite selection has to name it or the link regression stops
-    # being compiled.
+    # bug1213 and ulp_accuracy are manual add_executable targets: nothing
+    # aggregates them, so the full-suite selection has to name them or those
+    # regressions stop being compiled.  Asserted as an exact set, because a
+    # name that reaches this set without belonging in it makes the build jobs'
+    # "not configured in this build" diagnostic permanently non-empty.
+    check(registered.standalone == {"bug1213", "ulp_accuracy"},
+          "unexpected standalone target set, got %s" % sorted(registered.standalone))
     if "test/bug1213.cpp" in graph.files:
-        check("bug1213" in registered.standalone,
-              "bug1213 is not covered by buildtests, got %s" % sorted(registered.standalone))
         check("\nbug1213\n" in full_suite(graph, []).targets_file,
               "full mode names bug1213, got %r" % full_suite(graph, []).targets_file)
-    check(all(t not in registered.standalone for t in ("bdcsvd", "block")),
-          "ei_add_test targets are aggregated by buildtests")
+
+    # test/buildsystem/ is under a test root but is not part of this build.
+    check(not any(rel.startswith("test/buildsystem/") for rel in source_targets),
+          "no buildsystem fixture is registered, got %s"
+          % sorted(rel for rel in source_targets if rel.startswith("test/buildsystem/")))
 
     # The GPU tests are registered as .cu through EIGEN_ADD_TEST_FILENAME_EXTENSION.
     # Configurations without CUDA report them as unconfigured; dropping them from
@@ -487,6 +533,7 @@ def main():
     try:
         build_fixture(root)
         test_fixture_graph(root)
+        test_buildsystem_fixtures(root)
         test_failtests(root)
         test_cuda_registrations(root)
     finally:

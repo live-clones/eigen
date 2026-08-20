@@ -47,7 +47,9 @@ the GPU module registers families of tests from ``foreach`` item lists.  Both
 are read out of the CMake source, so a translation unit under a test root with
 no registration the parser can see is an error rather than an assumption.
 Those targets are selected like any other; the build script drops them in
-configurations that did not register them.
+configurations that did not register them.  ``test/buildsystem/`` is skipped:
+its consumer projects are separate CMake projects configured by their own CI
+job, so an ``add_executable`` there is not a test registration.
 """
 
 import argparse
@@ -63,6 +65,12 @@ SCAN_ROOTS = ("Eigen", "unsupported/Eigen", "test", "unsupported/test", "failtes
 
 # Directories whose .cpp files are test translation units.
 TEST_ROOTS = ("test", "unsupported/test")
+
+# Subtrees of TEST_ROOTS that are not part of this build.  test/buildsystem/
+# holds standalone CMake projects that test:linux:buildsystem configures on
+# their own, so their add_executable() calls register targets no configuration
+# here has, and their sources are not test translation units.
+EXCLUDED_TEST_DIRS = ("test/buildsystem",)
 
 # Compile-failure suite.  ei_add_failtest registers <name>_ok and <name>_ko as
 # CTest tests whose test action is a build of an EXCLUDE_FROM_ALL target.
@@ -148,6 +156,10 @@ CMAKE_FAILTEST_RE = re.compile(
 
 def _matches(path, patterns):
     return any(fnmatch.fnmatch(path, p) for p in patterns)
+
+
+def _under(path, roots):
+    return any(path.startswith(root + "/") for root in roots)
 
 
 class IncludeGraph:
@@ -265,7 +277,8 @@ def test_registrations(graph):
         rel
         for rel in graph.files
         if os.path.basename(rel) == "CMakeLists.txt"
-        and any(rel.startswith(root + "/") for root in TEST_ROOTS)
+        and _under(rel, TEST_ROOTS)
+        and not _under(rel, EXCLUDED_TEST_DIRS)
     )
     for cmake_file in cmake_files:
         directory = os.path.dirname(cmake_file)
@@ -405,7 +418,7 @@ def select(graph, changed_files, max_fraction=DEFAULT_MAX_FRACTION):
             # A source file in the tree that nothing includes: either a new
             # header not yet wired up or an unregistered translation unit.
             roots = TEST_ROOTS + (FAILTEST_ROOT,)
-            if (any(path.startswith(root + "/") for root in roots)
+            if (_under(path, roots) and not _under(path, EXCLUDED_TEST_DIRS)
                     and path.endswith(TEST_SOURCE_SUFFIXES)):
                 return Selection("error", reasons=["%s has no CMake test target" % path])
             reasons.append("%s is in the tree but reaches no test" % path)

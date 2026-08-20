@@ -19,6 +19,20 @@
     - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/all-tests/"
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/gpu-tests/"
+    # No affected-tier configuration enables CUDA, HIP or SYCL, so the GPU test
+    # targets exist in none of them: a diff confined to these paths selects
+    # targets every affected build reports as unconfigured and a -R regex that
+    # matches nothing, and the tier goes green having compiled and run nothing.
+    # These jobs close that gap the way ppc64le closes it for AltiVec.  They
+    # ignore the selection and build buildtests_gpu, which covers every GPU
+    # test rather than the affected subset.
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/"
+      changes:
+        - Eigen/src/Core/arch/GPU/**/*
+        - test/*.cu
+        - test/gpu_common.h
+        - unsupported/test/*.cu
+        - unsupported/test/GPU/**/*
 
 .rules:libeigen:affected-tests:
   # Opt-in middle tier between the fixed smoke list and the full `all-tests`
