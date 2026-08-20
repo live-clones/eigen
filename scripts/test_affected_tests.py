@@ -257,6 +257,80 @@ def test_cuda_registrations(root):
         os.remove(orphan)
 
 
+FOREACH_FIXTURE = {
+    "test/main.h": "",
+    "unsupported/test/GPU/gpu_test_helpers.h": '#include "../../../test/main.h"\n',
+    "unsupported/test/GPU/device_matrix.cpp": '#include "gpu_test_helpers.h"\n',
+    "unsupported/test/GPU/cusolver_llt.cpp": '#include "gpu_test_helpers.h"\n',
+    "unsupported/test/GPU/cusolver_qr.cpp": '#include "gpu_test_helpers.h"\n',
+    "unsupported/test/GPU/from_variable.cpp": '#include "gpu_test_helpers.h"\n',
+    "unsupported/test/GPU/unregistered.cpp": '#include "gpu_test_helpers.h"\n',
+    "unsupported/test/GPU/CMakeLists.txt": """function(ei_add_gpu_test test_name)
+  ei_add_test(${test_name} "" "CUDA::cudart_static")
+  foreach(t ${_targets})
+    add_dependencies(buildtests_gpu ${t})
+  endforeach()
+endfunction()
+
+ei_add_gpu_test(device_matrix EXTRA_LIBS CUDA::cublas)
+
+foreach(_cusolver_test IN ITEMS cusolver_llt cusolver_qr)
+  ei_add_gpu_test(${_cusolver_test} EXTRA_LIBS CUDA::cusolver)
+endforeach()
+
+foreach(_computed IN LISTS SOME_LIST)
+  ei_add_gpu_test(${_computed})
+endforeach()
+""",
+}
+
+
+def test_foreach_registrations():
+    """GPU registrations are derived from the calls, including foreach items."""
+    root = tempfile.mkdtemp(prefix="eigen-affected-foreach-")
+    try:
+        for rel, content in FOREACH_FIXTURE.items():
+            path = os.path.join(root, rel)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w") as handle:
+                handle.write(content)
+        graph = IncludeGraph(root)
+        sources = test_registrations(graph).targets
+
+        check(sources.get("unsupported/test/GPU/device_matrix.cpp") == "device_matrix",
+              "a literal ei_add_gpu_test registers its source, got %s"
+              % sources.get("unsupported/test/GPU/device_matrix.cpp"))
+        check(sources.get("unsupported/test/GPU/cusolver_llt.cpp") == "cusolver_llt"
+              and sources.get("unsupported/test/GPU/cusolver_qr.cpp") == "cusolver_qr",
+              "foreach(... IN ITEMS ...) expands to one registration per item, got %s"
+              % sorted(sources))
+
+        # ei_add_test(${test_name}) inside the wrapper's own body is a function
+        # parameter, not a loop item, so it must not register anything.
+        check("unsupported/test/GPU/test_name.cpp" not in sources
+              and "test_name" not in set(sources.values()),
+              "the wrapper's own parameter is not a registration, got %s" % sorted(sources))
+
+        # A .cpp whose only registration iterates a variable, and one with no
+        # registration at all, must both reach the error path rather than being
+        # assumed registered because of where they live.
+        for path in ("unsupported/test/GPU/from_variable.cpp",
+                     "unsupported/test/GPU/unregistered.cpp"):
+            check(path not in sources, "%s is not registered, got %s" % (path, sources.get(path)))
+            sel = select(graph, [path])
+            check(sel.mode == "error",
+                  "%s fails selection, got %s (%s)" % (path, sel.mode, sel.reasons))
+
+        # The header the registered tests share still reaches them.
+        sel = select(graph, ["unsupported/test/GPU/gpu_test_helpers.h"], max_fraction=1.0)
+        check(sel.mode == "targets"
+              and targets_of(sel) == ["cusolver_llt", "cusolver_qr", "device_matrix"],
+              "the GPU header reaches its registered tests, got %s (%s)"
+              % (targets_of(sel), sel.mode))
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+
 def test_output_encoding():
     sel = Selection("targets", ["adjoint", "bdcsvd"])
     check(sel.targets_file == "adjoint\nbdcsvd\n",
@@ -352,6 +426,29 @@ def test_real_tree():
               "test/gpu_common.h reaches gpu_basic, got %s (%s)"
               % (sorted(sel.targets), sel.mode))
 
+    # Every GPU module test is registered by a call the parser can see, so a
+    # source added without a registration reaches the error path.
+    gpu_dir = os.path.join(root, "unsupported", "test", "GPU")
+    if os.path.isdir(gpu_dir):
+        gpu_sources = sorted("unsupported/test/GPU/" + name for name in os.listdir(gpu_dir)
+                             if name.endswith(".cpp"))
+        unmapped = [rel for rel in gpu_sources if rel not in source_targets]
+        check(gpu_sources and not unmapped,
+              "every GPU test source is registered, got %s unmapped of %d"
+              % (unmapped, len(gpu_sources)))
+        check(source_targets.get("unsupported/test/GPU/cusolver_svd.cpp") == "cusolver_svd",
+              "a foreach-registered GPU test maps to its target, got %s"
+              % source_targets.get("unsupported/test/GPU/cusolver_svd.cpp"))
+        probe = os.path.join(gpu_dir, "affected_tests_probe.cpp")
+        with open(probe, "w") as handle:
+            handle.write('#include "gpu_test_helpers.h"\n')
+        try:
+            sel = select(IncludeGraph(root), ["unsupported/test/GPU/affected_tests_probe.cpp"])
+            check(sel.mode == "error",
+                  "an unregistered GPU source fails selection, got %s" % sel.mode)
+        finally:
+            os.remove(probe)
+
     # The compile-failure suite must stay reachable: it is filtered out by any
     # -R regex that does not name it.
     check(len(registered.failtests) > 50,
@@ -394,6 +491,7 @@ def main():
         test_cuda_registrations(root)
     finally:
         shutil.rmtree(root, ignore_errors=True)
+    test_foreach_registrations()
     test_output_encoding()
     test_git_rename_paths()
     test_real_tree()
