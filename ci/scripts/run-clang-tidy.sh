@@ -15,6 +15,13 @@
 # directive (or a sibling InternalHeaderCheck.h), with a fallback to the
 # heuristic <root>/<Module> for deeply-nested files (e.g. arch-specific
 # backends) that don't carry their own directive.
+#
+# ISA backends under arch/<ISA>/ are the exception: they only compile with the
+# -march/-mcpu flags that select them, which this job does not pass, so forcing
+# them into the driver turns every such change into a wall of clang-diagnostic
+# errors from arm_sve.h / immintrin.h rather than a lint result. Those get the
+# umbrella include alone, which lints them when the host target selects the
+# backend and reports nothing when it does not.
 # SPDX-FileCopyrightText: The Eigen Authors
 # SPDX-License-Identifier: MPL-2.0
 
@@ -199,13 +206,22 @@ for file in "${CHANGED_FILES[@]}"; do
         continue
       fi
 
+      # arch/<ISA>/ backends need their own -march to parse at all; arch/Default
+      # is generic and stays force-included.
+      NOTE=""
+      FORCE_INCLUDE="#include <${file}>"
+      if [[ "${file}" =~ /arch/([^/]+)/ ]] && [ "${BASH_REMATCH[1]}" != "Default" ]; then
+        NOTE=" [${BASH_REMATCH[1]} backend: linted only if the host target selects it]"
+        FORCE_INCLUDE=""
+      fi
+
       DRIVER="${TIDY_TMPDIR}/tidy_driver_${file//\//_}.cpp"
       cat > "${DRIVER}" <<EOF
 #include <${MODULE_INCLUDE}>
-#include <${file}>
+${FORCE_INCLUDE}
 EOF
 
-      echo "=== ${file} (via ${MODULE_INCLUDE}) ==="
+      echo "=== ${file} (via ${MODULE_INCLUDE})${NOTE} ==="
       if ! clang-tidy \
             "${TIDY_ARGS[@]}" \
             --header-filter="$(echo "${file}" | sed 's/[.[\*^$()+?{|]/\\&/g')" \
