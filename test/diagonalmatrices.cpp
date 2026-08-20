@@ -60,18 +60,20 @@ void diagonalmatrices(const MatrixType& m) {
   Index j = internal::random<Index>(0, cols - 1);
 
   internal::set_is_malloc_allowed(false);
-  VERIFY_IS_APPROX(((ldm1 * m1)(i, j)), ldm1.diagonal()(i) * m1(i, j));
-  VERIFY_IS_APPROX(((ldm1 * (m1 + m2))(i, j)), ldm1.diagonal()(i) * (m1 + m2)(i, j));
-  VERIFY_IS_APPROX(((m1 * rdm1)(i, j)), rdm1.diagonal()(j) * m1(i, j));
-  VERIFY_IS_APPROX(((v1.asDiagonal() * m1)(i, j)), v1(i) * m1(i, j));
-  VERIFY_IS_APPROX(((m1 * rv1.asDiagonal())(i, j)), rv1(j) * m1(i, j));
-  VERIFY_IS_APPROX((((v1 + v2).asDiagonal() * m1)(i, j)), (v1 + v2)(i)*m1(i, j));
-  VERIFY_IS_APPROX((((v1 + v2).asDiagonal() * (m1 + m2))(i, j)), (v1 + v2)(i) * (m1 + m2)(i, j));
-  VERIFY_IS_APPROX(((m1 * (rv1 + rv2).asDiagonal())(i, j)), (rv1 + rv2)(j)*m1(i, j));
-  VERIFY_IS_APPROX((((m1 + m2) * (rv1 + rv2).asDiagonal())(i, j)), (rv1 + rv2)(j) * (m1 + m2)(i, j));
-  VERIFY_IS_APPROX((ldm1 * ldm1).diagonal()(i), ldm1.diagonal()(i) * ldm1.diagonal()(i));
-  VERIFY_IS_APPROX((ldm1 * ldm1 * m1)(i, j), ldm1.diagonal()(i) * ldm1.diagonal()(i) * m1(i, j));
-  VERIFY_IS_APPROX(((v1.asDiagonal() * v1.asDiagonal()).diagonal()(i)), v1(i) * v1(i));
+  VERIFY_IS_APPROX(((ldm1 * m1)(i, j)), internal::wrapping_mul(ldm1.diagonal()(i), m1(i, j)));
+  VERIFY_IS_APPROX(((ldm1 * (m1 + m2))(i, j)), internal::wrapping_mul(ldm1.diagonal()(i), (m1 + m2)(i, j)));
+  VERIFY_IS_APPROX(((m1 * rdm1)(i, j)), internal::wrapping_mul(rdm1.diagonal()(j), m1(i, j)));
+  VERIFY_IS_APPROX(((v1.asDiagonal() * m1)(i, j)), internal::wrapping_mul(v1(i), m1(i, j)));
+  VERIFY_IS_APPROX(((m1 * rv1.asDiagonal())(i, j)), internal::wrapping_mul(rv1(j), m1(i, j)));
+  VERIFY_IS_APPROX((((v1 + v2).asDiagonal() * m1)(i, j)), internal::wrapping_mul((v1 + v2)(i), m1(i, j)));
+  VERIFY_IS_APPROX((((v1 + v2).asDiagonal() * (m1 + m2))(i, j)), internal::wrapping_mul((v1 + v2)(i), (m1 + m2)(i, j)));
+  VERIFY_IS_APPROX(((m1 * (rv1 + rv2).asDiagonal())(i, j)), internal::wrapping_mul((rv1 + rv2)(j), m1(i, j)));
+  VERIFY_IS_APPROX((((m1 + m2) * (rv1 + rv2).asDiagonal())(i, j)),
+                   internal::wrapping_mul((rv1 + rv2)(j), (m1 + m2)(i, j)));
+  VERIFY_IS_APPROX((ldm1 * ldm1).diagonal()(i), internal::wrapping_mul(ldm1.diagonal()(i), ldm1.diagonal()(i)));
+  VERIFY_IS_APPROX((ldm1 * ldm1 * m1)(i, j),
+                   internal::wrapping_mul(internal::wrapping_mul(ldm1.diagonal()(i), ldm1.diagonal()(i)), m1(i, j)));
+  VERIFY_IS_APPROX(((v1.asDiagonal() * v1.asDiagonal()).diagonal()(i)), internal::wrapping_mul(v1(i), v1(i)));
   internal::set_is_malloc_allowed(true);
 
   if (rows > 1) {

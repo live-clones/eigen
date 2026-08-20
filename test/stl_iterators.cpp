@@ -229,7 +229,7 @@ void test_stl_iterators(int rows = Rows, int cols = Cols) {
 
     i = 0;
     for (auto x : (v + A.col(j))) {
-      VERIFY_IS_APPROX(x, v(i) + A(i, j));
+      VERIFY_IS_APPROX(x, internal::wrapping_add(v(i), A(i, j)));
       ++i;
     }
 
@@ -311,7 +311,7 @@ void test_stl_iterators(int rows = Rows, int cols = Cols) {
       auto tmp = (A + 2 * A).col(j);
       auto it = tmp.begin();
       for (i = 0; i < rows; ++i) {
-        VERIFY_IS_APPROX(it[i], 3 * A(i, j));
+        VERIFY_IS_APPROX(it[i], internal::wrapping_mul(Scalar(3), A(i, j)));
       }
     }
   }
@@ -411,11 +411,13 @@ void test_stl_iterators(int rows = Rows, int cols = Cols) {
   {
     j = internal::random<Index>(0, A.cols() - 1);
     typename ColMatrixType::ColXpr Acol = A.col(j);
-    std::partial_sum(Acol.begin(), Acol.end(), v.begin());
+    // partial_sum's default op would overflow signed integer scalars inside the standard library.
+    auto wrapped_sum = [](const Scalar& a, const Scalar& b) { return internal::wrapping_add(a, b); };
+    std::partial_sum(Acol.begin(), Acol.end(), v.begin(), wrapped_sum);
     VERIFY_IS_APPROX(v(seq(1, last)), v(seq(0, last - 1)) + Acol(seq(1, last)));
 
     // inplace
-    std::partial_sum(Acol.begin(), Acol.end(), Acol.begin());
+    std::partial_sum(Acol.begin(), Acol.end(), Acol.begin(), wrapped_sum);
     VERIFY_IS_APPROX(v, Acol);
   }
 

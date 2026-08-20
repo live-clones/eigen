@@ -24,7 +24,7 @@ void diagonal(const MatrixType& m) {
   // check diagonal()
   VERIFY_IS_APPROX(m1.diagonal(), m1.transpose().diagonal());
   m2.diagonal() = 2 * m1.diagonal();
-  m2.diagonal()[0] *= 3;
+  m2.diagonal()[0] = internal::wrapping_mul(m2.diagonal()[0], Scalar(3));
 
   if (rows > 2) {
     enum { N1 = MatrixType::RowsAtCompileTime > 2 ? 2 : 0, N2 = MatrixType::RowsAtCompileTime > 1 ? -1 : 0 };
@@ -37,27 +37,27 @@ void diagonal(const MatrixType& m) {
 
     m2.template diagonal<N1>() = 2 * m1.template diagonal<N1>();
     VERIFY_IS_APPROX(m2.template diagonal<N1>(), static_cast<Scalar>(2) * m1.diagonal(N1));
-    m2.template diagonal<N1>()[0] *= 3;
-    VERIFY_IS_APPROX(m2.template diagonal<N1>()[0], static_cast<Scalar>(6) * m1.template diagonal<N1>()[0]);
+    m2.template diagonal<N1>()[0] = internal::wrapping_mul(m2.template diagonal<N1>()[0], Scalar(3));
+    VERIFY_IS_APPROX(m2.template diagonal<N1>()[0], internal::wrapping_mul(Scalar(6), m1.template diagonal<N1>()[0]));
 
     m2.template diagonal<N2>() = 2 * m1.template diagonal<N2>();
-    m2.template diagonal<N2>()[0] *= 3;
-    VERIFY_IS_APPROX(m2.template diagonal<N2>()[0], static_cast<Scalar>(6) * m1.template diagonal<N2>()[0]);
+    m2.template diagonal<N2>()[0] = internal::wrapping_mul(m2.template diagonal<N2>()[0], Scalar(3));
+    VERIFY_IS_APPROX(m2.template diagonal<N2>()[0], internal::wrapping_mul(Scalar(6), m1.template diagonal<N2>()[0]));
 
     m2.diagonal(N1) = 2 * m1.diagonal(N1);
     VERIFY_IS_APPROX(m2.template diagonal<N1>(), static_cast<Scalar>(2) * m1.diagonal(N1));
-    m2.diagonal(N1)[0] *= 3;
-    VERIFY_IS_APPROX(m2.diagonal(N1)[0], static_cast<Scalar>(6) * m1.diagonal(N1)[0]);
+    m2.diagonal(N1)[0] = internal::wrapping_mul(m2.diagonal(N1)[0], Scalar(3));
+    VERIFY_IS_APPROX(m2.diagonal(N1)[0], internal::wrapping_mul(Scalar(6), m1.diagonal(N1)[0]));
 
     m2.diagonal(N2) = 2 * m1.diagonal(N2);
     VERIFY_IS_APPROX(m2.template diagonal<N2>(), static_cast<Scalar>(2) * m1.diagonal(N2));
-    m2.diagonal(N2)[0] *= 3;
-    VERIFY_IS_APPROX(m2.diagonal(N2)[0], static_cast<Scalar>(6) * m1.diagonal(N2)[0]);
+    m2.diagonal(N2)[0] = internal::wrapping_mul(m2.diagonal(N2)[0], Scalar(3));
+    VERIFY_IS_APPROX(m2.diagonal(N2)[0], internal::wrapping_mul(Scalar(6), m1.diagonal(N2)[0]));
 
     m2.diagonal(N2).x() = s1;
     VERIFY_IS_APPROX(m2.diagonal(N2).x(), s1);
-    m2.diagonal(N2).coeffRef(0) = Scalar(2) * s1;
-    VERIFY_IS_APPROX(m2.diagonal(N2).coeff(0), Scalar(2) * s1);
+    m2.diagonal(N2).coeffRef(0) = internal::wrapping_mul(Scalar(2), s1);
+    VERIFY_IS_APPROX(m2.diagonal(N2).coeff(0), internal::wrapping_mul(Scalar(2), s1));
   }
 
   VERIFY(m1.diagonal(cols).size() == 0);

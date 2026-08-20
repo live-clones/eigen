@@ -268,8 +268,10 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, ConjugateLh
     }
     for (; i < rows; ++i) {
       ResScalar c0(0);
-      for (Index j = j2; j < jend; j += 1) c0 += cj.pmul(lhs(i, j), rhs(j, 0));
-      res[i] += alpha * c0;
+      for (Index j = j2; j < jend; j += 1) c0 = wrapping_add(c0, cj.pmul(lhs(i, j), rhs(j, 0)));
+      // alpha is RhsScalar here, so the mixed real*complex instantiations cannot use pmul, and
+      // the product needs narrowing back to ResScalar for bool (whose operator* yields int).
+      res[i] = padd(res[i], ResScalar(wrapping_mul(alpha, c0)));
     }
   }
 }
@@ -421,23 +423,23 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLh
     for (Index j = fullColBlockEnd; j < cols; ++j) {
       RhsScalar b0 = rhs(j, 0);
 
-      cc0 += cj.pmul(lhs(i + 0, j), b0);
-      cc1 += cj.pmul(lhs(i + 1, j), b0);
-      cc2 += cj.pmul(lhs(i + 2, j), b0);
-      cc3 += cj.pmul(lhs(i + 3, j), b0);
-      cc4 += cj.pmul(lhs(i + 4, j), b0);
-      cc5 += cj.pmul(lhs(i + 5, j), b0);
-      cc6 += cj.pmul(lhs(i + 6, j), b0);
-      cc7 += cj.pmul(lhs(i + 7, j), b0);
+      cc0 = wrapping_add(cc0, cj.pmul(lhs(i + 0, j), b0));
+      cc1 = wrapping_add(cc1, cj.pmul(lhs(i + 1, j), b0));
+      cc2 = wrapping_add(cc2, cj.pmul(lhs(i + 2, j), b0));
+      cc3 = wrapping_add(cc3, cj.pmul(lhs(i + 3, j), b0));
+      cc4 = wrapping_add(cc4, cj.pmul(lhs(i + 4, j), b0));
+      cc5 = wrapping_add(cc5, cj.pmul(lhs(i + 5, j), b0));
+      cc6 = wrapping_add(cc6, cj.pmul(lhs(i + 6, j), b0));
+      cc7 = wrapping_add(cc7, cj.pmul(lhs(i + 7, j), b0));
     }
-    res[(i + 0) * resIncr] += alpha * cc0;
-    res[(i + 1) * resIncr] += alpha * cc1;
-    res[(i + 2) * resIncr] += alpha * cc2;
-    res[(i + 3) * resIncr] += alpha * cc3;
-    res[(i + 4) * resIncr] += alpha * cc4;
-    res[(i + 5) * resIncr] += alpha * cc5;
-    res[(i + 6) * resIncr] += alpha * cc6;
-    res[(i + 7) * resIncr] += alpha * cc7;
+    res[(i + 0) * resIncr] = padd(res[(i + 0) * resIncr], pmul(alpha, cc0));
+    res[(i + 1) * resIncr] = padd(res[(i + 1) * resIncr], pmul(alpha, cc1));
+    res[(i + 2) * resIncr] = padd(res[(i + 2) * resIncr], pmul(alpha, cc2));
+    res[(i + 3) * resIncr] = padd(res[(i + 3) * resIncr], pmul(alpha, cc3));
+    res[(i + 4) * resIncr] = padd(res[(i + 4) * resIncr], pmul(alpha, cc4));
+    res[(i + 5) * resIncr] = padd(res[(i + 5) * resIncr], pmul(alpha, cc5));
+    res[(i + 6) * resIncr] = padd(res[(i + 6) * resIncr], pmul(alpha, cc6));
+    res[(i + 7) * resIncr] = padd(res[(i + 7) * resIncr], pmul(alpha, cc7));
   }
   for (; i < n4; i += 4) {
     ResPacket c0 = pzero(ResPacket{}), c1 = pzero(ResPacket{}), c2 = pzero(ResPacket{}), c3 = pzero(ResPacket{});
@@ -458,15 +460,15 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLh
     for (Index j = fullColBlockEnd; j < cols; ++j) {
       RhsScalar b0 = rhs(j, 0);
 
-      cc0 += cj.pmul(lhs(i + 0, j), b0);
-      cc1 += cj.pmul(lhs(i + 1, j), b0);
-      cc2 += cj.pmul(lhs(i + 2, j), b0);
-      cc3 += cj.pmul(lhs(i + 3, j), b0);
+      cc0 = wrapping_add(cc0, cj.pmul(lhs(i + 0, j), b0));
+      cc1 = wrapping_add(cc1, cj.pmul(lhs(i + 1, j), b0));
+      cc2 = wrapping_add(cc2, cj.pmul(lhs(i + 2, j), b0));
+      cc3 = wrapping_add(cc3, cj.pmul(lhs(i + 3, j), b0));
     }
-    res[(i + 0) * resIncr] += alpha * cc0;
-    res[(i + 1) * resIncr] += alpha * cc1;
-    res[(i + 2) * resIncr] += alpha * cc2;
-    res[(i + 3) * resIncr] += alpha * cc3;
+    res[(i + 0) * resIncr] = padd(res[(i + 0) * resIncr], pmul(alpha, cc0));
+    res[(i + 1) * resIncr] = padd(res[(i + 1) * resIncr], pmul(alpha, cc1));
+    res[(i + 2) * resIncr] = padd(res[(i + 2) * resIncr], pmul(alpha, cc2));
+    res[(i + 3) * resIncr] = padd(res[(i + 3) * resIncr], pmul(alpha, cc3));
   }
   for (; i < n2; i += 2) {
     ResPacket c0 = pzero(ResPacket{}), c1 = pzero(ResPacket{});
@@ -483,11 +485,11 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLh
     for (Index j = fullColBlockEnd; j < cols; ++j) {
       RhsScalar b0 = rhs(j, 0);
 
-      cc0 += cj.pmul(lhs(i + 0, j), b0);
-      cc1 += cj.pmul(lhs(i + 1, j), b0);
+      cc0 = wrapping_add(cc0, cj.pmul(lhs(i + 0, j), b0));
+      cc1 = wrapping_add(cc1, cj.pmul(lhs(i + 1, j), b0));
     }
-    res[(i + 0) * resIncr] += alpha * cc0;
-    res[(i + 1) * resIncr] += alpha * cc1;
+    res[(i + 0) * resIncr] = padd(res[(i + 0) * resIncr], pmul(alpha, cc0));
+    res[(i + 1) * resIncr] = padd(res[(i + 1) * resIncr], pmul(alpha, cc1));
   }
   for (; i < rows; ++i) {
     ResPacket c0 = pzero(ResPacket{});
@@ -504,19 +506,19 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLh
         RhsPacketHalf b0 = rhs.template load<RhsPacketHalf, Unaligned>(j, 0);
         c0_h = pcj_half.pmadd(lhs.template load<LhsPacketHalf, LhsAlignment>(i, j), b0, c0_h);
       }
-      cc0 += predux(c0_h);
+      cc0 = padd(cc0, predux(c0_h));
     }
     EIGEN_IF_CONSTEXPR (HasQuarter) {
       for (Index j = halfColBlockEnd; j < quarterColBlockEnd; j += LhsPacketSizeQuarter) {
         RhsPacketQuarter b0 = rhs.template load<RhsPacketQuarter, Unaligned>(j, 0);
         c0_q = pcj_quarter.pmadd(lhs.template load<LhsPacketQuarter, LhsAlignment>(i, j), b0, c0_q);
       }
-      cc0 += predux(c0_q);
+      cc0 = padd(cc0, predux(c0_q));
     }
     for (Index j = quarterColBlockEnd; j < cols; ++j) {
-      cc0 += cj.pmul(lhs(i, j), rhs(j, 0));
+      cc0 = wrapping_add(cc0, cj.pmul(lhs(i, j), rhs(j, 0)));
     }
-    res[i * resIncr] += alpha * cc0;
+    res[i * resIncr] = padd(res[i * resIncr], pmul(alpha, cc0));
   }
 }
 
@@ -543,7 +545,7 @@ struct gemv_small_cols_unroller {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void scalar_madd_impl(std::integer_sequence<int, K...>, ResScalar* cc,
                                                                      const LhsMapper& lhs, Index i, Index j,
                                                                      const RhsScalar& b0, ConjHelper& cj) {
-    int unused[] = {0, ((cc[K] += cj.pmul(lhs(i + K, j), b0)), 0)...};
+    int unused[] = {0, ((cc[K] = wrapping_add(cc[K], cj.pmul(lhs(i + K, j), b0))), 0)...};
     EIGEN_UNUSED_VARIABLE(unused);
   }
 
@@ -556,7 +558,7 @@ struct gemv_small_cols_unroller {
   template <typename Scalar, typename Packet, int... K>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void predux_accum_impl(std::integer_sequence<int, K...>, Scalar* cc,
                                                                       const Packet* acc) {
-    int unused[] = {0, ((cc[K] += predux(acc[K])), 0)...};
+    int unused[] = {0, ((cc[K] = padd(cc[K], predux(acc[K]))), 0)...};
     EIGEN_UNUSED_VARIABLE(unused);
   }
 
@@ -580,7 +582,7 @@ struct gemv_small_cols_unroller {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void write_result_impl(std::integer_sequence<int, K...>, Scalar* res,
                                                                       Index resIncr, Index i, Scalar alpha,
                                                                       const Scalar* cc) {
-    int unused[] = {0, ((res[(i + K) * resIncr] += alpha * cc[K]), 0)...};
+    int unused[] = {0, ((res[(i + K) * resIncr] = padd(res[(i + K) * resIncr], pmul(alpha, cc[K]))), 0)...};
     EIGEN_UNUSED_VARIABLE(unused);
   }
 

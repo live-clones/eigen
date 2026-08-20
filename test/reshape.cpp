@@ -281,7 +281,7 @@ void reshape_copies(Index rows, Index cols) {
   RowMat ra = RowMat::Random(rows, cols), rb = RowMat::Random(rows, cols);
   RowMat rer = (ra + rb).template reshaped<RowMajor>(cols, rows);
   for (Index k = 0; k < rer.size(); ++k) {
-    VERIFY_IS_EQUAL(rer(k / rows, k % rows), ra(k / cols, k % cols) + rb(k / cols, k % cols));
+    VERIFY_IS_EQUAL(rer(k / rows, k % rows), internal::wrapping_add(ra(k / cols, k % cols), rb(k / cols, k % cols)));
   }
 
   // A reshaped lvalue expression without direct access exercises the forwarded packet writes.

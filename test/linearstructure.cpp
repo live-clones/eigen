@@ -68,11 +68,11 @@ void linearStructure(const MatrixType& m) {
   }
 
   // again, test operator() to check const-qualification
-  VERIFY_IS_APPROX((-m1)(r, c), -(m1(r, c)));
-  VERIFY_IS_APPROX((m1 - m2)(r, c), (m1(r, c)) - (m2(r, c)));
-  VERIFY_IS_APPROX((m1 + m2)(r, c), (m1(r, c)) + (m2(r, c)));
-  VERIFY_IS_APPROX((s1 * m1)(r, c), s1 * (m1(r, c)));
-  VERIFY_IS_APPROX((m1 * s1)(r, c), (m1(r, c)) * s1);
+  VERIFY_IS_APPROX((-m1)(r, c), numext::negate(m1(r, c)));
+  VERIFY_IS_APPROX((m1 - m2)(r, c), internal::wrapping_sub(m1(r, c), m2(r, c)));
+  VERIFY_IS_APPROX((m1 + m2)(r, c), internal::wrapping_add(m1(r, c), m2(r, c)));
+  VERIFY_IS_APPROX((s1 * m1)(r, c), internal::wrapping_mul(s1, m1(r, c)));
+  VERIFY_IS_APPROX((m1 * s1)(r, c), internal::wrapping_mul(m1(r, c), s1));
   if (!NumTraits<Scalar>::IsInteger) VERIFY_IS_APPROX((m1 / s1)(r, c), (m1(r, c)) / s1);
 
   // use .block to disable vectorization and compare to the vectorized version
