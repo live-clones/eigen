@@ -109,13 +109,95 @@ inline void device_free(void* p) noexcept {
   }
 }
 
+/** Device properties that decide whether host-addressable storage is usable,
+ * and what it costs. Probed once per process from the device current at first
+ * use, matching device_supports_memory_pools(). */
+struct DeviceCapabilities {
+  bool integrated = false;
+  bool concurrent_managed_access = false;
+  bool can_map_host_memory = false;
+  bool managed_memory = false;
+};
+
+inline const DeviceCapabilities& device_capabilities() {
+  static const DeviceCapabilities caps = [] {
+    DeviceCapabilities c;
+    int device = 0;
+    if (cudaGetDevice(&device) != cudaSuccess) return c;
+    cudaDeviceProp prop{};
+    if (cudaGetDeviceProperties(&prop, device) != cudaSuccess) return c;
+    c.integrated = prop.integrated != 0;
+    c.concurrent_managed_access = prop.concurrentManagedAccess != 0;
+    c.can_map_host_memory = prop.canMapHostMemory != 0;
+    c.managed_memory = prop.managedMemory != 0;
+    return c;
+  }();
+  return caps;
+}
+
+}  // namespace internal
+
+/** \ingroup GPU_Module
+ * A block of storage, as returned by a MemoryResource.
+ *
+ * \a device is what kernels and NVIDIA library calls receive; \a host is a
+ * host-addressable alias of the same bytes, or null for device-only memory.
+ * The two are equal for some resources and different for others -- on Tegra,
+ * malloc + cudaHostRegister returns distinct addresses -- so callers must not
+ * assume either. */
+struct Allocation {
+  void* device = nullptr;
+  void* host = nullptr;
+
+  explicit operator bool() const noexcept { return device != nullptr; }
+};
+
+/** \ingroup GPU_Module
+ * \class MemoryResource
+ * \brief Supplies the storage behind a DeviceMatrix.
+ *
+ * Resources carry no per-allocation state and must outlive every buffer that
+ * names them; the built-in ones are process-wide singletons. See
+ * GpuMemoryResource.h for the concrete kinds. */
+class MemoryResource {
+ public:
+  virtual ~MemoryResource() = default;
+
+  virtual Allocation allocate(size_t bytes, cudaStream_t stream) = 0;
+  virtual void deallocate(const Allocation& a, size_t bytes, cudaStream_t stream) noexcept = 0;
+
+  /** Whether Allocation::host is non-null: the host reads and writes this
+   * memory directly, so no upload or download is needed. */
+  virtual bool isHostAccessible() const noexcept = 0;
+
+  /** Whether the host may touch the memory while device work is outstanding.
+   * False for managed memory wherever concurrentManagedAccess is 0. */
+  virtual bool allowsConcurrentHostAccess() const noexcept { return false; }
+
+  virtual const char* name() const noexcept = 0;
+};
+
+namespace internal {
+
 struct CudaFreeDeleter {
   // When `borrow == true`, the unique_ptr does not free the pointer. Used by
   // DeviceMatrix::view() to wrap a non-owning device pointer with the same
   // smart-pointer machinery as owning storage, without changing the type.
   bool borrow = false;
+  // Storage obtained from a MemoryResource goes back to that resource, which
+  // knows how it was made: cudaFree, cudaFreeHost, or unregister-then-free are
+  // not interchangeable. Null means the default device_free path.
+  MemoryResource* resource = nullptr;
+  void* host = nullptr;
+  size_t bytes = 0;
+
   void operator()(void* p) const noexcept {
-    if (p && !borrow) device_free(p);
+    if (!p || borrow) return;
+    if (resource != nullptr) {
+      resource->deallocate(Allocation{p, host}, bytes, /*stream=*/nullptr);
+    } else {
+      device_free(p);
+    }
   }
 };
 

@@ -140,6 +140,17 @@ class DeviceMatrix {
     allocate(sizeInBytes());
   }
 
+  /** Allocate through \p resource instead of the default device allocator.
+   *
+   * With a host-accessible resource -- managed, mapped or registered storage --
+   * hostData() is non-null and the host reads and writes the same bytes the
+   * device does, so fromHost() / toHost() are not needed at all. \p resource
+   * must outlive this matrix. */
+  DeviceMatrix(Index rows, Index cols, MemoryResource& resource) : rows_(rows), cols_(cols), resource_(&resource) {
+    eigen_assert(rows >= 0 && cols >= 0);
+    allocate(sizeInBytes());
+  }
+
   // Copy-initialization from a device expression, mirroring the Eigen CPU idiom
   // `DeviceMatrix<double> d_C = d_A * d_B;`. Each delegates to the corresponding
   // operator= on the thread-local Context, and is defined out-of-line in
@@ -173,12 +184,16 @@ class DeviceMatrix {
         capacity_bytes_(o.capacity_bytes_),
         ready_event_(o.ready_event_),
         ready_stream_(o.ready_stream_),
-        retained_buffer_(std::move(o.retained_buffer_)) {
+        retained_buffer_(std::move(o.retained_buffer_)),
+        resource_(o.resource_),
+        host_(o.host_) {
     o.rows_ = 0;
     o.cols_ = 0;
     o.capacity_bytes_ = 0;
     o.ready_event_ = nullptr;
     o.ready_stream_ = nullptr;
+    o.resource_ = nullptr;
+    o.host_ = nullptr;
   }
 
   DeviceMatrix& operator=(DeviceMatrix&& o) noexcept {
@@ -191,11 +206,15 @@ class DeviceMatrix {
       ready_event_ = o.ready_event_;
       ready_stream_ = o.ready_stream_;
       retained_buffer_ = std::move(o.retained_buffer_);
+      resource_ = o.resource_;
+      host_ = o.host_;
       o.rows_ = 0;
       o.cols_ = 0;
       o.capacity_bytes_ = 0;
       o.ready_event_ = nullptr;
       o.ready_stream_ = nullptr;
+      o.resource_ = nullptr;
+      o.host_ = nullptr;
     }
     return *this;
   }
@@ -336,6 +355,30 @@ class DeviceMatrix {
 
   Scalar* data() { return data_.get(); }
   const Scalar* data() const { return data_.get(); }
+
+  /** Host-addressable alias of data(), or null when the storage is device-only.
+   *
+   * Non-null exactly when the matrix was built on a host-accessible
+   * MemoryResource. Not necessarily equal to data(): malloc + cudaHostRegister
+   * yields distinct host and device addresses. */
+  Scalar* hostData() { return static_cast<Scalar*>(host_); }
+  const Scalar* hostData() const { return static_cast<const Scalar*>(host_); }
+
+  /** Whether hostData() is usable. */
+  bool isHostAccessible() const { return host_ != nullptr; }
+
+  /** The resource backing this matrix, or null for the default allocator. */
+  MemoryResource* memoryResource() const { return resource_; }
+
+  /** Make device writes visible through hostData().
+   *
+   * Which synchronization that needs is a property of the storage, so the
+   * resource decides: managed memory on a device without
+   * concurrentManagedAccess forbids host access while any device work is
+   * outstanding and needs a device-wide wait, while page-locked host memory
+   * only needs the producing stream. Callers do not have to know which they
+   * have. */
+  void syncHost(Context& ctx);
   Index rows() const { return rows_; }
   Index cols() const { return cols_; }
   bool empty() const { return rows_ == 0 || cols_ == 0; }
@@ -539,6 +582,19 @@ class DeviceMatrix {
 
   /** Transfer ownership of the device pointer out. Zeros internal state. */
   Scalar* release() {
+    // A borrowed view() does not own its pointer. unique_ptr::release() drops
+    // the deleter, and with it the borrow flag, so the next owner -- e.g. the
+    // DeviceBuffer::adopt() in LLT::solve(DeviceMatrix&&) -- would cudaFree
+    // memory belonging to someone else. capacity_bytes_ is 0 exactly for
+    // borrowed and empty buffers, and an empty buffer's pointer is null, so
+    // this fires only on the borrowed case.
+    eigen_assert((capacity_bytes_ > 0 || data_ == nullptr) &&
+                 "cannot release a borrowed DeviceMatrix view: it does not own its memory");
+    // Same hazard one step further out: storage from a MemoryResource must go
+    // back to that resource. The adopting overloads free with device_free,
+    // which is right only for the default allocator.
+    eigen_assert(resource_ == nullptr &&
+                 "cannot release a resource-backed DeviceMatrix: only its MemoryResource can free it");
     Scalar* p = data_.release();
     rows_ = 0;
     cols_ = 0;
@@ -556,9 +612,17 @@ class DeviceMatrix {
   // deleter so a previously borrowed (view) deleter cannot leak the new
   // owned pointer.
   void allocate(size_t bytes) {
+    host_ = nullptr;
     if (bytes > 0) {
-      data_ = std::unique_ptr<Scalar, internal::CudaFreeDeleter>(static_cast<Scalar*>(internal::device_malloc(bytes)),
-                                                                 internal::CudaFreeDeleter{});
+      if (resource_ != nullptr) {
+        const Allocation a = resource_->allocate(bytes, /*stream=*/nullptr);
+        host_ = a.host;
+        data_ = std::unique_ptr<Scalar, internal::CudaFreeDeleter>(
+            static_cast<Scalar*>(a.device), internal::CudaFreeDeleter{/*borrow=*/false, resource_, a.host, bytes});
+      } else {
+        data_ = std::unique_ptr<Scalar, internal::CudaFreeDeleter>(static_cast<Scalar*>(internal::device_malloc(bytes)),
+                                                                   internal::CudaFreeDeleter{});
+      }
       capacity_bytes_ = bytes;
     }
   }
@@ -578,6 +642,8 @@ class DeviceMatrix {
   cudaEvent_t ready_event_ = nullptr;       // internal: tracks last write completion
   cudaStream_t ready_stream_ = nullptr;     // stream that recorded ready_event_ (for same-stream skip)
   internal::DeviceBuffer retained_buffer_;  // internal: keeps async aux buffers alive
+  MemoryResource* resource_ = nullptr;      // null: default device allocator
+  void* host_ = nullptr;                    // host alias, when the resource has one
 };
 }  // namespace gpu
 }  // namespace Eigen
