@@ -494,7 +494,7 @@ struct functor_traits<scalar_quotient_op<LhsScalar, RhsScalar>> {
  */
 template <typename LhsScalar, typename RhsScalar>
 struct scalar_modulus_op : binary_op_base<LhsScalar, RhsScalar> {
-  typedef typename ScalarBinaryOpTraits<LhsScalar, RhsScalar, scalar_modulus_op>::ReturnType result_type;
+  using result_type = typename ScalarBinaryOpTraits<LhsScalar, RhsScalar, scalar_modulus_op>::ReturnType;
   static constexpr bool Enable = std::is_same<LhsScalar, RhsScalar>::value && NumTraits<LhsScalar>::IsInteger;
   EIGEN_STATIC_ASSERT(Enable, "LhsScalar and RhsScalar must be the same integer type")
 #ifdef EIGEN_SCALAR_BINARY_OP_PLUGIN
@@ -507,7 +507,7 @@ struct scalar_modulus_op : binary_op_base<LhsScalar, RhsScalar> {
 };
 template <typename LhsScalar, typename RhsScalar>
 struct functor_traits<scalar_modulus_op<LhsScalar, RhsScalar>> {
-  typedef typename scalar_modulus_op<LhsScalar, RhsScalar>::result_type result_type;
+  using result_type = typename scalar_modulus_op<LhsScalar, RhsScalar>::result_type;
   enum { PacketAccess = false, Cost = scalar_div_cost<result_type, false>::value };
 };
 
