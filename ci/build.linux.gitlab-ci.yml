@@ -701,8 +701,8 @@ build:linux:cross:x86-64:gcc-13:avx512fp16:official:affected:
   extends: build:linux:cross:x86-64:gcc-13:avx512fp16:official
   rules: !reference [.rules:libeigen:affected-tests:avx512fp16, rules]
 
-build:linux:cross:x86-64:gcc-13:avx512fp16:unsupported:affected:
-  extends: build:linux:cross:x86-64:gcc-13:avx512fp16:unsupported
+build:linux:cross:x86-64:gcc-13:avx512fp16:contrib:affected:
+  extends: build:linux:cross:x86-64:gcc-13:avx512fp16:contrib
   rules: !reference [.rules:libeigen:affected-tests:avx512fp16, rules]
 
 # 32-bit arm: a distinct NEON code path from the aarch64 job above.

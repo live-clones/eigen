@@ -31,8 +31,8 @@
         - Eigen/src/Core/arch/GPU/**/*
         - test/*.cu
         - test/gpu_common.h
-        - unsupported/test/*.cu
-        - unsupported/test/GPU/**/*
+        - contrib/test/*.cu
+        - contrib/test/GPU/**/*
 
 .rules:libeigen:affected-tests:
   # Opt-in middle tier between the fixed smoke list and the full `all-tests`
