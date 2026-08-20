@@ -48,7 +48,7 @@ class LU {
   explicit LU(Context& ctx) : solver_ctx_(ctx) {}
 
   template <typename InputType>
-  explicit LU(const EigenBase<InputType>& A) {
+  explicit LU(const MatrixBase<InputType>& A) {
     compute(A);
   }
 
@@ -60,7 +60,7 @@ class LU {
 
   /** Bind to \p ctx and factor A immediately. */
   template <typename InputType>
-  LU(Context& ctx, const EigenBase<InputType>& A) : solver_ctx_(ctx) {
+  LU(Context& ctx, const MatrixBase<InputType>& A) : solver_ctx_(ctx) {
     compute(A);
   }
 
@@ -97,15 +97,17 @@ class LU {
 
   /** Compute the LU factorization of A (host matrix, must be square). */
   template <typename InputType>
-  LU& compute(const EigenBase<InputType>& A) {
+  LU& compute(const MatrixBase<InputType>& A) {
     eigen_assert(A.rows() == A.cols() && "LU requires a square matrix");
     if (!begin_compute(A.rows())) return *this;
 
-    const PlainMatrix mat(A.derived());
+    // Ref binds column-major direct-access input in place (no host copy);
+    // row-major layouts and expressions evaluate into its temporary.
+    const Ref<const PlainMatrix> mat(A.derived());
     lda_ = static_cast<int64_t>(mat.rows());
     allocate_lu_storage();
-    EIGEN_CUDA_RUNTIME_CHECK(
-        cudaMemcpyAsync(d_lu_.get(), mat.data(), matrixBytes(), cudaMemcpyHostToDevice, solver_ctx_.stream()));
+    internal::upload_host_matrix(static_cast<Scalar*>(d_lu_.get()), mat.rows(), mat.data(), mat.outerStride(),
+                                 mat.rows(), mat.cols(), solver_ctx_.stream());
 
     factorize();
     return *this;
