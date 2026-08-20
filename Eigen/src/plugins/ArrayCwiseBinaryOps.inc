@@ -43,7 +43,7 @@ EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const
                        const OtherDerived>(derived(), other.derived());
 }
 
-EIGEN_MAKE_SCALAR_BINARY_OP_ONTHERIGHT(operator%, modulus)
+EIGEN_MAKE_SCALAR_BINARY_OP_ONTHERIGHT(operator%, internal::scalar_modulus_op)
 
 /** \returns an expression of the coefficient-wise min of \c *this and \a other
  *
