@@ -1170,6 +1170,15 @@ EIGEN_DEVICE_FUNC constexpr void ignore_unused_variable(const T&) {}
 // General, Altivec, VSX otherwise:
 #define EIGEN_OPTIMIZATION_BARRIER(X) __asm__("" : "+r,v,wa"(X));
 #endif
+#elif EIGEN_ARCH_PPC && EIGEN_COMP_CLANG
+// All current call sites have floating-point operands. Keep them in VSX registers when available; Clang's PPC backend
+// does not accept one register constraint covering both scalar and vector operands, and crashes on integer operands
+// with "wa". The memory fallback also supports pre-VSX targets.
+#ifdef __VSX__
+#define EIGEN_OPTIMIZATION_BARRIER(X) __asm__("" : "+wa"(X));
+#else
+#define EIGEN_OPTIMIZATION_BARRIER(X) __asm__("" : "+m"(X));
+#endif
 #elif EIGEN_ARCH_ARM_OR_ARM64
 #ifdef __ARM_FP
 // General, VFP or NEON.
