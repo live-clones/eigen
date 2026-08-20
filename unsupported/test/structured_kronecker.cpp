@@ -453,21 +453,20 @@ void test_kron_rank_ratio_threshold() {
   for (Index i = 0; i < 8; ++i) B(i, i) = std::pow(10.0, 308.0 - 15.0 * double(i));  // 1e308, 1e293, ...
   KroneckerOperator<Mat, Mat> K(A, B);
 
-  // The materialized product has moderate entries (1e-2 down to 1e-107), so the
-  // dense SVD is a trustworthy reference: the singular-value ratios decay by
-  // 1e-15 per mode, below the 8 * eps ~ 1.8e-15 threshold, leaving rank one.
-  Mat dense = reference_kron<double>(A, B);
-  JacobiSVD<Mat, ComputeThinU | ComputeThinV> svd(dense);
-  VERIFY_IS_EQUAL(svd.rank(), 1);
-  VERIFY_IS_EQUAL(K.rank(), svd.rank());
+  // The singular-value ratios decay by 1e-15 per mode, below the
+  // 8 * eps ~ 1.8e-15 threshold, leaving rank one. Forming the dense product is
+  // not a valid reference under DAZ because its subnormal factor is read as zero.
+  VERIFY_IS_EQUAL(K.rank(), 1);
 
   // leastSquaresSolve must truncate the seven sub-threshold modes instead of
   // inverting them: inverting even the second one would blow the solution up by
   // ~1e17 (the last by ~1e107). The kept mode has sigma = 1e-2.
   Vec b = Vec::Random(8);
   Vec x = K.leastSquaresSolve(b);
+  Vec expected = Vec::Zero(8);
+  expected[0] = 100.0 * b[0];
   VERIFY(x.allFinite());
-  VERIFY_IS_APPROX(x, svd.solve(b).eval());
+  VERIFY_IS_APPROX(x, expected);
   VERIFY(x.norm() <= 1e3 * b.norm());
 
   // An exactly zero factor zeroes the whole operator: rank 0 and a zero
@@ -545,7 +544,7 @@ void test_kron_solve_normalized() {
   b2 << 1.0;
   Vec x2 = K2.solve(b2);
   VERIFY(x2.allFinite());
-  VERIFY_IS_APPROX(x2[0], 1.0 / (A2(0, 0) * B2(0, 0)));
+  VERIFY_IS_APPROX(x2[0], 100.0);
 }
 
 // Moderate inputs must be bit-identical to the unnormalized evaluation: partial

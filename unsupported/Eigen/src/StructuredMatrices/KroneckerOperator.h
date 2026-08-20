@@ -216,6 +216,20 @@ class kron_factor_solver<Factor, true> {
   typename Factor::DiagonalVectorType m_d;
 };
 
+template <typename Factor, typename Svd>
+void kron_compute_factor_svd(const Factor& f, Svd& svd, int& exponent) {
+  using Ops = kron_factor_ops<Factor>;
+  using RealScalar = typename NumTraits<typename Factor::Scalar>::Real;
+  const auto& dense = Ops::denseFactor(f);
+  exponent = Ops::exponentBound(f);
+  if (exponent < std::numeric_limits<RealScalar>::min_exponent) {
+    svd.compute(kron_ldexp_entries(dense, -exponent));
+  } else {
+    exponent = 0;
+    svd.compute(dense);
+  }
+}
+
 }  // namespace internal
 
 /** \ingroup StructuredMatrices_Module
@@ -458,7 +472,10 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
                         YOU_MIXED_MATRICES_OF_DIFFERENT_SIZES)
     const Index m1 = m_A.rows(), m2 = m_B.rows();
     eigen_assert(b.rows() == m1 * m2 && "right-hand side has the wrong number of rows");
-    BDCSVD<DenseMatrix, ComputeThinU | ComputeThinV> svdA(LhsOps::denseFactor(m_A)), svdB(RhsOps::denseFactor(m_B));
+    int factorExponentA, factorExponentB;
+    BDCSVD<DenseMatrix, ComputeThinU | ComputeThinV> svdA, svdB;
+    internal::kron_compute_factor_svd(m_A, svdA, factorExponentA);
+    internal::kron_compute_factor_svd(m_B, svdB, factorExponentB);
     const RealVector sa = svdA.singularValues(), sb = svdB.singularValues();
     const RealScalar tol = relativeRankThreshold();
     const Index kA = sa.size(), kB = sb.size();
@@ -486,10 +503,13 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
       // quotient.
       for (Index j = 0; j < kA; ++j)
         for (Index i = 0; i < kB; ++i) {
-          if (!((sa[j] / sa[0]) * (sb[i] / sb[0]) < tol) && reachesMinNormal(sa[j], sb[i])) {
+          if (!((sa[j] / sa[0]) * (sb[i] / sb[0]) < tol) &&
+              reachesMinNormal(sa[j], sb[i], factorExponentA + factorExponentB)) {
             int ea, eb;
             const RealScalar ma = std::frexp(sa[j], &ea), mb = std::frexp(sb[i], &eb);
-            M(i, j) = internal::structured_ldexp_clamped(M(i, j), Index(-(ea + eb))) / (ma * mb);
+            M(i, j) =
+                internal::structured_ldexp_clamped(M(i, j), Index(-(ea + eb + factorExponentA + factorExponentB))) /
+                (ma * mb);
           } else {
             M(i, j) = Scalar(0);
           }
@@ -516,7 +536,10 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
    * that are negligible at the product level, so the rank can be smaller than
    * the product of the factor ranks. */
   Index rank() const {
-    BDCSVD<DenseMatrix> svdA(LhsOps::denseFactor(m_A)), svdB(RhsOps::denseFactor(m_B));
+    int factorExponentA, factorExponentB;
+    BDCSVD<DenseMatrix> svdA, svdB;
+    internal::kron_compute_factor_svd(m_A, svdA, factorExponentA);
+    internal::kron_compute_factor_svd(m_B, svdB, factorExponentB);
     const RealVector sa = svdA.singularValues(), sb = svdB.singularValues();
     // An exactly zero factor zeroes the whole operator (and would make the
     // ratios below 0/0).
@@ -526,7 +549,9 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
     for (Index i = 0; i < sa.size(); ++i)
       for (Index j = 0; j < sb.size(); ++j)
         // Negated ratio comparison so NaN ratios count as non-zero.
-        if (!((sa[i] / sa[0]) * (sb[j] / sb[0]) < tol) && reachesMinNormal(sa[i], sb[j])) ++r;
+        if (!((sa[i] / sa[0]) * (sb[j] / sb[0]) < tol) &&
+            reachesMinNormal(sa[i], sb[j], factorExponentA + factorExponentB))
+          ++r;
     return r;
   }
 
@@ -759,7 +784,7 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
    * product in [0.25, 1) can neither over- nor underflow, and the exponents add
    * as integers. Non-finite singular values return true so they stay in the
    * inverted set and propagate. */
-  static bool reachesMinNormal(const RealScalar& s1, const RealScalar& s2) {
+  static bool reachesMinNormal(const RealScalar& s1, const RealScalar& s2, int factorExponent) {
     int e1, e2;
     const RealScalar m = std::frexp(s1, &e1) * std::frexp(s2, &e2);
     if (!(numext::isfinite)(m)) return true;  // NaN or Inf singular values must propagate
@@ -767,7 +792,7 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
     // Renormalize the mantissa product into [0.5, 1), so that s1*s2 = m * 2^e
     // reaches the smallest normal number 2^(min_exponent - 1) iff e is at least
     // min_exponent.
-    const int e = m < RealScalar(0.5) ? e1 + e2 - 1 : e1 + e2;
+    const int e = (m < RealScalar(0.5) ? e1 + e2 - 1 : e1 + e2) + factorExponent;
     return e >= std::numeric_limits<RealScalar>::min_exponent;
   }
 

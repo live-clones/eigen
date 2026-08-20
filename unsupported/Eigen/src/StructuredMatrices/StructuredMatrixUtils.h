@@ -30,6 +30,67 @@ namespace internal {
 // product specialization cover every product tag without colliding with DenseShape.
 struct StructuredShape {};
 
+template <typename Scalar, bool IsIeee = std::is_same<Scalar, float>::value || std::is_same<Scalar, double>::value>
+struct structured_ldexp_impl {
+  static Scalar run(const Scalar& x, int e) { return numext::ldexp(x, e); }
+};
+
+template <typename Scalar>
+struct structured_ldexp_impl<Scalar, true> {
+  using Bits = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
+  static Scalar run(const Scalar& x, int e) {
+    constexpr int kMantissaBits = std::numeric_limits<Scalar>::digits - 1;
+    constexpr Bits kSignificandMask = (Bits(1) << kMantissaBits) - 1;
+    constexpr Bits kSignMask = Bits(1) << (sizeof(Scalar) * CHAR_BIT - 1);
+    const Bits bits = numext::bit_cast<Bits>(x);
+    const Bits significand = bits & kSignificandMask;
+    if ((bits & ~(kSignMask | kSignificandMask)) == 0 && significand != 0) {
+      Scalar lifted = static_cast<Scalar>(significand);
+      if ((bits & kSignMask) != 0) lifted = -lifted;
+      return numext::ldexp(lifted, e + std::numeric_limits<Scalar>::min_exponent - std::numeric_limits<Scalar>::digits);
+    }
+    return numext::ldexp(x, e);
+  }
+};
+
+template <typename Scalar>
+Scalar structured_ldexp(const Scalar& x, int e) {
+  return structured_ldexp_impl<Scalar>::run(x, e);
+}
+
+template <typename Xpr, typename RealScalar = typename NumTraits<typename Xpr::Scalar>::Real,
+          bool IsIeee = std::is_same<RealScalar, float>::value || std::is_same<RealScalar, double>::value>
+struct structured_subnormal_exponent {
+  static bool run(const Xpr&, int&) { return true; }
+};
+
+template <typename Xpr, typename RealScalar>
+struct structured_subnormal_exponent<Xpr, RealScalar, true> {
+  using Bits = typename numext::get_integer_by_size<sizeof(RealScalar)>::unsigned_type;
+  static bool run(const Xpr& x, int& e) {
+    constexpr int kMantissaBits = std::numeric_limits<RealScalar>::digits - 1;
+    constexpr int kExponentBits = sizeof(RealScalar) * CHAR_BIT - 1 - kMantissaBits;
+    constexpr Bits kSignMask = Bits(1) << (sizeof(Bits) * CHAR_BIT - 1);
+    constexpr Bits kSignificandMask = (Bits(1) << kMantissaBits) - 1;
+    constexpr Bits kExponentMask = ((Bits(1) << kExponentBits) - 1) << kMantissaBits;
+    Bits maxBits = 0;
+    for (Index i = 0; i < x.size(); ++i) {
+      const auto value = x.coeff(i);
+      const Bits realBits = numext::bit_cast<Bits>(RealScalar(numext::real(value))) & ~kSignMask;
+      const Bits imagBits = numext::bit_cast<Bits>(RealScalar(numext::imag(value))) & ~kSignMask;
+      maxBits = numext::maxi(maxBits, numext::maxi(realBits, imagBits));
+    }
+    if ((maxBits & kExponentMask) == kExponentMask) return false;
+    const Bits significand = maxBits & kSignificandMask;
+    if (significand != 0) {
+      e = log2_floor(significand) + std::numeric_limits<RealScalar>::min_exponent -
+          std::numeric_limits<RealScalar>::digits + 1;
+      if (NumTraits<typename Xpr::Scalar>::IsComplex) ++e;
+    }
+    return true;
+  }
+};
+
 // Below this dimension the FFT setup costs more than a plain O(n^2) evaluation,
 // so the structured operators fall back to a direct segment-based product.
 constexpr Index structured_direct_threshold() { return 32; }
@@ -58,10 +119,10 @@ struct structured_balance_impl {
     EIGEN_USING_STD(frexp);
     frexp(mag, &e);
     exponent += e;
-    return Scalar(numext::ldexp(numext::real(z), -e), numext::ldexp(numext::imag(z), -e));
+    return Scalar(structured_ldexp(numext::real(z), -e), structured_ldexp(numext::imag(z), -e));
   }
   static Scalar apply_exponent(const Scalar& z, int e) {
-    return Scalar(numext::ldexp(numext::real(z), e), numext::ldexp(numext::imag(z), e));
+    return Scalar(structured_ldexp(numext::real(z), e), structured_ldexp(numext::imag(z), e));
   }
 };
 
@@ -74,9 +135,9 @@ struct structured_balance_impl<Scalar, false> {
     EIGEN_USING_STD(frexp);
     frexp(mag, &e);
     exponent += e;
-    return numext::ldexp(x, -e);
+    return structured_ldexp(x, -e);
   }
-  static Scalar apply_exponent(const Scalar& x, int e) { return numext::ldexp(x, e); }
+  static Scalar apply_exponent(const Scalar& x, int e) { return structured_ldexp(x, e); }
 };
 
 template <typename Scalar>
@@ -238,7 +299,8 @@ bool structured_exponent_bound_finite(const Xpr& x, int& e) {
     EIGEN_USING_STD(frexp);
     frexp(m, &e);
     if (ScalarTraits::IsComplex) ++e;
-  }
+  } else if (!structured_subnormal_exponent<Xpr>::run(x, e))
+    return false;
   return true;
 }
 
