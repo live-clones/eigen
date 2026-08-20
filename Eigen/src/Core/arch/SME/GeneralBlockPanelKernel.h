@@ -307,17 +307,40 @@ static EIGEN_ALWAYS_INLINE void sme_transpose_pack(Scalar* EIGEN_RESTRICT dst, c
   sme_transpose_pack_range(dst, src, src_stride, Index(0), depth, width);
 }
 
-// Scalar transposing copy for a panel narrower than the pack width. Callers must
-// keep it outside their __arm_locally_streaming region: it needs neither SVE nor
-// ZA, and scalar floating-point can be far slower in streaming mode (~40x for
-// this loop on Apple M4), which dominates a small product.
+// Transposing copy for a panel narrower than the pack width:
+//   dst_panel[k*tail + i] = src[i*src_stride + k].
+// Kept outside the caller's __arm_locally_streaming region: it needs neither SVE
+// nor ZA, and streaming mode runs scalar floating-point ~40x slower on Apple M4.
+// Outside it the source rows are contiguous in k, so PacketSize of them
+// transpose in register as in sme_pack_rhs_fallback; a product with cols < nr is
+// packed entirely here.
 template <typename Scalar, typename Index>
-static void scalar_tail_pack(Scalar* EIGEN_RESTRICT dst_panel, const Scalar* EIGEN_RESTRICT src, Index src_stride,
-                             Index depth, Index tail) {
-  for (Index k = 0; k < depth; ++k) {
-    for (Index i = 0; i < tail; ++i) {
-      dst_panel[k * tail + i] = src[i * src_stride + k];
+static void tail_transpose_pack(Scalar* EIGEN_RESTRICT dst_panel, const Scalar* EIGEN_RESTRICT src, Index src_stride,
+                                Index depth, Index tail) {
+  using Packet = typename packet_traits<Scalar>::type;
+  constexpr int PacketSize = int(packet_traits<Scalar>::size);
+  const Index peeled_tail = (tail / Index(PacketSize)) * Index(PacketSize);
+  const Index peeled_depth = (depth / Index(PacketSize)) * Index(PacketSize);
+
+  Index i = 0;
+  for (; i < peeled_tail; i += Index(PacketSize)) {
+    Index k = 0;
+    for (; k < peeled_depth; k += Index(PacketSize)) {
+      PacketBlock<Packet, PacketSize> block;
+      for (int p = 0; p < PacketSize; ++p) {
+        block.packet[p] = ploadu<Packet>(src + (i + Index(p)) * src_stride + k);
+      }
+      ptranspose(block);
+      for (int p = 0; p < PacketSize; ++p) {
+        pstoreu(dst_panel + (k + Index(p)) * tail + i, block.packet[p]);
+      }
     }
+    for (; k < depth; ++k) {
+      for (Index p = 0; p < Index(PacketSize); ++p) dst_panel[k * tail + i + p] = src[(i + p) * src_stride + k];
+    }
+  }
+  for (; i < tail; ++i) {
+    for (Index k = 0; k < depth; ++k) dst_panel[k * tail + i] = src[i * src_stride + k];
   }
 }
 
@@ -617,12 +640,12 @@ struct sme_pack_lhs_rowmajor {
     // once per pack_lhs call with < MR rows and would need a partial-ZA-tile
     // dance to vectorise; total copies are < MR * depth per call, which is
     // noise vs the main packer's workload, so scalar is the simple choice --
-    // taken outside the streaming region above (see scalar_tail_pack).
+    // taken outside the streaming region above (see tail_transpose_pack).
     if (peeled_rows < rows) {
       const Index tail = rows - peeled_rows;
       Scalar* dst_panel =
           PanelMode ? dst_base + peeled_rows * dst_stride + dst_offset * tail : dst_base + peeled_rows * depth;
-      scalar_tail_pack(dst_panel, src + peeled_rows * src_stride, src_stride, depth, tail);
+      tail_transpose_pack(dst_panel, src + peeled_rows * src_stride, src_stride, depth, tail);
     }
   }
 
@@ -675,12 +698,12 @@ struct sme_pack_rhs_colmajor {
     // Col tail (cols - peeled_cols in [1, NR-1]).  Same reasoning as the LHS
     // RowMajor packer's row tail: runs at most once per call, < NR cols, not
     // worth the partial-ZA-tile handling, and taken outside the streaming
-    // region above (see scalar_tail_pack).
+    // region above (see tail_transpose_pack).
     if (peeled_cols < cols) {
       const Index tail = cols - peeled_cols;
       Scalar* dst_panel =
           PanelMode ? dst_base + peeled_cols * dst_stride + dst_offset * tail : dst_base + peeled_cols * depth;
-      scalar_tail_pack(dst_panel, src + peeled_cols * src_stride, src_stride, depth, tail);
+      tail_transpose_pack(dst_panel, src + peeled_cols * src_stride, src_stride, depth, tail);
     }
   }
 
@@ -1127,7 +1150,7 @@ EIGEN_DONT_INLINE __arm_locally_streaming __arm_new("za") void sme_symm_pack_den
 // (c < c*: m(k2+k, j+c)) and a mirrored tail (c >= c*: m(j+c, k2+k); at c == c*
 // both name the diagonal element).
 //
-// Kept out of the streaming region above for the reason scalar_tail_pack gives,
+// Kept out of the streaming region above for the reason tail_transpose_pack gives,
 // at the cost of a second pass over the panels: it is scalar floating-point,
 // and fusing it made the float SYMM packers 2-11x slower.
 template <typename Scalar, int StorageOrder, typename Index>
