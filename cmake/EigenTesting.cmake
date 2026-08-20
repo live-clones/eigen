@@ -16,7 +16,62 @@ if(EIGEN_TEST_HIP AND NOT DEFINED EIGEN_HIP_ARCHITECTURES)
       CACHE STRING "HIP GPU architectures to build Eigen's HIP tests for.")
 endif()
 
-#internal. See documentation of ei_add_test for details.
+# Renders a command as one line of POSIX shell source that runs it with these
+# exact argument boundaries.  CMAKE_<LANG>_COMPILER_LAUNCHER is a list in which
+# each element is one argv entry, and an element may itself contain spaces or
+# characters the shell would act on, so the elements cannot simply be joined.
+function(ei_quote_command_for_shell out_var)
+  set(quoted "")
+  foreach(arg IN LISTS ARGN)
+    # Single quotes protect every character but a single quote, which is
+    # spliced back in as '\'' -- close, escape, reopen.
+    string(REPLACE "'" "'\\''" arg "${arg}")
+    if(quoted)
+      string(APPEND quoted " ")
+    endif()
+    string(APPEND quoted "'${arg}'")
+  endforeach()
+  set(${out_var} "${quoted}" PARENT_SCOPE)
+endfunction()
+
+# The same for one line of cmd.exe batch source.
+function(ei_quote_command_for_batch out_var)
+  set(quoted "")
+  foreach(arg IN LISTS ARGN)
+    # Double quotes are the only grouping cmd.exe offers, it has no escape for
+    # a literal one, and it expands %VAR% and delayed !VAR! even between them.
+    # Refuse rather than write a wrapper that would run something else.
+    if(arg MATCHES "[\"%!]")
+      message(FATAL_ERROR "cannot quote '${arg}' for cmd.exe: a command line "
+                          "argument containing \" % or ! is not representable "
+                          "in a batch file")
+    endif()
+    if(quoted)
+      string(APPEND quoted " ")
+    endif()
+    string(APPEND quoted "\"${arg}\"")
+  endforeach()
+  set(${out_var} "${quoted}" PARENT_SCOPE)
+endfunction()
+
+# Writes <dir>/eigen-nvcc-launcher.{sh,bat}, which runs <nvcc> under the
+# launcher argv given in ARGN and forwards its own arguments unchanged, and
+# returns its path through out_var.
+function(ei_write_nvcc_launcher_wrapper out_var dir nvcc)
+  if(CMAKE_HOST_WIN32)
+    set(wrapper "${dir}/eigen-nvcc-launcher.bat")
+    ei_quote_command_for_batch(command ${ARGN} "${nvcc}")
+    file(WRITE "${wrapper}" "@echo off\n${command} %*\n")
+  else()
+    set(wrapper "${dir}/eigen-nvcc-launcher.sh")
+    ei_quote_command_for_shell(command ${ARGN} "${nvcc}")
+    file(WRITE "${wrapper}" "#!/bin/sh\nexec ${command} \"$@\"\n")
+    # file(CHMOD) would need CMake 3.19; this project's minimum is 3.17.
+    execute_process(COMMAND chmod +x "${wrapper}")
+  endif()
+  set(${out_var} "${wrapper}" PARENT_SCOPE)
+endfunction()
+
 # FindCUDA's cuda_add_executable() bakes CUDA_NVCC_EXECUTABLE into a generated
 # run_nvcc.cmake and runs it as a quoted `COMMAND "${CUDA_NVCC_EXECUTABLE}"`, so
 # it never consults CMAKE_CUDA_COMPILER_LAUNCHER -- and a launcher list such as
@@ -45,23 +100,14 @@ macro(ei_cuda_use_compiler_launcher)
   # shadows the cache entry for the rest of this scope, and we are called once
   # per test.
   if(EIGEN_NVCC_LAUNCHER AND NOT CUDA_NVCC_EXECUTABLE MATCHES "eigen-nvcc-launcher")
-    list(JOIN EIGEN_NVCC_LAUNCHER " " EIGEN_NVCC_LAUNCHER)
-    if(CMAKE_HOST_WIN32)
-      set(EIGEN_NVCC_WRAPPER "${CMAKE_CURRENT_BINARY_DIR}/eigen-nvcc-launcher.bat")
-      file(WRITE "${EIGEN_NVCC_WRAPPER}"
-           "@echo off\n${EIGEN_NVCC_LAUNCHER} \"${CUDA_NVCC_EXECUTABLE}\" %*\n")
-    else()
-      set(EIGEN_NVCC_WRAPPER "${CMAKE_CURRENT_BINARY_DIR}/eigen-nvcc-launcher.sh")
-      file(WRITE "${EIGEN_NVCC_WRAPPER}"
-           "#!/bin/sh\nexec ${EIGEN_NVCC_LAUNCHER} \"${CUDA_NVCC_EXECUTABLE}\" \"$@\"\n")
-      # file(CHMOD) would need CMake 3.19; this project's minimum is 3.17.
-      execute_process(COMMAND chmod +x "${EIGEN_NVCC_WRAPPER}")
-    endif()
+    ei_write_nvcc_launcher_wrapper(EIGEN_NVCC_WRAPPER "${CMAKE_CURRENT_BINARY_DIR}"
+                                   "${CUDA_NVCC_EXECUTABLE}" ${EIGEN_NVCC_LAUNCHER})
     set(CUDA_NVCC_EXECUTABLE "${EIGEN_NVCC_WRAPPER}")
     message(STATUS "CUDA tests: nvcc routed through compiler launcher '${EIGEN_NVCC_LAUNCHER}'")
   endif()
 endmacro()
 
+#internal. See documentation of ei_add_test for details.
 macro(ei_add_test_internal testname testname_with_suffix)
   set(targetname ${testname_with_suffix})
 
@@ -801,4 +847,3 @@ macro(ei_split_testsuite num_splits)
     add_dependencies("${current_target}" "${curr_test}")
   endforeach()
 endmacro(ei_split_testsuite num_splits)
-
