@@ -74,6 +74,11 @@ target as the test action, so those are selected as `<name>_ok` and `<name>_ko` 
 build job. Both matter because a `-R` filter silently drops whatever it does not name, while the unfiltered runs in
 the other tiers pick them up for free.
 
+Because that test action is a build in the shared binary directory, `ei_add_failtest` puts the whole suite behind one
+`RESOURCE_LOCK`. Without it, `ctest --parallel` starts dozens of concurrent builds over one build system and they
+collide whenever a regeneration is pending. The failure is not only noisy: `_ko` is `WILL_FAIL`, so a build system
+that errors for an unrelated reason satisfies it just as well as the compile error it is supposed to assert.
+
 ### Backend-Triggered Configurations
 
 Every job in the default smoke matrix builds at baseline ISA, so a change under `Eigen/src/Core/arch/AVX512` gets no
