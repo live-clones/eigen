@@ -34,18 +34,6 @@
 #endif
 #endif
 
-// Opt-in: integrate the PMR byte_allocator directly into fully-dynamic
-// DenseStorage. OFF by default, so default matrices carry no allocator member
-// and keep their original size and layout (sizeof(MatrixXd) is unchanged). The
-// PmrMatrix<> wrapper is the recommended opt-in path for per-object allocators;
-// this macro exists to enable the alternative DenseStorage-integration prototype.
-// Never active during GPU compilation (byte_allocator is host-only).
-#if defined(EIGEN_PMR_DENSE_STORAGE) && !defined(EIGEN_GPU_COMPILE_PHASE)
-#define EIGEN_PMR_DENSE_STORAGE_ACTIVE 1
-#else
-#define EIGEN_PMR_DENSE_STORAGE_ACTIVE 0
-#endif
-
 #ifndef EIGEN_GPU_COMPILE_PHASE
 
 #include <atomic>
