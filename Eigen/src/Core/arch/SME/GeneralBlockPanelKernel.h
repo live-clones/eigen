@@ -146,9 +146,13 @@ static EIGEN_ALWAYS_INLINE void sme_transpose_pack(float* EIGEN_RESTRICT dst, co
   sme_transpose_pack_range(dst, src, src_stride, Index(0), depth, kSmeMr);
 }
 
+// Scalar transposing copy for a panel narrower than the pack width. Callers must
+// keep it outside their __arm_locally_streaming region: it needs neither SVE nor
+// ZA, and scalar floating-point can be far slower in streaming mode (~40x for
+// this loop on Apple M4), which dominates a small product.
 template <typename Index>
-static EIGEN_ALWAYS_INLINE void scalar_tail_pack(float* EIGEN_RESTRICT dst_panel, const float* EIGEN_RESTRICT src,
-                                                 Index src_stride, Index depth, Index tail) __arm_streaming {
+static void scalar_tail_pack(float* EIGEN_RESTRICT dst_panel, const float* EIGEN_RESTRICT src, Index src_stride,
+                             Index depth, Index tail) {
   for (Index k = 0; k < depth; ++k) {
     for (Index i = 0; i < tail; ++i) {
       dst_panel[k * tail + i] = src[i * src_stride + k];
@@ -425,22 +429,32 @@ struct gemm_pack_lhs<float, Index, DataMapper, kSmeMr, Pack2, Packet, RowMajor, 
   // for real scalars.
   static_assert(!NumTraits<Scalar>::IsComplex, "the SME packers only support real scalars");
 
-  __arm_locally_streaming __arm_new("za") static void pack_lhs_rowmajor(Scalar* dst_base,
-                                                                        const Scalar* EIGEN_RESTRICT src,
-                                                                        Index src_stride, Index depth, Index rows,
-                                                                        Index dst_stride, Index dst_offset) {
+  __arm_locally_streaming __arm_new("za") static void pack_lhs_rowmajor_full_panels(Scalar* dst_base,
+                                                                                    const Scalar* EIGEN_RESTRICT src,
+                                                                                    Index src_stride, Index depth,
+                                                                                    Index peeled_rows, Index dst_stride,
+                                                                                    Index dst_offset) {
     constexpr int MR = kSmeMr;
-    const Index peeled_rows = (rows / MR) * MR;
-
     for (Index i = 0; i < peeled_rows; i += MR) {
       Scalar* dst_panel = PanelMode ? dst_base + i * dst_stride + dst_offset * MR : dst_base + i * depth;
       sme_transpose_pack(dst_panel, src + i * src_stride, src_stride, depth);
+    }
+  }
+
+  static void pack_lhs_rowmajor(Scalar* dst_base, const Scalar* EIGEN_RESTRICT src, Index src_stride, Index depth,
+                                Index rows, Index dst_stride, Index dst_offset) {
+    constexpr int MR = kSmeMr;
+    const Index peeled_rows = (rows / MR) * MR;
+
+    if (peeled_rows > 0) {
+      pack_lhs_rowmajor_full_panels(dst_base, src, src_stride, depth, peeled_rows, dst_stride, dst_offset);
     }
 
     // Row tail (rows - peeled_rows in [1, MR-1]).  This branch runs at most
     // once per pack_lhs call with < MR rows and would need a partial-ZA-tile
     // dance to vectorise; total copies are < MR * depth per call, which is
-    // noise vs the main packer's workload, so scalar is the simple choice.
+    // noise vs the main packer's workload, so scalar is the simple choice --
+    // taken outside the streaming region above (see scalar_tail_pack).
     if (peeled_rows < rows) {
       const Index tail = rows - peeled_rows;
       Scalar* dst_panel =
@@ -481,21 +495,31 @@ struct gemm_pack_rhs<float, Index, DataMapper, kSmeNr, ColMajor, Conjugate, Pane
   // See gemm_pack_lhs above: Conjugate is ignored, sound only for real scalars.
   static_assert(!NumTraits<Scalar>::IsComplex, "the SME packers only support real scalars");
 
-  __arm_locally_streaming __arm_new("za") static void pack_rhs_colmajor(Scalar* dst_base,
-                                                                        const Scalar* EIGEN_RESTRICT src,
-                                                                        Index src_stride, Index depth, Index cols,
-                                                                        Index dst_stride, Index dst_offset) {
+  __arm_locally_streaming __arm_new("za") static void pack_rhs_colmajor_full_panels(Scalar* dst_base,
+                                                                                    const Scalar* EIGEN_RESTRICT src,
+                                                                                    Index src_stride, Index depth,
+                                                                                    Index peeled_cols, Index dst_stride,
+                                                                                    Index dst_offset) {
     constexpr int NR = kSmeNr;
-    const Index peeled_cols = (cols / NR) * NR;
-
     for (Index j = 0; j < peeled_cols; j += NR) {
       Scalar* dst_panel = PanelMode ? dst_base + j * dst_stride + dst_offset * NR : dst_base + j * depth;
       sme_transpose_pack(dst_panel, src + j * src_stride, src_stride, depth);
     }
+  }
+
+  static void pack_rhs_colmajor(Scalar* dst_base, const Scalar* EIGEN_RESTRICT src, Index src_stride, Index depth,
+                                Index cols, Index dst_stride, Index dst_offset) {
+    constexpr int NR = kSmeNr;
+    const Index peeled_cols = (cols / NR) * NR;
+
+    if (peeled_cols > 0) {
+      pack_rhs_colmajor_full_panels(dst_base, src, src_stride, depth, peeled_cols, dst_stride, dst_offset);
+    }
 
     // Col tail (cols - peeled_cols in [1, NR-1]).  Same reasoning as the LHS
     // RowMajor packer's row tail: runs at most once per call, < NR cols, not
-    // worth the partial-ZA-tile handling.
+    // worth the partial-ZA-tile handling, and taken outside the streaming
+    // region above (see scalar_tail_pack).
     if (peeled_cols < cols) {
       const Index tail = cols - peeled_cols;
       Scalar* dst_panel =
