@@ -17,6 +17,51 @@ if(EIGEN_TEST_HIP AND NOT DEFINED EIGEN_HIP_ARCHITECTURES)
 endif()
 
 #internal. See documentation of ei_add_test for details.
+# FindCUDA's cuda_add_executable() bakes CUDA_NVCC_EXECUTABLE into a generated
+# run_nvcc.cmake and runs it as a quoted `COMMAND "${CUDA_NVCC_EXECUTABLE}"`, so
+# it never consults CMAKE_CUDA_COMPILER_LAUNCHER -- and a launcher list such as
+# "ccache;nvcc" cannot be substituted either, because the COMMAND is one quoted
+# argument.  A wrapper script is therefore the only available hook.  Without it,
+# configuring ccache or sccache speeds up the C++ tests while silently skipping
+# every .cu translation unit, which are the slowest in the tree.
+#
+# Only the nvcc path needs this: EIGEN_TEST_CUDA_CLANG and EIGEN_TEST_CUDA_NVC
+# compile .cu as CXX and already pick up CMAKE_CXX_COMPILER_LAUNCHER.
+#
+# This can be deleted once the CUDA language is enabled directly, i.e. when
+# CMP0146 (see the top-level CMakeLists.txt) no longer has to be set to OLD.
+#
+# Caveat: the wrapper also fronts nvcc's -M dependency and -dlink passes, which
+# ccache does not cache; expect those as misses in the statistics.
+macro(ei_cuda_use_compiler_launcher)
+  # Fall back to the C++ launcher.  A project using FindCUDA never enables the
+  # CUDA language, so CMAKE_CUDA_COMPILER_LAUNCHER is seldom set, whereas
+  # CMAKE_CXX_COMPILER_LAUNCHER usually is -- including in Eigen's own CI.
+  set(EIGEN_NVCC_LAUNCHER "${CMAKE_CUDA_COMPILER_LAUNCHER}")
+  if(NOT EIGEN_NVCC_LAUNCHER)
+    set(EIGEN_NVCC_LAUNCHER "${CMAKE_CXX_COMPILER_LAUNCHER}")
+  endif()
+  # The MATCHES guard makes this a one-time setup per directory: the set() below
+  # shadows the cache entry for the rest of this scope, and we are called once
+  # per test.
+  if(EIGEN_NVCC_LAUNCHER AND NOT CUDA_NVCC_EXECUTABLE MATCHES "eigen-nvcc-launcher")
+    list(JOIN EIGEN_NVCC_LAUNCHER " " EIGEN_NVCC_LAUNCHER)
+    if(CMAKE_HOST_WIN32)
+      set(EIGEN_NVCC_WRAPPER "${CMAKE_CURRENT_BINARY_DIR}/eigen-nvcc-launcher.bat")
+      file(WRITE "${EIGEN_NVCC_WRAPPER}"
+           "@echo off\n${EIGEN_NVCC_LAUNCHER} \"${CUDA_NVCC_EXECUTABLE}\" %*\n")
+    else()
+      set(EIGEN_NVCC_WRAPPER "${CMAKE_CURRENT_BINARY_DIR}/eigen-nvcc-launcher.sh")
+      file(WRITE "${EIGEN_NVCC_WRAPPER}"
+           "#!/bin/sh\nexec ${EIGEN_NVCC_LAUNCHER} \"${CUDA_NVCC_EXECUTABLE}\" \"$@\"\n")
+      # file(CHMOD) would need CMake 3.19; this project's minimum is 3.17.
+      execute_process(COMMAND chmod +x "${EIGEN_NVCC_WRAPPER}")
+    endif()
+    set(CUDA_NVCC_EXECUTABLE "${EIGEN_NVCC_WRAPPER}")
+    message(STATUS "CUDA tests: nvcc routed through compiler launcher '${EIGEN_NVCC_LAUNCHER}'")
+  endif()
+endmacro()
+
 macro(ei_add_test_internal testname testname_with_suffix)
   set(targetname ${testname_with_suffix})
 
@@ -70,6 +115,7 @@ macro(ei_add_test_internal testname testname_with_suffix)
       endif()
       target_link_libraries(${targetname} ${CUDA_NVC_LINK_LIBRARIES})
     else()
+      ei_cuda_use_compiler_launcher()
       cuda_add_executable(${targetname} ${filename})
     endif()
   else()
@@ -746,3 +792,4 @@ macro(ei_split_testsuite num_splits)
     add_dependencies("${current_target}" "${curr_test}")
   endforeach()
 endmacro(ei_split_testsuite num_splits)
+
