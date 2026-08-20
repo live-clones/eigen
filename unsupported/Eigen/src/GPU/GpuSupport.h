@@ -291,6 +291,26 @@ class PinnedHostBuffer {
   std::unique_ptr<void, CudaFreeHostDeleter> ptr_;
 };
 
+// Upload a column-major host matrix into a device buffer.
+//
+// `src_outer_stride` and `dst_outer_stride` are in elements. The source stride
+// is not necessarily `rows`: the module binds host input through
+// Ref<const PlainMatrix>, whose default OuterStride<> matches any outer stride,
+// so a block of a larger matrix binds in place and keeps the parent's stride.
+// A flat copy of rows*cols elements would then read across column boundaries.
+// cudaMemcpy2DAsync handles the stride in the DMA, so no host-side
+// materialization is needed for a strided source.
+template <typename Scalar>
+void upload_host_matrix(Scalar* dst, Index dst_outer_stride, const Scalar* src, Index src_outer_stride, Index rows,
+                        Index cols, cudaStream_t stream) {
+  if (rows <= 0 || cols <= 0) return;
+  eigen_assert(dst_outer_stride >= rows && src_outer_stride >= rows);
+  EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpy2DAsync(dst, static_cast<size_t>(dst_outer_stride) * sizeof(Scalar), src,
+                                             static_cast<size_t>(src_outer_stride) * sizeof(Scalar),
+                                             static_cast<size_t>(rows) * sizeof(Scalar), static_cast<size_t>(cols),
+                                             cudaMemcpyHostToDevice, stream));
+}
+
 // cudaDataType_t lives in library_types.h, pulled in transitively by
 // cuda_runtime.h, so this trait needs no NVIDIA library header of its own.
 template <typename Scalar>
