@@ -802,12 +802,14 @@ EIGEN_STRONG_INLINE Packet plset_impl(const typename unpacket_traits<Packet>::ty
 
 // All ones in the even lanes, all zeros in the odd ones.
 template <typename Packet, std::size_t... Is>
-EIGEN_STRONG_INLINE Packet peven_mask_impl(std::index_sequence<Is...>) {
+EIGEN_STRONG_INLINE void peven_mask_impl(Packet& mask, std::index_sequence<Is...>) {
+  // Under Clang fast-math, returning the all-ones floating-point lanes would make them poison before the caller's
+  // EIGEN_FAST_MATH_CONSTANT_BARRIER can make the mask opaque.
   using Scalar = typename unpacket_traits<Packet>::type;
   using Bits = scalar_type_of_vector_t<typename unpacket_traits<Packet>::integer_packet>;
   const Scalar kTrue = numext::bit_cast<Scalar>(Bits(-1));
   const Scalar kFalse = Scalar(0);
-  return Packet{(Is % 2 == 0 ? kTrue : kFalse)...};
+  mask = Packet{(Is % 2 == 0 ? kTrue : kFalse)...};
 }
 
 }  // namespace detail
@@ -866,13 +868,15 @@ EIGEN_CLANG_PACKET_PLSET(PacketXl)
 // --- peven_mask ---
 template <>
 EIGEN_STRONG_INLINE PacketXf peven_mask(const PacketXf& /* unused */) {
-  PacketXf r = detail::peven_mask_impl<PacketXf>(detail::vector_indices<PacketXf>{});
+  PacketXf r;
+  detail::peven_mask_impl(r, detail::vector_indices<PacketXf>{});
   EIGEN_FAST_MATH_CONSTANT_BARRIER(r);
   return r;
 }
 template <>
 EIGEN_STRONG_INLINE PacketXd peven_mask(const PacketXd& /* unused */) {
-  PacketXd r = detail::peven_mask_impl<PacketXd>(detail::vector_indices<PacketXd>{});
+  PacketXd r;
+  detail::peven_mask_impl(r, detail::vector_indices<PacketXd>{});
   EIGEN_FAST_MATH_CONSTANT_BARRIER(r);
   return r;
 }
