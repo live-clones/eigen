@@ -429,9 +429,12 @@ build:linux:cross:arm:clang-14:default:
     # line (ci/scripts/build.linux.script.sh), so each -D value must be a single
     # shell word: multi-token flags use CMake's ';' list separator, with no
     # spaces or embedded quotes (cf. the arm / generic-vector jobs).
+    # +sme-f64f64 (FEAT_SME_F64F64) enables the double-precision GEMM kernel:
+    # GCC refuses to compile its fp64 FMOPA without it, and qemu's `max` CPU
+    # implements the extension, so the test jobs below exercise that kernel.
     EIGEN_CI_ADDITIONAL_ARGS: >-
       -DEIGEN_TEST_SME=ON
-      -DEIGEN_TEST_CUSTOM_CXX_FLAGS=-march=armv9.2-a+sme2
+      -DEIGEN_TEST_CUSTOM_CXX_FLAGS=-march=armv9.2-a+sme2+sme-f64f64
       -DCMAKE_CROSSCOMPILING_EMULATOR=qemu-aarch64;-L;/usr/aarch64-linux-gnu
     # SME ACLE (arm_sme.h, __arm_streaming, +sme2) requires GCC >= 14.
     # The build stage only cross-compiles and never invokes the emulator, so
@@ -440,8 +443,9 @@ build:linux:cross:arm:clang-14:default:
     # product_symm/product_trsolve/product_trmm/product_syrk/mixingtypes exercise
     # the SME packers through their non-dense-GEMM consumers (selfadjoint,
     # triangular-solve, triangular-product, rank-update, mixed-scalar) that
-    # product_sme can't reach. Explicit list, not `buildtests`: cross-building
-    # every test under the SME flags overruns the runner timeout.
+    # product_sme can't reach; each has double subtests, so they cover both SME
+    # scalar types. Explicit list, not `buildtests`: cross-building every test
+    # under the SME flags overruns the runner timeout.
     EIGEN_CI_BUILD_TARGET: product_sme product_symm product_trsolve product_trmm product_syrk mixingtypes
   # Inherit the 2xlarge runner from .build:linux:cross: GitLab's open-source
   # program bills small and large runners the same, so don't downsize.
