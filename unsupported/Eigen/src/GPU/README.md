@@ -728,12 +728,12 @@ Caches the Cholesky factor on device for repeated solves.
 ```cpp
 gpu::LLT()                                                // Default construct, then call compute()
 gpu::LLT(Context& ctx)                                    // Bind to ctx's stream + handles
-gpu::LLT(const EigenBase<D>& A)                           // Convenience: upload + factorize
+gpu::LLT(const MatrixBase<D>& A)                           // Convenience: upload + factorize
 gpu::LLT(const DeviceMatrix& d_A)                         // Convenience: D2D copy + factorize
 gpu::LLT(DeviceMatrix&& d_A)                              // Convenience: adopt + factorize
 gpu::LLT(Context& ctx, ...)                               // Bind + factorize in one step
 
-gpu::LLT&            compute(const EigenBase<D>& A)       // Upload + factorize
+gpu::LLT&            compute(const MatrixBase<D>& A)       // Upload + factorize
 gpu::LLT&            compute(const DeviceMatrix& d_A)     // D2D copy + factorize
 gpu::LLT&            compute(DeviceMatrix&& d_A)          // Adopt + factorize (no copy)
 
@@ -764,9 +764,9 @@ QR factorization via `cusolverDnXgeqrf`. Solve uses ORMQR (apply Q^H) + TRSM
 
 ```cpp
 gpu::QR()                                                  // Default construct
-gpu::QR(const EigenBase<D>& A)                             // Convenience: upload + factorize
+gpu::QR(const MatrixBase<D>& A)                             // Convenience: upload + factorize
 
-gpu::QR&             compute(const EigenBase<D>& A)        // Upload + factorize
+gpu::QR&             compute(const MatrixBase<D>& A)        // Upload + factorize
 gpu::QR&             compute(const DeviceMatrix& d_A)      // D2D copy + factorize
 
 PlainMatrix        solve(const MatrixBase<D>& B)         // -> host Matrix (syncs)
@@ -786,9 +786,9 @@ handled by internal transpose.
 
 ```cpp
 gpu::SVD()                                                 // Default construct, then call compute()
-gpu::SVD(const EigenBase<D>& A, unsigned options = ComputeThinU | ComputeThinV)  // Convenience
+gpu::SVD(const MatrixBase<D>& A, unsigned options = ComputeThinU | ComputeThinV)  // Convenience
 
-gpu::SVD&            compute(const EigenBase<D>& A, unsigned options = ComputeThinU | ComputeThinV)
+gpu::SVD&            compute(const MatrixBase<D>& A, unsigned options = ComputeThinU | ComputeThinV)
 gpu::SVD&            compute(const DeviceMatrix& d_A, unsigned options = ComputeThinU | ComputeThinV)
 
 RealVector         singularValues()                      // -> host vector (syncs, downloads)
@@ -826,9 +826,9 @@ Symmetric/Hermitian eigenvalue decomposition via `cusolverDnXsyevd`.
 
 ```cpp
 gpu::SelfAdjointEigenSolver()                              // Default construct, then call compute()
-gpu::SelfAdjointEigenSolver(const EigenBase<D>& A, ComputeMode mode = ComputeEigenvectors)  // Convenience
+gpu::SelfAdjointEigenSolver(const MatrixBase<D>& A, ComputeMode mode = ComputeEigenvectors)  // Convenience
 
-gpu::SelfAdjointEigenSolver& compute(const EigenBase<D>& A, ComputeMode mode = ComputeEigenvectors)
+gpu::SelfAdjointEigenSolver& compute(const MatrixBase<D>& A, ComputeMode mode = ComputeEigenvectors)
 gpu::SelfAdjointEigenSolver& compute(const DeviceMatrix& d_A, ComputeMode mode = ComputeEigenvectors)
 
 RealVector         eigenvalues()                         // -> host vector (syncs, downloads, ascending order)
