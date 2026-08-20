@@ -1328,21 +1328,41 @@ struct gamma_sample_der_alpha_impl : igamma_generic_impl<Scalar, SAMPLE_DERIVATI
  *****************************************************************************/
 
 template <typename Scalar>
+struct zeta_pow_term {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(Scalar a, Scalar x) const { return numext::pow(a, -x); }
+};
+
+template <typename Scalar>
+struct zeta_scaled_term {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit zeta_scaled_term(Scalar log_scale) : log_scale_(log_scale) {}
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(Scalar a, Scalar x) const {
+    return numext::exp(log_scale_ - x * numext::log(a));
+  }
+
+  Scalar log_scale_;
+};
+
+template <typename Scalar>
 struct zeta_impl_series {
   EIGEN_STATIC_ASSERT((std::is_same<Scalar, Scalar>::value == false), THIS_TYPE_IS_NOT_SUPPORTED)
 
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar run(const Scalar) { return Scalar(0); }
+  template <typename Term>
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE bool run(Scalar&, Scalar&, Scalar&, Scalar, Scalar, const Term&) {
+    return false;
+  }
 };
 
 template <>
 struct zeta_impl_series<float> {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE bool run(float& a, float& b, float& s, const float x,
-                                                        const float machep) {
+  template <typename Term>
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE bool run(float& a, float& b, float& s, const float x, const float machep,
+                                                        const Term& term) {
     int i = 0;
     while (i < 9) {
       i += 1;
       a += 1.0f;
-      b = numext::pow(a, -x);
+      b = term(a, x);
       s += b;
       if (numext::abs(b / s) < machep) return true;
     }
@@ -1354,13 +1374,14 @@ struct zeta_impl_series<float> {
 
 template <>
 struct zeta_impl_series<double> {
+  template <typename Term>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE bool run(double& a, double& b, double& s, const double x,
-                                                        const double machep) {
+                                                        const double machep, const Term& term) {
     int i = 0;
     while ((i < 9) || (a <= 9.0)) {
       i += 1;
       a += 1.0;
-      b = numext::pow(a, -x);
+      b = term(a, x);
       s += b;
       if (numext::abs(b / s) < machep) return true;
     }
@@ -1372,7 +1393,14 @@ struct zeta_impl_series<double> {
 
 template <typename Scalar>
 struct zeta_impl {
-  EIGEN_DEVICE_FUNC static Scalar run(Scalar x, Scalar q) {
+  EIGEN_DEVICE_FUNC static Scalar run(Scalar x, Scalar q) { return run(x, q, zeta_pow_term<Scalar>()); }
+
+  EIGEN_DEVICE_FUNC static Scalar run_scaled(Scalar x, Scalar q, Scalar log_scale) {
+    return run(x, q, zeta_scaled_term<Scalar>(log_scale));
+  }
+
+  template <typename Term>
+  EIGEN_DEVICE_FUNC static Scalar run(Scalar x, Scalar q, const Term& term) {
     /*							zeta.c
      *
      *	Riemann zeta function of two arguments
@@ -1481,11 +1509,14 @@ struct zeta_impl {
      * If q<0 and x is an integer, there is a relation to
      * the polygamma function.
      */
-    s = numext::pow(q, -x);
+    s = term(q, x);
+    if (q > zero && numext::equal_strict(s, maxnum)) {
+      return s;
+    }
     a = q;
     b = zero;
     // Run the summation in a helper function that is specific to the floating precision
-    if (zeta_impl_series<Scalar>::run(a, b, s, x, machep)) {
+    if (zeta_impl_series<Scalar>::run(a, b, s, x, machep, term)) {
       return s;
     }
 
@@ -1541,8 +1572,15 @@ struct polygamma_impl {
     }
     // Use the same implementation as scipy
     else {
-      Scalar factorial = numext::exp(lgamma_impl<Scalar>::run(nplus));
-      return numext::pow(-one, nplus) * factorial * zeta_impl<Scalar>::run(nplus, x);
+      const Scalar log_factorial = lgamma_impl<Scalar>::run(nplus);
+      Scalar zeta = zeta_impl<Scalar>::run(nplus, x);
+      Scalar magnitude;
+      if (x > zero && numext::abs(zeta) < (std::numeric_limits<Scalar>::min)() / NumTraits<Scalar>::epsilon()) {
+        magnitude = zeta_impl<Scalar>::run_scaled(nplus, x, log_factorial);
+      } else {
+        magnitude = numext::exp(log_factorial) * zeta;
+      }
+      return numext::pow(-one, nplus) * magnitude;
     }
   }
 };
