@@ -830,21 +830,42 @@ EIGEN_ALWAYS_INLINE void sme_store_za_tile(Scalar* EIGEN_RESTRICT C, Index C_str
   const Vec vzero = Traits::dup(Scalar(0));
   const Vec valpha = Traits::dup(alpha);
 
+  // Two C slices are loaded before either is stored: a C line the caller wrote
+  // from non-streaming code just before the kernel does not forward across the
+  // mode switch on Apple M4, and a serial load/store pays that latency per slice.
+  // C = A*B meets the condition on every call, since evalTo zeroes the
+  // destination first. SVE vectors are sizeless, hence the spelled-out pair.
   if (C_stride_row == 1) {
     // Column-major C: extract vertical slices (columns of the ZA tile)
-    for (int ci = 0; ci < cw; ++ci) {
-      Vec vres = sme_read_ver_za<TileId>(vzero, pg_m, (uint32_t)ci);
+    int ci = 0;
+    for (; ci + 2 <= cw; ci += 2) {
+      Scalar* p0 = C + row_start + (col_start + ci) * C_stride_col;
+      Scalar* p1 = p0 + C_stride_col;
+      Vec c0 = sme_ld1(pg_m, p0);
+      Vec c1 = sme_ld1(pg_m, p1);
+      sme_st1(pg_m, p0, sme_mla(pg_m, c0, sme_read_ver_za<TileId>(vzero, pg_m, (uint32_t)ci), valpha));
+      sme_st1(pg_m, p1, sme_mla(pg_m, c1, sme_read_ver_za<TileId>(vzero, pg_m, (uint32_t)(ci + 1)), valpha));
+    }
+    if (ci < cw) {
       Scalar* pC = C + row_start + (col_start + ci) * C_stride_col;
       Vec vc = sme_ld1(pg_m, pC);
-      sme_st1(pg_m, pC, sme_mla(pg_m, vc, vres, valpha));
+      sme_st1(pg_m, pC, sme_mla(pg_m, vc, sme_read_ver_za<TileId>(vzero, pg_m, (uint32_t)ci), valpha));
     }
   } else if (C_stride_col == 1) {
     // Row-major C: extract horizontal slices (rows of the ZA tile)
-    for (int ri = 0; ri < pw; ++ri) {
-      Vec vres = sme_read_hor_za<TileId>(vzero, pg_n, (uint32_t)ri);
+    int ri = 0;
+    for (; ri + 2 <= pw; ri += 2) {
+      Scalar* p0 = C + (row_start + ri) * C_stride_row + col_start;
+      Scalar* p1 = p0 + C_stride_row;
+      Vec c0 = sme_ld1(pg_n, p0);
+      Vec c1 = sme_ld1(pg_n, p1);
+      sme_st1(pg_n, p0, sme_mla(pg_n, c0, sme_read_hor_za<TileId>(vzero, pg_n, (uint32_t)ri), valpha));
+      sme_st1(pg_n, p1, sme_mla(pg_n, c1, sme_read_hor_za<TileId>(vzero, pg_n, (uint32_t)(ri + 1)), valpha));
+    }
+    if (ri < pw) {
       Scalar* pC = C + (row_start + ri) * C_stride_row + col_start;
       Vec vc = sme_ld1(pg_n, pC);
-      sme_st1(pg_n, pC, sme_mla(pg_n, vc, vres, valpha));
+      sme_st1(pg_n, pC, sme_mla(pg_n, vc, sme_read_hor_za<TileId>(vzero, pg_n, (uint32_t)ri), valpha));
     }
   } else {
     // General stride: extract rows to temp buffer, scatter to C.  scratch
