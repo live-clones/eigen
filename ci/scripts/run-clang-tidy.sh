@@ -31,15 +31,18 @@ fi
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
-# External-dependency modules that require third-party headers we don't
-# install in the clang-tidy CI image. The umbrella exists, but `#include`-ing
-# it would fail at preprocessor time (e.g. cholmod.h not found).
-#
-# GPU belongs here for the same reason: every header in the module reaches
-# <cuda_runtime.h> through GpuSupport.h, and the image carries no CUDA
-# toolkit, so linting any of them fails with `'cuda_runtime.h' file not
-# found` rather than reporting anything about the change under review.
-EXTERNAL_DEP_MODULES="AccelerateSupport|CholmodSupport|GPU|KLUSupport|MetisSupport|PaStiXSupport|PardisoSupport|SPQRSupport|SuperLUSupport|UmfPackSupport"
+# Compiler arguments for the sources clang-tidy parses outside the
+# compilation database: the generated header drivers and the failtest sources.
+# Where a CUDA toolkit is installed the GPU module's headers parse in full;
+# the CI image has none, and third_party_include_missing_from() then marks
+# those files as partially checked.
+DRIVER_COMPILE_ARGS=(-std=c++14 -I"${REPO_ROOT}")
+for cuda_root in "${CUDAToolkit_ROOT:-}" "${CUDA_HOME:-}" "${CUDA_PATH:-}" /usr/local/cuda; do
+  if [ -n "${cuda_root}" ] && [ -f "${cuda_root}/include/cuda_runtime.h" ]; then
+    DRIVER_COMPILE_ARGS+=(-isystem "${cuda_root}/include")
+    break
+  fi
+done
 
 # Get changed files (Added, Modified, Renamed) without losing whitespace in
 # repository paths.
@@ -79,11 +82,6 @@ module_include_for_header() {
   elif [[ "${header}" =~ ^unsupported/Eigen/src/([^/]+)/ ]]; then
     module="${BASH_REMATCH[1]}"
   else
-    return 1
-  fi
-
-  # Modules whose umbrella requires a third-party library we don't install.
-  if [[ "${module}" =~ ^(${EXTERNAL_DEP_MODULES})$ ]]; then
     return 1
   fi
 
@@ -140,6 +138,32 @@ reduced_database() {
           "${BUILD_DIR}/compile_commands.json" "${REPO_ROOT}/$1" "$2" "$3"
 }
 
+# Some modules reach a third-party header the image does not install:
+# <cholmod.h> from CholmodSupport, <cuda_runtime.h> from every header in the
+# GPU module that includes GpuSupport.h. Clang reports the missing include,
+# drops it along with every declaration behind it, and suppresses the
+# diagnostics that would otherwise follow, so clang-tidy goes on to analyze a
+# truncated AST: sound over the parts of the header that do not touch the
+# absent API, unreliable over the parts that do.
+#
+# Name the header the driver could not resolve, so the caller can label that
+# file's findings accordingly. Probing the driver rather than consulting a
+# list of modules also checks the module in full wherever the dependency is
+# installed, and leaves the headers that never reach it -- five of the GPU
+# module's twenty-nine -- checked as they already are.
+third_party_include_missing_from() {
+  local output
+  output=$("${CXX:-clang++}" "${DRIVER_COMPILE_ARGS[@]}" -E -P -o /dev/null "$1" 2>&1) || true
+  if [[ "${output}" =~ fatal\ error:\ \'([^\']+)\'\ file\ not\ found ]]; then
+    # An in-tree include that does not resolve is a defect in the change, not
+    # a missing dependency; leave it to clang-tidy to report.
+    case "${BASH_REMATCH[1]}" in
+      Eigen/*|unsupported/*|./*|../*) return 0 ;;
+    esac
+    printf '%s\n' "${BASH_REMATCH[1]}"
+  fi
+}
+
 # Restrict diagnostics to the lines this merge request adds. Without it the
 # style checks in .clang-tidy (modernize-use-nullptr, modernize-use-using)
 # would report every pre-existing occurrence in a touched file — Eigen/src
@@ -172,7 +196,7 @@ for file in "${CHANGED_FILES[@]}"; do
             "${TIDY_ARGS[@]}" \
             --line-filter="${LINE_FILTER}" \
             "${file}" \
-            -- -std=c++14 -I"${REPO_ROOT}" 2>&1; then
+            -- "${DRIVER_COMPILE_ARGS[@]}" 2>&1; then
         ERRORS=$((ERRORS + 1))
       fi
       ;;
@@ -200,7 +224,7 @@ for file in "${CHANGED_FILES[@]}"; do
       # header into the translation unit even if the umbrella omits it.
       MODULE_INCLUDE=$(module_include_for_header "${file}" || true)
       if [ -z "${MODULE_INCLUDE}" ]; then
-        # Not a recognized module header or in skip list.
+        # Not a recognized module header.
         continue
       fi
 
@@ -210,13 +234,34 @@ for file in "${CHANGED_FILES[@]}"; do
 #include <${file}>
 EOF
 
+      # Without the dependency clang drops the include and everything it
+      # declares, then suppresses the diagnostics that would follow. What
+      # remains of the header is still worth checking -- most of it does not
+      # touch the third-party API -- but a check that reaches the truncated
+      # part can be wrong either way: the switch over cublasOperation_t in
+      # CuBlasSupport.h reads as three identical branches once CUBLAS_OP_N,
+      # _T and _C are gone. Report those findings without promoting them to
+      # errors, so they inform a reader without failing a job that has no
+      # way to confirm them.
+      MISSING_INCLUDE=$(third_party_include_missing_from "${DRIVER}")
+      if [ -n "${MISSING_INCLUDE}" ]; then
+        echo "=== ${file} (via ${MODULE_INCLUDE}) — partial: <${MISSING_INCLUDE}> is not installed ==="
+        clang-tidy \
+          "--config-file=${REPO_ROOT}/.clang-tidy" \
+          --header-filter="$(echo "${file}" | sed 's/[.[\*^$()+?{|]/\\&/g')" \
+          --line-filter="${LINE_FILTER}" \
+          "${DRIVER}" \
+          -- "${DRIVER_COMPILE_ARGS[@]}" 2>&1 || true
+        continue
+      fi
+
       echo "=== ${file} (via ${MODULE_INCLUDE}) ==="
       if ! clang-tidy \
             "${TIDY_ARGS[@]}" \
             --header-filter="$(echo "${file}" | sed 's/[.[\*^$()+?{|]/\\&/g')" \
             --line-filter="${LINE_FILTER}" \
             "${DRIVER}" \
-            -- -std=c++14 -I"${REPO_ROOT}" 2>&1; then
+            -- "${DRIVER_COMPILE_ARGS[@]}" 2>&1; then
         ERRORS=$((ERRORS + 1))
       fi
       ;;
