@@ -37,7 +37,9 @@ namespace internal {
 // which there are 8, and deliberately leaves tiles 4-7 idle: a 2x2 grid loads 2
 // packed vectors per side per depth step to feed 4 FMOPAs, i.e. 64 bytes of
 // packed panel per FMOPA at either element width, and FMOPA issues at the same
-// rate for both.
+// rate for both.  A 2x4 grid over all eight needs a quarter less panel traffic
+// per FMOPA and still measures 0.92-1.00x of the 2x2 on Apple M4, so the wider
+// block is not worth its L1 footprint.
 //
 // This translation unit must be built without -msve-vector-bits (scalable/VLA
 // mode); see the guard in ConfigureVectorization.h for the rationale.
@@ -1087,25 +1089,30 @@ static_assert(!sme_has_gebp_kernel<double, double>::value,
 
 // Streaming packer shared by the LHS (k2 == 0) and RHS symm specializations.
 // ColM selects the ColMajor selfadjoint operand.
+// Depth-region boundaries for the panel at outer offset `j`, all clamped to
+// [0, depth]: the diagonal splits it into a transposed head [0, t_end), a
+// straddle band [t_end, s_end) and a direct tail [s_end, depth).
+template <typename Index>
+static EIGEN_ALWAYS_INLINE void sme_symm_panel_regions(Index j, int w, Index depth, Index k2, Index& t_end,
+                                                       Index& s_end) __arm_streaming_compatible {
+  const Index raw_t = j - k2, raw_s = j + Index(w) - k2;
+  t_end = raw_t <= 0 ? Index(0) : sme_min(raw_t, depth);
+  s_end = raw_s <= 0 ? Index(0) : sme_min(raw_s, depth);
+}
+
+// The two dense regions of every panel, which are ordinary copies or ZA
+// transposes of the stored triangle. ColM selects the ColMajor operand.
 template <typename Scalar, int StorageOrder, typename Index>
-EIGEN_DONT_INLINE __arm_locally_streaming __arm_new("za") void sme_symm_pack_panels(Scalar* block,
-                                                                                    const Scalar* EIGEN_RESTRICT base,
-                                                                                    Index stride, Index depth,
-                                                                                    Index outer, Index k2) {
-  static_assert(sme_block<Scalar>::mr == sme_block<Scalar>::nr, "the shared SYMM packer assumes square panels");
+EIGEN_DONT_INLINE __arm_locally_streaming __arm_new("za") void sme_symm_pack_dense_regions(
+    Scalar* block, const Scalar* EIGEN_RESTRICT base, Index stride, Index depth, Index outer, Index k2) {
   constexpr int PACK = sme_block<Scalar>::mr;
   constexpr bool ColM = (StorageOrder == ColMajor);
-  const int svl = sme_traits<Scalar>::svl();
 
   for (Index j = 0; j < outer; j += PACK) {
     const int w = static_cast<int>(sme_min(outer - j, Index(PACK)));
     Scalar* dst = block + j * depth;  // depth-major panel of width w
-
-    // Depth-region boundaries (all clamped to [0, depth]).
-    const Index raw_t = j - k2, raw_s = j + Index(w) - k2;
-    const Index t_end = raw_t <= 0 ? Index(0) : sme_min(raw_t, depth);  // transposed [0, t_end)
-    const Index s_end = raw_s <= 0 ? Index(0) : sme_min(raw_s, depth);  // straddle   [t_end, s_end)
-    // direct [s_end, depth)
+    Index t_end, s_end;
+    sme_symm_panel_regions(j, w, depth, k2, t_end, s_end);
 
     // Transposed region: full(k2+k, j+c) = m(j+c, k2+k).
     if (t_end > 0) {
@@ -1123,12 +1130,29 @@ EIGEN_DONT_INLINE __arm_locally_streaming __arm_new("za") void sme_symm_pack_pan
         sve_copy_panel_range(dst, base + k2 * stride + j, stride, s_end, depth, w);
       }
     }
-    // Straddle band: the diagonal crosses the panel at c* = (k2+k) - j (in
-    // [0, w) for every k in the band), splitting each depth step into a
-    // direct head (c < c*: m(k2+k, j+c)) and a mirrored tail (c >= c*:
-    // m(j+c, k2+k); at c == c* both name the diagonal element). One side is
-    // contiguous in c -- the head for RowMajor, the tail for ColMajor -- and
-    // is copied with predicated vectors; the other walks the stride scalar.
+  }
+}
+
+// The diagonal band of every panel: the diagonal crosses at c* = (k2+k) - j
+// (in [0, w) throughout the band), so each depth step splits into a direct head
+// (c < c*: m(k2+k, j+c)) and a mirrored tail (c >= c*: m(j+c, k2+k); at c == c*
+// both name the diagonal element).
+//
+// Kept out of the streaming region above for the reason scalar_tail_pack gives,
+// at the cost of a second pass over the panels: it is scalar floating-point,
+// and fusing it made the float SYMM packers 2-11x slower.
+template <typename Scalar, int StorageOrder, typename Index>
+EIGEN_DONT_INLINE void sme_symm_pack_straddle(Scalar* block, const Scalar* EIGEN_RESTRICT base, Index stride,
+                                              Index depth, Index outer, Index k2) {
+  constexpr int PACK = sme_block<Scalar>::mr;
+  constexpr bool ColM = (StorageOrder == ColMajor);
+
+  for (Index j = 0; j < outer; j += PACK) {
+    const int w = static_cast<int>(numext::mini(outer - j, Index(PACK)));
+    Scalar* dst = block + j * depth;
+    Index t_end, s_end;
+    sme_symm_panel_regions(j, w, depth, k2, t_end, s_end);
+
     for (Index k = t_end; k < s_end; ++k) {
       const Index row = k2 + k;
       const int cs = static_cast<int>(row - j);
@@ -1137,21 +1161,24 @@ EIGEN_DONT_INLINE __arm_locally_streaming __arm_new("za") void sme_symm_pack_pan
         const Scalar* head = base + row + j * stride;  // m(row, j+c): stride-strided
         for (int c = 0; c < cs; ++c, head += stride) dst_row[c] = *head;
         const Scalar* tail = base + j + row * stride;  // m(j+c, row): contiguous
-        for (int c = cs; c < w; c += svl) {
-          const svbool_t pred = sme_traits<Scalar>::whilelt(c, w);
-          sme_st1(pred, dst_row + c, sme_ld1(pred, tail + c));
-        }
+        for (int c = cs; c < w; ++c) dst_row[c] = tail[c];
       } else {
         const Scalar* head = base + row * stride + j;  // m(row, j+c): contiguous
-        for (int c = 0; c < cs; c += svl) {
-          const svbool_t pred = sme_traits<Scalar>::whilelt(c, cs);
-          sme_st1(pred, dst_row + c, sme_ld1(pred, head + c));
-        }
+        for (int c = 0; c < cs; ++c) dst_row[c] = head[c];
         const Scalar* tail = base + (j + Index(cs)) * stride + row;  // m(j+c, row): stride-strided
         for (int c = cs; c < w; ++c, tail += stride) dst_row[c] = *tail;
       }
     }
   }
+}
+
+// Packer shared by the LHS (k2 == 0) and RHS symm specializations.
+template <typename Scalar, int StorageOrder, typename Index>
+EIGEN_DONT_INLINE void sme_symm_pack_panels(Scalar* block, const Scalar* EIGEN_RESTRICT base, Index stride, Index depth,
+                                            Index outer, Index k2) {
+  static_assert(sme_block<Scalar>::mr == sme_block<Scalar>::nr, "the shared SYMM packer assumes square panels");
+  sme_symm_pack_dense_regions<Scalar, StorageOrder, Index>(block, base, stride, depth, outer, k2);
+  sme_symm_pack_straddle<Scalar, StorageOrder, Index>(block, base, stride, depth, outer, k2);
 }
 
 // symm_pack_lhs/rhs SME specializations: emit the uniform mr/nr panels
