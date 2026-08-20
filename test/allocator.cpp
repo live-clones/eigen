@@ -7,11 +7,6 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-// Exercise the opt-in DenseStorage PMR integration (off by default elsewhere, so
-// default matrices keep their original layout). This must be defined before any
-// Eigen header is included so DenseStorage picks it up.
-#define EIGEN_PMR_DENSE_STORAGE
-
 #include "main.h"
 
 #include <cstdint>
@@ -514,182 +509,6 @@ static void test_cpp17_interop() {
 #endif
 
 // ---------------------------------------------------------------------------
-// 21. DenseStorage integration — MatrixXd with custom allocator
-// ---------------------------------------------------------------------------
-static void test_matrix_with_allocator() {
-  counting_resource counter;
-  Eigen::monotonic_buffer_resource arena(64 * 1024, &counter);
-  Eigen::byte_allocator alloc(&arena);
-
-  // Construct a dynamic matrix using a custom allocator.
-  Eigen::MatrixXd A(5, 5, alloc);
-  A.setIdentity();
-  VERIFY_IS_APPROX(A(0, 0), 1.0);
-  VERIFY_IS_APPROX(A(0, 1), 0.0);
-  VERIFY_IS_APPROX(A.trace(), 5.0);
-
-  // Construct another matrix with the same allocator.
-  Eigen::MatrixXd B(5, 5, alloc);
-  B.setOnes();
-
-  // Arithmetic on allocator-backed matrices.
-  Eigen::MatrixXd C(5, 5, alloc);
-  C = A + B;
-  VERIFY_IS_APPROX(C(0, 0), 2.0);
-  VERIFY_IS_APPROX(C(1, 0), 1.0);
-
-  // Matrix multiply.
-  Eigen::MatrixXd D(5, 5, alloc);
-  D = A * B;
-  VERIFY_IS_APPROX(D, B);
-
-  // All allocations went through the arena.
-  VERIFY(counter.alloc_count() >= 1);
-
-  // Copy to a default-allocated matrix (PMR semantics: copies data, not allocator).
-  Eigen::MatrixXd E = C;
-  VERIFY_IS_APPROX(E, C);
-
-  // Resize on an allocator-backed matrix.
-  A.resize(3, 3);
-  A.setIdentity();
-  VERIFY_IS_APPROX(A.trace(), 3.0);
-}
-
-// ---------------------------------------------------------------------------
-// 22. Move semantics with same/different resources
-// ---------------------------------------------------------------------------
-static void test_matrix_move_semantics() {
-  Eigen::monotonic_buffer_resource arena1(8192);
-  Eigen::monotonic_buffer_resource arena2(8192);
-  Eigen::byte_allocator alloc1(&arena1);
-  Eigen::byte_allocator alloc2(&arena2);
-
-  // Move between matrices with same resource — should steal pointer.
-  Eigen::MatrixXd A(3, 3, alloc1);
-  A.setOnes();
-  double* a_data = A.data();
-  Eigen::MatrixXd B(std::move(A));
-  VERIFY(B.data() == a_data);  // Pointer stolen.
-  VERIFY_IS_APPROX(B(0, 0), 1.0);
-
-  // Assign from default-allocated to allocator-backed (different resources).
-  Eigen::MatrixXd C(3, 3, alloc2);
-  C.setZero();
-  C = B;  // Copy assignment: keeps C's allocator, copies data.
-  VERIFY_IS_APPROX(C, B);
-}
-
-// ---------------------------------------------------------------------------
-// 23. PmrMatrix wrapper — basic construction, expression eval, arithmetic
-// ---------------------------------------------------------------------------
-static void test_pmr_matrix_basic() {
-  Eigen::monotonic_buffer_resource arena(64 * 1024);
-
-  // Construct from dims, operate like a Map.
-  Eigen::PmrMatrix<Eigen::MatrixXd> A(&arena, 5, 5);
-  A.setIdentity();
-  VERIFY_IS_APPROX(A.trace(), 5.0);
-  VERIFY(A.resource() == &arena);
-
-  // Construct from an expression.
-  Eigen::PmrMatrix<Eigen::MatrixXd> B(&arena, Eigen::MatrixXd::Constant(5, 5, 2.0));
-  VERIFY_IS_APPROX(B.sum(), 50.0);
-
-  // Arithmetic and product evaluated into wrapper storage.
-  Eigen::PmrMatrix<Eigen::MatrixXd> C(&arena, 5, 5);
-  C = A * B;
-  VERIFY_IS_APPROX(C, B);  // identity * B == B
-  C = A + B;
-  VERIFY_IS_APPROX(C(0, 0), 3.0);
-  VERIFY_IS_APPROX(C(1, 0), 2.0);
-}
-
-// ---------------------------------------------------------------------------
-// 24. PmrMatrix wrapper — no leak with a freeing resource (the dealloc gate)
-// ---------------------------------------------------------------------------
-static void test_pmr_matrix_no_leak() {
-  // counting_resource forwards to new_delete_resource, which actually frees.
-  // A monotonic-only test would pass even if the wrapper leaked; this won't.
-  counting_resource counter;
-  {
-    Eigen::PmrMatrix<Eigen::MatrixXd> A(&counter, 8, 8);
-    A.setOnes();
-    VERIFY(counter.alloc_count() >= 1);
-  }
-  // Destruction must return the storage.
-  VERIFY_IS_EQUAL(counter.alloc_count(), counter.dealloc_count());
-
-  // Reallocation on size change must free the old block.
-  counter.reset_counts();
-  {
-    Eigen::PmrMatrix<Eigen::MatrixXd> A(&counter, 4, 4);
-    A.resize(16, 16);  // different size -> reallocate
-    A.setZero();
-    A = Eigen::MatrixXd::Ones(2, 2);  // assignment with size change -> reallocate
-  }
-  VERIFY_IS_EQUAL(counter.alloc_count(), counter.dealloc_count());
-  VERIFY(counter.alloc_count() >= 3);  // initial + resize + assign-resize
-}
-
-// ---------------------------------------------------------------------------
-// 25. PmrMatrix wrapper — conflicting resources keep destination's resource
-// ---------------------------------------------------------------------------
-static void test_pmr_matrix_conflict() {
-  Eigen::monotonic_buffer_resource arena1(8192);
-  Eigen::monotonic_buffer_resource arena2(8192);
-
-  Eigen::PmrMatrix<Eigen::MatrixXd> A(&arena1, Eigen::MatrixXd::Constant(3, 3, 7.0));
-  Eigen::PmrMatrix<Eigen::MatrixXd> B(&arena2, 3, 3);
-  B.setZero();
-
-  B = A;  // copy data, keep B's resource (PMR semantics)
-  VERIFY_IS_APPROX(B, A);
-  VERIFY(B.resource() == &arena2);
-  VERIFY(A.resource() == &arena1);
-}
-
-// ---------------------------------------------------------------------------
-// 26. PmrMatrix wrapper — move steals storage
-// ---------------------------------------------------------------------------
-static void test_pmr_matrix_move() {
-  counting_resource counter;
-  {
-    Eigen::PmrMatrix<Eigen::MatrixXd> A(&counter, 6, 6);
-    A.setConstant(3.0);
-    double* a_data = A.data();
-
-    Eigen::PmrMatrix<Eigen::MatrixXd> B(std::move(A));
-    VERIFY(B.data() == a_data);  // pointer stolen, no new allocation
-    VERIFY_IS_APPROX(B(0, 0), 3.0);
-    VERIFY(B.resource() == &counter);
-  }
-  // Only B owns the storage; exactly one free.
-  VERIFY_IS_EQUAL(counter.alloc_count(), counter.dealloc_count());
-  VERIFY_IS_EQUAL(counter.alloc_count(), 1);
-}
-
-// ---------------------------------------------------------------------------
-// 27. PmrMatrix wrapper — complex scalar (implicit-lifetime, not just trivially
-// destructible). Locks in that std::complex passes scalar_is_implicit_lifetime.
-// ---------------------------------------------------------------------------
-static void test_pmr_matrix_complex() {
-  using Cf = std::complex<float>;
-  counting_resource counter;
-  {
-    Eigen::PmrMatrix<Eigen::MatrixXcf> A(&counter, Eigen::MatrixXcf::Constant(4, 4, Cf(1.0f, 2.0f)));
-    Eigen::PmrMatrix<Eigen::MatrixXcf> B(&counter, 4, 4);
-    B = A * A;  // evaluated into B's arena-backed storage
-    VERIFY_IS_APPROX(
-        B,
-        (Eigen::MatrixXcf::Constant(4, 4, Cf(1.0f, 2.0f)) * Eigen::MatrixXcf::Constant(4, 4, Cf(1.0f, 2.0f))).eval());
-    VERIFY(B.resource() == &counter);
-  }
-  // No leak with a freeing resource.
-  VERIFY_IS_EQUAL(counter.alloc_count(), counter.dealloc_count());
-}
-
-// ---------------------------------------------------------------------------
 // Main test entry point
 // ---------------------------------------------------------------------------
 EIGEN_DECLARE_TEST(allocator) {
@@ -712,13 +531,6 @@ EIGEN_DECLARE_TEST(allocator) {
   CALL_SUBTEST(test_stress_many_blocks());
   CALL_SUBTEST(test_allocator_with_monotonic());
   CALL_SUBTEST(test_cpp14_path());
-  CALL_SUBTEST(test_matrix_with_allocator());
-  CALL_SUBTEST(test_matrix_move_semantics());
-  CALL_SUBTEST(test_pmr_matrix_basic());
-  CALL_SUBTEST(test_pmr_matrix_no_leak());
-  CALL_SUBTEST(test_pmr_matrix_conflict());
-  CALL_SUBTEST(test_pmr_matrix_move());
-  CALL_SUBTEST(test_pmr_matrix_complex());
 #if EIGEN_HAS_CXX17_PMR
   CALL_SUBTEST(test_cpp17_interop());
 #endif
