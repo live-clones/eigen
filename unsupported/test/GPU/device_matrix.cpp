@@ -61,6 +61,32 @@ void test_roundtrip(Index rows, Index cols) {
   VERIFY_IS_APPROX(result, host);
 }
 
+// ---- fromHost with a non-contiguous source ----------------------------------
+
+// fromHost() binds its argument through Ref<const PlainMatrix>, whose default
+// OuterStride<> matches any outer stride: a block of a larger matrix binds in
+// place and keeps the parent's stride instead of being materialized. Uploading
+// rows*cols contiguous elements from that pointer reads across column
+// boundaries, so the upload must honour outerStride().
+template <typename Scalar>
+void test_fromhost_strided(Index rows, Index cols) {
+  using MatrixType = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
+  using RowMajorMatrix = Eigen::Matrix<Scalar, Dynamic, Dynamic, RowMajor>;
+
+  const MatrixType host = MatrixType::Random(rows, cols);
+
+  // outerStride() != rows(): binds in place with the parent's stride.
+  MatrixType padded = MatrixType::Random(rows + 3, cols + 5);
+  padded.block(1, 2, rows, cols) = host;
+  VERIFY_IS_APPROX(gpu::DeviceMatrix<Scalar>::fromHost(padded.block(1, 2, rows, cols)).toHost(), host);
+
+  // Row-major and unevaluated expressions materialize into Ref's own storage,
+  // which is contiguous; pinned here so the two paths stay covered together.
+  const RowMajorMatrix row_major = host;
+  VERIFY_IS_APPROX(gpu::DeviceMatrix<Scalar>::fromHost(row_major).toHost(), host);
+  VERIFY_IS_APPROX(gpu::DeviceMatrix<Scalar>::fromHost(Scalar(2) * host).toHost(), MatrixType(Scalar(2) * host));
+}
+
 // ---- fromHostAsync / toHostAsync roundtrip -----------------------------------
 
 template <typename Scalar>
@@ -241,6 +267,10 @@ void test_scalar() {
   // Async roundtrip.
   CALL_SUBTEST(test_roundtrip_async<Scalar>(64, 64));
   CALL_SUBTEST(test_roundtrip_async<Scalar>(100, 7));
+
+  // Non-contiguous / non-column-major sources.
+  CALL_SUBTEST(test_fromhost_strided<Scalar>(8, 8));
+  CALL_SUBTEST(test_fromhost_strided<Scalar>(64, 17));
 
   CALL_SUBTEST(test_clone<Scalar>(64, 64));
   CALL_SUBTEST(test_move_construct<Scalar>(64, 64));
