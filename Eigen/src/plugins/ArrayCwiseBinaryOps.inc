@@ -45,6 +45,20 @@ EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const
 
 EIGEN_MAKE_SCALAR_BINARY_OP_ONTHERIGHT(operator%, internal::scalar_modulus_op)
 
+#ifndef EIGEN_PARSED_BY_DOXYGEN
+EIGEN_MAKE_SCALAR_BINARY_OP_ONTHELEFT(operator%, internal::scalar_modulus_op)
+#else
+/**
+ * \brief Component-wise modulus of the scalar \a s by array elements of \a a.
+ *
+ * \tparam T is the scalar type of \a s. It must be compatible with the scalar type of the given array expression
+ * (\c Derived::Scalar).
+ */
+template <typename T>
+friend inline const CwiseBinaryOp<internal::scalar_modulus_op<T, Scalar>, Constant<T>, Derived> operator%(
+    const T &s, const StorageBaseType &a);
+#endif
+
 /** \returns an expression of the coefficient-wise min of \c *this and \a other
  *
  * Example: \include Cwise_min.cpp
