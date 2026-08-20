@@ -56,7 +56,7 @@ class LLT {
 
   /** Factor A immediately. Equivalent to LLT llt; llt.compute(A). */
   template <typename InputType>
-  explicit LLT(const EigenBase<InputType>& A) {
+  explicit LLT(const MatrixBase<InputType>& A) {
     compute(A);
   }
 
@@ -68,7 +68,7 @@ class LLT {
 
   /** Bind to \p ctx and factor A immediately. */
   template <typename InputType>
-  LLT(Context& ctx, const EigenBase<InputType>& A) : solver_ctx_(ctx) {
+  LLT(Context& ctx, const MatrixBase<InputType>& A) : solver_ctx_(ctx) {
     compute(A);
   }
 
@@ -102,15 +102,17 @@ class LLT {
 
   /** Compute the Cholesky factorization of A (host matrix). */
   template <typename InputType>
-  LLT& compute(const EigenBase<InputType>& A) {
+  LLT& compute(const MatrixBase<InputType>& A) {
     eigen_assert(A.rows() == A.cols());
     if (!begin_compute(A.rows())) return *this;
 
-    const PlainMatrix mat(A.derived());
+    // Ref binds column-major direct-access input in place (no host copy);
+    // row-major layouts and expressions evaluate into its temporary.
+    const Ref<const PlainMatrix> mat(A.derived());
     lda_ = static_cast<int64_t>(mat.rows());
     allocate_factor_storage();
-    EIGEN_CUDA_RUNTIME_CHECK(
-        cudaMemcpyAsync(d_factor_.get(), mat.data(), factorBytes(), cudaMemcpyHostToDevice, solver_ctx_.stream()));
+    internal::upload_host_matrix(static_cast<Scalar*>(d_factor_.get()), mat.rows(), mat.data(), mat.outerStride(),
+                                 mat.rows(), mat.cols(), solver_ctx_.stream());
 
     factorize();
     return *this;
