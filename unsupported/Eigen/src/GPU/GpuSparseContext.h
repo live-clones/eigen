@@ -107,23 +107,23 @@ class SparseContext {
   using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
 
   /** Standalone: creates own stream and cuSPARSE handle. */
-  SparseContext() : owns_handle_(true) {
-    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&stream_));
-    owns_stream_ = true;
+  SparseContext() : stream_(internal::create_stream()), owns_handle_(true) {
     EIGEN_CUSPARSE_CHECK(cusparseCreate(&handle_));
-    EIGEN_CUSPARSE_CHECK(cusparseSetStream(handle_, stream_));
+    EIGEN_CUSPARSE_CHECK(cusparseSetStream(handle_, stream()));
   }
 
   /** Borrow a Context: shares stream and cuSPARSE handle.
    * The Context must outlive this SparseContext. */
   explicit SparseContext(Context& ctx)
-      : stream_(ctx.stream()), handle_(ctx.cusparseHandle()), owns_stream_(false), owns_handle_(false) {}
+      : stream_(ctx.streamHandle()), handle_(ctx.cusparseHandle()), owns_handle_(false) {}
 
   ~SparseContext() {
     destroy_spmat_descriptor(/*checked=*/false);
     destroy_dense_descriptors();
     if (owns_handle_ && handle_) (void)cusparseDestroy(handle_);
-    if (owns_stream_ && stream_) (void)cudaStreamDestroy(stream_);
+    // The device buffers and stream are RAII members: reverse declaration
+    // order destroys the buffers first and stream_ (declared first) last, so
+    // stream-ordered frees still have a live stream.
   }
 
   SparseContext(const SparseContext&) = delete;
@@ -222,12 +222,13 @@ class SparseContext {
     return Y;
   }
 
-  cudaStream_t stream() const { return stream_; }
+  cudaStream_t stream() const { return stream_.get(); }
 
  private:
-  cudaStream_t stream_ = nullptr;
+  // Declared first: destroyed last, after every member whose destruction
+  // releases resources against the stream.
+  internal::CudaStreamHandle stream_;
   cusparseHandle_t handle_ = nullptr;
-  bool owns_stream_ = false;
   bool owns_handle_ = false;
 
   // Cached device buffers for sparse matrix (grow-only).
@@ -310,20 +311,20 @@ class SparseContext {
     // expressions are evaluated into the Ref's internal temporary.
     const Ref<const DenseVector> x_ref(x);
     EIGEN_CUDA_RUNTIME_CHECK(
-        cudaMemcpyAsync(d_x_.get(), x_ref.data(), x_size * sizeof(Scalar), cudaMemcpyHostToDevice, stream_));
+        cudaMemcpyAsync(d_x_.get(), x_ref.data(), x_size * sizeof(Scalar), cudaMemcpyHostToDevice, stream()));
 
     ensure_buffer(d_y_, static_cast<size_t>(y_size) * sizeof(Scalar));
     if (beta != Scalar(0)) {
       const Ref<const DenseVector> y_ref(y);
       EIGEN_CUDA_RUNTIME_CHECK(
-          cudaMemcpyAsync(d_y_.get(), y_ref.data(), y_size * sizeof(Scalar), cudaMemcpyHostToDevice, stream_));
+          cudaMemcpyAsync(d_y_.get(), y_ref.data(), y_size * sizeof(Scalar), cudaMemcpyHostToDevice, stream()));
     }
 
     exec_spmv(x_size, y_size, d_x_.get(), d_y_.get(), alpha, beta, op);
 
     EIGEN_CUDA_RUNTIME_CHECK(
-        cudaMemcpyAsync(y.data(), d_y_.get(), y_size * sizeof(Scalar), cudaMemcpyDeviceToHost, stream_));
-    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream_));
+        cudaMemcpyAsync(y.data(), d_y_.get(), y_size * sizeof(Scalar), cudaMemcpyDeviceToHost, stream()));
+    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream()));
   }
 
  public:
@@ -349,7 +350,7 @@ class SparseContext {
       // handle for the scale, so the beta != 0 case must be handled by the caller.
       eigen_assert(beta == Scalar(0) && "SpMV with empty A and beta != 0 is unsupported; scale d_y externally");
       if (d_y.rows() * d_y.cols() != y_size) d_y.resize(y_size, 1);
-      d_y.setZero(stream_);
+      d_y.setZero(stream());
       return;
     }
 
@@ -359,13 +360,14 @@ class SparseContext {
     }
 
     // Wait for input data to be ready on this stream.
-    d_x.waitReady(stream_);
-    d_y.waitReady(stream_);
+    d_x.waitReady(stream());
+    d_y.waitReady(stream());
 
     exec_spmv(x_size, y_size, const_cast<void*>(static_cast<const void*>(d_x.data())), static_cast<void*>(d_y.data()),
               alpha, beta, cu_op);
 
-    d_y.recordReady(stream_);
+    d_x.recordUse(stream());
+    d_y.recordReady(stream());
   }
 
   /** Execute SpMM (d_Y = alpha * op(A) * d_X + beta * d_Y) using the
@@ -387,7 +389,7 @@ class SparseContext {
     if (m_op == 0 || n == 0 || cached_nnz_ == 0) {
       eigen_assert(beta == Scalar(0) && "SpMM with empty A and beta != 0 is unsupported; scale d_Y externally");
       if (d_Y.rows() != m_op || d_Y.cols() != n) d_Y.resize(m_op, n);
-      d_Y.setZero(stream_);
+      d_Y.setZero(stream());
       return;
     }
 
@@ -395,13 +397,14 @@ class SparseContext {
       d_Y.resize(m_op, n);
     }
 
-    d_X.waitReady(stream_);
-    d_Y.waitReady(stream_);
+    d_X.waitReady(stream());
+    d_Y.waitReady(stream());
 
     exec_spmm(m_op, k_op, n, const_cast<void*>(static_cast<const void*>(d_X.data())), static_cast<void*>(d_Y.data()),
               alpha, beta, cu_op);
 
-    d_Y.recordReady(stream_);
+    d_X.recordUse(stream());
+    d_Y.recordReady(stream());
   }
 
  private:
@@ -557,15 +560,15 @@ class SparseContext {
     const size_t y_bytes = static_cast<size_t>(m_op) * static_cast<size_t>(n) * sizeof(Scalar);
     ensure_buffer(d_x_, x_bytes);
     ensure_buffer(d_y_, y_bytes);
-    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_x_.get(), X.data(), x_bytes, cudaMemcpyHostToDevice, stream_));
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_x_.get(), X.data(), x_bytes, cudaMemcpyHostToDevice, stream()));
     if (beta != Scalar(0)) {
-      EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_y_.get(), Y.data(), y_bytes, cudaMemcpyHostToDevice, stream_));
+      EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_y_.get(), Y.data(), y_bytes, cudaMemcpyHostToDevice, stream()));
     }
 
     exec_spmm(m_op, k_op, n, d_x_.get(), d_y_.get(), alpha, beta, op);
 
-    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(Y.data(), d_y_.get(), y_bytes, cudaMemcpyDeviceToHost, stream_));
-    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream_));
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(Y.data(), d_y_.get(), y_bytes, cudaMemcpyDeviceToHost, stream()));
+    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream()));
   }
 
   void upload_sparse(const SpMat& A) {
@@ -595,11 +598,12 @@ class SparseContext {
     ensure_buffer(d_values_, val_bytes);
     ensure_buffer(d_outerPtr_, outer_bytes);
     ensure_buffer(d_innerIdx_, inner_bytes);
-    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_values_.get(), host_values, val_bytes, cudaMemcpyHostToDevice, stream_));
     EIGEN_CUDA_RUNTIME_CHECK(
-        cudaMemcpyAsync(d_outerPtr_.get(), host_outer, outer_bytes, cudaMemcpyHostToDevice, stream_));
+        cudaMemcpyAsync(d_values_.get(), host_values, val_bytes, cudaMemcpyHostToDevice, stream()));
     EIGEN_CUDA_RUNTIME_CHECK(
-        cudaMemcpyAsync(d_innerIdx_.get(), host_inner, inner_bytes, cudaMemcpyHostToDevice, stream_));
+        cudaMemcpyAsync(d_outerPtr_.get(), host_outer, outer_bytes, cudaMemcpyHostToDevice, stream()));
+    EIGEN_CUDA_RUNTIME_CHECK(
+        cudaMemcpyAsync(d_innerIdx_.get(), host_inner, inner_bytes, cudaMemcpyHostToDevice, stream()));
 
     // Same shape and nnz: the grow-only device buffers cannot have been
     // reallocated, so the existing descriptor still points at the freshly
@@ -643,12 +647,7 @@ class SparseContext {
     invalidate_ws_caches();
   }
 
-  void ensure_buffer(internal::DeviceBuffer& buf, size_t needed) const {
-    if (needed > buf.size()) {
-      if (buf) EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream_));
-      buf = internal::DeviceBuffer(needed);
-    }
-  }
+  void ensure_buffer(internal::DeviceBuffer& buf, size_t needed) const { internal::ensure_sized(buf, needed, stream_); }
 };
 
 // Defined here because it needs the full SparseContext definition.

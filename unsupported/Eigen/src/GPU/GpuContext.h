@@ -46,19 +46,10 @@ struct OneShotSolverScratch {
   DeviceBuffer d_factor;
   DeviceBuffer d_ipiv;
   DeviceBuffer d_workspace;
-  DeviceBuffer d_info{kOneShotInfoBytes};          // 2 ints: {factorization, solve}
+  DeviceBuffer d_info;                             // 2 ints: {factorization, solve}
   PinnedHostBuffer h_info{kOneShotHostInfoBytes};  // debug-build info check only
   std::vector<char> h_workspace;
 };
-
-inline void ensure_sized(DeviceBuffer& buf, size_t needed) {
-  if (needed > buf.size()) {
-    // Replacing an in-use buffer is safe: device_free is stream-ordered
-    // (or fully synchronous on the cudaMalloc fallback path), so the free
-    // waits for previously enqueued work touching the old buffer.
-    buf = DeviceBuffer(needed);
-  }
-}
 }  // namespace internal
 
 /** \ingroup GPU_Module
@@ -79,20 +70,25 @@ inline void ensure_sized(DeviceBuffer& buf, size_t needed) {
 class Context {
  public:
   /** Create a new context with a dedicated CUDA stream. */
-  Context() {
-    cudaStream_t s = nullptr;
-    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&s));
-    stream_ = internal::UniqueStream(s);
-    init_cublas();
-  }
+  Context() : stream_(internal::create_stream()) { init_cublas(); }
 
   /** Create a context on an existing stream (e.g., stream 0 = nullptr).
-   * The caller retains ownership of the stream — this context will not destroy it. */
-  explicit Context(cudaStream_t stream) : stream_(stream, internal::CudaStreamDeleter{/*owns=*/false}) {
-    init_cublas();
-  }
+   * The caller retains ownership of the stream — this context will not destroy
+   * it — and must keep it valid for the lifetime of this context and of any
+   * object allocated through it (solver results, DeviceScalar reductions). */
+  explicit Context(cudaStream_t stream) : stream_(internal::borrow_stream(stream)) { init_cublas(); }
 
-  ~Context() = default;
+  ~Context() {
+    // Queued one-shot solver kernels may still read the scratch below —
+    // including its pageable h_workspace, whose free is host-side and thus
+    // not covered by stream-ordered deallocation. Avoid synchronizing contexts
+    // that never queued such work (or already synchronized it in a debug
+    // status check). Errors are swallowed on this noexcept teardown path.
+    if (oneshot_solver_pending_) (void)cudaStreamSynchronize(stream_.get());
+    // Everything else is a RAII member, destroyed in reverse declaration
+    // order: the plan cache before its cuBLASLt handle, the buffers before
+    // stream_ (declared first, destroyed last).
+  }
 
   Context(const Context&) = delete;
   Context& operator=(const Context&) = delete;
@@ -127,6 +123,11 @@ class Context {
   static void setThreadLocal(Context* ctx) { tl_override_ptr() = ctx; }
 
   cudaStream_t stream() const { return stream_.get(); }
+
+  /** Shared handle for this context's stream. Buffers constructed with it keep
+   * an owned stream alive until their (stream-ordered) frees are issued. */
+  const internal::CudaStreamHandle& streamHandle() const { return stream_; }
+
   cublasHandle_t cublasHandle() const { return cublas_.get(); }
 
   /** Returns the cuSOLVER handle, creating it on first call. */
@@ -162,6 +163,8 @@ class Context {
    * (d_A.llt().solve(d_B), d_A.lu().solve(d_B)). Same thread-safety rules as
    * the GEMM workspace: all uses must be on this context's stream. */
   internal::OneShotSolverScratch& oneshotSolverScratch() { return oneshot_solver_scratch_; }
+  void markOneShotSolverPending() { oneshot_solver_pending_ = true; }
+  void markOneShotSolverComplete() { oneshot_solver_pending_ = false; }
 
   /** Workspace ceiling passed to the cublasLtMatmul heuristic at plan-creation time.
    * Defaults to internal::kCublasLtMaxWorkspaceBytes (compile-time configurable via
@@ -200,7 +203,7 @@ class Context {
       std::unique_ptr<std::remove_pointer_t<cusparseHandle_t>, cusparseStatus_t (*)(cusparseHandle_t)>;
 
   // Destroyed in reverse declaration order: the plan cache before the cuBLASLt handle, the stream last.
-  internal::UniqueStream stream_;
+  internal::CudaStreamHandle stream_;
   internal::UniqueCublasHandle cublas_;
   LazyCusolverHandle cusolver_{nullptr, nullptr};
   LazyCusparseHandle cusparse_{nullptr, nullptr};
@@ -208,6 +211,7 @@ class Context {
   internal::DeviceBuffer gemm_workspace_;     // lazy
   internal::CublasLtPlanCache gemm_plan_cache_{internal::kCublasLtPlanCacheCapacity};
   internal::OneShotSolverScratch oneshot_solver_scratch_;  // grow-only
+  bool oneshot_solver_pending_ = false;
   std::size_t cublaslt_max_workspace_bytes_ = internal::kCublasLtMaxWorkspaceBytes;
 
   static Context*& tl_override_ptr() {

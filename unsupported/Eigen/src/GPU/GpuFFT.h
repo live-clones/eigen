@@ -247,6 +247,7 @@ class FFT {
     cufftHandle plan = get_plan_1d(n, internal::cufft_c2c_type<Scalar>::value);
     EIGEN_CUFFT_CHECK(
         internal::cufftExecC2C_dispatch(plan, const_cast<Complex*>(d_x.data()), d_X.data(), CUFFT_FORWARD));
+    d_x.recordUse(ctx_->stream());
     d_X.recordReady(ctx_->stream());
   }
 
@@ -260,6 +261,7 @@ class FFT {
     EIGEN_CUFFT_CHECK(
         internal::cufftExecC2C_dispatch(plan, const_cast<Complex*>(d_X.data()), d_x.data(), CUFFT_INVERSE));
     EIGEN_CUBLAS_CHECK(internal::cublasXscal(ctx_->cublasHandle(), n, Scalar(1) / Scalar(n), d_x.data(), 1));
+    d_X.recordUse(ctx_->stream());
     d_x.recordReady(ctx_->stream());
   }
 
@@ -272,6 +274,7 @@ class FFT {
     if (n == 0) return;
     cufftHandle plan = get_plan_1d(n, internal::cufft_r2c_type<Scalar>::value);
     EIGEN_CUFFT_CHECK(internal::cufftExecR2C_dispatch(plan, const_cast<Scalar*>(d_x.data()), d_X.data()));
+    d_x.recordUse(ctx_->stream());
     d_X.recordReady(ctx_->stream());
   }
 
@@ -292,6 +295,7 @@ class FFT {
     cufftHandle plan = get_plan_1d(n, internal::cufft_c2r_type<Scalar>::value);
     EIGEN_CUFFT_CHECK(internal::cufftExecC2R_dispatch(plan, static_cast<Complex*>(d_in_.get()), d_x.data()));
     EIGEN_CUBLAS_CHECK(internal::cublasXscal(ctx_->cublasHandle(), n, Scalar(1) / Scalar(n), d_x.data(), 1));
+    d_X.recordUse(ctx_->stream());
     d_x.recordReady(ctx_->stream());
   }
 
@@ -304,6 +308,7 @@ class FFT {
     cufftHandle plan = get_plan_2d(rows, cols, internal::cufft_c2c_type<Scalar>::value);
     EIGEN_CUFFT_CHECK(
         internal::cufftExecC2C_dispatch(plan, const_cast<Complex*>(d_A.data()), d_B.data(), CUFFT_FORWARD));
+    d_A.recordUse(ctx_->stream());
     d_B.recordReady(ctx_->stream());
   }
 
@@ -319,6 +324,7 @@ class FFT {
     const int total_elems = internal::to_blas_int(static_cast<int64_t>(rows) * static_cast<int64_t>(cols));
     EIGEN_CUBLAS_CHECK(
         internal::cublasXscal(ctx_->cublasHandle(), total_elems, Scalar(1) / Scalar(total_elems), d_B.data(), 1));
+    d_A.recordUse(ctx_->stream());
     d_B.recordReady(ctx_->stream());
   }
 
@@ -333,8 +339,6 @@ class FFT {
   Eigen::internal::LruCache<int64_t, internal::CufftPlan> plans_;
   internal::DeviceBuffer d_in_;
   internal::DeviceBuffer d_out_;
-  size_t d_in_size_ = 0;
-  size_t d_out_size_ = 0;
 
   // Common device-transform prologue: alias check, input/output event waits,
   // and (destructive) output resize.
@@ -348,22 +352,10 @@ class FFT {
     out.resize(out_rows, out_cols);
   }
 
-  // Buffers grow but never shrink. The pre-realloc sync drains the *bound*
-  // Context's stream — including unrelated GEMMs/solves/`device(ctx) = ...`
-  // assignments queued on it — so callers running FFTs alongside other GPU
-  // work on the same Context should size up front (call fwd/inv with the
-  // largest expected n once) to avoid mid-pipeline stalls.
+  // Buffers grow but never shrink.
   void ensure_buffers(size_t in_bytes, size_t out_bytes) {
-    if (in_bytes > d_in_size_) {
-      if (d_in_) EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(ctx_->stream()));
-      d_in_ = internal::DeviceBuffer(in_bytes);
-      d_in_size_ = in_bytes;
-    }
-    if (out_bytes > d_out_size_) {
-      if (d_out_) EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(ctx_->stream()));
-      d_out_ = internal::DeviceBuffer(out_bytes);
-      d_out_size_ = out_bytes;
-    }
+    internal::ensure_sized(d_in_, in_bytes, ctx_->streamHandle());
+    internal::ensure_sized(d_out_, out_bytes, ctx_->streamHandle());
   }
 
   // Plan key encoding: rank (1 bit) | type (4 bits) | dims.

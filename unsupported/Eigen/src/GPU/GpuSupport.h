@@ -18,11 +18,11 @@
 #include "./InternalHeaderCheck.h"
 
 #include <cuda_runtime.h>
-#include <vector>
 
 #include <limits>
 #include <memory>
 #include <type_traits>
+#include <vector>
 
 namespace Eigen {
 namespace gpu {
@@ -51,17 +51,9 @@ inline int to_blas_int(int64_t v) {
 
 // cudaMallocAsync / cudaFreeAsync (CUDA 11.2+) allocate from a stream-ordered
 // memory pool: both are cheap enqueues instead of the device-wide
-// synchronization performed by cudaMalloc / cudaFree. All module allocations
-// go through device_malloc / device_free on the *legacy default stream*:
-// legacy-stream ordering guarantees that work enqueued later on any blocking
-// stream observes the allocation, and that a free waits for all previously
-// enqueued work on blocking streams — the same lifetime guarantees callers
-// got from cudaMalloc / cudaFree, minus the host stalls.
-//
-// Caveat: streams created with cudaStreamNonBlocking do not synchronize with
-// the legacy stream. When borrowing such a stream (gpu::Context(stream)),
-// define EIGEN_GPU_NO_STREAM_ORDERED_ALLOC to fall back to cudaMalloc/cudaFree.
-//
+// synchronization performed by cudaMalloc / cudaFree. Stream-bound internal
+// buffers pass their execution stream; DeviceMatrix, whose constructors are
+// not bound to a Context, uses the default (the legacy default stream).
 // Support is detected once per process, from the device current at first use.
 
 inline bool device_supports_memory_pools() {
@@ -90,34 +82,24 @@ inline bool device_supports_memory_pools() {
 #endif
 }
 
-inline void* device_malloc(size_t bytes) {
+inline void* device_malloc(size_t bytes, cudaStream_t stream = nullptr) {
   void* p = nullptr;
   if (device_supports_memory_pools()) {
-    EIGEN_CUDA_RUNTIME_CHECK(cudaMallocAsync(&p, bytes, /*legacy default stream*/ nullptr));
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMallocAsync(&p, bytes, stream));
   } else {
     EIGEN_CUDA_RUNTIME_CHECK(cudaMalloc(&p, bytes));
   }
   return p;
 }
 
-inline void device_free(void* p) noexcept {
+inline void device_free(void* p, cudaStream_t stream = nullptr) noexcept {
   if (!p) return;
   if (device_supports_memory_pools()) {
-    (void)cudaFreeAsync(p, /*legacy default stream*/ nullptr);
+    (void)cudaFreeAsync(p, stream);
   } else {
     (void)cudaFree(p);
   }
 }
-
-struct CudaFreeDeleter {
-  // When `borrow == true`, the unique_ptr does not free the pointer. Used by
-  // DeviceMatrix::view() to wrap a non-owning device pointer with the same
-  // smart-pointer machinery as owning storage, without changing the type.
-  bool borrow = false;
-  void operator()(void* p) const noexcept {
-    if (p && !borrow) device_free(p);
-  }
-};
 
 struct CudaFreeHostDeleter {
   void operator()(void* p) const noexcept {
@@ -125,34 +107,83 @@ struct CudaFreeHostDeleter {
   }
 };
 
-// RAII CUDA stream; the ownership flag supports borrowed, caller-owned streams.
+// Borrow-aware deleter for cudaStream_t — with `borrow == true` destruction is
+// left to the stream's real owner. Ownership is recorded explicitly rather than
+// inferred from the value because nullptr (CUDA's legacy default stream) is a
+// valid stream to borrow.
 struct CudaStreamDeleter {
-  bool owns = true;
+  bool borrow = false;
   void operator()(cudaStream_t s) const noexcept {
-    if (owns && s) (void)cudaStreamDestroy(s);
+    if (s && !borrow) (void)cudaStreamDestroy(s);
   }
 };
-using UniqueStream = std::unique_ptr<std::remove_pointer_t<cudaStream_t>, CudaStreamDeleter>;
 
-// Recycles allocations up to kSmallBufferThreshold bytes (e.g. DeviceScalar) to
-// avoid cudaMalloc/cudaFree overhead. Larger allocations bypass the pool.
+// Owning-or-borrowing RAII handle for a CUDA stream with *shared* ownership:
+// every buffer deleter bound to the stream holds a copy, so an owned stream is
+// destroyed only after the last free enqueued on it. That makes it safe for a
+// DeviceScalar, a solver result, or a moved-out buffer to outlive the Context
+// or solver that created the stream. It converts implicitly to cudaStream_t so
+// it can be passed straight to CUDA and NVIDIA library APIs. For borrowed
+// streams the handle shares only the raw value; keeping the stream valid
+// remains the owner's responsibility.
+class CudaStreamHandle {
+ public:
+  CudaStreamHandle() = default;
+  CudaStreamHandle(std::nullptr_t) noexcept {}
+
+  cudaStream_t get() const noexcept { return sp_.get(); }
+  operator cudaStream_t() const noexcept { return sp_.get(); }
+
+ private:
+  CudaStreamHandle(cudaStream_t s, bool borrow) : sp_(s, CudaStreamDeleter{borrow}) {}
+
+  friend CudaStreamHandle create_stream();
+  friend CudaStreamHandle borrow_stream(cudaStream_t s);
+
+  std::shared_ptr<std::remove_pointer_t<cudaStream_t>> sp_;
+};
+
+// Create a new stream owned (and eventually destroyed) by the handle.
+inline CudaStreamHandle create_stream() {
+  cudaStream_t s = nullptr;
+  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&s));
+  return CudaStreamHandle(s, /*borrow=*/false);
+}
+
+// Wrap an existing stream without taking ownership (nullptr = the legacy
+// default stream).
+inline CudaStreamHandle borrow_stream(cudaStream_t s) { return CudaStreamHandle(s, /*borrow=*/true); }
+
+struct CudaFreeDeleter {
+  // When `borrow == true`, the unique_ptr does not free the pointer. Used by
+  // DeviceMatrix::view() to wrap a non-owning device pointer with the same
+  // smart-pointer machinery as owning storage, without changing the type.
+  bool borrow = false;
+  // Stream the free is enqueued on, kept alive by the shared handle. Null for
+  // DeviceMatrix's Context-free constructors, which allocate and free on the
+  // legacy default stream.
+  CudaStreamHandle stream;
+  void operator()(void* p) const noexcept {
+    if (p && !borrow) device_free(p, stream.get());
+  }
+};
+
+// On devices without stream-ordered allocation, retain a small-buffer cache to
+// avoid a synchronous cudaMalloc/cudaFree pair for every DeviceScalar. Each
+// cached pointer carries an event recorded after its last use; reuse on another
+// stream waits on that event instead of returning the pointer immediately.
 template <size_t SmallBufferThreshold = 256, size_t MaxPoolSize = 64>
-struct DeviceBufferPool {
+struct FallbackDeviceBufferPool {
   static constexpr size_t kSmallBufferThreshold = SmallBufferThreshold;
   static constexpr size_t kMaxPoolSize = MaxPoolSize;
 
   struct Entry {
     void* ptr;
     size_t bytes;
+    cudaEvent_t ready;
+    cudaStream_t stream;  // stream `ready` was recorded on (for same-stream skip)
   };
 
-  // Lifetime marker for the thread-local pool. thread_local destruction runs
-  // in reverse construction order, so a long-lived object holding pooled
-  // buffers (e.g. the thread-local gpu::Context, or a static) can be
-  // destroyed *after* the pool. The marker is trivially destructible — it
-  // stays readable during TLS teardown — letting the deleter fall back to a
-  // direct device_free once the pool is gone instead of touching a destroyed
-  // vector.
   enum class State : signed char { kNotConstructed = 0, kAlive = 1, kDestroyed = 2 };
 
   static State& threadState() {
@@ -160,35 +191,59 @@ struct DeviceBufferPool {
     return state;
   }
 
-  DeviceBufferPool() { threadState() = State::kAlive; }
+  FallbackDeviceBufferPool() {
+    free_list_.reserve(kMaxPoolSize);
+    threadState() = State::kAlive;
+  }
 
-  ~DeviceBufferPool() {
-    for (auto& e : free_list_) device_free(e.ptr);
+  ~FallbackDeviceBufferPool() {
+    for (auto& entry : free_list_) {
+      (void)cudaEventSynchronize(entry.ready);
+      (void)cudaEventDestroy(entry.ready);
+      (void)cudaFree(entry.ptr);
+    }
     threadState() = State::kDestroyed;
   }
 
-  void* allocate(size_t bytes) {
+  void* allocate(size_t bytes, cudaStream_t stream) {
     for (size_t i = 0; i < free_list_.size(); ++i) {
       if (free_list_[i].bytes >= bytes) {
-        void* p = free_list_[i].ptr;
+        Entry entry = free_list_[i];
         free_list_[i] = free_list_.back();
         free_list_.pop_back();
-        return p;
+        // Same-stream reuse needs no fence: in-order execution already orders
+        // the next use after the recorded last one.
+        if (entry.stream != stream) {
+          EIGEN_CUDA_RUNTIME_CHECK(cudaStreamWaitEvent(stream, entry.ready, 0));
+        }
+        (void)cudaEventDestroy(entry.ready);
+        return entry.ptr;
       }
     }
-    return device_malloc(bytes);
+    void* p = nullptr;
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMalloc(&p, bytes));
+    return p;
   }
 
-  void deallocate(void* p, size_t bytes) {
-    if (free_list_.size() < kMaxPoolSize) {
-      free_list_.push_back({p, bytes});
-    } else {
-      device_free(p);
+  void deallocate(void* p, size_t bytes, cudaStream_t stream) noexcept {
+    if (free_list_.size() >= kMaxPoolSize) {
+      // cudaFree's implicit synchronization covers any in-flight use; no event
+      // round-trip needed on the overflow path.
+      (void)cudaFree(p);
+      return;
     }
+    cudaEvent_t ready = nullptr;
+    if (cudaEventCreateWithFlags(&ready, cudaEventDisableTiming) != cudaSuccess ||
+        cudaEventRecord(ready, stream) != cudaSuccess) {
+      if (ready) (void)cudaEventDestroy(ready);
+      (void)cudaFree(p);
+      return;
+    }
+    free_list_.push_back({p, bytes, ready, stream});
   }
 
-  static DeviceBufferPool& threadLocal() {
-    thread_local DeviceBufferPool pool;
+  static FallbackDeviceBufferPool& threadLocal() {
+    thread_local FallbackDeviceBufferPool pool;
     return pool;
   }
 
@@ -196,18 +251,23 @@ struct DeviceBufferPool {
   std::vector<Entry> free_list_;
 };
 
-// Stateful deleter that returns small buffers to the thread-local pool and
-// device_free's larger ones. size==0 means "always device_free" (adopted ptrs).
-struct PooledCudaFreeDeleter {
-  size_t size = 0;
+struct DeviceBufferDeleter {
+  size_t bytes = 0;
+  // Shared handle: an owned stream stays alive until every free enqueued on it
+  // has been issued, even if the owning Context/solver is destroyed first.
+  CudaStreamHandle stream;
 
   void operator()(void* p) const noexcept {
     if (!p) return;
-    if (size > 0 && size <= DeviceBufferPool<>::kSmallBufferThreshold &&
-        DeviceBufferPool<>::threadState() == DeviceBufferPool<>::State::kAlive) {
-      DeviceBufferPool<>::threadLocal().deallocate(p, size);
+    // The branch already resolved pool support, so call the API directly
+    // instead of paying device_free()'s repeat of the same check.
+    if (device_supports_memory_pools()) {
+      (void)cudaFreeAsync(p, stream.get());
+    } else if (bytes > 0 && bytes <= FallbackDeviceBufferPool<>::kSmallBufferThreshold &&
+               FallbackDeviceBufferPool<>::threadState() == FallbackDeviceBufferPool<>::State::kAlive) {
+      FallbackDeviceBufferPool<>::threadLocal().deallocate(p, bytes, stream.get());
     } else {
-      device_free(p);
+      (void)cudaFree(p);
     }
   }
 };
@@ -216,19 +276,18 @@ class DeviceBuffer {
  public:
   DeviceBuffer() = default;
 
-  explicit DeviceBuffer(size_t bytes) : bytes_(bytes) {
+  DeviceBuffer(size_t bytes, CudaStreamHandle stream) : bytes_(bytes) {
     if (bytes > 0) {
       void* p = nullptr;
-      // Bypass the pool once its thread_local has been destroyed (allocation
-      // from a static/TLS destructor); the matching deleter then also takes
-      // the direct device_free path.
-      if (bytes <= DeviceBufferPool<>::kSmallBufferThreshold &&
-          DeviceBufferPool<>::threadState() != DeviceBufferPool<>::State::kDestroyed) {
-        p = DeviceBufferPool<>::threadLocal().allocate(bytes);
+      if (device_supports_memory_pools()) {
+        EIGEN_CUDA_RUNTIME_CHECK(cudaMallocAsync(&p, bytes, stream.get()));
+      } else if (bytes <= FallbackDeviceBufferPool<>::kSmallBufferThreshold &&
+                 FallbackDeviceBufferPool<>::threadState() != FallbackDeviceBufferPool<>::State::kDestroyed) {
+        p = FallbackDeviceBufferPool<>::threadLocal().allocate(bytes, stream.get());
       } else {
-        p = device_malloc(bytes);
+        EIGEN_CUDA_RUNTIME_CHECK(cudaMalloc(&p, bytes));
       }
-      ptr_ = std::unique_ptr<void, PooledCudaFreeDeleter>(p, PooledCudaFreeDeleter{bytes});
+      ptr_ = std::unique_ptr<void, DeviceBufferDeleter>(p, DeviceBufferDeleter{bytes, std::move(stream)});
     }
   }
 
@@ -255,20 +314,51 @@ class DeviceBuffer {
   /** Logical allocation size in bytes, tracked for adopted pointers as well. */
   size_t size() const noexcept { return bytes_; }
 
+  /** The stream this allocation is bound to: it was allocated there and its
+   * free is enqueued there. Empty (the legacy default stream) when null. */
+  const CudaStreamHandle& streamHandle() const noexcept { return ptr_.get_deleter().stream; }
+
   // Adopt an existing device pointer of `bytes` usable bytes. Caller
-  // relinquishes ownership. Adopted buffers bypass the pool on destruction
-  // (deleter size == 0).
-  static DeviceBuffer adopt(void* p, size_t bytes) noexcept {
+  // relinquishes ownership.
+  static DeviceBuffer adopt(void* p, size_t bytes, CudaStreamHandle stream) noexcept {
     DeviceBuffer b;
-    b.ptr_ = std::unique_ptr<void, PooledCudaFreeDeleter>(p, PooledCudaFreeDeleter{});
+    b.ptr_ = std::unique_ptr<void, DeviceBufferDeleter>(p, DeviceBufferDeleter{bytes, std::move(stream)});
     b.bytes_ = p ? bytes : 0;
     return b;
   }
 
  private:
-  std::unique_ptr<void, PooledCudaFreeDeleter> ptr_;
+  std::unique_ptr<void, DeviceBufferDeleter> ptr_;
   size_t bytes_ = 0;
 };
+
+// Grow-only sizing policy shared by every subsystem's device scratch (GEMM
+// workspaces, solver scratch, sparse and FFT buffers): reallocate only when
+// `needed` exceeds the current size, on `stream`.
+inline void ensure_sized(DeviceBuffer& buf, size_t needed, const CudaStreamHandle& stream) {
+  if (needed > buf.size()) {
+    // With stream-ordered allocation the old buffer's free is ordered after
+    // queued work that still uses it. The fallback deleter frees large buffers
+    // with plain cudaFree, whose device-wide synchronization is observed but
+    // not documented behavior — drain the stream explicitly before replacing a
+    // live buffer there.
+    if (buf && !device_supports_memory_pools()) (void)cudaStreamSynchronize(stream.get());
+    buf = DeviceBuffer(needed, stream);
+  }
+}
+
+// Grow-only sizing for pageable host workspaces handed to the 64-bit cuSOLVER
+// APIs (`bufferOnHost`), which the enqueued routine may read until it retires.
+// Growth frees the old vector storage host-side immediately, so drain the
+// stream first; growth is rare (monotone high-water mark), so the drain is too.
+inline void ensure_host_sized(std::vector<char>& buf, size_t needed, cudaStream_t stream) {
+  if (needed > buf.size()) {
+    // Nothing to protect on the first growth: there is no old storage a queued
+    // routine could still be reading.
+    if (!buf.empty()) (void)cudaStreamSynchronize(stream);
+    buf.resize(needed);
+  }
+}
 
 // cudaMemcpyAsync only overlaps with compute when the host side is pinned, so
 // async D2H staging goes through this buffer.

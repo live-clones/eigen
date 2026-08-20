@@ -336,6 +336,52 @@ void test_svd_device_accessors_full_wide(Index m, Index n) {
   VERIFY_IS_APPROX(VT_host, svd.matrixVT());
 }
 
+// ---- Wide-matrix owning device accessors on a non-blocking stream -----------
+
+// For m < n, d_matrixU()/d_matrixVT() return owning matrices produced by a
+// cublasXgeam on the solver stream; they must be allocated and freed there as
+// well, which a borrowed cudaStreamNonBlocking stream verifies (it has no
+// implicit ordering with the legacy default stream to hide a mismatch). The
+// SVD and Context are destroyed before the results are read, and the
+// nrhs == 0 device solve covers the zero-size early-return path.
+template <typename Scalar>
+void test_svd_device_accessors_wide_nonblocking(Index m, Index n) {
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+
+  eigen_assert(m < n);
+  Mat A = Mat::Random(m, n);
+
+  cudaStream_t stream = nullptr;
+  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
+
+  Mat U_ref, VT_ref;
+  gpu::DeviceMatrix<Scalar> d_U, d_VT, d_X0;
+  {
+    gpu::Context ctx(stream);
+    gpu::SVD<Scalar> svd(ctx, A);
+    VERIFY_IS_EQUAL(svd.info(), Success);
+    U_ref = svd.matrixU();
+    VT_ref = svd.matrixVT();
+    d_U = svd.d_matrixU();
+    d_VT = svd.d_matrixVT();
+
+    gpu::DeviceMatrix<Scalar> d_B(m, 0);
+    d_X0 = svd.solve(d_B);
+    VERIFY_IS_EQUAL(d_X0.rows(), n);
+    VERIFY_IS_EQUAL(d_X0.cols(), 0);
+  }  // SVD and Context destroyed; the owning results remain valid and ordered
+
+  VERIFY_IS_APPROX(d_U.toHost(stream), U_ref);
+  VERIFY_IS_APPROX(d_VT.toHost(stream), VT_ref);
+
+  // Free on the borrowed stream while it is still alive.
+  d_U = gpu::DeviceMatrix<Scalar>();
+  d_VT = gpu::DeviceMatrix<Scalar>();
+  d_X0 = gpu::DeviceMatrix<Scalar>();
+  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream));
+  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamDestroy(stream));
+}
+
 // ---- Chain device views into a downstream cuBLAS GEMM (no D2D copy) ---------
 //
 // d_matrixU() returns a non-owning view over the SVD's internal d_U_ buffer.
@@ -473,6 +519,7 @@ void test_scalar() {
   CALL_SUBTEST(test_svd_device_accessors<Scalar>(64, 64));
   CALL_SUBTEST(test_svd_device_accessors<Scalar>(96, 64));
   CALL_SUBTEST(test_svd_device_accessors<Scalar>(64, 96));
+  CALL_SUBTEST(test_svd_device_accessors_wide_nonblocking<Scalar>(64, 96));
   CALL_SUBTEST(test_svd_device_accessors_full_wide<Scalar>(64, 96));
 
   // Chain device views into a downstream GEMM (orthogonality check).

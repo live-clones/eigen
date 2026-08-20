@@ -87,8 +87,10 @@ void dispatch(Context& ctx, DeviceMatrix<scalar_type_t<Lhs>>& dst, const GemmExp
   Scalar scalars[2] = {alpha_local, beta_val};
   cublaslt_gemm(ctx.cublasLtHandle(), ctx.cublasHandle(), transA, transB, m, n, k, &scalars[0], A.data(), lda, B.data(),
                 ldb, &scalars[1], dst.data(), ldc, ctx.gemmWorkspace(), ctx.gemmPlanCache(),
-                ctx.cublasLtMaxWorkspaceBytes(), ctx.stream());
+                ctx.cublasLtMaxWorkspaceBytes(), ctx.streamHandle());
 
+  A.recordUse(ctx.stream());
+  B.recordUse(ctx.stream());
   dst.recordReady(ctx.stream());
 }
 
@@ -107,6 +109,7 @@ inline void oneshot_check_info(Context& ctx, OneShotSolverScratch& scratch, cons
   EIGEN_CUDA_RUNTIME_CHECK(
       cudaMemcpyAsync(info_words, scratch.d_info.get(), kOneShotInfoBytes, cudaMemcpyDeviceToHost, ctx.stream()));
   EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(ctx.stream()));
+  ctx.markOneShotSolverComplete();
   eigen_assert(info_words[0] == 0 && "cuSOLVER one-shot factorization failed" && what);
   eigen_assert(info_words[1] == 0 && "cuSOLVER one-shot solve failed" && what);
   EIGEN_UNUSED_VARIABLE(what);
@@ -141,7 +144,7 @@ void dispatch(Context& ctx, DeviceMatrix<Scalar>& dst, const LltSolveExpr<Scalar
   {
     const size_t mat_bytes = A.sizeInBytes();
     // Context-owned grow-only scratch: no per-call allocation, no end-of-call sync.
-    ensure_sized(scratch.d_factor, mat_bytes);
+    ensure_sized(scratch.d_factor, mat_bytes, ctx.streamHandle());
     EIGEN_CUDA_RUNTIME_CHECK(
         cudaMemcpyAsync(scratch.d_factor.get(), A.data(), mat_bytes, cudaMemcpyDeviceToDevice, ctx.stream()));
   }
@@ -150,12 +153,14 @@ void dispatch(Context& ctx, DeviceMatrix<Scalar>& dst, const LltSolveExpr<Scalar
   size_t host_ws = 0;
   EIGEN_CUSOLVER_CHECK(cusolverDnXpotrf_bufferSize(ctx.cusolverHandle(), params.p, uplo, n, dtype,
                                                    scratch.d_factor.get(), lda, dtype, &dev_ws, &host_ws));
-  ensure_sized(scratch.d_workspace, dev_ws);
-  if (scratch.h_workspace.size() < host_ws) scratch.h_workspace.resize(host_ws);
+  ensure_sized(scratch.d_workspace, dev_ws, ctx.streamHandle());
+  ensure_host_sized(scratch.h_workspace, host_ws, ctx.stream());
   // Two info slots (potrf, potrs) so both kernels queue back-to-back. If potrf
   // fails, potrs runs on garbage but the debug check catches both at once.
+  ensure_sized(scratch.d_info, kOneShotInfoBytes, ctx.streamHandle());
   int* d_info_potrf = static_cast<int*>(scratch.d_info.get());
   int* d_info_potrs = d_info_potrf + 1;
+  ctx.markOneShotSolverPending();
   EIGEN_CUSOLVER_CHECK(cusolverDnXpotrf(ctx.cusolverHandle(), params.p, uplo, n, dtype, scratch.d_factor.get(), lda,
                                         dtype, scratch.d_workspace.get(), dev_ws,
                                         host_ws > 0 ? scratch.h_workspace.data() : nullptr, host_ws, d_info_potrf));
@@ -168,6 +173,8 @@ void dispatch(Context& ctx, DeviceMatrix<Scalar>& dst, const LltSolveExpr<Scalar
   EIGEN_CUSOLVER_CHECK(cusolverDnXpotrs(ctx.cusolverHandle(), params.p, uplo, n, nrhs, dtype, scratch.d_factor.get(),
                                         lda, dtype, dst.data(), static_cast<int64_t>(dst.rows()), d_info_potrs));
   oneshot_check_info(ctx, scratch, "llt");
+  A.recordUse(ctx.stream());
+  B.recordUse(ctx.stream());
   dst.recordReady(ctx.stream());
 }
 
@@ -198,20 +205,22 @@ void dispatch(Context& ctx, DeviceMatrix<Scalar>& dst, const LuSolveExpr<Scalar>
   {
     const size_t mat_bytes = A.sizeInBytes();
     // Context-owned grow-only scratch: no per-call allocation, no end-of-call sync.
-    ensure_sized(scratch.d_factor, mat_bytes);
+    ensure_sized(scratch.d_factor, mat_bytes, ctx.streamHandle());
     EIGEN_CUDA_RUNTIME_CHECK(
         cudaMemcpyAsync(scratch.d_factor.get(), A.data(), mat_bytes, cudaMemcpyDeviceToDevice, ctx.stream()));
   }
-  ensure_sized(scratch.d_ipiv, static_cast<size_t>(n) * sizeof(int64_t));
+  ensure_sized(scratch.d_ipiv, static_cast<size_t>(n) * sizeof(int64_t), ctx.streamHandle());
   const int64_t lda = static_cast<int64_t>(A.rows());
   size_t dev_ws = 0;
   size_t host_ws = 0;
   EIGEN_CUSOLVER_CHECK(cusolverDnXgetrf_bufferSize(ctx.cusolverHandle(), params.p, n, n, dtype, scratch.d_factor.get(),
                                                    lda, dtype, &dev_ws, &host_ws));
-  ensure_sized(scratch.d_workspace, dev_ws);
-  if (scratch.h_workspace.size() < host_ws) scratch.h_workspace.resize(host_ws);
+  ensure_sized(scratch.d_workspace, dev_ws, ctx.streamHandle());
+  ensure_host_sized(scratch.h_workspace, host_ws, ctx.stream());
+  ensure_sized(scratch.d_info, kOneShotInfoBytes, ctx.streamHandle());
   int* d_info_getrf = static_cast<int*>(scratch.d_info.get());
   int* d_info_getrs = d_info_getrf + 1;
+  ctx.markOneShotSolverPending();
   EIGEN_CUSOLVER_CHECK(cusolverDnXgetrf(ctx.cusolverHandle(), params.p, n, n, dtype, scratch.d_factor.get(), lda,
                                         static_cast<int64_t*>(scratch.d_ipiv.get()), dtype, scratch.d_workspace.get(),
                                         dev_ws, host_ws > 0 ? scratch.h_workspace.data() : nullptr, host_ws,
@@ -226,6 +235,8 @@ void dispatch(Context& ctx, DeviceMatrix<Scalar>& dst, const LuSolveExpr<Scalar>
                                         scratch.d_factor.get(), lda, static_cast<const int64_t*>(scratch.d_ipiv.get()),
                                         dtype, dst.data(), static_cast<int64_t>(dst.rows()), d_info_getrs));
   oneshot_check_info(ctx, scratch, "lu");
+  A.recordUse(ctx.stream());
+  B.recordUse(ctx.stream());
   dst.recordReady(ctx.stream());
 }
 
@@ -262,6 +273,8 @@ void dispatch(Context& ctx, DeviceMatrix<Scalar>& dst, const TrsmExpr<Scalar, Up
   EIGEN_CUBLAS_CHECK(cublasXtrsm(ctx.cublasHandle(), CUBLAS_SIDE_LEFT, uplo, CUBLAS_OP_N, CUBLAS_DIAG_NON_UNIT, n, nrhs,
                                  &alpha, A.data(), A.rows(), dst.data(), dst.rows()));
 
+  A.recordUse(ctx.stream());
+  B.recordUse(ctx.stream());
   dst.recordReady(ctx.stream());
 }
 
@@ -297,6 +310,8 @@ void dispatch(Context& ctx, DeviceMatrix<Scalar>& dst, const SymmExpr<Scalar, Up
   EIGEN_CUBLAS_CHECK(cublasXsymm(ctx.cublasHandle(), CUBLAS_SIDE_LEFT, uplo, m, n, &scalars[0], A.data(), A.rows(),
                                  B.data(), B.rows(), &scalars[1], dst.data(), dst.rows()));
 
+  A.recordUse(ctx.stream());
+  B.recordUse(ctx.stream());
   dst.recordReady(ctx.stream());
 }
 
@@ -331,6 +346,7 @@ void dispatch(Context& ctx, DeviceMatrix<Scalar>& dst, const SyrkExpr<Scalar, Up
   EIGEN_CUBLAS_CHECK(cublasXsyrk(ctx.cublasHandle(), uplo, CUBLAS_OP_N, n, k, &alpha_val, A.data(), A.rows(), &beta_val,
                                  dst.data(), dst.rows()));
 
+  A.recordUse(ctx.stream());
   dst.recordReady(ctx.stream());
 }
 
@@ -356,6 +372,8 @@ void dispatch(Context& ctx, DeviceMatrix<Scalar>& dst, const DeviceAddExpr<Scala
     Scalar scalars[2] = {expr.alpha(), expr.beta()};
     EIGEN_CUBLAS_CHECK(cublasXgeam(ctx.cublasHandle(), CUBLAS_OP_N, CUBLAS_OP_N, m, n, &scalars[0], A.data(), m,
                                    &scalars[1], B.data(), m, dst.data(), m));
+    A.recordUse(ctx.stream());
+    B.recordUse(ctx.stream());
     dst.recordReady(ctx.stream());
   }
 }
@@ -570,17 +588,20 @@ DeviceScalar<typename DeviceMatrix<Scalar_>::Scalar> DeviceMatrix<Scalar_>::dot(
   eigen_assert(n == internal::blas1_size(other.rows_, other.cols_));
   if (n > 0) {
     // Allocated uninitialized: cublasXdot overwrites the slot, so uploading a
-    // zero first would be a wasted H2D transfer per reduction.
-    DeviceScalar<Scalar> result(ctx.stream());
+    // zero first would be a wasted H2D transfer per reduction. The shared
+    // stream handle lets the result outlive the context that produced it.
+    DeviceScalar<Scalar> result(ctx.streamHandle());
     waitReady(ctx.stream());
     other.waitReady(ctx.stream());
     internal::with_device_pointer_mode(ctx.cublasHandle(), [&] {
       EIGEN_CUBLAS_CHECK(
           internal::cublasXdot(ctx.cublasHandle(), n, data_.get(), 1, other.data_.get(), 1, result.devicePtr()));
     });
+    recordUse(ctx.stream());
+    other.recordUse(ctx.stream());
     return result;
   }
-  return DeviceScalar<Scalar>(Scalar(0), ctx.stream());
+  return DeviceScalar<Scalar>(Scalar(0), ctx.streamHandle());
 }
 
 namespace internal {
@@ -588,13 +609,13 @@ namespace internal {
 // suffices and nothing syncs.
 template <typename Scalar, typename RealScalar>
 std::enable_if_t<std::is_same<Scalar, RealScalar>::value, DeviceScalar<RealScalar>> squaredNorm_from_dot(
-    DeviceScalar<Scalar>&& d, cudaStream_t) {
+    DeviceScalar<Scalar>&& d, const CudaStreamHandle&) {
   return std::move(d);
 }
 // Complex must sync to extract the real part: DeviceScalar arithmetic is real-only.
 template <typename Scalar, typename RealScalar>
 std::enable_if_t<!std::is_same<Scalar, RealScalar>::value, DeviceScalar<RealScalar>> squaredNorm_from_dot(
-    DeviceScalar<Scalar>&& d, cudaStream_t stream) {
+    DeviceScalar<Scalar>&& d, const CudaStreamHandle& stream) {
   return DeviceScalar<RealScalar>(numext::real(Scalar(d)), stream);
 }
 }  // namespace internal
@@ -605,7 +626,7 @@ DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::squaredNo
   // runs a scaled sum of squares whose overflow protection convergence checks do
   // not need.
   using RealScalar = typename NumTraits<Scalar_>::Real;
-  return internal::squaredNorm_from_dot<Scalar_, RealScalar>(dot(ctx, *this), ctx.stream());
+  return internal::squaredNorm_from_dot<Scalar_, RealScalar>(dot(ctx, *this), ctx.streamHandle());
 }
 
 template <typename Scalar_>
@@ -614,14 +635,15 @@ DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::norm(Cont
   const int64_t n = internal::blas1_size(rows_, cols_);
   if (n > 0) {
     // See dot(): uninitialized on purpose, cublasXnrm2 overwrites the slot.
-    DeviceScalar<RealScalar> result(ctx.stream());
+    DeviceScalar<RealScalar> result(ctx.streamHandle());
     waitReady(ctx.stream());
     internal::with_device_pointer_mode(ctx.cublasHandle(), [&] {
       EIGEN_CUBLAS_CHECK(internal::cublasXnrm2(ctx.cublasHandle(), n, data_.get(), 1, result.devicePtr()));
     });
+    recordUse(ctx.stream());
     return result;
   }
-  return DeviceScalar<RealScalar>(RealScalar(0), ctx.stream());
+  return DeviceScalar<RealScalar>(RealScalar(0), ctx.streamHandle());
 }
 
 template <typename Scalar_>
@@ -646,6 +668,7 @@ void DeviceMatrix<Scalar_>::addScaled(Context& ctx, Scalar alpha, const DeviceMa
     waitReady(ctx.stream());
     x.waitReady(ctx.stream());
     EIGEN_CUBLAS_CHECK(internal::cublasXaxpy(ctx.cublasHandle(), n, &alpha, x.data_.get(), 1, data_.get(), 1));
+    x.recordUse(ctx.stream());
     recordReady(ctx.stream());
   }
 }
@@ -670,6 +693,7 @@ void DeviceMatrix<Scalar_>::copyFrom(Context& ctx, const DeviceMatrix& other) {
   if (n > 0) {
     other.waitReady(ctx.stream());
     EIGEN_CUBLAS_CHECK(internal::cublasXcopy(ctx.cublasHandle(), n, other.data_.get(), 1, data_.get(), 1));
+    other.recordUse(ctx.stream());
     recordReady(ctx.stream());
   }
 }
@@ -740,6 +764,7 @@ DeviceMatrix<Scalar_>& DeviceMatrix<Scalar_>::operator+=(const DeviceScaledDevic
       EIGEN_CUBLAS_CHECK(
           internal::cublasXaxpy(ctx.cublasHandle(), n, expr.alpha().devicePtr(), x.data_.get(), 1, data_.get(), 1));
     });
+    x.recordUse(ctx.stream());
     recordReady(ctx.stream());
   }
   return *this;
@@ -770,6 +795,8 @@ DeviceMatrix<Scalar_> DeviceMatrix<Scalar_>::cwiseProduct(Context& ctx, const De
     waitReady(ctx.stream());
     other.waitReady(ctx.stream());
     internal::device_cwiseProduct(data_.get(), other.data_.get(), result.data_.get(), n, ctx.stream());
+    recordUse(ctx.stream());
+    other.recordUse(ctx.stream());
     result.recordReady(ctx.stream());
   }
   return result;
@@ -786,6 +813,8 @@ void DeviceMatrix<Scalar_>::cwiseProduct(Context& ctx, const DeviceMatrix& a, co
     a.waitReady(ctx.stream());
     b.waitReady(ctx.stream());
     internal::device_cwiseProduct(a.data_.get(), b.data_.get(), data_.get(), n, ctx.stream());
+    a.recordUse(ctx.stream());
+    b.recordUse(ctx.stream());
     recordReady(ctx.stream());
   }
 }

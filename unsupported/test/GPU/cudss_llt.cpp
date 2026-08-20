@@ -234,6 +234,84 @@ void test_default_stream_context() {
   VERIFY_IS_EQUAL(llt.stream(), static_cast<cudaStream_t>(nullptr));
 }
 
+// Reanalysis with an empty matrix must drain previously queued cuDSS work
+// before replacing descriptor state and disabling destructor synchronization.
+void test_empty_reanalysis_drains_pending_work() {
+  using SpMat = SparseMatrix<float, ColMajor, int>;
+  SpMat A = make_spd<float>(64);
+  gpu::SparseLLT<float> llt;
+  llt.compute(A);
+
+  gpu_test::StreamGate gate;
+  EIGEN_CUDA_RUNTIME_CHECK(cudaLaunchHostFunc(llt.stream(), gpu_test::wait_for_stream_gate, &gate));
+
+  std::atomic<bool> started{false};
+  std::atomic<bool> finished{false};
+  SpMat empty(0, 0);
+  std::thread reanalyze([&] {
+    started.store(true, std::memory_order_release);
+    llt.compute(empty);
+    finished.store(true, std::memory_order_release);
+  });
+  while (!started.load(std::memory_order_acquire)) std::this_thread::yield();
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  const bool finished_while_gated = finished.load(std::memory_order_acquire);
+
+  gate.open.store(true, std::memory_order_release);
+  reanalyze.join();
+  VERIFY(!finished_while_gated);
+  VERIFY_IS_EQUAL(llt.info(), Success);
+}
+
+// ---- Borrowed non-blocking stream + destroy with work in flight -------------
+
+// A borrowed cudaStreamNonBlocking stream has no implicit ordering with the
+// legacy default stream, so this exercises two guarantees at once: the
+// device-resident solve result must be allocated, written, and freed on the
+// solver stream, and destroying the solver while the solve is still queued
+// (held back by a host-function gate) must drain the stream before
+// cudssDestroy releases cuDSS's internal buffers.
+template <typename Scalar>
+void test_device_solve_nonblocking_destroy_in_flight(Index n) {
+  using SpMat = SparseMatrix<Scalar, ColMajor, int>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  SpMat A = make_spd<Scalar>(n);
+  Mat B = Mat::Random(n, 3);
+
+  cudaStream_t stream = nullptr;
+  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
+
+  gpu_test::StreamGate gate;
+  std::unique_ptr<gpu_test::StreamGateOpener> opener;
+  gpu::DeviceMatrix<Scalar> d_X;
+  {
+    gpu::Context gctx(stream);
+    gpu::SparseLLT<Scalar> llt(gctx, A);
+    VERIFY(llt.info() == Success);  // synchronizes: factorization retired
+
+    auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B, gctx.stream());
+
+    // Gate the stream, enqueue the solve behind it, and leave the scope with
+    // that work still pending: ~SparseSolverBase must drain the stream before
+    // the cuDSS teardown. The opener thread guarantees the drain terminates.
+    EIGEN_CUDA_RUNTIME_CHECK(cudaLaunchHostFunc(gctx.stream(), gpu_test::wait_for_stream_gate, &gate));
+    d_X = llt.solve(d_B);
+    opener.reset(new gpu_test::StreamGateOpener(gate, /*delay_ms=*/50));
+  }
+  opener.reset();
+
+  // Solver and Context are gone; the result lives on and is complete.
+  Mat X = d_X.toHost(stream);
+  RealScalar tol = RealScalar(100) * RealScalar(n) * NumTraits<Scalar>::epsilon();
+  VERIFY((A * X - B).norm() / B.norm() < tol);
+
+  d_X = gpu::DeviceMatrix<Scalar>();  // free on the borrowed stream while it is still alive
+  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream));
+  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamDestroy(stream));
+}
+
 EIGEN_DECLARE_TEST(gpu_cudss_llt) {
   gpu_test::require_cudss_context();
   // Split by scalar so each part compiles in parallel.
@@ -248,4 +326,7 @@ EIGEN_DECLARE_TEST(gpu_cudss_llt) {
   CALL_SUBTEST_5(test_device_solve_context<float>(64));
   CALL_SUBTEST_5(test_device_solve_context<double>(64));
   CALL_SUBTEST_5(test_default_stream_context());
+  CALL_SUBTEST_5(test_empty_reanalysis_drains_pending_work());
+  CALL_SUBTEST_5(test_device_solve_nonblocking_destroy_in_flight<float>(64));
+  CALL_SUBTEST_5(test_device_solve_nonblocking_destroy_in_flight<double>(64));
 }

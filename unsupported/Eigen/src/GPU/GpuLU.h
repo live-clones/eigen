@@ -121,19 +121,24 @@ class LU {
     allocate_lu_storage();
     EIGEN_CUDA_RUNTIME_CHECK(
         cudaMemcpyAsync(d_lu_.get(), d_A.data(), matrixBytes(), cudaMemcpyDeviceToDevice, solver_ctx_.stream()));
+    d_A.recordUse(solver_ctx_.stream());
 
     factorize();
     return *this;
   }
 
-  /** Compute the LU factorization from a device matrix (move, no copy). */
+  /** Compute the LU factorization from a device matrix (move, no copy).
+   * Non-owning views cannot be adopted — getrf would overwrite the owner's
+   * storage and the buffer would be freed twice — so they take the copying
+   * overload instead. */
   LU& compute(DeviceMatrix<Scalar>&& d_A) {
+    if (!d_A.ownsStorage()) return compute(d_A);
     eigen_assert(d_A.rows() == d_A.cols() && "LU requires a square matrix");
     if (!begin_compute(d_A.rows())) return *this;
 
     lda_ = static_cast<int64_t>(d_A.rows());
     d_A.waitReady(solver_ctx_.stream());
-    d_lu_ = internal::DeviceBuffer::adopt(static_cast<void*>(d_A.release()), matrixBytes());
+    d_lu_ = internal::DeviceBuffer::adopt(static_cast<void*>(d_A.release()), matrixBytes(), solver_ctx_.streamHandle());
 
     factorize();
     return *this;
@@ -155,7 +160,7 @@ class LU {
     const Ref<const PlainMatrix> rhs(B.derived());
     const int64_t nrhs = static_cast<int64_t>(rhs.cols());
     const int64_t ldb = static_cast<int64_t>(rhs.rows());
-    internal::DeviceBuffer d_x(matrixBytes(nrhs, ldb));
+    internal::DeviceBuffer d_x(matrixBytes(nrhs, ldb), solver_ctx_.streamHandle());
     EIGEN_CUDA_RUNTIME_CHECK(
         cudaMemcpyAsync(d_x.get(), rhs.data(), matrixBytes(nrhs, ldb), cudaMemcpyHostToDevice, solver_ctx_.stream()));
     DeviceMatrix<Scalar> d_X = solve_impl(nrhs, ldb, op, std::move(d_x));
@@ -183,22 +188,25 @@ class LU {
     d_B.waitReady(solver_ctx_.stream());
     const int64_t nrhs = static_cast<int64_t>(d_B.cols());
     const int64_t ldb = static_cast<int64_t>(d_B.rows());
-    internal::DeviceBuffer d_x(matrixBytes(nrhs, ldb));
+    internal::DeviceBuffer d_x(matrixBytes(nrhs, ldb), solver_ctx_.streamHandle());
     EIGEN_CUDA_RUNTIME_CHECK(
         cudaMemcpyAsync(d_x.get(), d_B.data(), matrixBytes(nrhs, ldb), cudaMemcpyDeviceToDevice, solver_ctx_.stream()));
+    d_B.recordUse(solver_ctx_.stream());
     return solve_impl(nrhs, ldb, op, std::move(d_x));
   }
 
   /** Solve in place: consumes \p d_B and returns it holding the solution —
-   * no RHS copy and no allocation (getrs overwrites its RHS). */
+   * no RHS copy and no allocation (getrs overwrites its RHS). Non-owning
+   * views are not consumed; they take the copying overload. */
   DeviceMatrix<Scalar> solve(DeviceMatrix<Scalar>&& d_B, GpuOp op = GpuOp::NoTrans) const {
+    if (!d_B.ownsStorage()) return solve(d_B, op);
     eigen_assert(solver_ctx_.info() == Success && "LU::solve called on a failed or uninitialized factorization");
     eigen_assert(d_B.rows() == n_);
     d_B.waitReady(solver_ctx_.stream());
     const int64_t nrhs = static_cast<int64_t>(d_B.cols());
     const int64_t ldb = static_cast<int64_t>(d_B.rows());
-    internal::DeviceBuffer d_x =
-        internal::DeviceBuffer::adopt(static_cast<void*>(d_B.release()), matrixBytes(nrhs, ldb));
+    internal::DeviceBuffer d_x = internal::DeviceBuffer::adopt(static_cast<void*>(d_B.release()),
+                                                               matrixBytes(nrhs, ldb), solver_ctx_.streamHandle());
     return solve_impl(nrhs, ldb, op, std::move(d_x));
   }
 
@@ -225,7 +233,7 @@ class LU {
     return static_cast<size_t>(ld) * static_cast<size_t>(cols) * sizeof(Scalar);
   }
 
-  void allocate_lu_storage() { internal::ensure_sized(d_lu_, matrixBytes()); }
+  void allocate_lu_storage() { internal::ensure_sized(d_lu_, matrixBytes(), solver_ctx_.streamHandle()); }
 
   // Solve in place on `d_x` (which already holds B), then re-wrap as a typed
   // DeviceMatrix carrying shape and a ready event. The release/adopt hop hands
@@ -239,8 +247,8 @@ class LU {
                                           d_lu_.get(), lda_, static_cast<const int64_t*>(d_ipiv_.get()), dtype,
                                           d_x.get(), ldb, solver_ctx_.scratch_info()));
 
-    DeviceMatrix<Scalar> result =
-        DeviceMatrix<Scalar>::adopt(static_cast<Scalar*>(d_x.release()), n_, static_cast<Index>(nrhs));
+    DeviceMatrix<Scalar> result = DeviceMatrix<Scalar>::adopt(static_cast<Scalar*>(d_x.release()), n_,
+                                                              static_cast<Index>(nrhs), solver_ctx_.streamHandle());
     result.recordReady(solver_ctx_.stream());
     return result;
   }
@@ -251,14 +259,14 @@ class LU {
 
     solver_ctx_.mark_pending();
 
-    internal::ensure_sized(d_ipiv_, ipiv_bytes);
+    internal::ensure_sized(d_ipiv_, ipiv_bytes, solver_ctx_.streamHandle());
 
     size_t dev_ws_bytes = 0, host_ws_bytes = 0;
     EIGEN_CUSOLVER_CHECK(cusolverDnXgetrf_bufferSize(solver_ctx_.cusolverHandle(), solver_ctx_.params_.p, n_, n_, dtype,
                                                      d_lu_.get(), lda_, dtype, &dev_ws_bytes, &host_ws_bytes));
 
     solver_ctx_.ensure_scratch(dev_ws_bytes);
-    solver_ctx_.h_workspace_.resize(host_ws_bytes);
+    solver_ctx_.ensure_host_workspace(host_ws_bytes);
 
     EIGEN_CUSOLVER_CHECK(cusolverDnXgetrf(
         solver_ctx_.cusolverHandle(), solver_ctx_.params_.p, n_, n_, dtype, d_lu_.get(), lda_,

@@ -107,21 +107,25 @@ class SelfAdjointEigenSolver {
     if (!begin_compute(d_A, options)) return *this;
 
     const size_t mat_bytes = static_cast<size_t>(lda_) * static_cast<size_t>(n_) * sizeof(Scalar);
-    internal::ensure_sized(d_A_, mat_bytes);
+    internal::ensure_sized(d_A_, mat_bytes, solver_ctx_.streamHandle());
     EIGEN_CUDA_RUNTIME_CHECK(
         cudaMemcpyAsync(d_A_.get(), d_A.data(), mat_bytes, cudaMemcpyDeviceToDevice, solver_ctx_.stream()));
+    d_A.recordUse(solver_ctx_.stream());
 
     factorize();
     return *this;
   }
 
   /** Decompose a device matrix (move): the buffer is adopted and overwritten
-   * in place by syevd — no copy. */
+   * in place by syevd — no copy. Non-owning views cannot be adopted (their
+   * storage belongs to someone else); they take the copying overload. */
   SelfAdjointEigenSolver& compute(DeviceMatrix<Scalar>&& d_A, int options = ComputeEigenvectors) {
+    if (!d_A.ownsStorage()) return compute(d_A, options);
     if (!begin_compute(d_A, options)) return *this;
 
     d_A_ = internal::DeviceBuffer::adopt(static_cast<void*>(d_A.release()),
-                                         static_cast<size_t>(lda_) * static_cast<size_t>(n_) * sizeof(Scalar));
+                                         static_cast<size_t>(lda_) * static_cast<size_t>(n_) * sizeof(Scalar),
+                                         solver_ctx_.streamHandle());
 
     factorize();
     return *this;
@@ -216,7 +220,7 @@ class SelfAdjointEigenSolver {
 
     solver_ctx_.mark_pending();
 
-    internal::ensure_sized(d_W_, static_cast<size_t>(n_) * sizeof(RealScalar));
+    internal::ensure_sized(d_W_, static_cast<size_t>(n_) * sizeof(RealScalar), solver_ctx_.streamHandle());
 
     const cusolverEigMode_t jobz = compute_eigenvectors_ ? CUSOLVER_EIG_MODE_VECTOR : CUSOLVER_EIG_MODE_NOVECTOR;
 
@@ -228,7 +232,7 @@ class SelfAdjointEigenSolver {
                                                      &host_ws));
 
     solver_ctx_.ensure_scratch(dev_ws);
-    solver_ctx_.h_workspace_.resize(host_ws);
+    solver_ctx_.ensure_host_workspace(host_ws);
 
     EIGEN_CUSOLVER_CHECK(cusolverDnXsyevd(solver_ctx_.cusolverHandle(), solver_ctx_.params_.p, jobz, uplo, n_, dtype,
                                           d_A_.get(), lda_, rtype, d_W_.get(), dtype, solver_ctx_.scratch_workspace(),

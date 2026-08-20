@@ -17,6 +17,7 @@
 //   FromHost / FromHostAsync    — extra host-side PlainMatrix copy in fromHost()
 //   GemmFreshDst / PreallocDst  — cudaMalloc/cudaFree per GEMM temporary
 //   DotDeviceScalar / DotRaw    — DeviceScalar wrapper cost per reduction
+//   DotDeviceScalarTwoContexts  — independent-stream overlap across contexts
 //   OneShotLltExpr / CachedLlt / RawPotrs — expression-solve sync + allocs
 //   CudaMalloc / CudaMallocAsync — stream-ordered allocation as a remedy
 //
@@ -144,6 +145,26 @@ static void BM_DotDeviceScalar(benchmark::State& state) {
   }
 }
 BENCHMARK(BM_DotDeviceScalar)->Arg(1 << 12)->Arg(1 << 20);
+
+static void BM_DotDeviceScalarTwoContexts(benchmark::State& state) {
+  const Index n = state.range(0);
+  gpu::Context first_ctx;
+  gpu::Context second_ctx;
+  DeviceMatrix first_x = DeviceMatrix::fromHost(HostMatrix::Random(n, 1), first_ctx.stream());
+  DeviceMatrix first_y = DeviceMatrix::fromHost(HostMatrix::Random(n, 1), first_ctx.stream());
+  DeviceMatrix second_x = DeviceMatrix::fromHost(HostMatrix::Random(n, 1), second_ctx.stream());
+  DeviceMatrix second_y = DeviceMatrix::fromHost(HostMatrix::Random(n, 1), second_ctx.stream());
+  for (auto _ : state) {
+    gpu::DeviceScalar<Scalar> first_result = first_x.dot(first_ctx, first_y);
+    gpu::DeviceScalar<Scalar> second_result = second_x.dot(second_ctx, second_y);
+    benchmark::DoNotOptimize(first_result.devicePtr());
+    benchmark::DoNotOptimize(second_result.devicePtr());
+    syncStream(first_ctx.stream());
+    syncStream(second_ctx.stream());
+  }
+  state.SetItemsProcessed(2 * state.iterations());
+}
+BENCHMARK(BM_DotDeviceScalarTwoContexts)->Arg(1 << 12)->Arg(1 << 20)->Arg(1 << 24);
 
 static void BM_DotRawCublas(benchmark::State& state) {
   const Index n = state.range(0);

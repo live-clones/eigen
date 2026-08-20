@@ -182,6 +182,54 @@ void test_qr_solve_underdetermined_device(Index m, Index n, Index nrhs) {
   VERIFY((A * X - B).norm() / (A.norm() * X.norm() + B.norm()) < tol);
 }
 
+// ---- Device solve on a borrowed non-blocking stream --------------------------
+
+// A borrowed cudaStreamNonBlocking stream has no implicit ordering with the
+// legacy default stream, so a device-solve result that was not allocated,
+// written, and freed on the solver stream would race. The tall (m > n) case
+// covers the top-block-copy result branch, the wide (m < n) case the adopting
+// branch; destroying the QR (and Context) before reading the result verifies
+// the result's lifetime is independent of the solver's.
+template <typename Scalar>
+void test_qr_solve_device_nonblocking(Index m, Index n, Index nrhs) {
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  Mat A = Mat::Random(m, n);
+  Mat B = Mat::Random(m, nrhs);
+
+  cudaStream_t stream = nullptr;
+  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
+
+  gpu::DeviceMatrix<Scalar> d_X;
+  {
+    gpu::Context ctx(stream);
+    gpu::QR<Scalar> qr(ctx, A);
+    VERIFY_IS_EQUAL(qr.info(), Success);
+    auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B, ctx.stream());
+    d_X = qr.solve(d_B);
+  }  // QR and Context destroyed; the result must remain valid and ordered
+
+  VERIFY_IS_EQUAL(d_X.rows(), n);
+  VERIFY_IS_EQUAL(d_X.cols(), nrhs);
+  Mat X = d_X.toHost(stream);
+
+  RealScalar A_norm = A.norm();
+  if (m >= n) {
+    // Least squares: backward error is bounded on the gradient A^H r.
+    RealScalar tol = RealScalar(10) * RealScalar(m) * NumTraits<Scalar>::epsilon();
+    VERIFY((A.adjoint() * (A * X - B)).norm() / (A_norm * (A_norm * X.norm() + B.norm())) < tol);
+  } else {
+    // Minimum norm: A X = B is exactly satisfiable.
+    RealScalar tol = RealScalar(20) * RealScalar(n) * NumTraits<Scalar>::epsilon();
+    VERIFY((A * X - B).norm() / (A_norm * X.norm() + B.norm()) < tol);
+  }
+
+  d_X = gpu::DeviceMatrix<Scalar>();  // free on the borrowed stream while it is still alive
+  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream));
+  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamDestroy(stream));
+}
+
 // ---- matrixR() returns the upper-triangular factor --------------------------
 
 template <typename Scalar>
@@ -287,6 +335,8 @@ void test_scalar() {
 
   CALL_SUBTEST(test_qr_solve_device<Scalar>(64, 4));
   CALL_SUBTEST(test_qr_solve_overdetermined_device<Scalar>(128, 64, 4));
+  CALL_SUBTEST(test_qr_solve_device_nonblocking<Scalar>(128, 64, 4));
+  CALL_SUBTEST(test_qr_solve_device_nonblocking<Scalar>(64, 128, 4));
   CALL_SUBTEST(test_qr_multiple_solves<Scalar>(64));
   CALL_SUBTEST(test_qr_vs_cpu<Scalar>(64, 4));
   CALL_SUBTEST(test_qr_vs_cpu<Scalar>(256, 8));
