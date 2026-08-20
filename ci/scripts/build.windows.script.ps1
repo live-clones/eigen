@@ -113,9 +113,77 @@ cmake -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel `
       -DEIGEN_TEST_CUSTOM_CXX_FLAGS="${EIGEN_CI_TEST_CUSTOM_CXX_FLAGS}" `
       ${launchers} ${split_args} "${rootdir}"
 
-$target = ""
-if (${EIGEN_CI_BUILD_TARGET}) {
-  $target = "--target ${EIGEN_CI_BUILD_TARGET}"
+# The affected-tests tier (see scripts/affected_tests.py) passes its selection
+# as a file rather than a variable so the list is not bounded by CI variable
+# limits.  The file holds "NONE" or one target per line; the full-suite form is
+# "buildtests" plus the targets it does not aggregate, and so takes the same
+# path as any other list.
+# Targets that this configuration did not register (optional dependencies such
+# as CHOLMOD or CUDA) are dropped here: ninja aborts on an unknown target, and
+# this is the first point that knows what CMake actually configured.
+$selected_targets = @()
+if (${EIGEN_CI_BUILD_TARGET_FILE}) {
+  $target_file = ${EIGEN_CI_BUILD_TARGET_FILE}
+  if (-Not [System.IO.Path]::IsPathRooted($target_file)) {
+    $target_file = Join-Path ${rootdir} $target_file
+  }
+  # Fail loudly rather than falling through to the default target: a missing
+  # selection would otherwise silently build the entire test suite.
+  if (-Not (Test-Path $target_file)) {
+    Write-Error ("EIGEN_CI_BUILD_TARGET_FILE=${EIGEN_CI_BUILD_TARGET_FILE} does not exist. " +
+                 "The select:tests artifact is missing; refusing to guess a build target.")
+    cd ${rootdir}
+    Exit 1
+  }
+  $requested = @(Get-Content $target_file | ForEach-Object { $_.Trim() } |
+                 Where-Object { $_ } | Sort-Object -Unique)
+  if ($requested -contains "NONE") {
+    Write-Host "No tests are affected by this merge request; nothing to build."
+    cd ${rootdir}
+    Exit 0
+  }
+  # Not redirected with 2>: the runner sets $ErrorActionPreference to Stop, and
+  # redirecting a native command's stderr promotes each line it writes to a
+  # terminating error, which would abort the job ahead of the report below.
+  $configured = @{}
+  try {
+    foreach ($line in (ninja -t targets all)) {
+      if ($line -match '^([A-Za-z_0-9]+): phony$') { $configured[$Matches[1]] = $true }
+    }
+  } catch {
+    Write-Warning "Enumerating configured targets failed: $_"
+  }
+  # An empty query means ninja is unusable, not that nothing is configured.
+  # Without this the intersection below would be empty and the job would
+  # trivially "succeed" having built nothing.
+  if ($configured.Count -eq 0) {
+    Write-Error "Could not enumerate configured targets via 'ninja -t targets'."
+    cd ${rootdir}
+    Exit 1
+  }
+  $selected_targets = @($requested | Where-Object { $configured.ContainsKey($_) })
+  $unconfigured = @($requested | Where-Object { -Not $configured.ContainsKey($_) })
+  Write-Host ("Affected selection: {0} of {1} requested targets are configured here." -f
+              $selected_targets.Count, $requested.Count)
+  if ($unconfigured.Count -gt 0) {
+    Write-Host ("Not configured in this build: " + ($unconfigured -join " "))
+  }
+  if ($selected_targets.Count -eq 0) {
+    Write-Host "None of the affected tests exist in this configuration; nothing to build."
+    cd ${rootdir}
+    Exit 0
+  }
+}
+
+# Built as an array, not a string: PowerShell hands a single string containing
+# spaces to a native command as one argument, which cmake rejects as an unknown
+# target name.  An affected selection is always a list, and the SME-style
+# multi-target EIGEN_CI_BUILD_TARGET is one too.
+$target = @()
+if ($selected_targets.Count -gt 0) {
+  $target = @("--target") + $selected_targets
+} elseif (${EIGEN_CI_BUILD_TARGET}) {
+  $target = @("--target") + @(${EIGEN_CI_BUILD_TARGET} -split '\s+' | Where-Object { $_ })
 }
 
 # Windows builds sometimes fail due heap errors. In that case, try
