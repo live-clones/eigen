@@ -85,3 +85,18 @@ test:windows:x86-64:msvc-14.29:avx512dq:unsupported:
 test:windows:x86-64:cuda-12.2:msvc-14.29:
   extends: .test:windows:cuda
   needs: [ build:windows:x86-64:cuda-12.2:msvc-14.29 ]
+
+##### MR Affected Tests ########################################################
+# Paired with the affected Windows build job.  No CTest label is set: the regex
+# from select:tests is the only filter, so a selection spanning Official and
+# Unsupported tests runs in one job rather than the two the labelled jobs above
+# need.
+
+.affected:test:windows:
+  variables:
+    EIGEN_CI_CTEST_REGEX_FILE: affected/ctest_regex.txt
+
+test:windows:x86-64:msvc-14.29:default:affected:
+  extends: [ .test:windows, .affected:test:windows ]
+  needs: [ build:windows:x86-64:msvc-14.29:default:affected, select:tests ]
+  rules: !reference [.rules:libeigen:affected-tests:windows, rules]

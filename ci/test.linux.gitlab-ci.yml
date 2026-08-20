@@ -679,8 +679,7 @@ test:linux:riscv64:clang-21:default:smoketest:
   variables:
     EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_CTEST_LABEL: smoketest
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  rules: !reference [.rules:libeigen:smoketest, rules]
 
 test:linux:riscv64:gcc-15:default:smoketest:
   extends: .test:linux:riscv64:gcc-15:default
@@ -689,8 +688,7 @@ test:linux:riscv64:gcc-15:default:smoketest:
   variables:
     EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_CTEST_LABEL: smoketest
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  rules: !reference [.rules:libeigen:smoketest, rules]
 
 ##### MR Smoke Tests ###########################################################
 
@@ -701,8 +699,7 @@ test:linux:x86-64:gcc-10:default:smoketest:
   variables:
     EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_CTEST_LABEL: smoketest
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  rules: !reference [.rules:libeigen:smoketest, rules]
   tags:
     - saas-linux-medium-amd64
 
@@ -713,8 +710,7 @@ test:linux:x86-64:clang-14:default:smoketest:
   variables:
     EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_CTEST_LABEL: smoketest
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  rules: !reference [.rules:libeigen:smoketest, rules]
   tags:
     - saas-linux-medium-amd64
 
@@ -725,8 +721,7 @@ test:linux:aarch64:gcc-10:default:smoketest:
   variables:
     EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_CTEST_LABEL: smoketest
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  rules: !reference [.rules:libeigen:smoketest, rules]
   tags:
     - saas-linux-small-arm64
 
@@ -737,8 +732,7 @@ test:linux:aarch64:clang-14:default:smoketest:
   variables:
     EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_CTEST_LABEL: smoketest
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  rules: !reference [.rules:libeigen:smoketest, rules]
   tags:
     - saas-linux-small-arm64
 
@@ -819,12 +813,22 @@ test:linux:x86-64:gcc-10:avx2:affected:
   needs: [ build:linux:cross:x86-64:gcc-10:avx2:affected, select:tests ]
   rules: !reference [.rules:libeigen:affected-tests, rules]
 
+test:linux:x86-64:clang-14:default:affected:
+  extends: [ .test:linux:x86-64:clang-14:default, .affected:test ]
+  needs: [ build:linux:cross:x86-64:clang-14:default:affected, select:tests ]
+  rules: !reference [.rules:libeigen:affected-tests, rules]
+
 test:linux:aarch64:gcc-10:default:affected:
   extends: [ .test:linux:aarch64:gcc-10:default, .affected:test ]
   needs: [ build:linux:cross:aarch64:gcc-10:default:affected, select:tests ]
   rules: !reference [.rules:libeigen:affected-tests, rules]
 
-##### Backend-triggered ########################################################
+test:linux:aarch64:clang-14:default:affected:
+  extends: [ .test:linux:aarch64:clang-14:default, .affected:test ]
+  needs: [ build:linux:cross:aarch64:clang-14:default:affected, select:tests ]
+  rules: !reference [.rules:libeigen:affected-tests, rules]
+
+##### Platform-triggered #######################################################
 
 test:linux:x86-64:gcc-10:default:affected:
   extends: [ .test:linux:x86-64:gcc-10:default, .affected:test ]

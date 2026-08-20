@@ -619,8 +619,7 @@ build:linux:riscv64:gcc-15:default:smoketest:
   extends: build:linux:riscv64:gcc-15:default
   variables:
     EIGEN_CI_BUILD_TARGET: buildsmoketests
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  rules: !reference [.rules:libeigen:smoketest, rules]
   tags:
     - saas-linux-large-amd64
 
@@ -628,8 +627,7 @@ build:linux:riscv64:clang-21:default:smoketest:
   extends: build:linux:riscv64:clang-21:default
   variables:
     EIGEN_CI_BUILD_TARGET: buildsmoketests
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  rules: !reference [.rules:libeigen:smoketest, rules]
   tags:
     - saas-linux-large-amd64
 
@@ -643,8 +641,7 @@ build:linux:cross:x86-64:gcc-10:default:smoketest:
   variables:
     EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_BUILD_TARGET: buildsmoketests
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  rules: !reference [.rules:libeigen:smoketest, rules]
   tags:
     - saas-linux-large-amd64
 
@@ -654,8 +651,7 @@ build:linux:cross:x86-64:clang-14:default:smoketest:
   variables:
     EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_BUILD_TARGET: buildsmoketests
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  rules: !reference [.rules:libeigen:smoketest, rules]
   tags:
     - saas-linux-large-amd64
 
@@ -665,8 +661,7 @@ build:linux:aarch64:gcc-10:default:smoketest:
   variables:
     EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_BUILD_TARGET: buildsmoketests
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  rules: !reference [.rules:libeigen:smoketest, rules]
   tags:
     - saas-linux-large-amd64
 
@@ -676,8 +671,7 @@ build:linux:aarch64:clang-14:default:smoketest:
   variables:
     EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_BUILD_TARGET: buildsmoketests
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  rules: !reference [.rules:libeigen:smoketest, rules]
   tags:
     - saas-linux-large-amd64
 
@@ -686,12 +680,18 @@ build:linux:aarch64:clang-14:default:smoketest:
 # can reach.  The target list comes from the select:tests job; see
 # scripts/affected_tests.py.
 #
-# Two jobs always run under the label and give generic coverage.  The rest are
-# gated on the backend they compile, so a backend change also builds on the ISA
-# it targets -- coverage the default smoke matrix has no job for at all, since
-# every smoke build is at baseline ISA.  The trigger rules are shared with the
-# paired test jobs; see .rules:libeigen:affected-tests:* in
-# ci/common.gitlab-ci.yml.
+# Four jobs always run under the label and give generic coverage.  The rest are
+# gated on the platform they target, either because the diff touches that
+# backend or because a label asks for it outright -- coverage the default smoke
+# matrix has no job for at all, since every smoke build is at baseline ISA.  The
+# trigger rules are shared with the paired test jobs; see
+# .rules:libeigen:affected-tests:* in ci/common.gitlab-ci.yml.
+#
+# The label also suppresses the smoke jobs (.rules:libeigen:smoketest), so the
+# unconditional set covers the same compilers smoke does on the native runners:
+# gcc-10 and clang-14, on x86-64 and aarch64.  Only riscv64 is not reproduced
+# here, because its native runner is a single scarce machine; `backend::RVV` or
+# `all-platforms` brings it back.
 
 .affected:build:
   needs: [ select:tests ]
@@ -704,11 +704,19 @@ build:linux:cross:x86-64:gcc-10:avx2:affected:
   extends: [ build:linux:cross:x86-64:gcc-10:avx2, .affected:build ]
   rules: !reference [.rules:libeigen:affected-tests, rules]
 
+build:linux:cross:x86-64:clang-14:default:affected:
+  extends: [ build:linux:cross:x86-64:clang-14:default, .affected:build ]
+  rules: !reference [.rules:libeigen:affected-tests, rules]
+
 build:linux:cross:aarch64:gcc-10:default:affected:
   extends: [ build:linux:cross:aarch64:gcc-10:default, .affected:build ]
   rules: !reference [.rules:libeigen:affected-tests, rules]
 
-##### Backend-triggered ########################################################
+build:linux:cross:aarch64:clang-14:default:affected:
+  extends: [ build:linux:cross:aarch64:clang-14:default, .affected:build ]
+  rules: !reference [.rules:libeigen:affected-tests, rules]
+
+##### Platform-triggered #######################################################
 
 build:linux:cross:x86-64:gcc-10:default:affected:
   extends: [ build:linux:cross:x86-64:gcc-10:default, .affected:build ]
