@@ -19,7 +19,7 @@ namespace Eigen {
 namespace internal {
 
 template <typename MatrixType_, int UpLo_>
-struct traits<LLT<MatrixType_, UpLo_> > : traits<MatrixType_> {
+struct traits<LLT<MatrixType_, UpLo_>> : traits<MatrixType_> {
   using XprKind = MatrixXpr;
   using StorageKind = SolverStorage;
   using StorageIndex = int;
@@ -69,7 +69,7 @@ struct LLT_Traits;
  * \sa MatrixBase::llt(), MatrixBase::inverse(), SelfAdjointView::llt(), class LDLT
  */
 template <typename MatrixType_, int UpLo_>
-class LLT : public SolverBase<LLT<MatrixType_, UpLo_> > {
+class LLT : public SolverBase<LLT<MatrixType_, UpLo_>> {
  public:
   using MatrixType = MatrixType_;
   using Base = SolverBase<LLT>;
@@ -470,10 +470,8 @@ namespace internal {
 
 /***** Implementation of inverse() *****************************************************/
 template <typename DstXprType, typename MatrixType, int UpLo>
-struct Assignment<
-    DstXprType, Inverse<LLT<MatrixType, UpLo>>,
-    assign_op<typename DstXprType::Scalar, typename LLT<MatrixType, UpLo>::Scalar>,
-    Dense2Dense> {
+struct Assignment<DstXprType, Inverse<LLT<MatrixType, UpLo>>,
+                  assign_op<typename DstXprType::Scalar, typename LLT<MatrixType, UpLo>::Scalar>, Dense2Dense> {
   typedef LLT<MatrixType, UpLo> LltType;
   typedef Inverse<LltType> SrcXprType;
   EIGEN_DEVICE_FUNC static void run(DstXprType& dst, const SrcXprType& src,

@@ -34,7 +34,7 @@ void inverse_for_fixed_size(const MatrixType& m1, std::enable_if_t<MatrixType::S
     m5.topLeftCorner(m1.rows(), m1.rows()) = m1;
     m2 = m5.template topLeftCorner<MatrixType::RowsAtCompileTime, MatrixType::ColsAtCompileTime>().inverse();
     VERIFY_IS_APPROX((m5.template topLeftCorner<MatrixType::RowsAtCompileTime, MatrixType::ColsAtCompileTime>()),
-                      Eigen::internal::inverse_cholesky(m2));
+                     Eigen::internal::inverse_cholesky(m2));
   }
 }
 
@@ -56,7 +56,8 @@ void inverse_cholesky(const MatrixType& m) {
   m2 = Eigen::internal::inverse_cholesky(m1);
   VERIFY_IS_APPROX(m1, Eigen::internal::inverse_cholesky(m2));
 
-  VERIFY_IS_APPROX(Eigen::internal::inverse_cholesky((Scalar(2) * m2)), Eigen::internal::inverse_cholesky(m2) * Scalar(0.5));
+  VERIFY_IS_APPROX(Eigen::internal::inverse_cholesky((Scalar(2) * m2)),
+                   Eigen::internal::inverse_cholesky(m2) * Scalar(0.5));
 
   VERIFY_IS_APPROX(identity, Eigen::internal::inverse_cholesky(m1) * m1);
   VERIFY_IS_APPROX(identity, m1 * Eigen::internal::inverse_cholesky(m1));
