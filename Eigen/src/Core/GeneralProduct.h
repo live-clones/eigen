@@ -24,8 +24,17 @@ enum { Large = 2, Small = 3 };
 // generic_product_impl<Lhs,Rhs,DenseShape,DenseShape,GemmProduct> in
 // products/GeneralMatrixMatrix.h for more details.
 #ifndef EIGEN_GEMM_TO_COEFFBASED_THRESHOLD
+#ifdef EIGEN_VECTORIZE_SME
+// The SME GEMM path enters streaming mode once per packer and once per kernel
+// call, a fixed cost a small product cannot amortize, so it crosses over to the
+// coeff-based evaluator later than the Haswell-tuned default below. 40 is where
+// the two meet on Apple M4 for both element widths; fp32 alone would prefer ~56,
+// but fp64 fills its narrower micro-kernel block sooner and loses there.
+#define EIGEN_GEMM_TO_COEFFBASED_THRESHOLD 40
+#else
 // This default value has been obtained on a Haswell architecture.
 #define EIGEN_GEMM_TO_COEFFBASED_THRESHOLD 20
+#endif
 #endif
 
 // Fixed-size products can reach the GEMM product path even when the
@@ -34,7 +43,14 @@ enum { Large = 2, Small = 3 };
 // was tuned on the same Haswell system as the runtime threshold, and deliberately
 // tracks EIGEN_GEMM_TO_COEFFBASED_THRESHOLD unless specialized independently.
 #ifndef EIGEN_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD
+#ifdef EIGEN_VECTORIZE_SME
+// Measured independently rather than tracked: at twice the runtime threshold a
+// fixed-size 24x24 or 26x26 product is about 2x slower on the coeff-based path,
+// while 64 keeps every size at or below the GEMM path's time.
+#define EIGEN_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD 64
+#else
 #define EIGEN_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD (2 * EIGEN_GEMM_TO_COEFFBASED_THRESHOLD)
+#endif
 #endif
 
 namespace internal {

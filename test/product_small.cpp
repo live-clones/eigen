@@ -284,12 +284,16 @@ void product_small_regressions() {
   }
 
   {
+    // The fixed-size crossover compares rows + cols + depth against
+    // EIGEN_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD, which a backend may retune
+    // (the SME one does), so derive the boundary from the macro rather than
+    // pinning it to one target's value. A square N x N product sums to 3N.
+    constexpr int kGemmSide = (EIGEN_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD + 2) / 3;
     typedef Eigen::Matrix<double, 10, 10> Matrix10;
-    typedef Eigen::Matrix<double, 13, 13> Matrix13;
-    typedef Eigen::Matrix<double, 14, 14> Matrix14;
-    VERIFY((internal::product_type<Matrix10, Matrix10>::value == CoeffBasedProductMode));
-    VERIFY((internal::product_type<Matrix13, Matrix13>::value == CoeffBasedProductMode));
-    VERIFY((internal::product_type<Matrix14, Matrix14>::value == GemmProduct));
+    typedef Eigen::Matrix<double, kGemmSide - 1, kGemmSide - 1> MatrixBelowCrossover;
+    typedef Eigen::Matrix<double, kGemmSide, kGemmSide> MatrixAtCrossover;
+    VERIFY((internal::product_type<MatrixBelowCrossover, MatrixBelowCrossover>::value == CoeffBasedProductMode));
+    VERIFY((internal::product_type<MatrixAtCrossover, MatrixAtCrossover>::value == GemmProduct));
 
     Matrix10 A = Matrix10::Random();
     Matrix10 B = Matrix10::Random();
