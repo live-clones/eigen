@@ -60,6 +60,13 @@ eigen_add_gpu_benchmark(bench_overhead bench_overhead.cpp LIBRARIES CUDA::cublas
 eigen_add_gpu_benchmark(bench_unified_memory bench_unified_memory.cpp)
 eigen_add_gpu_benchmark(bench_unified_memory_float bench_unified_memory.cpp DEFINITIONS SCALAR=float)
 
+# Each MemoryResource measured through DeviceMatrix: allocation cost, round
+# trip, host-read loop, and GEMM throughput by storage kind.
+eigen_add_gpu_benchmark(bench_memory_resource bench_memory_resource.cpp
+  LIBRARIES CUDA::cublasLt CUDA::cusolver CUDA::npps CUDA::nppc)
+eigen_add_gpu_benchmark(bench_memory_resource_double bench_memory_resource.cpp
+  LIBRARIES CUDA::cublasLt CUDA::cusolver CUDA::npps CUDA::nppc DEFINITIONS SCALAR=double)
+
 # Chaining benchmarks: async pipeline efficiency, host-roundtrip vs device chain.
 eigen_add_gpu_benchmark(bench_chaining bench_chaining.cpp)
 eigen_add_gpu_benchmark(bench_chaining_float bench_chaining.cpp DEFINITIONS SCALAR=float)

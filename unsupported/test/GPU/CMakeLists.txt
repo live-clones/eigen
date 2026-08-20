@@ -78,6 +78,10 @@ ei_add_gpu_test(device_matrix
   EXTRA_LIBS CUDA::cublas CUDA::cusolver CUDA::npps CUDA::nppc)
 ei_add_gpu_test(cublas_64bit EXTRA_LIBS CUDA::cublas)
 
+# MemoryResource: where a DeviceMatrix's storage comes from.
+ei_add_gpu_test(memory_resource
+  EXTRA_LIBS CUDA::cublas CUDA::cusolver CUDA::npps CUDA::nppc)
+
 # cuBLAS integration. OFF by default; later MRs in the stack opt in.
 option(EIGEN_TEST_CUBLAS "Test cuBLAS integration" OFF)
 if(EIGEN_TEST_CUBLAS AND TARGET CUDA::cublas)
