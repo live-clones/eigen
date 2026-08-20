@@ -40,10 +40,14 @@ Two registrations do not fit that shape:
   ``add_executable`` such as ``bug1213`` is attached to nothing, so the
   full-suite mode has to name those targets next to ``buildtests``.
 
-A registered target need not compile a ``.cpp``: ``ei_add_test`` takes the
-source extension from ``EIGEN_ADD_TEST_FILENAME_EXTENSION``, which the GPU
-blocks set to ``cu``.  Those targets are selected like any other; the build
-script drops them in configurations that did not register them.
+A registered target need not compile a ``.cpp``, and need not be named by a
+literal: ``ei_add_test`` takes the source extension from
+``EIGEN_ADD_TEST_FILENAME_EXTENSION``, which the GPU blocks set to ``cu``, and
+the GPU module registers families of tests from ``foreach`` item lists.  Both
+are read out of the CMake source, so a translation unit under a test root with
+no registration the parser can see is an error rather than an assumption.
+Those targets are selected like any other; the build script drops them in
+configurations that did not register them.
 """
 
 import argparse
@@ -116,18 +120,26 @@ FULL_REBUILD_PATTERNS = (
 )
 
 INCLUDE_RE = re.compile(r'^[ \t]*#[ \t]*include[ \t]*[<"]([^>"]+)[>"]', re.MULTILINE)
-# One pass over a test CMakeLists.txt, in source order, because the source an
-# ei_add_test call compiles depends on the EIGEN_ADD_TEST_FILENAME_EXTENSION in
-# effect at that point: the CUDA and HIP blocks set it to "cu" and unset it
-# again, so gpu_basic is test/gpu_basic.cu while its neighbours are .cpp.
+# One pass over a test CMakeLists.txt, in source order, because what a
+# registration means depends on the state at that point: the source extension
+# comes from EIGEN_ADD_TEST_FILENAME_EXTENSION, which the CUDA and HIP blocks
+# set to "cu" and unset again, so gpu_basic is test/gpu_basic.cu while its
+# neighbours are .cpp; and a name spelled ${var} resolves against the item list
+# of the enclosing foreach(), which is how the GPU module registers its
+# cusolver_* and cudss_* tests.
 CMAKE_REGISTRATION_RE = re.compile(
     r"^[ \t]*(?:"
     r'(?P<scope>set|unset)\([ \t]*EIGEN_ADD_TEST_FILENAME_EXTENSION[ \t]*"?(?P<extension>[A-Za-z_0-9]*)"?'
-    r"|(?:ei_add_test|ei_add_gpu_test)\([ \t]*(?P<test>[A-Za-z_][A-Za-z_0-9]*)"
+    r"|(?:ei_add_test|ei_add_gpu_test)\([ \t]*"
+    r"(?P<test>[A-Za-z_][A-Za-z_0-9]*|\$\{[A-Za-z_][A-Za-z_0-9]*\})"
     r"|add_executable\([ \t]*(?P<executable>[A-Za-z_][A-Za-z_0-9]*)[ \t\r\n]+(?P<sources>[^)]*)\)"
+    r"|foreach\((?P<loop>[^)]*)\)"
+    r"|(?P<endloop>endforeach)\("
     r")",
     re.MULTILINE,
 )
+# A bare CMake identifier, used to recognise a foreach loop variable.
+CMAKE_NAME_RE = re.compile(r"[A-Za-z_][A-Za-z_0-9]*\Z")
 CMAKE_FAILTEST_RE = re.compile(
     r'^[ \t]*ei_add_failtest\([ \t]*"?([A-Za-z_][A-Za-z_0-9]*)"?',
     re.MULTILINE,
@@ -213,6 +225,31 @@ class IncludeGraph:
 Registrations = collections.namedtuple("Registrations", "targets standalone failtests")
 
 
+def _loop_binding(arguments):
+    """Names a ``foreach(...)`` binds, or ``None`` when they are not literal."""
+    tokens = [token.strip('"') for token in arguments.split()]
+    if not tokens or not CMAKE_NAME_RE.match(tokens[0]):
+        return None
+    variable, items = tokens[0], tokens[1:]
+    if items[:2] == ["IN", "ITEMS"]:
+        items = items[2:]
+    elif items[:1] == ["IN"]:
+        # IN LISTS and IN ZIP_LISTS iterate variables, not literal names.
+        return None
+    return variable, [item for item in items if "$" not in item]
+
+
+def _loop_expand(token, loops):
+    """Resolve a registration name against the enclosing ``foreach`` bindings."""
+    if not token.startswith("$"):
+        return [token]
+    name = token[2:-1]
+    for binding in reversed(loops):
+        if binding is not None and binding[0] == name:
+            return binding[1]
+    return []
+
+
 def test_registrations(graph):
     """Map registered translation units to what CI has to build or run."""
     source_targets = {}
@@ -233,18 +270,28 @@ def test_registrations(graph):
     for cmake_file in cmake_files:
         directory = os.path.dirname(cmake_file)
         extension = "cpp"
+        # foreach() bindings in effect, innermost last.  A loop over anything
+        # but a literal item list pushes None so endforeach() stays balanced.
+        loops = []
         for match in CMAKE_REGISTRATION_RE.finditer(graph.read_text(cmake_file)):
             if match.group("scope"):
                 # unset(), or a set() with no value, restores the default.
                 extension = match.group("extension") if match.group("scope") == "set" else ""
                 extension = extension or "cpp"
                 continue
+            if match.group("loop") is not None:
+                loops.append(_loop_binding(match.group("loop")))
+                continue
+            if match.group("endloop"):
+                if loops:
+                    loops.pop()
+                continue
             if match.group("test"):
-                target = match.group("test")
-                source = os.path.normpath(
-                    os.path.join(directory, "%s.%s" % (target, extension)))
-                if source in graph.files:
-                    register(source, target)
+                for target in _loop_expand(match.group("test"), loops):
+                    source = os.path.normpath(
+                        os.path.join(directory, "%s.%s" % (target, extension)))
+                    if source in graph.files:
+                        register(source, target)
                 continue
             target = match.group("executable")
             for token in re.findall(r'"[^"]*"|[^\s]+', match.group("sources")):
@@ -255,14 +302,6 @@ def test_registrations(graph):
                 if source in graph.files:
                     register(source, target)
                     standalone.add(target)
-
-    # GPU/CMakeLists.txt registers several same-named .cpp sources through
-    # foreach variables.  They follow the same source/target naming convention
-    # as literal ei_add_gpu_test calls, but cannot be recovered from one call.
-    gpu_prefix = "unsupported/test/GPU/"
-    for rel in graph.files:
-        if rel.startswith(gpu_prefix) and rel.endswith(".cpp"):
-            register(rel, os.path.splitext(os.path.basename(rel))[0])
 
     failtests = {}
     for name in CMAKE_FAILTEST_RE.findall(graph.read_text(FAILTEST_ROOT + "/CMakeLists.txt")):
