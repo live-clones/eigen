@@ -4,18 +4,16 @@
 // Cross-library comparison benchmarks for POTRF, the Cholesky factorization of a
 // symmetric/Hermitian positive definite matrix.
 //
-// The first operation here whose reference is a LAPACK routine rather than a BLAS
-// one. That exercises a path nothing else did: CMake's find_package(LAPACK) and
-// the vendor table's PROVIDES declaration decide whether ?potrf resolves at all,
-// and run.py turns a missing family into an explicit `reference_routine_absent`
-// cell rather than a silent gap.
+// The reference here is a LAPACK routine rather than a BLAS one, so whether
+// ?potrf resolves at all depends on find_package(LAPACK) and the vendor table's
+// PROVIDES declaration; a build that cannot call it registers no reference arm
+// and run.py reports `reference_routine_absent`.
 //
-// Unlike GEMM and GEMV this operation is destructive -- it overwrites its input --
-// so the timed body must present fresh data on every iteration. Both arms
-// therefore copy the operand and factorize the copy, with the destination
-// allocated once outside the loop: Eigen's LLT constructor would otherwise
-// allocate on every iteration where the reference arm does not, and the
-// comparison would be of allocators as much as of kernels.
+// The operation is destructive, so the timed body must present fresh data on
+// every iteration. Both arms copy the operand and factorize the copy, with the
+// destination allocated once outside the loop -- otherwise Eigen's LLT
+// constructor allocates on every iteration where the reference arm does not, and
+// the comparison is of allocators as much as of kernels.
 
 #include <Eigen/Cholesky>
 #include <Eigen/Core>
@@ -52,29 +50,19 @@ using PotrfMatrix = eigen_bench::ColMatrix<Scalar>;
 template <typename Scalar>
 using PotrfVector = eigen_bench::ColVector<Scalar>;
 
-// A := L*L^H with L lower triangular, the operation ops.toml records as POTRF
-// with uplo = 'L'. Both kernels copy the operand into `out` and factorize it
-// there in place, leaving L in the lower triangle and saying nothing about the
-// upper one, which is exactly LAPACK's contract; a caller that needs the full
-// matrix takes a triangularView.
+// A := L*L^H, uplo = 'L'. Both kernels factorize a copy in place and leave the
+// upper triangle untouched, which is LAPACK's contract.
 //
-// Eigen's in-place decomposition (doc/InplaceDecomposition.dox) is what makes
-// the two arms symmetric. The obvious spelling -- an LLT<MatrixType> held across
-// iterations and driven by compute(a), then out = llt.matrixLLT() -- charges the
-// Eigen arm TWO n-by-n copies where ?potrf pays one, since compute() copies into
-// the decomposition's own storage and reading the factor back out copies again.
-// At n = 1024 in double that is an extra 8 MB moved per iteration, attributed to
-// Eigen and to nothing on the reference side.
+// The in-place decomposition (doc/InplaceDecomposition.dox) is what makes the two
+// arms symmetric: an LLT<MatrixType> driven by compute(a) and read back through
+// matrixLLT() would charge Eigen TWO n-by-n copies where ?potrf pays one.
 //
-// One asymmetry remains, and it is deliberate. LLT::compute also evaluates the
-// operand's self-adjoint L1 norm (Eigen/src/Cholesky/LLT.h), which ?potrf does
-// not: it is what makes LLT::rcond() available afterwards, and a LAPACK user who
-// wants the same thing calls ?lange before ?pocon. Measured on Apple M4 it is
-// 5-13% of the Eigen arm for real scalars and more at the small end for complex.
-// It stays because the row this feeds is labelled with the expression a user
-// writes -- ops.toml's eigen_expr, `Eigen::LLT<MatrixType> llt(A)` -- and that
-// expression really does cost it. ops.toml's POTRF description carries the
-// caveat so a reader of the page sees it too.
+// One asymmetry is deliberate. LLT::compute also evaluates the operand's
+// self-adjoint L1 norm (Eigen/src/Cholesky/LLT.h), which is what makes rcond()
+// available and which ?potrf does not compute; a LAPACK user wanting the same
+// calls ?lange before ?pocon. It is O(n^2) against O(n^3/3), so it matters at the
+// small end. It stays because the row is labelled with the expression a user
+// writes -- ops.toml's eigen_expr -- and that expression really does cost it.
 struct EigenPotrfKernel {
   template <typename Scalar>
   void operator()(const PotrfMatrix<Scalar>& a, PotrfMatrix<Scalar>& out) const {
@@ -148,13 +136,12 @@ static void runPotrf(benchmark::State& state, Kernel kernel) {
   // condition number that does not grow with n, so a failure to factorize is a
   // kernel defect rather than a property of the operand.
   //
-  // Deliberately not the textbook A*A^H. That is a 2n^3 product -- asymptotically
-  // MORE expensive than the n^3/3 factorization it feeds -- and Google Benchmark
-  // re-enters this body about 13 times per cell. Measured at n = 4096 it cost
-  // 4.5 s of untimed setup against 0.9 s of measured work, and at the top of the
-  // xlarge group it would run to half an hour per scalar. This is O(n^2). The
-  // generator is scoped so it is freed before the timed loop, which is what keeps
-  // the footprint above at 2n^2 rather than 3n^2.
+  // Deliberately not the textbook A*A^H: that is a 2n^3 product, asymptotically
+  // MORE expensive than the n^3/3 factorization it feeds, and the body is
+  // re-entered once per repetition plus several times while Google Benchmark
+  // searches for an iteration count -- so setup would dominate the measurement
+  // and grow faster than it. This is O(n^2). The generator is scoped so it is
+  // freed before the timed loop, keeping the footprint above at 2n^2, not 3n^2.
   PotrfMatrix<Scalar> a(n, n);
   {
     const PotrfMatrix<Scalar> noise = PotrfMatrix<Scalar>::Random(n, n);

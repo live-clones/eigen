@@ -631,7 +631,7 @@
     "ops": [
       "GEMM"
     ],
-    "ops_toml_sha256": "36e08ab195018546bce1fdc2592e3184d613941278a1534c71311298305a3fc2",
+    "ops_toml_sha256": "d1c18c382f89d82e657ce5e8c47a718bdfd874a165783c0ce28b262615cf5051",
     "scalars": [
       "f64"
     ],
