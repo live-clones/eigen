@@ -365,13 +365,26 @@ helper = "eigen_bench::gemmFlops<Scalar>(m, n, k)"
 display_name = "GEMV"
 long_name = "General matrix-vector product"
 family = "blas2"
-description = "y := alpha*op(A)*x + beta*y for general dense A. Memory bound above L2; the column-major and row-major kernels in Eigen/src/Core/products/GeneralMatrixVector.h behave differently enough that both aspect-ratio groups matter."
+description = """
+y := alpha*op(A)*x + beta*y for general dense A. Registered as trans='N' with
+alpha = beta = 1; the transposed form is a different reference call and would get
+its own GEMV_T key rather than a runtime branch.
+
+Above L2 this is a bandwidth measurement wearing a flop rate: 2*m*n is the honest
+operation count, but the achievable figure is set by how fast A can be streamed,
+not by the FMA units, so it sits far below peak for every implementation. The
+count is identical for both arms, so the ratio is sound; the absolute number is
+not a machine-efficiency figure and must not be read against a GEMM one. The
+tall_skinny and short_fat groups are both measured because the two aspect ratios
+take different paths through Eigen/src/Core/products/GeneralMatrixVector.h.
+"""
 eigen_expr = "y.noalias() += A * x"
 eigen_class = ""
 eigen_doc = "Eigen::MatrixBase::operator*"
 shape_family = "matvec2"
 scalars = ["f32", "f64", "c32", "c64"]
-status = "planned"
+status = "implemented"
+source = "benchmarks/comparison/bench_gemv_compare.cpp"
 
 [ops.GEMV.reference]
 kind = "blas"

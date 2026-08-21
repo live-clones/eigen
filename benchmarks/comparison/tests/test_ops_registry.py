@@ -321,12 +321,51 @@ def test_listing_covers_the_eigen_arm_for_every_implemented_op(listed_benchmarks
         assert "eigen" in by_op.get(op, set()), f"{op}: no eigen arm is registered, so there is nothing to compare"
 
 
-def test_an_op_implemented_in_the_table_but_never_registered_fails(listed_benchmarks, ops):
-    """Direction 1: the quietly empty column."""
+# Both negative controls below need an op key in the doctored registry that no
+# binary registers.  Naming a real planned op would work only until Phase 2
+# implements it -- GEMV already broke this test once that way -- so they clone a
+# real entry (for a resolvable shape_family and scalar list) under a key the
+# grammar accepts but no mnemonic will ever be.
+def _cloned_op(ops, key, status, template="GEMM"):
     doctored = support.deep_copy(ops)
-    doctored["ops"]["GEMV"]["status"] = "implemented"
+    entry = support.deep_copy(ops["ops"][template])
+    entry["status"] = status
+    entry.pop("source", None)
+    doctored["ops"][key] = entry
+    return doctored
+
+
+def test_an_op_implemented_in_the_table_but_never_registered_fails(listed_benchmarks, ops):
+    """Direction 1, op level: the quietly empty column."""
+    doctored = _cloned_op(ops, "NOTREGISTERED", "implemented")
     problems = reconcile(listed_benchmarks, doctored)
-    assert any("GEMV" in p and "no benchmark registers it" in p for p in problems), problems
+    assert any("NOTREGISTERED: ops.toml calls it implemented but no benchmark registers it" == p
+               for p in problems), problems
+
+
+def test_a_grid_point_the_registered_op_omits_fails(listed_benchmarks, ops):
+    """Direction 1, point level: the drifted grid.
+
+    Distinct from the test above and not covered by it: here the op IS
+    registered, so the op-level check is satisfied and only the point-level one
+    can catch the omission.  This is the failure that would otherwise reach the
+    published page as `not_implemented` -- "Eigen does not implement this" --
+    when the truth is that ops.toml grew a point the C++ SIZES macro never did.
+    """
+    doctored = support.deep_copy(ops)
+    family = doctored["ops"]["GEMM"]["shape_family"]
+    group = doctored["shape_families"][family]["groups"][0]
+    assert group["name"] in doctored["shape_families"][family]["default_groups"]
+    added = [7, 7, 7]
+    assert added not in support.op_grid(ops, "GEMM"), "pick a point the real grid does not already carry"
+    group["points"].append(added)
+
+    problems = reconcile(listed_benchmarks, doctored)
+    assert any(f"GEMM: ops.toml grid has point {added} but no benchmark registers it" == p
+               for p in problems), problems
+    assert not any("calls it implemented but no benchmark registers it" in p for p in problems), (
+        "the op-level check must stay quiet here, or this test is a duplicate of the one above"
+    )
 
 
 def test_an_op_registered_but_absent_from_the_table_fails(listed_benchmarks, ops):
@@ -336,8 +375,9 @@ def test_an_op_registered_but_absent_from_the_table_fails(listed_benchmarks, ops
 
 
 def test_a_registration_of_a_planned_op_fails(listed_benchmarks, ops):
-    problems = reconcile(listed_benchmarks + ["POTRF/eigen/f64/n:512"], ops)
-    assert any("POTRF" in p and "planned" in p for p in problems), problems
+    doctored = _cloned_op(ops, "STILLPLANNED", "planned")
+    problems = reconcile(listed_benchmarks + ["STILLPLANNED/eigen/f64/m:8/n:8/k:8"], doctored)
+    assert any("STILLPLANNED" in p and "planned" in p for p in problems), problems
 
 
 def test_a_shape_outside_the_family_grid_fails(listed_benchmarks, ops):
