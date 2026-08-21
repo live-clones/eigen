@@ -8,12 +8,13 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-// Compares the host-to-device storage strategies available to DeviceMatrix on
-// an integrated GPU, where the "copy" moves bytes from one region of DRAM to
-// another region of the same DRAM.
+// Raw-CUDA ceiling for the host-to-device storage strategies exposed through
+// gpu::MemoryResource on an integrated GPU, where the "copy" moves bytes from
+// one region of DRAM to another region of the same DRAM. The companion
+// bench_memory_resource benchmark measures the same storage through
+// DeviceMatrix and DeviceScalar.
 //
-// DeviceMatrix currently always allocates with cudaMalloc and reaches host data
-// through cudaMemcpy. On a discrete GPU that is the only option. On a device
+// On a discrete GPU device-only storage is the normal choice. On a device
 // reporting cudaDeviceProp::integrated the copy is avoidable, but only if the
 // alternative storage is also fast to compute on -- mapped host memory is not
 // cached in the GPU's L2 on Tegra, so a cheaper upload can cost more than it
@@ -27,7 +28,7 @@
 //   RoundTrip_*  upload + GEMM + download, the figure that decides the design
 //
 // Strategies:
-//   DeviceMalloc   cudaMalloc + cudaMemcpy from pageable host memory (today)
+//   DeviceMalloc   cudaMalloc + cudaMemcpy from pageable host memory
 //   Pinned         cudaMalloc + cudaMemcpy staged through cudaMallocHost
 //   Managed        cudaMallocManaged + host memcpy
 //   ManagedInPlace cudaMallocManaged, matrix built in place -- no copy at all
@@ -98,7 +99,7 @@ void gemm(Index n, const Scalar* a, const Scalar* b, Scalar* c) {
   }
 }
 
-// The six storage strategies, behind one interface. host() is null when the
+// The five allocation strategies, behind one interface. host() is null when the
 // strategy has no host-addressable view of the allocation.
 enum class Storage { DeviceMalloc, Pinned, Managed, Mapped, Registered };
 
@@ -367,8 +368,8 @@ DOWNLOAD_CASE(Mapped, Mapped);
 
 // ---------------------------------------------------------------------------
 // End-to-end: upload two operands, GEMM, download the result. This is the
-// number that decides which storage DeviceMatrix should use on an integrated
-// GPU -- a strategy can win the upload and still lose here.
+// number that helps a caller choose a MemoryResource on an integrated GPU -- a
+// strategy can win the upload and still lose here.
 // ---------------------------------------------------------------------------
 
 void roundTripBench(benchmark::State& state, Storage storage) {
@@ -420,7 +421,8 @@ static void BM_RoundTrip_ManagedInPlace(benchmark::State& state) {
   for (auto _ : state) {
     gemm(n, a.device(), b.device(), c.device());
     EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(blas().stream));
-    benchmark::DoNotOptimize(HostMap(c.host(), n, n).coeff(0, 0));
+    Scalar observed = HostMap(c.host(), n, n).coeff(0, 0);
+    benchmark::DoNotOptimize(observed);
   }
   setFlopsCounter(state, n);
 }

@@ -40,8 +40,8 @@
 
 #include <cuda_runtime.h>
 
+#include <array>
 #include <cstdlib>
-#include <vector>
 
 #include "./GpuSupport.h"
 
@@ -70,6 +70,7 @@ class ManagedMemoryResource final : public MemoryResource {
   }
   bool isHostAccessible() const noexcept override { return true; }
   bool allowsConcurrentHostAccess() const noexcept override { return device_capabilities().concurrent_managed_access; }
+  bool supportsMultipleAllocations() const noexcept override { return true; }
   const char* name() const noexcept override { return "managed"; }
 };
 
@@ -85,8 +86,16 @@ class MappedHostMemoryResource final : public MemoryResource {
     Allocation a;
     if (bytes == 0) return a;
     eigen_assert(device_capabilities().can_map_host_memory && "device cannot map host memory");
-    EIGEN_CUDA_RUNTIME_CHECK(cudaHostAlloc(&a.host, bytes, cudaHostAllocMapped));
-    EIGEN_CUDA_RUNTIME_CHECK(cudaHostGetDevicePointer(&a.device, a.host, 0));
+    cudaError_t status = cudaHostAlloc(&a.host, bytes, cudaHostAllocMapped);
+    EIGEN_CUDA_RUNTIME_CHECK(status);
+    if (status != cudaSuccess) return a;
+    status = cudaHostGetDevicePointer(&a.device, a.host, 0);
+    if (status != cudaSuccess) {
+      (void)cudaFreeHost(a.host);
+      a.device = nullptr;
+      a.host = nullptr;
+    }
+    EIGEN_CUDA_RUNTIME_CHECK(status);
     return a;
   }
   void deallocate(const Allocation& a, size_t /*bytes*/, cudaStream_t /*stream*/) noexcept override {
@@ -94,6 +103,7 @@ class MappedHostMemoryResource final : public MemoryResource {
   }
   bool isHostAccessible() const noexcept override { return true; }
   bool allowsConcurrentHostAccess() const noexcept override { return true; }
+  bool supportsMultipleAllocations() const noexcept override { return true; }
   const char* name() const noexcept override { return "mapped"; }
 };
 
@@ -111,8 +121,22 @@ class RegisteredHostMemoryResource final : public MemoryResource {
     eigen_assert(device_capabilities().can_map_host_memory && "device cannot map host memory");
     a.host = std::malloc(bytes);
     eigen_assert(a.host != nullptr && "host allocation failed");
-    EIGEN_CUDA_RUNTIME_CHECK(cudaHostRegister(a.host, bytes, cudaHostRegisterMapped));
-    EIGEN_CUDA_RUNTIME_CHECK(cudaHostGetDevicePointer(&a.device, a.host, 0));
+    if (a.host == nullptr) return a;
+    cudaError_t status = cudaHostRegister(a.host, bytes, cudaHostRegisterMapped);
+    if (status != cudaSuccess) {
+      std::free(a.host);
+      a.host = nullptr;
+    }
+    EIGEN_CUDA_RUNTIME_CHECK(status);
+    if (status != cudaSuccess) return a;
+    status = cudaHostGetDevicePointer(&a.device, a.host, 0);
+    if (status != cudaSuccess) {
+      (void)cudaHostUnregister(a.host);
+      std::free(a.host);
+      a.device = nullptr;
+      a.host = nullptr;
+    }
+    EIGEN_CUDA_RUNTIME_CHECK(status);
     return a;
   }
   void deallocate(const Allocation& a, size_t /*bytes*/, cudaStream_t /*stream*/) noexcept override {
@@ -122,6 +146,7 @@ class RegisteredHostMemoryResource final : public MemoryResource {
   }
   bool isHostAccessible() const noexcept override { return true; }
   bool allowsConcurrentHostAccess() const noexcept override { return true; }
+  bool supportsMultipleAllocations() const noexcept override { return true; }
   const char* name() const noexcept override { return "registered"; }
 };
 
@@ -149,10 +174,12 @@ class RegisteredHostMemoryResource final : public MemoryResource {
  * small end captures nearly all of the benefit for a small fraction of the
  * pinned footprint.
  *
- * The free list is thread-local, like DeviceBufferPool: recycled storage is
- * meant for same-thread reuse. Memory allocated on one thread and released on
- * another is still freed correctly, it simply lands in the releasing thread's
- * list. */
+ * The resource itself has process lifetime so a buffer may cross threads. Its
+ * fixed-capacity free list is thread-local, like DeviceBufferPool: memory
+ * released on another thread lands in that releasing thread's list. One CUDA
+ * event per thread fences releases on the legacy default stream; allocations
+ * reuse cached blocks only after the latest such event has completed. */
+template <typename Upstream>
 class CachingMemoryResource final : public MemoryResource {
  public:
   /** Total bytes the cache may hold. */
@@ -161,20 +188,17 @@ class CachingMemoryResource final : public MemoryResource {
   static constexpr size_t kMaxEntryBytes = 4u << 20;
   static constexpr size_t kMaxEntries = 32;
 
-  explicit CachingMemoryResource(MemoryResource& upstream) : upstream_(&upstream) {}
-
-  ~CachingMemoryResource() override {
-    for (const Entry& e : free_list_) upstream_->deallocate(e.allocation, e.bytes, nullptr);
-  }
+  explicit CachingMemoryResource(Upstream& upstream) : upstream_(&upstream) {}
 
   Allocation allocate(size_t bytes, cudaStream_t stream) override {
     if (!cacheable()) return upstream_->allocate(bytes, stream);
-    for (size_t i = 0; i < free_list_.size(); ++i) {
-      if (free_list_[i].bytes == bytes) {
-        const Allocation a = free_list_[i].allocation;
-        cached_bytes_ -= free_list_[i].bytes;
-        free_list_[i] = free_list_.back();
-        free_list_.pop_back();
+    Cache& cache = threadCache();
+    if (!cache.releasesComplete()) return upstream_->allocate(bytes, stream);
+    for (size_t i = 0; i < cache.size; ++i) {
+      if (cache.free_list[i].bytes == bytes) {
+        const Allocation a = cache.free_list[i].allocation;
+        cache.cached_bytes -= cache.free_list[i].bytes;
+        cache.free_list[i] = cache.free_list[--cache.size];
         return a;
       }
     }
@@ -183,17 +207,30 @@ class CachingMemoryResource final : public MemoryResource {
 
   void deallocate(const Allocation& a, size_t bytes, cudaStream_t stream) noexcept override {
     if (!a.device) return;
-    if (cacheable() && bytes <= kMaxEntryBytes && free_list_.size() < kMaxEntries &&
-        cached_bytes_ + bytes <= kMaxCachedBytes) {
-      free_list_.push_back(Entry{a, bytes});
-      cached_bytes_ += bytes;
-    } else {
+    if (!cacheable()) {
       upstream_->deallocate(a, bytes, stream);
+      return;
     }
+
+    Cache& cache = threadCache();
+    if (!cache.recordRelease()) {
+      (void)cudaDeviceSynchronize();
+      upstream_->deallocate(a, bytes, stream);
+      return;
+    }
+
+    if (bytes <= kMaxEntryBytes && cache.size < kMaxEntries && cache.cached_bytes + bytes <= kMaxCachedBytes) {
+      cache.free_list[cache.size++] = Entry{a, bytes};
+      cache.cached_bytes += bytes;
+      return;
+    }
+    cache.waitForReleases();
+    upstream_->deallocate(a, bytes, stream);
   }
 
   bool isHostAccessible() const noexcept override { return upstream_->isHostAccessible(); }
   bool allowsConcurrentHostAccess() const noexcept override { return upstream_->allowsConcurrentHostAccess(); }
+  bool supportsMultipleAllocations() const noexcept override { return upstream_->supportsMultipleAllocations(); }
   const char* name() const noexcept override { return upstream_->name(); }
 
  private:
@@ -213,9 +250,46 @@ class CachingMemoryResource final : public MemoryResource {
     Allocation allocation;
     size_t bytes;
   };
-  MemoryResource* upstream_;
-  std::vector<Entry> free_list_;
-  size_t cached_bytes_ = 0;
+
+  struct Cache {
+    explicit Cache(Upstream& upstream) : upstream_(&upstream) {}
+
+    ~Cache() {
+      waitForReleases();
+      for (size_t i = 0; i < size; ++i) upstream_->deallocate(free_list[i].allocation, free_list[i].bytes, nullptr);
+      if (ready_event != nullptr) (void)cudaEventDestroy(ready_event);
+    }
+
+    bool recordRelease() noexcept {
+      if (ready_event == nullptr && cudaEventCreateWithFlags(&ready_event, cudaEventDisableTiming) != cudaSuccess)
+        return false;
+      if (cudaEventRecord(ready_event, /*legacy default stream=*/nullptr) == cudaSuccess) return true;
+      (void)cudaEventDestroy(ready_event);
+      ready_event = nullptr;
+      return false;
+    }
+
+    bool releasesComplete() const noexcept {
+      return ready_event == nullptr || cudaEventQuery(ready_event) == cudaSuccess;
+    }
+
+    void waitForReleases() const noexcept {
+      if (ready_event != nullptr) (void)cudaEventSynchronize(ready_event);
+    }
+
+    Upstream* upstream_;
+    std::array<Entry, kMaxEntries> free_list;
+    cudaEvent_t ready_event = nullptr;
+    size_t size = 0;
+    size_t cached_bytes = 0;
+  };
+
+  Cache& threadCache() {
+    thread_local Cache cache(*upstream_);
+    return cache;
+  }
+
+  Upstream* upstream_;
 };
 
 }  // namespace internal
@@ -223,24 +297,21 @@ class CachingMemoryResource final : public MemoryResource {
 /** \ingroup GPU_Module Managed storage; see internal::ManagedMemoryResource. */
 inline MemoryResource& managedMemoryResource() {
   static internal::ManagedMemoryResource upstream;
-  // Thread-local cache: these allocations are far too expensive to repeat.
-  thread_local internal::CachingMemoryResource cached(upstream);
+  static internal::CachingMemoryResource<internal::ManagedMemoryResource> cached(upstream);
   return cached;
 }
 
 /** \ingroup GPU_Module Page-locked mapped host storage. */
 inline MemoryResource& mappedHostMemoryResource() {
   static internal::MappedHostMemoryResource upstream;
-  // Thread-local cache: these allocations are far too expensive to repeat.
-  thread_local internal::CachingMemoryResource cached(upstream);
+  static internal::CachingMemoryResource<internal::MappedHostMemoryResource> cached(upstream);
   return cached;
 }
 
 /** \ingroup GPU_Module Registered ordinary host storage. */
 inline MemoryResource& registeredHostMemoryResource() {
   static internal::RegisteredHostMemoryResource upstream;
-  // Thread-local cache: these allocations are far too expensive to repeat.
-  thread_local internal::CachingMemoryResource cached(upstream);
+  static internal::CachingMemoryResource<internal::RegisteredHostMemoryResource> cached(upstream);
   return cached;
 }
 
@@ -300,13 +371,22 @@ class HostMatrixResource final : public MemoryResource {
     if (matrix_.size() > 0) {
       eigen_assert(internal::device_capabilities().can_map_host_memory && "device cannot map host memory");
       bytes_ = static_cast<size_t>(matrix_.size()) * sizeof(Scalar);
-      EIGEN_CUDA_RUNTIME_CHECK(cudaHostRegister(matrix_.data(), bytes_, cudaHostRegisterMapped));
+      const cudaError_t register_status = cudaHostRegister(matrix_.data(), bytes_, cudaHostRegisterMapped);
+      EIGEN_CUDA_RUNTIME_CHECK(register_status);
+      if (register_status != cudaSuccess) return;
       registered_ = true;
-      EIGEN_CUDA_RUNTIME_CHECK(cudaHostGetDevicePointer(&device_, matrix_.data(), 0));
+      const cudaError_t pointer_status = cudaHostGetDevicePointer(&device_, matrix_.data(), 0);
+      if (pointer_status != cudaSuccess) {
+        (void)cudaHostUnregister(matrix_.data());
+        device_ = nullptr;
+        registered_ = false;
+      }
+      EIGEN_CUDA_RUNTIME_CHECK(pointer_status);
     }
   }
 
   ~HostMatrixResource() override {
+    waitForRelease();
     if (registered_) (void)cudaHostUnregister(matrix_.data());
   }
 
@@ -314,6 +394,7 @@ class HostMatrixResource final : public MemoryResource {
   HostMatrixResource& operator=(const HostMatrixResource&) = delete;
 
   Allocation allocate(size_t bytes, cudaStream_t /*stream*/) override {
+    waitForRelease();
     eigen_assert(bytes <= bytes_ && "HostMatrixResource serves only the matrix it adopted");
     eigen_assert(!served_ && "HostMatrixResource serves a single allocation");
     served_ = true;
@@ -326,11 +407,20 @@ class HostMatrixResource final : public MemoryResource {
   void deallocate(const Allocation& /*a*/, size_t /*bytes*/, cudaStream_t /*stream*/) noexcept override {
     // The storage belongs to the adopted matrix and is released in the
     // destructor; a DeviceMatrix going out of scope must not free it.
+    cudaEvent_t event = nullptr;
+    if (cudaEventCreateWithFlags(&event, cudaEventDisableTiming) == cudaSuccess &&
+        cudaEventRecord(event, /*legacy default stream=*/nullptr) == cudaSuccess) {
+      ready_event_ = event;
+    } else {
+      if (event != nullptr) (void)cudaEventDestroy(event);
+      (void)cudaDeviceSynchronize();
+    }
     served_ = false;
   }
 
   bool isHostAccessible() const noexcept override { return true; }
   bool allowsConcurrentHostAccess() const noexcept override { return true; }
+  bool supportsMultipleAllocations() const noexcept override { return false; }
   const char* name() const noexcept override { return "adopted-host-matrix"; }
 
   Index rows() const { return matrix_.rows(); }
@@ -340,8 +430,16 @@ class HostMatrixResource final : public MemoryResource {
   PlainMatrix& matrix() { return matrix_; }
 
  private:
+  void waitForRelease() noexcept {
+    if (ready_event_ == nullptr) return;
+    (void)cudaEventSynchronize(ready_event_);
+    (void)cudaEventDestroy(ready_event_);
+    ready_event_ = nullptr;
+  }
+
   PlainMatrix matrix_;
   void* device_ = nullptr;
+  cudaEvent_t ready_event_ = nullptr;
   size_t bytes_ = 0;
   bool registered_ = false;
   bool served_ = false;

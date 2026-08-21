@@ -563,17 +563,24 @@ class DeviceMatrix {
 
   /** Adopt an existing buffer as a rows x cols matrix.
    *
-   * The buffer keeps the allocator it came from, so solver scratch that was
-   * pooled goes back to the pool and resource-backed storage back to its
-   * resource -- neither of which survives the round trip through a bare
-   * pointer. \p buffer must hold at least rows * cols * sizeof(Scalar) bytes. */
+   * Resource-backed storage goes back to its resource. Pooled device scratch
+   * is promoted to stream-ordered device ownership because a public matrix may
+   * be destroyed after use on another stream. \p buffer must hold at least
+   * rows * cols * sizeof(Scalar) bytes. */
   static DeviceMatrix adopt(internal::DeviceBuffer&& buffer, Index rows, Index cols) {
     DeviceMatrix dm;
     dm.rows_ = rows;
     dm.cols_ = cols;
     eigen_assert(buffer.size() >= dm.sizeInBytes() && "adopted buffer is too small for the requested shape");
     eigen_assert((buffer.owns() || !buffer) && "cannot adopt a borrowed buffer; use view()");
-    if (MemoryResource* resource = buffer.memoryResource()) dm.resource_ = resource;
+    MemoryResource* resource = buffer.memoryResource();
+    if (resource == &pooledDeviceMemoryResource()) {
+      const size_t bytes = buffer.size();
+      void* pointer = buffer.release();
+      buffer = internal::DeviceBuffer::adopt(pointer, bytes);
+      resource = &deviceMemoryResource();
+    }
+    if (resource != nullptr) dm.resource_ = resource;
     dm.data_ = std::move(buffer);
     return dm;
   }

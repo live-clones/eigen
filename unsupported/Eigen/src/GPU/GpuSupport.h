@@ -176,6 +176,10 @@ class MemoryResource {
    * False for managed memory wherever concurrentManagedAccess is 0. */
   virtual bool allowsConcurrentHostAccess() const noexcept { return false; }
 
+  /** Whether the resource can serve another allocation while an earlier one
+   * remains live. Custom resources conservatively default to false. */
+  virtual bool supportsMultipleAllocations() const noexcept { return false; }
+
   virtual const char* name() const noexcept = 0;
 };
 
@@ -275,6 +279,7 @@ class DeviceMemoryResource final : public MemoryResource {
     device_free(a.device);
   }
   bool isHostAccessible() const noexcept override { return false; }
+  bool supportsMultipleAllocations() const noexcept override { return true; }
   const char* name() const noexcept override { return "device"; }
 };
 
@@ -310,6 +315,7 @@ class PooledDeviceMemoryResource final : public MemoryResource {
     }
   }
   bool isHostAccessible() const noexcept override { return false; }
+  bool supportsMultipleAllocations() const noexcept override { return true; }
   const char* name() const noexcept override { return "pooled-device"; }
 };
 

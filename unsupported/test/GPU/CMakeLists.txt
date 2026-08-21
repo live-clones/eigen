@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: MPL-2.0
 
 find_package(CUDAToolkit QUIET)
+find_package(Threads REQUIRED)
 
 # These tests compile the GPU headers against the test harness, where
 # eigen_assert throws. A noexcept function that reaches such an assert therefore
@@ -80,7 +81,7 @@ ei_add_gpu_test(cublas_64bit EXTRA_LIBS CUDA::cublas)
 
 # MemoryResource: where a DeviceMatrix's storage comes from.
 ei_add_gpu_test(memory_resource
-  EXTRA_LIBS CUDA::cublas CUDA::cusolver CUDA::npps CUDA::nppc)
+  EXTRA_LIBS CUDA::cublas CUDA::cusolver CUDA::npps CUDA::nppc Threads::Threads)
 
 # cuBLAS integration. OFF by default; later MRs in the stack opt in.
 option(EIGEN_TEST_CUBLAS "Test cuBLAS integration" OFF)
@@ -91,7 +92,6 @@ endif()
 # cuSOLVER dense factorizations (LLT, LU, QR, SVD, self-adjoint eigensolver).
 option(EIGEN_TEST_CUSOLVER "Test cuSOLVER integration" OFF)
 if(EIGEN_TEST_CUSOLVER AND TARGET CUDA::cusolver)
-  find_package(Threads REQUIRED)
   ei_add_gpu_test(cusolver_llt EXTRA_LIBS CUDA::cusolver CUDA::cublas Threads::Threads)
   foreach(_cusolver_test IN ITEMS cusolver_lu cusolver_qr cusolver_svd cusolver_eigen)
     ei_add_gpu_test(${_cusolver_test} EXTRA_LIBS CUDA::cusolver CUDA::cublas)

@@ -168,6 +168,14 @@ gpu::HostMatrixResource<Scalar>      // adopts a moved Eigen matrix
 Every buffer has a resource -- "none" is spelled by taking the default -- so
 naming one is always optional and `memoryResource()` is never null.
 
+The built-in host-visible resources have process lifetime, while their bounded
+allocation caches remain per-thread. Each cache records a completion event
+before accepting released blocks and does not reuse them until prior work on
+blocking streams has finished; this preserves asynchronous destruction without
+putting a device-wide wait in the allocation fast path. As with the device
+allocator, borrowed nonblocking streams require
+`EIGEN_GPU_NO_STREAM_ORDERED_ALLOC` or external ordering.
+
 A host-accessible resource gives the buffer a second, host-addressable
 pointer to the same bytes, so no upload or download is needed at all:
 
