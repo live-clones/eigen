@@ -46,31 +46,14 @@ class DeviceScalar {
    * scalar. A host-accessible resource makes get() a synchronization and a
    * load instead of a synchronization and a device-to-host copy. */
   explicit DeviceScalar(MemoryResource& resource, cudaStream_t stream = nullptr)
-      : d_val_(sizeof(Scalar), &resource), stream_(stream) {}
+      : d_val_(sizeof(Scalar), resource), stream_(stream) {}
 
   DeviceScalar(Scalar host_val, cudaStream_t stream) : d_val_(sizeof(Scalar)), stream_(stream) { upload(host_val); }
 
   /** Initialized to \p host_val, in storage from \p resource. */
   DeviceScalar(Scalar host_val, MemoryResource& resource, cudaStream_t stream)
-      : d_val_(sizeof(Scalar), &resource), stream_(stream) {
+      : d_val_(sizeof(Scalar), resource), stream_(stream) {
     upload(host_val);
-  }
-
-  /** Uninitialized storage from \p resource, or from the default device
-   * allocator when it is null.
-   *
-   * The nullable form a constructor cannot offer -- DeviceScalar(cudaStream_t)
-   * would be ambiguous with it -- so that a result can inherit the storage kind
-   * of the operand it was computed from. */
-  static DeviceScalar fromResource(MemoryResource* resource, cudaStream_t stream) {
-    return DeviceScalar(internal::DeviceBuffer(sizeof(Scalar), resource), stream);
-  }
-
-  /** As fromResource(), initialized to \p host_val. */
-  static DeviceScalar fromResource(MemoryResource* resource, Scalar host_val, cudaStream_t stream) {
-    DeviceScalar s = fromResource(resource, stream);
-    s.upload(host_val);
-    return s;
   }
 
   DeviceScalar(DeviceScalar&& o) noexcept : d_val_(std::move(o.d_val_)), stream_(o.stream_) { o.stream_ = nullptr; }
@@ -116,8 +99,12 @@ class DeviceScalar {
   /** Whether hostData() is usable. */
   bool isHostAccessible() const { return d_val_.isHostAccessible(); }
 
-  /** The resource backing this scalar, or null for the default allocator. */
-  MemoryResource* memoryResource() const { return d_val_.memoryResource(); }
+  /** The resource this scalar's storage came from. Never null: naming none
+   * means pooledDeviceMemoryResource(). */
+  MemoryResource& memoryResource() const {
+    MemoryResource* r = d_val_.memoryResource();
+    return r != nullptr ? *r : pooledDeviceMemoryResource();
+  }
 
   cudaStream_t stream() const { return stream_; }
 
@@ -132,28 +119,26 @@ class DeviceScalar {
 
   friend DeviceScalar operator/(const DeviceScalar& a, const DeviceScalar& b) {
     eigen_assert(a.stream_ == b.stream_ && "DeviceScalar operator/: operands must share the same stream");
-    DeviceScalar result = fromResource(a.memoryResource(), a.stream_);
+    DeviceScalar result(a.memoryResource(), a.stream_);
     gpu::internal::device_scalar_div(a.devicePtr(), b.devicePtr(), result.devicePtr(), a.stream_);
     return result;
   }
 
   friend DeviceScalar operator/(Scalar a, const DeviceScalar& b) {
-    return fromResource(b.memoryResource(), a, b.stream_) / b;
+    return DeviceScalar(a, b.memoryResource(), b.stream_) / b;
   }
 
   friend DeviceScalar operator/(const DeviceScalar& a, Scalar b) {
-    return a / fromResource(a.memoryResource(), b, a.stream_);
+    return a / DeviceScalar(b, a.memoryResource(), a.stream_);
   }
 
   DeviceScalar operator-() const {
-    DeviceScalar result = fromResource(memoryResource(), stream_);
+    DeviceScalar result(memoryResource(), stream_);
     gpu::internal::device_scalar_neg(devicePtr(), result.devicePtr(), stream_);
     return result;
   }
 
  private:
-  DeviceScalar(internal::DeviceBuffer&& storage, cudaStream_t stream) : d_val_(std::move(storage)), stream_(stream) {}
-
   // Always a stream-ordered copy, even into host-accessible storage: a caching
   // resource can hand back a block whose previous owner is still being written
   // on the device, and a plain host store would race with that write where the

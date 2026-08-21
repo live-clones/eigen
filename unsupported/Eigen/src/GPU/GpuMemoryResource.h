@@ -8,18 +8,19 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-// Where a DeviceMatrix's or DeviceScalar's memory comes from.
+// The host-visible storage kinds a DeviceMatrix or DeviceScalar can be built on.
 //
 // internal::DeviceBuffer used to call cudaMallocAsync directly, which fixed both
 // the allocation strategy and the ownership rules in the buffer. A MemoryResource
-// moves that decision to the caller: the buffer holds a resource pointer and asks
-// it for storage, so device memory, managed memory and page-locked host memory
-// are one axis of variation instead of one class each. Because the buffer is
-// where it lives, everything built on one -- matrices, scalars, solver scratch --
-// gets every storage kind for free.
+// moves that decision to the caller: the buffer holds a resource and asks it for
+// storage, so device memory, managed memory and page-locked host memory are one
+// axis of variation instead of one class each. Because the buffer is where it
+// lives, everything built on one -- matrices, scalars, solver scratch -- gets
+// every storage kind for free.
 //
-// Allocation and the MemoryResource interface itself live in GpuSupport.h, so
-// the buffer deleter can reach them. Allocation returns *two* pointers rather
+// The MemoryResource interface and the two device-only implementations live in
+// GpuSupport.h, where the buffer can default to one of them; this header adds
+// the kinds the host can address. Allocation returns *two* pointers rather
 // than one. That is not gratuitous:
 // on Tegra, malloc + cudaHostRegister hands back a device address different
 // from the host address --
@@ -48,24 +49,6 @@ namespace Eigen {
 namespace gpu {
 
 namespace internal {
-
-/** Device-only storage: the module's default, and the only correct choice on a
- * discrete GPU. Routes through device_malloc/device_free, so it keeps the
- * stream-ordered memory pool behaviour the buffer had before resources
- * existed. */
-class DeviceMemoryResource final : public MemoryResource {
- public:
-  Allocation allocate(size_t bytes, cudaStream_t /*stream*/) override {
-    Allocation a;
-    a.device = device_malloc(bytes);
-    return a;
-  }
-  void deallocate(const Allocation& a, size_t /*bytes*/, cudaStream_t /*stream*/) noexcept override {
-    device_free(a.device);
-  }
-  bool isHostAccessible() const noexcept override { return false; }
-  const char* name() const noexcept override { return "device"; }
-};
 
 /** cudaMallocManaged: one address valid on both sides.
  *
@@ -236,14 +219,6 @@ class CachingMemoryResource final : public MemoryResource {
 };
 
 }  // namespace internal
-
-/** \ingroup GPU_Module
- * The module's default resource: device-only storage through the stream-ordered
- * memory pool. Used by every DeviceMatrix that does not name another. */
-inline MemoryResource& deviceMemoryResource() {
-  static internal::DeviceMemoryResource r;
-  return r;
-}
 
 /** \ingroup GPU_Module Managed storage; see internal::ManagedMemoryResource. */
 inline MemoryResource& managedMemoryResource() {
