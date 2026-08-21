@@ -51,6 +51,28 @@ struct direct_selfadjoint_eigensolver_matrix_scaling<MatrixType, true> {
   }
 };
 
+template <int Size, typename MatrixType>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool direct_selfadjoint_eigensolver_scale_and_shift(
+    MatrixType& matrix, typename MatrixType::Scalar& matrixScale, typename MatrixType::Scalar& shift,
+    typename MatrixType::Scalar& centeredScale) {
+  using Scalar = typename MatrixType::Scalar;
+  matrixScale = Scalar(1);
+  shift = matrix.trace() / Scalar(Size);
+  const Scalar absShift = numext::abs(shift);
+  const bool scaleBeforeShift = std::is_floating_point<Scalar>::value && absShift > Scalar(0) &&
+                                absShift < (std::numeric_limits<Scalar>::min)() / NumTraits<Scalar>::epsilon();
+  if (scaleBeforeShift) {
+    // Center at order-one scale so flush-to-zero cannot discard a small relative diagonal correction.
+    matrixScale = matrix.cwiseAbs().maxCoeff();
+    direct_selfadjoint_eigensolver_matrix_scaling<MatrixType>::run(matrix, matrixScale);
+    shift = matrix.trace() / Scalar(Size);
+  }
+  matrix.diagonal().array() -= shift;
+  centeredScale = matrix.cwiseAbs().maxCoeff();
+  if (centeredScale > Scalar(0)) direct_selfadjoint_eigensolver_matrix_scaling<MatrixType>::run(matrix, centeredScale);
+  return scaleBeforeShift;
+}
+
 template <bool PerBlockScaling, typename MatrixType, typename DiagType, typename SubDiagType>
 EIGEN_DEVICE_FUNC ComputationInfo computeFromTridiagonal_impl(DiagType& diag, SubDiagType& subdiag,
                                                               const Index maxIterations, bool computeEigenvectors,
@@ -761,14 +783,12 @@ struct direct_selfadjoint_eigenvalues<SolverType, 3, false> {
     EigenvectorsType& eivecs = solver.m_eivec;
     VectorType& eivals = solver.m_eivalues;
 
-    // Shift the matrix to the mean eigenvalue and map the matrix coefficients to [-1:1] to avoid over- and underflow.
-    Scalar shift = mat.trace() / Scalar(3);
     // TODO: avoid this copy. Currently necessary to suppress bogus values when determining maxCoeff and for
     // computing the eigenvectors later.
     MatrixType scaledMat = mat.template selfadjointView<Lower>();
-    scaledMat.diagonal().array() -= shift;
-    Scalar scale = scaledMat.cwiseAbs().maxCoeff();
-    if (scale > 0) direct_selfadjoint_eigensolver_matrix_scaling<MatrixType>::run(scaledMat, scale);
+    Scalar matrixScale, shift, centeredScale;
+    const bool scaledBeforeShift =
+        direct_selfadjoint_eigensolver_scale_and_shift<3>(scaledMat, matrixScale, shift, centeredScale);
 
     // compute the eigenvalues
     computeRoots(scaledMat, eivals);
@@ -839,9 +859,9 @@ struct direct_selfadjoint_eigenvalues<SolverType, 3, false> {
       }
     }
 
-    // Rescale back to the original size.
-    eivals *= scale;
+    eivals *= centeredScale;
     eivals.array() += shift;
+    if (scaledBeforeShift) eivals *= matrixScale;
 
     solver.m_info = Success;
     solver.m_isInitialized = true;
@@ -877,13 +897,11 @@ struct direct_selfadjoint_eigenvalues<SolverType, 2, false> {
     EigenvectorsType& eivecs = solver.m_eivec;
     VectorType& eivals = solver.m_eivalues;
 
-    // Shift the matrix to the mean eigenvalue and map the matrix coefficients to [-1:1] to avoid over- and underflow.
-    Scalar shift = mat.trace() / Scalar(2);
     MatrixType scaledMat = mat;
     scaledMat.coeffRef(0, 1) = mat.coeff(1, 0);
-    scaledMat.diagonal().array() -= shift;
-    Scalar scale = scaledMat.cwiseAbs().maxCoeff();
-    if (scale > Scalar(0)) direct_selfadjoint_eigensolver_matrix_scaling<MatrixType>::run(scaledMat, scale);
+    Scalar matrixScale, shift, centeredScale;
+    const bool scaledBeforeShift =
+        direct_selfadjoint_eigensolver_scale_and_shift<2>(scaledMat, matrixScale, shift, centeredScale);
 
     // Compute the eigenvalues
     computeRoots(scaledMat, eivals);
@@ -909,9 +927,9 @@ struct direct_selfadjoint_eigenvalues<SolverType, 2, false> {
       }
     }
 
-    // Rescale back to the original size.
-    eivals *= scale;
+    eivals *= centeredScale;
     eivals.array() += shift;
+    if (scaledBeforeShift) eivals *= matrixScale;
 
     solver.m_info = Success;
     solver.m_isInitialized = true;
