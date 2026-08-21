@@ -111,18 +111,10 @@ build:windows:x86-64:cuda-12.2:msvc-14.29:
     EIGEN_CI_BEFORE_SCRIPT: $$env:CUDA_PATH=$$env:CUDA_PATH_V12_2
 
 ######### MR Affected Tests ####################################################
-# Opt-in via `affected-tests` plus `platform::windows` or `all-platforms`; see
-# .rules:libeigen:affected-tests:windows in ci/common.gitlab-ci.yml.  MSVC x64
-# at baseline ISA is the only configuration here: the Windows runners are
-# self-hosted and few, and what MSVC catches that the Linux jobs do not is
-# front-end and optimizer behaviour rather than anything ISA-specific.  The
-# wider Windows matrix stays in `all-tests`.
-
-.affected:build:windows:
-  needs: [ select:tests ]
-  variables:
-    EIGEN_CI_BUILD_TARGET_FILE: affected/targets.txt
+# Opt-in via `affected-tests` plus `windows-tests` or `all-platforms`; see
+# .rules:libeigen:affected-tests:windows in ci/common.gitlab-ci.yml.  Only MSVC
+# x64 at baseline ISA; the wider Windows matrix stays in `all-tests`.
 
 build:windows:x86-64:msvc-14.29:default:affected:
-  extends: [ build:windows:x86-64:msvc-14.29:default, .affected:build:windows ]
+  extends: [ build:windows:x86-64:msvc-14.29:default, .affected:build ]
   rules: !reference [.rules:libeigen:affected-tests:windows, rules]
