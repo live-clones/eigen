@@ -579,6 +579,28 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool isOrdered(const half& a, const half& 
   constexpr uint16_t kAbsMask = (1 << 15) - 1;
   return numext::maxi(a.x & kAbsMask, b.x & kAbsMask) <= kInf;
 }
+#if EIGEN_COMP_NVHPC
+// NVHPC 26.1 miscompiles repeated inlined comparisons of the transformed integer representations. Every half value is
+// exactly representable as float, so compare the converted values instead.
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator==(const half& a, const half& b) {
+  return static_cast<float>(a) == static_cast<float>(b);
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator!=(const half& a, const half& b) {
+  return static_cast<float>(a) != static_cast<float>(b);
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator<(const half& a, const half& b) {
+  return static_cast<float>(a) < static_cast<float>(b);
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator<=(const half& a, const half& b) {
+  return static_cast<float>(a) <= static_cast<float>(b);
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator>(const half& a, const half& b) {
+  return static_cast<float>(a) > static_cast<float>(b);
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator>=(const half& a, const half& b) {
+  return static_cast<float>(a) >= static_cast<float>(b);
+}
+#else
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator==(const half& a, const half& b) {
   bool result = mapToSigned(a.x) == mapToSigned(b.x);
   result &= isOrdered(a, b);
@@ -605,6 +627,7 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator>=(const half& a, const half&
   result &= isOrdered(a, b);
   return result;
 }
+#endif
 
 #if EIGEN_COMP_CLANG && defined(EIGEN_GPUCC)
 #pragma pop_macro("EIGEN_DEVICE_FUNC")
