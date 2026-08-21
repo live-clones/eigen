@@ -130,10 +130,12 @@ the process and losing every cell already measured in that invocation. Because
 the footprint scales with sizeof(Scalar), one budget yields a different ceiling
 per scalar without the grid having to know about scalars.
 
-Run time is NOT bounded by that budget and has to be chosen. On Apple M4 a
-12288-cube double GEMM is about 10 s per iteration where float is 2.5 s, and
-complex<double> -- which has no SME kernel -- is roughly 30x the float cost at
-the same order. Select --scalars and --groups accordingly.
+Run time is NOT bounded by that budget and has to be chosen. Cost grows as n^3
+and again with the scalar: on any target, a complex scalar moves four times the
+data of its real counterpart and pays more per element wherever the vectorized
+real kernel has no complex equivalent. At the top of this group one iteration can
+run to tens of seconds. Select --scalars and --groups accordingly, and use
+--dry-run to see the cell count before committing to a sweep.
 """
 points = [[6144,6144,6144], [8192,8192,8192], [12288,12288,12288], [16384,16384,16384]]
 
@@ -460,9 +462,10 @@ the direct counterpart, and the Eigen arm is timed as the expression above --
 which is not quite only the factorization. LLT::compute additionally evaluates
 the operand's self-adjoint L1 norm, the quantity that makes LLT::rcond()
 available afterwards; ?potrf computes no norm, and a LAPACK user who wants rcond
-calls ?lange before ?pocon. On Apple M4 that norm is 5-13% of the Eigen arm for
-real scalars and more at the small end for complex. Read this row as "what the
-Eigen spelling costs against ?potrf", not as a kernel-for-kernel ratio.
+calls ?lange before ?pocon. The norm is O(n^2) against the factorization's
+O(n^3/3), so its share of the Eigen arm falls with n and matters most at the
+small end. Read this row as "what the Eigen spelling costs against ?potrf", not
+as a kernel-for-kernel ratio.
 """
 eigen_expr = "Eigen::LLT<MatrixType> llt(A)"
 eigen_class = "Eigen::LLT"

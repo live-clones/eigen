@@ -321,18 +321,13 @@ def load_machine_profile(path: Path) -> MachineProfile:
     return parse_machine_profile(data, path.stem, hashlib.sha256(raw).hexdigest())
 
 
-# The envelope comparison benchmarks wrap a skip reason in. Google Benchmark
-# gives a skipping benchmark one free-text channel, but WHY a cell was skipped is
-# a closed vocabulary (result_schema.json) whose members mean opposite things on
-# a published page: "too large for this machine" and "the reference BLAS uses
-# 32-bit indices" are facts about the machine and the build, where "the result
-# disagrees with Eigen" is a defect in the library. Rendering the first two as
-# the third would be a false statement about Eigen.
-#
-# Matching one grammar rather than one prose prefix per category is what keeps
-# adding a category from being a four-place edit across two languages. Must stay
-# in step with EIGEN_BENCH_SKIP_ENVELOPE_* in comparison/bench_compare.h; a test
-# asserts they agree.
+# The envelope comparison benchmarks wrap a skip reason in. Why a cell was
+# skipped is a closed vocabulary (result_schema.json) whose members mean opposite
+# things on a published page -- "too large for this machine" is a fact about the
+# host, "the result disagrees with Eigen" is a defect in the library -- so the
+# reason travels as a token rather than a prose prefix per category. Must stay in
+# step with EIGEN_BENCH_SKIP_ENVELOPE_* in bench_compare.h; a test asserts they
+# agree.
 SKIP_ENVELOPE = re.compile(r"^\[eigen-bench:skip:([a-z][a-z0-9_]*)\]\s*(.*)$", re.DOTALL)
 
 # Reasons a benchmark may name. A subset of result_schema.json's not_measured
@@ -2409,12 +2404,10 @@ def _run(args: argparse.Namespace, argv: Sequence[str], root: Path, reporter: Re
         runtime_failures += 1 if outcome.runtime_failed else 0
 
     if runtime_failures == len(units) and units:
-        # A unit can be a runtime failure and still have produced rows: the
-        # comparison binaries exit non-zero when any single shape disagreed with
-        # Eigen, having already written every other shape. The status has to say
-        # the run failed either way -- an operator who does not notice publishes
-        # a table built on a binary that reported a defect -- but the message must
-        # not claim the file is empty when it is not.
+        # A unit can be a runtime failure and still have produced rows, so the
+        # status must still say the run failed -- an operator who misses it
+        # publishes a table built on a binary that reported a defect -- while the
+        # message must not claim the file is empty when it is not.
         reporter.error(
             "every benchmark executable failed at runtime; the result file(s) are written for "
             "inspection and record what did and did not survive"
@@ -2572,15 +2565,12 @@ def _measure_unit(
                 "all differ. Rebuild, or point --ops-toml at the registry the build used.",
                 EXIT_CONFIG,
             )
-        # Guarded on the REQUESTED arm, not on the built one. Skipping the check
-        # when the build recorded no reference library was the dangerous half of
-        # it: with --no-configure a requested Accelerate or OpenBLAS unit would
-        # happily reuse an Eigen-only build tree, run its executable, find no
-        # reference row for anything, and file the whole reference column as
-        # not_implemented -- while provenance named the vendor that was asked for.
-        # That publishes "the library does not implement this" about a library
-        # that was never linked. Only an Eigen-only unit may accept an empty
-        # build arm.
+        # Keyed on the REQUESTED arm, so an empty built arm fails like any other
+        # mismatch. Otherwise, under --no-configure, a requested vendor would
+        # reuse an Eigen-only build tree, find no reference row for anything, and
+        # file the whole reference column as not_implemented under provenance
+        # naming that vendor -- publishing "the library does not implement this"
+        # about a library that was never linked.
         built_arm = str((vendor_info.get("reference") or {}).get("arm") or "")
         if arm_key and arm_key != "eigen" and arm_key != built_arm:
             raise HarnessError(
@@ -2618,16 +2608,12 @@ def _measure_unit(
         benchmark_argv = command[len(pinning.command_prefix) + 1 :]
         executable_used = str(executable)
         completed = run_command(command, reporter=reporter, env=benchmark_env)
-        # A non-zero status does NOT mean there is nothing to read.
-        # ErrorTrackingReporter deliberately returns 1 after any unstructured
-        # SkipWithError -- a kernel that disagreed with Eigen -- and Google
-        # Benchmark has written every row by then. Discarding the file here
-        # condemned the whole binary on one bad shape, filed every cell as
-        # runtime_error, and made the per-row failure handling below unreachable
-        # for a real comparison binary: the one shape that failed took the
-        # hundreds that did not down with it. So the unit is still a failure, but
-        # a present and parseable output is distilled and only the keys the
-        # binary itself reported an error for carry a failure reason.
+        # A non-zero status does not mean there is nothing to read.
+        # ErrorTrackingReporter returns 1 after any unstructured SkipWithError,
+        # and Google Benchmark has written every row by then. The unit is still a
+        # failure, but a present and parseable output is distilled so that one
+        # disagreeing shape does not discard the hundreds beside it, and only the
+        # keys the binary flagged carry a failure reason.
         document = None
         if raw_path.is_file():
             try:
@@ -2651,11 +2637,10 @@ def _measure_unit(
             continue
 
         distilled = distill_benchmark_json(document, registry, planned=target_cells, threads=threads)
-        # Not a plain update: the reference-arm gate in CMakeLists.txt can build
-        # ONE binary of a unit Eigen-only -- ?potrf against a vendor with no
-        # LAPACK -- and that binary publishes empty reference_* context keys.
-        # Whichever target sorted last would then decide the provenance for all of
-        # them, so an empty value never displaces one that was established.
+        # Not a plain update: the reference-arm gate can build one binary of a
+        # unit Eigen-only, and that binary publishes empty reference_* context
+        # keys. An empty value must not displace one that was established, or the
+        # target that sorted last would decide the provenance for all of them.
         for key, value in distilled.context.items():
             if key not in context or value not in ("", None):
                 context[key] = value

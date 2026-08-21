@@ -86,13 +86,12 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${EIGEN_BENCH_OP
 # Which operations ops.toml expects a binary for
 # ---------------------------------------------------------------------------
 
-# ops.toml is TOML and CMake has no TOML parser, but only three keys are read
-# here -- `status` and `source` at the top level of an [ops.<KEY>] table, and
-# `kind` inside its [ops.<KEY>.reference] sub-table -- so a line scan is enough.
-# tests/test_ops_registry.py mirrors this scan against a real TOML parse and
-# fails if the two ever disagree, because `kind` now decides what is BUILT: a
-# reformatted ops.toml that this scan stopped reading would silently drop the
-# reference arm of every LAPACK operation.
+# CMake has no TOML parser, and only three keys are needed -- `status` and
+# `source` from an [ops.<KEY>] table and `kind` from its [ops.<KEY>.reference]
+# sub-table -- so a line scan is enough. `kind` decides what is built, so a
+# reformatted ops.toml this scan stopped reading would silently drop the
+# reference arm of every LAPACK operation; tests/test_ops_registry.py mirrors the
+# scan against a real TOML parse and fails when the two disagree.
 file(READ "${EIGEN_BENCH_OPS_TOML}" _ops_content)
 string(REPLACE ";" "\;" _ops_content "${_ops_content}")
 # A CRLF checkout would otherwise leave \r on every line and the anchored table
@@ -187,10 +186,9 @@ _eigen_bench_append_string_define(_comparison_definitions EIGEN_BENCH_EIGEN_COMM
 _eigen_bench_append_string_define(_comparison_definitions EIGEN_BENCH_EIGEN_DIRTY "${EIGEN_BENCH_EIGEN_DIRTY}")
 _eigen_bench_append_string_define(_comparison_definitions EIGEN_BENCH_OPS_TOML_SHA256 "${EIGEN_BENCH_OPS_TOML_SHA256}")
 
-# Kept SEPARATE from _comparison_definitions, which every target gets. These are
-# the defines that make a source register its reference arm at all, and a target
-# whose reference routines live in an interface family this build cannot call
-# must not receive them -- see the per-target gate below.
+# Separate from _comparison_definitions, which every target gets: these are what
+# make a source register its reference arm, and the gate below withholds them
+# from a target whose routines live in a family this build cannot call.
 set(_comparison_reference_definitions "")
 
 set(_comparison_arms eigen)
@@ -273,13 +271,10 @@ if(EIGEN_BENCH_BLAS_FOUND)
   endif()
 endif()
 
-# The interface families this build can actually CALL, as opposed to the ones the
-# vendor row declares. They differ in the two directions that matter: a vendor
-# that ships no LAPACK gains the family when find_package(LAPACK) supplies it
-# elsewhere, and a vendor that declares LAPACK it cannot deliver would be caught
-# at link time rather than here. run.py turns an absent family into an explicit
-# `reference_routine_absent` cell; ops.toml's per-op reference.kind is what says
-# which family an operation needs.
+# The interface families this build can actually CALL, as against the ones the
+# vendor row declares: a vendor that ships no LAPACK gains the family when
+# find_package(LAPACK) supplies one elsewhere. run.py turns an absent family into
+# an explicit `reference_routine_absent` cell.
 set(EIGEN_BENCH_REFERENCE_FAMILIES "")
 if(EIGEN_BENCH_BLAS_FOUND)
   set(EIGEN_BENCH_REFERENCE_FAMILIES ${EIGEN_BENCH_BLAS_PROVIDES})
@@ -311,13 +306,10 @@ foreach(_source IN LISTS _comparison_sources)
   get_filename_component(_target "${_source}" NAME_WE)
 
   # A source whose reference routine lives in a family this build cannot call --
-  # ?potrf against a vendor that ships BLAS but no LAPACK, with no separate LAPACK
-  # found -- must be built WITHOUT the reference arm. Handing it
-  # EIGEN_BENCH_REFERENCE_ARM anyway made it declare and call a routine that does
-  # not resolve, so the target failed to LINK: the harness then reported
-  # build_failed for both arms of the operation, taking the Eigen arm down with
-  # it, and the `reference_routine_absent` path this whole mechanism exists to
-  # produce could never be reached.
+  # ?potrf against a vendor shipping BLAS but no LAPACK -- must be built WITHOUT
+  # the reference arm. With EIGEN_BENCH_REFERENCE_ARM it declares and calls a
+  # routine that does not resolve, so the target fails to LINK and both arms of
+  # the operation are reported build_failed, losing the Eigen arm too.
   set(_target_missing_families "")
   set(_target_reference_ops "")
   _eigen_bench_target_ops("${_target}" _target_ops_here)
@@ -456,9 +448,8 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_flops.cpp")
 endif()
 
 # The cross-arm agreement predicate, which decides whether a reference kernel's
-# output is a result or a defect. Same shape as the flop test above and for the
-# same reason: its own main(), no GoogleTest, no vendor library -- the predicate
-# is pure and the operands are constructed in the test.
+# output is a result or a defect. Same shape as the flop test above: its own
+# main(), no GoogleTest, and no vendor library, since the predicate is pure.
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_validation.cpp")
   add_executable(comparison_test_validation "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_validation.cpp")
   target_include_directories(comparison_test_validation PRIVATE ${EIGEN_SOURCE_DIR})
@@ -521,9 +512,8 @@ foreach(_target IN LISTS _comparison_targets)
     endif()
   endforeach()
   eigen_bench_json_string_array("${_target_ops}" _json_target_ops)
-  # Per binary, because the reference arm is gated per binary: a target built
-  # Eigen-only carries no reference registrations however the rest of this file
-  # describes the selected vendor.
+  # Per binary, because the gate is: a target built Eigen-only carries no
+  # reference registrations however the rest of this file describes the vendor.
   if(_target_${_target}_has_reference)
     set(_json_target_reference_arm "${EIGEN_BENCH_BLAS_ARM}")
   else()
