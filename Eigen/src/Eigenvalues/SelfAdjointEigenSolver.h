@@ -51,6 +51,27 @@ struct direct_selfadjoint_eigensolver_matrix_scaling<MatrixType, true> {
   }
 };
 
+template <typename VectorType, typename Scalar>
+EIGEN_DEVICE_FUNC void direct_selfadjoint_eigensolver_rescale(VectorType& roots, const Scalar& scale,
+                                                              const Scalar& shift, std::false_type) {
+  roots *= scale;
+  roots.array() += shift;
+}
+
+template <typename VectorType, typename Scalar>
+EIGEN_DEVICE_FUNC void direct_selfadjoint_eigensolver_rescale(VectorType& roots, const Scalar& scale,
+                                                              const Scalar& shift, std::true_type) {
+  // A centered correction as large as epsilon*scale may still be subnormal at this scale while remaining significant
+  // after adding the shift. FMA prevents flush-to-zero from discarding that intermediate correction.
+  if (scale > Scalar(0) && scale < (std::numeric_limits<Scalar>::min)() / NumTraits<Scalar>::epsilon()) {
+    for (Index i = 0; i < roots.size(); ++i) {
+      roots(i) = numext::fma(roots(i), scale, shift);
+    }
+  } else {
+    direct_selfadjoint_eigensolver_rescale(roots, scale, shift, std::false_type());
+  }
+}
+
 template <bool PerBlockScaling, typename MatrixType, typename DiagType, typename SubDiagType>
 EIGEN_DEVICE_FUNC ComputationInfo computeFromTridiagonal_impl(DiagType& diag, SubDiagType& subdiag,
                                                               const Index maxIterations, bool computeEigenvectors,
@@ -839,9 +860,7 @@ struct direct_selfadjoint_eigenvalues<SolverType, 3, false> {
       }
     }
 
-    // Rescale back to the original size.
-    eivals *= scale;
-    eivals.array() += shift;
+    direct_selfadjoint_eigensolver_rescale(eivals, scale, shift, has_fma<Scalar>());
 
     solver.m_info = Success;
     solver.m_isInitialized = true;
