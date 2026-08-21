@@ -19,6 +19,7 @@ Nothing here talks to the network, builds anything, or writes outside `tmp_path`
 except `regenerate.py`, which is the single documented fixture/golden refresh.
 """
 
+import hashlib
 import importlib.util
 import json
 import math
@@ -76,6 +77,22 @@ THREAD_ENV_VARS = (
 AFFINITY_ENV_VARS = ("OMP_PROC_BIND", "OMP_PLACES", "KMP_AFFINITY")
 
 DUMMY_SHA256 = "0123456789abcdef" * 4
+
+
+def ops_toml_sha256(path=OPS_TOML):
+    """The digest `run.py` stamps into `scope.ops_toml_sha256` and `reduce.py`
+    checks a contribution against.
+
+    Real: a fixture carrying an invented digest is a fixture the reducer refuses,
+    because a result computed against a different registry may hold rates from a
+    flop formula that no longer exists.  That does couple the committed fixtures
+    to ops.toml -- `tests/regenerate.py --fixtures` restamps them, and
+    tests/test_schema.py says so when they have drifted.
+    """
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+OPS_TOML_SHA256 = ops_toml_sha256()
 EIGEN_COMMIT = "e2a2fda17c0b1d3e4f5a6b7c8d9e0f1a2b3c4d5e"
 EIGEN_COMMIT_SHORT = "e2a2fda17"
 CONFIG_ID = "m4pro__aarch64-neon__appleclang17__e2a2fda17__t1"
@@ -398,7 +415,7 @@ def make_result(
         "scalars": ["f64"],
         "threads": [1],
         "shape_groups": {"GEMM": ["small"]},
-        "ops_toml_sha256": DUMMY_SHA256,
+        "ops_toml_sha256": OPS_TOML_SHA256,
     }
     gaps = provenance_gaps if provenance_gaps is not None else [
         {"field": "/provenance/cpu/frequency_governor", "reason": "macOS exposes no user-visible CPU frequency governor"},
@@ -506,7 +523,7 @@ def make_merged(cells, baseline="accelerate", configs=None, arms=None, coverage=
         "schema_version": SCHEMA_VERSION,
         "kind": "eigen-benchmark-comparison-merged",
         "generated_utc": "2026-08-20T00:00:00Z",
-        "ops_toml_sha256": DUMMY_SHA256,
+        "ops_toml_sha256": OPS_TOML_SHA256,
         "reducer_version": "1.0.0",
         "baseline": baseline,
         "configs": configs,
