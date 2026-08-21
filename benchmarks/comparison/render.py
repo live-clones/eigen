@@ -674,9 +674,24 @@ def render_coverage_markdown(merged: Mapping[str, Any], registry: Mapping[str, A
                 )
             )
         for config_id in model["configs"]:
-            if (model["config_details"].get(config_id) or {}).get("eigen_dirty"):
+            detail = model["config_details"].get(config_id) or {}
+            if detail.get("eigen_dirty"):
                 out.append("")
                 out.append(f"> `{config_id}` was measured from a **dirty** Eigen worktree and is not reproducible.")
+            # What the run could not establish about its own environment. These are
+            # the caveats the harness deliberately recorded -- an unpinnable CPU, an
+            # unknown governor, Eigen running sequentially against a threaded vendor
+            # -- and a page that omits them overstates how controlled the
+            # measurement was.
+            gaps = detail.get("provenance_gaps") or []
+            if gaps:
+                out.append("")
+                out.append(f"> `{config_id}` could not establish the following, so the numbers carry that caveat:")
+                out.append(">")
+                for gap in gaps:
+                    field = _escape_markdown_cell(str(gap.get("field", "?")))
+                    reason = _escape_markdown_cell(str(gap.get("reason", "no reason recorded")))
+                    out.append(f"> - `{field}` — {reason}")
     else:
         out.append("No configuration in the selected slice.")
     out.append("")
