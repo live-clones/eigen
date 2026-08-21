@@ -74,11 +74,21 @@ void setFlopsCounter(benchmark::State& state, Index n) {
 }  // namespace
 
 // ---------------------------------------------------------------------------
-// Allocation. The first case is the regression guard: DeviceMatrix(rows, cols)
-// still takes the direct device_malloc path, and naming the device resource
-// explicitly adds only a virtual call. If those two differ, the abstraction is
-// not free and the default path paid for it.
+// Allocation. The direct case is the pre-abstraction baseline. The default and
+// explicitly named device-resource cases show the wrapper and virtual-call
+// overhead separately.
 // ---------------------------------------------------------------------------
+
+static void BM_Alloc_Direct(benchmark::State& state) {
+  const Index n = state.range(0);
+  const size_t bytes = static_cast<size_t>(n) * static_cast<size_t>(n) * sizeof(Scalar);
+  for (auto _ : state) {
+    void* p = gpu::internal::device_malloc(bytes);
+    benchmark::DoNotOptimize(p);
+    gpu::internal::device_free(p);
+  }
+}
+BENCHMARK(BM_Alloc_Direct)->Arg(64)->Arg(1024)->Unit(benchmark::kMicrosecond)->UseRealTime()->MinWarmUpTime(0.5);
 
 static void BM_Alloc_Default(benchmark::State& state) {
   const Index n = state.range(0);
@@ -116,13 +126,16 @@ static void BM_RoundTrip_Device(benchmark::State& state) {
   const Index n = state.range(0);
   const HostMatrix ha = HostMatrix::Random(n, n);
   const HostMatrix hb = HostMatrix::Random(n, n);
+  HostMatrix hc(n, n);
   gpu::Context ctx;
+  gpu::DeviceMatrix<Scalar> a(n, n), b(n, n), c(n, n);
+  const size_t bytes = static_cast<size_t>(n) * static_cast<size_t>(n) * sizeof(Scalar);
   for (auto _ : state) {
-    auto a = gpu::DeviceMatrix<Scalar>::fromHost(ha, ctx.stream());
-    auto b = gpu::DeviceMatrix<Scalar>::fromHost(hb, ctx.stream());
-    gpu::DeviceMatrix<Scalar> c(n, n);
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(a.data(), ha.data(), bytes, cudaMemcpyHostToDevice, ctx.stream()));
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(b.data(), hb.data(), bytes, cudaMemcpyHostToDevice, ctx.stream()));
     c.device(ctx) = a * b;
-    HostMatrix hc = c.toHost(ctx.stream());
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(hc.data(), c.data(), bytes, cudaMemcpyDeviceToHost, ctx.stream()));
+    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(ctx.stream()));
     benchmark::DoNotOptimize(hc.data());
   }
   setFlopsCounter(state, n);
@@ -148,7 +161,8 @@ static void roundTripBench(benchmark::State& state, Kind k) {
     HostMap(b.hostData(), n, n) = hb;
     c.device(ctx) = a * b;
     c.syncHost(ctx);
-    benchmark::DoNotOptimize(HostMap(c.hostData(), n, n).coeff(0, 0));
+    Scalar observed = HostMap(c.hostData(), n, n).coeff(0, 0);
+    benchmark::DoNotOptimize(observed);
   }
   setFlopsCounter(state, n);
 }
@@ -208,7 +222,8 @@ static void hostReadLoopBench(benchmark::State& state, Kind k) {
   for (auto _ : state) {
     c.device(ctx) = a * b;
     c.syncHost(ctx);
-    benchmark::DoNotOptimize(HostMap(c.hostData(), n, n).coeff(0, 0));
+    Scalar observed = HostMap(c.hostData(), n, n).coeff(0, 0);
+    benchmark::DoNotOptimize(observed);
   }
   setFlopsCounter(state, n);
 }

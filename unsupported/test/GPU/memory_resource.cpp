@@ -21,6 +21,9 @@
 #include "main.h"
 #include <unsupported/Eigen/GPU>
 
+#include <array>
+#include <thread>
+
 #include "./gpu_test_helpers.h"
 
 using namespace Eigen;
@@ -54,8 +57,11 @@ MatrixType makeSpd(Index n) {
 void test_resource_properties() {
   VERIFY(!gpu::deviceMemoryResource().isHostAccessible());
   VERIFY(!gpu::pooledDeviceMemoryResource().isHostAccessible());
+  VERIFY(gpu::deviceMemoryResource().supportsMultipleAllocations());
+  VERIFY(gpu::pooledDeviceMemoryResource().supportsMultipleAllocations());
   for (gpu::MemoryResource* r : hostAccessibleResources()) {
     VERIFY(r->isHostAccessible());
+    VERIFY(r->supportsMultipleAllocations());
     VERIFY(r->name() != nullptr);
   }
   // Managed memory is the one kind whose host access is restricted, and only on
@@ -64,6 +70,21 @@ void test_resource_properties() {
                   gpu::deviceSupportsConcurrentManagedAccess());
   VERIFY(gpu::mappedHostMemoryResource().allowsConcurrentHostAccess());
   VERIFY(gpu::registeredHostMemoryResource().allowsConcurrentHostAccess());
+}
+
+// A buffer stores its resource by pointer and may be moved to another thread,
+// so the built-in resource objects themselves cannot have thread lifetime.
+void test_resource_process_lifetime() {
+  std::array<gpu::MemoryResource*, 3> worker_resources{{nullptr, nullptr, nullptr}};
+  std::thread worker([&worker_resources] {
+    worker_resources = {
+        {&gpu::managedMemoryResource(), &gpu::mappedHostMemoryResource(), &gpu::registeredHostMemoryResource()}};
+  });
+  worker.join();
+
+  const std::array<gpu::MemoryResource*, 3> main_resources{
+      {&gpu::managedMemoryResource(), &gpu::mappedHostMemoryResource(), &gpu::registeredHostMemoryResource()}};
+  for (size_t i = 0; i < main_resources.size(); ++i) VERIFY(worker_resources[i] == main_resources[i]);
 }
 
 // ---- Allocation round trip through each resource ---------------------------
@@ -170,6 +191,29 @@ void test_solver_adopts_resource_backed(Index n) {
   VERIFY((spd * HostMap(d_x.hostData(), n, 1) - hb).norm() / hb.norm() < tol);
 }
 
+// A small device RHS starts in the scratch pool. Once returned as a public
+// DeviceMatrix it must use stream-ordered ownership, since callers may move it
+// to another stream before destruction.
+template <typename Scalar>
+void test_solver_promotes_pooled_result() {
+  using MatrixType = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
+
+  constexpr Index n = 4;
+  const MatrixType spd = makeSpd<MatrixType>(n);
+  const MatrixType hb = MatrixType::Random(n, 1);
+
+  gpu::Context ctx;
+  gpu::DeviceMatrix<Scalar> d_A = gpu::DeviceMatrix<Scalar>::fromHost(spd, ctx.stream());
+  gpu::DeviceMatrix<Scalar> d_b = gpu::DeviceMatrix<Scalar>::fromHost(hb, ctx.stream());
+  gpu::LLT<Scalar> llt(ctx, d_A);
+  VERIFY_IS_EQUAL(llt.info(), Success);
+
+  gpu::DeviceMatrix<Scalar> d_x = llt.solve(d_b);
+  VERIFY(&d_x.memoryResource() == &gpu::deviceMemoryResource());
+  const MatrixType x = d_x.toHost(ctx.stream());
+  VERIFY((spd * x - hb).norm() / hb.norm() < tolFor<Scalar>(n));
+}
+
 // ---- Adopting a matrix the caller already has -------------------------------
 
 template <typename Scalar>
@@ -200,6 +244,31 @@ void test_adopted_host_matrix(Index n) {
 
   const RealScalar tol = tolFor<Scalar>(n);
   VERIFY((Eigen::Map<MatrixType>(C.hostData(), n, n) - expected).norm() / expected.norm() < tol);
+}
+
+// Growing factor storage adopted from a HostMatrixResource needs a fresh
+// allocator: the old one is a single live allocation and cannot serve a larger
+// replacement before that allocation is released.
+template <typename Scalar>
+void test_solver_grows_after_adopted_host_matrix() {
+  using MatrixType = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
+
+  constexpr Index small_n = 4;
+  constexpr Index large_n = 8;
+  MatrixType small = makeSpd<MatrixType>(small_n);
+  gpu::HostMatrixResource<Scalar> adopted(std::move(small));
+  VERIFY(!adopted.supportsMultipleAllocations());
+
+  gpu::Context ctx;
+  gpu::DeviceMatrix<Scalar> d_small(small_n, small_n, adopted);
+  gpu::LLT<Scalar> llt(ctx);
+  llt.compute(std::move(d_small));
+  VERIFY_IS_EQUAL(llt.info(), Success);
+
+  const MatrixType large = makeSpd<MatrixType>(large_n);
+  gpu::DeviceMatrix<Scalar> d_large = gpu::DeviceMatrix<Scalar>::fromHost(large, ctx.stream());
+  llt.compute(d_large);
+  VERIFY_IS_EQUAL(llt.info(), Success);
 }
 
 // ---- The same storage kinds, one type down ---------------------------------
@@ -320,7 +389,10 @@ void test_scalar() {
 EIGEN_DECLARE_TEST(gpu_memory_resource) {
   gpu_test::require_cuda_device();
   CALL_SUBTEST_1(test_resource_properties());
+  CALL_SUBTEST_1(test_resource_process_lifetime());
   CALL_SUBTEST_1(test_release_rejects_resource_backed());
+  CALL_SUBTEST_1(test_solver_promotes_pooled_result<float>());
+  CALL_SUBTEST_1(test_solver_grows_after_adopted_host_matrix<float>());
   CALL_SUBTEST_1(test_device_scalar_arithmetic_keeps_resource<float>());
   CALL_SUBTEST_2(test_device_scalar_arithmetic_keeps_resource<double>());
   CALL_SUBTEST_1(test_scalar<float>());

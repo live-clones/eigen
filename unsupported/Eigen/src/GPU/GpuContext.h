@@ -53,10 +53,11 @@ struct OneShotSolverScratch {
 
 inline void ensure_sized(DeviceBuffer& buf, size_t needed) {
   if (needed > buf.size()) {
-    // Grow through the resource the buffer already has, so storage a solver
-    // adopted from a moved-in matrix does not silently revert to the default
-    // on the first reallocation. An empty buffer has none yet and takes it.
+    // Grow through the resource the buffer already has when it is a general
+    // allocator. A one-shot resource such as HostMatrixResource can release
+    // the current block but cannot supply the replacement.
     MemoryResource* resource = buf.memoryResource();
+    if (resource != nullptr && !resource->supportsMultipleAllocations()) resource = nullptr;
     // Replacing an in-use buffer is safe: the new block is allocated before the
     // old one is released, and device_free is stream-ordered (or fully
     // synchronous on the cudaMalloc fallback path), so the free waits for
