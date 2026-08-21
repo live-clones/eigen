@@ -50,12 +50,14 @@ class TensorInflationOp : public TensorBase<TensorInflationOp<Strides, XprType>,
   typedef typename Eigen::internal::traits<TensorInflationOp>::StorageKind StorageKind;
   typedef typename Eigen::internal::traits<TensorInflationOp>::Index Index;
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorInflationOp(const XprType& expr, const Strides& strides)
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorInflationOp(const XprType& expr, const Strides& strides)
       : m_xpr(expr), m_strides(strides) {}
 
-  EIGEN_DEVICE_FUNC const Strides& strides() const { return m_strides; }
+  EIGEN_DEVICE_FUNC constexpr const Strides& strides() const { return m_strides; }
 
-  EIGEN_DEVICE_FUNC const internal::remove_all_t<typename XprType::Nested>& expression() const { return m_xpr; }
+  EIGEN_DEVICE_FUNC constexpr const internal::remove_all_t<typename XprType::Nested>& expression() const {
+    return m_xpr;
+  }
 
  protected:
   typename XprType::Nested m_xpr;
@@ -103,7 +105,7 @@ struct TensorEvaluator<const TensorInflationOp<Strides, ArgType>, Device> {
   typedef internal::TensorMaterializedBlock<CoeffReturnType, NumDims, Layout, Index> TensorBlock;
   //===--------------------------------------------------------------------===//
 
-  EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device)
+  EIGEN_STRONG_INLINE constexpr TensorEvaluator(const XprType& op, const Device& device)
       : m_impl(op.expression(), device), m_strides(op.strides()), m_device(device) {
     m_dimensions = m_impl.dimensions();
     // Expand each dimension to the inflated dimension.
@@ -134,17 +136,17 @@ struct TensorEvaluator<const TensorInflationOp<Strides, ArgType>, Device> {
     }
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_dimensions; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const Dimensions& dimensions() const { return m_dimensions; }
 
-  EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType /*data*/) {
+  EIGEN_STRONG_INLINE constexpr bool evalSubExprsIfNeeded(EvaluatorPointerType /*data*/) {
     m_impl.evalSubExprsIfNeeded(nullptr);
     return true;
   }
-  EIGEN_STRONG_INLINE void cleanup() { m_impl.cleanup(); }
+  EIGEN_STRONG_INLINE constexpr void cleanup() { m_impl.cleanup(); }
 
   // Computes the input index given the output index. Returns true if the output
   // index doesn't fall into a hole.
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool getInputIndex(Index index, Index* inputIndex) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr bool getInputIndex(Index index, Index* inputIndex) const {
     eigen_assert(index < dimensions().TotalSize());
     *inputIndex = 0;
     EIGEN_IF_CONSTEXPR (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
@@ -180,7 +182,7 @@ struct TensorEvaluator<const TensorInflationOp<Strides, ArgType>, Device> {
     return true;
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index index) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr CoeffReturnType coeff(Index index) const {
     Index inputIndex = 0;
     if (getInputIndex(index, &inputIndex)) {
       return m_impl.coeff(inputIndex);
@@ -206,7 +208,8 @@ struct TensorEvaluator<const TensorInflationOp<Strides, ArgType>, Device> {
     return rslt;
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE internal::TensorBlockResourceRequirements getResourceRequirements() const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr internal::TensorBlockResourceRequirements getResourceRequirements()
+      const {
     const size_t target_size = m_device.lastLevelCacheSize();
     // One store per output coefficient for the zero fill, plus a
     // lattice-density-weighted argument read and overwrite store, so that
@@ -222,8 +225,8 @@ struct TensorEvaluator<const TensorInflationOp<Strides, ArgType>, Device> {
         internal::TensorBlockShapeType::kSkewedInnerDims, target_size, cost_per_coeff);
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorBlock block(TensorBlockDesc& desc, TensorBlockScratch& scratch,
-                                                          bool /*root_of_expr_ast*/ = false) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorBlock block(TensorBlockDesc& desc, TensorBlockScratch& scratch,
+                                                                    bool /*root_of_expr_ast*/ = false) const {
     constexpr bool is_col_major = static_cast<int>(Layout) == static_cast<int>(ColMajor);
 
     // If one of the dimensions is zero, return empty block view.
@@ -310,7 +313,7 @@ struct TensorEvaluator<const TensorInflationOp<Strides, ArgType>, Device> {
     return block_storage.AsTensorMaterializedBlock();
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorOpCost costPerCoeff(bool vectorized) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorOpCost costPerCoeff(bool vectorized) const {
     const double compute_cost = NumDims * (3 * TensorOpCost::DivCost<Index>() + 3 * TensorOpCost::MulCost<Index>() +
                                            2 * TensorOpCost::AddCost<Index>());
     if (m_dimensions.TotalSize() == 0) return TensorOpCost();
@@ -318,7 +321,7 @@ struct TensorEvaluator<const TensorInflationOp<Strides, ArgType>, Device> {
            TensorOpCost(sizeof(CoeffReturnType) * latticeDensity(), 0, compute_cost, vectorized, PacketSize);
   }
 
-  EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return nullptr; }
+  EIGEN_DEVICE_FUNC constexpr EvaluatorPointerType data() const { return nullptr; }
 
  protected:
   // Fraction of output coefficients that fall on the stride lattice.
