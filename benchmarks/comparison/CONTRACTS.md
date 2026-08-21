@@ -511,11 +511,11 @@ stdin is never read. Exit codes:
 |---|---|
 | 0 | success — including a run in which every cell was recorded as `not_measured` *because nothing was runnable*; that is a valid partial result |
 | 1 | usage error |
-| 2 | configuration error: missing machine config, invalid `ops.toml`, unknown op/scalar/arm/group, or `--threads N>1` against a build whose Eigen has no OpenMP without `--allow-sequential-eigen` |
+| 2 | configuration error: missing machine config, invalid `ops.toml`, unknown op/scalar/arm/group, `--threads N>1` against a build whose Eigen has no OpenMP without `--allow-sequential-eigen`, or a build directory whose `vendor_info.json` names a different reference arm than the unit measures — including none at all, which under `--no-configure` is how an Eigen-only tree would otherwise be measured and reported as the requested vendor |
 | 3 | refused: dirty Eigen worktree without `--allow-dirty` |
 | 4 | refused: machine too noisy without `--allow-noisy` |
 | 5 | build failure |
-| 6 | every benchmark executable failed at runtime, leaving nothing measured and nothing classifiable — or a unit planned runnable cells and measured none of them, which is a broken run rather than a coverage statement |
+| 6 | every benchmark executable failed at runtime — or a unit planned runnable cells and measured none of them, which is a broken run rather than a coverage statement. A non-zero exit does **not** discard the binary's output: `ErrorTrackingReporter` returns 1 after any unstructured `SkipWithError` and Google Benchmark has written every row by then, so a present and parseable file is still distilled and only the keys the binary flagged carry a failure reason. The result file is written for inspection either way |
 | 7 | the produced file failed `result_schema.json` validation — a harness bug. The file is still written, with the suffix `.invalid.json`, so it can be inspected |
 
 ### 4.2 `reduce.py` — merge result files into the intermediate
@@ -538,6 +538,7 @@ stdin, so `find ... | reduce.py` works.
 | `--skip-invalid` | off | warn and continue instead of failing on an invalid input |
 | `--baseline ARM` | the single non-`eigen` arm present | reference arm for ratios; ambiguity is an error, including under `--merge`, where the reference arms of both documents are counted rather than the base's being inherited |
 | `--on-conflict {latest,first,error,keep-all}` | `latest` | two contributions for one cell key |
+| `--allow-registry-drift` | off | reduce a result whose `scope.ops_toml_sha256` is not this `ops.toml`, recording the discrepancy as a `notes` caveat on every configuration it contributes to |
 | `--inconclusive-rule {mad-overlap,none}` | `mad-overlap` | see section 5.4 |
 | `--pretty` / `--compact` | `--pretty` | `indent=2`, `sort_keys=True`, so merged files diff cleanly |
 | `-v` / `--verbose` | off | repeatable |
@@ -546,7 +547,7 @@ stdin, so `find ... | reduce.py` works.
 |---|---|
 | 0 | success |
 | 1 | usage error |
-| 2 | an input failed schema validation (without `--skip-invalid`), or referenced an op absent from `ops.toml` |
+| 2 | an input failed schema validation (without `--skip-invalid`), referenced an op absent from `ops.toml`, or states a `scope.ops_toml_sha256` that is not this registry's (without `--allow-registry-drift`) |
 | 3 | conflicting contributions under `--on-conflict error` |
 | 4 | no input files resolved |
 
@@ -642,8 +643,10 @@ and never read Google Benchmark JSON.
   },
 
   "arms": {
-    "eigen":      { "kind": "eigen",     "library_name": "Eigen",            "library_version": "…" },
-    "accelerate": { "kind": "reference", "library_name": "Apple Accelerate", "library_version": "macOS 15.6" }
+    "eigen":      { "kind": "eigen",     "library_name": "Eigen",            "library_version": "…",
+                    "observed_utc": "2026-08-20T22:11:04Z" },
+    "accelerate": { "kind": "reference", "library_name": "Apple Accelerate", "library_version": "macOS 15.6",
+                    "observed_utc": "2026-08-20T22:11:04Z" }
   },
 
   "cells": [ /* section 5.3 */ ],
@@ -652,6 +655,11 @@ and never read Google Benchmark JSON.
   "conflicts": [ /* section 5.6 */ ]
 }
 ```
+
+`observed_utc` is the timestamp of the run this arm description came from, not of the merge. An arm is described
+by whichever contributing run saw it last, so a vendor upgrade replaces the version string rather than being ranked
+against it by filename or by argument order; `reduce.py a.json b.json` and `reduce.py b.json --merge a-merged.json`
+have to agree about that, and this is the clock they agree on.
 
 `provenance_gaps` and `notes` are the two caveat channels, and a caveat belongs
 to exactly one of them. A gap says the run **could not establish** something
@@ -772,7 +780,7 @@ column, and never omitted.
 |---|---|
 | C++ | the arm simply does not register; a reference arm absent from the build produces no names |
 | `run.py` | diffs the planned cell set (from `scope`) against the names the binary emitted, and writes a `not_measured` entry with a `reason` for every difference |
-| result file | `not_measured[]` — `{op, arm, scalar, shape, threads, reason, detail}`, schema `$defs/not_measured_entry` |
+| result file | `not_measured[]` — `{op, arm, scalar, shape, threads, reason, detail}`, schema `$defs/not_measured_entry`. A `null` `shape` means the **whole attempted grid** and is written only when the collapsed entries cover it exactly; the reducer expands it back over every point, so a blanket entry emitted for a subset lands on top of the shape-specific reasons the same run recorded |
 | merged intermediate | `cells[].arms.<arm>.state = "not_measured"` with `reason` and `detail`; `ratio` `null`; `ratio_state` `not_measured` or `no_reference_equivalent` |
 | Doxygen / markdown | the cell prints `--not-measured-token` (default `n/a`) with a superscript footnote marker; one footnote per distinct reason on the page, text taken from `detail`. For `no_reference_equivalent` the token is an em dash `—` and the footnote is `ops.<OP>.reference.reason` verbatim, so the table states that the comparison *cannot* exist |
 | `coverage.md` / `coverage.json` | every not-measured combination is listed with its reason; this is the manifest that makes a partial dataset honest |
@@ -903,7 +911,16 @@ Two selection rules exist to stop a measurement being attributed to the wrong li
 ### 9.2 The macros CMake defines
 
 `EIGEN_BENCH_REFERENCE_ARM=<key>` is a **bare token** (section 3.2) and its absence is what compiles the reference
-arm out. Everything else is a C string literal: `EIGEN_BENCH_REFERENCE_LIBRARY_NAME`,
+arm out. It is defined **per target**, not per build: a binary whose operations need an interface family this build
+cannot call — `?potrf` against a vendor that ships BLAS and no LAPACK, with no separate LAPACK found — is built
+Eigen-only, and `run.py` reports its reference cells as `reference_routine_absent`. Handing it the macro anyway
+makes the source declare and call a routine that does not resolve, so the target fails to *link* and the Eigen arm
+is lost with it. Which family an operation needs is `ops.<OP>.reference.kind`; which families the build has is
+`reference.families` in `vendor_info.json`. The gate is per binary because a compile definition is, so a source
+mixing families would lose them all — `CMakeLists.txt` warns at configure time and
+`tests/test_ops_registry.py` keeps the shipped table out of that state.
+
+Everything else is a C string literal: `EIGEN_BENCH_REFERENCE_LIBRARY_NAME`,
 `EIGEN_BENCH_REFERENCE_VERSION_FALLBACK`, `EIGEN_BENCH_REFERENCE_PATH` (the `reference_library_path` context key),
 `EIGEN_BENCH_REFERENCE_INTERFACE`, `EIGEN_BENCH_REFERENCE_THREADING`, `EIGEN_BENCH_EIGEN_COMMIT`,
 `EIGEN_BENCH_EIGEN_DIRTY`, `EIGEN_BENCH_COMPILER_ID`, `EIGEN_BENCH_COMPILER_VERSION`, `EIGEN_BENCH_CXX_STANDARD`,
@@ -943,8 +960,16 @@ carries `build_target` (`"bench_comparison_all"`, the aggregate target — `benc
 executable named after a source stem), the compiler id/version/path, `cxx_standard`, `cxx_flags`, `isa_target`,
 `eigen_commit`, `eigen_dirty`, `ops_toml_sha256`, the `arms` list, a `reference` block (`available`, `arm`,
 `library_name`, `library_version`, `version_source`, `library_path`, `libraries`, `include_dirs`, `interface`,
-`threading_model`, `thread_env`, `provides`, `notes`), and one `targets` entry per built binary giving its
-`target`, absolute `executable`, and the `ops` it carries.
+`threading_model`, `thread_env`, `provides`, `families`, `lapack`, `notes`), and one `targets` entry per built
+binary giving its `target`, absolute `executable`, the `ops` it carries, and the `reference_arm` it was actually
+built against (empty for a binary the gate in section 9.2 built Eigen-only).
+
+`provides` is what the vendor row **declares**; `families` is that reconciled with what configuring **found**, and
+it is what `run.py` reads. They differ when the vendor ships no LAPACK and `find_package(LAPACK)` supplied one
+elsewhere: `provides` alone would report `?potrf` absent on a build that links it perfectly well. The `lapack`
+sub-block (`available`, `provider` — `"vendor"` or `"separate"` — and `libraries`) is why `families` gained it, and
+`provider = "separate"` obliges `run.py` to record a `run.notes` caveat: a POTRF row is headed with the reference
+arm, and a reader takes that to be what computed it, so a routine that came from a different package has to say so.
 
 One executable is built per `bench_*.cpp` in this directory, named after the source stem — the same rule `run.py`
 applies to an op's `source` key, so several ops may share one binary. An op marked `implemented` whose source is
