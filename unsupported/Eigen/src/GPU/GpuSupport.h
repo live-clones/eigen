@@ -290,7 +290,6 @@ class PooledDeviceMemoryResource final : public MemoryResource {
  public:
   Allocation allocate(size_t bytes, cudaStream_t /*stream*/) override {
     Allocation a;
-    if (bytes == 0) return a;
     // Bypass the pool once its thread_local has been destroyed (allocation from
     // a static or TLS destructor); deallocate() then also takes the direct path.
     const bool pooled = bytes <= DeviceBufferPool<>::kSmallBufferThreshold &&
@@ -417,27 +416,26 @@ class DeviceBuffer {
     eigen_assert(releasableAsBarePointer() &&
                  "only device-only storage can be released as a bare pointer: a borrowed view does not own its "
                  "memory, and host-visible storage can only be freed by its MemoryResource");
-    void* p = ptr_.release();
-    ptr_.get_deleter() = DeviceBufferDeleter{};
-    return p;
+    // The stale deleter is unobservable: every accessor guards on ptr_, and
+    // unique_ptr never invokes a deleter for a null pointer.
+    return ptr_.release();
   }
 
   /** Adopt an existing device pointer of \p bytes usable bytes obtained from
    * device_malloc. Caller relinquishes ownership. */
-  static DeviceBuffer adopt(void* p, size_t bytes) noexcept {
-    DeviceBuffer b;
-    if (p) b.reset(p, DeviceBufferDeleter{&deviceMemoryResource(), bytes});
-    return b;
-  }
+  static DeviceBuffer adopt(void* p, size_t bytes) noexcept { return wrap(p, bytes, &deviceMemoryResource()); }
 
   /** Non-owning view over storage that someone else owns and outlives it. */
-  static DeviceBuffer view(void* p, size_t bytes) noexcept {
+  static DeviceBuffer view(void* p, size_t bytes) noexcept { return wrap(p, bytes, /*resource=*/nullptr); }
+
+ private:
+  // Wrap an existing pointer; a null resource means nothing frees it.
+  static DeviceBuffer wrap(void* p, size_t bytes, MemoryResource* resource) noexcept {
     DeviceBuffer b;
-    if (p) b.reset(p, DeviceBufferDeleter{/*resource=*/nullptr, bytes});
+    if (p) b.reset(p, DeviceBufferDeleter{resource, bytes});
     return b;
   }
 
- private:
   // Both device-only resources hand out storage that device_free releases --
   // the pool's blocks come from device_malloc like any other. An empty buffer
   // releases a null pointer, which is harmless.
@@ -459,10 +457,10 @@ class DeviceBuffer {
  * resource decides: managed memory on a device without concurrentManagedAccess
  * forbids host access while *any* device work is outstanding and needs a
  * device-wide wait, while page-locked host memory only needs the stream that
- * produced the value. Callers establish that the storage is host-accessible at
- * all before calling; the device-only resources never are. */
+ * produced the value. Device-only storage takes the stream wait too: the host
+ * cannot address it at all, so its callers have already stopped. */
 inline void sync_for_host_access(const MemoryResource& resource, cudaStream_t stream) {
-  if (!resource.allowsConcurrentHostAccess()) {
+  if (resource.isHostAccessible() && !resource.allowsConcurrentHostAccess()) {
     EIGEN_CUDA_RUNTIME_CHECK(cudaDeviceSynchronize());
   } else {
     EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream));

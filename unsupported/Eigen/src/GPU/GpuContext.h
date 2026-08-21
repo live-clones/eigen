@@ -53,10 +53,15 @@ struct OneShotSolverScratch {
 
 inline void ensure_sized(DeviceBuffer& buf, size_t needed) {
   if (needed > buf.size()) {
-    // Replacing an in-use buffer is safe: device_free is stream-ordered
-    // (or fully synchronous on the cudaMalloc fallback path), so the free
-    // waits for previously enqueued work touching the old buffer.
-    buf = DeviceBuffer(needed);
+    // Grow through the resource the buffer already has, so storage a solver
+    // adopted from a moved-in matrix does not silently revert to the default
+    // on the first reallocation. An empty buffer has none yet and takes it.
+    MemoryResource* resource = buf.memoryResource();
+    // Replacing an in-use buffer is safe: the new block is allocated before the
+    // old one is released, and device_free is stream-ordered (or fully
+    // synchronous on the cudaMalloc fallback path), so the free waits for
+    // previously enqueued work touching the old buffer.
+    buf = DeviceBuffer(needed, resource != nullptr ? *resource : pooledDeviceMemoryResource());
   }
 }
 }  // namespace internal

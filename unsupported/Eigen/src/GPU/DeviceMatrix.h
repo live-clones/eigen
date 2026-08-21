@@ -135,19 +135,14 @@ class DeviceMatrix {
     allocate(sizeInBytes());
   }
 
-  /** Allocate uninitialized device memory for a rows x cols matrix. */
-  DeviceMatrix(Index rows, Index cols) : rows_(rows), cols_(cols) {
-    eigen_assert(rows >= 0 && cols >= 0);
-    allocate(sizeInBytes());
-  }
-
-  /** Allocate through \p resource instead of the default device allocator.
+  /** Allocate uninitialized memory for a rows x cols matrix.
    *
-   * With a host-accessible resource -- managed, mapped or registered storage --
-   * hostData() is non-null and the host reads and writes the same bytes the
-   * device does, so fromHost() / toHost() are not needed at all. \p resource
-   * must outlive this matrix. */
-  DeviceMatrix(Index rows, Index cols, MemoryResource& resource) : rows_(rows), cols_(cols), resource_(&resource) {
+   * With a host-accessible \p resource -- managed, mapped or registered
+   * storage -- hostData() is non-null and the host reads and writes the same
+   * bytes the device does, so fromHost() / toHost() are not needed at all.
+   * \p resource must outlive this matrix. */
+  DeviceMatrix(Index rows, Index cols, MemoryResource& resource = deviceMemoryResource())
+      : rows_(rows), cols_(cols), resource_(&resource) {
     eigen_assert(rows >= 0 && cols >= 0);
     allocate(sizeInBytes());
   }
@@ -172,9 +167,10 @@ class DeviceMatrix {
 
   ~DeviceMatrix() {
     // cudaEventDestroy on a pending event is non-blocking: the runtime defers
-    // teardown until the event completes. Releasing data_ is stream-ordered on
-    // the legacy default stream, so the buffer outlives any in-flight kernel
-    // that may still be touching it.
+    // teardown until the event completes. data_ then goes back to its resource;
+    // for the device-only kinds that release is stream-ordered on the legacy
+    // default stream, so the buffer outlives any in-flight kernel still
+    // touching it.
     if (ready_event_) (void)cudaEventDestroy(ready_event_);
   }
 
@@ -333,11 +329,7 @@ class DeviceMatrix {
       return;
     }
     data_ = internal::DeviceBuffer();
-    if (ready_event_) {
-      EIGEN_CUDA_RUNTIME_CHECK(cudaEventDestroy(ready_event_));
-      ready_event_ = nullptr;
-    }
-    ready_stream_ = nullptr;
+    clearReady();
     retained_buffer_ = internal::DeviceBuffer();
     rows_ = rows;
     cols_ = cols;
@@ -358,10 +350,13 @@ class DeviceMatrix {
   /** Whether hostData() is usable. */
   bool isHostAccessible() const { return data_.isHostAccessible(); }
 
-  /** The resource this matrix allocates from, or null for the default
-   * allocator. Independent of where the current block came from: view() and
-   * adopt() take storage that was allocated elsewhere. */
-  MemoryResource* memoryResource() const { return resource_; }
+  /** The resource this matrix allocates from; never null, since naming none
+   * means deviceMemoryResource().
+   *
+   * This is "where the next block comes from", which is not the same question
+   * as "who frees the current one": a view() borrows storage allocated
+   * elsewhere, and an empty matrix has no block at all. */
+  MemoryResource& memoryResource() const { return *resource_; }
 
   /** Make device writes visible through hostData().
    *
@@ -578,7 +573,7 @@ class DeviceMatrix {
     dm.cols_ = cols;
     eigen_assert(buffer.size() >= dm.sizeInBytes() && "adopted buffer is too small for the requested shape");
     eigen_assert((buffer.owns() || !buffer) && "cannot adopt a borrowed buffer; use view()");
-    if (buffer.owns()) dm.resource_ = buffer.memoryResource();
+    if (MemoryResource* resource = buffer.memoryResource()) dm.resource_ = resource;
     dm.data_ = std::move(buffer);
     return dm;
   }
@@ -608,11 +603,7 @@ class DeviceMatrix {
     rows_ = 0;
     cols_ = 0;
     resource_ = &deviceMemoryResource();
-    if (ready_event_) {
-      EIGEN_CUDA_RUNTIME_CHECK(cudaEventDestroy(ready_event_));
-      ready_event_ = nullptr;
-    }
-    ready_stream_ = nullptr;
+    clearReady();
     return buffer;
   }
 
@@ -634,6 +625,14 @@ class DeviceMatrix {
     if (!ready_event_) {
       EIGEN_CUDA_RUNTIME_CHECK(cudaEventCreateWithFlags(&ready_event_, cudaEventDisableTiming));
     }
+  }
+
+  void clearReady() {
+    if (ready_event_) {
+      EIGEN_CUDA_RUNTIME_CHECK(cudaEventDestroy(ready_event_));
+      ready_event_ = nullptr;
+    }
+    ready_stream_ = nullptr;
   }
 
   void retainBuffer(internal::DeviceBuffer&& buffer) { retained_buffer_ = std::move(buffer); }

@@ -33,6 +33,20 @@ std::vector<gpu::MemoryResource*> hostAccessibleResources() {
   return {&gpu::managedMemoryResource(), &gpu::mappedHostMemoryResource(), &gpu::registeredHostMemoryResource()};
 }
 
+// Relative tolerance for an n-sized reduction or solve, shared by every case
+// below so they stay comparable.
+template <typename Scalar>
+typename NumTraits<Scalar>::Real tolFor(Index n) {
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  return RealScalar(20) * RealScalar(n) * NumTraits<Scalar>::epsilon();
+}
+
+template <typename MatrixType>
+MatrixType makeSpd(Index n) {
+  const MatrixType m = MatrixType::Random(n, n);
+  return m.adjoint() * m + MatrixType::Identity(n, n) * static_cast<typename MatrixType::Scalar>(n);
+}
+
 }  // namespace
 
 // ---- The resources describe themselves consistently ------------------------
@@ -62,7 +76,7 @@ void test_allocate_and_free(Index n) {
     VERIFY(m.data() != nullptr);
     VERIFY(m.isHostAccessible());
     VERIFY(m.hostData() != nullptr);
-    VERIFY(m.memoryResource() == r);
+    VERIFY(&m.memoryResource() == r);
     // Writable from the host without any transfer.
     Eigen::Map<Eigen::Matrix<Scalar, Dynamic, Dynamic>>(m.hostData(), n, n).setConstant(Scalar(1));
   }
@@ -70,7 +84,7 @@ void test_allocate_and_free(Index n) {
   gpu::DeviceMatrix<Scalar> d(n, n);
   VERIFY(!d.isHostAccessible());
   VERIFY(d.hostData() == nullptr);
-  VERIFY(d.memoryResource() == &gpu::deviceMemoryResource());
+  VERIFY(&d.memoryResource() == &gpu::deviceMemoryResource());
 }
 
 // ---- The storage kind is orthogonal to the expression layer -----------------
@@ -84,7 +98,7 @@ void test_gemm_on_each_resource(Index n) {
   const MatrixType hA = MatrixType::Random(n, n);
   const MatrixType hB = MatrixType::Random(n, n);
   const MatrixType expected = hA * hB;
-  const RealScalar tol = RealScalar(20) * RealScalar(n) * NumTraits<Scalar>::epsilon();
+  const RealScalar tol = tolFor<Scalar>(n);
 
   for (gpu::MemoryResource* r : hostAccessibleResources()) {
     gpu::Context ctx;
@@ -105,8 +119,7 @@ void test_llt_on_resource(Index n) {
   using MatrixType = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
   using RealScalar = typename NumTraits<Scalar>::Real;
 
-  const MatrixType M = MatrixType::Random(n, n);
-  const MatrixType spd = M.adjoint() * M + MatrixType::Identity(n, n) * static_cast<Scalar>(n);
+  const MatrixType spd = makeSpd<MatrixType>(n);
 
   gpu::DeviceMatrix<Scalar> A(n, n, gpu::mappedHostMemoryResource());
   Eigen::Map<MatrixType>(A.hostData(), n, n) = spd;
@@ -117,7 +130,7 @@ void test_llt_on_resource(Index n) {
 
   const MatrixType B = MatrixType::Random(n, 3);
   const MatrixType X = llt.solve(B);
-  const RealScalar tol = RealScalar(20) * RealScalar(n) * NumTraits<Scalar>::epsilon();
+  const RealScalar tol = tolFor<Scalar>(n);
   VERIFY((spd * X - B).norm() / B.norm() < tol);
 }
 
@@ -131,10 +144,9 @@ void test_solver_adopts_resource_backed(Index n) {
   using RealScalar = typename NumTraits<Scalar>::Real;
   using HostMap = Eigen::Map<MatrixType>;
 
-  const MatrixType M = MatrixType::Random(n, n);
-  const MatrixType spd = M.adjoint() * M + MatrixType::Identity(n, n) * static_cast<Scalar>(n);
+  const MatrixType spd = makeSpd<MatrixType>(n);
   const MatrixType hb = MatrixType::Random(n, 1);
-  const RealScalar tol = RealScalar(20) * RealScalar(n) * NumTraits<Scalar>::epsilon();
+  const RealScalar tol = tolFor<Scalar>(n);
 
   gpu::Context ctx;
   gpu::MemoryResource& r = gpu::mappedHostMemoryResource();
@@ -152,7 +164,7 @@ void test_solver_adopts_resource_backed(Index n) {
 
   gpu::DeviceMatrix<Scalar> d_x = llt.solve(std::move(d_b));
   VERIFY(d_x.isHostAccessible());
-  VERIFY(d_x.memoryResource() == &r);
+  VERIFY(&d_x.memoryResource() == &r);
 
   d_x.syncHost(ctx);
   VERIFY((spd * HostMap(d_x.hostData(), n, 1) - hb).norm() / hb.norm() < tol);
@@ -186,7 +198,7 @@ void test_adopted_host_matrix(Index n) {
   C.device(ctx) = A * B;
   C.syncHost(ctx);
 
-  const RealScalar tol = RealScalar(20) * RealScalar(n) * NumTraits<Scalar>::epsilon();
+  const RealScalar tol = tolFor<Scalar>(n);
   VERIFY((Eigen::Map<MatrixType>(C.hostData(), n, n) - expected).norm() / expected.norm() < tol);
 }
 
@@ -201,7 +213,7 @@ void test_device_scalar_on_each_resource() {
   const Scalar value = Scalar(3);
 
   for (gpu::MemoryResource* r : hostAccessibleResources()) {
-    gpu::DeviceScalar<Scalar> s(value, *r, ctx.stream());
+    gpu::DeviceScalar<Scalar> s(value, ctx.stream(), *r);
     VERIFY(s.isHostAccessible());
     VERIFY(s.hostData() != nullptr);
     VERIFY(&s.memoryResource() == r);
@@ -226,7 +238,7 @@ void test_reduction_result_on_resource(Index n) {
 
   const MatrixType hx = MatrixType::Random(n, 1);
   const MatrixType hy = MatrixType::Random(n, 1);
-  const RealScalar tol = RealScalar(20) * RealScalar(n) * NumTraits<Scalar>::epsilon();
+  const RealScalar tol = tolFor<Scalar>(n);
 
   gpu::Context ctx;
   gpu::DeviceMatrix<Scalar> x = gpu::DeviceMatrix<Scalar>::fromHost(hx, ctx.stream());
@@ -266,8 +278,8 @@ void test_device_scalar_arithmetic_keeps_resource() {
   gpu::Context ctx;
   gpu::MemoryResource& r = gpu::mappedHostMemoryResource();
 
-  gpu::DeviceScalar<Scalar> a(Scalar(6), r, ctx.stream());
-  gpu::DeviceScalar<Scalar> b(Scalar(4), r, ctx.stream());
+  gpu::DeviceScalar<Scalar> a(Scalar(6), ctx.stream(), r);
+  gpu::DeviceScalar<Scalar> b(Scalar(4), ctx.stream(), r);
 
   gpu::DeviceScalar<Scalar> q = a / b;
   VERIFY(q.isHostAccessible());

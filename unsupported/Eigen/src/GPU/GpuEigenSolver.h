@@ -106,7 +106,8 @@ class SelfAdjointEigenSolver {
   SelfAdjointEigenSolver& compute(const DeviceMatrix<Scalar>& d_A, int options = ComputeEigenvectors) {
     if (!begin_compute(d_A, options)) return *this;
 
-    const size_t mat_bytes = static_cast<size_t>(lda_) * static_cast<size_t>(n_) * sizeof(Scalar);
+    // lda_ == n_ == d_A.rows() on a square matrix, so this is d_A's own size.
+    const size_t mat_bytes = d_A.sizeInBytes();
     internal::ensure_sized(d_A_, mat_bytes);
     EIGEN_CUDA_RUNTIME_CHECK(
         cudaMemcpyAsync(d_A_.get(), d_A.data(), mat_bytes, cudaMemcpyDeviceToDevice, solver_ctx_.stream()));

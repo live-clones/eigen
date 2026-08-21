@@ -571,7 +571,7 @@ DeviceScalar<typename DeviceMatrix<Scalar_>::Scalar> DeviceMatrix<Scalar_>::dot(
   if (n > 0) {
     // Allocated uninitialized: cublasXdot overwrites the slot, so uploading a
     // zero first would be a wasted H2D transfer per reduction.
-    DeviceScalar<Scalar> result(resource, ctx.stream());
+    DeviceScalar<Scalar> result(ctx.stream(), resource);
     waitReady(ctx.stream());
     other.waitReady(ctx.stream());
     internal::with_device_pointer_mode(ctx.cublasHandle(), [&] {
@@ -579,7 +579,7 @@ DeviceScalar<typename DeviceMatrix<Scalar_>::Scalar> DeviceMatrix<Scalar_>::dot(
     });
     return result;
   }
-  return DeviceScalar<Scalar>(Scalar(0), resource, ctx.stream());
+  return DeviceScalar<Scalar>(Scalar(0), ctx.stream(), resource);
 }
 
 namespace internal {
@@ -594,7 +594,7 @@ std::enable_if_t<std::is_same<Scalar, RealScalar>::value, DeviceScalar<RealScala
 template <typename Scalar, typename RealScalar>
 std::enable_if_t<!std::is_same<Scalar, RealScalar>::value, DeviceScalar<RealScalar>> squaredNorm_from_dot(
     DeviceScalar<Scalar>&& d, MemoryResource& resource, cudaStream_t stream) {
-  return DeviceScalar<RealScalar>(numext::real(Scalar(d)), resource, stream);
+  return DeviceScalar<RealScalar>(numext::real(Scalar(d)), stream, resource);
 }
 }  // namespace internal
 
@@ -615,14 +615,14 @@ DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::norm(Cont
   const int64_t n = internal::blas1_size(rows_, cols_);
   if (n > 0) {
     // See dot(): uninitialized on purpose, cublasXnrm2 overwrites the slot.
-    DeviceScalar<RealScalar> result(resource, ctx.stream());
+    DeviceScalar<RealScalar> result(ctx.stream(), resource);
     waitReady(ctx.stream());
     internal::with_device_pointer_mode(ctx.cublasHandle(), [&] {
       EIGEN_CUBLAS_CHECK(internal::cublasXnrm2(ctx.cublasHandle(), n, data(), 1, result.devicePtr()));
     });
     return result;
   }
-  return DeviceScalar<RealScalar>(RealScalar(0), resource, ctx.stream());
+  return DeviceScalar<RealScalar>(RealScalar(0), ctx.stream(), resource);
 }
 
 template <typename Scalar_>
