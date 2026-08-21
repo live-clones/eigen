@@ -13,6 +13,7 @@
 
 #include <vector>
 #include "main.h"
+#include "fp_control.h"
 #include "random_without_cast_overflow.h"
 
 static_assert(
@@ -64,11 +65,10 @@ std::vector<Scalar> special_values() {
   const Scalar sqrt2 = Scalar(std::sqrt(2));
   const Scalar inf = Eigen::NumTraits<Scalar>::infinity();
   const Scalar nan = Eigen::NumTraits<Scalar>::quiet_NaN();
-  // For 32-bit arm, working within or near the subnormal range can lead to incorrect results
-  // due to FTZ.
-  const Scalar denorm_min = EIGEN_ARCH_ARM ? zero : std::numeric_limits<Scalar>::denorm_min();
+  const Scalar denorm_min = flushesSubnormalInputs() ? zero : std::numeric_limits<Scalar>::denorm_min();
+  const bool flushes_subnormals = flushesSubnormalInputs() || flushesSubnormalResults();
   const Scalar min =
-      EIGEN_ARCH_ARM ? Scalar(1.1) * (std::numeric_limits<Scalar>::min)() : (std::numeric_limits<Scalar>::min)();
+      flushes_subnormals ? Scalar(1.1) * (std::numeric_limits<Scalar>::min)() : (std::numeric_limits<Scalar>::min)();
   const Scalar max = (std::numeric_limits<Scalar>::max)();
   const Scalar max_exp = (static_cast<Scalar>(int(Eigen::NumTraits<Scalar>::max_exponent())) * Scalar(EIGEN_LN2)) / eps;
   std::vector<Scalar> values = {zero,  denorm_min, min,   eps,     sqrt_half, one_half, one,
@@ -114,14 +114,12 @@ void binary_op_test(std::string name, Fn fun, RefFn ref) {
     for (Index j = 0; j < lhs.cols(); ++j) {
       Scalar e = static_cast<Scalar>(ref(lhs(i, j), rhs(i, j)));
       Scalar a = actual(i, j);
-#if EIGEN_ARCH_ARM
-      // Work around NEON flush-to-zero mode.
       // If ref returns a subnormal value and Eigen returns 0, then skip the test.
-      if (a == Scalar(0) && (e > -(std::numeric_limits<Scalar>::min)() && e < (std::numeric_limits<Scalar>::min)()) &&
+      if (flushesSubnormalResults() && a == Scalar(0) &&
+          (e > -(std::numeric_limits<Scalar>::min)() && e < (std::numeric_limits<Scalar>::min)()) &&
           (e <= -std::numeric_limits<Scalar>::denorm_min() || e >= std::numeric_limits<Scalar>::denorm_min())) {
         continue;
       }
-#endif
       bool success = (a == e) || ((numext::isfinite)(e) && internal::isApprox(a, e, tol)) ||
                      ((numext::isnan)(a) && (numext::isnan)(e));
       if ((a == a) && (e == e)) success &= (bool)numext::signbit(e) == (bool)numext::signbit(a);
@@ -139,10 +137,23 @@ void binary_op_test(std::string name, Fn fun, RefFn ref) {
       [](const auto& x_, const auto& y_) { return (std::fun)(x_, y_); }
 
 template <typename Scalar>
+Scalar reference_atan2(const Scalar& y, const Scalar& x) {
+  if (y == Scalar(0) && x == Scalar(0)) {
+    if (!numext::signbit(x)) return y;
+    const Scalar pi = Scalar(EIGEN_PI);
+    return numext::signbit(y) ? -pi : pi;
+  }
+  EIGEN_USING_STD(atan2);
+  return Scalar(atan2(y, x));
+}
+
+template <typename Scalar>
 void binary_ops_test() {
   binary_op_test<Scalar>(BINARY_FUNCTOR_TEST_ARGS(pow));
-#ifndef EIGEN_COMP_MSVC
-  binary_op_test<Scalar>(BINARY_FUNCTOR_TEST_ARGS(atan2));
+#if !EIGEN_COMP_MSVC
+  binary_op_test<Scalar>(
+      "atan2", [](const auto& x, const auto& y) { return Eigen::atan2(x, y); },
+      [](Scalar x, Scalar y) { return reference_atan2(x, y); });
 #else
   binary_op_test<Scalar>(
       "atan2", [](const auto& x, const auto& y) { return Eigen::atan2(x, y); },
@@ -170,14 +181,12 @@ void unary_op_test(std::string name, Fn fun, RefFn ref) {
   for (Index i = 0; i < valuesMap.size(); ++i) {
     Scalar e = static_cast<Scalar>(ref(valuesMap(i)));
     Scalar a = actual(i);
-#if EIGEN_ARCH_ARM
-    // Work around NEON flush-to-zero mode.
     // If ref returns a subnormal value and Eigen returns 0, then skip the test.
-    if (a == Scalar(0) && (e > -(std::numeric_limits<Scalar>::min)() && e < (std::numeric_limits<Scalar>::min)()) &&
+    if (flushesSubnormalResults() && a == Scalar(0) &&
+        (e > -(std::numeric_limits<Scalar>::min)() && e < (std::numeric_limits<Scalar>::min)()) &&
         (e <= -std::numeric_limits<Scalar>::denorm_min() || e >= std::numeric_limits<Scalar>::denorm_min())) {
       continue;
     }
-#endif
     bool success = (a == e) || ((numext::isfinite)(e) && internal::isApprox(a, e, tol)) ||
                    ((numext::isnan)(a) && (numext::isnan)(e));
     if ((a == a) && (e == e)) success &= (bool)numext::signbit(e) == (bool)numext::signbit(a);
@@ -193,9 +202,17 @@ void unary_op_test(std::string name, Fn fun, RefFn ref) {
   #fun, [](const auto& x_) { return (Eigen::fun)(x_); }, [](const auto& y_) { return (std::fun)(y_); }
 
 template <typename Scalar>
+Scalar reference_cbrt(const Scalar& x) {
+  if (x == Scalar(0)) return x;
+  EIGEN_USING_STD(cbrt);
+  return Scalar(cbrt(x));
+}
+
+template <typename Scalar>
 void unary_ops_test() {
   unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(sqrt));
-  unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(cbrt));
+  unary_op_test<Scalar>(
+      "cbrt", [](const auto& x) { return Eigen::cbrt(x); }, [](Scalar x) { return reference_cbrt(x); });
   unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(exp));
   unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(exp2));
   unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(log));
@@ -266,10 +283,9 @@ void ldexp_test() {
     for (Index i = 0; i < x.size(); ++i) {
       // double covers every tested Scalar, so one conversion back gives the exact reference.
       const double expected = static_cast<double>(static_cast<Scalar>(std::ldexp(static_cast<double>(x(i)), exponent)));
-#if EIGEN_ARCH_ARM
-      // Work around 32-bit ARM flush-to-zero mode: skip cases with subnormal results.
-      if (expected != 0.0 && std::abs(expected) < static_cast<double>((std::numeric_limits<Scalar>::min)())) continue;
-#endif
+      if (flushesSubnormalResults() && expected != 0.0 &&
+          std::abs(expected) < static_cast<double>((std::numeric_limits<Scalar>::min)()))
+        continue;
       for (const Scalar& result : {method_result(i), global_result(i)}) {
         const double actual = static_cast<double>(result);
         const bool success = (actual == expected && std::signbit(actual) == std::signbit(expected)) ||
@@ -375,19 +391,18 @@ void float_pow_test_impl() {
             }
 
             Base a = eigenPow(j);
-#ifdef EIGEN_COMP_MSVC
+#if EIGEN_COMP_MSVC
             // Work around MSVC return value on underflow.
             // if std::pow returns 0 and Eigen returns a denormalized value, then skip the test
             int eigen_fpclass = std::fpclassify(a);
             if (e == Base(0) && eigen_fpclass == FP_SUBNORMAL) continue;
 #endif
 
-#ifdef EIGEN_VECTORIZE_NEON
-            // Work around NEON flush-to-zero mode
-            // if std::pow returns denormalized value and Eigen returns 0, then skip the test
-            int ref_fpclass = std::fpclassify(e);
-            if (a == Base(0) && ref_fpclass == FP_SUBNORMAL) continue;
-#endif
+            if (flushesSubnormalResults()) {
+              // if std::pow returns denormalized value and Eigen returns 0, then skip the test
+              int ref_fpclass = std::fpclassify(e);
+              if (a == Base(0) && ref_fpclass == FP_SUBNORMAL) continue;
+            }
 
             bool both_nan = (numext::isnan)(a) && (numext::isnan)(e);
             bool exact_or_approx = (a == e) || internal::isApprox(a, e, tol);

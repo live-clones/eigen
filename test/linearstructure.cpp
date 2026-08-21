@@ -14,6 +14,7 @@ static bool g_called;
   { g_called |= (!std::is_same<LhsScalar, RhsScalar>::value); }
 
 #include "main.h"
+#include "fp_control.h"
 
 template <typename MatrixType>
 void linearStructure(const MatrixType& m) {
@@ -194,6 +195,7 @@ void linearStructure_cancellation() {
 
 template <int>
 void linearstructure_overflow() {
+  if (flushesSubnormalInputs()) return;
   // make sure that /=scalar and /scalar do not overflow
   // rational: 1.0/4.94e-320 overflow, but m/4.94e-320 should not
   Matrix4d m2, m3;

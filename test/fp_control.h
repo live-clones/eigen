@@ -45,6 +45,30 @@
 
 namespace Eigen {
 
+// ARM32 NEON always flushes subnormals. On x86, inspect MXCSR because compiler flags may enable DAZ and FTZ at
+// process startup independently of the compiler identity.
+inline bool flushesSubnormalInputs() {
+#if EIGEN_TEST_ARCH_ARM32
+  return true;
+#elif EIGEN_TEST_HAS_X86_FTZ
+  constexpr unsigned int kDenormalsAreZeroMask = 1u << 6;
+  return (_mm_getcsr() & kDenormalsAreZeroMask) != 0;
+#else
+  return false;
+#endif
+}
+
+inline bool flushesSubnormalResults() {
+#if EIGEN_TEST_ARCH_ARM32
+  return true;
+#elif EIGEN_TEST_HAS_X86_FTZ
+  constexpr unsigned int kFlushToZeroMask = 1u << 15;
+  return (_mm_getcsr() & kFlushToZeroMask) != 0;
+#else
+  return false;
+#endif
+}
+
 // C++14 has no standard FTZ control. <cfenv> preserves the standard state;
 // architecture-specific registers preserve and control FTZ.
 //

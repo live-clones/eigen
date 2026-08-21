@@ -11,6 +11,7 @@
 
 #include <utility>
 #include "packetmath_test_shared.h"
+#include "fp_control.h"
 #include "random_without_cast_overflow.h"
 
 using internal::unpacket_traits;
@@ -1168,15 +1169,15 @@ void packetmath_real() {
 
   CHECK_CWISE1_BYREF1_IF(PacketTraits::HasExp, REF_FREXP, internal::pfrexp);
   if (PacketTraits::HasExp) {
-// Check denormals:
-#if !EIGEN_ARCH_ARM
-    for (int j = 0; j < 3; ++j) {
-      data1[0] = Scalar(std::ldexp(1, NumTraits<Scalar>::min_exponent() - j));
-      CHECK_CWISE1_BYREF1_IF(PacketTraits::HasExp, REF_FREXP, internal::pfrexp);
-      data1[0] = -data1[0];
-      CHECK_CWISE1_BYREF1_IF(PacketTraits::HasExp, REF_FREXP, internal::pfrexp);
+    // Check denormals when the active floating-point mode preserves them.
+    if (!flushesSubnormalInputs()) {
+      for (int j = 0; j < 3; ++j) {
+        data1[0] = Scalar(std::ldexp(1, NumTraits<Scalar>::min_exponent() - j));
+        CHECK_CWISE1_BYREF1_IF(PacketTraits::HasExp, REF_FREXP, internal::pfrexp);
+        data1[0] = -data1[0];
+        CHECK_CWISE1_BYREF1_IF(PacketTraits::HasExp, REF_FREXP, internal::pfrexp);
+      }
     }
-#endif
 
     // zero
     data1[0] = Scalar(0);
@@ -1224,10 +1225,12 @@ void packetmath_real() {
     data1[0] = Scalar(0);
     data1[PacketSize] = Scalar(NumTraits<Scalar>::max_exponent() + 10);
     CHECK_CWISE2_IF(PacketTraits::HasExp, REF_LDEXP, internal::pldexp);
-    // Small number big exponent.
-    data1[0] = Scalar(std::ldexp(Scalar(1.0), NumTraits<Scalar>::min_exponent() - 1));
-    data1[PacketSize] = Scalar(-NumTraits<Scalar>::min_exponent() + NumTraits<Scalar>::max_exponent());
-    CHECK_CWISE2_IF(PacketTraits::HasExp, REF_LDEXP, internal::pldexp);
+    if (!flushesSubnormalInputs()) {
+      // DAZ mode discards this subnormal input before pldexp can scale it into the normal range.
+      data1[0] = Scalar(std::ldexp(Scalar(1.0), NumTraits<Scalar>::min_exponent() - 1));
+      data1[PacketSize] = Scalar(-NumTraits<Scalar>::min_exponent() + NumTraits<Scalar>::max_exponent());
+      CHECK_CWISE2_IF(PacketTraits::HasExp, REF_LDEXP, internal::pldexp);
+    }
     // Big number small exponent.
     data1[0] = Scalar(std::ldexp(Scalar(1.0), NumTraits<Scalar>::max_exponent() - 1));
     data1[PacketSize] = Scalar(+NumTraits<Scalar>::min_exponent() - NumTraits<Scalar>::max_exponent());
@@ -1245,12 +1248,8 @@ void packetmath_real() {
     CHECK_CWISE2_IF(PacketTraits::HasExp, REF_LDEXP, internal::pldexp);
     // For |e| >= 2 * max_exponent, reassociated scale factors overflow and can
     // turn zero into NaN or finite denormal results into infinity.
-#if !EIGEN_ARCH_ARM
-    const Scalar tiny = std::numeric_limits<Scalar>::denorm_min();
-#else
-    // 32-bit ARM flushes denormal inputs to zero.
-    const Scalar tiny = (std::numeric_limits<Scalar>::min)();
-#endif
+    const Scalar tiny =
+        flushesSubnormalInputs() ? (std::numeric_limits<Scalar>::min)() : std::numeric_limits<Scalar>::denorm_min();
     for (int i = 0; i < PacketSize; ++i) {
       data1[i] = (i % 2) ? tiny : Scalar(0);
       data1[i + PacketSize] = Scalar(2 * NumTraits<Scalar>::max_exponent() + (i % 4));
@@ -1298,8 +1297,7 @@ void packetmath_real() {
 
     // pexp must produce subnormal outputs for inputs in
     // [log(denorm_min), log(min)).
-#if !EIGEN_ARCH_ARM  // 32-bit ARM flushes subnormals.
-    if (std::numeric_limits<Scalar>::has_denorm == std::denorm_present) {
+    if (!flushesSubnormalResults() && std::numeric_limits<Scalar>::has_denorm == std::denorm_present) {
       const Scalar log_min = numext::log((std::numeric_limits<Scalar>::min)());
       const Scalar log_denorm_min = numext::log(std::numeric_limits<Scalar>::denorm_min());
       data1[0] = log_min - Scalar(0.5);                     // just inside subnormal cliff
@@ -1308,7 +1306,6 @@ void packetmath_real() {
       VERIFY_IS_APPROX(numext::exp(data1[0]), data2[0]);
       VERIFY_IS_APPROX(numext::exp(data1[1]), data2[1]);
     }
-#endif
   }
 
   if (PacketTraits::HasTanh) {
@@ -1366,9 +1363,7 @@ void packetmath_real() {
       }
       VERIFY((numext::isnan)(data2[1]));
 
-      // Note: 32-bit arm always flushes denorms to zero.
-#if !EIGEN_ARCH_ARM
-      if (std::numeric_limits<Scalar>::has_denorm == std::denorm_present) {
+      if (!flushesSubnormalInputs() && std::numeric_limits<Scalar>::has_denorm == std::denorm_present) {
         data1[0] = std::numeric_limits<Scalar>::denorm_min();
         data1[1] = -std::numeric_limits<Scalar>::denorm_min();
         h.store(data2, internal::plog(h.load(data1)));
@@ -1378,7 +1373,6 @@ void packetmath_real() {
         }
         VERIFY((numext::isnan)(data2[1]));
       }
-#endif
 
       data1[0] = Scalar(-1.0f);
       h.store(data2, internal::plog(h.load(data1)));
@@ -1588,22 +1582,18 @@ struct packetmath_minmax_propagation_test<Scalar, Packet, std::enable_if_t<!NumT
   }
 };
 
-template <bool Cond, typename Scalar, typename Packet, bool SkipDenorms = EIGEN_ARCH_ARM, typename FunctorT>
+template <bool Cond, typename Scalar, typename Packet, bool SkipDenorms = false, typename FunctorT>
 std::enable_if_t<!Cond, void> run_ieee_cases(const FunctorT&) {}
 
-template <bool Cond, typename Scalar, typename Packet, bool SkipDenorms = EIGEN_ARCH_ARM, typename FunctorT>
+template <bool Cond, typename Scalar, typename Packet, bool SkipDenorms = false, typename FunctorT>
 std::enable_if_t<Cond, void> run_ieee_cases(const FunctorT& fun) {
   const int PacketSize = internal::unpacket_traits<Packet>::size;
   const Scalar norm_min = (std::numeric_limits<Scalar>::min)();
   const Scalar norm_max = (std::numeric_limits<Scalar>::max)();
   const Scalar inf = (std::numeric_limits<Scalar>::infinity)();
   const Scalar nan = (std::numeric_limits<Scalar>::quiet_NaN)();
-  std::vector<Scalar> values{Scalar(0), Scalar(1), norm_max, inf, nan};
-  // On ARM, NEON flush-to-zero mode can flush intermediate subnormal results to zero,
-  // causing functions like sin(norm_min) to return 0 instead of norm_min. Skip norm_min
-  // in that case, along with truly subnormal values.
-  if (!SkipDenorms) {
-    values.push_back(norm_min);
+  std::vector<Scalar> values{Scalar(0), Scalar(1), norm_min, norm_max, inf, nan};
+  if (!SkipDenorms && !flushesSubnormalInputs()) {
     if (std::numeric_limits<Scalar>::has_denorm == std::denorm_present) {
       values.push_back(std::numeric_limits<Scalar>::denorm_min());
       values.push_back(norm_min / Scalar(2));
@@ -1644,7 +1634,17 @@ std::enable_if_t<Cond, void> run_ieee_cases(const FunctorT& fun) {
 
 CREATE_TESTER(sqrt_fun, internal::psqrt, numext::sqrt);
 CREATE_TESTER(rsqrt_fun, internal::prsqrt, numext::rsqrt);
-CREATE_TESTER(cbrt_fun, internal::pcbrt, numext::cbrt);
+struct cbrt_fun {
+  template <typename T>
+  T actual(const T& value) const {
+    return internal::pcbrt(value);
+  }
+  template <typename T>
+  T expected(const T& value) const {
+    return value == T(0) ? value : numext::cbrt(value);
+  }
+  const std::string name = "cbrt_fun";
+};
 CREATE_TESTER(exp_fun, internal::pexp, numext::exp);
 CREATE_TESTER(exp2_fun, internal::pexp2, numext::exp2);
 CREATE_TESTER(log_fun, internal::plog, numext::log);
@@ -1861,16 +1861,15 @@ struct exp_complex_test_impl {
     }
 
     RealScalar zero(0);
-#ifdef EIGEN_ARCH_ARM
-    // ARM automatically flushes denormals to zero.
     // Preserve sign by multiplying by +0.
-    if (numext::abs(a) < (std::numeric_limits<RealScalar>::min)()) {
+    if ((flushesSubnormalInputs() || flushesSubnormalResults()) &&
+        numext::abs(a) < (std::numeric_limits<RealScalar>::min)()) {
       a = a * zero;
     }
-    if (numext::abs(b) < (std::numeric_limits<RealScalar>::min)()) {
+    if ((flushesSubnormalInputs() || flushesSubnormalResults()) &&
+        numext::abs(b) < (std::numeric_limits<RealScalar>::min)()) {
       b = b * zero;
     }
-#endif
 
     // Signed zero.
     if (a == zero) {
