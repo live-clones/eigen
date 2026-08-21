@@ -92,11 +92,7 @@ test:windows:x86-64:cuda-12.2:msvc-14.29:
 # Unsupported tests runs in one job rather than the two the labelled jobs above
 # need.
 
-.affected:test:windows:
-  variables:
-    EIGEN_CI_CTEST_REGEX_FILE: affected/ctest_regex.txt
-
 test:windows:x86-64:msvc-14.29:default:affected:
-  extends: [ .test:windows, .affected:test:windows ]
+  extends: [ .test:windows, .affected:test ]
   needs: [ build:windows:x86-64:msvc-14.29:default:affected, select:tests ]
   rules: !reference [.rules:libeigen:affected-tests:windows, rules]
