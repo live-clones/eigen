@@ -22,6 +22,8 @@
 #include <unsupported/Eigen/GPU>
 
 #include <array>
+#include <atomic>
+#include <chrono>
 #include <thread>
 
 #include "./gpu_test_helpers.h"
@@ -48,6 +50,17 @@ template <typename MatrixType>
 MatrixType makeSpd(Index n) {
   const MatrixType m = MatrixType::Random(n, n);
   return m.adjoint() * m + MatrixType::Identity(n, n) * static_cast<typename MatrixType::Scalar>(n);
+}
+
+struct StreamBlocker {
+  std::atomic<bool> entered{false};
+  std::atomic<bool> release{false};
+};
+
+void CUDART_CB blockStream(void* user_data) {
+  StreamBlocker& blocker = *static_cast<StreamBlocker*>(user_data);
+  blocker.entered.store(true, std::memory_order_release);
+  while (!blocker.release.load(std::memory_order_acquire)) std::this_thread::yield();
 }
 
 }  // namespace
@@ -85,6 +98,32 @@ void test_resource_process_lifetime() {
   const std::array<gpu::MemoryResource*, 3> main_resources{
       {&gpu::managedMemoryResource(), &gpu::mappedHostMemoryResource(), &gpu::registeredHostMemoryResource()}};
   for (size_t i = 0; i < main_resources.size(); ++i) VERIFY(worker_resources[i] == main_resources[i]);
+}
+
+// Keep one blocking stream pending while its matrix is destroyed. The cache
+// must quarantine that block instead of handing the same bytes to a new matrix.
+void test_cache_defers_async_reuse() {
+  gpu::Context producer;
+  gpu::MemoryResource& resource = gpu::mappedHostMemoryResource();
+  StreamBlocker blocker;
+  void* released_host = nullptr;
+  {
+    gpu::DeviceMatrix<float> matrix(64, 64, resource);
+    released_host = matrix.hostData();
+    EIGEN_CUDA_RUNTIME_CHECK(cudaLaunchHostFunc(producer.stream(), blockStream, &blocker));
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(matrix.data(), 0, matrix.sizeInBytes(), producer.stream()));
+    while (!blocker.entered.load(std::memory_order_acquire)) std::this_thread::yield();
+  }
+
+  std::thread release_stream([&blocker] {
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    blocker.release.store(true, std::memory_order_release);
+  });
+  gpu::DeviceMatrix<float> replacement(64, 64, resource);
+  const bool reused_pending_block = replacement.hostData() == released_host;
+  release_stream.join();
+  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(producer.stream()));
+  VERIFY(!reused_pending_block);
 }
 
 // ---- Allocation round trip through each resource ---------------------------
@@ -390,6 +429,7 @@ EIGEN_DECLARE_TEST(gpu_memory_resource) {
   gpu_test::require_cuda_device();
   CALL_SUBTEST_1(test_resource_properties());
   CALL_SUBTEST_1(test_resource_process_lifetime());
+  CALL_SUBTEST_1(test_cache_defers_async_reuse());
   CALL_SUBTEST_1(test_release_rejects_resource_backed());
   CALL_SUBTEST_1(test_solver_promotes_pooled_result<float>());
   CALL_SUBTEST_1(test_solver_grows_after_adopted_host_matrix<float>());
