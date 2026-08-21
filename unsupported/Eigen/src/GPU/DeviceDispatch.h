@@ -564,71 +564,107 @@ inline int64_t blas1_size(Index rows, Index cols) { return static_cast<int64_t>(
 }  // namespace internal
 
 template <typename Scalar_>
-DeviceScalar<typename DeviceMatrix<Scalar_>::Scalar> DeviceMatrix<Scalar_>::dot(Context& ctx,
-                                                                                const DeviceMatrix& other) const {
+DeviceScalar<typename DeviceMatrix<Scalar_>::Scalar> DeviceMatrix<Scalar_>::dot_impl(Context& ctx,
+                                                                                     const DeviceMatrix& other,
+                                                                                     MemoryResource* resource) const {
   const int64_t n = internal::blas1_size(rows_, cols_);
   eigen_assert(n == internal::blas1_size(other.rows_, other.cols_));
   if (n > 0) {
     // Allocated uninitialized: cublasXdot overwrites the slot, so uploading a
     // zero first would be a wasted H2D transfer per reduction.
-    DeviceScalar<Scalar> result(ctx.stream());
+    DeviceScalar<Scalar> result = DeviceScalar<Scalar>::fromResource(resource, ctx.stream());
     waitReady(ctx.stream());
     other.waitReady(ctx.stream());
     internal::with_device_pointer_mode(ctx.cublasHandle(), [&] {
-      EIGEN_CUBLAS_CHECK(
-          internal::cublasXdot(ctx.cublasHandle(), n, data_.get(), 1, other.data_.get(), 1, result.devicePtr()));
+      EIGEN_CUBLAS_CHECK(internal::cublasXdot(ctx.cublasHandle(), n, data(), 1, other.data(), 1, result.devicePtr()));
     });
     return result;
   }
-  return DeviceScalar<Scalar>(Scalar(0), ctx.stream());
+  return DeviceScalar<Scalar>::fromResource(resource, Scalar(0), ctx.stream());
+}
+
+template <typename Scalar_>
+DeviceScalar<typename DeviceMatrix<Scalar_>::Scalar> DeviceMatrix<Scalar_>::dot(Context& ctx,
+                                                                                const DeviceMatrix& other) const {
+  return dot_impl(ctx, other, /*resource=*/nullptr);
+}
+
+template <typename Scalar_>
+DeviceScalar<typename DeviceMatrix<Scalar_>::Scalar> DeviceMatrix<Scalar_>::dot(Context& ctx, const DeviceMatrix& other,
+                                                                                MemoryResource& resource) const {
+  return dot_impl(ctx, other, &resource);
 }
 
 namespace internal {
 // For real Scalar, dot(x,x) already has type DeviceScalar<RealScalar>, so a move
-// suffices and nothing syncs.
+// suffices and nothing syncs; the storage it was given carries over with it.
 template <typename Scalar, typename RealScalar>
 std::enable_if_t<std::is_same<Scalar, RealScalar>::value, DeviceScalar<RealScalar>> squaredNorm_from_dot(
-    DeviceScalar<Scalar>&& d, cudaStream_t) {
+    DeviceScalar<Scalar>&& d, MemoryResource*, cudaStream_t) {
   return std::move(d);
 }
 // Complex must sync to extract the real part: DeviceScalar arithmetic is real-only.
 template <typename Scalar, typename RealScalar>
 std::enable_if_t<!std::is_same<Scalar, RealScalar>::value, DeviceScalar<RealScalar>> squaredNorm_from_dot(
-    DeviceScalar<Scalar>&& d, cudaStream_t stream) {
-  return DeviceScalar<RealScalar>(numext::real(Scalar(d)), stream);
+    DeviceScalar<Scalar>&& d, MemoryResource* resource, cudaStream_t stream) {
+  return DeviceScalar<RealScalar>::fromResource(resource, numext::real(Scalar(d)), stream);
 }
 }  // namespace internal
 
 template <typename Scalar_>
-DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::squaredNorm(Context& ctx) const {
+DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::squaredNorm_impl(
+    Context& ctx, MemoryResource* resource) const {
   // dot(x,x) rather than nrm2()^2: the dot kernel is ~4.5x faster, since nrm2
   // runs a scaled sum of squares whose overflow protection convergence checks do
   // not need.
   using RealScalar = typename NumTraits<Scalar_>::Real;
-  return internal::squaredNorm_from_dot<Scalar_, RealScalar>(dot(ctx, *this), ctx.stream());
+  return internal::squaredNorm_from_dot<Scalar_, RealScalar>(dot_impl(ctx, *this, resource), resource, ctx.stream());
 }
 
 template <typename Scalar_>
-DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::norm(Context& ctx) const {
+DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::squaredNorm(Context& ctx) const {
+  return squaredNorm_impl(ctx, /*resource=*/nullptr);
+}
+
+template <typename Scalar_>
+DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::squaredNorm(Context& ctx,
+                                                                                   MemoryResource& resource) const {
+  return squaredNorm_impl(ctx, &resource);
+}
+
+template <typename Scalar_>
+DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::norm_impl(Context& ctx,
+                                                                                 MemoryResource* resource) const {
   using RealScalar = typename NumTraits<Scalar>::Real;
   const int64_t n = internal::blas1_size(rows_, cols_);
   if (n > 0) {
     // See dot(): uninitialized on purpose, cublasXnrm2 overwrites the slot.
-    DeviceScalar<RealScalar> result(ctx.stream());
+    DeviceScalar<RealScalar> result = DeviceScalar<RealScalar>::fromResource(resource, ctx.stream());
     waitReady(ctx.stream());
     internal::with_device_pointer_mode(ctx.cublasHandle(), [&] {
-      EIGEN_CUBLAS_CHECK(internal::cublasXnrm2(ctx.cublasHandle(), n, data_.get(), 1, result.devicePtr()));
+      EIGEN_CUBLAS_CHECK(internal::cublasXnrm2(ctx.cublasHandle(), n, data(), 1, result.devicePtr()));
     });
     return result;
   }
-  return DeviceScalar<RealScalar>(RealScalar(0), ctx.stream());
+  return DeviceScalar<RealScalar>::fromResource(resource, RealScalar(0), ctx.stream());
+}
+
+template <typename Scalar_>
+DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::norm(Context& ctx) const {
+  return norm_impl(ctx, /*resource=*/nullptr);
+}
+
+template <typename Scalar_>
+DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::norm(Context& ctx,
+                                                                            MemoryResource& resource) const {
+  return norm_impl(ctx, &resource);
 }
 
 template <typename Scalar_>
 void DeviceMatrix<Scalar_>::setZero(cudaStream_t stream) {
   if (sizeInBytes() > 0) {
     waitReady(stream);
-    EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(data_.get(), 0, sizeInBytes(), stream));
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(data(), 0, sizeInBytes(), stream));
     recordReady(stream);
   }
 }
@@ -645,7 +681,7 @@ void DeviceMatrix<Scalar_>::addScaled(Context& ctx, Scalar alpha, const DeviceMa
   if (n > 0) {
     waitReady(ctx.stream());
     x.waitReady(ctx.stream());
-    EIGEN_CUBLAS_CHECK(internal::cublasXaxpy(ctx.cublasHandle(), n, &alpha, x.data_.get(), 1, data_.get(), 1));
+    EIGEN_CUBLAS_CHECK(internal::cublasXaxpy(ctx.cublasHandle(), n, &alpha, x.data(), 1, data(), 1));
     recordReady(ctx.stream());
   }
 }
@@ -655,7 +691,7 @@ void DeviceMatrix<Scalar_>::scale(Context& ctx, Scalar alpha) {
   const int64_t n = internal::blas1_size(rows_, cols_);
   if (n > 0) {
     waitReady(ctx.stream());
-    EIGEN_CUBLAS_CHECK(internal::cublasXscal(ctx.cublasHandle(), n, &alpha, data_.get(), 1));
+    EIGEN_CUBLAS_CHECK(internal::cublasXscal(ctx.cublasHandle(), n, &alpha, data(), 1));
     recordReady(ctx.stream());
   }
 }
@@ -669,7 +705,7 @@ void DeviceMatrix<Scalar_>::copyFrom(Context& ctx, const DeviceMatrix& other) {
   const int64_t n = internal::blas1_size(rows_, cols_);
   if (n > 0) {
     other.waitReady(ctx.stream());
-    EIGEN_CUBLAS_CHECK(internal::cublasXcopy(ctx.cublasHandle(), n, other.data_.get(), 1, data_.get(), 1));
+    EIGEN_CUBLAS_CHECK(internal::cublasXcopy(ctx.cublasHandle(), n, other.data(), 1, data(), 1));
     recordReady(ctx.stream());
   }
 }
@@ -719,7 +755,7 @@ DeviceMatrix<Scalar_>& DeviceMatrix<Scalar_>::operator*=(const DeviceScalar<Scal
     auto& ctx = Context::threadLocal();
     waitReady(ctx.stream());
     internal::with_device_pointer_mode(ctx.cublasHandle(), [&] {
-      EIGEN_CUBLAS_CHECK(internal::cublasXscal(ctx.cublasHandle(), n, alpha.devicePtr(), data_.get(), 1));
+      EIGEN_CUBLAS_CHECK(internal::cublasXscal(ctx.cublasHandle(), n, alpha.devicePtr(), data(), 1));
     });
     recordReady(ctx.stream());
   }
@@ -738,7 +774,7 @@ DeviceMatrix<Scalar_>& DeviceMatrix<Scalar_>::operator+=(const DeviceScaledDevic
     x.waitReady(ctx.stream());
     internal::with_device_pointer_mode(ctx.cublasHandle(), [&] {
       EIGEN_CUBLAS_CHECK(
-          internal::cublasXaxpy(ctx.cublasHandle(), n, expr.alpha().devicePtr(), x.data_.get(), 1, data_.get(), 1));
+          internal::cublasXaxpy(ctx.cublasHandle(), n, expr.alpha().devicePtr(), x.data(), 1, data(), 1));
     });
     recordReady(ctx.stream());
   }
@@ -769,7 +805,7 @@ DeviceMatrix<Scalar_> DeviceMatrix<Scalar_>::cwiseProduct(Context& ctx, const De
   if (n > 0) {
     waitReady(ctx.stream());
     other.waitReady(ctx.stream());
-    internal::device_cwiseProduct(data_.get(), other.data_.get(), result.data_.get(), n, ctx.stream());
+    internal::device_cwiseProduct(data(), other.data(), result.data(), n, ctx.stream());
     result.recordReady(ctx.stream());
   }
   return result;
@@ -785,7 +821,7 @@ void DeviceMatrix<Scalar_>::cwiseProduct(Context& ctx, const DeviceMatrix& a, co
   if (n > 0) {
     a.waitReady(ctx.stream());
     b.waitReady(ctx.stream());
-    internal::device_cwiseProduct(a.data_.get(), b.data_.get(), data_.get(), n, ctx.stream());
+    internal::device_cwiseProduct(a.data(), b.data(), data(), n, ctx.stream());
     recordReady(ctx.stream());
   }
 }
@@ -816,11 +852,7 @@ template <typename Scalar>
 void DeviceMatrix<Scalar>::syncHost(Context& ctx) {
   eigen_assert(isHostAccessible() && "syncHost() on a device-only DeviceMatrix");
   waitReady(ctx.stream());
-  if (resource_ != nullptr && !resource_->allowsConcurrentHostAccess()) {
-    EIGEN_CUDA_RUNTIME_CHECK(cudaDeviceSynchronize());
-  } else {
-    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(ctx.stream()));
-  }
+  internal::sync_for_host_access(data_.memoryResource(), ctx.stream());
 }
 
 }  // namespace gpu

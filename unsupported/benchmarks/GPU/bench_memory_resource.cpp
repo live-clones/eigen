@@ -20,6 +20,9 @@
 //   HostReadLoop_*  the host reads device output every iteration, so whatever
 //                 syncHost() has to do is charged per iteration rather than once
 //   Gemm_*        GEMM throughput with operands in each storage kind
+//   DotRead_*     the same question one type down: a reduction whose
+//                 DeviceScalar result is read on the host every iteration, which
+//                 is the inner loop of every convergence check
 //
 // Build (standalone project, see CMakeLists.txt in this directory):
 //   cmake -G Ninja -B build-bench-gpu -S unsupported/benchmarks/GPU \
@@ -223,6 +226,51 @@ static void hostReadLoopBench(benchmark::State& state, Kind k) {
 HOSTREAD_CASE(Managed);
 HOSTREAD_CASE(Mapped);
 HOSTREAD_CASE(Registered);
+
+// ---------------------------------------------------------------------------
+// Reduce-then-read: dot() into each storage kind, read on the host every
+// iteration. Device-only pays cudaMemcpyAsync + cudaStreamSynchronize; a
+// host-accessible result drops the copy and keeps only the synchronization.
+// This is what an iterative solver does per iteration, so the difference is
+// charged per iteration rather than once.
+// ---------------------------------------------------------------------------
+
+static void BM_DotRead_DeviceOnly(benchmark::State& state) {
+  const Index n = state.range(0);
+  const HostMatrix hx = HostMatrix::Random(n, 1);
+  gpu::Context ctx;
+  auto x = gpu::DeviceMatrix<Scalar>::fromHost(hx, ctx.stream());
+  auto y = gpu::DeviceMatrix<Scalar>::fromHost(hx, ctx.stream());
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(Scalar(x.dot(ctx, y)));
+  }
+}
+BENCHMARK(BM_DotRead_DeviceOnly)
+    ->Arg(1024)
+    ->Arg(65536)
+    ->Unit(benchmark::kMicrosecond)
+    ->UseRealTime()
+    ->MinWarmUpTime(0.5);
+
+static void dotReadBench(benchmark::State& state, Kind k) {
+  const Index n = state.range(0);
+  const HostMatrix hx = HostMatrix::Random(n, 1);
+  gpu::MemoryResource& r = resourceFor(k);
+  gpu::Context ctx;
+  auto x = gpu::DeviceMatrix<Scalar>::fromHost(hx, ctx.stream());
+  auto y = gpu::DeviceMatrix<Scalar>::fromHost(hx, ctx.stream());
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(Scalar(x.dot(ctx, y, r)));
+  }
+}
+
+#define DOTREAD_CASE(Name)                                                                    \
+  static void BM_DotRead_##Name(benchmark::State& state) { dotReadBench(state, Kind::Name); } \
+  BENCHMARK(BM_DotRead_##Name)->Arg(1024)->Arg(65536)->Unit(benchmark::kMicrosecond)->UseRealTime()->MinWarmUpTime(0.5)
+
+DOTREAD_CASE(Managed);
+DOTREAD_CASE(Mapped);
+DOTREAD_CASE(Registered);
 
 // ---------------------------------------------------------------------------
 // GEMM throughput by operand storage: does the kernel care where the bytes are?
