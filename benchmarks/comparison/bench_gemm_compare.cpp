@@ -1,11 +1,11 @@
 // SPDX-FileCopyrightText: The Eigen Authors
 // SPDX-License-Identifier: MPL-2.0
 
-// Cross-library comparison benchmarks: Eigen against one linked reference BLAS.
+// Cross-library comparison benchmarks for GEMM, the general matrix-matrix product.
 //
-// Phase 1 registers GEMM only. Both arms of an operation are emitted at each grid
-// point by one REGISTER_COMPARISON_POINT line over one shared grid macro, so
-// adding GEMV is a kernel functor plus one point macro and nothing else.
+// One operation per source file. Both arms are emitted at each grid point by one
+// REGISTER_COMPARISON_POINT line over one shared grid macro; bench_gemv_compare.cpp
+// is the same file with a different kernel, driver and grid.
 //
 // This file supersedes the roles of Core/bench_gemm.cpp's BM_BlasGemm (dead code:
 // no target defines HAVE_BLAS) and Tuning/bench_blas_gemm.cpp (float only, smaller
@@ -14,8 +14,6 @@
 #include <Eigen/Core>
 #include <array>
 #include <complex>
-#include <cstdint>
-#include <limits>
 #include <mutex>
 #include <set>
 #include <string>
@@ -51,17 +49,13 @@ void zgemm_(const char* transa, const char* transb, const eigen_bench::BlasInt* 
 
 using Eigen::Index;
 using eigen_bench::BlasInt;
+using eigen_bench::fitsBlasInt;
 
 template <typename Scalar>
 using GemmMatrix = Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic>;
 
 template <typename Scalar>
 using GemmVector = Eigen::Matrix<Scalar, Eigen::Dynamic, 1>;
-
-static bool fitsBlasInt(Index value) {
-  return value >= 0 &&
-         static_cast<std::uintmax_t>(value) <= static_cast<std::uintmax_t>((std::numeric_limits<BlasInt>::max)());
-}
 
 // C := C + A*B, the operation ops.toml records as GEMM with alpha = beta = 1.
 struct EigenGemmKernel {
