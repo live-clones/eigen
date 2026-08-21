@@ -135,10 +135,13 @@ cmake_options = ["-DEIGEN_BENCH_ISA_TARGET=aarch64-neon"]
 # Deliberately no -msve-vector-bits: ConfigureVectorization.h hard-errors on it
 # under EIGEN_ARM64_USE_SME, because a fixed SVE length pins the kernel to one
 # streaming vector length and miscomputes at any other.
-#
-# Only GEMM has an SME kernel today. Every other operation measured under this
-# target is the same code as aarch64-neon and should agree with it; where it does
-# not, the difference is the run-to-run noise of this machine and is worth
-# knowing before any SME number is published.
 flags = ["-mcpu=apple-m4", "-DEIGEN_ARM64_USE_SME"]
 cmake_options = ["-DEIGEN_BENCH_ISA_TARGET=aarch64-sme"]
+# Travels to the published page through provenance.run.notes. It belongs there
+# rather than in a comment here: a reader of an aarch64-sme POTRF row is looking
+# at a NEON measurement under an SME heading, and nothing else on the page says so.
+notes = """
+Eigen has an SME kernel for GEMM only. Every other operation measured under this \
+target runs the same code as aarch64-neon and should agree with it to within this \
+machine's run-to-run noise; a difference there is noise, not an instruction set.\
+"""

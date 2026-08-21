@@ -21,8 +21,6 @@
 #include <Eigen/Core>
 #include <array>
 #include <complex>
-#include <mutex>
-#include <set>
 #include <string>
 
 #include "benchmarks/bench_common.h"
@@ -49,10 +47,10 @@ using eigen_bench::BlasInt;
 using eigen_bench::fitsBlasInt;
 
 template <typename Scalar>
-using PotrfMatrix = Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic>;
+using PotrfMatrix = eigen_bench::ColMatrix<Scalar>;
 
 template <typename Scalar>
-using PotrfVector = Eigen::Matrix<Scalar, Eigen::Dynamic, 1>;
+using PotrfVector = eigen_bench::ColVector<Scalar>;
 
 // A := L*L^H with L lower triangular, the operation ops.toml records as POTRF
 // with uplo = 'L'. Both kernels copy the operand into `out` and factorize it
@@ -67,6 +65,16 @@ using PotrfVector = Eigen::Matrix<Scalar, Eigen::Dynamic, 1>;
 // the decomposition's own storage and reading the factor back out copies again.
 // At n = 1024 in double that is an extra 8 MB moved per iteration, attributed to
 // Eigen and to nothing on the reference side.
+//
+// One asymmetry remains, and it is deliberate. LLT::compute also evaluates the
+// operand's self-adjoint L1 norm (Eigen/src/Cholesky/LLT.h), which ?potrf does
+// not: it is what makes LLT::rcond() available afterwards, and a LAPACK user who
+// wants the same thing calls ?lange before ?pocon. Measured on Apple M4 it is
+// 5-13% of the Eigen arm for real scalars and more at the small end for complex.
+// It stays because the row this feeds is labelled with the expression a user
+// writes -- ops.toml's eigen_expr, `Eigen::LLT<MatrixType> llt(A)` -- and that
+// expression really does cost it. ops.toml's POTRF description carries the
+// caveat so a reader of the page sees it too.
 struct EigenPotrfKernel {
   template <typename Scalar>
   void operator()(const PotrfMatrix<Scalar>& a, PotrfMatrix<Scalar>& out) const {
@@ -126,38 +134,41 @@ static void runPotrf(benchmark::State& state, Kernel kernel) {
 
   const Index n = static_cast<Index>(state.range(0));
 
-  if (!fitsBlasInt(n)) {
-    state.SkipWithError("dimension does not fit the reference LAPACK integer width");
-    return;
-  }
+  if (eigen_bench::skipIfDimsExceedBlasInt(state, n)) return;
 
-  // noise, a and out are each n-by-n; noise is a temporary of the fill but is
-  // live at the same time as a, so it counts. Checked before the first
-  // allocation, so an over-large point costs one skipped cell, not the whole run.
+  // Two n-by-n matrices are live at once: the operand and the destination during
+  // the timed loop, or the operand and its generator during the fill. Checked
+  // before the first allocation, so an over-large point costs one skipped cell,
+  // not the whole run.
   const double operand_bytes =
-      3.0 * static_cast<double>(sizeof(Scalar)) * static_cast<double>(n) * static_cast<double>(n);
+      2.0 * static_cast<double>(sizeof(Scalar)) * static_cast<double>(n) * static_cast<double>(n);
   if (eigen_bench::skipIfOverMemoryBudget(state, operand_bytes)) return;
 
-  // A*A^H is positive semi-definite; the shift makes it definite with a
+  // A Hermitian, strictly diagonally dominant operand: positive definite, with a
   // condition number that does not grow with n, so a failure to factorize is a
   // kernel defect rather than a property of the operand.
-  const PotrfMatrix<Scalar> noise = PotrfMatrix<Scalar>::Random(n, n);
-  PotrfMatrix<Scalar> a = noise * noise.adjoint();
-  a.diagonal().array() += RealScalar(n);
+  //
+  // Deliberately not the textbook A*A^H. That is a 2n^3 product -- asymptotically
+  // MORE expensive than the n^3/3 factorization it feeds -- and Google Benchmark
+  // re-enters this body about 13 times per cell. Measured at n = 4096 it cost
+  // 4.5 s of untimed setup against 0.9 s of measured work, and at the top of the
+  // xlarge group it would run to half an hour per scalar. This is O(n^2). The
+  // generator is scoped so it is freed before the timed loop, which is what keeps
+  // the footprint above at 2n^2 rather than 3n^2.
+  PotrfMatrix<Scalar> a(n, n);
+  {
+    const PotrfMatrix<Scalar> noise = PotrfMatrix<Scalar>::Random(n, n);
+    // z + conj(z) is real, so this leaves the diagonal real with no second pass.
+    a = noise + noise.adjoint();
+  }
+  // Random() bounds every entry by 1, so an off-diagonal row sum is at most
+  // 2(n-1); 4n on the diagonal makes the matrix strictly diagonally dominant.
+  a.diagonal().array() += RealScalar(4 * n);
 
   PotrfMatrix<Scalar> out(n, n);
 
-  // Correctness is a deterministic property of (Scalar, kernel, shape); see the
-  // note in bench_gemm_compare.cpp for why it is not re-checked per entry.
-  static std::set<Index> validated_orders;
-  static std::mutex validated_orders_mutex;
-  bool order_is_validated;
-  {
-    const std::lock_guard<std::mutex> guard(validated_orders_mutex);
-    order_is_validated = validated_orders.count(n) != 0;
-  }
-
-  if (!order_is_validated) {
+  static eigen_bench::ValidatedShapes<Index> validated;
+  if (!validated.contains(n)) {
     // L*(L^H x) against A*x for a random x, rather than forming L*L^H: the
     // product would cost as much as the factorization it checks and need a
     // second n-by-n matrix, where this is O(n^2) and O(n) extra. Only the lower
@@ -170,18 +181,13 @@ static void runPotrf(benchmark::State& state, Kernel kernel) {
     const PotrfVector<Scalar> actual = lower * (lower.adjoint() * x).eval();
     const PotrfVector<Scalar> expected = a * x;
 
-    const RealScalar tolerance =
-        RealScalar(64) * Eigen::numext::sqrt(RealScalar(n)) * Eigen::NumTraits<RealScalar>::epsilon();
-    const RealScalar magnitude = Eigen::numext::maxi(expected.norm(), actual.norm());
-    // Negated so that a NaN result fails rather than passes. A reference arm
-    // that reported a non-zero `info` produces a garbage or untouched triangle,
-    // so it fails here too and needs no separate branch.
-    if (!((actual - expected).norm() <= tolerance * magnitude)) {
+    // A reference arm that reported a non-zero `info` produces a garbage or
+    // untouched triangle, so it fails here too and needs no separate branch.
+    if (!eigen_bench::agreesWithEigen(expected, actual, n)) {
       state.SkipWithError("potrf result disagrees with Eigen at n:" + std::to_string(n));
       return;
     }
-    const std::lock_guard<std::mutex> guard(validated_orders_mutex);
-    validated_orders.insert(n);
+    validated.insert(n);
   }
 
   for (auto _ : state) {

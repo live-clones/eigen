@@ -93,11 +93,11 @@ cmake_options = ["-DEIGEN_BENCH_ISA_TARGET=x86-64"]
 
 [isa."x86-64-avx2"]
 flags = ["-mavx2", "-mfma"]
-cmake_options = ["-DCMAKE_CXX_FLAGS=-mavx2 -mfma", "-DEIGEN_BENCH_ISA_TARGET=x86-64-avx2"]
+cmake_options = ["-DEIGEN_BENCH_ISA_TARGET=x86-64-avx2"]
 
 [isa."x86-64-avx512"]
 flags = ["-mavx512dq", "-mfma"]
-cmake_options = ["-DCMAKE_CXX_FLAGS=-mavx512dq -mfma", "-DEIGEN_BENCH_ISA_TARGET=x86-64-avx512"]
+cmake_options = ["-DEIGEN_BENCH_ISA_TARGET=x86-64-avx512"]
 
 # --------------------------------------------------------------------------
 # Reference arms

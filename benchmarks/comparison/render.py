@@ -683,26 +683,28 @@ def render_coverage_markdown(merged: Mapping[str, Any], registry: Mapping[str, A
             # unknown governor, Eigen running sequentially against a threaded vendor
             # -- and a page that omits them overstates how controlled the
             # measurement was.
-            gaps = detail.get("provenance_gaps") or []
-            if gaps:
-                out.append("")
-                out.append(f"> `{config_id}` could not establish the following, so the numbers carry that caveat:")
-                out.append(">")
-                for gap in gaps:
-                    field = _escape_markdown_cell(str(gap.get("field", "?")))
-                    reason = _escape_markdown_cell(str(gap.get("reason", "no reason recorded")))
-                    out.append(f"> - `{field}` — {reason}")
-            # Distinct from the gaps above: these are conditions the run
-            # established and proceeded under anyway, which is a different
-            # statement to a reader and must not be folded into "could not
-            # establish".
-            notes = detail.get("notes") or []
-            if notes:
-                out.append("")
-                out.append(f"> `{config_id}` was measured under the following stated conditions:")
-                out.append(">")
-                for note in notes:
-                    out.append(f"> - {_escape_markdown_cell(str(note))}")
+            # Two headings because they are two different claims: a gap is what
+            # the run could not establish, a note is what it established and
+            # proceeded under anyway. Emitted through one function so the
+            # blockquote structure cannot drift between them.
+            def caveat_block(heading: str, bullets: list) -> None:
+                if bullets:
+                    out.extend(["", f"> `{config_id}` {heading}", ">"] + [f"> - {b}" for b in bullets])
+
+            caveat_block(
+                "could not establish the following, so the numbers carry that caveat:",
+                [
+                    "`{}` — {}".format(
+                        _escape_markdown_cell(str(gap.get("field", "?"))),
+                        _escape_markdown_cell(str(gap.get("reason", "no reason recorded"))),
+                    )
+                    for gap in detail.get("provenance_gaps") or []
+                ],
+            )
+            caveat_block(
+                "was measured under the following stated conditions:",
+                [_escape_markdown_cell(str(note)) for note in detail.get("notes") or []],
+            )
     else:
         out.append("No configuration in the selected slice.")
     out.append("")
