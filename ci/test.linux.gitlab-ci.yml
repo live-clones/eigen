@@ -792,10 +792,6 @@ test:linux:buildsystem:
 # Each job shares its trigger rule with the build job it needs; see
 # .rules:libeigen:affected-tests:* in ci/common.gitlab-ci.yml.
 
-.affected:test:
-  variables:
-    EIGEN_CI_CTEST_REGEX_FILE: affected/ctest_regex.txt
-
 ##### Always, under the label ##################################################
 
 test:linux:x86-64:gcc-10:avx2:affected:
