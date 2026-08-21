@@ -613,6 +613,69 @@ def test_provenance_gaps_accompany_every_null_it_claims(stub_run, schema):
         )
 
 
+def test_isa_flags_reach_the_compiler(run_module, tmp_path):
+    """Otherwise the page names an instruction set the binary never used.
+
+    An ISA target's `flags` are what select the instruction set -- Eigen's SME
+    backend is opt-in behind -DEIGEN_ARM64_USE_SME, and without it the headers
+    compile to the same NEON kernels. They were recorded in provenance and never
+    passed to CMake, so a profile could publish "built with -mcpu=apple-m4
+    -DEIGEN_ARM64_USE_SME" over a binary compiled with neither: an SME page
+    produced by a NEON build, with no symptom except numbers that look like the
+    other ISA target's.
+    """
+    configure_command = support.resolve_callable(run_module, "configure_command")
+    load_machine_profile = support.resolve_callable(run_module, "load_machine_profile")
+
+    source = MACHINES / "testmachine.toml"
+    text = source.read_text()
+    isa_target = re.search(r'default_isa_target\s*=\s*"([^"]+)"', text).group(1)
+    text += f'\n[isa."{isa_target}"]\nflags = ["-mcpu=apple-m4", "-DEIGEN_ARM64_USE_SME"]\n'
+    # The loader requires id == filename stem.
+    path = tmp_path / "flagged" / "testmachine.toml"
+    path.parent.mkdir()
+    path.write_text(text)
+
+    command = configure_command(
+        source_dir=tmp_path / "src",
+        build_dir=tmp_path / "build",
+        machine=load_machine_profile(path),
+        isa_target=isa_target,
+        arm=None,
+        cxx_standard=17,
+    )
+    flags = [arg for arg in command if arg.startswith("-DCMAKE_CXX_FLAGS")]
+    assert flags, f"the ISA target's flags never reached the configure line:\n{command}"
+    assert "-mcpu=apple-m4" in flags[0] and "-DEIGEN_ARM64_USE_SME" in flags[0], flags
+
+
+def test_an_isa_target_that_sets_cxx_flags_twice_is_refused(run_module, tmp_path):
+    """`flags` and a cmake_options -DCMAKE_CXX_FLAGS are two ways to say one thing.
+
+    The cmake_options entry comes last on the command line and would silently
+    overwrite `flags`, so the run would record compile flags the binary was not
+    built with. That is an authoring mistake with no symptom, so it is refused
+    at profile load rather than at measurement time.
+    """
+    load_machine_profile = support.resolve_callable(run_module, "load_machine_profile")
+    harness_error = support.resolve_callable(run_module, "HarnessError")
+
+    source = MACHINES / "testmachine.toml"
+    text = source.read_text()
+    isa_target = re.search(r'default_isa_target\s*=\s*"([^"]+)"', text).group(1)
+    text += (
+        f'\n[isa."{isa_target}"]\nflags = ["-mcpu=apple-m4"]\n'
+        'cmake_options = ["-DCMAKE_CXX_FLAGS=-mcpu=generic"]\n'
+    )
+    path = tmp_path / "conflicting" / "testmachine.toml"
+    path.parent.mkdir()
+    path.write_text(text)
+
+    with pytest.raises(harness_error) as excinfo:
+        load_machine_profile(path)
+    assert "flags" in str(excinfo.value) and isa_target in str(excinfo.value)
+
+
 def test_a_load_average_above_the_profile_is_stated_with_the_numbers(stub_run, tmp_path):
     """--allow-noisy must not make the noise invisible.
 
