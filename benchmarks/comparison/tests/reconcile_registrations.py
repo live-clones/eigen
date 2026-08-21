@@ -18,10 +18,17 @@ This runs the binary that was actually built and checks BOTH directions:
                            declared dimensions in the declared order, and lands
                            on a point of the op's shape family;
 
-  registry -> registered   every point of every implemented op's grid is
-                           registered for the eigen arm.
+  registry -> registered   every point of the grid of every op THIS BINARY
+                           registers is registered for the eigen arm.
 
-The second direction is the one a snapshot cannot give you.  Without it, adding
+The second direction is scoped to the ops the binary claims because each binary
+carries a subset of the registry: checking all of ops.toml here would flag every
+op that lives in a sibling source file.  The complementary check -- an op that
+ops.toml calls implemented and that NO binary registers -- needs the listings of
+all of them at once, and lives in tests/test_ops_registry.py against the
+committed capture.
+
+The point-level direction is the one a snapshot cannot give you.  Without it, adding
 a point to `ops.toml` and forgetting the matching entry in the C++ SIZES macro
 passes every gate, and the omission surfaces only much later as a cell the
 harness reports as `not_implemented` -- which reads on a published page as
