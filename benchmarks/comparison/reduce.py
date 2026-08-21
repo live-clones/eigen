@@ -206,7 +206,7 @@ def config_record(provenance: Mapping[str, Any], threads: int) -> Dict[str, Any]
         # wrong channel for these -- a gap says "could not establish", and a
         # breached threshold was established perfectly well -- so they travel
         # separately and render under their own heading.
-        "notes": _run_notes(provenance),
+        "notes": [],
     }
 
 
@@ -267,7 +267,7 @@ def choose_baseline(results: Iterable[Mapping[str, Any]], explicit: Optional[str
                 + ").",
                 EXIT_USAGE,
             )
-        if arms and explicit not in arms:
+        if explicit not in arms:
             raise ReduceError(
                 f"--baseline {explicit!r} names an arm no result file carries, so every ratio would be "
                 "undefined and the whole page would render as 'not measured'. Present arms: "
@@ -384,11 +384,14 @@ def reduce_results(
             # run carries it, the configuration carries it.
             if bool((provenance.get("eigen", {}) or {}).get("dirty", False)):
                 record["eigen_dirty"] = True
-            # Same reasoning, and the same union rather than first-wins: a note
-            # recorded by one contributing run describes the merged set too.
-            for note in _run_notes(provenance):
-                if note not in record.setdefault("notes", []):
-                    record["notes"].append(note)
+        # Unioned outside the if/else, exactly like provenance_gaps below: a note
+        # recorded by any contributing run describes the merged set, so seeding it
+        # for the first run and appending for the rest would be two paths to one
+        # field. First-wins would lose a noisy run's caveat to whichever filename
+        # sorted first.
+        for note in _run_notes(provenance):
+            if note not in record["notes"]:
+                record["notes"].append(note)
         for gap in gaps_for_config:
             if gap not in record["provenance_gaps"]:
                 record["provenance_gaps"].append(dict(gap))

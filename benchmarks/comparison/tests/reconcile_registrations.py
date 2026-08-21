@@ -39,6 +39,7 @@ Usage:
 """
 
 import argparse
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -128,6 +129,37 @@ def reconcile(names: list[str], registry) -> list[str]:
     return problems
 
 
+def check_structured_skip_exit_status(executable: Path) -> list[str]:
+    """A structured skip must not fail the binary.
+
+    run.py condemns a whole invocation on a non-zero exit, before it reads a
+    single row. If an over-budget skip failed the binary, one cell too large for
+    the machine would discard every cell measured beside it -- precisely the loss
+    the memory budget exists to prevent. Nothing else can see this: the harness's
+    pytest suite has no binary to run, and a run against a real budget skips
+    nothing, so the condition only appears on a machine where the grid does not
+    fit.
+
+    Forced here with a 1-byte budget, which every registered point exceeds.
+    """
+    proc = subprocess.run(
+        [str(executable), "--benchmark_min_time=1x"],
+        capture_output=True,
+        text=True,
+        check=False,
+        env={**os.environ, "EIGEN_BENCH_MEMORY_BUDGET_BYTES": "1"},
+    )
+    problems = []
+    if proc.returncode != 0:
+        problems.append(
+            f"exited {proc.returncode} when every benchmark skipped as out_of_memory; run.py reads a "
+            f"non-zero exit as 'the whole invocation failed' and would discard every measured cell"
+        )
+    if "out_of_memory" not in proc.stdout + proc.stderr:
+        problems.append("a 1-byte memory budget skipped nothing; the budget is not being enforced")
+    return problems
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("executable", type=Path)
@@ -145,6 +177,7 @@ def main(argv: list[str] | None = None) -> int:
         return EXIT_DRIFT
 
     problems = reconcile(names, registry)
+    problems += check_structured_skip_exit_status(args.executable)
     if problems:
         print(
             f"{args.executable.name}: the C++ registrations and {args.ops_toml} have diverged:",

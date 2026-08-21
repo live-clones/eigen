@@ -571,6 +571,12 @@
               "type": "integer",
               "minimum": 1
             },
+            "memory_budget_bytes": {
+              "description": "Ceiling in bytes on one benchmark's operands, from the machine profile's [memory].benchmark_budget_bytes and enforced in the binary before it allocates. Null means no budget was enforced. A cell whose operands exceed it appears in not_measured with reason 'out_of_memory' rather than killing the process, which would lose every cell already measured in this invocation.",
+              "type": ["integer", "null"],
+              "minimum": 1,
+              "default": null
+            },
             "min_time": {
               "description": "--benchmark_min_time verbatim, e.g. '0.5s' or '100x'.",
               "type": "string",

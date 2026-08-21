@@ -17,8 +17,6 @@
 #include <Eigen/Core>
 #include <array>
 #include <complex>
-#include <mutex>
-#include <set>
 #include <string>
 
 #include "benchmarks/bench_common.h"
@@ -53,10 +51,10 @@ using eigen_bench::BlasInt;
 using eigen_bench::fitsBlasInt;
 
 template <typename Scalar>
-using GemvMatrix = Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic>;
+using GemvMatrix = eigen_bench::ColMatrix<Scalar>;
 
 template <typename Scalar>
-using GemvVector = Eigen::Matrix<Scalar, Eigen::Dynamic, 1>;
+using GemvVector = eigen_bench::ColVector<Scalar>;
 
 // y := y + A*x, the operation ops.toml records as GEMV with alpha = beta = 1 and
 // trans = 'N'. The transposed kernel is a different reference call and would get
@@ -117,10 +115,7 @@ static void runGemv(benchmark::State& state, Kernel kernel) {
   const Index m = static_cast<Index>(state.range(0));
   const Index n = static_cast<Index>(state.range(1));
 
-  if (!fitsBlasInt(m) || !fitsBlasInt(n)) {
-    state.SkipWithError("dimension does not fit the reference BLAS integer width");
-    return;
-  }
+  if (eigen_bench::skipIfDimsExceedBlasInt(state, m, n)) return;
 
   // a (m-by-n) plus the two vectors. Checked before the first allocation, so an
   // over-large point costs one skipped cell rather than the whole run.
@@ -136,23 +131,9 @@ static void runGemv(benchmark::State& state, Kernel kernel) {
   GemvVector<Scalar> x = GemvVector<Scalar>::Random(n);
   GemvVector<Scalar> y = GemvVector<Scalar>::Random(m);
 
-  // Correctness is a deterministic property of (Scalar, kernel, shape), and
-  // Google Benchmark enters this body once per repetition plus a few times while
-  // it searches for an iteration count -- 13 times at the harness defaults, so
-  // re-checking on every entry buys nothing and costs a full untimed GEMV each
-  // time. The set is a function-local static of a function template, hence
-  // already per (Scalar, Kernel); only the shape has to be keyed. The mutex
-  // keeps that true under a threaded runner.
-  static std::set<std::array<Index, 2>> validated_shapes;
-  static std::mutex validated_shapes_mutex;
+  static eigen_bench::ValidatedShapes<std::array<Index, 2>> validated;
   const std::array<Index, 2> shape = {m, n};
-  bool shape_is_validated;
-  {
-    const std::lock_guard<std::mutex> guard(validated_shapes_mutex);
-    shape_is_validated = validated_shapes.count(shape) != 0;
-  }
-
-  if (!shape_is_validated) {
+  if (!validated.contains(shape)) {
     // Compared directly against Eigen's own product, unlike the GEMM file. The
     // result here is already an m-vector, so forming the expected value costs
     // one untimed O(mn) matrix-vector product and O(m) memory -- the same order
@@ -160,21 +141,18 @@ static void runGemv(benchmark::State& state, Kernel kernel) {
     // because a second m-by-n product would cost an extra factor of k in time
     // and a whole extra matrix in memory; paying that indirection here would
     // weaken the check (a random projection can miss an error) to save nothing.
-    const GemvVector<Scalar> expected = y + a * x;
+    GemvVector<Scalar> expected = y;
+    // The expression under test, so the reference value is formed exactly the
+    // way the Eigen arm forms its own -- and in one pass rather than the two a
+    // `y + a * x` temporary would cost.
+    expected.noalias() += a * x;
     kernel(a, x, y);
 
-    const RealScalar tolerance =
-        RealScalar(64) * Eigen::numext::sqrt(RealScalar(n)) * Eigen::NumTraits<RealScalar>::epsilon();
-    const RealScalar magnitude = Eigen::numext::maxi(expected.norm(), y.norm());
-    // Negated so that a NaN result fails rather than passes.
-    if (!((y - expected).norm() <= tolerance * magnitude)) {
+    if (!eigen_bench::agreesWithEigen(expected, y, n)) {
       state.SkipWithError("gemv result disagrees with Eigen at m:" + std::to_string(m) + " n:" + std::to_string(n));
       return;
     }
-    // Recorded only after the check passed, so a failure cannot mark the shape
-    // good for the entries that follow it.
-    const std::lock_guard<std::mutex> guard(validated_shapes_mutex);
-    validated_shapes.insert(shape);
+    validated.insert(shape);
   }
 
   for (auto _ : state) {
