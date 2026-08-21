@@ -491,6 +491,46 @@ def test_an_ambiguous_baseline_is_refused(tmp_path):
     assert ok["baseline"] == "openblas"
 
 
+def test_run_notes_reach_the_configuration_and_are_unioned(tmp_path):
+    """A caveat recorded by one contributing run describes the merged set.
+
+    `provenance.run.notes` carries what a run established and proceeded under
+    anyway -- the operator's own --note, an unverified machine profile, a load
+    average above what the profile calls quiet. Before this it stopped at the
+    result file: reduce.py dropped it, so nothing the operator wrote about a run
+    could ever appear beside its numbers.
+
+    Unioned rather than first-wins, for the same reason eigen_dirty is: two runs
+    of one configuration where only one was noisy must not lose the caveat
+    according to which filename sorts first.
+    """
+    first = support.read_json(RESULTS / "gemm_eigen_accelerate.json")
+    first["provenance"]["run"]["notes"] = "measured during a thunderstorm"
+    second = support.read_json(RESULTS / "gemm_eigen_accelerate.json")
+    second["run_id"] = second["run_id"].replace("2026", "2027")
+    second["provenance"]["run"]["notes"] = "measured with the lid closed"
+
+    merged = merged_from(
+        [
+            support.write_json(tmp_path / "a.json", first),
+            support.write_json(tmp_path / "b.json", second),
+        ],
+        ["--on-conflict", "keep-all"],
+    )
+    notes = [n for config in merged["configs"].values() for n in config.get("notes", [])]
+    assert "measured during a thunderstorm" in notes
+    assert "measured with the lid closed" in notes, (
+        "the second run's caveat was dropped; a merged configuration must carry every "
+        "contributing run's stated conditions"
+    )
+
+
+def test_a_run_without_notes_carries_an_empty_list_not_a_null():
+    merged = merged_from([RESULTS / "gemm_eigen_accelerate.json"])
+    for config in merged["configs"].values():
+        assert config.get("notes") == [], "absence of caveats must render as no caveats, not as unknown"
+
+
 def test_the_eigen_arm_is_refused_as_a_baseline():
     """A page of x1.00 is not a result.
 
