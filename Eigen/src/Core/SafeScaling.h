@@ -267,6 +267,12 @@ struct safe_scaling_operations {
     return factors;
   }
 
+  template <typename MatrixType>
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void scale_in_place(MatrixType& matrix, const Scalar& maxCoeff,
+                                                                   const Factors& factors) {
+    scale_in_place_with_factors(matrix, maxCoeff, factors);
+  }
+
   template <typename Dest, typename Src>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void scale_to(Dest& dest, const Src& src, const Scalar& maxCoeff,
                                                              const Factors& factors) {

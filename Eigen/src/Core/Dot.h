@@ -54,19 +54,16 @@ struct stable_normalization_normal_min<bfloat16, Accumulator> {
   }
 };
 
-template <typename RealScalar, typename Accumulator, bool = std::is_floating_point<Accumulator>::value>
-struct stable_normalization_use_reciprocal {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE bool run(const Accumulator&) { return false; }
-};
-
 template <typename RealScalar, typename Accumulator>
-struct stable_normalization_use_reciprocal<RealScalar, Accumulator, true> {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE bool run(const Accumulator& scale) {
-    const Accumulator normal_min = stable_normalization_normal_min<RealScalar, Accumulator>::run();
-    const Accumulator normal_max = Accumulator(1) / normal_min;
-    return scale >= normal_min && scale <= normal_max;
-  }
-};
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool stable_normalization_inv_scale(const Accumulator& value,
+                                                                          Accumulator& invScale) {
+  safe_scaling_factors<Accumulator> factors;
+  const Accumulator normalMin = stable_normalization_normal_min<RealScalar, Accumulator>::run();
+  if (!safe_scaling<Accumulator>::try_compute_ceiling_factors_with_normal_reciprocal(value, normalMin, factors))
+    return false;
+  invScale = factors.invScale;
+  return true;
+}
 
 template <typename VectorType, typename Accumulator,
           bool = bool(traits<VectorType>::Flags & DirectAccessBit) &&
@@ -185,6 +182,41 @@ template <typename VectorType, typename Divisor>
 EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void stable_normalization_divide_in_place(VectorType& vec, const Divisor& divisor) {
   vec /= divisor;
 }
+
+template <typename VectorType, typename Accumulator,
+          bool = use_subnormal_preserving_scaling<Accumulator, typename traits<VectorType>::Scalar>::value &&
+                 std::is_same<Accumulator, typename NumTraits<typename traits<VectorType>::Scalar>::Real>::value>
+struct stable_normalization_subnormal_recovery {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(VectorType&) {}
+};
+
+template <typename VectorType, typename Accumulator>
+struct stable_normalization_subnormal_recovery<VectorType, Accumulator, true> {
+  using RealScalar = typename NumTraits<typename traits<VectorType>::Scalar>::Real;
+
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(VectorType& vec) {
+    using Bits = typename numext::get_integer_by_size<sizeof(RealScalar)>::unsigned_type;
+    constexpr Bits kMagnitudeMask = (Bits(1) << (sizeof(RealScalar) * CHAR_BIT - 1)) - 1;
+    constexpr Bits kMinNormalBits = Bits(1) << (std::numeric_limits<RealScalar>::digits - 1);
+    decltype(auto) components = vec.realView();
+    Bits maxBits = 0;
+    for (Index col = 0; col < components.cols(); ++col) {
+      for (Index row = 0; row < components.rows(); ++row) {
+        const Bits bits = numext::bit_cast<Bits>(components.coeff(row, col)) & kMagnitudeMask;
+        if (bits > maxBits) maxBits = bits;
+      }
+    }
+    if (maxBits == 0 || maxBits >= kMinNormalBits) return;
+
+    const Accumulator maxAbs = numext::bit_cast<RealScalar>(maxBits);
+    const auto factors = safe_scaling<Accumulator>::compute_ceiling_factors(maxAbs);
+    safe_scaling<Accumulator>::scale_in_place(vec, maxAbs, factors);
+    const Accumulator squaredNorm = components.template cast<Accumulator>().squaredNorm();
+    if (squaredNorm > Accumulator(0)) {
+      stable_normalization_divide_in_place(vec, numext::sqrt(squaredNorm));
+    }
+  }
+};
 
 // squaredNorm() reduces realView().cwiseAbs2(), a cwise expression with no direct access, so when
 // the underlying expression has an inner stride that is not statically 1 (a dynamic-inner-stride
@@ -340,23 +372,27 @@ MatrixBase<Derived>::stableNormalized() const {
   // overflowing magnitude, and avoids a hypot per coefficient.
   const Accumulator w = Dispatch::max_abs(vec);
   const Accumulator highest = static_cast<Accumulator>(NumTraits<RealScalar>::highest());
-  if (EIGEN_PREDICT_FALSE(!(w > Accumulator(0)) || !(w <= highest))) return vec;
+  if (EIGEN_PREDICT_FALSE(!(w > Accumulator(0)))) {
+    PlainObject normalized(vec);
+    internal::stable_normalization_subnormal_recovery<PlainObject, Accumulator>::run(normalized);
+    return normalized;
+  }
+  if (EIGEN_PREDICT_FALSE(!(w <= highest))) return vec;
 
-  if (EIGEN_PREDICT_TRUE((internal::stable_normalization_use_reciprocal<RealScalar, Accumulator>::run(w)))) {
-    // Here w and its reciprocal are normal, so multiplication is safe.
-    const Accumulator inv_w = Accumulator(1) / w;
-    const Accumulator z = Dispatch::scaled_squared_norm(vec, inv_w);
+  Accumulator invScale;
+  if (EIGEN_PREDICT_TRUE((internal::stable_normalization_inv_scale<RealScalar>(w, invScale)))) {
+    const Accumulator z = Dispatch::scaled_squared_norm(vec, invScale);
     if (z > Accumulator(0)) {
       const Accumulator sqrt_z = numext::sqrt(z);
-      const Accumulator factor = inv_w / sqrt_z;
+      const Accumulator factor = invScale / sqrt_z;
       PlainObject normalized(rows(), cols());
       const Accumulator accumulator_normal_min =
           internal::stable_normalization_normal_min<Accumulator, Accumulator>::run();
-      if (EIGEN_PREDICT_TRUE(factor >= accumulator_normal_min)) {
+      if (EIGEN_PREDICT_TRUE(factor >= accumulator_normal_min && factor <= NumTraits<Accumulator>::highest())) {
         Dispatch::assign_scaled(normalized, vec, factor);
       } else {
-        // inv_w and sqrt_z are normal even though their quotient is not.
-        Dispatch::assign_scaled(normalized, vec, inv_w);
+        // invScale and sqrt_z are normal even though their quotient is not.
+        Dispatch::assign_scaled(normalized, vec, invScale);
         internal::stable_normalization_divide_in_place(normalized, static_cast<RealScalar>(sqrt_z));
       }
       return normalized;
@@ -398,20 +434,24 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void MatrixBase<Derived>::stableNormalize(
 
   const Accumulator w = Dispatch::max_abs(derived());
   const Accumulator highest = static_cast<Accumulator>(NumTraits<RealScalar>::highest());
-  if (EIGEN_PREDICT_FALSE(!(w > Accumulator(0)) || !(w <= highest))) return;
+  if (EIGEN_PREDICT_FALSE(!(w > Accumulator(0)))) {
+    internal::stable_normalization_subnormal_recovery<Derived, Accumulator>::run(derived());
+    return;
+  }
+  if (EIGEN_PREDICT_FALSE(!(w <= highest))) return;
 
-  if (EIGEN_PREDICT_TRUE((internal::stable_normalization_use_reciprocal<RealScalar, Accumulator>::run(w)))) {
-    const Accumulator inv_w = Accumulator(1) / w;
-    const Accumulator z = Dispatch::scaled_squared_norm(derived(), inv_w);
+  Accumulator invScale;
+  if (EIGEN_PREDICT_TRUE((internal::stable_normalization_inv_scale<RealScalar>(w, invScale)))) {
+    const Accumulator z = Dispatch::scaled_squared_norm(derived(), invScale);
     if (z > Accumulator(0)) {
       const Accumulator sqrt_z = numext::sqrt(z);
-      const Accumulator factor = inv_w / sqrt_z;
+      const Accumulator factor = invScale / sqrt_z;
       const Accumulator accumulator_normal_min =
           internal::stable_normalization_normal_min<Accumulator, Accumulator>::run();
-      if (EIGEN_PREDICT_TRUE(factor >= accumulator_normal_min)) {
+      if (EIGEN_PREDICT_TRUE(factor >= accumulator_normal_min && factor <= NumTraits<Accumulator>::highest())) {
         Dispatch::scale_in_place(derived(), factor);
       } else {
-        internal::stable_normalization_scale_in_place(derived(), inv_w);
+        internal::stable_normalization_scale_in_place(derived(), invScale);
         internal::stable_normalization_divide_in_place(derived(), static_cast<RealScalar>(sqrt_z));
       }
     }
