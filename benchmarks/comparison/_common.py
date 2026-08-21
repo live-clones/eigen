@@ -119,7 +119,7 @@ def parse_benchmark_name(run_name: str) -> dict:
     for entry in fields[3:]:
         key, sep, value = entry.partition(":")
         if not sep or not value.isdigit():
-            raise ValueError(f"unparseable field {entry!r} in {run_name!r}")
+            raise ValueError(f"unparsable field {entry!r} in {run_name!r}")
         if key == "threads":
             threads = int(value)
             threads_in_name = True
@@ -236,7 +236,7 @@ def _formula_ast(expression: str) -> ast.Expression:
         try:
             tree = ast.parse(expression, mode="eval")
         except SyntaxError as exc:
-            raise PipelineError(f"unparseable formula {expression!r}: {exc}") from exc
+            raise PipelineError(f"unparsable formula {expression!r}: {exc}") from exc
         _FORMULA_CACHE[expression] = tree
     return tree
 
