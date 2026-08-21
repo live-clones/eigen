@@ -117,6 +117,13 @@ static void runGemm(benchmark::State& state, Kernel kernel) {
     return;
   }
 
+  // a (m-by-k), b (k-by-n) and c (m-by-n). Checked before the first allocation,
+  // so an over-large point costs one skipped cell rather than the whole run.
+  const double operand_bytes = static_cast<double>(sizeof(Scalar)) * (static_cast<double>(m) * static_cast<double>(k) +
+                                                                      static_cast<double>(k) * static_cast<double>(n) +
+                                                                      static_cast<double>(m) * static_cast<double>(n));
+  if (eigen_bench::skipIfOverMemoryBudget(state, operand_bytes)) return;
+
   // Allocation and fill stay per entry on purpose. Hoisting the operands out
   // would leave them resident and warm across entries and change what the timed
   // loop measures; c is additionally accumulated into by the timed loop and
@@ -220,6 +227,8 @@ static void BM_GemmReference(benchmark::State& state) {
   POINT(768,768,768) POINT(1024,1024,1024) \
   /* large */ \
   POINT(1536,1536,1536) POINT(2048,2048,2048) POINT(3072,3072,3072) POINT(4096,4096,4096) \
+  /* xlarge */ \
+  POINT(6144,6144,6144) POINT(8192,8192,8192) POINT(12288,12288,12288) POINT(16384,16384,16384) \
   /* legacy_square_sweep */ \
   POINT(160,160,160) POINT(224,224,224) POINT(288,288,288) POINT(320,320,320) POINT(448,448,448) \
   /* aliasing */ \
