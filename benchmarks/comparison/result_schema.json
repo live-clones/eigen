@@ -1,0 +1,599 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gitlab.com/libeigen/eigen/-/raw/master/benchmarks/comparison/result_schema.json",
+  "title": "Eigen benchmark comparison result",
+  "description": "One harness invocation's output: a PARTIAL contribution to a larger result store. A file covers one machine, one ISA target, one toolchain, one Eigen commit, and the arms that a single benchmark binary registered (always 'eigen', plus at most one reference library). Merging is by (provenance.machine_config_id, provenance.toolchain.isa_target, provenance.toolchain fingerprint, provenance.eigen.commit) with per-row keys (op, arm, scalar, shape, threads). Nothing in this file may be interpreted as covering a combination it does not list in 'scope'.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "kind", "run_id", "provenance", "scope", "measurements"],
+  "properties": {
+    "schema_version": {
+      "description": "Semantic version of THIS schema that the file was written against. Consumers reject a major version they do not know.",
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "const": "1.0.0"
+    },
+    "kind": {
+      "type": "string",
+      "const": "eigen-benchmark-comparison-result"
+    },
+    "run_id": {
+      "description": "Identifier unique across all result files ever produced. Convention: <machine_config_id>-<isa_target>-<arm>-<eigen commit_short>-<UTC timestamp compacted>, e.g. 'm4pro-neon-accelerate-e2a2fda17-20260820T160111Z'.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+      "minLength": 3,
+      "maxLength": 200
+    },
+    "partial": {
+      "description": "Always true. Recorded explicitly so no consumer can treat any single file as a complete dataset. Completeness is a property of a merge, never of a contribution.",
+      "type": "boolean",
+      "const": true,
+      "default": true
+    },
+    "provenance": { "$ref": "#/$defs/provenance" },
+    "scope": { "$ref": "#/$defs/scope" },
+    "measurements": {
+      "description": "One row per (op, arm, scalar, shape, threads) that produced a timing. Rows that did not produce a timing belong in 'not_measured', never here with a zero or null value.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/measurement" }
+    },
+    "not_measured": {
+      "description": "Explicit negative results. A combination inside 'scope' that appears in neither 'measurements' nor here is a harness bug; reduce.py reports it as reason 'unaccounted'.",
+      "type": "array",
+      "default": [],
+      "items": { "$ref": "#/$defs/not_measured_entry" }
+    },
+    "provenance_gaps": {
+      "description": "Facts the schema requires that this platform could not supply, with the reason. The corresponding provenance field is null. Populating this array is mandatory whenever a nullable provenance field is null: a published number must be able to say what was not knowable, not merely omit it.",
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["field", "reason"],
+        "properties": {
+          "field": {
+            "description": "JSON Pointer into this document, e.g. '/provenance/cpu/frequency_governor'.",
+            "type": "string",
+            "pattern": "^/"
+          },
+          "reason": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "source_files": {
+      "description": "Raw Google Benchmark JSON files this result was distilled from, for audit. Paths are relative to the result file.",
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "sha256"],
+        "properties": {
+          "path": { "type": "string", "minLength": 1 },
+          "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "benchmark_library_version": { "type": ["string", "null"] }
+        }
+      }
+    }
+  },
+
+  "$defs": {
+
+    "arm_key": {
+      "description": "Arm token as it appears in field 1 of a benchmark name: 'eigen', or a vendor key such as 'openblas', 'mkl', 'aocl', 'blis', 'nvpl', 'armpl', 'accelerate', 'netlib', 'eigenblas'.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+
+    "op_key": {
+      "description": "BLAS/LAPACK mnemonic with the type prefix stripped, or an Eigen-only key, matching a key in ops.toml.",
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]*$"
+    },
+
+    "scalar_tag": {
+      "type": "string",
+      "enum": ["f16", "bf16", "f32", "f64", "c32", "c64"]
+    },
+
+    "shape": {
+      "description": "Dimension name to value. Keys and their order must match the shape family's 'dims' in ops.toml; the order is carried separately in 'shape_dims' so no consumer has to rely on object key order.",
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "pattern": "^[a-z][a-z0-9_]*$" },
+      "additionalProperties": { "type": "integer", "minimum": 0 }
+    },
+
+    "stat": {
+      "description": "Summary of one measured quantity across repetitions. 'median' and 'mad' are the reported pair (see .agents/benchmarking.md: compare medians plus a dispersion measure, never the best run). 'mean'/'stddev' are retained for cross-checking and may be null for an aggregate-only contribution.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["median", "mad", "min", "max", "count"],
+      "properties": {
+        "median": { "type": "number" },
+        "mad": {
+          "description": "Median absolute deviation, in the same units as 'median'. Zero when count == 1.",
+          "type": "number",
+          "minimum": 0
+        },
+        "mean": { "type": ["number", "null"] },
+        "stddev": { "type": ["number", "null"], "minimum": 0 },
+        "cv": {
+          "description": "Coefficient of variation, stddev/mean, unitless. Null when mean is null or zero.",
+          "type": ["number", "null"]
+        },
+        "min": { "type": "number" },
+        "max": { "type": "number" },
+        "count": {
+          "description": "Number of repetitions the summary was computed from.",
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+
+    "measurement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "op", "arm", "scalar", "shape", "shape_dims", "threads", "repetitions", "flops_per_iteration", "stats"],
+      "properties": {
+        "name": {
+          "description": "Google Benchmark 'run_name' verbatim: the aggregate-suffix-free full name. This is the join key. See CONTRACTS.md section 1 for the grammar. Never the 'name' field of an aggregate row, which carries a '_mean'/'_median'/'_stddev'/'_cv' suffix.",
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]*/[a-z][a-z0-9_]*/(f16|bf16|f32|f64|c32|c64)(/[a-z][a-z0-9_]*:[0-9]+)+$"
+        },
+        "op": { "$ref": "#/$defs/op_key" },
+        "arm": { "$ref": "#/$defs/arm_key" },
+        "scalar": { "$ref": "#/$defs/scalar_tag" },
+        "shape": { "$ref": "#/$defs/shape" },
+        "shape_dims": {
+          "description": "Ordered dimension names, matching the shape family's 'dims'.",
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" }
+        },
+        "shape_group": {
+          "description": "Name of the ops.toml group this point came from, when known. Lets a renderer band a plot without re-deriving the grouping.",
+          "type": ["string", "null"],
+          "default": null
+        },
+        "threads": {
+          "description": "Google Benchmark thread count for this row. 1 when the name carries no '/threads:' field.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "repetitions": {
+          "description": "Repetitions actually completed for this row.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "iterations_per_repetition": {
+          "type": ["array", "null"],
+          "default": null,
+          "items": { "type": "integer", "minimum": 1 }
+        },
+        "flops_per_iteration": {
+          "description": "Flop count of ONE benchmark iteration, from the ops.toml formula for this op, scalar and shape. Identical for both arms of a comparison by construction; that is what makes the arm-to-arm ratio meaningful even when 'flops_nominal' is true.",
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "flops_nominal": {
+          "description": "Mirrors ops.<OP>.flops.nominal. True means the absolute rate is a convention, not a hardware-efficiency figure; renderers must label such columns.",
+          "type": "boolean",
+          "default": false
+        },
+        "samples": {
+          "description": "Per-repetition raw values, retained whenever the harness ran with --benchmark_report_aggregates_only=false (the default). Each array has 'repetitions' entries in repetition_index order. Absent for an aggregate-only contribution.",
+          "type": ["object", "null"],
+          "default": null,
+          "additionalProperties": false,
+          "required": ["real_time_s", "cpu_time_s", "flop_rate"],
+          "properties": {
+            "real_time_s": { "type": "array", "items": { "type": "number", "minimum": 0 } },
+            "cpu_time_s": { "type": "array", "items": { "type": "number", "minimum": 0 } },
+            "flop_rate": {
+              "description": "Flops per second, i.e. the raw value of the GFLOPS counter in the Google Benchmark JSON. It is NOT gigaflops: the kIs1000 argument in the counter idiom affects console rendering only.",
+              "type": "array",
+              "items": { "type": "number", "minimum": 0 }
+            }
+          }
+        },
+        "stats": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["real_time_s", "cpu_time_s", "flop_rate"],
+          "properties": {
+            "real_time_s": { "$ref": "#/$defs/stat" },
+            "cpu_time_s": { "$ref": "#/$defs/stat" },
+            "flop_rate": { "$ref": "#/$defs/stat" }
+          }
+        },
+        "source_time_unit": {
+          "description": "Time unit of the raw Google Benchmark rows ('ns', 'us', 'ms', 's'). Informational only: every time in this file is already in seconds.",
+          "type": ["string", "null"],
+          "enum": ["ns", "us", "ms", "s", null],
+          "default": "ns"
+        },
+        "validated": {
+          "description": "Whether the harness checked this arm's result against a reference computation outside the timed region. Null means the benchmark did not offer a check.",
+          "type": ["boolean", "null"],
+          "default": null
+        }
+      }
+    },
+
+    "not_measured_entry": {
+      "description": "An explicit 'not measured'. This representation is preserved end to end: reduce.py keeps it, render.py prints the rendering token for the reason, plots.py leaves a gap in the series. It is never coerced to zero and never dropped.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["op", "arm", "reason"],
+      "properties": {
+        "op": { "$ref": "#/$defs/op_key" },
+        "arm": { "$ref": "#/$defs/arm_key" },
+        "scalar": {
+          "description": "Null means the entry covers every scalar in scope for this op.",
+          "oneOf": [{ "$ref": "#/$defs/scalar_tag" }, { "type": "null" }],
+          "default": null
+        },
+        "shape": {
+          "description": "Null means the entry covers the whole grid for this op.",
+          "oneOf": [{ "$ref": "#/$defs/shape" }, { "type": "null" }],
+          "default": null
+        },
+        "threads": { "type": ["integer", "null"], "minimum": 1, "default": null },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "not_implemented",
+            "no_reference_equivalent",
+            "reference_routine_absent",
+            "reference_library_unavailable",
+            "scalar_unsupported",
+            "shape_unsupported",
+            "excluded_by_filter",
+            "build_failed",
+            "runtime_error",
+            "timeout",
+            "out_of_memory",
+            "isa_unsupported",
+            "machine_unavailable"
+          ]
+        },
+        "detail": {
+          "description": "Human-readable specifics, rendered in tooltips and in the coverage manifest. For reason 'no_reference_equivalent' this SHOULD be ops.<OP>.reference.reason verbatim.",
+          "type": ["string", "null"],
+          "default": null
+        }
+      }
+    },
+
+    "scope": {
+      "description": "What this invocation ATTEMPTED. Consumers derive coverage as (scope cross product) minus (measurements) minus (not_measured). Without it, an absent row is indistinguishable from an unattempted one.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ops", "arms", "scalars", "threads"],
+      "properties": {
+        "ops": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/op_key" } },
+        "arms": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/arm_key" } },
+        "scalars": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/scalar_tag" } },
+        "threads": { "type": "array", "minItems": 1, "items": { "type": "integer", "minimum": 1 } },
+        "shape_groups": {
+          "description": "Per-op list of ops.toml group names attempted. An op absent from this object attempted its family's default_groups.",
+          "type": "object",
+          "default": {},
+          "propertyNames": { "pattern": "^[A-Z][A-Z0-9_]*$" },
+          "additionalProperties": {
+            "type": "array",
+            "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" }
+          }
+        },
+        "ops_toml_sha256": {
+          "description": "Digest of the ops.toml the scope was computed from, so a merge can detect grids that shifted under it.",
+          "type": ["string", "null"],
+          "pattern": "^[0-9a-f]{64}$",
+          "default": null
+        }
+      }
+    },
+
+    "provenance": {
+      "description": "Everything needed to reproduce and defend a published number years later. Sub-objects allow additional properties so a new machine fact does not invalidate old files; the top level and measurement rows do not, because those are the join surface.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["timestamp_utc", "hostname", "machine_config_id", "cpu", "numa", "memory", "os", "toolchain", "threading", "arms", "eigen", "harness", "run"],
+      "properties": {
+        "timestamp_utc": {
+          "description": "RFC 3339 UTC instant the run started. Must carry the 'Z' suffix; local offsets are rejected. Note that Google Benchmark's context 'date' is local time and must be converted.",
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "hostname": { "type": "string", "minLength": 1 },
+        "machine_config_id": {
+          "description": "Key of the benchmarks/comparison/machines/<id>.toml describing this host. The stable identity across runs; hostname is not, because hosts get renamed and cloud instances are ephemeral.",
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]*$"
+        },
+        "machine_config_sha256": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9a-f]{64}$",
+          "default": null
+        },
+        "cpu": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["model", "sockets", "cores_per_socket", "threads_per_core", "logical_cpus", "smt_enabled", "frequency_governor"],
+          "properties": {
+            "model": {
+              "description": "Vendor model string verbatim, e.g. 'Intel(R) Xeon(R) Platinum 8480+' or 'Apple M4 Pro'.",
+              "type": "string",
+              "minLength": 1
+            },
+            "vendor": { "type": ["string", "null"], "default": null },
+            "microarchitecture": { "type": ["string", "null"], "default": null },
+            "sockets": { "type": ["integer", "null"], "minimum": 1 },
+            "cores_per_socket": { "type": ["integer", "null"], "minimum": 1 },
+            "threads_per_core": { "type": ["integer", "null"], "minimum": 1 },
+            "logical_cpus": { "type": "integer", "minimum": 1 },
+            "performance_cores": {
+              "description": "For heterogeneous CPUs (Apple silicon, Intel P/E). Null on homogeneous parts.",
+              "type": ["integer", "null"],
+              "default": null
+            },
+            "efficiency_cores": { "type": ["integer", "null"], "default": null },
+            "smt_enabled": {
+              "description": "Whether simultaneous multithreading was ON during the run. Null only where the platform genuinely does not expose it, with a provenance_gaps entry.",
+              "type": ["boolean", "null"]
+            },
+            "frequency_governor": {
+              "description": "Governor / power policy in force, e.g. 'performance', 'powersave', 'schedutil'. Null on platforms with no user-visible governor (macOS), with a provenance_gaps entry.",
+              "type": ["string", "null"]
+            },
+            "turbo_enabled": { "type": ["boolean", "null"], "default": null },
+            "base_frequency_mhz": { "type": ["number", "null"], "default": null },
+            "max_frequency_mhz": { "type": ["number", "null"], "default": null },
+            "caches": {
+              "description": "Cache hierarchy. Google Benchmark's context 'caches' array maps directly onto this.",
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "object",
+                "additionalProperties": true,
+                "required": ["level", "type", "size_bytes"],
+                "properties": {
+                  "level": { "type": "integer", "minimum": 1 },
+                  "type": { "type": "string" },
+                  "size_bytes": { "type": "integer", "minimum": 1 },
+                  "num_sharing": { "type": ["integer", "null"], "default": null }
+                }
+              }
+            }
+          }
+        },
+        "numa": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["nodes", "policy"],
+          "properties": {
+            "nodes": { "type": ["integer", "null"], "minimum": 1 },
+            "policy": {
+              "description": "Allocation policy in force, e.g. 'default', 'interleave=all', 'bind=0', or 'n/a' on a non-NUMA platform.",
+              "type": ["string", "null"]
+            },
+            "cpu_binding": {
+              "description": "Affinity actually applied to the benchmark process, e.g. 'taskset 0-31', 'numactl --cpunodebind=0', or null for none.",
+              "type": ["string", "null"],
+              "default": null
+            },
+            "node_of_run": { "type": ["integer", "null"], "default": null }
+          }
+        },
+        "memory": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["total_bytes"],
+          "properties": {
+            "total_bytes": { "type": ["integer", "null"], "minimum": 1 },
+            "transparent_huge_pages": { "type": ["string", "null"], "default": null }
+          }
+        },
+        "os": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["name", "release", "arch"],
+          "properties": {
+            "name": { "type": "string", "minLength": 1 },
+            "release": { "type": "string", "minLength": 1 },
+            "kernel": { "type": ["string", "null"], "default": null },
+            "arch": {
+              "description": "uname machine string, e.g. 'x86_64', 'arm64', 'aarch64'.",
+              "type": "string",
+              "minLength": 1
+            },
+            "container_image": { "type": ["string", "null"], "default": null }
+          }
+        },
+        "toolchain": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["compiler_id", "compiler_version", "cxx_standard", "cxx_flags", "isa_target", "cmake_build_type"],
+          "properties": {
+            "compiler_id": {
+              "description": "CMAKE_CXX_COMPILER_ID: 'GNU', 'Clang', 'AppleClang', 'IntelLLVM', 'MSVC', 'NVHPC'.",
+              "type": "string",
+              "minLength": 1
+            },
+            "compiler_version": { "type": "string", "minLength": 1 },
+            "compiler_path": { "type": ["string", "null"], "default": null },
+            "cxx_standard": { "type": "integer", "enum": [14, 17, 20, 23] },
+            "cxx_flags": {
+              "description": "The EXACT compile command flags, one token per element, as passed to the compiler for the benchmark translation unit. Not a summary and not a CMake variable name: a reader must be able to reconstruct the command.",
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "link_flags": { "type": "array", "default": [], "items": { "type": "string" } },
+            "isa_target": {
+              "description": "ISA target key, matching the ci/scripts naming: 'x86-64', 'x86-64-avx2', 'x86-64-avx512', 'aarch64-neon', 'aarch64-sve', 'aarch64-sme', 'ppc64le-vsx'. Free-form so a new target is data, not code.",
+              "type": "string",
+              "minLength": 1
+            },
+            "isa_flags": { "type": "array", "default": [], "items": { "type": "string" } },
+            "cmake_build_type": { "type": "string", "minLength": 1 },
+            "benchmark_library_version": {
+              "description": "Google Benchmark version, from its JSON context 'library_version', e.g. 'v1.9.5'.",
+              "type": ["string", "null"],
+              "default": null
+            }
+          }
+        },
+        "threading": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["requested_threads", "env"],
+          "properties": {
+            "requested_threads": {
+              "description": "Thread count the run was configured for. 1 for a single-threaded comparison.",
+              "type": "integer",
+              "minimum": 1
+            },
+            "env": {
+              "description": "Thread-count and affinity environment variables ACTUALLY SET in the benchmark process, verbatim, name to value. Record only what was set; an absent variable is meaningfully different from one set to its default. At minimum probe OMP_NUM_THREADS, OPENBLAS_NUM_THREADS, MKL_NUM_THREADS, BLIS_NUM_THREADS, NVPL_BLAS_NUM_THREADS, ARMPL_NUM_THREADS, VECLIB_MAXIMUM_THREADS, GOTO_NUM_THREADS, OMP_PROC_BIND, OMP_PLACES, KMP_AFFINITY, EIGEN_NB_THREADS.",
+              "type": "object",
+              "additionalProperties": { "type": "string" }
+            },
+            "eigen_nb_threads": {
+              "description": "Value returned by Eigen::nbThreads() in the benchmark process. Null when Eigen threading was not compiled in.",
+              "type": ["integer", "null"],
+              "default": null
+            },
+            "eigen_has_openmp": { "type": ["boolean", "null"], "default": null }
+          }
+        },
+        "arms": {
+          "description": "Descriptor for every arm this file carries measurements or negative results for. MUST contain 'eigen'. A reference arm's library_version is mandatory: a rate without the library version it came from cannot be defended.",
+          "type": "object",
+          "minProperties": 1,
+          "required": ["eigen"],
+          "propertyNames": { "pattern": "^[a-z][a-z0-9_]*$" },
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["kind", "library_name", "library_version"],
+            "properties": {
+              "kind": { "type": "string", "enum": ["eigen", "reference"] },
+              "library_name": {
+                "description": "Display name, e.g. 'Eigen', 'OpenBLAS', 'Intel oneMKL', 'AOCL-BLIS', 'BLIS', 'NVPL BLAS', 'Arm Performance Libraries', 'Apple Accelerate', 'Netlib reference BLAS/LAPACK'.",
+                "type": "string",
+                "minLength": 1
+              },
+              "library_version": {
+                "description": "Version string as the library itself reports it (openblas_get_config, mkl_get_version_string, bli_info_get_version_str, ARMPL_BUILD_STRING, or the packaged version when the library exposes no query). MANDATORY and never null: 'unknown' is only acceptable as the literal string with a matching provenance_gaps entry, because vendor releases change kernels without changing the API.",
+                "type": "string",
+                "minLength": 1
+              },
+              "library_path": {
+                "description": "Resolved path of the shared object actually loaded, from the linker or the loader map. Distinguishes two builds reporting the same version.",
+                "type": ["string", "null"],
+                "default": null
+              },
+              "library_sha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$", "default": null },
+              "provides": {
+                "type": "array",
+                "default": [],
+                "items": { "type": "string", "enum": ["blas", "cblas", "lapack", "lapacke"] }
+              },
+              "threading_model": {
+                "description": "e.g. 'sequential', 'openmp', 'pthreads', 'tbb', 'gcd'.",
+                "type": ["string", "null"],
+                "default": null
+              },
+              "interface": {
+                "description": "Integer width of the library interface: 'lp64' (32-bit int) or 'ilp64' (64-bit int).",
+                "type": ["string", "null"],
+                "enum": ["lp64", "ilp64", null],
+                "default": null
+              }
+            }
+          }
+        },
+        "eigen": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["commit", "dirty"],
+          "properties": {
+            "commit": {
+              "description": "Full 40-character commit SHA of the Eigen checkout the benchmark was compiled against.",
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            "commit_short": { "type": ["string", "null"], "pattern": "^[0-9a-f]{7,40}$", "default": null },
+            "describe": { "type": ["string", "null"], "default": null },
+            "branch": { "type": ["string", "null"], "default": null },
+            "dirty": {
+              "description": "True when the worktree had uncommitted changes. A dirty result is not reproducible and renderers must mark it.",
+              "type": "boolean"
+            },
+            "world_version": { "type": ["integer", "null"], "default": null },
+            "major_version": { "type": ["integer", "null"], "default": null },
+            "minor_version": { "type": ["integer", "null"], "default": null }
+          }
+        },
+        "harness": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["name", "version", "argv"],
+          "properties": {
+            "name": { "type": "string", "const": "eigen-comparison-harness" },
+            "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+            "argv": {
+              "description": "run.py's own argv, one token per element, so the run can be repeated verbatim.",
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "benchmark_argv": {
+              "description": "Flags passed to the benchmark executable.",
+              "type": "array",
+              "default": [],
+              "items": { "type": "string" }
+            },
+            "executable": { "type": ["string", "null"], "default": null },
+            "ci_job_url": { "type": ["string", "null"], "default": null }
+          }
+        },
+        "run": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["repetitions", "min_time"],
+          "properties": {
+            "repetitions": {
+              "description": "--benchmark_repetitions the run requested. Individual rows record what they actually completed.",
+              "type": "integer",
+              "minimum": 1
+            },
+            "min_time": {
+              "description": "--benchmark_min_time verbatim, e.g. '0.5s' or '100x'.",
+              "type": "string",
+              "minLength": 1
+            },
+            "benchmark_filter": { "type": ["string", "null"], "default": null },
+            "report_aggregates_only": { "type": "boolean", "default": false },
+            "cpu_scaling_enabled": {
+              "description": "Google Benchmark's context 'cpu_scaling_enabled'. True means the frequency was not pinned and the numbers carry that caveat.",
+              "type": ["boolean", "null"],
+              "default": null
+            },
+            "load_avg_before": { "type": ["array", "null"], "default": null, "items": { "type": "number" } },
+            "load_avg_after": { "type": ["array", "null"], "default": null, "items": { "type": "number" } },
+            "duration_s": { "type": ["number", "null"], "minimum": 0, "default": null },
+            "notes": {
+              "description": "Anything about the run that could not be controlled and must be disclosed.",
+              "type": ["string", "null"],
+              "default": null
+            }
+          }
+        }
+      }
+    }
+  }
+}

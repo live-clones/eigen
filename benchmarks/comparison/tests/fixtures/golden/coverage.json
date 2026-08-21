@@ -1,0 +1,93 @@
+{
+  "arms": {
+    "accelerate": {
+      "measured": 5,
+      "not_measured": 2
+    },
+    "eigen": {
+      "measured": 7,
+      "not_measured": 0
+    }
+  },
+  "baseline": "accelerate",
+  "config_details": {
+    "m4pro__aarch64-neon__appleclang17__e2a2fda17__t1": {
+      "compiler": "AppleClang 17.0.0",
+      "cpu_model": "Apple M4 Pro",
+      "cxx_flags": [
+        "-O3",
+        "-DNDEBUG"
+      ],
+      "eigen_commit": "e2a2fda17c0b1d3e4f5a6b7c8d9e0f1a2b3c4d5e",
+      "eigen_commit_short": "e2a2fda17",
+      "eigen_dirty": false,
+      "isa_target": "aarch64-neon",
+      "machine_config_id": "m4pro",
+      "provenance_refs": [
+        "m4pro-neon-accelerate-e2a2fda17-20260801T120000Z"
+      ],
+      "threads": 1
+    }
+  },
+  "configs": [
+    "m4pro__aarch64-neon__appleclang17__e2a2fda17__t1"
+  ],
+  "generated_utc": "2026-08-20T00:00:00Z",
+  "kind": "eigen-benchmark-comparison-coverage",
+  "missing_configs": [],
+  "not_measured": [
+    {
+      "arm": "accelerate",
+      "config_id": "m4pro__aarch64-neon__appleclang17__e2a2fda17__t1",
+      "count": 1,
+      "detail": "No LAPACK driver: complete-pivoting LU (the deprecated ?gefa family aside) has no supported netlib equivalent.",
+      "op": "FULLPIVLU",
+      "reason": "no_reference_equivalent",
+      "scalar": "f64",
+      "shapes": [
+        "512x512"
+      ]
+    },
+    {
+      "arm": "accelerate",
+      "config_id": "m4pro__aarch64-neon__appleclang17__e2a2fda17__t1",
+      "count": 1,
+      "detail": "The reference build in this contribution did not register m=n=k=128",
+      "op": "GEMM",
+      "reason": "reference_routine_absent",
+      "scalar": "f64",
+      "shapes": [
+        "128x128x128"
+      ]
+    }
+  ],
+  "ops": {
+    "FULLPIVLU": {
+      "arms": [
+        "accelerate",
+        "eigen"
+      ],
+      "measured": 1,
+      "not_measured": 1,
+      "unaccounted": 0
+    },
+    "GEMM": {
+      "arms": [
+        "accelerate",
+        "eigen"
+      ],
+      "measured": 11,
+      "not_measured": 1,
+      "unaccounted": 0
+    }
+  },
+  "scalars": [
+    "f64"
+  ],
+  "schema_version": "1.0.0",
+  "totals": {
+    "measured": 12,
+    "not_measured": 2,
+    "unaccounted": 0
+  }
+}
