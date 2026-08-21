@@ -1613,18 +1613,35 @@ def assemble_provenance(inputs: ProvenanceInputs) -> tuple[dict, list[dict]]:
             "the benchmark output carried no 'cpu_scaling_enabled' context key",
         )
 
+    # Each caveat belongs to exactly one channel, or the rendered page states it
+    # twice under two headings that mean different things. `gap()` is for what
+    # the run could not establish; `notes` is for what it established and
+    # proceeded under anyway. The two below are gaps, and the gap is what
+    # reaches the page -- appending them here as well duplicated the whole
+    # cpu_binding paragraph in the coverage manifest.
     notes = inputs.notes
     if not git_facts.available:
-        note = "the Eigen checkout is not a git repository; the commit is recorded as forty zeros"
-        notes = f"{notes}; {note}" if notes else note
-        gap("/provenance/eigen/commit", note)
-    if inputs.pinning.unavailable_reason and inputs.pinning.applied is False:
-        note = inputs.pinning.unavailable_reason
-        notes = f"{notes}; {note}" if notes else note
+        gap(
+            "/provenance/eigen/commit",
+            "the Eigen checkout is not a git repository; the commit is recorded as forty zeros",
+        )
     if not machine.locally_verified:
         note = (
             f"machine profile {machine.id!r} is marked locally_verified = false: its static facts have not "
             "been confirmed against the hardware they describe"
+        )
+        notes = f"{notes}; {note}" if notes else note
+    # A run that breached the profile's noise threshold is only reachable via
+    # --allow-noisy, i.e. the operator said "publish it anyway". The raw load
+    # averages are recorded either way, but a reader of the page has no idea
+    # what this machine declares as quiet, so the exceedance has to travel with
+    # the numbers rather than being reconstructible from them.
+    peak_load = max((value[0] for value in (inputs.load_avg_before, inputs.load_avg_after) if value), default=None)
+    if peak_load is not None and peak_load > machine.max_load_avg:
+        note = (
+            f"measured at a 1-minute load average of {peak_load:.2f}, above the {machine.max_load_avg:.2f} "
+            f"that machine profile {machine.id!r} declares as quiet: competing work may have displaced these "
+            "measurements and the run was allowed to proceed with --allow-noisy"
         )
         notes = f"{notes}; {note}" if notes else note
 
