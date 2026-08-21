@@ -51,6 +51,29 @@ def test_every_committed_result_fixture_validates(validator):
         assert not errors, f"{path.name}: " + "; ".join(e.message for e in errors[:3])
 
 
+def test_every_committed_result_fixture_states_the_current_registry(validator):
+    """The fixtures name the ops.toml they were built from, like real results do,
+    and `reduce.py` refuses a contribution whose registry it cannot reconcile.
+
+    So editing ops.toml makes them stale, and stale is what this says out loud --
+    otherwise the whole reduce suite fails with a digest error and nothing points
+    at the cause. One command fixes it."""
+    stated = {
+        path.name: (support.read_json(path).get("scope") or {}).get("ops_toml_sha256")
+        for path in sorted(RESULTS.glob("*.json"))
+    }
+    assert any(stated.values()), "no fixture states a registry at all; the reconciliation is untested"
+    # A fixture may state nothing -- `scope.ops_toml_sha256` is nullable, and the
+    # minimal and malformed ones deliberately exercise that. One that states a
+    # digest has to state this one.
+    stale = sorted(name for name, digest in stated.items() if digest and digest != support.OPS_TOML_SHA256)
+    assert not stale, (
+        f"ops.toml now hashes to {support.OPS_TOML_SHA256[:12]}; these fixtures still name an older "
+        f"registry: {', '.join(stale)}. Run:\n"
+        "    python3 benchmarks/comparison/tests/regenerate.py --fixtures"
+    )
+
+
 def test_unknown_op_fixture_is_schema_valid_but_not_registry_valid(validator, ops):
     """The schema cannot police ops.toml; the reducer must.
 

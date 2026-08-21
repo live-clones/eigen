@@ -308,6 +308,41 @@ def _op_metadata(registry: Mapping[str, Any], op: str) -> Dict[str, Any]:
     }
 
 
+def _registry_drift(
+    result: Mapping[str, Any],
+    run_id: str,
+    ops_toml_sha256: Optional[str],
+    allow: bool,
+    warn,
+) -> List[str]:
+    """Reconcile one result's registry digest with the one being reduced against.
+
+    Returns the note the affected configurations must carry, or refuses. A result
+    that states no digest (schema default `null`, and what a hand-built binary
+    produces) cannot be checked and is not blocked; a result that states one and
+    disagrees is either refused or -- under `--allow-registry-drift`, for the case
+    where the operator knows the change did not touch these operations -- recorded
+    as a caveat that reaches the rendered page.
+    """
+    stated = str((result.get("scope", {}) or {}).get("ops_toml_sha256") or "")
+    if not stated or not ops_toml_sha256 or stated == ops_toml_sha256:
+        return []
+    detail = (
+        f"result {run_id or '(unnamed)'} was measured against ops.toml {stated[:12]} but this "
+        f"reduction uses {ops_toml_sha256[:12]}: its rates were scaled by that registry's flop "
+        "formulas over that registry's grid"
+    )
+    if not allow:
+        raise ReduceError(
+            detail
+            + ". Reduce it against the ops.toml it names, re-measure it, or pass "
+            "--allow-registry-drift to publish it with the discrepancy stated on the page.",
+            EXIT_INPUT_INVALID,
+        )
+    warn(detail + "; proceeding under --allow-registry-drift")
+    return [detail + ", and the two were not reconciled"]
+
+
 def _blank_cell(
     registry: Mapping[str, Any],
     cache: "_OpCache",
@@ -345,7 +380,9 @@ def reduce_results(
     inconclusive_rule: str = "mad-overlap",
     ops_toml_sha256: Optional[str] = None,
     generated_utc: Optional[str] = None,
+    allow_registry_drift: bool = False,
     warn=None,
+    notify=None,
 ) -> Dict[str, Any]:
     """Merge result documents into the normalised intermediate.
 
@@ -354,6 +391,11 @@ def reduce_results(
     """
     if warn is None:
         warn = lambda message: None  # noqa: E731
+    # `warn` is the --verbose channel; `notify` carries the things an operator has
+    # to see whether or not they asked for detail, because they describe a caveat
+    # that is about to be published.
+    if notify is None:
+        notify = warn
     known_ops = registry["ops"]
     cache = _OpCache(registry)
 
@@ -365,6 +407,7 @@ def reduce_results(
     missing_configs: List[Dict[str, Any]] = []
 
     gaps_for_config: List[Mapping[str, Any]] = []
+    drift_note_for_config: List[str] = []
 
     def touch_config(provenance: Mapping[str, Any], threads: int, run_id: str) -> str:
         config_id = config_id_for(provenance, threads)
@@ -389,7 +432,7 @@ def reduce_results(
         # for the first run and appending for the rest would be two paths to one
         # field. First-wins would lose a noisy run's caveat to whichever filename
         # sorted first.
-        for note in _run_notes(provenance):
+        for note in list(_run_notes(provenance)) + drift_note_for_config:
             if note not in record["notes"]:
                 record["notes"].append(note)
         for gap in gaps_for_config:
@@ -412,6 +455,16 @@ def reduce_results(
         run_id = str(result.get("run_id", ""))
         provenance = result.get("provenance", {}) or {}
         timestamp = _timestamp(result)
+        # Every result states the registry it was planned and counted against.
+        # Reading it is the only thing that can notice that an archived result is
+        # being folded into a store built from a DIFFERENT ops.toml: its rates
+        # were computed with that file's flop formulas, while the coverage,
+        # metadata, shape groups and flops_per_iteration attached to them here all
+        # come from the current one. Nothing downstream can see the difference --
+        # the rate looks like any other rate -- so it has to be caught at the door.
+        drift_note_for_config[:] = _registry_drift(
+            result, run_id, ops_toml_sha256, allow_registry_drift, notify
+        )
         # A gap is the run telling you what it could NOT establish -- that Eigen ran
         # sequentially against a threaded vendor, that the CPU could not be pinned,
         # that the governor is unknown. Dropping them here meant every caveat the
@@ -434,6 +487,12 @@ def reduce_results(
                     "library_path": meta.get("library_path"),
                     "threading_model": meta.get("threading_model"),
                     "interface": meta.get("interface"),
+                    # Which run this description came from, kept so `--merge` can
+                    # rank two merged documents by the same clock this loop uses.
+                    # Without it the incremental route had nothing to rank by and
+                    # fell back to first-wins, which published the version string
+                    # of whichever store was merged INTO.
+                    "observed_utc": timestamp,
                 }
                 arms_meta_stamp[arm] = timestamp
 
@@ -878,6 +937,59 @@ def _merged_cell_key(cell: Mapping[str, Any]) -> Tuple[Any, ...]:
     )
 
 
+def _fold_config(base: Dict[str, Any], addition: Mapping[str, Any]) -> None:
+    """Fold one config record into another, with `touch_config`'s caveat rules.
+
+    `reduce.py a.json b.json` and `reduce.py b.json --merge a-merged.json` are two
+    documented routes to the same store, so they have to agree about what a
+    configuration carries. They did not: the incremental route kept the base
+    record whole and unioned only `provenance_refs`, so a dirty, noisy or
+    gap-carrying contribution folded into an existing config rendered as clean.
+    The caveat is a property of the SET of contributing runs -- if any of them
+    carries it, the configuration carries it -- which is what touch_config
+    implements for the all-at-once route and what this implements here.
+    """
+    if bool(addition.get("eigen_dirty", False)):
+        base["eigen_dirty"] = True
+    for field in ("provenance_refs", "notes"):
+        target = base.setdefault(field, [])
+        for value in addition.get(field, []) or []:
+            if value not in target:
+                target.append(value)
+    gaps = base.setdefault("provenance_gaps", [])
+    for gap in addition.get("provenance_gaps", []) or []:
+        if gap not in gaps:
+            gaps.append(dict(gap))
+
+
+def _fold_arms(merged: Dict[str, Any], base: Mapping[str, Any], addition: Mapping[str, Any]) -> None:
+    """Choose each arm's metadata by observation age, never by which side is `base`.
+
+    Arm metadata is the library's name, version, path, interface and threading
+    model -- what a published table names its reference column after. The
+    all-at-once route picks it by the contributing run's timestamp; first-wins
+    here instead published whichever version happened to be measured into the
+    file that was merged INTO, so re-measuring against an upgraded vendor and
+    merging the result went on printing the superseded version string.
+
+    `observed_utc` is that same run timestamp carried into the merged document so
+    both routes rank by one clock. It is absent from documents written before it
+    existed and from hand-built fixtures, hence the fall back to `generated_utc`;
+    a tie keeps the incumbent, which is the only answer that does not depend on
+    argument order.
+    """
+    merged.setdefault("arms", {})
+    for arm, meta in (addition.get("arms") or {}).items():
+        held = merged["arms"].get(arm)
+        if held is None:
+            merged["arms"][arm] = meta
+            continue
+        candidate = _parse_timestamp(meta.get("observed_utc") or addition.get("generated_utc"))
+        incumbent = _parse_timestamp(held.get("observed_utc") or base.get("generated_utc"))
+        if candidate > incumbent:
+            merged["arms"][arm] = meta
+
+
 def merge_merged(
     base: Mapping[str, Any],
     addition: Mapping[str, Any],
@@ -925,14 +1037,17 @@ def merge_merged(
             continue
         for arm, entry in cell["arms"].items():
             _install_arm(target, arm, dict(entry), on_conflict, conflicts, warn)
-    for section in ("configs", "arms", "ops"):
-        for key, value in (addition.get(section) or {}).items():
-            merged.setdefault(section, {}).setdefault(key, value)
+    merged.setdefault("ops", {})
+    for key, value in (addition.get("ops") or {}).items():
+        merged["ops"].setdefault(key, value)
+    _fold_arms(merged, base, addition)
+    merged.setdefault("configs", {})
     for config_id, record in (addition.get("configs") or {}).items():
-        refs = merged["configs"][config_id].setdefault("provenance_refs", [])
-        for ref in record.get("provenance_refs", []):
-            if ref not in refs:
-                refs.append(ref)
+        existing = merged["configs"].get(config_id)
+        if existing is None:
+            merged["configs"][config_id] = record
+            continue
+        _fold_config(existing, record)
     merged["conflicts"] = conflicts + [c for c in addition.get("conflicts", []) if c not in conflicts]
     merged["baseline"] = baseline or merged.get("baseline") or addition.get("baseline")
     merged["cells"] = _finalise_cells(
@@ -986,6 +1101,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--skip-invalid", action="store_true", help="warn and continue instead of failing")
     parser.add_argument("--baseline", default=None, metavar="ARM")
     parser.add_argument("--on-conflict", choices=["latest", "first", "error", "keep-all"], default="latest")
+    parser.add_argument(
+        "--allow-registry-drift",
+        action="store_true",
+        help="reduce a result measured against a different ops.toml, recording the discrepancy as a caveat",
+    )
     parser.add_argument("--inconclusive-rule", choices=["mad-overlap", "none"], default="mad-overlap")
     parser.add_argument("--pretty", dest="pretty", action="store_true", default=True)
     parser.add_argument("--compact", dest="pretty", action="store_false")
@@ -1064,7 +1184,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             on_conflict=args.on_conflict,
             inconclusive_rule=args.inconclusive_rule,
             ops_toml_sha256=ops.sha256,
+            allow_registry_drift=args.allow_registry_drift,
             warn=warn if args.verbose else (lambda message: None),
+            notify=warn,
         )
         if args.merge:
             try:

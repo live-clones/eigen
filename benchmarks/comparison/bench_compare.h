@@ -266,14 +266,30 @@ class ValidatedShapes {
 // contraction length because that is where the error accumulates. Negated so a
 // NaN result fails rather than passes -- every comparison operator against NaN
 // is false, so `<=` inside the negation is the only spelling that rejects it.
+//
+// Infinity needs its own rejection and does not get one from the negation. An
+// infinite entry makes both sides of the comparison infinite -- the error norm
+// because inf minus a finite number is inf, the right-hand side because
+// tolerance * inf is inf -- and `inf <= inf` is TRUE. A kernel that overflowed,
+// divided by zero or returned uninitialised memory would therefore be cached as
+// validated and its rate published. So the three norms are formed first and
+// every one of them must be finite before the relative test is reached, which
+// covers NaN by the same door.
 template <typename Derived, typename OtherDerived>
 bool agreesWithEigen(const Eigen::MatrixBase<Derived>& expected, const Eigen::MatrixBase<OtherDerived>& actual,
                      Eigen::Index contraction_length) {
   using RealScalar = typename Eigen::NumTraits<typename Derived::Scalar>::Real;
+  const RealScalar expected_norm = expected.norm();
+  const RealScalar actual_norm = actual.norm();
+  const RealScalar error = (actual - expected).norm();
+  if (!(Eigen::numext::isfinite)(expected_norm) || !(Eigen::numext::isfinite)(actual_norm) ||
+      !(Eigen::numext::isfinite)(error)) {
+    return false;
+  }
   const RealScalar tolerance =
       RealScalar(64) * Eigen::numext::sqrt(RealScalar(contraction_length)) * Eigen::NumTraits<RealScalar>::epsilon();
-  const RealScalar magnitude = Eigen::numext::maxi(expected.norm(), actual.norm());
-  return !!((actual - expected).norm() <= tolerance * magnitude);
+  const RealScalar magnitude = Eigen::numext::maxi(expected_norm, actual_norm);
+  return !!(error <= tolerance * magnitude);
 }
 
 // ---------------------------------------------------------------------------
