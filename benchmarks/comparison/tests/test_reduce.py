@@ -491,6 +491,38 @@ def test_an_ambiguous_baseline_is_refused(tmp_path):
     assert ok["baseline"] == "openblas"
 
 
+def test_the_eigen_arm_is_refused_as_a_baseline():
+    """A page of x1.00 is not a result.
+
+    Ratios are eigen/baseline, so naming the Eigen arm takes every ratio against
+    itself: exactly 1.0 everywhere, every cell flagged "inconclusive" because an
+    interval always overlaps itself, and the ratio column headed "Eigen vs
+    Eigen".  Nothing in that page reads as broken -- it reads as a real
+    measurement showing no difference, which is the worst way for this harness
+    to be wrong.  Auto-selection has always discarded the Eigen arm; only an
+    explicit --baseline could reach it.
+    """
+    proc = reduce_to([str(RESULTS / "gemm_eigen_accelerate.json"), "--baseline", "eigen"])
+    assert proc.returncode != 0, "comparing the Eigen arm against itself must not render a page"
+    assert "eigen" in proc.stderr and "itself" in proc.stderr
+    # The message has to name what to pass instead, or the user's next move is a guess.
+    assert "accelerate" in proc.stderr
+
+
+def test_a_baseline_no_result_file_carries_is_refused():
+    """Otherwise a typo renders the whole page as 'not measured'.
+
+    Every cell would be missing its baseline arm, so every ratio is undefined
+    and the coverage manifest reports a dataset that was in fact measured as
+    absent.  A dataset genuinely missing one arm on some configs is a different
+    thing and stays allowed; this is the case where no file mentions the arm at
+    all.
+    """
+    proc = reduce_to([str(RESULTS / "gemm_eigen_accelerate.json"), "--baseline", "acclerate"])
+    assert proc.returncode != 0, "a misspelt baseline must not silently blank the page"
+    assert "acclerate" in proc.stderr and "accelerate" in proc.stderr
+
+
 # --------------------------------------------------------------------------
 # Input plumbing and determinism
 # --------------------------------------------------------------------------
