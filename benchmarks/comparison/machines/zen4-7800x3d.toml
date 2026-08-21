@@ -1,0 +1,153 @@
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
+
+# Machine profile for the comparison harness. See CONTRACTS.md section 7.
+#
+# NOT LOCALLY VERIFIED. This profile was written from a hardware and software
+# description, not read off the machine, so `locally_verified = false` and
+# run.py appends a note to every result produced from it saying so. Whoever
+# first runs on this host must confirm the entries marked "confirm on first run"
+# below and flip locally_verified to true in the same change.
+#
+# It exists as the second profile in the tree: the format has to describe an
+# x86 multi-vendor Linux host as naturally as it describes an Apple laptop, and
+# a format proven against one machine is not proven at all.
+
+schema_version = "1.0.0"
+
+id = "zen4-7800x3d"
+display_name = "AMD Ryzen 7 7800X3D (8C/16T, Zen 4), Ubuntu 26.04"
+cpu_model = "AMD Ryzen 7 7800X3D 8-Core Processor"
+arch = "x86_64"
+
+locally_verified = false
+
+# ISA target keys are the ones result_schema.json documents and
+# comparison/CMakeLists.txt derives ("x86-64", "x86-64-avx2", "x86-64-avx512").
+# ci/benchmark.gitlab-ci.yml spells the last one "x86-64-avx512dq"; that spelling
+# would not match what the binary reports, and a mismatch splits the merge config
+# in reduce.py. Zen 4 implements AVX-512 on 256-bit datapaths, so the avx512
+# target is a real target here and not a trap.
+isa_targets = ["x86-64", "x86-64-avx2", "x86-64-avx512"]
+default_isa_target = "x86-64-avx512"
+
+sockets = 1
+cores_per_socket = 8
+threads_per_core = 2
+smt_enabled = true
+numa_nodes = 1
+
+max_load_avg = 0.5
+
+microarchitecture = "AMD Zen 4 (Raphael, 3D V-Cache)"
+
+notes = """
+Single CCD with 96 MiB of L3 (64 MiB 3D V-Cache stacked on 32 MiB), which is
+large enough to hold operands that fall out of cache on most other x86 parts.
+Level-3 shapes that look anomalously fast here are usually the V-Cache, not a
+kernel change; keep the `large` and `aliasing` shape groups in any comparison
+made on this host so the fall-off is visible.
+
+SMT is enabled, so the 16 logical CPUs are 8 physical cores. [pinning].cpu_list
+below assumes the usual Linux enumeration on this part, where logical CPUs 0-7
+are one thread of each core and 8-15 are their siblings; confirm on first run
+with `lscpu --extended` and correct the list if the enumeration interleaves
+instead.
+"""
+
+[frequency]
+# Confirm on first run:
+#   cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
+# run.py records the probed value, so a wrong entry here is a warning, not a
+# wrong number. Set the governor to "performance" before measuring.
+governor = "performance"
+pinned = true
+
+[pinning]
+# Pinning is not decoration on this host: without it the scheduler migrates the
+# process across SMT siblings mid-run, and a single-threaded measurement then
+# alternates between a whole core and half of one.
+tool = "taskset"
+cpu_list = "0-7"
+omp_proc_bind = "close"
+omp_places = "cores"
+
+[build]
+generator = "Ninja"
+build_type = "Release"
+cxx_standard = 17
+
+# --------------------------------------------------------------------------
+# ISA targets
+# --------------------------------------------------------------------------
+# Flags match ci/benchmark.gitlab-ci.yml so a local number and a CI number for
+# the same target were produced by the same code generation.
+# EIGEN_BENCH_ISA_TARGET is pinned alongside them because
+# comparison/CMakeLists.txt otherwise infers the key by pattern-matching the flag
+# string, and an inferred key that disagreed with this profile would split the
+# merge config in reduce.py.
+
+[isa."x86-64"]
+flags = []
+cmake_options = ["-DEIGEN_BENCH_ISA_TARGET=x86-64"]
+
+[isa."x86-64-avx2"]
+flags = ["-mavx2", "-mfma"]
+cmake_options = ["-DCMAKE_CXX_FLAGS=-mavx2 -mfma", "-DEIGEN_BENCH_ISA_TARGET=x86-64-avx2"]
+
+[isa."x86-64-avx512"]
+flags = ["-mavx512dq", "-mfma"]
+cmake_options = ["-DCMAKE_CXX_FLAGS=-mavx512dq -mfma", "-DEIGEN_BENCH_ISA_TARGET=x86-64-avx512"]
+
+# --------------------------------------------------------------------------
+# Reference arms
+# --------------------------------------------------------------------------
+# One binary carries at most one reference arm (CONTRACTS.md section 3.2), so
+# each of these produces its own build tree and its own result file. They merge
+# on the arm key, which is why measuring only one of them is still a valid
+# contribution. Only the vendor key is passed: comparison/vendors.cmake owns the
+# BLA_VENDOR spelling, the cblas.h search and the link libraries for each vendor,
+# and setting BLA_VENDOR here would pin FindBLAS's one-shot BLAS::BLAS target
+# behind the table's back.
+
+[arms.openblas]
+library_name = "OpenBLAS"
+cmake_options = ["-DEIGEN_BENCH_REFERENCE=openblas"]
+# OpenBLAS answers openblas_get_config() at runtime, so this fallback should
+# never reach a result file. It is here for the case where the query is
+# unavailable, which run.py would otherwise have to record as "unknown".
+version_fallback = "OpenBLAS 0.3.32"
+threading_model = "pthreads"
+interface = "lp64"
+provides = ["blas", "cblas", "lapack", "lapacke"]
+# An unset OPENBLAS_NUM_THREADS is the single most common way to publish a
+# multithreaded BLAS against single-threaded Eigen. run.py sets it on every run
+# regardless; this entry documents the intent at the machine level.
+thread_env = { OPENBLAS_NUM_THREADS = "{threads}" }
+
+[arms.mkl]
+library_name = "Intel oneMKL"
+cmake_options = ["-DEIGEN_BENCH_REFERENCE=mkl"]
+version_fallback = "Intel oneMKL 2026.1"
+threading_model = "sequential"
+interface = "lp64"
+provides = ["blas", "cblas", "lapack", "lapacke"]
+# oneMKL dispatches on the CPUID vendor string and takes a conservative path on
+# AMD parts. That is a real property of running oneMKL here and must be stated
+# next to any number from this arm rather than worked around silently:
+# MKL_DEBUG_CPU_TYPE and MKL_ENABLE_INSTRUCTIONS override it, and a comparison
+# that sets either is measuring a configuration Intel does not support.
+thread_env = { MKL_NUM_THREADS = "{threads}", MKL_DYNAMIC = "FALSE" }
+
+[arms.netlib]
+library_name = "Netlib reference BLAS/LAPACK"
+cmake_options = ["-DEIGEN_BENCH_REFERENCE=netlib"]
+# Netlib exposes no version query; the packaged version is the attribution.
+version_fallback = "Netlib LAPACK 3.12.1 (reference BLAS)"
+threading_model = "sequential"
+interface = "lp64"
+provides = ["blas", "cblas", "lapack", "lapacke"]
+# The unoptimised reference implementation. Useful as a floor and as a
+# correctness oracle, not as a competitive arm; a renderer should not read
+# "Eigen is 30x netlib" as a tuning result.
+thread_env = { }
