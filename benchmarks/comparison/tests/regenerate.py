@@ -477,14 +477,40 @@ def write_listing(build_dir=None):
     for root in roots:
         if not root.is_dir():
             continue
+        # ONE build manifest, never the union of several. A --build-dir can hold
+        # more than one configured tree -- run.py puts each (ISA, arm) under
+        # <base>/<isa>__<arm>/ -- and those trees routinely disagree, because one
+        # was configured before an operation was added. Unioning them captured
+        # the same target from two trees and wrote a listing no binary ever
+        # produced: 1248 names for 944 registrations, with every GEMV name twice.
+        # That is the fabricated listing this function exists to refuse.
+        manifests = []
         for info in sorted(root.rglob("vendor_info.json")):
             try:
                 entries = json.loads(info.read_text()).get("targets", []) or []
             except (OSError, ValueError):
                 continue
+            if entries:
+                manifests.append((info, entries))
+        if manifests:
+            # The most complete tree wins, ties broken by the sorted path above so
+            # the choice is deterministic.
+            chosen, entries = max(manifests, key=lambda item: len(item[1]))
+            if len(manifests) > 1:
+                print(
+                    f"{len(manifests)} build manifests under {root}; capturing from the most complete one,\n"
+                    f"  {chosen}\n"
+                    f"  ({', '.join(str(other) for other, _ in manifests if other != chosen)} ignored)",
+                    file=sys.stderr,
+                )
+            seen_targets: set[str] = set()
             for entry in entries:
+                name = str(entry.get("target", ""))
                 candidate = Path(str(entry.get("executable", "")))
-                if candidate.is_file() and os.access(candidate, os.X_OK) and candidate not in exes:
+                if name in seen_targets:
+                    continue
+                if candidate.is_file() and os.access(candidate, os.X_OK):
+                    seen_targets.add(name)
                     exes.append(candidate)
         if exes:
             break
@@ -497,7 +523,7 @@ def write_listing(build_dir=None):
     if exe is None:
         searched = ", ".join(str(r) for r in roots)
         print(
-            f"no bench_gemm_compare binary found (looked in {searched}); leaving\n"
+            f"no comparison binary found (looked in {searched}); leaving\n"
             f"  {target.relative_to(support.REPO_ROOT)}\n"
             "unchanged.  To refresh it, build the comparison target against a real\n"
             "reference BLAS and re-run with --build-dir:\n"

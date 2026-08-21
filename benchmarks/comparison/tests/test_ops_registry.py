@@ -306,6 +306,29 @@ def reconcile(names, ops):
     return problems
 
 
+def test_the_captured_listing_holds_no_duplicate_registrations(listed_benchmarks):
+    """A name twice means the capture merged two build trees.
+
+    reconcile() works on sets, so duplicates pass every other check here while
+    the fixture silently stops being a faithful record of what one binary
+    registered.  regenerate.py used to walk every vendor_info.json under
+    --build-dir and union them; run.py puts each (ISA, arm) tree under
+    <base>/<isa>__<arm>/, so pointing it at the base captured the same target
+    from two trees -- and those trees disagree whenever one was configured
+    before an operation was added.  Google Benchmark cannot register one name
+    twice, so a duplicate here can only be a capture artefact.
+    """
+    seen, duplicates = set(), []
+    for name in listed_benchmarks:
+        if name in seen:
+            duplicates.append(name)
+        seen.add(name)
+    assert not duplicates, (
+        f"{len(duplicates)} duplicated registration(s), e.g. {duplicates[:3]}: the capture is a union of "
+        f"more than one build tree, not a record of one binary"
+    )
+
+
 def test_canned_listing_reconciles_with_the_registry(listed_benchmarks, ops):
     assert listed_benchmarks, "the --benchmark_list_tests capture is empty"
     problems = reconcile(listed_benchmarks, ops)
