@@ -492,25 +492,20 @@ def write_listing(build_dir=None):
                 continue
             if entries:
                 manifests.append((info, entries))
+        if len(manifests) > 1:
+            # Refused rather than resolved by a heuristic. Two trees for two
+            # different vendors hold the same targets, so "the most complete one"
+            # would decide which vendor's arm name lands in a committed fixture by
+            # path sort order. `choose_baseline` in reduce.py takes the same line:
+            # ambiguity is an error that names the alternatives.
+            raise SystemExit(
+                f"{len(manifests)} build trees under {root}; --build-dir must name one, not their parent:\n"
+                + "\n".join(f"  --build-dir {info.parent.parent}" for info, _ in manifests)
+            )
         if manifests:
-            # The most complete tree wins, ties broken by the sorted path above so
-            # the choice is deterministic.
-            chosen, entries = max(manifests, key=lambda item: len(item[1]))
-            if len(manifests) > 1:
-                print(
-                    f"{len(manifests)} build manifests under {root}; capturing from the most complete one,\n"
-                    f"  {chosen}\n"
-                    f"  ({', '.join(str(other) for other, _ in manifests if other != chosen)} ignored)",
-                    file=sys.stderr,
-                )
-            seen_targets: set[str] = set()
-            for entry in entries:
-                name = str(entry.get("target", ""))
+            for entry in manifests[0][1]:
                 candidate = Path(str(entry.get("executable", "")))
-                if name in seen_targets:
-                    continue
                 if candidate.is_file() and os.access(candidate, os.X_OK):
-                    seen_targets.add(name)
                     exes.append(candidate)
         if exes:
             break
