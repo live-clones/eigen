@@ -16,12 +16,11 @@ template <typename MatrixType>
 void inverse_for_fixed_size(const MatrixType&, std::enable_if_t<MatrixType::SizeAtCompileTime == Dynamic>* = 0) {}
 
 template <typename MatrixType>
-void inverse_for_fixed_size(const MatrixType& m1, std::enable_if_t<MatrixType::SizeAtCompileTime != Dynamic>* = 0) {
+void inverse_for_fixed_size(const MatrixType& m1, std::enable_if_t<MatrixType::SizeAtCompileTime != Dynamic>* = nullptr) {
   using std::abs;
+  using Scalar = typename MatrixType::Scalar;
 
   MatrixType m2, identity = MatrixType::Identity();
-
-  typedef typename MatrixType::Scalar Scalar;
 
   m2.setZero();
   m2 = Eigen::internal::inverse_cholesky(m1);
@@ -43,10 +42,10 @@ void inverse_cholesky(const MatrixType& m) {
   /* this test covers the following files:
      Cholesky/InverseImpl.h
   */
+  using Scalar = typename MatrixType::Scalar;
+
   Index rows = m.rows();
   Index cols = m.cols();
-
-  typedef typename MatrixType::Scalar Scalar;
 
   MatrixType m1(rows, cols), m2(rows, cols), identity = MatrixType::Identity(rows, rows);
   MatrixType A = MatrixType::Random(rows, cols);
@@ -72,24 +71,57 @@ EIGEN_DECLARE_TEST(inverse_cholesky) {
   int s = 0;
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(inverse_cholesky(Matrix<double, 1, 1>()));
-    CALL_SUBTEST_2(inverse_cholesky(Matrix2d()));
-    CALL_SUBTEST_3(inverse_cholesky(Matrix3f()));
-    CALL_SUBTEST_4(inverse_cholesky(Matrix4f()));
-    CALL_SUBTEST_4(inverse_cholesky(Matrix<float, 4, 4, DontAlign>()));
+    CALL_SUBTEST_1(inverse_cholesky(Matrix2d()));
+    CALL_SUBTEST_1(inverse_cholesky(Matrix3d()));
+    CALL_SUBTEST_1(inverse_cholesky(Matrix4d()));
+    CALL_SUBTEST_1(inverse_cholesky(Matrix<double, 5, 5>()));
+    CALL_SUBTEST_1(inverse_cholesky(Matrix<double, 6, 6>()));
+    CALL_SUBTEST_1(inverse_cholesky(Matrix<double, 7, 7>()));
+    CALL_SUBTEST_1(inverse_cholesky(Matrix<double, 4, 4, DontAlign>()));
+
+    CALL_SUBTEST_2(inverse_cholesky(Matrix<float, 1, 1>()));
+    CALL_SUBTEST_2(inverse_cholesky(Matrix2f()));
+    CALL_SUBTEST_2(inverse_cholesky(Matrix3f()));
+    CALL_SUBTEST_2(inverse_cholesky(Matrix4f()));
+    CALL_SUBTEST_2(inverse_cholesky(Matrix<float, 5, 5>()));
+    CALL_SUBTEST_2(inverse_cholesky(Matrix<float, 6, 6>()));
+    CALL_SUBTEST_2(inverse_cholesky(Matrix<float, 7, 7>()));
+    CALL_SUBTEST_2(inverse_cholesky(Matrix<float, 4, 4, DontAlign>()));
+
+    CALL_SUBTEST_3(inverse_cholesky(Matrix<std::complex<float>, 1, 1>()));
+    CALL_SUBTEST_3(inverse_cholesky(Matrix2cf()));
+    CALL_SUBTEST_3(inverse_cholesky(Matrix3cf()));
+    CALL_SUBTEST_3(inverse_cholesky(Matrix4cf()));
+    CALL_SUBTEST_3(inverse_cholesky(Matrix<std::complex<float>, 5, 5>()));
+    CALL_SUBTEST_3(inverse_cholesky(Matrix<std::complex<float>, 6, 6>()));
+    CALL_SUBTEST_3(inverse_cholesky(Matrix<std::complex<float>, 7, 7>()));
+    CALL_SUBTEST_3(inverse_cholesky(Matrix<std::complex<float>, 4, 4, DontAlign>()));
+
+    CALL_SUBTEST_4(inverse_cholesky(Matrix<std::complex<double>, 1, 1>()));
+    CALL_SUBTEST_4(inverse_cholesky(Matrix2cd()));
+    CALL_SUBTEST_4(inverse_cholesky(Matrix3cd()));
+    CALL_SUBTEST_4(inverse_cholesky(Matrix4cd()));
+    CALL_SUBTEST_4(inverse_cholesky(Matrix<std::complex<double>, 5, 5>()));
+    CALL_SUBTEST_4(inverse_cholesky(Matrix<std::complex<double>, 6, 6>()));
+    CALL_SUBTEST_4(inverse_cholesky(Matrix<std::complex<double>, 7, 7>()));
+    CALL_SUBTEST_4(inverse_cholesky(Matrix<std::complex<double>, 4, 4, DontAlign>()));
 
     s = internal::random<int>(50, 320);
     CALL_SUBTEST_5(inverse_cholesky(MatrixXf(s, s)));
     TEST_SET_BUT_UNUSED_VARIABLE(s);
     CALL_SUBTEST_5(inverse_cholesky(MatrixXf(1, 1)));
+    TEST_SET_BUT_UNUSED_VARIABLE(s);
+    CALL_SUBTEST_5(inverse_cholesky(MatrixXd(s, s)));
+    TEST_SET_BUT_UNUSED_VARIABLE(s);
+    CALL_SUBTEST_5(inverse_cholesky(MatrixXd(1, 1)));
 
     s = internal::random<int>(25, 100);
+    CALL_SUBTEST_6(inverse_cholesky(MatrixXcf(s, s)));
+    TEST_SET_BUT_UNUSED_VARIABLE(s);
+    CALL_SUBTEST_6(inverse_cholesky(MatrixXcf(1, 1)));
+    TEST_SET_BUT_UNUSED_VARIABLE(s);
     CALL_SUBTEST_6(inverse_cholesky(MatrixXcd(s, s)));
     TEST_SET_BUT_UNUSED_VARIABLE(s);
-
-    CALL_SUBTEST_7(inverse_cholesky(Matrix4d()));
-    CALL_SUBTEST_7(inverse_cholesky(Matrix<double, 4, 4, DontAlign>()));
-
-    // TODO: Double-inversion is numerically unstable for Matrix4cd due to rounding errors
-    // CALL_SUBTEST_8(inverse_cholesky(Matrix4cd()));
+    CALL_SUBTEST_6(inverse_cholesky(MatrixXcd(1, 1)));
   }
 }
