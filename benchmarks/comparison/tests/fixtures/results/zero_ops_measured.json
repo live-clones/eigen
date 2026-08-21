@@ -1,0 +1,172 @@
+{
+  "kind": "eigen-benchmark-comparison-result",
+  "measurements": [],
+  "not_measured": [
+    {
+      "arm": "eigen",
+      "detail": "Link failed: no BLAS",
+      "op": "GEMM",
+      "reason": "build_failed",
+      "scalar": null,
+      "shape": null,
+      "threads": 1
+    },
+    {
+      "arm": "accelerate",
+      "detail": "Link failed: no BLAS",
+      "op": "GEMM",
+      "reason": "build_failed",
+      "scalar": null,
+      "shape": null,
+      "threads": 1
+    }
+  ],
+  "partial": true,
+  "provenance": {
+    "arms": {
+      "accelerate": {
+        "interface": "lp64",
+        "kind": "reference",
+        "library_name": "Apple Accelerate",
+        "library_version": "macOS 15.6",
+        "provides": [
+          "blas",
+          "cblas",
+          "lapack"
+        ],
+        "threading_model": "gcd"
+      },
+      "eigen": {
+        "kind": "eigen",
+        "library_name": "Eigen",
+        "library_version": "5.0.1-master"
+      }
+    },
+    "cpu": {
+      "caches": [
+        {
+          "level": 1,
+          "num_sharing": 1,
+          "size_bytes": 131072,
+          "type": "Data"
+        }
+      ],
+      "cores_per_socket": 14,
+      "efficiency_cores": 4,
+      "frequency_governor": null,
+      "logical_cpus": 14,
+      "model": "Apple M4 Pro",
+      "performance_cores": 10,
+      "smt_enabled": false,
+      "sockets": 1,
+      "threads_per_core": 1,
+      "vendor": "Apple"
+    },
+    "eigen": {
+      "branch": "benchmark-comparison-harness",
+      "commit": "e2a2fda17c0b1d3e4f5a6b7c8d9e0f1a2b3c4d5e",
+      "commit_short": "e2a2fda17",
+      "dirty": false
+    },
+    "harness": {
+      "argv": [
+        "run.py",
+        "--machine",
+        "m4max"
+      ],
+      "benchmark_argv": [
+        "--benchmark_repetitions=10",
+        "--benchmark_min_time=0.5s"
+      ],
+      "name": "eigen-comparison-harness",
+      "version": "1.0.0"
+    },
+    "hostname": "test-host",
+    "machine_config_id": "m4max",
+    "machine_config_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "memory": {
+      "total_bytes": 68719476736
+    },
+    "numa": {
+      "cpu_binding": null,
+      "node_of_run": null,
+      "nodes": 1,
+      "policy": null
+    },
+    "os": {
+      "arch": "arm64",
+      "kernel": "Darwin Kernel Version 25.6.0",
+      "name": "Darwin",
+      "release": "25.6.0"
+    },
+    "run": {
+      "min_time": "0.5s",
+      "repetitions": 10,
+      "report_aggregates_only": false
+    },
+    "threading": {
+      "eigen_has_openmp": false,
+      "eigen_nb_threads": 1,
+      "env": {
+        "ARMPL_NUM_THREADS": "1",
+        "BLIS_NUM_THREADS": "1",
+        "EIGEN_NB_THREADS": "1",
+        "GOTO_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1",
+        "NVPL_BLAS_NUM_THREADS": "1",
+        "OMP_NUM_THREADS": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "VECLIB_MAXIMUM_THREADS": "1"
+      },
+      "requested_threads": 1
+    },
+    "timestamp_utc": "2026-08-07T12:00:00Z",
+    "toolchain": {
+      "benchmark_library_version": "v1.9.5",
+      "cmake_build_type": "Release",
+      "compiler_id": "AppleClang",
+      "compiler_version": "17.0.0.17000013",
+      "cxx_flags": [
+        "-O3",
+        "-DNDEBUG"
+      ],
+      "cxx_standard": 17,
+      "isa_flags": [],
+      "isa_target": "aarch64-neon",
+      "link_flags": []
+    }
+  },
+  "provenance_gaps": [
+    {
+      "field": "/provenance/cpu/frequency_governor",
+      "reason": "macOS exposes no user-visible CPU frequency governor"
+    },
+    {
+      "field": "/provenance/numa/policy",
+      "reason": "Non-NUMA platform; no allocation policy is exposed"
+    }
+  ],
+  "run_id": "m4max-neon-accelerate-e2a2fda17-20260807T120000Z",
+  "schema_version": "1.0.0",
+  "scope": {
+    "arms": [
+      "eigen",
+      "accelerate"
+    ],
+    "ops": [
+      "GEMM"
+    ],
+    "ops_toml_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "scalars": [
+      "f64"
+    ],
+    "shape_groups": {
+      "GEMM": [
+        "small"
+      ]
+    },
+    "threads": [
+      1
+    ]
+  }
+}
