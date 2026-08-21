@@ -669,9 +669,12 @@ endif()
 # ULP accuracy measurement tool (see test/ulp_accuracy/README.md)
 find_package(MPFR)
 find_package(GMP)
+find_package(Threads REQUIRED)
 add_executable(ulp_accuracy ulp_accuracy/ulp_accuracy.cpp)
-target_compile_options(ulp_accuracy PRIVATE -pthread)
-target_link_libraries(ulp_accuracy Eigen3::Eigen ${CMAKE_THREAD_LIBS_INIT} pthread)
+# Threads::Threads rather than a literal -pthread and pthread: it carries the
+# right compile and link flags per toolchain and expands to nothing on MSVC,
+# where there is no pthread.lib to open.
+target_link_libraries(ulp_accuracy Eigen3::Eigen Threads::Threads)
 if(MPFR_FOUND AND GMP_FOUND)
   target_include_directories(ulp_accuracy PRIVATE ${MPFR_INCLUDES} ${GMP_INCLUDES})
   target_link_libraries(ulp_accuracy ${MPFR_LIBRARIES} ${GMP_LIBRARIES})
