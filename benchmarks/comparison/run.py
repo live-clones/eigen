@@ -145,6 +145,7 @@ class MachineProfile:
     smt_enabled: bool | None
     numa_nodes: int | None
     max_load_avg: float
+    memory_budget_bytes: int | None
     frequency_governor: str | None
     arms: Mapping[str, ArmProfile]
     isa: Mapping[str, Mapping[str, Any]]
@@ -275,6 +276,7 @@ def parse_machine_profile(data: Mapping[str, Any], stem: str, sha256: str | None
         smt_enabled=(bool(data["smt_enabled"]) if data.get("smt_enabled") is not None else None),
         numa_nodes=_optional_int(data.get("numa_nodes")),
         max_load_avg=float(data["max_load_avg"]),
+        memory_budget_bytes=_optional_int((data.get("memory", {}) or {}).get("benchmark_budget_bytes")),
         frequency_governor=governor,
         arms=arms,
         isa={str(name): dict(value) for name, value in data.get("isa", {}).items()},
@@ -318,6 +320,11 @@ def load_machine_profile(path: Path) -> MachineProfile:
 # unset OPENBLAS_NUM_THREADS silently races a multithreaded BLAS against a
 # single-threaded Eigen, and "the vendor is not linked today" is not a property
 # the harness can rely on the next time a build option changes.
+# Must match EIGEN_BENCH_OVER_BUDGET_PREFIX in comparison/bench_compare.h. A test
+# asserts the two agree; if they drift, an over-budget cell silently becomes a
+# runtime_error and reads as a library defect on the published page.
+OVER_BUDGET_PREFIX = "operands exceed the memory budget: "
+
 THREAD_COUNT_ENV_VARS: tuple[str, ...] = (
     "OMP_NUM_THREADS",
     "OPENBLAS_NUM_THREADS",
@@ -1431,6 +1438,7 @@ class ProvenanceInputs:
     repetitions: int
     min_time: str
     benchmark_filter: str | None
+    memory_budget_bytes: int | None
     load_avg_before: Sequence[float] | None
     load_avg_after: Sequence[float] | None
     duration_s: float | None
@@ -1707,7 +1715,8 @@ def assemble_provenance(inputs: ProvenanceInputs) -> tuple[dict, list[dict]]:
         },
         "run": {
             "repetitions": inputs.repetitions,
-            "min_time": inputs.min_time,
+            "memory_budget_bytes": inputs.memory_budget_bytes,
+        "min_time": inputs.min_time,
             "benchmark_filter": inputs.benchmark_filter,
             "report_aggregates_only": False,
             "cpu_scaling_enabled": inputs.cpu_scaling_enabled,
@@ -2349,6 +2358,12 @@ def _measure_unit(
 
     thread_env = build_thread_env(threads, arm=arm_profile, pinning_env=pinning.env)
     reporter.info(f"[{label}] thread environment: {json.dumps(thread_env, sort_keys=True)}")
+    # Deliberately not folded into thread_env: that mapping is recorded verbatim
+    # as provenance.threading.env, where a memory budget would be a false
+    # statement about what controls threading.
+    benchmark_env = dict(thread_env)
+    if machine.memory_budget_bytes:
+        benchmark_env["EIGEN_BENCH_MEMORY_BUDGET_BYTES"] = str(machine.memory_budget_bytes)
 
     measurements: list[dict] = []
     not_measured: list[dict] = []
@@ -2463,7 +2478,7 @@ def _measure_unit(
         )
         benchmark_argv = command[len(pinning.command_prefix) + 1 :]
         executable_used = str(executable)
-        completed = run_command(command, reporter=reporter, env=thread_env)
+        completed = run_command(command, reporter=reporter, env=benchmark_env)
         if completed.returncode != 0 or not raw_path.is_file():
             runtime_failed = True
             reporter.error(f"[{label}] {target} failed at runtime:\n{completed.stderr.strip()[-2000:]}")
@@ -2486,6 +2501,11 @@ def _measure_unit(
             if "key" not in failure:
                 continue
             errored_keys.add(failure["key"])
+            # "too large for this machine" is a fact about the machine. Filing it
+            # as runtime_error would put it on the published page beside genuine
+            # kernel failures, which reads as a defect in the library.
+            message = failure["message"] or ""
+            reason = "out_of_memory" if message.startswith(OVER_BUDGET_PREFIX) else "runtime_error"
             not_measured.append(
                 {
                     "op": failure["op"],
@@ -2493,8 +2513,8 @@ def _measure_unit(
                     "scalar": failure["scalar"],
                     "shape": failure["shape"],
                     "threads": failure["threads"],
-                    "reason": "runtime_error",
-                    "detail": failure["message"] or None,
+                    "reason": reason,
+                    "detail": message or None,
                 }
             )
         mark(
@@ -2569,6 +2589,7 @@ def _measure_unit(
         repetitions=args.repetitions,
         min_time=args.min_time,
         benchmark_filter=benchmark_filter,
+        memory_budget_bytes=machine.memory_budget_bytes,
         load_avg_before=host.load_avg,
         load_avg_after=_load_avg_now(),
         duration_s=time.monotonic() - clock_started,

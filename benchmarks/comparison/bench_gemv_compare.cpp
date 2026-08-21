@@ -122,6 +122,12 @@ static void runGemv(benchmark::State& state, Kernel kernel) {
     return;
   }
 
+  // a (m-by-n) plus the two vectors. Checked before the first allocation, so an
+  // over-large point costs one skipped cell rather than the whole run.
+  const double operand_bytes = static_cast<double>(sizeof(Scalar)) * (static_cast<double>(m) * static_cast<double>(n) +
+                                                                      static_cast<double>(m) + static_cast<double>(n));
+  if (eigen_bench::skipIfOverMemoryBudget(state, operand_bytes)) return;
+
   // Allocation and fill stay per entry on purpose. Hoisting the operands out
   // would leave them resident and warm across entries and change what the timed
   // loop measures; y is additionally accumulated into by the timed loop and
@@ -219,6 +225,8 @@ static void BM_GemvReference(benchmark::State& state) {
   POINT(192,192) POINT(256,256) POINT(384,384) POINT(512,512) POINT(768,768) POINT(1024,1024) \
   /* large */ \
   POINT(1536,1536) POINT(2048,2048) POINT(3072,3072) POINT(4096,4096) \
+  /* xlarge */ \
+  POINT(6144,6144) POINT(8192,8192) POINT(12288,12288) POINT(16384,16384) \
   /* aliasing */ \
   POINT(100,100) POINT(200,200) POINT(257,257) POINT(500,500) \
   POINT(1000,1000) POINT(1001,1001) POINT(4097,4097) \

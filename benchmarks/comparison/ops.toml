@@ -97,7 +97,7 @@ display = "bfloat16"
 [shape_families.square3]
 dims = ["m", "n", "k"]
 description = "Square and rectangular level-3 shapes for C := op(A)*op(B), A is m-by-k, B is k-by-n."
-default_groups = ["fixed_tiny", "small", "medium", "large", "legacy_square_sweep", "aliasing", "nonsquare", "tall_skinny_cache", "tall_skinny_extreme"]
+default_groups = ["fixed_tiny", "small", "medium", "large", "xlarge", "legacy_square_sweep", "aliasing", "nonsquare", "tall_skinny_cache", "tall_skinny_extreme"]
 
 [[shape_families.square3.groups]]
 name = "fixed_tiny"
@@ -118,6 +118,24 @@ points = [[192,192,192], [256,256,256], [384,384,384], [512,512,512], [768,768,7
 name = "large"
 description = "Asymptotic regime; memory bandwidth and multi-threading dominate."
 points = [[1536,1536,1536], [2048,2048,2048], [3072,3072,3072], [4096,4096,4096]]
+
+[[shape_families.square3.groups]]
+name = "xlarge"
+description = """
+Beyond the 4096 ceiling the original grid stopped at. The upper bound is memory,
+not the grid: a machine profile's [memory].benchmark_budget_bytes is enforced in
+the binary before the first allocation, so a point too big for the machine is
+skipped as `out_of_memory` with the footprint in the detail rather than killing
+the process and losing every cell already measured in that invocation. Because
+the footprint scales with sizeof(Scalar), one budget yields a different ceiling
+per scalar without the grid having to know about scalars.
+
+Run time is NOT bounded by that budget and has to be chosen. On Apple M4 a
+12288-cube double GEMM is about 10 s per iteration where float is 2.5 s, and
+complex<double> -- which has no SME kernel -- is roughly 30x the float cost at
+the same order. Select --scalars and --groups accordingly.
+"""
+points = [[6144,6144,6144], [8192,8192,8192], [12288,12288,12288], [16384,16384,16384]]
 
 [[shape_families.square3.groups]]
 name = "legacy_square_sweep"
@@ -169,7 +187,7 @@ points = [[10000,8,8], [10000,100,100], [10000,1000,1000], [10000,4000,4000]]
 [shape_families.matvec2]
 dims = ["m", "n"]
 description = "Level-2 shapes for y := op(A)*x with A m-by-n."
-default_groups = ["fixed_tiny", "small", "medium", "large", "aliasing", "tall_skinny", "short_fat"]
+default_groups = ["fixed_tiny", "small", "medium", "large", "xlarge", "aliasing", "tall_skinny", "short_fat"]
 
 [[shape_families.matvec2.groups]]
 name = "fixed_tiny"
@@ -186,6 +204,11 @@ points = [[192,192], [256,256], [384,384], [512,512], [768,768], [1024,1024]]
 [[shape_families.matvec2.groups]]
 name = "large"
 points = [[1536,1536], [2048,2048], [3072,3072], [4096,4096]]
+
+[[shape_families.matvec2.groups]]
+name = "xlarge"
+description = "Beyond 4096; bounded by [memory].benchmark_budget_bytes, see square3.xlarge."
+points = [[6144,6144], [8192,8192], [12288,12288], [16384,16384]]
 
 [[shape_families.matvec2.groups]]
 name = "aliasing"
@@ -233,7 +256,7 @@ points = [[100000], [1000000], [10000000]]
 [shape_families.square1]
 dims = ["n"]
 description = "A single order n for square symmetric/Hermitian or triangular operands (SYMV, POTRF, SYEV, GEEV)."
-default_groups = ["fixed_tiny", "small", "medium", "large", "aliasing"]
+default_groups = ["fixed_tiny", "small", "medium", "large", "xlarge", "aliasing"]
 
 [[shape_families.square1.groups]]
 name = "fixed_tiny"
@@ -250,6 +273,11 @@ points = [[192], [256], [384], [512], [768], [1024]]
 [[shape_families.square1.groups]]
 name = "large"
 points = [[1536], [2048], [3072], [4096]]
+
+[[shape_families.square1.groups]]
+name = "xlarge"
+description = "Beyond 4096; bounded by [memory].benchmark_budget_bytes, see square3.xlarge."
+points = [[6144], [8192], [12288], [16384]]
 
 [[shape_families.square1.groups]]
 name = "aliasing"
