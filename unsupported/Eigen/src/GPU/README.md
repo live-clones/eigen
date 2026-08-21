@@ -391,7 +391,10 @@ The cached API keeps the factored matrix on device, avoiding redundant
 host-device transfers and re-factorizations. All five solvers accept
 `compute(DeviceMatrix&&)` to adopt the input and factor it in place with no
 copy (for QR/SVD with m < n the internal transpose still copies), and all five
-can bind to a `gpu::Context` to share its stream and handles. All solvers also
+can bind to a `gpu::Context` to share its stream and handles. The input's
+buffer moves across whole, so a matrix on any resource can be factored in
+place, and an in-place `solve(DeviceMatrix&&)` gives the caller back a result
+on the resource it supplied. All solvers also
 accept host dense expressions directly as a convenience (e.g.,
 `gpu::LLT<double> llt(A)` or `qr.solve(B)`), which handles upload/download
 internally. Host `compute()` finishes its upload before returning, while
@@ -680,7 +683,9 @@ DeviceMatrix<Scalar>(expr)                               // Copy-init from any s
 static DeviceMatrix fromHost(matrix, stream=nullptr)           // -> DeviceMatrix (syncs)
 static DeviceMatrix fromHostAsync(ptr, rows, cols, stream)         // -> DeviceMatrix (no sync, caller manages ptr lifetime)
 static DeviceMatrix adopt(Scalar* device_ptr, rows, cols)          // Owning wrapper over a raw device pointer
-static DeviceMatrix adopt(internal::DeviceBuffer&&, rows, cols)    // ... keeping the buffer's own allocator
+static DeviceMatrix adopt(internal::DeviceBuffer&&, rows, cols)    // ... keeping the buffer's own resource
+internal::DeviceBuffer releaseBuffer()                             // Hand the storage out, resource included
+Scalar*            release()                                       // ... as a bare pointer (device-only storage only)
 static DeviceMatrix view(Scalar* device_ptr, rows, cols)           // Non-owning view (does not free on destruction)
 PlainMatrix        toHost(stream=nullptr)                      // -> host Matrix (syncs)
 HostTransfer       toHostAsync(stream=nullptr)                 // -> HostTransfer future (no sync)

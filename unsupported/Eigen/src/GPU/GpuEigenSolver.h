@@ -120,8 +120,7 @@ class SelfAdjointEigenSolver {
   SelfAdjointEigenSolver& compute(DeviceMatrix<Scalar>&& d_A, int options = ComputeEigenvectors) {
     if (!begin_compute(d_A, options)) return *this;
 
-    d_A_ = internal::DeviceBuffer::adopt(static_cast<void*>(d_A.release()),
-                                         static_cast<size_t>(lda_) * static_cast<size_t>(n_) * sizeof(Scalar));
+    d_A_ = d_A.releaseBuffer();
 
     factorize();
     return *this;

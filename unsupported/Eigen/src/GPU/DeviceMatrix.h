@@ -598,15 +598,13 @@ class DeviceMatrix {
     return dm;
   }
 
-  /** Transfer ownership of the device pointer out. Zeros internal state.
+  /** Hand the storage out as a buffer, leaving this matrix empty.
    *
-   * The result is a bare pointer, which loses how the storage was made, so
-   * DeviceBuffer::release() rejects both a borrowed view() and resource-backed
-   * storage: whoever adopts the pointer next frees it with device_free, and
-   * that is right only for the default allocator. Prefer moving the whole
-   * buffer -- adopt(DeviceBuffer&&, ...) -- where the caller can. */
-  Scalar* release() {
-    Scalar* p = static_cast<Scalar*>(data_.release());
+   * The buffer keeps the resource that made it, so page-locked and pooled
+   * storage both survive the handoff. This is how the solvers take ownership of
+   * a matrix moved into compute(): pairs with adopt(DeviceBuffer&&, ...). */
+  internal::DeviceBuffer releaseBuffer() {
+    internal::DeviceBuffer buffer = std::move(data_);
     rows_ = 0;
     cols_ = 0;
     resource_ = &deviceMemoryResource();
@@ -615,8 +613,16 @@ class DeviceMatrix {
       ready_event_ = nullptr;
     }
     ready_stream_ = nullptr;
-    return p;
+    return buffer;
   }
+
+  /** Transfer ownership of the device pointer out. Zeros internal state.
+   *
+   * A bare pointer loses how the storage was made, so DeviceBuffer::release()
+   * rejects both a borrowed view() and host-visible storage: whoever adopts the
+   * pointer next frees it with device_free. Prefer releaseBuffer(), which has
+   * neither restriction. */
+  Scalar* release() { return static_cast<Scalar*>(releaseBuffer().release()); }
 
  private:
   // Fresh owning allocation of `bytes` (no-op for empty), replacing whatever

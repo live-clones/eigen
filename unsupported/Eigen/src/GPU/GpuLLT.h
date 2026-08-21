@@ -142,7 +142,7 @@ class LLT {
 
     lda_ = static_cast<int64_t>(d_A.rows());
     d_A.waitReady(solver_ctx_.stream());
-    d_factor_ = internal::DeviceBuffer::adopt(static_cast<void*>(d_A.release()), factorBytes());
+    d_factor_ = d_A.releaseBuffer();
 
     factorize();
     return *this;
@@ -202,7 +202,7 @@ class LLT {
     d_B.waitReady(solver_ctx_.stream());
     const int64_t nrhs = static_cast<int64_t>(d_B.cols());
     const int64_t ldb = static_cast<int64_t>(d_B.rows());
-    internal::DeviceBuffer d_x = internal::DeviceBuffer::adopt(static_cast<void*>(d_B.release()), rhsBytes(nrhs, ldb));
+    internal::DeviceBuffer d_x = d_B.releaseBuffer();
     return solve_impl(nrhs, ldb, std::move(d_x));
   }
 
