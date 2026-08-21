@@ -948,6 +948,20 @@ def distill_benchmark_json(
     return result
 
 
+def _reference_family_missing(reference: Mapping[str, Any], provides: Sequence[str]) -> bool:
+    """Whether the linked library lacks the interface family this op's reference needs.
+
+    `provides` comes from the vendor table via vendor_info.json, so it describes the
+    library that was actually linked rather than what the op wishes for. An empty
+    list means the build published nothing, and silence is not evidence of absence,
+    so nothing is claimed in that case.
+    """
+    kind = str(reference.get("kind") or "")
+    if not kind or kind == "none" or not provides:
+        return False
+    return kind not in {str(x) for x in provides}
+
+
 def diff_not_measured(
     planned: Sequence[Cell],
     measured_keys: Iterable[tuple],
@@ -955,6 +969,7 @@ def diff_not_measured(
     *,
     default_reason: str = "not_implemented",
     default_detail: str | None = None,
+    provides: Sequence[str] = (),
 ) -> list[dict]:
     """Explicit negative results for planned cells that produced no timing. Pure.
 
@@ -977,6 +992,21 @@ def diff_not_measured(
             if cell.arm != "eigen" and reference.get("kind") == "none":
                 reason = "no_reference_equivalent"
                 detail = str(reference.get("reason", "")) or None
+            elif cell.arm != "eigen" and _reference_family_missing(reference, provides):
+                # The op needs an interface family this library does not expose --
+                # netlib ships BLAS and CBLAS but no LAPACK, so a ?potrf comparison
+                # against it cannot exist. Distinguishing this from "Eigen has no
+                # such benchmark" is the difference between "this library cannot do
+                # it" and "we did not measure it", which a published page must not
+                # blur. reference_routine_absent had a renderer and a schema slot
+                # and no producer until here.
+                family = str(reference.get("kind"))
+                reason = "reference_routine_absent"
+                routine = str(reference.get("routine") or "the routine")
+                detail = (
+                    f"{cell.arm} exposes {', '.join(provides) or 'no declared interface'}, not {family}, "
+                    f"so {routine} is unavailable in the library this run linked"
+                )
             elif op.get("status") and op.get("status") != "implemented":
                 detail = (
                     f"ops.toml marks {cell.op} as status={op.get('status')!r}; no benchmark source registers it"
@@ -1824,6 +1854,50 @@ def build_command(build_dir: Path, target: str, jobs: int) -> list[str]:
     return ["cmake", "--build", str(build_dir), "--target", target, "--parallel", str(jobs)]
 
 
+def load_vendor_info(build_dir: Path) -> dict[str, Any] | None:
+    """What the build itself recorded about the configuration it produced.
+
+    CMake writes this beside the binaries at configure time.  Everything in it was
+    decided by the build; re-deriving the same facts from CMakeCache.txt, the
+    compile database and a search of the build tree makes run.py's account and the
+    build's account two independent stories that can silently disagree -- about
+    which executable was run, which reference library it was linked against, and
+    which ops.toml it was compiled for.  Read it, and cross-check the rest.
+    """
+    path = Path(build_dir) / "comparison" / "vendor_info.json"
+    if not path.is_file():
+        path = Path(build_dir) / "vendor_info.json"
+    if not path.is_file():
+        return None
+    try:
+        with path.open("rb") as handle:
+            info = json.load(handle)
+    except (OSError, ValueError) as exc:
+        raise HarnessError(f"{path} exists but could not be read: {exc}", EXIT_CONFIG) from exc
+    return info if isinstance(info, dict) else None
+
+
+def executable_from_vendor_info(info: Mapping[str, Any] | None, target: str) -> Path | None:
+    """The path the build recorded for a target, in preference to guessing."""
+    for entry in (info or {}).get("targets", []) or []:
+        if entry.get("target") == target and entry.get("executable"):
+            candidate = Path(str(entry["executable"]))
+            if candidate.is_file() and os.access(candidate, os.X_OK):
+                return candidate
+    return None
+
+
+def vendor_info_provides(info: Mapping[str, Any] | None) -> list[str]:
+    """The interface families the linked reference library actually exposes.
+
+    The vendor table records this per row; without it nothing can tell that, say,
+    netlib supplies BLAS and CBLAS but no LAPACK, and a LAPACK op would be planned
+    against a library that cannot perform it.
+    """
+    reference = ((info or {}).get("reference") or {})
+    return [str(x) for x in (reference.get("provides") or [])]
+
+
 def find_benchmark_executable(build_dir: Path, target: str) -> Path | None:
     """Locate a built benchmark executable within a build tree."""
     build_dir = Path(build_dir)
@@ -2202,6 +2276,9 @@ def _measure_unit(
     measurements: list[dict] = []
     not_measured: list[dict] = []
 
+    # What the linked reference library actually exposes, per the vendor table.
+    reference_provides = vendor_info_provides(load_vendor_info(build_dir))
+
     def mark(cells: Sequence[Cell], reason: str, detail: str | None, measured: Iterable[tuple] = ()) -> None:
         """Record why these planned cells produced no timing.
 
@@ -2209,7 +2286,10 @@ def _measure_unit(
         reports anything in neither as a harness bug.
         """
         not_measured.extend(
-            diff_not_measured(cells, measured, registry, default_reason=reason, default_detail=detail)
+            diff_not_measured(
+                cells, measured, registry, default_reason=reason, default_detail=detail,
+                provides=reference_provides,
+            )
         )
 
     mark(
@@ -2258,6 +2338,28 @@ def _measure_unit(
             continue
         targets.setdefault(target, []).append(op_key)
 
+    # What the build recorded about itself. Cross-checking it against what run.py
+    # plans is the only thing that can notice that the binary about to be measured
+    # was not built from the registry being planned from, or against the reference
+    # library the result file is about to name.
+    vendor_info = load_vendor_info(build_dir)
+    if vendor_info is not None:
+        built_sha = str(vendor_info.get("ops_toml_sha256") or "")
+        if built_sha and registry.sha256 and built_sha != registry.sha256:
+            raise HarnessError(
+                f"the binaries in {build_dir} were compiled against ops.toml {built_sha[:12]} but this run "
+                f"plans from {registry.sha256[:12]}; the grid, the flop formulas and the registrations may "
+                "all differ. Rebuild, or point --ops-toml at the registry the build used.",
+                EXIT_CONFIG,
+            )
+        built_arm = str((vendor_info.get("reference") or {}).get("arm") or "")
+        if built_arm and arm_key not in ("eigen", built_arm):
+            raise HarnessError(
+                f"this unit measures arm {arm_key!r} but {build_dir} was linked against {built_arm!r}; "
+                "the result would attribute the numbers to a library that did not produce them",
+                EXIT_CONFIG,
+            )
+
     for target, ops_in_target in sorted(targets.items()):
         target_cells = [cell for cell in planned_runnable if cell.op in ops_in_target]
         if args.build:
@@ -2266,7 +2368,7 @@ def _measure_unit(
                 reporter.error(f"[{label}] building {target} failed:\n{completed.stderr.strip()}")
                 mark(target_cells, "build_failed", f"target {target} failed to build")
                 continue
-        executable = find_benchmark_executable(build_dir, target)
+        executable = executable_from_vendor_info(vendor_info, target) or find_benchmark_executable(build_dir, target)
         if executable is None:
             reporter.warn(f"[{label}] no executable {target} in {build_dir}")
             mark(target_cells, "build_failed", f"no executable named {target} was found in {build_dir}")

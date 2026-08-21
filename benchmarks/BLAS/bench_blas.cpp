@@ -12,6 +12,8 @@
 #include <benchmark/benchmark.h>
 
 #include <Eigen/Core>
+
+#include "../bench_common.h"
 #include <complex>
 #include <vector>
 
@@ -23,10 +25,8 @@ using Eigen::Index;
 // Helpers
 // ---------------------------------------------------------------------------
 
-// Flop-rate counter (units = individual flops per call).
-static benchmark::Counter GflopsCounter(double flops) {
-  return benchmark::Counter(flops, benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
-}
+// Flop counts come from benchmarks/bench_common.h so this file and the
+// comparison harness scale the same operation identically.
 
 // Fill a vector with random values in [-1, 1].
 template <typename T>
@@ -165,7 +165,7 @@ static void BM_dot(benchmark::State& state) {
     T r = blas_dot(&n, x.data(), &one, y.data(), &one);
     benchmark::DoNotOptimize(r);
   }
-  state.counters["GFLOPS"] = GflopsCounter(2.0 * n);
+  state.counters["GFLOPS"] = eigen_bench::GflopsCounter(2.0 * n);
 }
 
 // ----- SAXPY / DAXPY -----
@@ -181,7 +181,7 @@ static void BM_axpy(benchmark::State& state) {
     blas_axpy(&n, &alpha, x.data(), &one, y.data(), &one);
     benchmark::DoNotOptimize(y.data());
   }
-  state.counters["GFLOPS"] = GflopsCounter(2.0 * n);
+  state.counters["GFLOPS"] = eigen_bench::GflopsCounter(2.0 * n);
 }
 
 // ----- SNRM2 / DNRM2 -----
@@ -196,7 +196,7 @@ static void BM_nrm2(benchmark::State& state) {
     benchmark::DoNotOptimize(r);
   }
   // Nominal flops; Eigen's stableNorm() does more work internally.
-  state.counters["GFLOPS"] = GflopsCounter(2.0 * n - 1);
+  state.counters["GFLOPS"] = eigen_bench::GflopsCounter(2.0 * n - 1);
 }
 
 // ----- SROTM / DROTM -----
@@ -214,7 +214,7 @@ static void BM_rotm(benchmark::State& state) {
     benchmark::DoNotOptimize(y.data());
   }
   // 4 muls + 2 adds per element pair.
-  state.counters["GFLOPS"] = GflopsCounter(6.0 * n);
+  state.counters["GFLOPS"] = eigen_bench::GflopsCounter(6.0 * n);
 }
 
 // ----- SROTMG / DROTMG -----
@@ -249,7 +249,7 @@ static void BM_dotc(benchmark::State& state) {
     benchmark::DoNotOptimize(res);
   }
   // Conjugate dot: 6 mul + 2 add per element = 8n flops.
-  state.counters["GFLOPS"] = GflopsCounter(8.0 * n);
+  state.counters["GFLOPS"] = eigen_bench::GflopsCounter(8.0 * n);
 }
 
 // =========================================================================
@@ -271,7 +271,7 @@ static void BM_gemv(benchmark::State& state) {
     blas_gemv(&trans, &m, &n, &alpha, a.data(), &m, x.data(), &one, &beta, y.data(), &one);
     benchmark::DoNotOptimize(y.data());
   }
-  state.counters["GFLOPS"] = GflopsCounter(2.0 * m * n);
+  state.counters["GFLOPS"] = eigen_bench::GflopsCounter(2.0 * m * n);
 }
 
 // =========================================================================
@@ -294,7 +294,7 @@ static void BM_spmv(benchmark::State& state) {
     benchmark::DoNotOptimize(y.data());
   }
   // Symmetric: each off-diag element contributes to two y entries.
-  state.counters["GFLOPS"] = GflopsCounter(2.0 * n * n);
+  state.counters["GFLOPS"] = eigen_bench::GflopsCounter(2.0 * n * n);
 }
 
 // =========================================================================
@@ -317,7 +317,7 @@ static void BM_sbmv(benchmark::State& state) {
     blas_sbmv(&uplo, &n, &k, &alpha, a.data(), &lda, x.data(), &one, &beta, y.data(), &one);
     benchmark::DoNotOptimize(y.data());
   }
-  state.counters["GFLOPS"] = GflopsCounter(2.0 * n * (2 * k + 1));
+  state.counters["GFLOPS"] = eigen_bench::GflopsCounter(2.0 * n * (2 * k + 1));
 }
 
 // =========================================================================
@@ -341,7 +341,7 @@ static void BM_tbmv(benchmark::State& state) {
     blas_tbmv(&uplo, &trans, &diag, &n, &k, a.data(), &lda, x.data(), &one);
     benchmark::DoNotOptimize(x.data());
   }
-  state.counters["GFLOPS"] = GflopsCounter(1.0 * n * (k + 1));
+  state.counters["GFLOPS"] = eigen_bench::GflopsCounter(1.0 * n * (k + 1));
 }
 
 // =========================================================================
@@ -369,7 +369,7 @@ static void BM_hbmv(benchmark::State& state) {
     benchmark::DoNotOptimize(y.data());
   }
   // Complex hermitian band: 8*n*(2k+1) flops approximately.
-  state.counters["GFLOPS"] = GflopsCounter(8.0 * n * (2 * k + 1));
+  state.counters["GFLOPS"] = eigen_bench::GflopsCounter(8.0 * n * (2 * k + 1));
 }
 
 // =========================================================================
@@ -398,7 +398,7 @@ static void BM_hpmv(benchmark::State& state) {
     blas_hpmv(&uplo, &n, alpha, ap.data(), x.data(), &one, beta, y.data(), &one);
     benchmark::DoNotOptimize(y.data());
   }
-  state.counters["GFLOPS"] = GflopsCounter(8.0 * n * n);
+  state.counters["GFLOPS"] = eigen_bench::GflopsCounter(8.0 * n * n);
 }
 
 // =========================================================================
@@ -418,7 +418,7 @@ static void BM_gemm(benchmark::State& state) {
     blas_gemm(&trans, &trans, &n, &n, &n, &alpha, a.data(), &n, b.data(), &n, &beta, c.data(), &n);
     benchmark::DoNotOptimize(c.data());
   }
-  state.counters["GFLOPS"] = GflopsCounter(2.0 * n * n * n);
+  state.counters["GFLOPS"] = eigen_bench::GflopsCounter(2.0 * n * n * n);
 }
 
 // =========================================================================

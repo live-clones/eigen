@@ -8,13 +8,13 @@
 #include <benchmark/benchmark.h>
 #include <Eigen/Core>
 
+#include "../bench_common.h"
+
 using namespace Eigen;
 
-template <typename Scalar>
-double trmvFlops(Index n) {
-  // TRMV: ~n^2 multiply-adds
-  return (NumTraits<Scalar>::IsComplex ? 8.0 : 2.0) * n * n;
-}
+// Flop counts come from benchmarks/bench_common.h so this file and the
+// comparison harness scale the same operation identically; a rate is only
+// comparable between two benchmarks that agree on what a flop is.
 
 // y = triangularView<Mode>(A) * x
 template <typename Scalar, unsigned int Mode>
@@ -30,8 +30,8 @@ static void BM_TRMV(benchmark::State& state) {
     benchmark::DoNotOptimize(y.data());
     benchmark::ClobberMemory();
   }
-  state.counters["GFLOPS"] = benchmark::Counter(trmvFlops<Scalar>(n), benchmark::Counter::kIsIterationInvariantRate,
-                                                benchmark::Counter::kIs1000);
+  state.counters["GFLOPS"] = benchmark::Counter(
+      eigen_bench::trmvFlops<Scalar>(n), benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
 }
 
 // clang-format off
