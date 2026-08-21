@@ -3,16 +3,10 @@
 
 // Cross-library comparison benchmarks for GEMV, the general matrix-vector product.
 //
-// The second operation in the harness, and the one that demonstrates the shape it
-// was built for: this file adds a kernel functor per arm, a driver, and one grid
-// macro. ops.toml gains `status = "implemented"` and a `source`; CMake discovers
-// the source by glob; run.py, reduce.py, render.py and plots.py are untouched.
-//
 // GEMV is memory bound above L2, so unlike GEMM it is a bandwidth measurement
 // dressed as a flop rate. Both arms are charged the same 2*m*n, so the ratio
-// remains meaningful even where the absolute GFLOP/s is far below peak -- but a
-// reader of the published page needs the caveat, which is why ops.toml's
-// description carries it.
+// stays meaningful even where the absolute GFLOP/s is far below peak; ops.toml's
+// description carries that caveat through to the published page.
 
 #include <Eigen/Core>
 #include <array>
@@ -23,11 +17,9 @@
 #include "benchmarks/comparison/bench_compare.h"
 
 #ifdef EIGEN_BENCH_REFERENCE_ARM
-// Fortran BLAS, declared here rather than pulled from a vendor header so that the
-// build needs only the library. The integer width follows eigen_bench::BlasInt,
-// i.e. Eigen::BlasIndex; getting it wrong silently corrupts every argument, so
-// the build must determine it rather than assume it, and bench_compare.h
-// static_asserts the vendor table's answer against Eigen's.
+// Declared rather than included, so the build needs the reference library but not
+// its development headers. The integer width is eigen_bench::BlasInt; see the
+// static_assert in bench_compare.h.
 extern "C" {
 void sgemv_(const char* trans, const eigen_bench::BlasInt* m, const eigen_bench::BlasInt* n, const float* alpha,
             const float* a, const eigen_bench::BlasInt* lda, const float* x, const eigen_bench::BlasInt* incx,
@@ -178,13 +170,10 @@ static void BM_GemvReference(benchmark::State& state) {
 }
 #endif
 
-// The whole matvec2 grid of ops.toml, in the order its default_groups lists it.
-// run.py narrows it with --benchmark_filter; registering less here would make a
-// group unreachable.
-//
-// A list macro rather than an arrow chain, because REGISTER_COMPARISON_POINT
-// emits the two arms of each shape adjacently and an arrow chain cannot express
-// that: see the note above the macro in bench_compare.h.
+// The whole matvec2 grid of ops.toml, in the order its default_groups lists it:
+// run.py narrows it with --benchmark_filter, so registering less would make a
+// group unreachable. A list macro rather than an arrow chain because the two
+// arms of a shape must be adjacent (see REGISTER_COMPARISON_POINT).
 // clang-format off
 #define GEMV_DIM_NAMES {"m", "n"}
 
