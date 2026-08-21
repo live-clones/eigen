@@ -368,6 +368,12 @@ def reduce_results(
                 arms_meta_stamp[arm] = timestamp
 
         # --- measured rows -------------------------------------------------
+        # The thread count this result file was configured with. A result file is
+        # one measurement unit, so scope.threads holds a single value; if it ever
+        # holds more, only the benchmark name can disambiguate a row.
+        _scope_threads = [int(v) for v in ((result.get('scope', {}) or {}).get('threads', []) or [1])]
+        scope_threads_for_rows = _scope_threads[0] if len(_scope_threads) == 1 else 1
+
         for row in result.get("measurements", []) or []:
             name = row.get("name", "")
             parsed = parse_benchmark_name(name)
@@ -383,7 +389,15 @@ def reduce_results(
             scalar = parsed["scalar"]
             if scalar not in (known_ops[op].get("scalars") or []):
                 raise ReduceError(f"benchmark name {name!r} uses scalar {scalar!r}, not declared for {op}")
-            threads = parsed["threads"]
+            # The name carries /threads:N only when the registration used
+            # ->Threads(n); these benchmarks do not, so a name always parses back
+            # as 1. Keying on that alone filed every measurement of an N-thread
+            # run under a "1 thread(s)" configuration while the explicit
+            # negatives, which come from scope.threads, built a second, entirely
+            # empty N-thread configuration beside it. The run's own scope is what
+            # was configured, so it decides; the name only overrides it when the
+            # registration genuinely encoded a thread count.
+            threads = parsed["threads"] if parsed.get("threads_in_name") else scope_threads_for_rows
             config_id = touch_config(provenance, threads, run_id)
             cell = cell_for(config_id, op, scalar, parsed["shape"], parsed["shape_dims"], threads)
             if row.get("shape_group"):
@@ -688,7 +702,13 @@ def _finalise_cells(registry, cells, baseline_arm, inconclusive_rule) -> List[Di
             and other
             and eigen.get("state") == "measured"
             and other.get("state") == "measured"
-            and other.get("gflops")
+            # `is not None`, not truthiness: a measured 0.0 is a measurement, and
+            # treating it as absent gave the cell ratio_state "not_measured" and a
+            # footnote claiming an arm was never measured, on a page whose coverage
+            # manifest counted it as measured. Zero still cannot be a divisor, so
+            # it is excluded explicitly below rather than by falsiness.
+            and other.get("gflops") is not None
+            and other.get("gflops") != 0.0
         ):
             cell["ratio"] = eigen["gflops"] / other["gflops"]
             if inconclusive_rule == "mad-overlap" and _intervals_overlap(
@@ -697,6 +717,18 @@ def _finalise_cells(registry, cells, baseline_arm, inconclusive_rule) -> List[Di
                 cell["ratio_state"] = "inconclusive"
             else:
                 cell["ratio_state"] = "ok"
+        elif (
+            eigen
+            and other
+            and eigen.get("state") == "measured"
+            and other.get("state") == "measured"
+        ):
+            # Both arms ran, so "not measured" would be a false statement about the
+            # dataset. The ratio is still undefined -- a zero rate means the arm
+            # completed no work per unit time, which is a broken measurement, not a
+            # result -- so it gets its own state rather than borrowing the absent one.
+            cell["ratio"] = None
+            cell["ratio_state"] = "degenerate"
         else:
             cell["ratio"] = None
             cell["ratio_state"] = "not_measured"

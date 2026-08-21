@@ -37,7 +37,8 @@ _HERE = Path(__file__).resolve().parent
 if str(_HERE) not in sys.path:
     sys.path.insert(0, str(_HERE))
 
-from _common import (  # noqa: E402
+from _common import (
+    resolve_baseline,  # noqa: E402
     PipelineError,
     UsageErrorArgumentParser,
     arm_display,
@@ -497,7 +498,7 @@ def build_figure(
     cells = select_cells(merged, scoped)
     if not cells:
         raise PlotError(f"no cell for {config_id}/{op}/{scalar}")
-    baseline = options.baseline or merged.get("baseline")
+    baseline = resolve_baseline(merged, options.baseline)
     title = figure_title(merged, op, scalar)
     subtitle = figure_subtitle(merged, config_id)
     # A size axis is only meaningful while size_key separates the shapes. Where it

@@ -26,6 +26,7 @@
 #include <complex>
 #include <cstdlib>
 #include <string>
+#include <vector>
 
 // ---------------------------------------------------------------------------
 // Build-time inputs
@@ -424,20 +425,45 @@ inline void publishArmContext() {
 #endif
 }
 
+// Wraps the console reporter purely to notice SkipWithError. Google Benchmark
+// records an errored run in its output but does not make the process fail, so
+// without this a benchmark whose result disagrees with Eigen is indistinguishable
+// from a passing one to ctest.
+class ErrorTrackingReporter : public ::benchmark::ConsoleReporter {
+ public:
+  bool ReportContext(const Context& context) override { return ConsoleReporter::ReportContext(context); }
+  void ReportRuns(const std::vector<Run>& reports) override {
+    for (const Run& run : reports) {
+      if (run.skipped == ::benchmark::internal::SkippedWithError) errored_ = true;
+    }
+    ConsoleReporter::ReportRuns(reports);
+  }
+  bool anyErrored() const { return errored_; }
+
+ private:
+  bool errored_ = false;
+};
+
 }  // namespace eigen_bench
 
 // Defining main here is safe alongside the benchmark_main archive that
 // eigen_add_benchmark links: that archive member is only extracted while `main`
 // is still undefined.
-#define EIGEN_BENCH_COMPARISON_MAIN()                                   \
-  int main(int argc, char** argv) {                                     \
-    ::eigen_bench::publishArmContext();                                 \
-    ::benchmark::Initialize(&argc, argv);                               \
-    if (::benchmark::ReportUnrecognizedArguments(argc, argv)) return 1; \
-    ::benchmark::RunSpecifiedBenchmarks();                              \
-    ::benchmark::Shutdown();                                            \
-    return 0;                                                           \
-  }                                                                     \
+#define EIGEN_BENCH_COMPARISON_MAIN()                                        \
+  int main(int argc, char** argv) {                                          \
+    ::eigen_bench::ErrorTrackingReporter reporter;                           \
+    ::eigen_bench::publishArmContext();                                      \
+    ::benchmark::Initialize(&argc, argv);                                    \
+    if (::benchmark::ReportUnrecognizedArguments(argc, argv)) return 1;      \
+    ::benchmark::RunSpecifiedBenchmarks(&reporter);                          \
+    ::benchmark::Shutdown();                                                 \
+    /* A cross-arm correctness failure is reported through SkipWithError, */ \
+    /* which Google Benchmark records in the run and then exits 0 for.    */ \
+    /* Returning 0 regardless made the smoke test green while the         */ \
+    /* reference arm disagreed with Eigen on every shape -- the one       */ \
+    /* result this comparison must never publish.                         */ \
+    return reporter.anyErrored() ? 1 : 0;                                    \
+  }                                                                          \
   static_assert(true, "")
 
 #endif  // EIGEN_BENCHMARKS_COMPARISON_BENCH_COMPARE_H

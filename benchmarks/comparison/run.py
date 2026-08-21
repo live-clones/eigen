@@ -876,6 +876,32 @@ def distill_benchmark_json(
                 "flops_per_iteration and real_time"
             )
 
+        # Two independent statements of the same quantity land in this row: `flops`,
+        # evaluated from ops.toml's flops.real, and the binary's counter, computed
+        # from the C++ helper in bench_common.h. Nothing else compares them, and a
+        # drift between the two rescales every published GFLOP/s for this op while
+        # leaving the ratio intact -- both arms are wrong identically, so the table
+        # looks self-consistent and only the absolute numbers are false. The counter
+        # is a rate, so flops_per_iteration is rate * time.
+        if not counter_missing and flops > 0:
+            for row, real_time, rate in zip(rows, real_times, rates):
+                if real_time <= 0 or rate <= 0:
+                    continue
+                # kIsIterationInvariantRate reports value*iterations/elapsed, and
+                # real_time is per-iteration, so the iteration count cancels and the
+                # counter is simply flops/second per iteration.
+                implied = rate * real_time
+                # Generous slack: this is looking for a formula mismatch (a clean
+                # integer factor), not for timer noise.
+                if implied > 0 and not (0.8 <= implied / flops <= 1.25):
+                    result.warnings.append(
+                        f"{run_name!r}: the {counter_name!r} counter implies {implied:.4g} flops per "
+                        f"iteration but ops.toml's flops.real gives {flops:.4g} "
+                        f"(ratio {implied / flops:.3f}); the C++ flop formula and the registry have "
+                        "diverged, so every rate published for this operation is scaled wrongly"
+                    )
+                    break
+
         key = (op_key, parsed["arm"], parsed["scalar"], values, row_threads)
         if key in result.seen_keys:
             raise HarnessError(f"duplicate cell key for {run_name!r} within one result file")
