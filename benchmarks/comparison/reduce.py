@@ -199,6 +199,7 @@ def config_record(provenance: Mapping[str, Any], threads: int) -> Dict[str, Any]
         "cpu_model": cpu.get("model"),
         "os": (provenance.get("os", {}) or {}).get("name"),
         "provenance_refs": [],
+        "provenance_gaps": [],
     }
 
 
@@ -331,6 +332,8 @@ def reduce_results(
     conflicts: List[Dict[str, Any]] = []
     missing_configs: List[Dict[str, Any]] = []
 
+    gaps_for_config: List[Mapping[str, Any]] = []
+
     def touch_config(provenance: Mapping[str, Any], threads: int, run_id: str) -> str:
         config_id = config_id_for(provenance, threads)
         # Not setdefault: its second argument is always evaluated, so the record
@@ -338,6 +341,20 @@ def reduce_results(
         record = configs.get(config_id)
         if record is None:
             record = configs[config_id] = config_record(provenance, threads)
+            record["provenance_gaps"] = [dict(g) for g in gaps_for_config]
+        else:
+            # A caveat must survive being merged with a run that lacks it.
+            # eigen_dirty is not part of config_id, so a clean run and a dirty run
+            # of the same commit share a configuration; taking the first run's
+            # value meant the "measured from a dirty worktree, not reproducible"
+            # warning disappeared or appeared purely according to which filename
+            # sorted first. A caveat is a property of the set: if any contributing
+            # run carries it, the configuration carries it.
+            if bool((provenance.get("eigen", {}) or {}).get("dirty", False)):
+                record["eigen_dirty"] = True
+        for gap in gaps_for_config:
+            if gap not in record["provenance_gaps"]:
+                record["provenance_gaps"].append(dict(gap))
         if run_id and run_id not in record["provenance_refs"]:
             record["provenance_refs"].append(run_id)
         return config_id
@@ -355,8 +372,21 @@ def reduce_results(
         run_id = str(result.get("run_id", ""))
         provenance = result.get("provenance", {}) or {}
         timestamp = _timestamp(result)
+        # A gap is the run telling you what it could NOT establish -- that Eigen ran
+        # sequentially against a threaded vendor, that the CPU could not be pinned,
+        # that the governor is unknown. Dropping them here meant every caveat the
+        # harness took care to record died at the reducer and no published artifact
+        # ever mentioned it, which is the opposite of what they exist for.
+        run_gaps = [g for g in (result.get("provenance_gaps") or []) if isinstance(g, Mapping)]
+        gaps_for_config[:] = run_gaps
         for arm, meta in (provenance.get("arms", {}) or {}).items():
-            if arm not in arms_meta or timestamp >= arms_meta_stamp.get(arm, ""):
+            # Parsed, not string-compared: _parse_timestamp's own docstring warns
+            # that fractional seconds are schema-legal and '.' < 'Z', so a raw
+            # string compare ranks 12:00:00.500Z BEFORE the whole second it
+            # follows -- which published the OLDER library version for the arm.
+            if arm not in arms_meta or _parse_timestamp(timestamp) >= _parse_timestamp(
+                arms_meta_stamp.get(arm) or None
+            ):
                 arms_meta[arm] = {
                     "kind": meta.get("kind", "reference" if arm != EIGEN_ARM else "eigen"),
                     "library_name": meta.get("library_name", arm),
@@ -592,6 +622,13 @@ def _parse_timestamp(value: Any) -> "_datetime.datetime":
 
 def _resolve_conflict(previous: Dict[str, Any], candidate: Dict[str, Any], policy: str):
     if policy == "first":
+        # Oldest measurement, not "whichever file was read first". Inputs are
+        # processed in sorted-pathname order, so the old behaviour made the winner
+        # depend on what the contributions happened to be named -- renaming a file
+        # changed the published number. "first" is the symmetric opposite of
+        # "latest", so it ranks by the same clock.
+        if _parse_timestamp(candidate.get("timestamp_utc")) < _parse_timestamp(previous.get("timestamp_utc")):
+            return candidate, previous
         return previous, candidate
     # latest / error / keep-all all rank by timestamp; a measured row always
     # outranks a not_measured one for the same key.
