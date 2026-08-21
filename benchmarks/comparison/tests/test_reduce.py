@@ -352,7 +352,7 @@ def test_a_fractional_second_stamp_is_newer_than_the_whole_second_it_follows(tmp
     )
 
 
-def test_an_unparseable_timestamp_never_outranks_a_real_one(tmp_path):
+def test_an_unparsable_timestamp_never_outranks_a_real_one(tmp_path):
     broken = _restamped(
         RESULTS / "gemm_rerun_newer.json", tmp_path, "broken.json", "broken-run", "not-a-timestamp"
     )
@@ -558,9 +558,15 @@ def test_a_baseline_no_result_file_carries_is_refused():
     thing and stays allowed; this is the case where no file mentions the arm at
     all.
     """
-    proc = reduce_to([str(RESULTS / "gemm_eigen_accelerate.json"), "--baseline", "acclerate"])
+    # A near-miss of the real arm name, spelled by transposition rather than by
+    # dropping a letter: `codespell` runs over this tree and would flag the
+    # obvious misspelling as a typo to correct, which would silently turn this
+    # into a test of a name that is present.
+    typo = "acceelrate"
+    proc = reduce_to([str(RESULTS / "gemm_eigen_accelerate.json"), "--baseline", typo])
     assert proc.returncode != 0, "a misspelt baseline must not silently blank the page"
-    assert "acclerate" in proc.stderr and "accelerate" in proc.stderr
+    assert typo in proc.stderr, "the message must quote what was asked for"
+    assert "accelerate" in proc.stderr, "and name the arm that is actually present"
 
 
 # --------------------------------------------------------------------------

@@ -314,7 +314,7 @@ def test_out_with_several_formats_is_a_usage_error(tmp_path):
     assert proc.returncode == 1, proc.stderr
 
 
-def test_unparseable_input_is_exit_two(tmp_path):
+def test_unparsable_input_is_exit_two(tmp_path):
     path = tmp_path / "broken.json"
     path.write_text("{not json")
     proc = support.run_cli("render.py", ["--format", "markdown", "--out", "-", str(path)])

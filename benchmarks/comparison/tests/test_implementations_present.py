@@ -29,8 +29,14 @@ def test_implementation_carries_reuse_metadata(name):
     if not path.is_file():
         pytest.skip("covered by test_implementation_exists")
     head = path.read_text().splitlines()[:6]
+    # REUSE-IgnoreStart
+    # `reuse lint` parses an SPDX tag anywhere in a file, including inside a
+    # string literal, and would read the rest of the line below as this file's
+    # licence expression -- so the test that checks for the REUSE header would
+    # itself break REUSE compliance.
     assert any("SPDX-FileCopyrightText: The Eigen Authors" in line for line in head), path
     assert any("SPDX-License-Identifier: MPL-2.0" in line for line in head), path
+    # REUSE-IgnoreEnd
 
 
 @pytest.mark.parametrize("name", support.IMPLEMENTATIONS)

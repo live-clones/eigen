@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
+
+# These files are GENERATED, byte for byte, by tests/regenerate.py -- the JSON by
+# json.dumps and the listings by capturing a benchmark binary. Letting
+# clang-format rewrap them would make the very next regeneration reintroduce the
+# violation, so the format gate and the generator would disagree forever. The
+# diffs are also the review surface for a renderer change, and are only readable
+# in the generator's own layout.
+DisableFormat: true
+SortIncludes: Never
