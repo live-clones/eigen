@@ -575,7 +575,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--fixtures", action="store_true", help="regenerate the synthetic inputs")
     parser.add_argument("--goldens", action="store_true", help="regenerate the rendered goldens")
-    parser.add_argument("--build-dir", help="build tree holding bench_gemm_compare, for the listing capture")
+    parser.add_argument("--build-dir", help="build tree holding the comparison binaries, for the listing capture")
     args = parser.parse_args()
     everything = not (args.fixtures or args.goldens)
     if everything or args.fixtures:
