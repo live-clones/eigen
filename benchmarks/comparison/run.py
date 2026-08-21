@@ -246,6 +246,21 @@ def parse_machine_profile(data: Mapping[str, Any], stem: str, sha256: str | None
             unavailable_reason=(str(raw["unavailable_reason"]) if raw.get("unavailable_reason") else None),
         )
 
+    # `flags` and a cmake_options entry that sets CMAKE_CXX_FLAGS are two ways to
+    # say the same thing, and the second would silently win. An ISA target that
+    # declares both is an authoring mistake whose symptom is a page claiming
+    # compile flags the binary was never built with.
+    for target, entry in (data.get("isa", {}) or {}).items():
+        if not (entry.get("flags") or ()):
+            continue
+        for option in entry.get("cmake_options", ()) or ():
+            if str(option).startswith("-DCMAKE_CXX_FLAGS"):
+                raise HarnessError(
+                    f"machine profile {machine_id!r} ISA target {str(target)!r} sets both `flags` and a "
+                    f"cmake_options entry {str(option)!r}; the latter would overwrite the former and the "
+                    "run would record flags it was not built with. Put them all in `flags`."
+                )
+
     build = data.get("build", {})
     return MachineProfile(
         id=machine_id,
@@ -1896,6 +1911,16 @@ def configure_command(
         "-DCMAKE_CXX_STANDARD_REQUIRED=ON",
         "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
     ]
+    # The ISA target's `flags` are what select the instruction set, so they have
+    # to reach the compiler. They were recorded in provenance but never passed,
+    # which meant a profile could publish "built with -mcpu=apple-m4
+    # -DEIGEN_ARM64_USE_SME" over a binary compiled with neither -- an SME page
+    # produced by a NEON build. parse_machine_profile refuses a target that also
+    # sets CMAKE_CXX_FLAGS through cmake_options, so this cannot be overwritten
+    # by the options appended below.
+    isa_flags = machine.isa_flags(isa_target)
+    if isa_flags:
+        command.append("-DCMAKE_CXX_FLAGS=" + " ".join(isa_flags))
     command += list(machine.isa_options(isa_target))
     if arm is not None:
         command += list(arm.cmake_options)
