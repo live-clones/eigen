@@ -432,7 +432,8 @@ eigen_class = "Eigen::LLT"
 eigen_doc = "Eigen::LLT"
 shape_family = "square1"
 scalars = ["f32", "f64", "c32", "c64"]
-status = "planned"
+status = "implemented"
+source = "benchmarks/comparison/bench_potrf_compare.cpp"
 
 [ops.POTRF.reference]
 kind = "lapack"
