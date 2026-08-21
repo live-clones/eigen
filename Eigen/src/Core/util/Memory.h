@@ -966,6 +966,11 @@ class aligned_allocator {
 
 //---------- Cache sizes ----------
 
+#if EIGEN_OS_LINUX && !defined(EIGEN_NO_CPU_CACHE_SYSFS)
+// Linux publishes the cache topology under sysfs on every architecture.
+#define EIGEN_CPU_CACHE_SYSFS 1
+#endif
+
 #if !defined(EIGEN_NO_CPUID)
 #if EIGEN_COMP_GNUC && EIGEN_ARCH_i386_OR_x86_64
 #if defined(__PIC__) && EIGEN_ARCH_i386
@@ -1264,6 +1269,104 @@ inline void queryCacheSizes_amd(std::ptrdiff_t& l1, std::ptrdiff_t& l2, std::ptr
 }
 #endif
 
+#ifdef EIGEN_CPU_CACHE_SYSFS
+
+/** \internal Data-cache geometry as Linux describes it; a zero field means sysfs did not say. */
+struct CpuCacheTopology {
+  std::ptrdiff_t l1 = 0;
+  std::ptrdiff_t l2 = 0;
+  std::ptrdiff_t l3 = 0;
+  std::ptrdiff_t l3_per_cpu = 0;
+};
+
+/** \internal Reads the first line of CPU 0's cache attribute \a name into \a value. */
+template <int Size>
+inline bool readCpuCacheAttribute(int index, const char* name, char (&value)[Size]) {
+  char path[96];
+  std::snprintf(path, sizeof(path), "/sys/devices/system/cpu/cpu0/cache/index%d/%s", index, name);
+  std::FILE* file = std::fopen(path, "r");
+  if (file == nullptr) return false;
+  const bool ok = std::fgets(value, Size, file) != nullptr;
+  std::fclose(file);
+  return ok;
+}
+
+/** \internal Parses a sysfs cache size such as "64K". \returns 0 if \a text is not a positive size. */
+inline std::ptrdiff_t parseCpuCacheSize(const char* text) {
+  char* suffix = nullptr;
+  const std::ptrdiff_t value = std::strtol(text, &suffix, 10);
+  if (value <= 0) return 0;
+  // The kernel writes kibibytes ("%uK"), but only scale on an explicit unit: reading a bare byte
+  // count as kibibytes would overstate a cache 1024x, which is much worse than the reverse.
+  const std::ptrdiff_t multiplier = (*suffix == 'K' || *suffix == 'k')   ? 1024
+                                    : (*suffix == 'M' || *suffix == 'm') ? 1024 * 1024
+                                                                         : 1;
+  return value * multiplier;
+}
+
+/** \internal
+ * Counts the CPUs in a sysfs cpu list such as "0-3" or "0-3,8-11". \returns 0 if \a text is
+ * malformed, so that an unparsable list reads as "unknown" rather than as a small count. */
+inline int parseCpuListCount(const char* text) {
+  int count = 0;
+  for (const char* cursor = text; *cursor != '\0';) {
+    char* end = nullptr;
+    const long first = std::strtol(cursor, &end, 10);
+    if (end == cursor) return 0;
+    long last = first;
+    if (*end == '-') {
+      cursor = end + 1;
+      last = std::strtol(cursor, &end, 10);
+      if (end == cursor || last < first) return 0;
+    }
+    count += static_cast<int>(last - first + 1);
+    if (*end != ',') break;
+    cursor = end + 1;
+  }
+  return count;
+}
+
+/** \internal
+ * \returns CPU 0's data-cache geometry as published by sysfs.
+ *
+ * l3_per_cpu is the L3 instance size divided by the CPUs sharing it, and is deliberately derived
+ * within this single pass: the l3 reported elsewhere is a package total on a multi-die part -- 128MB
+ * on a 32-core Threadripper whose cores each reach one 16MB slice -- so pairing it with one
+ * instance's sharer count would overstate the share eightfold. */
+inline CpuCacheTopology queryCpuCacheTopologySysfs() {
+  CpuCacheTopology topology;
+  // One directory per cache, numbered contiguously from zero. The bound only guards a malformed
+  // sysfs; it is far above what any current CPU reports.
+  for (int index = 0; index < 16; ++index) {
+    // A shared_cpu_list can be long on a large machine, and truncating it would undercount the
+    // sharers and hand out too large a share.
+    char value[512];
+
+    if (!readCpuCacheAttribute(index, "level", value)) break;
+    const long level = std::strtol(value, nullptr, 10);
+    std::ptrdiff_t* target =
+        level == 1 ? &topology.l1 : (level == 2 ? &topology.l2 : (level == 3 ? &topology.l3 : nullptr));
+    if (target == nullptr || *target > 0) continue;
+
+    // "Data", "Instruction", or "Unified". An instruction cache never holds the operands a product
+    // blocks for, so it must not be mistaken for the L1 data cache.
+    if (!readCpuCacheAttribute(index, "type", value) || value[0] == 'I') continue;
+
+    if (!readCpuCacheAttribute(index, "size", value)) continue;
+    const std::ptrdiff_t size = parseCpuCacheSize(value);
+    if (size <= 0) continue;
+    *target = size;
+
+    if (level == 3 && readCpuCacheAttribute(index, "shared_cpu_list", value) && std::strchr(value, '\n') != nullptr) {
+      const int sharing = parseCpuListCount(value);
+      if (sharing > 0) topology.l3_per_cpu = size / sharing;
+    }
+  }
+  return topology;
+}
+
+#endif  // EIGEN_CPU_CACHE_SYSFS
+
 /** \internal
  * Queries and returns the cache sizes in Bytes of the L1, L2, and L3 data caches respectively */
 inline void queryCacheSizes(std::ptrdiff_t& l1, std::ptrdiff_t& l2, std::ptrdiff_t& l3) {
@@ -1330,6 +1433,16 @@ inline void queryCacheSizes(std::ptrdiff_t& l1, std::ptrdiff_t& l2, std::ptrdiff
   l1 = sysconf(_SC_LEVEL1_DCACHE_SIZE);
   l2 = sysconf(_SC_LEVEL2_CACHE_SIZE);
   l3 = sysconf(_SC_LEVEL3_CACHE_SIZE);
+#ifdef EIGEN_CPU_CACHE_SYSFS
+  // glibc answers the _SC_LEVEL*_CACHE_SIZE queries from CPUID and so only implements them on x86;
+  // every other architecture gets 0 and would silently fall back to the compiled-in default sizes.
+  if (l1 <= 0 || l2 <= 0 || l3 <= 0) {
+    const CpuCacheTopology topology = queryCpuCacheTopologySysfs();
+    if (l1 <= 0) l1 = topology.l1;
+    if (l2 <= 0) l2 = topology.l2;
+    if (l3 <= 0) l3 = topology.l3;
+  }
+#endif
 #else
   l1 = l2 = l3 = -1;
 #endif
