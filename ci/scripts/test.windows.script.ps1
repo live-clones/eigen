@@ -50,7 +50,13 @@ if (${EIGEN_CI_CTEST_REGEX}) {
   $target = "-L","${EIGEN_CI_CTEST_LABEL}"
 }
 
-$ctest_cmd = { ctest ${EIGEN_CI_CTEST_ARGS} --parallel ${NPROC} --output-on-failure --no-compress-output --build-noclean ${target} @args }
+# Same knob as test.linux.script.sh, for tests this runner cannot execute.
+$exclude = @()
+if (${EIGEN_CI_CTEST_EXCLUDE}) {
+  $exclude = "-E","${EIGEN_CI_CTEST_EXCLUDE}"
+}
+
+$ctest_cmd = { ctest ${EIGEN_CI_CTEST_ARGS} --parallel ${NPROC} --output-on-failure --no-compress-output --build-noclean ${target} ${exclude} @args }
 
 Write-Host "Running initial tests..."
 
