@@ -21,6 +21,7 @@ the first real regeneration diff is the review of the renderer against it.
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -467,13 +468,32 @@ def write_listing(build_dir=None):
     a silently empty test.
     """
     target = FIXTURES / "raw" / "benchmark_list_tests.txt"
-    exe = None
+    # Every comparison binary the build produced, not a hardcoded one: the moment a
+    # second operation ships in its own target, a capture naming only the GEMM
+    # binary stops covering it, and the reconciliation test silently narrows to
+    # whatever that one binary happens to register.
+    exes: list[Path] = []
     roots = [Path(build_dir)] if build_dir else [support.REPO_ROOT / "build-bench", support.REPO_ROOT / "build"]
     for root in roots:
-        if root.is_dir():
-            exe = next(iter(sorted(root.rglob("bench_gemm_compare"))), None)
-            if exe:
-                break
+        if not root.is_dir():
+            continue
+        for info in sorted(root.rglob("vendor_info.json")):
+            try:
+                entries = json.loads(info.read_text()).get("targets", []) or []
+            except (OSError, ValueError):
+                continue
+            for entry in entries:
+                candidate = Path(str(entry.get("executable", "")))
+                if candidate.is_file() and os.access(candidate, os.X_OK) and candidate not in exes:
+                    exes.append(candidate)
+        if exes:
+            break
+        # No build manifest (an older or partial tree): fall back to the naming
+        # convention, still without assuming a single operation.
+        exes = [p for p in sorted(root.rglob("bench_*_compare")) if p.is_file() and os.access(p, os.X_OK)]
+        if exes:
+            break
+    exe = exes[0] if exes else None
     if exe is None:
         searched = ", ".join(str(r) for r in roots)
         print(
@@ -487,10 +507,14 @@ def write_listing(build_dir=None):
             file=sys.stderr,
         )
         return
-    proc = subprocess.run([str(exe), "--benchmark_list_tests=true"], capture_output=True, text=True, check=True)
-    # Registration order, not sorted: the interleaving of the eigen and reference
-    # arms is exactly what this capture is evidence of.
-    names = [line.strip() for line in proc.stdout.splitlines() if line.strip()]
+    names: list[str] = []
+    for candidate in exes:
+        proc = subprocess.run(
+            [str(candidate), "--benchmark_list_tests=true"], capture_output=True, text=True, check=True
+        )
+        # Registration order, not sorted: the interleaving of the eigen and
+        # reference arms is exactly what this capture is evidence of.
+        names.extend(line.strip() for line in proc.stdout.splitlines() if line.strip())
     if not names:
         print(f"{exe} listed no benchmarks; leaving {target.name} unchanged", file=sys.stderr)
         return
@@ -504,7 +528,8 @@ def write_listing(build_dir=None):
         )
         return
     target.write_text("".join(name + "\n" for name in names))
-    print(f"captured {len(names)} benchmark names from {exe}", file=sys.stderr)
+    print(f"captured {len(names)} benchmark names from {len(exes)} binary(ies): "
+          f"{', '.join(e.name for e in exes)}", file=sys.stderr)
 
 
 # --------------------------------------------------------------------------
