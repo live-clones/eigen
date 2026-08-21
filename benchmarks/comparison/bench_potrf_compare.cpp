@@ -131,6 +131,13 @@ static void runPotrf(benchmark::State& state, Kernel kernel) {
     return;
   }
 
+  // noise, a and out are each n-by-n; noise is a temporary of the fill but is
+  // live at the same time as a, so it counts. Checked before the first
+  // allocation, so an over-large point costs one skipped cell, not the whole run.
+  const double operand_bytes =
+      3.0 * static_cast<double>(sizeof(Scalar)) * static_cast<double>(n) * static_cast<double>(n);
+  if (eigen_bench::skipIfOverMemoryBudget(state, operand_bytes)) return;
+
   // A*A^H is positive semi-definite; the shift makes it definite with a
   // condition number that does not grow with n, so a failure to factorize is a
   // kernel defect rather than a property of the operand.
@@ -221,6 +228,8 @@ static void BM_PotrfReference(benchmark::State& state) {
   POINT(192) POINT(256) POINT(384) POINT(512) POINT(768) POINT(1024) \
   /* large */ \
   POINT(1536) POINT(2048) POINT(3072) POINT(4096) \
+  /* xlarge */ \
+  POINT(6144) POINT(8192) POINT(12288) POINT(16384) \
   /* aliasing */ \
   POINT(100) POINT(200) POINT(257) POINT(500) POINT(1000) POINT(1001) POINT(4097)
 

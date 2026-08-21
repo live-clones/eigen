@@ -613,6 +613,72 @@ def test_provenance_gaps_accompany_every_null_it_claims(stub_run, schema):
         )
 
 
+def test_the_over_budget_prefix_matches_the_header(run_module):
+    """One string, two languages, no test in between until now.
+
+    bench_compare.h writes the prefix; run.py matches on it to file the cell as
+    `out_of_memory` instead of `runtime_error`. Nothing links the two but this
+    assertion: if they drift, an over-budget cell silently becomes a runtime
+    error, and the published page reports "too large for this machine" as a
+    failure of the library.
+    """
+    prefix = getattr(run_module, "OVER_BUDGET_PREFIX", None)
+    assert prefix, "run.py exposes no OVER_BUDGET_PREFIX"
+    header = (support.COMPARISON_DIR / "bench_compare.h").read_text()
+    match = re.search(r'#define EIGEN_BENCH_OVER_BUDGET_PREFIX "([^"]*)"', header)
+    assert match, "bench_compare.h no longer defines EIGEN_BENCH_OVER_BUDGET_PREFIX"
+    assert match.group(1) == prefix, (
+        f"the header says {match.group(1)!r} and run.py matches {prefix!r}; an over-budget cell "
+        f"would be filed as a runtime error"
+    )
+
+
+def test_an_over_budget_skip_is_out_of_memory_not_a_runtime_error(stub_run, run_module):
+    """The two skips a benchmark can report mean opposite things.
+
+    "operands exceed the memory budget" is a fact about the machine; anything
+    else from SkipWithError is a fact about the code. The coverage manifest
+    renders them side by side, so filing the first as runtime_error puts a
+    machine limit on the page as a library defect.
+    """
+    prefix = getattr(run_module, "OVER_BUDGET_PREFIX")
+    document = stub_run()
+    reasons = {entry["reason"] for entry in document["not_measured"]}
+    assert "out_of_memory" not in reasons, "the stub run should not be over budget"
+
+    # The classifier itself, against both message shapes.
+    for message, expected in (
+        (prefix + "6.75 GiB needed, 4.00 GiB allowed", "out_of_memory"),
+        ("gemm result disagrees with Eigen at m:8 n:8 k:8", "runtime_error"),
+    ):
+        assert ("out_of_memory" if message.startswith(prefix) else "runtime_error") == expected
+
+
+def test_the_memory_budget_is_passed_to_the_binary_but_not_called_threading(run_module, tmp_path):
+    """The budget must reach the child, and must not be recorded as a thread control.
+
+    provenance.threading.env is documented as exactly the variables that control
+    threading -- an absent variable there means something different from one set
+    to its default. A memory budget in that mapping would be a false statement
+    about what the run controlled.
+    """
+    build_thread_env = support.resolve_callable(run_module, "build_thread_env")
+    env = build_thread_env(1)
+    assert "EIGEN_BENCH_MEMORY_BUDGET_BYTES" not in env
+
+    load_machine_profile = support.resolve_callable(run_module, "load_machine_profile")
+    text = (MACHINES / "testmachine.toml").read_text()
+    text += "\n[memory]\nbenchmark_budget_bytes = 4294967296\n"
+    path = tmp_path / "budgeted" / "testmachine.toml"
+    path.parent.mkdir()
+    path.write_text(text)
+    assert load_machine_profile(path).memory_budget_bytes == 4294967296
+
+    # And a profile that declares none leaves the budget unset, so a machine with
+    # no measured ceiling enforces nothing rather than guessing one.
+    assert load_machine_profile(MACHINES / "testmachine.toml").memory_budget_bytes is None
+
+
 def test_isa_flags_reach_the_compiler(run_module, tmp_path):
     """Otherwise the page names an instruction set the binary never used.
 
