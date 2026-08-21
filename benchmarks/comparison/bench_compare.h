@@ -24,7 +24,9 @@
 
 #include <Eigen/Core>
 #include <complex>
+#include <cstdint>
 #include <cstdlib>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -119,6 +121,17 @@ static_assert(sizeof(BlasInt) == 8,
               "EIGEN_BENCH_REFERENCE_ILP64 selects a 64-bit-integer reference BLAS, but Eigen::BlasIndex is 32-bit: "
               "the build must define EIGEN_64BIT_BLAS as well.");
 #endif
+
+// Does a dimension survive the narrowing to the reference arm's integer width?
+// Eigen::Index is 64-bit on every platform these benchmarks run on, so an LP64
+// reference BLAS narrows every dimension on the way out. The grid in ops.toml
+// stays well inside 32 bits today, but a machine file that adds a larger group
+// must not silently pass a truncated extent to Fortran: a caller checks this
+// before it converts, and skips the point with an error if it fails.
+inline bool fitsBlasInt(Eigen::Index value) {
+  return value >= 0 &&
+         static_cast<std::uintmax_t>(value) <= static_cast<std::uintmax_t>((std::numeric_limits<BlasInt>::max)());
+}
 
 // ---------------------------------------------------------------------------
 // Reference-library version queries
