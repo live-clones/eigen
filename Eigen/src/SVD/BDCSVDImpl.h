@@ -134,9 +134,12 @@ void bdcsvd_impl<RealScalar_>::allocate(Index diagSize, bool compU, bool compV) 
 template <typename RealScalar_>
 void bdcsvd_impl<RealScalar_>::splitNegligibleSuperdiagonal(Index n) {
   if (n < 2) return;
+  // xBDSDC scales d and e by DLANST('M', n, d, e), the largest entry of either, and then splits at
+  // 0.9 * DLAMCH('E'). DLAMCH('E') is the unit roundoff, i.e. half of NumTraits::epsilon(), so the
+  // same threshold unscaled is 0.45 * epsilon * ||B||_max.
   const RealScalar norm = numext::maxi(m_computed.topRows(n).diagonal().cwiseAbs().maxCoeff(),
                                        m_computed.topRows(n).template diagonal<-1>().cwiseAbs().maxCoeff());
-  const RealScalar threshold = NumTraits<RealScalar>::epsilon() * norm;
+  const RealScalar threshold = RealScalar(0.45) * NumTraits<RealScalar>::epsilon() * norm;
   for (Index i = 0; i + 1 < n; ++i)
     if (numext::abs(m_computed(i + 1, i)) < threshold) m_computed(i + 1, i) = RealScalar(0);
 }
