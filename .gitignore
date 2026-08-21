@@ -48,3 +48,5 @@ CLAUDE.md
 .claude/*
 !.claude/settings.json
 .DS_Store
+# Measurement output of benchmarks/comparison/run.py (CONTRACTS.md section 1).
+benchmarks/comparison/results/

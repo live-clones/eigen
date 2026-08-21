@@ -850,10 +850,20 @@ def test_the_runs_own_build_tree_does_not_make_the_worktree_dirty(tmp_path, run_
     build = repo / "build-comparison" / "aarch64-neon__openblas"
     build.mkdir(parents=True)
     (build / "CMakeCache.txt").write_text("x\n")
+    results = repo / "benchmarks" / "comparison" / "results" / "m4"
+    results.mkdir(parents=True)
+    (results / "run.json").write_text("{}\n")
     assert probe_git(repo).dirty, "unscoped, an untracked build tree reads as dirty"
-    assert not probe_git(repo, repo / "build-comparison").dirty, (
-        "the run's own build tree is an output, not an input to the measurement"
+    assert not probe_git(repo, repo / "build-comparison", results.parent).dirty, (
+        "the run's own build tree and results are outputs, not inputs to the measurement"
     )
+    # Each is excluded independently: results alone still leaves the build tree
+    # visible, which is what proves the exclusion is not a blanket one.
+    assert probe_git(repo, results.parent).dirty
+    assert probe_git(repo, repo / "build-comparison").dirty, (
+        "the first successful measurement used to make the next run refuse as dirty"
+    )
+    shutil.rmtree(repo / "benchmarks")
 
     # Scoping must not become a hole: a real source change alongside the build
     # tree still has to be caught.
@@ -862,7 +872,7 @@ def test_the_runs_own_build_tree_does_not_make_the_worktree_dirty(tmp_path, run_
         "excluding the build tree must not stop a modified source from reading dirty"
     )
     (repo / "a.txt").write_text("one\n")
-    (repo / "benchmarks").mkdir()
+    (repo / "benchmarks").mkdir(exist_ok=True)
     (repo / "benchmarks" / "sneaky.cpp").write_text("int main(){}\n")
     assert probe_git(repo, repo / "build-comparison").dirty, (
         "an untracked source outside the build tree still makes the measurement unreproducible"
