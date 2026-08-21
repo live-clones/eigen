@@ -564,15 +564,14 @@ inline int64_t blas1_size(Index rows, Index cols) { return static_cast<int64_t>(
 }  // namespace internal
 
 template <typename Scalar_>
-DeviceScalar<typename DeviceMatrix<Scalar_>::Scalar> DeviceMatrix<Scalar_>::dot_impl(Context& ctx,
-                                                                                     const DeviceMatrix& other,
-                                                                                     MemoryResource* resource) const {
+DeviceScalar<typename DeviceMatrix<Scalar_>::Scalar> DeviceMatrix<Scalar_>::dot(Context& ctx, const DeviceMatrix& other,
+                                                                                MemoryResource& resource) const {
   const int64_t n = internal::blas1_size(rows_, cols_);
   eigen_assert(n == internal::blas1_size(other.rows_, other.cols_));
   if (n > 0) {
     // Allocated uninitialized: cublasXdot overwrites the slot, so uploading a
     // zero first would be a wasted H2D transfer per reduction.
-    DeviceScalar<Scalar> result = DeviceScalar<Scalar>::fromResource(resource, ctx.stream());
+    DeviceScalar<Scalar> result(resource, ctx.stream());
     waitReady(ctx.stream());
     other.waitReady(ctx.stream());
     internal::with_device_pointer_mode(ctx.cublasHandle(), [&] {
@@ -580,19 +579,7 @@ DeviceScalar<typename DeviceMatrix<Scalar_>::Scalar> DeviceMatrix<Scalar_>::dot_
     });
     return result;
   }
-  return DeviceScalar<Scalar>::fromResource(resource, Scalar(0), ctx.stream());
-}
-
-template <typename Scalar_>
-DeviceScalar<typename DeviceMatrix<Scalar_>::Scalar> DeviceMatrix<Scalar_>::dot(Context& ctx,
-                                                                                const DeviceMatrix& other) const {
-  return dot_impl(ctx, other, /*resource=*/nullptr);
-}
-
-template <typename Scalar_>
-DeviceScalar<typename DeviceMatrix<Scalar_>::Scalar> DeviceMatrix<Scalar_>::dot(Context& ctx, const DeviceMatrix& other,
-                                                                                MemoryResource& resource) const {
-  return dot_impl(ctx, other, &resource);
+  return DeviceScalar<Scalar>(Scalar(0), resource, ctx.stream());
 }
 
 namespace internal {
@@ -600,64 +587,42 @@ namespace internal {
 // suffices and nothing syncs; the storage it was given carries over with it.
 template <typename Scalar, typename RealScalar>
 std::enable_if_t<std::is_same<Scalar, RealScalar>::value, DeviceScalar<RealScalar>> squaredNorm_from_dot(
-    DeviceScalar<Scalar>&& d, MemoryResource*, cudaStream_t) {
+    DeviceScalar<Scalar>&& d, MemoryResource&, cudaStream_t) {
   return std::move(d);
 }
 // Complex must sync to extract the real part: DeviceScalar arithmetic is real-only.
 template <typename Scalar, typename RealScalar>
 std::enable_if_t<!std::is_same<Scalar, RealScalar>::value, DeviceScalar<RealScalar>> squaredNorm_from_dot(
-    DeviceScalar<Scalar>&& d, MemoryResource* resource, cudaStream_t stream) {
-  return DeviceScalar<RealScalar>::fromResource(resource, numext::real(Scalar(d)), stream);
+    DeviceScalar<Scalar>&& d, MemoryResource& resource, cudaStream_t stream) {
+  return DeviceScalar<RealScalar>(numext::real(Scalar(d)), resource, stream);
 }
 }  // namespace internal
 
 template <typename Scalar_>
-DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::squaredNorm_impl(
-    Context& ctx, MemoryResource* resource) const {
+DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::squaredNorm(Context& ctx,
+                                                                                   MemoryResource& resource) const {
   // dot(x,x) rather than nrm2()^2: the dot kernel is ~4.5x faster, since nrm2
   // runs a scaled sum of squares whose overflow protection convergence checks do
   // not need.
   using RealScalar = typename NumTraits<Scalar_>::Real;
-  return internal::squaredNorm_from_dot<Scalar_, RealScalar>(dot_impl(ctx, *this, resource), resource, ctx.stream());
+  return internal::squaredNorm_from_dot<Scalar_, RealScalar>(dot(ctx, *this, resource), resource, ctx.stream());
 }
 
 template <typename Scalar_>
-DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::squaredNorm(Context& ctx) const {
-  return squaredNorm_impl(ctx, /*resource=*/nullptr);
-}
-
-template <typename Scalar_>
-DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::squaredNorm(Context& ctx,
-                                                                                   MemoryResource& resource) const {
-  return squaredNorm_impl(ctx, &resource);
-}
-
-template <typename Scalar_>
-DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::norm_impl(Context& ctx,
-                                                                                 MemoryResource* resource) const {
+DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::norm(Context& ctx,
+                                                                            MemoryResource& resource) const {
   using RealScalar = typename NumTraits<Scalar>::Real;
   const int64_t n = internal::blas1_size(rows_, cols_);
   if (n > 0) {
     // See dot(): uninitialized on purpose, cublasXnrm2 overwrites the slot.
-    DeviceScalar<RealScalar> result = DeviceScalar<RealScalar>::fromResource(resource, ctx.stream());
+    DeviceScalar<RealScalar> result(resource, ctx.stream());
     waitReady(ctx.stream());
     internal::with_device_pointer_mode(ctx.cublasHandle(), [&] {
       EIGEN_CUBLAS_CHECK(internal::cublasXnrm2(ctx.cublasHandle(), n, data(), 1, result.devicePtr()));
     });
     return result;
   }
-  return DeviceScalar<RealScalar>::fromResource(resource, RealScalar(0), ctx.stream());
-}
-
-template <typename Scalar_>
-DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::norm(Context& ctx) const {
-  return norm_impl(ctx, /*resource=*/nullptr);
-}
-
-template <typename Scalar_>
-DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::norm(Context& ctx,
-                                                                            MemoryResource& resource) const {
-  return norm_impl(ctx, &resource);
+  return DeviceScalar<RealScalar>(RealScalar(0), resource, ctx.stream());
 }
 
 template <typename Scalar_>
@@ -828,18 +793,19 @@ void DeviceMatrix<Scalar_>::cwiseProduct(Context& ctx, const DeviceMatrix& a, co
 
 // Convenience overloads using thread-local default Context.
 template <typename Scalar_>
-DeviceScalar<typename DeviceMatrix<Scalar_>::Scalar> DeviceMatrix<Scalar_>::dot(const DeviceMatrix& other) const {
-  return dot(Context::threadLocal(), other);
+DeviceScalar<typename DeviceMatrix<Scalar_>::Scalar> DeviceMatrix<Scalar_>::dot(const DeviceMatrix& other,
+                                                                                MemoryResource& resource) const {
+  return dot(Context::threadLocal(), other, resource);
 }
 
 template <typename Scalar_>
-DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::squaredNorm() const {
-  return squaredNorm(Context::threadLocal());
+DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::squaredNorm(MemoryResource& resource) const {
+  return squaredNorm(Context::threadLocal(), resource);
 }
 
 template <typename Scalar_>
-DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::norm() const {
-  return norm(Context::threadLocal());
+DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::norm(MemoryResource& resource) const {
+  return norm(Context::threadLocal(), resource);
 }
 
 template <typename Scalar_>
@@ -852,7 +818,7 @@ template <typename Scalar>
 void DeviceMatrix<Scalar>::syncHost(Context& ctx) {
   eigen_assert(isHostAccessible() && "syncHost() on a device-only DeviceMatrix");
   waitReady(ctx.stream());
-  internal::sync_for_host_access(data_.memoryResource(), ctx.stream());
+  internal::sync_for_host_access(*resource_, ctx.stream());
 }
 
 }  // namespace gpu

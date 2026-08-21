@@ -190,7 +190,7 @@ class DeviceMatrix {
     o.cols_ = 0;
     o.ready_event_ = nullptr;
     o.ready_stream_ = nullptr;
-    o.resource_ = nullptr;
+    o.resource_ = &deviceMemoryResource();
   }
 
   DeviceMatrix& operator=(DeviceMatrix&& o) noexcept {
@@ -208,7 +208,7 @@ class DeviceMatrix {
       o.cols_ = 0;
       o.ready_event_ = nullptr;
       o.ready_stream_ = nullptr;
-      o.resource_ = nullptr;
+      o.resource_ = &deviceMemoryResource();
     }
     return *this;
   }
@@ -458,29 +458,28 @@ class DeviceMatrix {
   // array and serve both. Passing an explicit Context& lets callers keep every
   // operation on one stream, which elides the cross-stream event waits.
 
+  // Every reduction takes the resource its result lives in, defaulted so that
+  // naming one is optional. With a host-accessible resource cuBLAS writes the
+  // value where the host can already address it, and reading it back costs a
+  // synchronization and a load rather than a synchronization and a
+  // device-to-host copy. The storage is named rather than inherited from *this:
+  // a matrix on an adopted host buffer has nowhere to put a second allocation,
+  // and a reduction that silently changed where its result lived would be
+  // harder to reason about than one that was asked to.
+
   /** Dot product: this^H * other. The result stays on device until read through
    * DeviceScalar's conversion to Scalar, which syncs. */
-  DeviceScalar<Scalar> dot(Context& ctx, const DeviceMatrix& other) const;
+  DeviceScalar<Scalar> dot(Context& ctx, const DeviceMatrix& other,
+                           MemoryResource& resource = pooledDeviceMemoryResource()) const;
 
   /** Squared L2 norm via dot(x, x). For real types the result stays on device;
    * for complex it syncs, since DeviceScalar arithmetic is real-only. */
-  DeviceScalar<typename NumTraits<Scalar>::Real> squaredNorm(Context& ctx) const;
+  DeviceScalar<typename NumTraits<Scalar>::Real> squaredNorm(
+      Context& ctx, MemoryResource& resource = pooledDeviceMemoryResource()) const;
 
   /** L2 norm, without a host sync. */
-  DeviceScalar<typename NumTraits<Scalar>::Real> norm(Context& ctx) const;
-
-  // The overloads below place the reduction's result in storage from
-  // \p resource. With a host-accessible one cuBLAS writes the value where the
-  // host can already address it, so reading it back costs a synchronization
-  // and a load rather than a synchronization and a device-to-host copy. The
-  // storage kind is named rather than inherited from *this: a matrix on an
-  // adopted host buffer has nowhere to put a second allocation, and a
-  // reduction that silently changed where its result lived would be harder to
-  // reason about than one that was asked to.
-
-  DeviceScalar<Scalar> dot(Context& ctx, const DeviceMatrix& other, MemoryResource& resource) const;
-  DeviceScalar<typename NumTraits<Scalar>::Real> squaredNorm(Context& ctx, MemoryResource& resource) const;
-  DeviceScalar<typename NumTraits<Scalar>::Real> norm(Context& ctx, MemoryResource& resource) const;
+  DeviceScalar<typename NumTraits<Scalar>::Real> norm(Context& ctx,
+                                                      MemoryResource& resource = pooledDeviceMemoryResource()) const;
 
   /** Set all elements to zero. */
   void setZero(Context& ctx);
@@ -495,9 +494,10 @@ class DeviceMatrix {
   /** Deep copy: this = other (cuBLAS copy). Resizes if needed. */
   void copyFrom(Context& ctx, const DeviceMatrix& other);
 
-  DeviceScalar<Scalar> dot(const DeviceMatrix& other) const;
-  DeviceScalar<typename NumTraits<Scalar>::Real> squaredNorm() const;
-  DeviceScalar<typename NumTraits<Scalar>::Real> norm() const;
+  DeviceScalar<Scalar> dot(const DeviceMatrix& other, MemoryResource& resource = pooledDeviceMemoryResource()) const;
+  DeviceScalar<typename NumTraits<Scalar>::Real> squaredNorm(
+      MemoryResource& resource = pooledDeviceMemoryResource()) const;
+  DeviceScalar<typename NumTraits<Scalar>::Real> norm(MemoryResource& resource = pooledDeviceMemoryResource()) const;
   void setZero();
 
   // The operators below let iterative-solver code written against Matrix — say
@@ -577,7 +577,8 @@ class DeviceMatrix {
     dm.rows_ = rows;
     dm.cols_ = cols;
     eigen_assert(buffer.size() >= dm.sizeInBytes() && "adopted buffer is too small for the requested shape");
-    dm.resource_ = buffer.memoryResource();
+    eigen_assert((buffer.owns() || !buffer) && "cannot adopt a borrowed buffer; use view()");
+    if (buffer.owns()) dm.resource_ = buffer.memoryResource();
     dm.data_ = std::move(buffer);
     return dm;
   }
@@ -608,7 +609,7 @@ class DeviceMatrix {
     Scalar* p = static_cast<Scalar*>(data_.release());
     rows_ = 0;
     cols_ = 0;
-    resource_ = nullptr;
+    resource_ = &deviceMemoryResource();
     if (ready_event_) {
       EIGEN_CUDA_RUNTIME_CHECK(cudaEventDestroy(ready_event_));
       ready_event_ = nullptr;
@@ -618,23 +619,10 @@ class DeviceMatrix {
   }
 
  private:
-  // Shared by each reduction's two overloads; a null resource means the default
-  // device allocator.
-  DeviceScalar<Scalar> dot_impl(Context& ctx, const DeviceMatrix& other, MemoryResource* resource) const;
-  DeviceScalar<typename NumTraits<Scalar>::Real> squaredNorm_impl(Context& ctx, MemoryResource* resource) const;
-  DeviceScalar<typename NumTraits<Scalar>::Real> norm_impl(Context& ctx, MemoryResource* resource) const;
-
   // Fresh owning allocation of `bytes` (no-op for empty), replacing whatever
   // data_ held -- including a borrowed view, whose deleter must not follow the
   // new owned pointer.
-  //
-  // Matrix storage never comes from the small-buffer pool: the pool recycles a
-  // block the moment its buffer dies, with no stream ordering, and a
-  // DeviceMatrix may still be handing its data to a consumer on another stream
-  // (that is what the ready event is for).
-  void allocate(size_t bytes) {
-    data_ = internal::DeviceBuffer(bytes, resource_, internal::DeviceBuffer::Pooling::kDisallowed);
-  }
+  void allocate(size_t bytes) { data_ = internal::DeviceBuffer(bytes, *resource_); }
 
   void ensureEvent() {
     if (!ready_event_) {
@@ -650,7 +638,10 @@ class DeviceMatrix {
   cudaEvent_t ready_event_ = nullptr;       // internal: tracks last write completion
   cudaStream_t ready_stream_ = nullptr;     // stream that recorded ready_event_ (for same-stream skip)
   internal::DeviceBuffer retained_buffer_;  // internal: keeps async aux buffers alive
-  MemoryResource* resource_ = nullptr;      // what this matrix allocates from; null: default device allocator
+  // What this matrix allocates from. Never null; deviceMemoryResource() rather
+  // than the pooled one because a matrix's ready event lets another stream read
+  // its data, and the pool does not order reuse against that.
+  MemoryResource* resource_ = &deviceMemoryResource();
 };
 }  // namespace gpu
 }  // namespace Eigen

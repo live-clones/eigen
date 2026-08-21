@@ -39,6 +39,7 @@ std::vector<gpu::MemoryResource*> hostAccessibleResources() {
 
 void test_resource_properties() {
   VERIFY(!gpu::deviceMemoryResource().isHostAccessible());
+  VERIFY(!gpu::pooledDeviceMemoryResource().isHostAccessible());
   for (gpu::MemoryResource* r : hostAccessibleResources()) {
     VERIFY(r->isHostAccessible());
     VERIFY(r->name() != nullptr);
@@ -65,11 +66,11 @@ void test_allocate_and_free(Index n) {
     // Writable from the host without any transfer.
     Eigen::Map<Eigen::Matrix<Scalar, Dynamic, Dynamic>>(m.hostData(), n, n).setConstant(Scalar(1));
   }
-  // The default allocator is device-only and unchanged.
+  // Naming no resource is naming the default one, not an absence.
   gpu::DeviceMatrix<Scalar> d(n, n);
   VERIFY(!d.isHostAccessible());
   VERIFY(d.hostData() == nullptr);
-  VERIFY(d.memoryResource() == nullptr);
+  VERIFY(d.memoryResource() == &gpu::deviceMemoryResource());
 }
 
 // ---- The storage kind is orthogonal to the expression layer -----------------
@@ -166,17 +167,17 @@ void test_device_scalar_on_each_resource() {
     gpu::DeviceScalar<Scalar> s(value, *r, ctx.stream());
     VERIFY(s.isHostAccessible());
     VERIFY(s.hostData() != nullptr);
-    VERIFY(s.memoryResource() == r);
+    VERIFY(&s.memoryResource() == r);
     VERIFY_IS_EQUAL(s.get(), value);
     // Same bytes both ways: the device pointer is an alias, not a copy.
     VERIFY_IS_EQUAL(*s.hostData(), value);
   }
 
-  // The default allocator is device-only and unchanged.
+  // Naming no resource gives the module default: pooled device storage.
   gpu::DeviceScalar<Scalar> d(value, ctx.stream());
   VERIFY(!d.isHostAccessible());
   VERIFY(d.hostData() == nullptr);
-  VERIFY(d.memoryResource() == nullptr);
+  VERIFY(&d.memoryResource() == &gpu::pooledDeviceMemoryResource());
   VERIFY_IS_EQUAL(d.get(), value);
 }
 
@@ -197,7 +198,7 @@ void test_reduction_result_on_resource(Index n) {
   for (gpu::MemoryResource* r : hostAccessibleResources()) {
     gpu::DeviceScalar<Scalar> d_dot = x.dot(ctx, y, *r);
     VERIFY(d_dot.isHostAccessible());
-    VERIFY(d_dot.memoryResource() == r);
+    VERIFY(&d_dot.memoryResource() == r);
     VERIFY_IS_APPROX(Scalar(d_dot), Scalar(hx.col(0).dot(hy.col(0))));
 
     gpu::DeviceScalar<RealScalar> d_norm = x.norm(ctx, *r);
@@ -209,10 +210,15 @@ void test_reduction_result_on_resource(Index n) {
     VERIFY(numext::abs(RealScalar(d_sq) - hx.squaredNorm()) < tol * hx.squaredNorm());
   }
 
-  // Storage is named, never inherited: the operands above are device-only, and
-  // the plain overload keeps giving device-only results.
+  // Naming the resource is optional, and leaving it out is the old behaviour:
+  // a device-only result from the module's pooled storage. Both the explicit
+  // Context form and the thread-local one default the same way.
   gpu::DeviceScalar<Scalar> plain = x.dot(ctx, y);
   VERIFY(!plain.isHostAccessible());
+  VERIFY(&plain.memoryResource() == &gpu::pooledDeviceMemoryResource());
+  VERIFY_IS_APPROX(Scalar(plain), Scalar(hx.col(0).dot(hy.col(0))));
+  VERIFY(!x.norm().isHostAccessible());
+  VERIFY(!x.squaredNorm(ctx).isHostAccessible());
 }
 
 // Device-side scalar arithmetic keeps the result where its left operand lives,
@@ -228,7 +234,7 @@ void test_device_scalar_arithmetic_keeps_resource() {
 
   gpu::DeviceScalar<Scalar> q = a / b;
   VERIFY(q.isHostAccessible());
-  VERIFY(q.memoryResource() == &r);
+  VERIFY(&q.memoryResource() == &r);
   VERIFY_IS_APPROX(Scalar(q), Scalar(1.5));
 
   gpu::DeviceScalar<Scalar> neg = -a;
