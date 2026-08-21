@@ -173,10 +173,11 @@ class LLT : public SolverBase<LLT<MatrixType_, UpLo_> > {
    * \warning The matrix being decomposed here is assumed to be invertible. If you need to check for
    *          invertibility, use class FullPivLU instead.
    *
-   * \sa MatrixBase::inverse(), LLT::inverse()
+   * \sa MatrixBase::inverse()
    */
   inline Inverse<LLT> inverse() const {
     eigen_assert(m_isInitialized && "LLT is not initialized.");
+    eigen_assert(m_matrix.rows() == m_matrix.cols() && "You can't take the inverse of a non-square matrix!");
     return Inverse<LLT>(*this);
   }
 

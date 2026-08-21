@@ -475,6 +475,8 @@ EIGEN_DEVICE_FUNC inline typename MatrixType::PlainObject inverse_cholesky_impl(
 
 template <typename MatrixType>
 EIGEN_DEVICE_FUNC inline typename MatrixType::PlainObject inverse_cholesky(const MatrixType& matrix) {
+  eigen_assert(matrix.rows() == matrix.cols() && "You can't take the inverse of a non-square matrix!");
+
   return detail::inverse_cholesky_impl(matrix,
                                        std::integral_constant<bool, MatrixType::ColsAtCompileTime != Eigen::Dynamic>{});
 }
