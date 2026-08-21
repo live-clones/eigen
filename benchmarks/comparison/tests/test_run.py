@@ -22,6 +22,7 @@ import json
 import os
 import platform
 import re
+import shutil
 import subprocess
 import sys
 
@@ -755,6 +756,61 @@ def test_probe_git_reports_dirtiness(tmp_path, run_module):
 
     (repo / "a.txt").write_text("modified\n")
     assert probe_git(repo).dirty, "a modified tracked file makes a measurement unreproducible"
+
+
+def test_the_runs_own_build_tree_does_not_make_the_worktree_dirty(tmp_path, run_module):
+    """The guard must not fire on its own output.
+
+    --build-dir defaults to a relative path, so the harness's build trees land
+    inside the worktree, and Eigen's .gitignore does not cover `build*/`.  Before
+    this was scoped, the very first `run.py` invocation in a clean checkout was
+    refused as dirty -- and the only way past it, --allow-dirty, marks the result
+    unreproducible.  Everyone would have learned to pass it always.
+    """
+    probe_git = support.resolve_callable(run_module, "probe_git")
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    run = lambda *a: subprocess.run(["git", "-C", str(repo), *a], capture_output=True, check=True)
+    run("init", "-q")
+    run("config", "user.email", "t@example.invalid")
+    run("config", "user.name", "t")
+    (repo / "a.txt").write_text("one\n")
+    run("add", "a.txt")
+    run("commit", "-qm", "initial")
+
+    build = repo / "build-comparison" / "aarch64-neon__openblas"
+    build.mkdir(parents=True)
+    (build / "CMakeCache.txt").write_text("x\n")
+    assert probe_git(repo).dirty, "unscoped, an untracked build tree reads as dirty"
+    assert not probe_git(repo, repo / "build-comparison").dirty, (
+        "the run's own build tree is an output, not an input to the measurement"
+    )
+
+    # Scoping must not become a hole: a real source change alongside the build
+    # tree still has to be caught.
+    (repo / "a.txt").write_text("modified\n")
+    assert probe_git(repo, repo / "build-comparison").dirty, (
+        "excluding the build tree must not stop a modified source from reading dirty"
+    )
+    (repo / "a.txt").write_text("one\n")
+    (repo / "benchmarks").mkdir()
+    (repo / "benchmarks" / "sneaky.cpp").write_text("int main(){}\n")
+    assert probe_git(repo, repo / "build-comparison").dirty, (
+        "an untracked source outside the build tree still makes the measurement unreproducible"
+    )
+
+    # --build-dir pointing at the repo root would exclude everything and silently
+    # disable the guard, so it is refused as an exclusion and the source is still
+    # seen.
+    assert probe_git(repo, repo).dirty, "--build-dir '.' must not disable the guard"
+    (repo / "benchmarks" / "sneaky.cpp").unlink()
+
+    # A build tree outside the worktree never appears in status, so the exclusion
+    # has nothing to do; it must degrade to a no-op rather than raising on the
+    # relative_to.  Checked against an otherwise clean tree, so a leftover would
+    # be visible as a failure rather than masked by another source of dirt.
+    shutil.rmtree(repo / "build-comparison")
+    assert not probe_git(repo, tmp_path / "elsewhere").dirty
 
 
 def test_a_dirty_worktree_is_refused_unless_allowed(stub_environment):
