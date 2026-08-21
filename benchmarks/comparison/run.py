@@ -1230,7 +1230,35 @@ class GitFacts:
 NULL_COMMIT = "0" * 40
 
 
-def probe_git(repo_root: Path) -> GitFacts:
+def build_tree_pathspecs(repo_root: Path, build_base: Path | None) -> list[str]:
+    """Pathspecs excluding the build trees this run owns, if they are in the repo.
+
+    `dirty` asks whether the measured code can differ from the recorded commit,
+    so it has to see an untracked .cpp or a modified header.  A build tree is an
+    output, not an input, and Eigen's .gitignore does not cover `build*/` -- so
+    without this the harness's own default --build-dir sits in the worktree as
+    untracked and trips the guard on the very first run.  A guard that always
+    fires teaches everyone to pass --allow-dirty by reflex, which marks every
+    result unreproducible and destroys the provenance it exists to protect.
+
+    Excluding by pathspec rather than by filtering the porcelain output keeps
+    git responsible for quoting, renames and collapsed untracked directories.
+    """
+    if build_base is None:
+        return []
+    try:
+        relative = build_base.resolve().relative_to(repo_root.resolve())
+    except (ValueError, OSError):
+        # Outside the worktree (or unresolvable): it cannot appear in status.
+        return []
+    if relative == Path("."):
+        # --build-dir is the repo root itself; excluding it would exclude
+        # everything and silently disable the guard.
+        return []
+    return [".", f":(exclude,top){relative.as_posix()}"]
+
+
+def probe_git(repo_root: Path, build_base: Path | None = None) -> GitFacts:
     """Read-only interrogation of the Eigen checkout."""
 
     def git(*args: str) -> str | None:
@@ -1245,7 +1273,8 @@ def probe_git(repo_root: Path) -> GitFacts:
     commit = git("rev-parse", "HEAD")
     if not commit or not re.match(r"^[0-9a-f]{40}$", commit):
         return GitFacts(NULL_COMMIT, NULL_COMMIT[:9], True, None, None, available=False)
-    status = git("status", "--porcelain")
+    pathspecs = build_tree_pathspecs(repo_root, build_base)
+    status = git("status", "--porcelain", *(["--", *pathspecs] if pathspecs else []))
     return GitFacts(
         commit=commit,
         commit_short=commit[:9],
@@ -2146,7 +2175,7 @@ def _run(args: argparse.Namespace, argv: Sequence[str], root: Path, reporter: Re
                 print(f"{cell.op} {cell.arm} {cell.scalar} {dims} threads:{cell.threads} isa:{isa}")
         return EXIT_OK
 
-    git_facts = probe_git(root)
+    git_facts = probe_git(root, Path(args.build_dir))
     host = probe_host()
     eigen_version = probe_eigen_version(root)
 
