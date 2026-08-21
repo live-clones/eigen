@@ -1,0 +1,114 @@
+{
+  "arms": {
+    "accelerate": {
+      "kind": "reference",
+      "library_name": "Apple Accelerate",
+      "library_version": "macOS 15.6"
+    },
+    "eigen": {
+      "kind": "eigen",
+      "library_name": "Eigen",
+      "library_version": "5.0.1-master"
+    }
+  },
+  "baseline": "accelerate",
+  "cells": [
+    {
+      "arms": {
+        "accelerate": {
+          "cv": 0.14826,
+          "gflops": 5.0,
+          "gflops_mad": 0.5,
+          "reps": 10,
+          "run_id": "run-a",
+          "state": "measured",
+          "time_mad_s": 5.5296e-07,
+          "time_s": 5.5296e-06
+        },
+        "eigen": {
+          "cv": 0.0926625,
+          "gflops": 8.0,
+          "gflops_mad": 0.5,
+          "reps": 10,
+          "run_id": "run-a",
+          "state": "measured",
+          "time_mad_s": 2.16e-07,
+          "time_s": 3.456e-06
+        }
+      },
+      "config_id": "m4pro__aarch64-neon__appleclang17__e2a2fda17__t1",
+      "flops_nominal": false,
+      "flops_per_iteration": 27648.0,
+      "op": "GEMM",
+      "op_family": "blas3",
+      "ratio": 1.6,
+      "ratio_state": "ok",
+      "scalar": "f64",
+      "shape": {
+        "k": 24,
+        "m": 24,
+        "n": 24
+      },
+      "shape_dims": [
+        "m",
+        "n",
+        "k"
+      ],
+      "shape_group": "small",
+      "size_key": 24
+    }
+  ],
+  "configs": {
+    "m4pro__aarch64-neon__appleclang17__e2a2fda17__t1": {
+      "compiler": "AppleClang 17.0.0",
+      "cpu_model": "Apple M4 Pro",
+      "cxx_flags": [
+        "-O3",
+        "-DNDEBUG"
+      ],
+      "eigen_commit": "e2a2fda17c0b1d3e4f5a6b7c8d9e0f1a2b3c4d5e",
+      "eigen_commit_short": "e2a2fda17",
+      "eigen_dirty": false,
+      "isa_target": "aarch64-neon",
+      "machine_config_id": "m4pro",
+      "provenance_refs": [
+        "m4pro-neon-accelerate-e2a2fda17-20260801T120000Z"
+      ],
+      "threads": 1
+    }
+  },
+  "conflicts": [],
+  "coverage": {
+    "configs": [
+      "m4pro__aarch64-neon__appleclang17__e2a2fda17__t1"
+    ],
+    "missing_configs": [],
+    "ops": {
+      "GEMM": {
+        "arms": [
+          "accelerate",
+          "eigen"
+        ],
+        "measured": 2,
+        "not_measured": 0,
+        "unaccounted": 0
+      }
+    },
+    "scalars": {
+      "f64": {
+        "measured": 2,
+        "not_measured": 0
+      }
+    },
+    "totals": {
+      "measured": 2,
+      "not_measured": 0,
+      "unaccounted": 0
+    }
+  },
+  "generated_utc": "2026-08-20T00:00:00Z",
+  "kind": "eigen-benchmark-comparison-merged",
+  "ops_toml_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "reducer_version": "1.0.0",
+  "schema_version": "1.0.0"
+}

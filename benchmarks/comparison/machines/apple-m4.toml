@@ -1,0 +1,107 @@
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
+
+# Machine profile for the comparison harness. See CONTRACTS.md section 7.
+#
+# Every static fact below was read off this machine with `sysctl`, `uname`,
+# `sw_vers` and `c++ --version`; nothing here is estimated. `run.py` re-probes
+# the facts it can and records the probed value, so a stale entry here shows up
+# as a warning rather than as a wrong published number.
+
+schema_version = "1.0.0"
+
+id = "apple-m4"
+display_name = "Apple M4 (10-core, 4P+6E), MacBook Pro"
+cpu_model = "Apple M4"
+arch = "arm64"
+
+# Set once the profile has been checked against the hardware it names.
+locally_verified = true
+
+isa_targets = ["aarch64-neon"]
+default_isa_target = "aarch64-neon"
+
+sockets = 1
+cores_per_socket = 10
+threads_per_core = 1
+smt_enabled = false
+numa_nodes = 1
+
+# run.py refuses to measure above this 1-minute load average without
+# --allow-noisy. This is an interactive laptop, so exceeding it is normal and
+# the refusal is the point: a benchmark run has to be a deliberate quiet-machine
+# act, not something that happens next to a build.
+max_load_avg = 1.0
+
+microarchitecture = "Apple M4 (ARMv9.2-A, 4 performance + 6 efficiency cores)"
+
+notes = """
+Heterogeneous performance/efficiency part: 4 P-cores (128 KiB L1d, 16 MiB shared
+L2) and 6 E-cores (64 KiB L1d, 4 MiB shared L2). macOS provides no thread-to-core
+affinity API comparable to taskset, so a run cannot be confined to the P-cores;
+[pinning].tool is "none" and run.py writes a /provenance/numa/cpu_binding gap for
+every run made here. Treat single-threaded numbers from this machine as "whatever
+core the scheduler chose", and prefer a pinned Linux host for anything published.
+24 GiB unified memory; 128-byte cache line.
+"""
+
+[frequency]
+# macOS exposes no user-selectable governor or power policy to a user process.
+# The empty string means "the platform has none"; run.py emits a
+# /provenance/cpu/frequency_governor provenance_gaps entry for it.
+governor = ""
+pinned = false
+
+[pinning]
+# There is nothing to select on macOS. `unavailable_reason` is what run.py
+# records in the /provenance/numa/cpu_binding gap, so a result file states the
+# platform limitation rather than merely leaving the binding null.
+tool = "none"
+unavailable_reason = """
+macOS exposes no CPU-affinity API equivalent to taskset or numactl, so the run \
+could not be confined to the four performance cores of this hybrid part. Any \
+thread may have been scheduled on a 4 MiB-L2 efficiency core for part of the \
+run, which is the dominant uncertainty in every number measured here.\
+"""
+
+[build]
+generator = "Ninja"
+build_type = "Release"
+cxx_standard = 17
+
+# --------------------------------------------------------------------------
+# Reference arms
+# --------------------------------------------------------------------------
+# Apple Accelerate is the only BLAS/LAPACK on this machine: there is no
+# OpenBLAS, MKL or BLIS installation. The vendor key is all that is passed;
+# comparison/vendors.cmake owns the BLA_VENDOR spelling (Apple), the cblas.h
+# hints inside the framework, and the deprecation-warning suppression. Setting
+# BLA_VENDOR here would pin FindBLAS's one-shot BLAS::BLAS target behind the
+# table's back. Note cmake/FindAccelerate.cmake is a different module, for the
+# Accelerate *sparse* backend, and is not usable for BLAS.
+
+[arms.accelerate]
+library_name = "Apple Accelerate"
+cmake_options = ["-DEIGEN_BENCH_REFERENCE=accelerate"]
+# Accelerate exposes no version query, so the product version is the best
+# available attribution. Update it with the OS; it is what a reader has to
+# defend the number against. Probed: `sw_vers` -> macOS 26.6.2, build 25G83.
+version_fallback = "Apple Accelerate, macOS 26.6.2 (build 25G83)"
+threading_model = "gcd"
+interface = "lp64"
+provides = ["blas", "cblas", "lapack"]
+# Accelerate reads VECLIB_MAXIMUM_THREADS. "{threads}" is substituted with the
+# run's thread count, so a multithreaded run does not silently keep a
+# single-threaded reference (or the reverse). A literal value would pin the
+# library regardless of the run, which is what to write for a library that must
+# stay sequential.
+thread_env = { VECLIB_MAXIMUM_THREADS = "{threads}" }
+
+[isa."aarch64-neon"]
+# Advanced SIMD is baseline on arm64; Apple clang targets the host by default,
+# so there are no flags to add. EIGEN_BENCH_ISA_TARGET is pinned anyway:
+# comparison/CMakeLists.txt otherwise infers the key from the flag string, and
+# an inferred key that disagreed with this profile would split the merge config
+# in reduce.py for no reason.
+flags = []
+cmake_options = ["-DEIGEN_BENCH_ISA_TARGET=aarch64-neon"]
