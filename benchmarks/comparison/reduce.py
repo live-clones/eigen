@@ -621,6 +621,14 @@ def _parse_timestamp(value: Any) -> "_datetime.datetime":
 
 
 def _resolve_conflict(previous: Dict[str, Any], candidate: Dict[str, Any], policy: str):
+    # A measured row always outranks a not_measured one for the same key, under
+    # EVERY policy. This precedence used to be skipped for "first", so a run that
+    # merely declined to measure a cell -- an --ops filter, a crash, an excluded
+    # group -- could erase a real measurement of it purely by being older.
+    if previous.get("state") == "measured" and candidate.get("state") != "measured":
+        return previous, candidate
+    if candidate.get("state") == "measured" and previous.get("state") != "measured":
+        return candidate, previous
     if policy == "first":
         # Oldest measurement, not "whichever file was read first". Inputs are
         # processed in sorted-pathname order, so the old behaviour made the winner
@@ -630,12 +638,6 @@ def _resolve_conflict(previous: Dict[str, Any], candidate: Dict[str, Any], polic
         if _parse_timestamp(candidate.get("timestamp_utc")) < _parse_timestamp(previous.get("timestamp_utc")):
             return candidate, previous
         return previous, candidate
-    # latest / error / keep-all all rank by timestamp; a measured row always
-    # outranks a not_measured one for the same key.
-    if previous.get("state") == "measured" and candidate.get("state") != "measured":
-        return previous, candidate
-    if candidate.get("state") == "measured" and previous.get("state") != "measured":
-        return candidate, previous
     if _parse_timestamp(candidate.get("timestamp_utc")) >= _parse_timestamp(previous.get("timestamp_utc")):
         return candidate, previous
     return previous, candidate
