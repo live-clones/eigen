@@ -20,12 +20,26 @@ namespace Eigen {
 
 namespace internal {
 
+/**
+ * \internal
+ * Computes the inverse of a positive-definite Hermitian/symmetric matrix using
+ * Cholesky decomposition on the data in the LOWER triangle.
+ */
+
 /********************************
 *** Fixed size implementation ***
 ********************************/
 
 template <typename MatrixType, typename ResultType, int Size = MatrixType::ColsAtCompileTime>
 struct compute_inverse_cholesky {
+  template <typename Dummy = MatrixType,
+            std::enable_if_t<NumTraits<typename Dummy::Scalar>::IsComplex && (Size > 6), int> = 0>
+  EIGEN_DEVICE_FUNC static inline void run(const MatrixType& m, ResultType& result) {
+    result = m.template selfadjointView<Eigen::Lower>().llt().solve(ResultType::Identity());
+  }
+
+  template <typename Dummy = MatrixType,
+            std::enable_if_t<!(NumTraits<typename Dummy::Scalar>::IsComplex && (Size > 6)) && (Size < 32), int> = 0>
   EIGEN_DEVICE_FUNC static inline void run(const MatrixType& m, ResultType& result) {
     using T = typename ResultType::Scalar;
     T a[Size][Size];
@@ -33,7 +47,7 @@ struct compute_inverse_cholesky {
     for (int i = 0; i < Size; ++i) {
       a[i][i] = m.coeff(i, i);
       for (int j = i + 1; j < Size; ++j) {
-        a[j][i] = m.coeff(i, j);
+        a[j][i] = m.coeff(j, i);
       }
     }
 
@@ -82,6 +96,63 @@ struct compute_inverse_cholesky {
     }
     result.coeffRef(Size - 1, Size - 1) = a[Size - 1][Size - 1];
   }
+
+    template <typename Dummy = MatrixType,
+            std::enable_if_t<!(NumTraits<typename Dummy::Scalar>::IsComplex && (Size > 6)) && (Size >= 32), int> = 0>
+  EIGEN_DEVICE_FUNC static inline void run(const MatrixType& m, ResultType& result) {
+    using T = typename ResultType::Scalar;
+
+    for (int i = 0; i < Size; ++i) {
+      result.coeffRef(i, i) = m.coeff(i, i);
+      for (int j = i + 1; j < Size; ++j) {
+        result.coeffRef(j, i) = m.coeff(j, i);
+      }
+    }
+
+    for (int j = 0; j < Size; ++j) {
+      result.coeffRef(j, j) = T(1) / result.coeff(j, j);
+      const int jp1 = j + 1;
+      for (int l = jp1; l < Size; ++l) {
+        result.coeffRef(j, l) = result.coeff(j, j) * result.coeff(l, j);
+        T sum = -result.coeff(l, jp1);
+        for (int i = 0; i < jp1; ++i) {
+          sum += result.coeff(l, i) * result.coeff(i, jp1);
+        }
+        result.coeffRef(l, jp1) = -sum;
+      }
+    }
+
+    for (int j = 1; j < Size; ++j) {
+      const int jm1 = j - 1;
+      for (int k = 0; k < jm1; ++k) {
+        T sum = result.coeff(k, j);
+        for (int i = k; i < jm1; ++i) {
+          sum += result.coeff(k, i + 1) * result.coeff(i + 1, j);
+        }
+        result.coeffRef(k, j) = -sum;
+        result.coeffRef(j, k) = -sum * result.coeff(j, j);
+      }
+      result.coeffRef(jm1, j) = -result.coeff(jm1, j);
+      result.coeffRef(j, jm1) = result.coeff(jm1, j) * result.coeff(j, j);
+    }
+
+    for (int j = 0; j < Size - 1; ++j) {
+      T sum = result.coeff(j, j);
+      for (int i = j + 1; i < Size; ++i) {
+        sum += result.coeff(j, i) * result.coeff(i, j);
+      }
+
+      const int jp1 = j + 1;
+      for (int k = 0; k < jp1; ++k) {
+        T off_diag_sum = T(0);
+        for (int i = jp1; i < Size; ++i) {
+          off_diag_sum += result.coeff(k, i) * result.coeff(i, jp1);
+        }
+        result.coeffRef(k, jp1) = result.coeffRef(jp1, k) = off_diag_sum;
+      }
+      result.coeffRef(j, j) = sum;
+    }
+  }
 };
 
 /**********************************
@@ -91,7 +162,8 @@ struct compute_inverse_cholesky {
 template <typename MatrixType, typename ResultType>
 struct compute_inverse_cholesky<MatrixType, ResultType, Eigen::Dynamic> {
   EIGEN_DEVICE_FUNC static inline void run(const MatrixType& matrix, ResultType& result) {
-    result = matrix.llt().solve(ResultType::Identity(matrix.rows(), matrix.cols()));
+    result =
+        matrix.template selfadjointView<Eigen::Lower>().llt().solve(ResultType::Identity(matrix.rows(), matrix.cols()));
   }
 };
 
@@ -114,8 +186,10 @@ struct compute_inverse_cholesky<MatrixType, ResultType, 1> {
 template <typename MatrixType, typename ResultType>
 EIGEN_DEVICE_FUNC inline void compute_inverse_cholesky_size2_helper(const MatrixType& m, ResultType& result) {
   using F = typename ResultType::Scalar;
+  using numext::abs2;
+
   auto luc0 = F(1.0) / m.coeff(0, 0);
-  auto luc1 = m.coeff(1, 0) * m.coeff(1, 0) * luc0;
+  auto luc1 = abs2(m.coeff(1, 0)) * luc0;
   auto luc2 = F(1.0) / (m.coeff(1, 1) - luc1);
 
   auto li21 = luc1 * luc0 * luc2;
@@ -127,7 +201,8 @@ EIGEN_DEVICE_FUNC inline void compute_inverse_cholesky_size2_helper(const Matrix
 
 template <typename MatrixType>
 EIGEN_DEVICE_FUNC inline void symmetrize_size2_helper(MatrixType& matrix) {
-  matrix.coeffRef(0, 1) = matrix.coeff(1, 0);
+  using numext::conj;
+  matrix.coeffRef(0, 1) = conj(matrix.coeff(1, 0));
 }
 
 template <typename MatrixType, typename ResultType>
@@ -145,22 +220,23 @@ struct compute_inverse_cholesky<MatrixType, ResultType, 2> {
 template <typename MatrixType, typename ResultType>
 EIGEN_DEVICE_FUNC inline void compute_inverse_cholesky_size3_helper(MatrixType const& m, ResultType& result) {
   using F = typename ResultType::Scalar;
+  using numext::abs2;
+  using numext::conj;
+
   auto luc0 = F(1.0) / m.coeff(0, 0);
   auto luc1 = m.coeff(1, 0);
-  auto luc2 = m.coeff(1, 1) - luc0 * luc1 * luc1;
-  luc2 = F(1.0) / luc2;
+  auto luc2 = F(1.0) / (m.coeff(1, 1) - luc0 * abs2(luc1));
   auto luc3 = m.coeff(2, 0);
-  auto luc4 = (m.coeff(2, 1) - luc0 * luc1 * luc3);
-  auto luc5 = m.coeff(2, 2) - (luc0 * luc3 * luc3 + (luc2 * luc4) * luc4);
-  luc5 = F(1.0) / luc5;
+  auto luc4 = m.coeff(2, 1) - luc0 * conj(luc1) * luc3;
+  auto luc5 = F(1.0) / (m.coeff(2, 2) - (luc0 * abs2(luc3) + luc2 * abs2(luc4)));
 
   auto li21 = -luc0 * luc1;
-  auto li32 = -(luc2 * luc4);
-  auto li31 = (luc1 * (luc2 * luc4) - luc3) * luc0;
+  auto li32 = -luc2 * luc4;
+  auto li31 = -luc0 * luc3 + li32 * li21;
 
-  result.coeffRef(0, 0) = luc5 * li31 * li31 + li21 * li21 * luc2 + luc0;
-  result.coeffRef(1, 0) = luc5 * li31 * li32 + li21 * luc2;
-  result.coeffRef(1, 1) = luc5 * li32 * li32 + luc2;
+  result.coeffRef(0, 0) = luc5 * abs2(li31) + abs2(li21) * luc2 + luc0;
+  result.coeffRef(1, 0) = luc5 * li31 * conj(li32) + luc2 * li21;
+  result.coeffRef(1, 1) = luc5 * abs2(li32) + luc2;
   result.coeffRef(2, 0) = luc5 * li31;
   result.coeffRef(2, 1) = luc5 * li32;
   result.coeffRef(2, 2) = luc5;
@@ -168,9 +244,10 @@ EIGEN_DEVICE_FUNC inline void compute_inverse_cholesky_size3_helper(MatrixType c
 
 template <typename MatrixType>
 EIGEN_DEVICE_FUNC inline void symmetrize_size3_helper(MatrixType& matrix) {
+  using numext::conj;
   symmetrize_size2_helper(matrix);
-  matrix.coeffRef(0, 2) = matrix.coeff(2, 0);
-  matrix.coeffRef(1, 2) = matrix.coeff(2, 1);
+  matrix.coeffRef(0, 2) = conj(matrix.coeff(2, 0));
+  matrix.coeffRef(1, 2) = conj(matrix.coeff(2, 1));
 }
 
 template <typename MatrixType, typename ResultType>
@@ -188,33 +265,33 @@ struct compute_inverse_cholesky<MatrixType, ResultType, 3> {
 template <typename MatrixType, typename ResultType>
 EIGEN_DEVICE_FUNC inline void compute_inverse_cholesky_size4_helper(MatrixType const& m, ResultType& result) {
   using F = typename ResultType::Scalar;
+  using numext::abs2;
+  using numext::conj;
+
   auto luc0 = F(1.0) / m.coeff(0, 0);
   auto luc1 = m.coeff(1, 0);
-  auto luc2 = m.coeff(1, 1) - luc0 * luc1 * luc1;
-  luc2 = F(1.0) / luc2;
+  auto luc2 = F(1.0) / (m.coeff(1, 1) - luc0 * abs2(luc1));
   auto luc3 = m.coeff(2, 0);
-  auto luc4 = (m.coeff(2, 1) - luc0 * luc1 * luc3);
-  auto luc5 = m.coeff(2, 2) - (luc0 * luc3 * luc3 + luc2 * luc4 * luc4);
-  luc5 = F(1.0) / luc5;
+  auto luc4 = m.coeff(2, 1) - luc0 * conj(luc1) * luc3;
+  auto luc5 = F(1.0) / (m.coeff(2, 2) - (luc0 * abs2(luc3) + luc2 * abs2(luc4)));
   auto luc6 = m.coeff(3, 0);
-  auto luc7 = (m.coeff(3, 1) - luc0 * luc1 * luc6);
-  auto luc8 = (m.coeff(3, 2) - luc0 * luc3 * luc6 - luc2 * luc4 * luc7);
-  auto luc9 = m.coeff(3, 3) - (luc0 * luc6 * luc6 + luc2 * luc7 * luc7 + luc8 * (luc8 * luc5));
-  luc9 = F(1.0) / luc9;
+  auto luc7 = m.coeff(3, 1) - luc0 * conj(luc1) * luc6;
+  auto luc8 = m.coeff(3, 2) - luc0 * conj(luc3) * luc6 - luc2 * conj(luc4) * luc7;
+  auto luc9 = F(1.0) / (m.coeff(3, 3) - luc0 * abs2(luc6) - luc2 * abs2(luc7) - luc5 * abs2(luc8));
 
-  auto li21 = -luc1 * luc0;
+  auto li21 = -luc0 * luc1;
   auto li32 = -luc2 * luc4;
-  auto li31 = (luc1 * (luc2 * luc4) - luc3) * luc0;
-  auto li43 = -(luc8 * luc5);
-  auto li42 = (luc4 * luc8 * luc5 - luc7) * luc2;
-  auto li41 = (-luc1 * (luc2 * luc4) * (luc8 * luc5) + luc1 * (luc2 * luc7) + luc3 * (luc8 * luc5) - luc6) * luc0;
+  auto li31 = -luc0 * luc3 + li32 * li21;
+  auto li43 = -luc5 * luc8;
+  auto li42 = -luc2 * luc7 + li43 * li32;
+  auto li41 = -luc0 * luc6 - luc2 * luc7 * li21 + li31 * li43;
 
-  result.coeffRef(0, 0) = luc9 * li41 * li41 + luc5 * li31 * li31 + luc2 * li21 * li21 + luc0;
-  result.coeffRef(1, 0) = luc9 * li41 * li42 + luc5 * li31 * li32 + luc2 * li21;
-  result.coeffRef(1, 1) = luc9 * li42 * li42 + luc5 * li32 * li32 + luc2;
-  result.coeffRef(2, 0) = luc9 * li41 * li43 + luc5 * li31;
-  result.coeffRef(2, 1) = luc9 * li42 * li43 + luc5 * li32;
-  result.coeffRef(2, 2) = luc9 * li43 * li43 + luc5;
+  result.coeffRef(0, 0) = luc9 * abs2(li41) + luc5 * abs2(li31) + luc2 * abs2(li21) + luc0;
+  result.coeffRef(1, 0) = luc9 * conj(li42) * li41 + luc5 * conj(li32) * li31 + luc2 * li21;
+  result.coeffRef(1, 1) = luc9 * abs2(li42) + luc5 * abs2(li32) + luc2;
+  result.coeffRef(2, 0) = luc9 * conj(li43) * li41 + luc5 * li31;
+  result.coeffRef(2, 1) = luc9 * conj(li43) * li42 + luc5 * li32;
+  result.coeffRef(2, 2) = luc9 * abs2(li43) + luc5;
   result.coeffRef(3, 0) = luc9 * li41;
   result.coeffRef(3, 1) = luc9 * li42;
   result.coeffRef(3, 2) = luc9 * li43;
@@ -223,10 +300,11 @@ EIGEN_DEVICE_FUNC inline void compute_inverse_cholesky_size4_helper(MatrixType c
 
 template <typename MatrixType>
 EIGEN_DEVICE_FUNC inline void symmetrize_size4_helper(MatrixType& matrix) {
+  using numext::conj;
   symmetrize_size3_helper(matrix);
-  matrix.coeffRef(0, 3) = matrix.coeff(3, 0);
-  matrix.coeffRef(1, 3) = matrix.coeff(3, 1);
-  matrix.coeffRef(2, 3) = matrix.coeff(3, 2);
+  matrix.coeffRef(0, 3) = conj(matrix.coeff(3, 0));
+  matrix.coeffRef(1, 3) = conj(matrix.coeff(3, 1));
+  matrix.coeffRef(2, 3) = conj(matrix.coeff(3, 2));
 }
 
 template <typename MatrixType, typename ResultType>
@@ -244,51 +322,49 @@ struct compute_inverse_cholesky<MatrixType, ResultType, 4> {
 template <typename MatrixType, typename ResultType>
 EIGEN_DEVICE_FUNC inline void compute_inverse_cholesky_size5_helper(MatrixType const& m, ResultType& result) {
   using F = typename ResultType::Scalar;
+  using numext::abs2;
+  using numext::conj;
+
   auto luc0 = F(1.0) / m.coeff(0, 0);
   auto luc1 = m.coeff(1, 0);
-  auto luc2 = m.coeff(1, 1) - luc0 * luc1 * luc1;
-  luc2 = F(1.0) / luc2;
+  auto luc2 = F(1.0) / (m.coeff(1, 1) - luc0 * abs2(luc1));
   auto luc3 = m.coeff(2, 0);
-  auto luc4 = (m.coeff(2, 1) - luc0 * luc1 * luc3);
-  auto luc5 = m.coeff(2, 2) - (luc0 * luc3 * luc3 + luc2 * luc4 * luc4);
-  luc5 = F(1.0) / luc5;
+  auto luc4 = m.coeff(2, 1) - luc0 * conj(luc1) * luc3;
+  auto luc5 = F(1.0) / (m.coeff(2, 2) - (luc0 * abs2(luc3) + luc2 * abs2(luc4)));
   auto luc6 = m.coeff(3, 0);
-  auto luc7 = (m.coeff(3, 1) - luc0 * luc1 * luc6);
-  auto luc8 = (m.coeff(3, 2) - luc0 * luc3 * luc6 - luc2 * luc4 * luc7);
-  auto luc9 = m.coeff(3, 3) - (luc0 * luc6 * luc6 + luc2 * luc7 * luc7 + luc8 * (luc8 * luc5));
-  luc9 = F(1.0) / luc9;
+  auto luc7 = m.coeff(3, 1) - luc0 * conj(luc1) * luc6;
+  auto luc8 = m.coeff(3, 2) - luc0 * conj(luc3) * luc6 - luc2 * conj(luc4) * luc7;
+  auto luc9 = F(1.0) / (m.coeff(3, 3) - (luc0 * abs2(luc6) + luc2 * abs2(luc7) + luc5 * abs2(luc8)));
   auto luc10 = m.coeff(4, 0);
-  auto luc11 = (m.coeff(4, 1) - luc0 * luc1 * luc10);
-  auto luc12 = (m.coeff(4, 2) - luc0 * luc3 * luc10 - luc2 * luc4 * luc11);
-  auto luc13 = (m.coeff(4, 3) - luc0 * luc6 * luc10 - luc2 * luc7 * luc11 - luc5 * luc8 * luc12);
+  auto luc11 = m.coeff(4, 1) - luc0 * conj(luc1) * luc10;
+  auto luc12 = m.coeff(4, 2) - luc0 * conj(luc3) * luc10 - luc2 * conj(luc4) * luc11;
+  auto luc13 = m.coeff(4, 3) - luc0 * conj(luc6) * luc10 - luc2 * conj(luc7) * luc11 - luc5 * conj(luc8) * luc12;
   auto luc14 =
-      m.coeff(4, 4) - (luc0 * luc10 * luc10 + luc2 * luc11 * luc11 + luc5 * luc12 * luc12 + luc9 * luc13 * luc13);
-  luc14 = F(1.0) / luc14;
+      F(1.0) / (m.coeff(4, 4) - (luc0 * abs2(luc10) + luc2 * abs2(luc11) + luc5 * abs2(luc12) + luc9 * abs2(luc13)));
 
-  auto li21 = -luc1 * luc0;
+  auto li21 = -luc0 * luc1;
   auto li32 = -luc2 * luc4;
-  auto li31 = (luc1 * (luc2 * luc4) - luc3) * luc0;
-  auto li43 = -(luc8 * luc5);
-  auto li42 = (luc4 * luc8 * luc5 - luc7) * luc2;
-  auto li41 = (-luc1 * (luc2 * luc4) * (luc8 * luc5) + luc1 * (luc2 * luc7) + luc3 * (luc8 * luc5) - luc6) * luc0;
-  auto li54 = -luc13 * luc9;
-  auto li53 = (luc13 * luc8 * luc9 - luc12) * luc5;
-  auto li52 = (-luc4 * luc8 * luc13 * luc5 * luc9 + luc4 * luc12 * luc5 + luc7 * luc13 * luc9 - luc11) * luc2;
-  auto li51 = (luc1 * luc4 * luc8 * luc13 * luc2 * luc5 * luc9 - luc13 * luc8 * luc3 * luc9 * luc5 -
-               luc12 * luc4 * luc1 * luc2 * luc5 - luc13 * luc7 * luc1 * luc9 * luc2 + luc11 * luc1 * luc2 +
-               luc12 * luc3 * luc5 + luc13 * luc6 * luc9 - luc10) *
-              luc0;
+  auto li31 = -luc0 * luc3 + li32 * li21;
 
-  result.coeffRef(0, 0) = luc14 * li51 * li51 + luc9 * li41 * li41 + luc5 * li31 * li31 + luc2 * li21 * li21 + luc0;
-  result.coeffRef(1, 0) = luc14 * li51 * li52 + luc9 * li41 * li42 + luc5 * li31 * li32 + luc2 * li21;
-  result.coeffRef(1, 1) = luc14 * li52 * li52 + luc9 * li42 * li42 + luc5 * li32 * li32 + luc2;
-  result.coeffRef(2, 0) = luc14 * li51 * li53 + luc9 * li41 * li43 + luc5 * li31;
-  result.coeffRef(2, 1) = luc14 * li52 * li53 + luc9 * li42 * li43 + luc5 * li32;
-  result.coeffRef(2, 2) = luc14 * li53 * li53 + luc9 * li43 * li43 + luc5;
-  result.coeffRef(3, 0) = luc14 * li51 * li54 + luc9 * li41;
-  result.coeffRef(3, 1) = luc14 * li52 * li54 + luc9 * li42;
-  result.coeffRef(3, 2) = luc14 * li53 * li54 + luc9 * li43;
-  result.coeffRef(3, 3) = luc14 * li54 * li54 + luc9;
+  auto li43 = -luc5 * luc8;
+  auto li42 = -luc2 * luc7 + li43 * li32;
+  auto li41 = -luc0 * luc6 - luc2 * luc7 * li21 + li43 * li31;
+
+  auto li54 = -luc9 * luc13;
+  auto li53 = -luc5 * luc12 + li54 * li43;
+  auto li52 = -luc2 * luc11 - luc5 * luc12 * li32 + li54 * li42;
+  auto li51 = -luc0 * luc10 - luc2 * luc11 * li21 - luc5 * luc12 * li31 + li54 * li41;
+
+  result.coeffRef(0, 0) = luc14 * abs2(li51) + luc9 * abs2(li41) + luc5 * abs2(li31) + luc2 * abs2(li21) + luc0;
+  result.coeffRef(1, 0) = luc14 * conj(li52) * li51 + luc9 * conj(li42) * li41 + luc5 * conj(li32) * li31 + luc2 * li21;
+  result.coeffRef(1, 1) = luc14 * abs2(li52) + luc9 * abs2(li42) + luc5 * abs2(li32) + luc2;
+  result.coeffRef(2, 0) = luc14 * conj(li53) * li51 + luc9 * conj(li43) * li41 + luc5 * li31;
+  result.coeffRef(2, 1) = luc14 * conj(li53) * li52 + luc9 * conj(li43) * li42 + luc5 * li32;
+  result.coeffRef(2, 2) = luc14 * abs2(li53) + luc9 * abs2(li43) + luc5;
+  result.coeffRef(3, 0) = luc14 * conj(li54) * li51 + luc9 * li41;
+  result.coeffRef(3, 1) = luc14 * conj(li54) * li52 + luc9 * li42;
+  result.coeffRef(3, 2) = luc14 * conj(li54) * li53 + luc9 * li43;
+  result.coeffRef(3, 3) = luc14 * abs2(li54) + luc9;
   result.coeffRef(4, 0) = luc14 * li51;
   result.coeffRef(4, 1) = luc14 * li52;
   result.coeffRef(4, 2) = luc14 * li53;
@@ -298,11 +374,12 @@ EIGEN_DEVICE_FUNC inline void compute_inverse_cholesky_size5_helper(MatrixType c
 
 template <typename MatrixType>
 EIGEN_DEVICE_FUNC inline void symmetrize_size5_helper(MatrixType& matrix) {
+  using numext::conj;
   symmetrize_size4_helper(matrix);
-  matrix.coeffRef(0, 4) = matrix.coeff(4, 0);
-  matrix.coeffRef(1, 4) = matrix.coeff(4, 1);
-  matrix.coeffRef(2, 4) = matrix.coeff(4, 2);
-  matrix.coeffRef(3, 4) = matrix.coeff(4, 3);
+  matrix.coeffRef(0, 4) = conj(matrix.coeff(4, 0));
+  matrix.coeffRef(1, 4) = conj(matrix.coeff(4, 1));
+  matrix.coeffRef(2, 4) = conj(matrix.coeff(4, 2));
+  matrix.coeffRef(3, 4) = conj(matrix.coeff(4, 3));
 }
 
 template <typename MatrixType, typename ResultType>
@@ -320,82 +397,77 @@ struct compute_inverse_cholesky<MatrixType, ResultType, 5> {
 template <typename MatrixType, typename ResultType>
 EIGEN_DEVICE_FUNC inline void compute_inverse_cholesky_size6_helper(MatrixType const& m, ResultType& result) {
   using F = typename ResultType::Scalar;
+  using numext::abs2;
+  using numext::conj;
+
+  // D diagonals inverse (luc0, luc2, luc5, luc9, luc14, luc20)
   auto luc0 = F(1.0) / m.coeff(0, 0);
   auto luc1 = m.coeff(1, 0);
-  auto luc2 = m.coeff(1, 1) - luc0 * luc1 * luc1;
-  luc2 = F(1.0) / luc2;
-  auto luc3 = m.coeff(2, 0);
-  auto luc4 = (m.coeff(2, 1) - luc0 * luc1 * luc3);
-  auto luc5 = m.coeff(2, 2) - (luc0 * luc3 * luc3 + luc2 * luc4 * luc4);
-  luc5 = F(1.0) / luc5;
-  auto luc6 = m.coeff(3, 0);
-  auto luc7 = (m.coeff(3, 1) - luc0 * luc1 * luc6);
-  auto luc8 = (m.coeff(3, 2) - luc0 * luc3 * luc6 - luc2 * luc4 * luc7);
-  auto luc9 = m.coeff(3, 3) - (luc0 * luc6 * luc6 + luc2 * luc7 * luc7 + luc8 * (luc8 * luc5));
-  luc9 = F(1.0) / luc9;
-  auto luc10 = m.coeff(4, 0);
-  auto luc11 = (m.coeff(4, 1) - luc0 * luc1 * luc10);
-  auto luc12 = (m.coeff(4, 2) - luc0 * luc3 * luc10 - luc2 * luc4 * luc11);
-  auto luc13 = (m.coeff(4, 3) - luc0 * luc6 * luc10 - luc2 * luc7 * luc11 - luc5 * luc8 * luc12);
-  auto luc14 =
-      m.coeff(4, 4) - (luc0 * luc10 * luc10 + luc2 * luc11 * luc11 + luc5 * luc12 * luc12 + luc9 * luc13 * luc13);
-  luc14 = F(1.0) / luc14;
-  auto luc15 = m.coeff(5, 0);
-  auto luc16 = (m.coeff(5, 1) - luc0 * luc1 * luc15);
-  auto luc17 = (m.coeff(5, 2) - luc0 * luc3 * luc15 - luc2 * luc4 * luc16);
-  auto luc18 = (m.coeff(5, 3) - luc0 * luc6 * luc15 - luc2 * luc7 * luc16 - luc5 * luc8 * luc17);
-  auto luc19 =
-      (m.coeff(5, 4) - luc0 * luc10 * luc15 - luc2 * luc11 * luc16 - luc5 * luc12 * luc17 - luc9 * luc13 * luc18);
-  auto luc20 = m.coeff(5, 5) - (luc0 * luc15 * luc15 + luc2 * luc16 * luc16 + luc5 * luc17 * luc17 +
-                                luc9 * luc18 * luc18 + luc14 * luc19 * luc19);
-  luc20 = F(1.0) / luc20;
+  auto luc2 = F(1.0) / (m.coeff(1, 1) - luc0 * abs2(luc1));
 
-  auto li21 = -luc1 * luc0;
+  auto luc3 = m.coeff(2, 0);
+  auto luc4 = m.coeff(2, 1) - luc0 * conj(luc1) * luc3;
+  auto luc5 = F(1.0) / (m.coeff(2, 2) - (luc0 * abs2(luc3) + luc2 * abs2(luc4)));
+
+  auto luc6 = m.coeff(3, 0);
+  auto luc7 = m.coeff(3, 1) - luc0 * conj(luc1) * luc6;
+  auto luc8 = m.coeff(3, 2) - (luc0 * conj(luc3) * luc6 + luc2 * conj(luc4) * luc7);
+  auto luc9 = F(1.0) / (m.coeff(3, 3) - (luc0 * abs2(luc6) + luc2 * abs2(luc7) + luc5 * abs2(luc8)));
+
+  auto luc10 = m.coeff(4, 0);
+  auto luc11 = m.coeff(4, 1) - luc0 * conj(luc1) * luc10;
+  auto luc12 = m.coeff(4, 2) - luc0 * conj(luc3) * luc10 - luc2 * conj(luc4) * luc11;
+  auto luc13 = m.coeff(4, 3) - luc0 * conj(luc6) * luc10 - luc2 * conj(luc7) * luc11 - luc5 * conj(luc8) * luc12;
+  auto luc14 =
+      F(1.0) / (m.coeff(4, 4) - (luc0 * abs2(luc10) + luc2 * abs2(luc11) + luc5 * abs2(luc12) + luc9 * abs2(luc13)));
+
+  auto luc15 = m.coeff(5, 0);
+  auto luc16 = m.coeff(5, 1) - luc0 * conj(luc1) * luc15;
+  auto luc17 = m.coeff(5, 2) - luc0 * conj(luc3) * luc15 - luc2 * conj(luc4) * luc16;
+  auto luc18 = m.coeff(5, 3) - luc0 * conj(luc6) * luc15 - luc2 * conj(luc7) * luc16 - luc5 * conj(luc8) * luc17;
+  auto luc19 = m.coeff(5, 4) - luc0 * conj(luc10) * luc15 - luc2 * conj(luc11) * luc16 - luc5 * conj(luc12) * luc17 -
+               luc9 * conj(luc13) * luc18;
+  auto luc20 = F(1.0) / (m.coeff(5, 5) - luc0 * abs2(luc15) - luc2 * abs2(luc16) - luc5 * abs2(luc17) -
+                         luc9 * abs2(luc18) - luc14 * abs2(luc19));
+
+  auto li21 = -luc0 * luc1;
   auto li32 = -luc2 * luc4;
-  auto li31 = (luc1 * (luc2 * luc4) - luc3) * luc0;
-  auto li43 = -(luc8 * luc5);
-  auto li42 = (luc4 * luc8 * luc5 - luc7) * luc2;
-  auto li41 = (-luc1 * (luc2 * luc4) * (luc8 * luc5) + luc1 * (luc2 * luc7) + luc3 * (luc8 * luc5) - luc6) * luc0;
-  auto li54 = -luc13 * luc9;
-  auto li53 = (luc13 * luc8 * luc9 - luc12) * luc5;
-  auto li52 = (-luc4 * luc8 * luc13 * luc5 * luc9 + luc4 * luc12 * luc5 + luc7 * luc13 * luc9 - luc11) * luc2;
-  auto li51 = (luc1 * luc4 * luc8 * luc13 * luc2 * luc5 * luc9 - luc13 * luc8 * luc3 * luc9 * luc5 -
-               luc12 * luc4 * luc1 * luc2 * luc5 - luc13 * luc7 * luc1 * luc9 * luc2 + luc11 * luc1 * luc2 +
-               luc12 * luc3 * luc5 + luc13 * luc6 * luc9 - luc10) *
-              luc0;
-  auto li65 = -luc19 * luc14;
-  auto li64 = (luc19 * luc14 * luc13 - luc18) * luc9;
-  auto li63 = (-luc8 * luc13 * (luc19 * luc14) * luc9 + luc8 * luc9 * luc18 + luc12 * (luc19 * luc14) - luc17) * luc5;
-  auto li62 = (luc4 * (luc8 * luc9) * luc13 * luc5 * (luc19 * luc14) - luc18 * luc4 * (luc8 * luc9) * luc5 -
-               luc19 * luc12 * luc4 * luc14 * luc5 - luc19 * luc13 * luc7 * luc14 * luc9 + luc17 * luc4 * luc5 +
-               luc18 * luc7 * luc9 + luc19 * luc11 * luc14 - luc16) *
-              luc2;
-  auto li61 =
-      (-luc19 * luc13 * luc8 * luc4 * luc1 * luc2 * luc5 * luc9 * luc14 +
-       luc18 * luc8 * luc4 * luc1 * luc2 * luc5 * luc9 + luc19 * luc12 * luc4 * luc1 * luc2 * luc5 * luc14 +
-       luc19 * luc13 * luc7 * luc1 * luc2 * luc9 * luc14 + luc19 * luc13 * luc8 * luc3 * luc5 * luc9 * luc14 -
-       luc17 * luc4 * luc1 * luc2 * luc5 - luc18 * luc7 * luc1 * luc2 * luc9 - luc19 * luc11 * luc1 * luc2 * luc14 -
-       luc18 * luc8 * luc3 * luc5 * luc9 - luc19 * luc12 * luc3 * luc5 * luc14 - luc19 * luc13 * luc6 * luc9 * luc14 +
-       luc16 * luc1 * luc2 + luc17 * luc3 * luc5 + luc18 * luc6 * luc9 + luc19 * luc10 * luc14 - luc15) *
-      luc0;
+  auto li31 = -luc0 * luc3 + li21 * li32;
+
+  auto li43 = -luc5 * luc8;
+  auto li42 = -luc2 * luc7 + li32 * li43;
+  auto li41 = -luc0 * luc6 - luc2 * luc7 * li21 + li31 * li43;
+
+  auto li54 = -luc9 * luc13;
+  auto li53 = -luc5 * luc12 + li54 * li43;
+  auto li52 = -luc2 * luc11 - luc5 * luc12 * li32 + li42 * li54;
+  auto li51 = -luc0 * luc10 - luc2 * luc11 * li21 - luc5 * luc12 * li31 + li41 * li54;
+
+  auto li65 = -luc14 * luc19;
+  auto li64 = -luc9 * luc18 + li65 * li54;
+  auto li63 = -luc5 * luc17 - luc9 * luc18 * li43 + li65 * li53;
+  auto li62 = -luc2 * luc16 - luc5 * luc17 * li32 - luc9 * luc18 * li42 + li52 * li65;
+  auto li61 = -luc0 * luc15 - luc2 * luc16 * li21 - luc5 * luc17 * li31 - luc9 * luc18 * li41 + li51 * li65;
 
   result.coeffRef(0, 0) =
-      luc20 * li61 * li61 + luc14 * li51 * li51 + luc9 * li41 * li41 + luc5 * li31 * li31 + luc2 * li21 * li21 + luc0;
-  result.coeffRef(1, 0) =
-      luc20 * li61 * li62 + luc14 * li51 * li52 + luc9 * li41 * li42 + luc5 * li31 * li32 + luc2 * li21;
-  result.coeffRef(1, 1) = luc20 * li62 * li62 + luc14 * li52 * li52 + luc9 * li42 * li42 + luc5 * li32 * li32 + luc2;
-  result.coeffRef(2, 0) = luc20 * li61 * li63 + luc14 * li51 * li53 + luc9 * li41 * li43 + luc5 * li31;
-  result.coeffRef(2, 1) = luc20 * li62 * li63 + luc14 * li52 * li53 + luc9 * li42 * li43 + luc5 * li32;
-  result.coeffRef(2, 2) = luc20 * li63 * li63 + luc14 * li53 * li53 + luc9 * li43 * li43 + luc5;
-  result.coeffRef(3, 0) = luc20 * li61 * li64 + luc14 * li51 * li54 + luc9 * li41;
-  result.coeffRef(3, 1) = luc20 * li62 * li64 + luc14 * li52 * li54 + luc9 * li42;
-  result.coeffRef(3, 2) = luc20 * li63 * li64 + luc14 * li53 * li54 + luc9 * li43;
-  result.coeffRef(3, 3) = luc20 * li64 * li64 + luc14 * li54 * li54 + luc9;
-  result.coeffRef(4, 0) = luc20 * li61 * li65 + luc14 * li51;
-  result.coeffRef(4, 1) = luc20 * li62 * li65 + luc14 * li52;
-  result.coeffRef(4, 2) = luc20 * li63 * li65 + luc14 * li53;
-  result.coeffRef(4, 3) = luc20 * li64 * li65 + luc14 * li54;
-  result.coeffRef(4, 4) = luc20 * li65 * li65 + luc14;
+      luc20 * abs2(li61) + luc14 * abs2(li51) + luc9 * abs2(li41) + luc5 * abs2(li31) + luc2 * abs2(li21) + luc0;
+  result.coeffRef(1, 0) = luc20 * conj(li62) * li61 + luc14 * conj(li52) * li51 + luc9 * conj(li42) * li41 +
+                          luc5 * conj(li32) * li31 + luc2 * li21;
+  result.coeffRef(1, 1) = luc20 * abs2(li62) + luc14 * abs2(li52) + luc9 * abs2(li42) + luc5 * abs2(li32) + luc2;
+  result.coeffRef(2, 0) =
+      luc20 * conj(li63) * li61 + luc14 * conj(li53) * li51 + luc9 * conj(li43) * li41 + luc5 * li31;
+  result.coeffRef(2, 1) =
+      luc20 * conj(li63) * li62 + luc14 * conj(li53) * li52 + luc9 * conj(li43) * li42 + luc5 * li32;
+  result.coeffRef(2, 2) = luc20 * abs2(li63) + luc14 * abs2(li53) + luc9 * abs2(li43) + luc5;
+  result.coeffRef(3, 0) = luc20 * conj(li64) * li61 + luc14 * conj(li54) * li51 + luc9 * li41;
+  result.coeffRef(3, 1) = luc20 * conj(li64) * li62 + luc14 * conj(li54) * li52 + luc9 * li42;
+  result.coeffRef(3, 2) = luc20 * conj(li64) * li63 + luc14 * conj(li54) * li53 + luc9 * li43;
+  result.coeffRef(3, 3) = luc20 * abs2(li64) + luc14 * abs2(li54) + luc9;
+  result.coeffRef(4, 0) = luc20 * conj(li65) * li61 + luc14 * li51;
+  result.coeffRef(4, 1) = luc20 * conj(li65) * li62 + luc14 * li52;
+  result.coeffRef(4, 2) = luc20 * conj(li65) * li63 + luc14 * li53;
+  result.coeffRef(4, 3) = luc20 * conj(li65) * li64 + luc14 * li54;
+  result.coeffRef(4, 4) = luc20 * abs2(li65) + luc14;
   result.coeffRef(5, 0) = luc20 * li61;
   result.coeffRef(5, 1) = luc20 * li62;
   result.coeffRef(5, 2) = luc20 * li63;
@@ -406,12 +478,13 @@ EIGEN_DEVICE_FUNC inline void compute_inverse_cholesky_size6_helper(MatrixType c
 
 template <typename MatrixType>
 EIGEN_DEVICE_FUNC inline void symmetrize_size6_helper(MatrixType& matrix) {
+  using numext::conj;
   symmetrize_size5_helper(matrix);
-  matrix.coeffRef(0, 5) = matrix.coeff(5, 0);
-  matrix.coeffRef(1, 5) = matrix.coeff(5, 1);
-  matrix.coeffRef(2, 5) = matrix.coeff(5, 2);
-  matrix.coeffRef(3, 5) = matrix.coeff(5, 3);
-  matrix.coeffRef(4, 5) = matrix.coeff(5, 4);
+  matrix.coeffRef(0, 5) = conj(matrix.coeff(5, 0));
+  matrix.coeffRef(1, 5) = conj(matrix.coeff(5, 1));
+  matrix.coeffRef(2, 5) = conj(matrix.coeff(5, 2));
+  matrix.coeffRef(3, 5) = conj(matrix.coeff(5, 3));
+  matrix.coeffRef(4, 5) = conj(matrix.coeff(5, 4));
 }
 
 template <typename MatrixType, typename ResultType>
