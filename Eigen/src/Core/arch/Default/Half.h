@@ -570,6 +570,10 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half& operator/=(half& a, const half& b) {
 
 // convert sign-magnitude representation to two's complement
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC int16_t mapToSigned(uint16_t a) {
+#if EIGEN_COMP_NVHPC && EIGEN_COMP_NVHPC <= 2605
+  // NVHPC through 26.5 can miscompile repeated inlined comparisons of the transformed integer representations.
+  EIGEN_OPTIMIZATION_BARRIER(a)
+#endif
   constexpr uint16_t kAbsMask = (1 << 15) - 1;
   // If the sign bit is set, clear the sign bit and return the (integer) negation. Otherwise, return the input.
   return (a >> 15) ? -(a & kAbsMask) : a;
