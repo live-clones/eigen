@@ -521,25 +521,32 @@ EIGEN_DEVICE_FUNC inline typename MatrixType::PlainObject inverse_cholesky_impl(
 *** Dynamic size dispatcher ***
 ******************************/
 
-template <typename MatrixType, size_t... Is>
-EIGEN_DEVICE_FUNC inline bool inverse_cholesky_dynamic_dispatch(const MatrixType& matrix,
-                                                                typename MatrixType::PlainObject& result,
-                                                                std::index_sequence<Is...>) {
-  bool matched = false;
-  std::initializer_list<bool>{
-      ((!matched && matrix.rows() == (1 + Is))
-           ? (compute_inverse_cholesky<MatrixType, typename MatrixType::PlainObject, 1 + Is>::run(matrix, result),
-              matched = true)
-           : false)...};
-  return matched;
-}
-
 template <typename MatrixType>
 EIGEN_DEVICE_FUNC inline typename MatrixType::PlainObject inverse_cholesky_impl(const MatrixType& matrix,
                                                                                 std::false_type) {
   typename MatrixType::PlainObject result(matrix.rows(), matrix.cols());
-  if (!inverse_cholesky_dynamic_dispatch(matrix, result, std::make_index_sequence<6>{})) {
-    compute_inverse_cholesky<MatrixType, typename MatrixType::PlainObject, Eigen::Dynamic>::run(matrix, result);
+  switch (matrix.rows()) {
+    case 1:
+      compute_inverse_cholesky<MatrixType, typename MatrixType::PlainObject, 1>::run(matrix, result);
+      break;
+    case 2:
+      compute_inverse_cholesky<MatrixType, typename MatrixType::PlainObject, 2>::run(matrix, result);
+      break;
+    case 3:
+      compute_inverse_cholesky<MatrixType, typename MatrixType::PlainObject, 3>::run(matrix, result);
+      break;
+    case 4:
+      compute_inverse_cholesky<MatrixType, typename MatrixType::PlainObject, 4>::run(matrix, result);
+      break;
+    case 5:
+      compute_inverse_cholesky<MatrixType, typename MatrixType::PlainObject, 5>::run(matrix, result);
+      break;
+    case 6:
+      compute_inverse_cholesky<MatrixType, typename MatrixType::PlainObject, 6>::run(matrix, result);
+      break;
+    default:
+      compute_inverse_cholesky<MatrixType, typename MatrixType::PlainObject, Eigen::Dynamic>::run(matrix, result);
+      break;
   }
   return result;
 }
