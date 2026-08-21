@@ -24,8 +24,18 @@ enum { Large = 2, Small = 3 };
 // generic_product_impl<Lhs,Rhs,DenseShape,DenseShape,GemmProduct> in
 // products/GeneralMatrixMatrix.h for more details.
 #ifndef EIGEN_GEMM_TO_COEFFBASED_THRESHOLD
+#if defined(EIGEN_VECTORIZE_SME)
+// The SME GEMM path pays a streaming-mode entry and a pack/unpack round trip
+// that the Haswell-tuned default does not model, so it stays behind the
+// coeff-based evaluator for longer. Measured on Apple M4 over n = 4..40 and all
+// four kernel scalar types: this is the flat optimum (39..42 are within 0.3% of
+// each other), and it takes the geometric-mean penalty against a per-size
+// oracle from 1.18x at 20 down to 1.01x, worst case 6.9x to 1.4x.
+#define EIGEN_GEMM_TO_COEFFBASED_THRESHOLD 40
+#else
 // This default value has been obtained on a Haswell architecture.
 #define EIGEN_GEMM_TO_COEFFBASED_THRESHOLD 20
+#endif
 #endif
 
 // Fixed-size products can reach the GEMM product path even when the
@@ -34,7 +44,15 @@ enum { Large = 2, Small = 3 };
 // was tuned on the same Haswell system as the runtime threshold, and deliberately
 // tracks EIGEN_GEMM_TO_COEFFBASED_THRESHOLD unless specialized independently.
 #ifndef EIGEN_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD
+#if defined(EIGEN_VECTORIZE_SME)
+// Measured separately rather than inherited as twice the runtime threshold: on
+// SME the fixed-size crossover sits at 56, where doubling would put it at 80 and
+// cost up to 3.2x on fixed-size products in the high teens and twenties. The
+// optimum is again flat (48..60 within 1%).
+#define EIGEN_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD 56
+#else
 #define EIGEN_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD (2 * EIGEN_GEMM_TO_COEFFBASED_THRESHOLD)
+#endif
 #endif
 
 namespace internal {
