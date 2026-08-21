@@ -1,21 +1,13 @@
 // SPDX-FileCopyrightText: The Eigen Authors
 // SPDX-License-Identifier: MPL-2.0
 
-// Registration machinery for the cross-library comparison benchmarks.
-//
-// One REGISTER_COMPARISON_POINT line emits both the Eigen arm and the
-// reference-library arm of an operation at one shared grid point, with benchmark
-// names that follow the grammar in CONTRACTS.md section 1:
+// Registration machinery for the cross-library comparison benchmarks. Benchmark
+// names follow the grammar in CONTRACTS.md section 1, which run.py parses back:
 //
 //     op "/" arm "/" scalar ( "/" dimname ":" value )+ [ "/threads:" n ]
 //
 // The reference arm registers only when the build linked a vendor library, so the
-// same source compiles and runs as an Eigen-only benchmark with no vendor present.
-//
-// Everything the harness cannot infer about the reference library — its key, name,
-// version, interface width and threading model — is published into the Google
-// Benchmark JSON context by publishArmContext(), which EIGEN_BENCH_COMPARISON_MAIN
-// calls before benchmark::Initialize().
+// same source is a valid Eigen-only benchmark with no vendor present.
 
 #ifndef EIGEN_BENCHMARKS_COMPARISON_BENCH_COMPARE_H
 #define EIGEN_BENCHMARKS_COMPARISON_BENCH_COMPARE_H
@@ -33,14 +25,11 @@
 #include <string>
 #include <vector>
 
-// ---------------------------------------------------------------------------
-// Build-time inputs
-// ---------------------------------------------------------------------------
-// EIGEN_BENCH_REFERENCE_ARM is the only macro that changes what is registered.
-// CMake passes it as a BARE TOKEN (-DEIGEN_BENCH_REFERENCE_ARM=openblas) so that
-// no quoting has to survive the CMake command line; the header stringizes it.
-// Every other macro below is optional metadata; each has a defined fallback so a
-// hand-built binary still produces a well-formed context.
+// EIGEN_BENCH_REFERENCE_ARM is the only macro that changes what is registered,
+// and CMake passes it as a BARE TOKEN (-DEIGEN_BENCH_REFERENCE_ARM=openblas) so
+// that no quoting has to survive the CMake command line. Every other macro here
+// is optional metadata with a defined fallback, so a hand-built binary still
+// produces a well-formed context.
 
 #define EIGEN_BENCH_STRINGIZE_(x) #x
 #define EIGEN_BENCH_STRINGIZE(x) EIGEN_BENCH_STRINGIZE_(x)
@@ -51,37 +40,20 @@
 #define EIGEN_BENCH_REFERENCE_ARM_STR ""
 #endif
 
-// ---------------------------------------------------------------------------
-// Registration
-// ---------------------------------------------------------------------------
-// REGISTER_COMPARISON_POINT registers ONE grid point of one operation for both
-// arms, adjacently. Google Benchmark runs instances in registration order, so
-// registering a whole arm's grid and then the other arm's -- which is what an
-// arrow-chain grid applied to two Benchmark objects does -- puts minutes of
-// thermal and background drift between the two numbers a ratio is formed from,
-// systematically and always in the same direction. Step 4 of
-// .agents/benchmarking.md requires the alternating order instead; this is the
-// registration-time form of it. A caller therefore drives the macro from a grid
-// expressed as a list of points:
-//
-//     #define FOO_DIM_NAMES {"m", "n"}
-//     #define FOO_POINT(...)
-//         REGISTER_COMPARISON_POINT(FOO, f64, double, BM_FooEigen, BM_FooReference,
-//                                   FOO_DIM_NAMES, __VA_ARGS__)
-//     #define FOO_SIZES(POINT) POINT(8,8) POINT(16,16)
-//     FOO_SIZES(FOO_POINT)
+// Both arms of ONE grid point, registered adjacently. Google Benchmark runs
+// instances in registration order, so a whole arm's grid followed by the other's
+// -- what an arrow-chain grid applied to two Benchmark objects produces -- puts
+// minutes of thermal and background drift between the two numbers a ratio is
+// formed from, always in the same direction. .agents/benchmarking.md step 4
+// requires the alternating order; this is its registration-time form, which is
+// why callers drive the macro from a list of points rather than a range.
 //
 // DIM_NAMES must arrive as the NAME of an object-like macro, never as a literal
 // {"m", "n"}: braces do not protect commas from macro argument splitting. For
-// the same reason the two arms are spelled out here rather than delegated to a
-// shared per-arm macro, which would split DIM_NAMES on the way down.
-//
-// ->Name() supplies the first three name fields; Google Benchmark appends the
-// dimensions from ArgNames/Args and the optional /threads:N.
-//
-// SCALAR_TYPE is a single macro argument, so a type spelled with a comma
-// (std::complex<float>) must be passed through an alias; eigen_bench::c32_t and
-// eigen_bench::c64_t below exist for that.
+// the same reason the two arms are spelled out rather than delegated to a shared
+// per-arm macro, which would split DIM_NAMES on the way down. SCALAR_TYPE is one
+// argument for the same reason; eigen_bench::c32_t and c64_t below exist so a
+// comma-spelled type can be passed.
 
 #ifdef EIGEN_BENCH_REFERENCE_ARM
 #define REGISTER_COMPARISON_POINT(MNEMONIC, SCALAR_TAG, SCALAR_TYPE, EIGEN_FN, REF_FN, DIM_NAMES, ...) \
@@ -107,39 +79,30 @@ namespace eigen_bench {
 using c32_t = std::complex<float>;
 using c64_t = std::complex<double>;
 
-// Integer width of the reference library's Fortran BLAS/LAPACK interface.
-// Eigen::BlasIndex (Eigen/src/Core/util/BlasTypes.h) is already that switch,
-// keyed off EIGEN_64BIT_BLAS; aliasing it rather than restating it keeps ONE
-// BLAS integer width in the binary. Two independent switches would let these
-// benchmarks and Eigen's own BLAS backend disagree, which passes the compiler
-// and the linker and then corrupts every by-pointer Fortran argument.
+// Integer width of the reference library's Fortran interface. Eigen::BlasIndex
+// (Eigen/src/Core/util/BlasTypes.h) is already that switch, keyed off
+// EIGEN_64BIT_BLAS; aliasing it keeps ONE BLAS integer width in the binary. Two
+// independent switches would let these benchmarks and Eigen's own BLAS backend
+// disagree, which passes the compiler and the linker and then corrupts every
+// by-pointer Fortran argument.
 using BlasInt = Eigen::BlasIndex;
 
 #ifdef EIGEN_BENCH_REFERENCE_ILP64
-// Deliberately a hard error rather than a silent narrowing: CMake selects the
-// reference arm's width from the vendor table, and Eigen only produces a 64-bit
-// BlasIndex when the ABI-affecting EIGEN_64BIT_BLAS is defined for every
-// translation unit.
+// A hard error rather than a silent narrowing: EIGEN_64BIT_BLAS is ABI-affecting
+// and must be defined for every translation unit, so the vendor table selecting
+// an ILP64 arm is not on its own enough to produce a 64-bit BlasIndex.
 static_assert(sizeof(BlasInt) == 8,
               "EIGEN_BENCH_REFERENCE_ILP64 selects a 64-bit-integer reference BLAS, but Eigen::BlasIndex is 32-bit: "
               "the build must define EIGEN_64BIT_BLAS as well.");
 #endif
 
-// ---------------------------------------------------------------------------
-// Structured skips
-// ---------------------------------------------------------------------------
-// Google Benchmark gives a skipping benchmark exactly one channel to the
-// harness: the free-text error_message of SkipWithError. But WHY a cell was
-// skipped is not free text -- result_schema.json enumerates the vocabulary, and
-// the reasons mean opposite things on a published page. "too large for this
-// machine" and "the reference BLAS uses 32-bit indices" are facts about the
-// build and the machine; "the result disagrees with Eigen" is a defect in the
-// library. Rendering the first two as the third would be a false statement.
-//
-// So the message carries a machine-readable envelope and run.py parses the token
-// out of it, rather than each new category adding another prose prefix for
-// Python to match on. A message with no envelope is a genuine runtime error,
-// which is what a plain SkipWithError elsewhere in the tree already means.
+// Why a cell was skipped is not free text: result_schema.json enumerates the
+// vocabulary, and the reasons mean opposite things on a published page. "Too
+// large for this machine" is a fact about the host; "the result disagrees with
+// Eigen" is a defect in the library. SkipWithError offers only one free-text
+// channel, so the reason travels in a machine-readable envelope that run.py
+// parses. A message with no envelope is a genuine runtime error, which is what a
+// plain SkipWithError elsewhere in the tree already means.
 #define EIGEN_BENCH_SKIP_ENVELOPE_OPEN "[eigen-bench:skip:"
 #define EIGEN_BENCH_SKIP_ENVELOPE_CLOSE "] "
 
@@ -150,19 +113,11 @@ inline void skipWithReason(benchmark::State& state, const char* reason, const st
   state.SkipWithError(std::string(EIGEN_BENCH_SKIP_ENVELOPE_OPEN) + reason + EIGEN_BENCH_SKIP_ENVELOPE_CLOSE + detail);
 }
 
-// ---------------------------------------------------------------------------
-// Memory budget
-// ---------------------------------------------------------------------------
-// Bytes a benchmark may allocate for its operands, from EIGEN_BENCH_MEMORY_BUDGET_BYTES.
-// Zero (the default when the variable is unset, empty or unparsable) means no
-// budget is enforced, so a hand-run binary behaves exactly as before.
-//
-// This exists because the harness writes its result file only after every
-// benchmark in the invocation has finished. A cell that outgrows the machine
-// does not fail alone -- the allocation throws or the OS kills the process, and
-// the whole run is lost, including every cell already measured. Turning that
-// into one skipped cell with a reason is the difference between losing an hour
-// of measurement and losing a row.
+// Bytes a benchmark may allocate for its operands, zero meaning unenforced.
+// Google Benchmark writes its output only after every benchmark in the
+// invocation has finished, so a cell that outgrows the host does not fail alone:
+// the allocation throws or the OS kills the process, and every cell already
+// measured is lost with it.
 inline std::size_t memoryBudgetBytes() {
   const char* raw = std::getenv("EIGEN_BENCH_MEMORY_BUDGET_BYTES");
   if (raw == nullptr) return 0;
@@ -193,8 +148,6 @@ inline bool skipIfOverMemoryBudget(benchmark::State& state, double bytes) {
   return true;
 }
 
-// Aliases for the two operand shapes every comparison benchmark uses. Named once
-// here so the shared helpers below have a signature to be written against.
 template <typename Scalar>
 using ColMatrix = Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic>;
 
@@ -212,10 +165,9 @@ inline bool fitsBlasInt(Eigen::Index value) {
          static_cast<std::uintmax_t>(value) <= static_cast<std::uintmax_t>((std::numeric_limits<BlasInt>::max)());
 }
 
-// Every driver's first act. Variadic so one call covers an op of any rank, and a
-// structured skip so the cell is filed as a property of the build rather than as
-// a library failure -- this is decided by EIGEN_64BIT_BLAS and the vendor table,
-// not by any kernel.
+// A structured skip, so the cell is filed as a property of the build rather than
+// as a library failure: the width is decided by EIGEN_64BIT_BLAS and the vendor
+// table, not by any kernel.
 template <typename... Dims>
 bool skipIfDimsExceedBlasInt(benchmark::State& state, Dims... dims) {
   const Eigen::Index values[] = {static_cast<Eigen::Index>(dims)...};
@@ -230,16 +182,13 @@ bool skipIfDimsExceedBlasInt(benchmark::State& state, Dims... dims) {
   return false;
 }
 
-// Memoises the untimed correctness check per shape.
-//
-// Correctness is a deterministic property of (Scalar, kernel, shape), and Google
-// Benchmark enters a benchmark body once per repetition plus a few times while
-// it searches for an iteration count -- 13 times at the harness defaults.
-// Re-checking on every entry yields no new information and is not free: the
-// check runs a full untimed operation, so at the large end of a grid a binary
-// would spend more time validating than measuring. Declared as a function-local
-// static of a function template, it is already per (Scalar, Kernel); only the
-// shape has to be keyed. The mutex keeps that true under a threaded runner.
+// Memoises the untimed correctness check per shape. Correctness is a
+// deterministic property of (Scalar, kernel, shape), but Google Benchmark enters
+// a body once per repetition plus several times while it searches for an
+// iteration count, and the check runs a full untimed operation -- so at the
+// large end of a grid, re-checking every entry costs more than the measurement.
+// Held as a function-local static of a function template, it is already per
+// (Scalar, Kernel); the mutex keeps the set consistent under a threaded runner.
 template <typename Key>
 class ValidatedShapes {
  public:
@@ -247,8 +196,8 @@ class ValidatedShapes {
     const std::lock_guard<std::mutex> guard(mutex_);
     return set_.count(key) != 0;
   }
-  // Call only after the check passed, so a failure cannot mark the shape good
-  // for the entries that follow it.
+  // Only after the check passed: a failure must not mark the shape good for the
+  // entries that follow it.
   void insert(const Key& key) {
     const std::lock_guard<std::mutex> guard(mutex_);
     set_.insert(key);
@@ -259,22 +208,17 @@ class ValidatedShapes {
   std::set<Key> set_;
 };
 
-// Does a kernel's result agree with the value Eigen computed for the same input?
+// One numerical policy for every comparison: relative to the larger of the two
+// norms, scaled by sqrt(contraction length) because that is where the error
+// accumulates.
 //
-// One numerical policy for every comparison, rather than one per operation:
-// relative to the larger of the two norms, scaled by the square root of the
-// contraction length because that is where the error accumulates. Negated so a
-// NaN result fails rather than passes -- every comparison operator against NaN
-// is false, so `<=` inside the negation is the only spelling that rejects it.
-//
-// Infinity needs its own rejection and does not get one from the negation. An
-// infinite entry makes both sides of the comparison infinite -- the error norm
-// because inf minus a finite number is inf, the right-hand side because
-// tolerance * inf is inf -- and `inf <= inf` is TRUE. A kernel that overflowed,
-// divided by zero or returned uninitialised memory would therefore be cached as
-// validated and its rate published. So the three norms are formed first and
-// every one of them must be finite before the relative test is reached, which
-// covers NaN by the same door.
+// Both non-finite cases must be rejected explicitly, and neither falls out of
+// the relative test. Every comparison against NaN is false, so `<=` under the
+// negation rejects it; but an infinite entry makes BOTH sides infinite -- the
+// error norm because inf minus a finite number is inf, the bound because
+// tolerance * inf is inf -- and `inf <= inf` is true. A kernel that overflowed
+// or returned uninitialised memory would be cached as validated and its rate
+// published. Hence the finiteness test on all three norms before the bound.
 template <typename Derived, typename OtherDerived>
 bool agreesWithEigen(const Eigen::MatrixBase<Derived>& expected, const Eigen::MatrixBase<OtherDerived>& actual,
                      Eigen::Index contraction_length) {
@@ -292,13 +236,10 @@ bool agreesWithEigen(const Eigen::MatrixBase<Derived>& expected, const Eigen::Ma
   return !!(error <= tolerance * magnitude);
 }
 
-// ---------------------------------------------------------------------------
-// Reference-library version queries
-// ---------------------------------------------------------------------------
-// Declared here rather than included from a vendor header so that a build only
-// needs the library, not its development headers. CMake must define the matching
-// EIGEN_BENCH_HAVE_* macro only after a check that actually compiles and links
-// the symbol; defining it on a guess turns a missing query into a link failure.
+// Version queries declared rather than included, so a build needs the reference
+// library but not its development headers. CMake must define the matching
+// EIGEN_BENCH_HAVE_* macro only after a check that compiles AND links the
+// symbol; defining it on a guess turns a missing query into a link failure.
 
 }  // namespace eigen_bench
 
@@ -357,14 +298,10 @@ inline std::string jsonEscape(const std::string& value) {
   return out;
 }
 
-// Thread-count environment variables to report. The list must cover every
-// variable run.py's THREAD_COUNT_ENV_VARS and THREAD_FIXED_ENV set, or a run
-// records a cap the harness applied as absent; the affinity variables after
-// them are not set by run.py but change what a thread count means, so a value
-// the environment carried in is worth reporting. No CMake file defines
-// EIGEN_BENCH_THREAD_ENV_VARS today, so this list is the one that is used; the
-// override is kept because the vendor table already carries a per-vendor
-// THREAD_ENV field to generate it from.
+// Must cover every variable run.py's THREAD_COUNT_ENV_VARS and THREAD_FIXED_ENV
+// set, or a run records a cap the harness applied as absent. The affinity
+// variables at the end are not set by run.py, but they change what a thread
+// count means, so a value the environment carried in is worth reporting.
 #ifndef EIGEN_BENCH_THREAD_ENV_VARS
 #define EIGEN_BENCH_THREAD_ENV_VARS                                                            \
   "OMP_NUM_THREADS,OPENBLAS_NUM_THREADS,GOTO_NUM_THREADS,MKL_NUM_THREADS,BLIS_NUM_THREADS,"    \
@@ -603,7 +540,6 @@ inline void publishArmContext() {
 // from a passing one to ctest.
 class ErrorTrackingReporter : public ::benchmark::ConsoleReporter {
  public:
-  bool ReportContext(const Context& context) override { return ConsoleReporter::ReportContext(context); }
   void ReportRuns(const std::vector<Run>& reports) override {
     for (const Run& run : reports) {
       if (run.skipped == ::benchmark::internal::SkippedWithError && !carriesSkipEnvelope(run.report_label) &&
@@ -616,15 +552,11 @@ class ErrorTrackingReporter : public ::benchmark::ConsoleReporter {
   bool anyErrored() const { return errored_; }
 
  private:
-  // A structured skip is not an error. skipIfOverMemoryBudget and
-  // skipIfDimsExceedBlasInt report facts about the machine and the build, and
-  // the harness has a not_measured reason for each; only an unlabelled
-  // SkipWithError -- a kernel disagreeing with Eigen -- is a failure.
-  //
-  // The distinction has to live here and not only in run.py: a non-zero exit
-  // makes run.py condemn the whole invocation before it reads a single row, so
-  // one over-budget cell would discard every cell measured beside it. That is
-  // precisely the loss the budget exists to prevent.
+  // A structured skip is not an error: skipIfOverMemoryBudget and
+  // skipIfDimsExceedBlasInt report facts about the host and the build, each with
+  // its own not_measured reason. Only an unlabelled SkipWithError -- a kernel
+  // disagreeing with Eigen -- makes the process fail, so that an over-budget
+  // cell does not colour the exit status of every cell measured beside it.
   static bool carriesSkipEnvelope(const std::string& message) {
     return message.rfind(EIGEN_BENCH_SKIP_ENVELOPE_OPEN, 0) == 0;
   }
@@ -645,11 +577,9 @@ class ErrorTrackingReporter : public ::benchmark::ConsoleReporter {
     if (::benchmark::ReportUnrecognizedArguments(argc, argv)) return 1;      \
     ::benchmark::RunSpecifiedBenchmarks(&reporter);                          \
     ::benchmark::Shutdown();                                                 \
-    /* A cross-arm correctness failure is reported through SkipWithError, */ \
-    /* which Google Benchmark records in the run and then exits 0 for.    */ \
-    /* Returning 0 regardless made the smoke test green while the         */ \
-    /* reference arm disagreed with Eigen on every shape -- the one       */ \
-    /* result this comparison must never publish.                         */ \
+    /* Google Benchmark exits 0 for a run it recorded as errored, which   */ \
+    /* would leave the smoke test green with the reference arm disagreeing*/ \
+    /* with Eigen on every shape.                                         */ \
     return reporter.anyErrored() ? 1 : 0;                                    \
   }                                                                          \
   static_assert(true, "")

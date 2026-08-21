@@ -852,8 +852,9 @@ having to know about scalars. It bounds memory only — run time is bounded by c
 `--groups`. Omit it and nothing is enforced.
 
 Every nullable `provenance` field that this file leaves empty obliges `run.py` to write a matching
-`provenance_gaps` entry (section 0 of `result_schema.json`). On this machine that is at minimum
-`/provenance/cpu/frequency_governor` — macOS exposes no governor — and `/provenance/numa/policy`.
+`provenance_gaps` entry (section 0 of `result_schema.json`). Which fields those are is a property of the platform,
+not of the profile: a macOS host cannot establish `/provenance/cpu/frequency_governor`, and a non-NUMA host cannot
+establish `/provenance/numa/policy`.
 
 ---
 
