@@ -613,6 +613,75 @@ def test_provenance_gaps_accompany_every_null_it_claims(stub_run, schema):
         )
 
 
+def test_a_load_average_above_the_profile_is_stated_with_the_numbers(stub_run, tmp_path):
+    """--allow-noisy must not make the noise invisible.
+
+    Breaching the profile's max_load_avg is only reachable by asking for it, and
+    run.py warns on stderr -- but stderr is not the published page. The raw
+    load averages are recorded either way; what a reader cannot reconstruct from
+    them is what THIS machine declares as quiet, so the exceedance itself has to
+    travel with the numbers.
+    """
+    machines = tmp_path / "machines"
+    machines.mkdir()
+    for source in MACHINES.glob("*.toml"):
+        text = source.read_text()
+        assert "max_load_avg" in text, source
+        text = re.sub(r"^max_load_avg\s*=.*$", "max_load_avg = 0.0", text, flags=re.M)
+        (machines / source.name).write_text(text)
+
+    document = stub_run(extra=["--machines-dir", str(machines)])
+    notes = document["provenance"]["run"]["notes"] or ""
+    assert "load average" in notes, f"the breached threshold never reached the result file\n{notes!r}"
+    assert "0.00" in notes, "the note must state the threshold that was breached, not just that one was"
+    assert "--allow-noisy" in notes, "the note must say the run was allowed to proceed"
+
+    # And the unbreached case stays quiet, or the note is decoration rather than
+    # a caveat: the committed fixtures declare max_load_avg = 1000.0.
+    clean = stub_run()
+    assert "load average" not in (clean["provenance"]["run"]["notes"] or "")
+
+
+UNPINNABLE_REASON = "this fixture machine exposes no CPU affinity API, so the run could not be confined"
+
+
+def test_no_caveat_is_recorded_in_both_channels(stub_run, tmp_path):
+    """One caveat, one channel.
+
+    `provenance_gaps` says "could not establish"; `run.notes` says "established
+    and proceeded anyway". They render on the published page under separate
+    headings that mean different things, so a caveat written to both is stated
+    twice and the second statement is the wrong one. The unpinnable-CPU
+    paragraph used to be in both.
+
+    The committed fixtures declare no [pinning] block at all, so the machine is
+    doctored here to actually reach the condition -- without that this test
+    passes against the duplication it exists to forbid.
+    """
+    machines = tmp_path / "machines"
+    machines.mkdir()
+    for source in MACHINES.glob("*.toml"):
+        text = source.read_text()
+        text = re.sub(r"^\[pinning\]\n(?:(?!\[).*\n)*", "", text, flags=re.M)
+        text += f'\n[pinning]\ntool = "none"\nunavailable_reason = "{UNPINNABLE_REASON}"\n'
+        (machines / source.name).write_text(text)
+
+    document = stub_run(extra=["--machines-dir", str(machines)])
+    notes = document["provenance"]["run"]["notes"] or ""
+    reasons = {str(gap.get("reason") or "") for gap in document["provenance_gaps"]}
+    assert UNPINNABLE_REASON in reasons, (
+        "the doctored profile did not reach the unpinnable case, so this test would prove nothing"
+    )
+    for gap in document["provenance_gaps"]:
+        reason = str(gap.get("reason") or "")
+        if not reason:
+            continue
+        assert reason not in notes, (
+            f"{gap['field']} is recorded as a provenance gap AND repeated in run.notes; "
+            f"the page would state it twice under two headings that do not mean the same thing"
+        )
+
+
 def test_argv_is_recorded_so_the_run_can_be_repeated(stub_run):
     document = stub_run()
     argv = document["provenance"]["harness"]["argv"]

@@ -692,6 +692,17 @@ def render_coverage_markdown(merged: Mapping[str, Any], registry: Mapping[str, A
                     field = _escape_markdown_cell(str(gap.get("field", "?")))
                     reason = _escape_markdown_cell(str(gap.get("reason", "no reason recorded")))
                     out.append(f"> - `{field}` — {reason}")
+            # Distinct from the gaps above: these are conditions the run
+            # established and proceeded under anyway, which is a different
+            # statement to a reader and must not be folded into "could not
+            # establish".
+            notes = detail.get("notes") or []
+            if notes:
+                out.append("")
+                out.append(f"> `{config_id}` was measured under the following stated conditions:")
+                out.append(">")
+                for note in notes:
+                    out.append(f"> - {_escape_markdown_cell(str(note))}")
     else:
         out.append("No configuration in the selected slice.")
     out.append("")

@@ -175,6 +175,37 @@ def test_every_measured_number_in_the_table_comes_from_the_data(merged_gemm):
 # --------------------------------------------------------------------------
 
 
+def test_coverage_publishes_run_notes_apart_from_the_provenance_gaps(tmp_path):
+    """Two headings, because they are two different statements.
+
+    A provenance gap says the run could not establish something. A note says it
+    established the condition and proceeded anyway -- a load average above what
+    the profile calls quiet, an unverified machine profile, whatever the
+    operator wrote with --note. Folding a note into the "could not establish"
+    list would misdescribe it, and dropping it entirely (which is what happened
+    before) publishes the numbers without the conditions they were taken under.
+    """
+    merged = support.read_json(MERGED)
+    config_id = sorted(merged["configs"])[0]
+    merged["configs"][config_id]["notes"] = ["measured during a thunderstorm"]
+    merged["configs"][config_id]["provenance_gaps"] = [
+        {"field": "/provenance/cpu/turbo_enabled", "reason": "no turbo state is exposed"}
+    ]
+    doctored = support.write_json(tmp_path / "merged.json", merged)
+
+    text = rendered("coverage", source=doctored)
+    assert "measured during a thunderstorm" in text, "the note never reached the page"
+    assert "no turbo state is exposed" in text
+
+    note_at = text.index("measured during a thunderstorm")
+    gap_at = text.index("no turbo state is exposed")
+    heading_at = text.rindex("could not establish", 0, max(note_at, gap_at))
+    assert gap_at > heading_at > gap_at - 400, "the gap must sit under the 'could not establish' heading"
+    assert not (heading_at < note_at < gap_at), (
+        "the note is rendered under the 'could not establish' heading, which misdescribes it"
+    )
+
+
 def test_coverage_json_accounts_for_every_arm_cell(tmp_path, merged_gemm):
     render(["--format", "coverage", "--out-dir", str(tmp_path), str(MERGED)])
     coverage = json.loads((tmp_path / "coverage.json").read_text())

@@ -200,7 +200,19 @@ def config_record(provenance: Mapping[str, Any], threads: int) -> Dict[str, Any]
         "os": (provenance.get("os", {}) or {}).get("name"),
         "provenance_refs": [],
         "provenance_gaps": [],
+        # Free-text caveats the run recorded about itself: the operator's own
+        # --note, an unpinnable CPU, an unverified machine profile, a load
+        # average above what the profile calls quiet. provenance_gaps is the
+        # wrong channel for these -- a gap says "could not establish", and a
+        # breached threshold was established perfectly well -- so they travel
+        # separately and render under their own heading.
+        "notes": _run_notes(provenance),
     }
+
+
+def _run_notes(provenance: Mapping[str, Any]) -> List[str]:
+    text = ((provenance.get("run", {}) or {}).get("notes") or "").strip()
+    return [text] if text else []
 
 
 # ---------------------------------------------------------------------------
@@ -372,6 +384,11 @@ def reduce_results(
             # run carries it, the configuration carries it.
             if bool((provenance.get("eigen", {}) or {}).get("dirty", False)):
                 record["eigen_dirty"] = True
+            # Same reasoning, and the same union rather than first-wins: a note
+            # recorded by one contributing run describes the merged set too.
+            for note in _run_notes(provenance):
+                if note not in record.setdefault("notes", []):
+                    record["notes"].append(note)
         for gap in gaps_for_config:
             if gap not in record["provenance_gaps"]:
                 record["provenance_gaps"].append(dict(gap))
