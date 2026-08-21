@@ -211,6 +211,41 @@ else()
 endif()
 list(SORT _comparison_sources)
 
+# Needed by two test registrations below (the ops.toml reconciliation and the
+# harness suite), so it must be found before the target loop, not after it.
+find_package(Python3 QUIET COMPONENTS Interpreter)
+
+# LAPACK, for the operations whose reference is a LAPACK routine rather than a
+# BLAS one (POTRF, GETRF, GEQRF, GESDD, SYEV in ops.toml). Most vendors ship both
+# families in one library -- Accelerate, MKL and OpenBLAS all do, and their table
+# rows say so in PROVIDES -- so BLAS::BLAS usually already resolves ?potrf and
+# nothing extra is linked. netlib is the case that does not: its row declares
+# `PROVIDES blas cblas`, and without this a LAPACK comparison against it would
+# fail at link time with no explanation. Finding it here means the build can say
+# whether the family is available; run.py turns a missing family into an explicit
+# `reference_routine_absent` rather than a silent gap.
+set(EIGEN_BENCH_LAPACK_AVAILABLE FALSE)
+if(EIGEN_BENCH_BLAS_FOUND)
+  if("lapack" IN_LIST EIGEN_BENCH_BLAS_PROVIDES)
+    # The vendor states it carries LAPACK in the library already linked.
+    set(EIGEN_BENCH_LAPACK_AVAILABLE TRUE)
+    set(EIGEN_BENCH_LAPACK_LINK_LIBRARIES "")
+  else()
+    find_package(LAPACK QUIET)
+    if(LAPACK_FOUND)
+      set(EIGEN_BENCH_LAPACK_AVAILABLE TRUE)
+      if(TARGET LAPACK::LAPACK)
+        set(EIGEN_BENCH_LAPACK_LINK_LIBRARIES LAPACK::LAPACK)
+      else()
+        set(EIGEN_BENCH_LAPACK_LINK_LIBRARIES ${LAPACK_LIBRARIES})
+      endif()
+      message(STATUS "  lapack:  ${EIGEN_BENCH_LAPACK_LINK_LIBRARIES} (the reference BLAS does not carry it)")
+    else()
+      message(STATUS "  lapack:  not found; LAPACK-referenced operations will report reference_routine_absent")
+    endif()
+  endif()
+endif()
+
 set(_comparison_targets "")
 foreach(_source IN LISTS _comparison_sources)
   get_filename_component(_target "${_source}" NAME_WE)
@@ -218,6 +253,9 @@ foreach(_source IN LISTS _comparison_sources)
   eigen_add_benchmark(${_target} "${_source}" DEFINITIONS ${_comparison_definitions})
   if(EIGEN_BENCH_BLAS_FOUND)
     target_link_libraries(${_target} PRIVATE ${EIGEN_BENCH_BLAS_LINK_LIBRARIES})
+    if(EIGEN_BENCH_LAPACK_LINK_LIBRARIES)
+      target_link_libraries(${_target} PRIVATE ${EIGEN_BENCH_LAPACK_LINK_LIBRARIES})
+    endif()
     if(EIGEN_BENCH_BLAS_INCLUDE_DIRS)
       target_include_directories(${_target} PRIVATE ${EIGEN_BENCH_BLAS_INCLUDE_DIRS})
     endif()
@@ -277,6 +315,18 @@ foreach(_target IN LISTS _comparison_targets)
     FAIL_REGULAR_EXPRESSION "[<>]"
     PASS_REGULAR_EXPRESSION "/eigen/")
 
+  # Reconcile the registrations this binary actually carries against ops.toml,
+  # in both directions. The pytest suite does the same against a committed
+  # capture, which cannot notice that THIS binary's grid drifted -- regenerate
+  # the capture from a drifted build and the snapshot check passes for good.
+  if(Python3_Interpreter_FOUND)
+    add_test(NAME ${_target}_reconciles
+             COMMAND ${Python3_EXECUTABLE}
+                     "${CMAKE_CURRENT_SOURCE_DIR}/tests/reconcile_registrations.py"
+                     "$<TARGET_FILE:${_target}>"
+                     --ops-toml "${CMAKE_CURRENT_SOURCE_DIR}/ops.toml")
+  endif()
+
   add_test(NAME ${_target}_smoke COMMAND ${_target}
            --benchmark_min_time=1x
            --benchmark_repetitions=1
@@ -299,7 +349,6 @@ endif()
 # pytest turns a missing optional developer dependency into a red build for work
 # that has nothing to do with Python. jsonschema and matplotlib stay optional --
 # the suite skips the cases that need them (tests/conftest.py).
-find_package(Python3 QUIET COMPONENTS Interpreter)
 if(CMAKE_VERSION VERSION_LESS 3.12)
   file(GLOB _harness_tests "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_*.py")
 else()
@@ -330,6 +379,11 @@ eigen_bench_json_string_array("${_comparison_arms}" _json_arms)
 eigen_bench_json_string_array("${EIGEN_BENCH_BLAS_LIBRARIES}" _json_libraries)
 eigen_bench_json_string_array("${EIGEN_BENCH_BLAS_INCLUDE_DIRS}" _json_include_dirs)
 eigen_bench_json_string_array("${EIGEN_BENCH_BLAS_PROVIDES}" _json_provides)
+if(EIGEN_BENCH_LAPACK_AVAILABLE)
+  set(_json_lapack_available "true")
+else()
+  set(_json_lapack_available "false")
+endif()
 
 set(_json_targets "")
 foreach(_target IN LISTS _comparison_targets)
@@ -382,6 +436,7 @@ set(_vendor_info "{
   \"arms\": ${_json_arms},
   \"reference\": {
     \"available\": ${_json_reference_available},
+    \"lapack_available\": ${_json_lapack_available},
     \"arm\": \"${_json_ARM}\",
     \"library_name\": \"${_json_DISPLAY_NAME}\",
     \"library_version\": \"${_json_VERSION}\",
