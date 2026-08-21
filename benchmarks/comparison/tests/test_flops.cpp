@@ -163,6 +163,16 @@ void testFactorizations() {
   // Householder QR costs twice an LU of the same order; if these two ever agree,
   // one of them has been copied from the other.
   CHECK_EQ(eigen_bench::geqrfFlops<double>(512, 512), 2.0 * eigen_bench::getrfFlops<double>(512, 512));
+
+  // An LU is NOT two symmetric factorizations, however close the two get for
+  // large n. bench_bunchkaufman once counted BM_PartialPivLU as
+  // 2 * symmetricFactorizationFlops, which overstates the work by 31% at n=8 and
+  // 4.6% at n=64 -- and that benchmark sweeps from n=8, so the small end of its
+  // curve was published materially faster than it ran. These must stay distinct.
+  CHECK(2.0 * eigen_bench::symmetricFactorizationFlops<double>(8) != eigen_bench::getrfFlops<double>(8, 8));
+  CHECK(2.0 * eigen_bench::symmetricFactorizationFlops<double>(64) != eigen_bench::getrfFlops<double>(64, 64));
+  // and the LU helper is what an LU of order n costs
+  CHECK_EQ(eigen_bench::getrfFlops<double>(8, 8), 8.0 * 64.0 - 512.0 / 3.0);
   CHECK_EQ(eigen_bench::getrfFlops<c64>(512, 512), 4.0 * eigen_bench::getrfFlops<double>(512, 512));
 
   CHECK_EQ(eigen_bench::geqrfFlops<double>(1000, 100),
