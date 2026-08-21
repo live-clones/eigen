@@ -857,7 +857,9 @@ void test_ambivector_failed_reallocation() {
     while (!threw) {
       VERIFY(inserted < n);
       try {
-        v.coeffRef(inserted) = ThrowingScalar(1);
+        // NVHPC does not destroy the right-hand temporary if a combined assignment's coeffRef() throws.
+        ThrowingScalar& value = v.coeffRef(inserted);
+        value = ThrowingScalar(1);
         ++inserted;
       } catch (const ambivector_throwing::scalar_exception&) {
         threw = true;
