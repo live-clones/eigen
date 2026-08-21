@@ -14,6 +14,7 @@
 #define EIGEN_RUNTIME_NO_MALLOC
 
 #include "main.h"
+#include "fp_control.h"
 #include "svd_fill.h"
 #include "tridiag_test_matrices.h"
 #include <limits>
@@ -737,6 +738,34 @@ void selfadjointeigensolver_rowmajor() {
   }
 }
 
+template <int>
+void direct_3x3_ftz_rescaling() {
+  const double inverse_sqrt2 = numext::sqrt(0.5);
+  const double inverse_sqrt3 = numext::sqrt(1.0 / 3.0);
+  const double inverse_sqrt6 = numext::sqrt(1.0 / 6.0);
+  Matrix3d eigenvectors;
+  eigenvectors << inverse_sqrt2, inverse_sqrt6, inverse_sqrt3, -inverse_sqrt2, inverse_sqrt6, inverse_sqrt3, 0.0,
+      -2.0 * inverse_sqrt6, inverse_sqrt3;
+  const double tiny = 100.0 * (std::numeric_limits<double>::min)();
+  const Vector3d eigenvalues(tiny, 2.0001 * tiny, 3.0 * tiny);
+  const Matrix3d matrix = eigenvectors * eigenvalues.asDiagonal() * eigenvectors.transpose();
+
+  SelfAdjointEigenSolver<Matrix3d> reference(matrix);
+  VERIFY_IS_EQUAL(reference.info(), Success);
+  ScopedFlushToZero flush_to_zero;
+  if (!flush_to_zero.isSupported()) return;
+
+  SelfAdjointEigenSolver<Matrix3d> direct;
+  direct.computeDirect(matrix);
+  VERIFY_IS_EQUAL(direct.info(), Success);
+  const double scale = matrix.cwiseAbs().maxCoeff();
+  const double tolerance = 32.0 * NumTraits<double>::epsilon();
+  VERIFY((direct.eigenvalues() / scale).isApprox(reference.eigenvalues() / scale, tolerance));
+  const Matrix3d residual =
+      (matrix / scale) * direct.eigenvectors() - direct.eigenvectors() * (direct.eigenvalues() / scale).asDiagonal();
+  VERIFY(residual.norm() <= tolerance);
+}
+
 // Test matrix with Inf entries returns NoConvergence (similar to NaN test).
 template <int>
 void selfadjointeigensolver_inf() {
@@ -1064,6 +1093,7 @@ EIGEN_DECLARE_TEST(eigensolver_selfadjoint) {
 
   // Stress tests for direct 3x3 and 2x2 solvers.
   CALL_SUBTEST_17(direct_3x3_stress<0>());
+  CALL_SUBTEST_17(direct_3x3_ftz_rescaling<0>());
   CALL_SUBTEST_15(direct_2x2_stress<0>());
 
   // Test Inf input handling.
