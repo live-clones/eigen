@@ -321,8 +321,7 @@ class QR {
     trsm_R(d_work.get(), m_, nrhs, /*op=*/CUBLAS_OP_N);
 
     if (m_ == n_) {
-      DeviceMatrix<Scalar> result =
-          DeviceMatrix<Scalar>::adopt(static_cast<Scalar*>(d_work.release()), n_, static_cast<Index>(nrhs));
+      DeviceMatrix<Scalar> result = DeviceMatrix<Scalar>::adopt(std::move(d_work), n_, static_cast<Index>(nrhs));
       result.recordReady(solver_ctx_.stream());
       return result;
     }
@@ -378,8 +377,7 @@ class QR {
     trsm_R(d_X.get(), n_, nrhs, trsm_op_conj_trans());
     apply_Q(CUBLAS_OP_N, d_X.get(), n_, nrhs);
 
-    DeviceMatrix<Scalar> result =
-        DeviceMatrix<Scalar>::adopt(static_cast<Scalar*>(d_X.release()), n_, static_cast<Index>(nrhs));
+    DeviceMatrix<Scalar> result = DeviceMatrix<Scalar>::adopt(std::move(d_X), n_, static_cast<Index>(nrhs));
     result.recordReady(solver_ctx_.stream());
     return result;
   }

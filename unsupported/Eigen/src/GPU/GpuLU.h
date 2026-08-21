@@ -232,9 +232,8 @@ class LU {
   void allocate_lu_storage() { internal::ensure_sized(d_lu_, matrixBytes()); }
 
   // Solve in place on `d_x` (which already holds B), then re-wrap as a typed
-  // DeviceMatrix carrying shape and a ready event. The release/adopt hop hands
-  // ownership of the raw cudaMalloc pointer from the untyped DeviceBuffer to
-  // the typed DeviceMatrix without copying.
+  // DeviceMatrix carrying shape and a ready event. The buffer moves across
+  // whole, keeping the allocator it came from, so nothing is copied.
   DeviceMatrix<Scalar> solve_impl(int64_t nrhs, int64_t ldb, GpuOp op, internal::DeviceBuffer&& d_x) const {
     constexpr cudaDataType_t dtype = internal::cusolver_data_type<Scalar>::value;
     const cublasOperation_t trans = internal::to_cublas_op(op);
@@ -243,8 +242,7 @@ class LU {
                                           d_lu_.get(), lda_, static_cast<const int64_t*>(d_ipiv_.get()), dtype,
                                           d_x.get(), ldb, solver_ctx_.scratch_info()));
 
-    DeviceMatrix<Scalar> result =
-        DeviceMatrix<Scalar>::adopt(static_cast<Scalar*>(d_x.release()), n_, static_cast<Index>(nrhs));
+    DeviceMatrix<Scalar> result = DeviceMatrix<Scalar>::adopt(std::move(d_x), n_, static_cast<Index>(nrhs));
     result.recordReady(solver_ctx_.stream());
     return result;
   }

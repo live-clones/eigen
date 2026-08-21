@@ -181,28 +181,6 @@ class MemoryResource {
 
 namespace internal {
 
-struct CudaFreeDeleter {
-  // When `borrow == true`, the unique_ptr does not free the pointer. Used by
-  // DeviceMatrix::view() to wrap a non-owning device pointer with the same
-  // smart-pointer machinery as owning storage, without changing the type.
-  bool borrow = false;
-  // Storage obtained from a MemoryResource goes back to that resource, which
-  // knows how it was made: cudaFree, cudaFreeHost, or unregister-then-free are
-  // not interchangeable. Null means the default device_free path.
-  MemoryResource* resource = nullptr;
-  void* host = nullptr;
-  size_t bytes = 0;
-
-  void operator()(void* p) const noexcept {
-    if (!p || borrow) return;
-    if (resource != nullptr) {
-      resource->deallocate(Allocation{p, host}, bytes, /*stream=*/nullptr);
-    } else {
-      device_free(p);
-    }
-  }
-};
-
 struct CudaFreeHostDeleter {
   void operator()(void* p) const noexcept {
     if (p) (void)cudaFreeHost(p);
@@ -280,79 +258,170 @@ struct DeviceBufferPool {
   std::vector<Entry> free_list_;
 };
 
-// Stateful deleter that returns small buffers to the thread-local pool and
-// device_free's larger ones. size==0 means "always device_free" (adopted ptrs).
-struct PooledCudaFreeDeleter {
-  size_t size = 0;
+// How a block of GPU-visible storage was obtained, and therefore how it must be
+// given back. Recorded per block rather than per type, so one buffer class can
+// hold storage from any of them.
+enum class BufferKind : signed char {
+  kBorrowed,  // non-owning view; whoever owns the storage frees it
+  kPooled,    // default allocator, recycled through the thread-local pool
+  kDirect,    // default allocator, released with device_free
+  kResource,  // MemoryResource::deallocate -- only the resource knows how
+};
+
+struct DeviceBufferDeleter {
+  BufferKind kind = BufferKind::kDirect;
+  size_t bytes = 0;
+  // Storage obtained from a MemoryResource goes back to that resource, which
+  // knows how it was made: cudaFree, cudaFreeHost and unregister-then-free are
+  // not interchangeable. The host alias goes back with it, since a resource
+  // that page-locks ordinary memory frees the host pointer, not the device one.
+  MemoryResource* resource = nullptr;
+  void* host = nullptr;
 
   void operator()(void* p) const noexcept {
-    if (!p) return;
-    if (size > 0 && size <= DeviceBufferPool<>::kSmallBufferThreshold &&
-        DeviceBufferPool<>::threadState() == DeviceBufferPool<>::State::kAlive) {
-      DeviceBufferPool<>::threadLocal().deallocate(p, size);
+    if (!p || kind == BufferKind::kBorrowed) return;
+    if (kind == BufferKind::kResource) {
+      resource->deallocate(Allocation{p, host}, bytes, /*stream=*/nullptr);
+    } else if (kind == BufferKind::kPooled && DeviceBufferPool<>::threadState() == DeviceBufferPool<>::State::kAlive) {
+      DeviceBufferPool<>::threadLocal().deallocate(p, bytes);
     } else {
+      // kDirect, or pooled storage outliving the pool during TLS teardown: the
+      // pool's blocks come from device_malloc, so this is correct either way.
       device_free(p);
     }
   }
 };
 
+/** Owning handle for a block of GPU-visible storage.
+ *
+ * The block comes either from the module's default device allocator or from a
+ * MemoryResource, and the buffer records which so it can be released the same
+ * way. A resource may also supply a host-addressable alias of the same bytes --
+ * hostData() -- which is what lets the host read and write the storage with no
+ * transfer at all. DeviceMatrix and DeviceScalar are typed wrappers around one
+ * of these, so both get every storage kind from the same place. */
 class DeviceBuffer {
  public:
+  /** Whether a default (resource-less) allocation may be served from the
+   * thread-local small-buffer pool.
+   *
+   * The pool hands a freed block straight to the next requester with no stream
+   * ordering. That suits scratch created and consumed on one stream, and is
+   * wrong for storage a consumer on another stream may still be reading, so
+   * DeviceMatrix opts out: device_malloc / device_free are ordered on the
+   * legacy default stream. */
+  enum class Pooling : signed char { kAllowed, kDisallowed };
+
   DeviceBuffer() = default;
 
-  explicit DeviceBuffer(size_t bytes) : bytes_(bytes) {
-    if (bytes > 0) {
-      void* p = nullptr;
-      // Bypass the pool once its thread_local has been destroyed (allocation
-      // from a static/TLS destructor); the matching deleter then also takes
-      // the direct device_free path.
-      if (bytes <= DeviceBufferPool<>::kSmallBufferThreshold &&
-          DeviceBufferPool<>::threadState() != DeviceBufferPool<>::State::kDestroyed) {
-        p = DeviceBufferPool<>::threadLocal().allocate(bytes);
-      } else {
-        p = device_malloc(bytes);
-      }
-      ptr_ = std::unique_ptr<void, PooledCudaFreeDeleter>(p, PooledCudaFreeDeleter{bytes});
-    }
+  explicit DeviceBuffer(size_t bytes, Pooling pooling = Pooling::kAllowed) {
+    allocate(bytes, /*resource=*/nullptr, pooling);
   }
 
-  // Explicit moves so a moved-from buffer reports size() == 0 (callers use
-  // size() for grow-only reuse decisions; a stale size on a null buffer would
-  // suppress the reallocation).
-  DeviceBuffer(DeviceBuffer&& o) noexcept : ptr_(std::move(o.ptr_)), bytes_(o.bytes_) { o.bytes_ = 0; }
-  DeviceBuffer& operator=(DeviceBuffer&& o) noexcept {
-    if (this != &o) {
-      ptr_ = std::move(o.ptr_);
-      bytes_ = o.bytes_;
-      o.bytes_ = 0;
-    }
-    return *this;
+  /** Allocate through \p resource, which must outlive the buffer, or from the
+   * default device allocator when it is null. */
+  DeviceBuffer(size_t bytes, MemoryResource* resource, Pooling pooling = Pooling::kAllowed) {
+    allocate(bytes, resource, pooling);
   }
 
+  DeviceBuffer(DeviceBuffer&&) noexcept = default;
+  DeviceBuffer& operator=(DeviceBuffer&&) noexcept = default;
+  DeviceBuffer(const DeviceBuffer&) = delete;
+  DeviceBuffer& operator=(const DeviceBuffer&) = delete;
+
+  /** Device pointer: what kernels and NVIDIA library calls receive. */
   void* get() const noexcept { return ptr_.get(); }
-  void* release() noexcept {
-    bytes_ = 0;
-    return ptr_.release();
-  }
+
+  /** Host-addressable alias of the same bytes, or null for device-only storage.
+   * Not necessarily equal to get(): malloc + cudaHostRegister yields distinct
+   * host and device addresses. */
+  void* hostData() const noexcept { return ptr_ ? ptr_.get_deleter().host : nullptr; }
+
+  /** Whether hostData() is usable. */
+  bool isHostAccessible() const noexcept { return hostData() != nullptr; }
+
+  /** The resource backing this block, or null for the default allocator. */
+  MemoryResource* memoryResource() const noexcept { return ptr_ ? ptr_.get_deleter().resource : nullptr; }
+
+  /** Whether destruction releases the storage. False for view(). */
+  bool owns() const noexcept { return ptr_ && ptr_.get_deleter().kind != BufferKind::kBorrowed; }
+
+  /** Logical allocation size in bytes, tracked for adopted pointers as well.
+   * Reported as 0 once the pointer is gone -- callers use it for grow-only
+   * reuse decisions, and a stale size on a moved-from buffer would suppress
+   * the reallocation. */
+  size_t size() const noexcept { return ptr_ ? ptr_.get_deleter().bytes : 0; }
+
   explicit operator bool() const noexcept { return static_cast<bool>(ptr_); }
 
-  /** Logical allocation size in bytes, tracked for adopted pointers as well. */
-  size_t size() const noexcept { return bytes_; }
+  /** Hand the device pointer out; the caller must free it with device_free.
+   * Not noexcept: the guards below are eigen_assert, which the test harness
+   * turns into a throw. */
+  void* release() {
+    eigen_assert((owns() || !ptr_) && "cannot release a borrowed DeviceBuffer: it does not own its memory");
+    eigen_assert(memoryResource() == nullptr &&
+                 "cannot release resource-backed storage: only its MemoryResource can free it");
+    void* p = ptr_.release();
+    ptr_.get_deleter() = DeviceBufferDeleter{};
+    return p;
+  }
 
-  // Adopt an existing device pointer of `bytes` usable bytes. Caller
-  // relinquishes ownership. Adopted buffers bypass the pool on destruction
-  // (deleter size == 0).
+  /** Adopt an existing device pointer of \p bytes usable bytes obtained from
+   * the default allocator. Caller relinquishes ownership; adopted buffers
+   * bypass the pool on destruction. */
   static DeviceBuffer adopt(void* p, size_t bytes) noexcept {
     DeviceBuffer b;
-    b.ptr_ = std::unique_ptr<void, PooledCudaFreeDeleter>(p, PooledCudaFreeDeleter{});
-    b.bytes_ = p ? bytes : 0;
+    if (p) b.reset(p, DeviceBufferDeleter{BufferKind::kDirect, bytes});
+    return b;
+  }
+
+  /** Non-owning view over storage that someone else owns and outlives it. */
+  static DeviceBuffer view(void* p, size_t bytes) noexcept {
+    DeviceBuffer b;
+    if (p) b.reset(p, DeviceBufferDeleter{BufferKind::kBorrowed, bytes});
     return b;
   }
 
  private:
-  std::unique_ptr<void, PooledCudaFreeDeleter> ptr_;
-  size_t bytes_ = 0;
+  void allocate(size_t bytes, MemoryResource* resource, Pooling pooling) {
+    if (bytes == 0) return;
+    if (resource != nullptr) {
+      const Allocation a = resource->allocate(bytes, /*stream=*/nullptr);
+      reset(a.device, DeviceBufferDeleter{BufferKind::kResource, bytes, resource, a.host});
+      return;
+    }
+    // Bypass the pool once its thread_local has been destroyed (allocation from
+    // a static or TLS destructor); the matching deleter then also takes the
+    // direct device_free path.
+    const bool pooled = pooling == Pooling::kAllowed && bytes <= DeviceBufferPool<>::kSmallBufferThreshold &&
+                        DeviceBufferPool<>::threadState() != DeviceBufferPool<>::State::kDestroyed;
+    void* p = pooled ? DeviceBufferPool<>::threadLocal().allocate(bytes) : device_malloc(bytes);
+    reset(p, DeviceBufferDeleter{pooled ? BufferKind::kPooled : BufferKind::kDirect, bytes});
+  }
+
+  void reset(void* p, const DeviceBufferDeleter& deleter) {
+    ptr_ = std::unique_ptr<void, DeviceBufferDeleter>(p, deleter);
+  }
+
+  std::unique_ptr<void, DeviceBufferDeleter> ptr_;
 };
+
+/** Order a host read or write of storage the device also sees.
+ *
+ * Which synchronization that needs is a property of the storage, so the
+ * resource decides: managed memory on a device without concurrentManagedAccess
+ * forbids host access while *any* device work is outstanding and needs a
+ * device-wide wait, while page-locked host memory only needs the stream that
+ * produced the value. Callers establish that the storage is host-accessible at
+ * all before calling; a null resource is the default device allocator, whose
+ * storage never is. */
+inline void sync_for_host_access(const MemoryResource* resource, cudaStream_t stream) {
+  if (resource != nullptr && !resource->allowsConcurrentHostAccess()) {
+    EIGEN_CUDA_RUNTIME_CHECK(cudaDeviceSynchronize());
+  } else {
+    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream));
+  }
+}
 
 // cudaMemcpyAsync only overlaps with compute when the host side is pinned, so
 // async D2H staging goes through this buffer.

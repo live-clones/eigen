@@ -8,13 +8,14 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-// Tests for gpu::MemoryResource and the DeviceMatrix overload that allocates
-// through one.
+// Tests for gpu::MemoryResource and the types that allocate through one.
 //
 // The property under test is that where the memory comes from is orthogonal to
 // everything else: a DeviceMatrix built on managed, mapped or registered
 // storage is the same type, works with the same expressions and solvers, and
 // differs only in whether hostData() is non-null and what syncHost() has to do.
+// Because the resource lives in the buffer both types share, the same holds for
+// a DeviceScalar and for the reductions that produce one.
 
 #define EIGEN_USE_GPU
 #include "main.h"
@@ -151,6 +152,94 @@ void test_adopted_host_matrix(Index n) {
   VERIFY((Eigen::Map<MatrixType>(C.hostData(), n, n) - expected).norm() / expected.norm() < tol);
 }
 
+// ---- The same storage kinds, one type down ---------------------------------
+
+// A DeviceScalar allocates through the buffer DeviceMatrix uses, so it reaches
+// every resource too. On a host-accessible one the value is written where the
+// host can already address it and get() drops its device-to-host copy.
+template <typename Scalar>
+void test_device_scalar_on_each_resource() {
+  gpu::Context ctx;
+  const Scalar value = Scalar(3);
+
+  for (gpu::MemoryResource* r : hostAccessibleResources()) {
+    gpu::DeviceScalar<Scalar> s(value, *r, ctx.stream());
+    VERIFY(s.isHostAccessible());
+    VERIFY(s.hostData() != nullptr);
+    VERIFY(s.memoryResource() == r);
+    VERIFY_IS_EQUAL(s.get(), value);
+    // Same bytes both ways: the device pointer is an alias, not a copy.
+    VERIFY_IS_EQUAL(*s.hostData(), value);
+  }
+
+  // The default allocator is device-only and unchanged.
+  gpu::DeviceScalar<Scalar> d(value, ctx.stream());
+  VERIFY(!d.isHostAccessible());
+  VERIFY(d.hostData() == nullptr);
+  VERIFY(d.memoryResource() == nullptr);
+  VERIFY_IS_EQUAL(d.get(), value);
+}
+
+// A reduction asked for a host-accessible result gives one, and it is right.
+template <typename Scalar>
+void test_reduction_result_on_resource(Index n) {
+  using MatrixType = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  const MatrixType hx = MatrixType::Random(n, 1);
+  const MatrixType hy = MatrixType::Random(n, 1);
+  const RealScalar tol = RealScalar(20) * RealScalar(n) * NumTraits<Scalar>::epsilon();
+
+  gpu::Context ctx;
+  gpu::DeviceMatrix<Scalar> x = gpu::DeviceMatrix<Scalar>::fromHost(hx, ctx.stream());
+  gpu::DeviceMatrix<Scalar> y = gpu::DeviceMatrix<Scalar>::fromHost(hy, ctx.stream());
+
+  for (gpu::MemoryResource* r : hostAccessibleResources()) {
+    gpu::DeviceScalar<Scalar> d_dot = x.dot(ctx, y, *r);
+    VERIFY(d_dot.isHostAccessible());
+    VERIFY(d_dot.memoryResource() == r);
+    VERIFY_IS_APPROX(Scalar(d_dot), Scalar(hx.col(0).dot(hy.col(0))));
+
+    gpu::DeviceScalar<RealScalar> d_norm = x.norm(ctx, *r);
+    VERIFY(d_norm.isHostAccessible());
+    VERIFY(numext::abs(RealScalar(d_norm) - hx.norm()) < tol * hx.norm());
+
+    gpu::DeviceScalar<RealScalar> d_sq = x.squaredNorm(ctx, *r);
+    VERIFY(d_sq.isHostAccessible());
+    VERIFY(numext::abs(RealScalar(d_sq) - hx.squaredNorm()) < tol * hx.squaredNorm());
+  }
+
+  // Storage is named, never inherited: the operands above are device-only, and
+  // the plain overload keeps giving device-only results.
+  gpu::DeviceScalar<Scalar> plain = x.dot(ctx, y);
+  VERIFY(!plain.isHostAccessible());
+}
+
+// Device-side scalar arithmetic keeps the result where its left operand lives,
+// so a whole chain stays readable without a copy. Real types only: the NPP
+// helpers behind operator/ and unary minus do not cover complex.
+template <typename Scalar>
+void test_device_scalar_arithmetic_keeps_resource() {
+  gpu::Context ctx;
+  gpu::MemoryResource& r = gpu::mappedHostMemoryResource();
+
+  gpu::DeviceScalar<Scalar> a(Scalar(6), r, ctx.stream());
+  gpu::DeviceScalar<Scalar> b(Scalar(4), r, ctx.stream());
+
+  gpu::DeviceScalar<Scalar> q = a / b;
+  VERIFY(q.isHostAccessible());
+  VERIFY(q.memoryResource() == &r);
+  VERIFY_IS_APPROX(Scalar(q), Scalar(1.5));
+
+  gpu::DeviceScalar<Scalar> neg = -a;
+  VERIFY(neg.isHostAccessible());
+  VERIFY_IS_APPROX(Scalar(neg), Scalar(-6));
+
+  // A device-only operand still yields device-only storage.
+  gpu::DeviceScalar<Scalar> c(Scalar(6), ctx.stream());
+  VERIFY(!(-c).isHostAccessible());
+}
+
 // ---- Ownership guards -------------------------------------------------------
 
 // Resource-backed storage must go back to its resource. release() hands out a
@@ -168,12 +257,16 @@ void test_scalar() {
   CALL_SUBTEST(test_gemm_on_each_resource<Scalar>(128));
   CALL_SUBTEST(test_llt_on_resource<Scalar>(64));
   CALL_SUBTEST(test_adopted_host_matrix<Scalar>(64));
+  CALL_SUBTEST(test_device_scalar_on_each_resource<Scalar>());
+  CALL_SUBTEST(test_reduction_result_on_resource<Scalar>(97));
 }
 
 EIGEN_DECLARE_TEST(gpu_memory_resource) {
   gpu_test::require_cuda_device();
   CALL_SUBTEST_1(test_resource_properties());
   CALL_SUBTEST_1(test_release_rejects_resource_backed());
+  CALL_SUBTEST_1(test_device_scalar_arithmetic_keeps_resource<float>());
+  CALL_SUBTEST_2(test_device_scalar_arithmetic_keeps_resource<double>());
   CALL_SUBTEST_1(test_scalar<float>());
   CALL_SUBTEST_2(test_scalar<double>());
   CALL_SUBTEST_3(test_scalar<std::complex<float>>());
