@@ -8,6 +8,8 @@
 #include <benchmark/benchmark.h>
 #include <Eigen/Core>
 #include <Eigen/Cholesky>
+
+#include "../bench_common.h"
 #include <Eigen/LU>
 
 using namespace Eigen;
@@ -21,14 +23,8 @@ typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
 typedef Matrix<Scalar, Dynamic, 1> VectorType;
 
 // Half-flops symmetric-factorization cost (multiply + add counted separately), matching bench_cholesky.cpp.
-static double symmetric_factorization_cost(int n) {
-  double cost = 0;
-  for (int j = 0; j < n; ++j) {
-    int rem = std::max(n - j - 1, 0);
-    cost += 2 * (double(rem) * j + rem + j);
-  }
-  return cost;
-}
+// Flop counts come from benchmarks/bench_common.h so this file and the
+// comparison harness scale the same operation identically.
 
 // A symmetric/Hermitian indefinite test matrix.
 static MatrixType make_indefinite(int n) {
@@ -46,8 +42,9 @@ static void BM_BunchKaufman(benchmark::State& state) {
     acc += bk.matrixLDLT().coeff(r, r);
     benchmark::DoNotOptimize(acc);
   }
-  state.counters["GFLOPS"] = benchmark::Counter(
-      symmetric_factorization_cost(n), benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
+  state.counters["GFLOPS"] =
+      benchmark::Counter(eigen_bench::symmetricFactorizationFlops<Scalar>(n),
+                         benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
 }
 BENCHMARK(BM_BunchKaufman)->RangeMultiplier(2)->Range(8, 2048);
 
@@ -73,8 +70,9 @@ static void BM_LDLT(benchmark::State& state) {
     acc += ldlt.matrixLDLT().coeff(r, r);
     benchmark::DoNotOptimize(acc);
   }
-  state.counters["GFLOPS"] = benchmark::Counter(
-      symmetric_factorization_cost(n), benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
+  state.counters["GFLOPS"] =
+      benchmark::Counter(eigen_bench::symmetricFactorizationFlops<Scalar>(n),
+                         benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
 }
 BENCHMARK(BM_LDLT)->RangeMultiplier(2)->Range(8, 2048);
 
@@ -89,8 +87,9 @@ static void BM_PartialPivLU(benchmark::State& state) {
     benchmark::DoNotOptimize(acc);
   }
   // LU does roughly twice the work of a symmetric factorization.
-  state.counters["GFLOPS"] = benchmark::Counter(
-      2 * symmetric_factorization_cost(n), benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
+  state.counters["GFLOPS"] =
+      benchmark::Counter(2 * eigen_bench::symmetricFactorizationFlops<Scalar>(n),
+                         benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
 }
 BENCHMARK(BM_PartialPivLU)->RangeMultiplier(2)->Range(8, 2048);
 
