@@ -135,7 +135,7 @@ def parse_benchmark_name(run_name: str) -> dict:
     for field in fields[3:]:
         key, _, value = field.partition(":")
         if not _ or not value.isdigit():
-            raise ValueError(f"unparseable field {field!r} in {run_name!r}")
+            raise ValueError(f"unparsable field {field!r} in {run_name!r}")
         if key == "threads":
             threads = int(value)
         elif key in RESERVED_DIMS:      # see below
@@ -604,7 +604,7 @@ plots.py --out-dir DIR [options] [MERGED]
 
 Output filenames: `<config_id>__<OP>__<scalar>__<kind>.<ext>`.
 
-Exit: 0 success; 1 usage error; 2 unparseable input; 3 matplotlib unavailable.
+Exit: 0 success; 1 usage error; 2 unparsable input; 3 matplotlib unavailable.
 
 ---
 

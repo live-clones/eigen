@@ -365,7 +365,7 @@ def test_out_dir_is_required():
     assert proc.returncode == 1, proc.stderr
 
 
-def test_unparseable_input_is_exit_two(tmp_path):
+def test_unparsable_input_is_exit_two(tmp_path):
     path = tmp_path / "broken.json"
     path.write_text("{{{")
     proc = support.run_cli("plots.py", ["--out-dir", str(tmp_path), str(path)])
