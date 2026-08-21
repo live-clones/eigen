@@ -30,8 +30,8 @@ The selected names are CMake target names, not CTest test names: a split test
 ``foo`` registers ``foo_1``..``foo_N`` as tests but a single ``foo`` target that
 aggregates them, so selecting ``foo`` builds and runs every part.  Targets that
 a given configuration does not register (optional dependencies such as CHOLMOD
-or SYCL) are filtered out by the build script, which is the only place that
-knows what CMake actually configured.
+or SYCL) are filtered out by the build scripts, the only place that knows what
+CMake actually configured.
 
 Two registrations do not fit that shape:
 
