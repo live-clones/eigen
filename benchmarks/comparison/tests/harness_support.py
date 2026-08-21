@@ -267,9 +267,12 @@ def make_measurement(
     flops = flops if flops is not None else gemm_flops(*[shape[d] for d in shape_dims])
     rate = gflops * 1e9
     rate_mad = gflops_mad * 1e9
-    seconds = flops / rate
+    # A zero rate is a real, expressible outcome (an arm that completed no work per
+    # unit time), and the pipeline has to say something honest about it, so the
+    # helper must be able to construct one rather than dividing by it.
+    seconds = flops / rate if rate else 0.0
     # MAD of t = flops/r under a small perturbation of r.
-    seconds_mad = flops * rate_mad / (rate * rate)
+    seconds_mad = flops * rate_mad / (rate * rate) if rate else 0.0
     return {
         "name": name or benchmark_name(op, arm, scalar, shape_dims, shape, threads),
         "op": op,

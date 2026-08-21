@@ -113,6 +113,7 @@ def parse_benchmark_name(run_name: str) -> dict:
     if scalar not in SCALAR_TAGS:
         raise ValueError(f"illegal scalar field {scalar!r} in {run_name!r}")
     threads = 1
+    threads_in_name = False
     shape: dict[str, int] = {}
     dim_order: list[str] = []
     for entry in fields[3:]:
@@ -121,6 +122,7 @@ def parse_benchmark_name(run_name: str) -> dict:
             raise ValueError(f"unparseable field {entry!r} in {run_name!r}")
         if key == "threads":
             threads = int(value)
+            threads_in_name = True
         elif key in RESERVED_DIMS:
             raise ValueError(f"unsupported registration form {key!r} in {run_name!r}")
         elif not _DIM_RE.match(key):
@@ -139,6 +141,10 @@ def parse_benchmark_name(run_name: str) -> dict:
         "shape": shape,
         "shape_dims": dim_order,
         "threads": threads,
+        # Whether the registration actually encoded a thread count. Absent, the
+        # 1 above is a default, not an observation -- a caller keying on it would
+        # silently file an N-thread run as single-threaded.
+        "threads_in_name": threads_in_name,
     }
 
 
@@ -467,6 +473,34 @@ def arms_in(cells: Iterable[Mapping[str, Any]], baseline: str | None) -> list[st
         ordered.append(baseline)
     ordered.extend(sorted(arm for arm in present if arm not in ordered))
     return ordered
+
+
+def resolve_baseline(merged: Mapping[str, Any], requested: str | None) -> str | None:
+    """The arm the ratios were computed against, refusing to relabel them.
+
+    `ratio` is computed once, by reduce.py, against `merged["baseline"]`. Nothing
+    downstream can recompute it: a cell keeps only the arms' rates and that one
+    number. So a presentation-time `--baseline` naming a different arm would
+    retitle the page and the ratio column while the ratios underneath still
+    divide by the original arm -- publishing, for example, "Eigen vs OpenBLAS"
+    over Eigen/Accelerate numbers, on a page whose own neighbouring column names
+    Accelerate. Choosing a different baseline is a reduce-time decision.
+    """
+    recorded = merged.get("baseline")
+    if requested is None or requested == recorded:
+        return recorded
+    if recorded is None:
+        raise PipelineError(
+            f"--baseline {requested!r} was given but this document records no baseline, so it has no "
+            "ratios to label; re-run reduce.py --baseline to compute them",
+            EXIT_USAGE,
+        )
+    raise PipelineError(
+        f"--baseline {requested!r} does not match the baseline these ratios were computed against "
+        f"({recorded!r}). Relabelling would publish a ratio against one library under another "
+        f"library's name; re-run reduce.py --baseline {requested} instead",
+        EXIT_USAGE,
+    )
 
 
 def arm_display(merged: Mapping[str, Any], arm: str) -> str:
