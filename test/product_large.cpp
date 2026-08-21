@@ -53,6 +53,43 @@ void product_large_regressions() {
   }
 
   {
+    // Whatever the platform reports has to be a plausible data-cache size: a stray unit suffix
+    // would otherwise be read as a handful of bytes and silently shrink every blocking size.
+    std::ptrdiff_t queried_l1 = -1, queried_l2 = -1, queried_l3 = -1;
+    internal::queryCacheSizes(queried_l1, queried_l2, queried_l3);
+    for (std::ptrdiff_t size : {queried_l1, queried_l2, queried_l3})
+      if (size > 0) VERIFY(size >= 1024);
+
+#ifdef EIGEN_CPU_CACHE_SYSFS
+    VERIFY(internal::parseCpuCacheSize("64K\n") == 64 * 1024);
+    VERIFY(internal::parseCpuCacheSize("2048K\n") == 2048 * 1024);
+    VERIFY(internal::parseCpuCacheSize("32M\n") == 32 * 1024 * 1024);
+    // A size Eigen cannot make sense of has to read as "unknown", never as a few bytes.
+    VERIFY(internal::parseCpuCacheSize("bogus") == 0);
+    VERIFY(internal::parseCpuCacheSize("0K") == 0);
+    // A bare count is bytes, not kibibytes.
+    VERIFY(internal::parseCpuCacheSize("512\n") == 512);
+
+    VERIFY(internal::parseCpuListCount("0\n") == 1);
+    VERIFY(internal::parseCpuListCount("0-3\n") == 4);
+    VERIFY(internal::parseCpuListCount("0-3,8-11\n") == 8);
+    VERIFY(internal::parseCpuListCount("0,2,4\n") == 3);
+    VERIFY(internal::parseCpuListCount("") == 0);
+    VERIFY(internal::parseCpuListCount("3-0") == 0);
+
+    // On a kernel that publishes the topology, Eigen has to pick it up instead of falling back to
+    // its compiled-in defaults. glibc's sysconf answers only on x86, so before the sysfs fallback
+    // this failed on every other Linux architecture.
+    char probe[32];
+    if (internal::readCpuCacheAttribute(0, "size", probe)) VERIFY(queried_l1 > 0);
+
+    // A share is one CPU's slice of one L3 instance, so it can never exceed the reported L3.
+    const std::ptrdiff_t l3_per_cpu = internal::queryCpuCacheTopologySysfs().l3_per_cpu;
+    if (l3_per_cpu > 0) VERIFY(l3_per_cpu >= 1024 && queried_l3 > 0 && l3_per_cpu <= queried_l3);
+#endif
+  }
+
+  {
     // check the functions to setup blocking sizes compile and do not segfault
     // FIXME check they do what they are supposed to do !!
     std::ptrdiff_t old_l1 = l1CacheSize();
@@ -80,6 +117,16 @@ void product_large_regressions() {
     VERIFY(k2 > 0);
     VERIFY(m2 > 0);
     VERIFY(n2 > 0);
+
+    // An explicit override has to govern blocking on its own. The detected per-CPU L3 share also
+    // feeds the rhs-panel budget, so leaving it set would silently overrule callers that force
+    // small cache sizes to exercise multi-pass blocking (unsupported/test/tensor_contraction.cpp
+    // does exactly that).
+    setCpuCacheSizes(896, 1920, 2944);
+    std::ptrdiff_t forced_l1, forced_l2, forced_l3, forced_l3_per_cpu = -1;
+    internal::manage_caching_sizes(GetAction, &forced_l1, &forced_l2, &forced_l3, &forced_l3_per_cpu);
+    VERIFY(forced_l1 == 896 && forced_l2 == 1920 && forced_l3 == 2944);
+    VERIFY(forced_l3_per_cpu == 0);
 
     setCpuCacheSizes(old_l1, old_l2, old_l3);
   }
