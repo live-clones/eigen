@@ -673,8 +673,7 @@ one column.
 // Construction
 DeviceMatrix<Scalar>()                                   // Empty (0x0)
 DeviceMatrix<Scalar>(Index n)                            // Allocate column vector (n x 1)
-DeviceMatrix<Scalar>(rows, cols)                         // Allocate uninitialized
-DeviceMatrix<Scalar>(rows, cols, MemoryResource&)        // ... through a resource (must outlive the matrix)
+DeviceMatrix<Scalar>(rows, cols, MemoryResource& = deviceMemoryResource())  // Allocate uninitialized
 DeviceMatrix<Scalar>(expr)                               // Copy-init from any supported expression
                                                          // (GEMM, geam/scaled, LLT/LU solve, TRSM,
                                                          //  SYMM, SpMV/SpMM)
@@ -699,7 +698,7 @@ bool    empty()
 Scalar* data()                                           // Raw device pointer
 Scalar* hostData()                                       // Host alias, or null when device-only
 bool    isHostAccessible()
-MemoryResource* memoryResource()                         // Never null; deviceMemoryResource() by default
+MemoryResource& memoryResource()                         // Never null; deviceMemoryResource() by default
 void    syncHost(gpu::Context&)                          // Make device writes visible through hostData()
 void    resize(Index rows, Index cols)                   // Discard contents; keeps the allocation
                                                          // when it is already large enough
@@ -746,10 +745,8 @@ Device-resident scalar. Returned by `dot()`, `norm()`, and `squaredNorm()`.
 Implicit conversion to `Scalar` triggers `cudaStreamSynchronize` + download.
 
 ```cpp
-DeviceScalar(cudaStream_t stream = nullptr)              // Allocate uninitialized
-DeviceScalar(Scalar host_val, cudaStream_t stream)       // Upload host value
-DeviceScalar(MemoryResource&, cudaStream_t = nullptr)    // Allocate through a resource
-DeviceScalar(Scalar, MemoryResource&, cudaStream_t)      // ... and upload a host value
+DeviceScalar(cudaStream_t = nullptr, MemoryResource& = pooledDeviceMemoryResource())
+DeviceScalar(Scalar host_val, cudaStream_t, MemoryResource& = pooledDeviceMemoryResource())
 
 Scalar          get()                                    // Syncs; downloads only if device-only
                 operator Scalar()                        // Implicit conversion (syncs)

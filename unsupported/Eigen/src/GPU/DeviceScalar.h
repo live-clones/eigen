@@ -38,20 +38,18 @@ class DeviceScalar {
  public:
   using Scalar = Scalar_;
 
+  // Both constructors take the resource their storage comes from as a trailing
+  // defaulted argument, like DeviceBuffer and the reductions. A host-accessible
+  // one makes get() a synchronization and a load instead of a synchronization
+  // and a device-to-host copy. It must outlive this scalar.
+
   /** Allocate an uninitialized device scalar. Contents are undefined until
    * written, e.g. by cuBLAS dot/nrm2 under POINTER_MODE_DEVICE. */
-  explicit DeviceScalar(cudaStream_t stream = nullptr) : d_val_(sizeof(Scalar)), stream_(stream) {}
-
-  /** As above, but allocated through \p resource, which must outlive this
-   * scalar. A host-accessible resource makes get() a synchronization and a
-   * load instead of a synchronization and a device-to-host copy. */
-  explicit DeviceScalar(MemoryResource& resource, cudaStream_t stream = nullptr)
+  explicit DeviceScalar(cudaStream_t stream = nullptr, MemoryResource& resource = pooledDeviceMemoryResource())
       : d_val_(sizeof(Scalar), resource), stream_(stream) {}
 
-  DeviceScalar(Scalar host_val, cudaStream_t stream) : d_val_(sizeof(Scalar)), stream_(stream) { upload(host_val); }
-
-  /** Initialized to \p host_val, in storage from \p resource. */
-  DeviceScalar(Scalar host_val, MemoryResource& resource, cudaStream_t stream)
+  /** As above, initialized to \p host_val. */
+  DeviceScalar(Scalar host_val, cudaStream_t stream, MemoryResource& resource = pooledDeviceMemoryResource())
       : d_val_(sizeof(Scalar), resource), stream_(stream) {
     upload(host_val);
   }
@@ -119,21 +117,21 @@ class DeviceScalar {
 
   friend DeviceScalar operator/(const DeviceScalar& a, const DeviceScalar& b) {
     eigen_assert(a.stream_ == b.stream_ && "DeviceScalar operator/: operands must share the same stream");
-    DeviceScalar result(a.memoryResource(), a.stream_);
+    DeviceScalar result(a.stream_, a.memoryResource());
     gpu::internal::device_scalar_div(a.devicePtr(), b.devicePtr(), result.devicePtr(), a.stream_);
     return result;
   }
 
   friend DeviceScalar operator/(Scalar a, const DeviceScalar& b) {
-    return DeviceScalar(a, b.memoryResource(), b.stream_) / b;
+    return DeviceScalar(a, b.stream_, b.memoryResource()) / b;
   }
 
   friend DeviceScalar operator/(const DeviceScalar& a, Scalar b) {
-    return a / DeviceScalar(b, a.memoryResource(), a.stream_);
+    return a / DeviceScalar(b, a.stream_, a.memoryResource());
   }
 
   DeviceScalar operator-() const {
-    DeviceScalar result(memoryResource(), stream_);
+    DeviceScalar result(stream_, memoryResource());
     gpu::internal::device_scalar_neg(devicePtr(), result.devicePtr(), stream_);
     return result;
   }
