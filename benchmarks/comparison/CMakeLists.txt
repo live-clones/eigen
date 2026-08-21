@@ -86,10 +86,13 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${EIGEN_BENCH_OP
 # Which operations ops.toml expects a binary for
 # ---------------------------------------------------------------------------
 
-# ops.toml is TOML and CMake has no TOML parser, but only two keys are read here,
-# both at the top level of an [ops.<KEY>] table, so a line scan is enough. It is
-# used for cross-checking only: nothing is built from a value that the Python
-# parsers would read differently.
+# ops.toml is TOML and CMake has no TOML parser, but only three keys are read
+# here -- `status` and `source` at the top level of an [ops.<KEY>] table, and
+# `kind` inside its [ops.<KEY>.reference] sub-table -- so a line scan is enough.
+# tests/test_ops_registry.py mirrors this scan against a real TOML parse and
+# fails if the two ever disagree, because `kind` now decides what is BUILT: a
+# reformatted ops.toml that this scan stopped reading would silently drop the
+# reference arm of every LAPACK operation.
 file(READ "${EIGEN_BENCH_OPS_TOML}" _ops_content)
 string(REPLACE ";" "\;" _ops_content "${_ops_content}")
 # A CRLF checkout would otherwise leave \r on every line and the anchored table
@@ -99,20 +102,31 @@ string(REPLACE "\n" ";" _ops_content "${_ops_content}")
 
 set(_op_keys "")
 set(_current_op "")
+set(_current_reference_op "")
 foreach(_line IN LISTS _ops_content)
   if(_line MATCHES "^\\[ops\\.([A-Z][A-Z0-9_]*)\\][ \t]*$")
     set(_current_op "${CMAKE_MATCH_1}")
+    set(_current_reference_op "")
     list(APPEND _op_keys "${_current_op}")
     set(_op_${_current_op}_status "")
     set(_op_${_current_op}_source "")
+    set(_op_${_current_op}_reference_kind "")
+  elseif(_line MATCHES "^\\[ops\\.([A-Z][A-Z0-9_]*)\\.reference\\][ \t]*$")
+    set(_current_op "")
+    set(_current_reference_op "${CMAKE_MATCH_1}")
   elseif(_line MATCHES "^\\[")
     # Any other table header, including [ops.<KEY>.<sub>], ends the op's
     # top-level keys.
     set(_current_op "")
+    set(_current_reference_op "")
   elseif(_current_op AND _line MATCHES "^status[ \t]*=[ \t]*\"([^\"]*)\"")
     set(_op_${_current_op}_status "${CMAKE_MATCH_1}")
   elseif(_current_op AND _line MATCHES "^source[ \t]*=[ \t]*\"([^\"]*)\"")
     set(_op_${_current_op}_source "${CMAKE_MATCH_1}")
+  elseif(_current_reference_op AND _line MATCHES "^kind[ \t]*=[ \t]*\"([^\"]*)\"")
+    # The interface family the reference routine lives in: "blas", "cblas",
+    # "lapack", or "none" for an operation with no reference counterpart.
+    set(_op_${_current_reference_op}_reference_kind "${CMAKE_MATCH_1}")
   endif()
 endforeach()
 if(NOT _op_keys)
@@ -173,28 +187,34 @@ _eigen_bench_append_string_define(_comparison_definitions EIGEN_BENCH_EIGEN_COMM
 _eigen_bench_append_string_define(_comparison_definitions EIGEN_BENCH_EIGEN_DIRTY "${EIGEN_BENCH_EIGEN_DIRTY}")
 _eigen_bench_append_string_define(_comparison_definitions EIGEN_BENCH_OPS_TOML_SHA256 "${EIGEN_BENCH_OPS_TOML_SHA256}")
 
+# Kept SEPARATE from _comparison_definitions, which every target gets. These are
+# the defines that make a source register its reference arm at all, and a target
+# whose reference routines live in an interface family this build cannot call
+# must not receive them -- see the per-target gate below.
+set(_comparison_reference_definitions "")
+
 set(_comparison_arms eigen)
 if(EIGEN_BENCH_BLAS_FOUND)
   list(APPEND _comparison_arms "${EIGEN_BENCH_BLAS_ARM}")
   # A bare token: bench_compare.h stringizes it, so no quoting has to
   # survive the CMake command line (CONTRACTS.md section 3.2).
-  list(APPEND _comparison_definitions "EIGEN_BENCH_REFERENCE_ARM=${EIGEN_BENCH_BLAS_ARM}")
-  _eigen_bench_append_string_define(_comparison_definitions EIGEN_BENCH_REFERENCE_LIBRARY_NAME "${EIGEN_BENCH_BLAS_DISPLAY_NAME}")
-  _eigen_bench_append_string_define(_comparison_definitions EIGEN_BENCH_REFERENCE_VERSION_FALLBACK "${EIGEN_BENCH_BLAS_VERSION}")
-  _eigen_bench_append_string_define(_comparison_definitions EIGEN_BENCH_REFERENCE_PATH "${EIGEN_BENCH_BLAS_LIBRARY_PATH}")
-  _eigen_bench_append_string_define(_comparison_definitions EIGEN_BENCH_REFERENCE_INTERFACE "${EIGEN_BENCH_BLAS_INTERFACE}")
-  _eigen_bench_append_string_define(_comparison_definitions EIGEN_BENCH_REFERENCE_THREADING "${EIGEN_BENCH_BLAS_THREADING}")
+  list(APPEND _comparison_reference_definitions "EIGEN_BENCH_REFERENCE_ARM=${EIGEN_BENCH_BLAS_ARM}")
+  _eigen_bench_append_string_define(_comparison_reference_definitions EIGEN_BENCH_REFERENCE_LIBRARY_NAME "${EIGEN_BENCH_BLAS_DISPLAY_NAME}")
+  _eigen_bench_append_string_define(_comparison_reference_definitions EIGEN_BENCH_REFERENCE_VERSION_FALLBACK "${EIGEN_BENCH_BLAS_VERSION}")
+  _eigen_bench_append_string_define(_comparison_reference_definitions EIGEN_BENCH_REFERENCE_PATH "${EIGEN_BENCH_BLAS_LIBRARY_PATH}")
+  _eigen_bench_append_string_define(_comparison_reference_definitions EIGEN_BENCH_REFERENCE_INTERFACE "${EIGEN_BENCH_BLAS_INTERFACE}")
+  _eigen_bench_append_string_define(_comparison_reference_definitions EIGEN_BENCH_REFERENCE_THREADING "${EIGEN_BENCH_BLAS_THREADING}")
   # The Fortran BLAS integer width the reference arm must pass its arguments as.
   # Getting it wrong corrupts every argument silently, so it is derived from the
   # vendor entry that selected the library, never assumed.
   if(EIGEN_BENCH_BLAS_INTERFACE STREQUAL "ilp64")
-    list(APPEND _comparison_definitions "EIGEN_BENCH_REFERENCE_ILP64=1")
+    list(APPEND _comparison_reference_definitions "EIGEN_BENCH_REFERENCE_ILP64=1")
   endif()
   if(_reference_version_define)
-    list(APPEND _comparison_definitions "${_reference_version_define}=1")
+    list(APPEND _comparison_reference_definitions "${_reference_version_define}=1")
   endif()
   if(EIGEN_BENCH_BLAS_COMPILE_DEFINITIONS)
-    list(APPEND _comparison_definitions ${EIGEN_BENCH_BLAS_COMPILE_DEFINITIONS})
+    list(APPEND _comparison_reference_definitions ${EIGEN_BENCH_BLAS_COMPILE_DEFINITIONS})
   endif()
 endif()
 
@@ -225,15 +245,22 @@ find_package(Python3 QUIET COMPONENTS Interpreter)
 # whether the family is available; run.py turns a missing family into an explicit
 # `reference_routine_absent` rather than a silent gap.
 set(EIGEN_BENCH_LAPACK_AVAILABLE FALSE)
+# Where ?potrf and friends come from: the BLAS vendor's own library, or a
+# separately found LAPACK. A published row must not attribute a routine to the
+# vendor named in its column header when a different package supplied it, so this
+# is recorded rather than flattened into "the reference library".
+set(EIGEN_BENCH_LAPACK_PROVIDER "")
 if(EIGEN_BENCH_BLAS_FOUND)
   if("lapack" IN_LIST EIGEN_BENCH_BLAS_PROVIDES)
     # The vendor states it carries LAPACK in the library already linked.
     set(EIGEN_BENCH_LAPACK_AVAILABLE TRUE)
+    set(EIGEN_BENCH_LAPACK_PROVIDER "vendor")
     set(EIGEN_BENCH_LAPACK_LINK_LIBRARIES "")
   else()
     find_package(LAPACK QUIET)
     if(LAPACK_FOUND)
       set(EIGEN_BENCH_LAPACK_AVAILABLE TRUE)
+      set(EIGEN_BENCH_LAPACK_PROVIDER "separate")
       if(TARGET LAPACK::LAPACK)
         set(EIGEN_BENCH_LAPACK_LINK_LIBRARIES LAPACK::LAPACK)
       else()
@@ -246,12 +273,95 @@ if(EIGEN_BENCH_BLAS_FOUND)
   endif()
 endif()
 
+# The interface families this build can actually CALL, as opposed to the ones the
+# vendor row declares. They differ in the two directions that matter: a vendor
+# that ships no LAPACK gains the family when find_package(LAPACK) supplies it
+# elsewhere, and a vendor that declares LAPACK it cannot deliver would be caught
+# at link time rather than here. run.py turns an absent family into an explicit
+# `reference_routine_absent` cell; ops.toml's per-op reference.kind is what says
+# which family an operation needs.
+set(EIGEN_BENCH_REFERENCE_FAMILIES "")
+if(EIGEN_BENCH_BLAS_FOUND)
+  set(EIGEN_BENCH_REFERENCE_FAMILIES ${EIGEN_BENCH_BLAS_PROVIDES})
+  if(EIGEN_BENCH_LAPACK_AVAILABLE AND NOT "lapack" IN_LIST EIGEN_BENCH_REFERENCE_FAMILIES)
+    list(APPEND EIGEN_BENCH_REFERENCE_FAMILIES lapack)
+  endif()
+endif()
+
+# Which operations each source carries, and therefore which reference families the
+# binary built from it needs. ops.toml's `source` key is the same rule run.py
+# applies (OpsRegistry.target_for), so the mapping is read from the registry, not
+# guessed from the file name.
+function(_eigen_bench_target_ops target out_var)
+  set(_ops "")
+  foreach(_op IN LISTS _op_keys)
+    if(NOT _op_${_op}_source)
+      continue()
+    endif()
+    get_filename_component(_op_target "${_op_${_op}_source}" NAME_WE)
+    if(_op_target STREQUAL target)
+      list(APPEND _ops "${_op}")
+    endif()
+  endforeach()
+  set(${out_var} "${_ops}" PARENT_SCOPE)
+endfunction()
+
 set(_comparison_targets "")
 foreach(_source IN LISTS _comparison_sources)
   get_filename_component(_target "${_source}" NAME_WE)
 
-  eigen_add_benchmark(${_target} "${_source}" DEFINITIONS ${_comparison_definitions})
-  if(EIGEN_BENCH_BLAS_FOUND)
+  # A source whose reference routine lives in a family this build cannot call --
+  # ?potrf against a vendor that ships BLAS but no LAPACK, with no separate LAPACK
+  # found -- must be built WITHOUT the reference arm. Handing it
+  # EIGEN_BENCH_REFERENCE_ARM anyway made it declare and call a routine that does
+  # not resolve, so the target failed to LINK: the harness then reported
+  # build_failed for both arms of the operation, taking the Eigen arm down with
+  # it, and the `reference_routine_absent` path this whole mechanism exists to
+  # produce could never be reached.
+  set(_target_missing_families "")
+  set(_target_reference_ops "")
+  _eigen_bench_target_ops("${_target}" _target_ops_here)
+  foreach(_op IN LISTS _target_ops_here)
+    set(_kind "${_op_${_op}_reference_kind}")
+    if(NOT _kind OR _kind STREQUAL "none")
+      continue()
+    endif()
+    list(APPEND _target_reference_ops "${_op}")
+    if(NOT _kind IN_LIST EIGEN_BENCH_REFERENCE_FAMILIES)
+      list(APPEND _target_missing_families "${_kind}")
+    endif()
+  endforeach()
+  list(REMOVE_DUPLICATES _target_missing_families)
+
+  set(_target_definitions ${_comparison_definitions})
+  set(_target_has_reference FALSE)
+  if(EIGEN_BENCH_BLAS_FOUND AND NOT _target_missing_families)
+    set(_target_has_reference TRUE)
+    list(APPEND _target_definitions ${_comparison_reference_definitions})
+  elseif(EIGEN_BENCH_BLAS_FOUND)
+    message(STATUS
+      "Comparison benchmarks: ${_target} is built Eigen-only -- ${_target_reference_ops} needs "
+      "${_target_missing_families}, which ${EIGEN_BENCH_BLAS_ARM} does not provide here. Its reference "
+      "cells are reported as reference_routine_absent.")
+    # The gate is per binary because a define is. A source mixing an operation
+    # whose family is present with one whose family is not would lose BOTH
+    # reference arms, so say so and split the source rather than publish the
+    # narrower claim silently.
+    set(_target_available_families "")
+    foreach(_op IN LISTS _target_reference_ops)
+      if("${_op_${_op}_reference_kind}" IN_LIST EIGEN_BENCH_REFERENCE_FAMILIES)
+        list(APPEND _target_available_families "${_op}")
+      endif()
+    endforeach()
+    if(_target_available_families)
+      message(WARNING
+        "ops.toml puts ${_target_available_families} in the same source as an operation whose reference "
+        "family is unavailable, so their reference arms are dropped too. Give them their own bench_*.cpp.")
+    endif()
+  endif()
+
+  eigen_add_benchmark(${_target} "${_source}" DEFINITIONS ${_target_definitions})
+  if(_target_has_reference)
     target_link_libraries(${_target} PRIVATE ${EIGEN_BENCH_BLAS_LINK_LIBRARIES})
     if(EIGEN_BENCH_LAPACK_LINK_LIBRARIES)
       target_link_libraries(${_target} PRIVATE ${EIGEN_BENCH_LAPACK_LINK_LIBRARIES})
@@ -263,6 +373,7 @@ foreach(_source IN LISTS _comparison_sources)
       target_compile_options(${_target} PRIVATE ${EIGEN_BENCH_BLAS_COMPILE_OPTIONS})
     endif()
   endif()
+  set(_target_${_target}_has_reference ${_target_has_reference})
   add_dependencies(bench_comparison_all ${_target})
   list(APPEND _comparison_targets "${_target}")
 endforeach()
@@ -344,6 +455,17 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_flops.cpp")
   add_test(NAME comparison_flops COMMAND comparison_test_flops)
 endif()
 
+# The cross-arm agreement predicate, which decides whether a reference kernel's
+# output is a result or a defect. Same shape as the flop test above and for the
+# same reason: its own main(), no GoogleTest, no vendor library -- the predicate
+# is pure and the operands are constructed in the test.
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_validation.cpp")
+  add_executable(comparison_test_validation "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_validation.cpp")
+  target_include_directories(comparison_test_validation PRIVATE ${EIGEN_SOURCE_DIR})
+  target_link_libraries(comparison_test_validation PRIVATE benchmark::benchmark)
+  add_test(NAME comparison_validation COMMAND comparison_test_validation)
+endif()
+
 # The harness's own tests, when a Python interpreter with pytest is available.
 # An interpreter alone is not enough: `python3 -m pytest` on an image that has no
 # pytest turns a missing optional developer dependency into a red build for work
@@ -379,6 +501,8 @@ eigen_bench_json_string_array("${_comparison_arms}" _json_arms)
 eigen_bench_json_string_array("${EIGEN_BENCH_BLAS_LIBRARIES}" _json_libraries)
 eigen_bench_json_string_array("${EIGEN_BENCH_BLAS_INCLUDE_DIRS}" _json_include_dirs)
 eigen_bench_json_string_array("${EIGEN_BENCH_BLAS_PROVIDES}" _json_provides)
+eigen_bench_json_string_array("${EIGEN_BENCH_REFERENCE_FAMILIES}" _json_families)
+eigen_bench_json_string_array("${EIGEN_BENCH_LAPACK_LINK_LIBRARIES}" _json_lapack_libraries)
 if(EIGEN_BENCH_LAPACK_AVAILABLE)
   set(_json_lapack_available "true")
 else()
@@ -397,10 +521,19 @@ foreach(_target IN LISTS _comparison_targets)
     endif()
   endforeach()
   eigen_bench_json_string_array("${_target_ops}" _json_target_ops)
+  # Per binary, because the reference arm is gated per binary: a target built
+  # Eigen-only carries no reference registrations however the rest of this file
+  # describes the selected vendor.
+  if(_target_${_target}_has_reference)
+    set(_json_target_reference_arm "${EIGEN_BENCH_BLAS_ARM}")
+  else()
+    set(_json_target_reference_arm "")
+  endif()
   list(APPEND _json_targets
 "    {
       \"target\": \"${_target}\",
       \"ops\": ${_json_target_ops},
+      \"reference_arm\": \"${_json_target_reference_arm}\",
       \"executable\": \"$<TARGET_FILE:${_target}>\"
     }")
 endforeach()
@@ -451,6 +584,12 @@ set(_vendor_info "{
     \"threading_model\": \"${_json_THREADING}\",
     \"thread_env\": \"${_json_THREAD_ENV}\",
     \"provides\": ${_json_provides},
+    \"families\": ${_json_families},
+    \"lapack\": {
+      \"available\": ${_json_lapack_available},
+      \"provider\": \"${EIGEN_BENCH_LAPACK_PROVIDER}\",
+      \"libraries\": ${_json_lapack_libraries}
+    },
     \"notes\": \"${_json_NOTES}\"
   },
   \"targets\": [

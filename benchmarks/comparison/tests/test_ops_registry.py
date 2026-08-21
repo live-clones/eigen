@@ -19,6 +19,7 @@ no BLAS and no build directory.  Refresh it with
 
 import ast
 import operator
+import pathlib
 
 import pytest
 
@@ -128,6 +129,112 @@ def test_reference_kind_none_states_why(ops):
             )
         else:
             assert reference.get("routine"), f"{key}: no reference routine named"
+
+
+# --------------------------------------------------------------------------
+# The line scan CMakeLists.txt reads ops.toml with
+# --------------------------------------------------------------------------
+#
+# CMake has no TOML parser, so benchmarks/comparison/CMakeLists.txt reads three
+# keys out of ops.toml with anchored regexes over the lines of the file.  Those
+# three keys now decide what is BUILT: `reference.kind` is what gates the
+# reference arm of a target whose routines live in an interface family this build
+# cannot call.  A reformatted ops.toml the scan silently stopped reading would
+# drop that gate -- and the failure would be a link error on someone else's
+# machine, against a vendor nobody here has.  The scan is mirrored below and
+# checked against a real TOML parse of the same file.
+
+
+def cmake_line_scan(text):
+    """The scan in CMakeLists.txt, transcribed.  Keep the two in step."""
+    import re
+
+    table = re.compile(r"^\[ops\.([A-Z][A-Z0-9_]*)\][ \t]*$")
+    reference_table = re.compile(r"^\[ops\.([A-Z][A-Z0-9_]*)\.reference\][ \t]*$")
+    any_table = re.compile(r"^\[")
+    key = lambda name: re.compile(r'^' + name + r'[ \t]*=[ \t]*"([^"]*)"')  # noqa: E731
+
+    found = {}
+    current = reference = None
+    for line in text.replace("\r", "").split("\n"):
+        if table.match(line):
+            current, reference = table.match(line).group(1), None
+            found[current] = {"status": "", "source": "", "reference_kind": ""}
+        elif reference_table.match(line):
+            current, reference = None, reference_table.match(line).group(1)
+        elif any_table.match(line):
+            current = reference = None
+        elif current and key("status").match(line):
+            found[current]["status"] = key("status").match(line).group(1)
+        elif current and key("source").match(line):
+            found[current]["source"] = key("source").match(line).group(1)
+        elif reference and key("kind").match(line):
+            found[reference]["reference_kind"] = key("kind").match(line).group(1)
+    return found
+
+
+def test_the_cmake_line_scan_reads_what_the_toml_parser_reads(ops):
+    scanned = cmake_line_scan(support.OPS_TOML.read_text(encoding="utf-8"))
+    assert set(scanned) == set(ops["ops"]), (
+        "the CMake line scan and the TOML parser disagree about which operations exist; "
+        f"only in the scan: {sorted(set(scanned) - set(ops['ops']))}, "
+        f"only in the parse: {sorted(set(ops['ops']) - set(scanned))}"
+    )
+    for key, op in ops["ops"].items():
+        assert scanned[key]["status"] == op["status"], key
+        assert scanned[key]["source"] == (op.get("source") or ""), key
+        assert scanned[key]["reference_kind"] == op["reference"]["kind"], (
+            f"{key}: CMakeLists.txt reads reference.kind as {scanned[key]['reference_kind']!r} but "
+            f"ops.toml declares {op['reference']['kind']!r}. The reference arm of every target carrying "
+            "this operation is gated on that value."
+        )
+
+
+def reference_families_of_target(ops, target):
+    """The interface families the binary built from one source has to be able to
+    call -- the same union CMakeLists.txt forms per target."""
+    families = set()
+    for op in ops["ops"].values():
+        if not op.get("source"):
+            continue
+        if pathlib.Path(op["source"]).stem != target:
+            continue
+        if op["reference"]["kind"] not in ("", "none"):
+            families.add(op["reference"]["kind"])
+    return families
+
+
+def test_a_lapack_referenced_target_is_identifiable_without_building_it(ops):
+    """The gate's input: which target needs which family.
+
+    POTRF is the operation that made this matter -- it is the first whose
+    reference is a LAPACK routine, so it is the first that must be built
+    Eigen-only against a vendor that ships BLAS and no LAPACK.  If this ever
+    reports `blas` for it, the potrf binary would be handed
+    EIGEN_BENCH_REFERENCE_ARM against a library with no ?potrf and fail to link,
+    which is reported as build_failed for BOTH arms."""
+    assert reference_families_of_target(ops, "bench_potrf_compare") == {"lapack"}
+    assert reference_families_of_target(ops, "bench_gemm_compare") == {"blas"}
+    assert reference_families_of_target(ops, "bench_gemv_compare") == {"blas"}
+
+
+def test_no_source_mixes_families_a_build_could_gate_differently(ops):
+    """The gate is per binary, because a compile definition is.
+
+    A source carrying both a BLAS operation and a LAPACK one would lose the BLAS
+    reference arm too on a vendor with no LAPACK.  CMakeLists.txt warns about it
+    at configure time; this keeps the shipped table from getting there."""
+    targets = {
+        pathlib.Path(op["source"]).stem
+        for op in ops["ops"].values()
+        if op.get("source") and op["status"] == "implemented"
+    }
+    for target in sorted(targets):
+        families = reference_families_of_target(ops, target)
+        assert len(families) <= 1, (
+            f"{target}.cpp carries operations from {sorted(families)}; a build that can call only some of "
+            "them drops the reference arm of all of them. Give them separate sources."
+        )
 
 
 def test_flops_formula_uses_only_the_family_dimensions(ops):

@@ -619,3 +619,62 @@ def test_writing_to_a_file_matches_writing_to_stdout(tmp_path):
 def test_help_exits_zero():
     proc = support.run_cli("reduce.py", ["--help"])
     assert proc.returncode == 0 and proc.stdout.strip()
+
+
+# --------------------------------------------------------------------------
+# The registry a result was measured against
+# --------------------------------------------------------------------------
+
+
+@pytest.fixture
+def result_from_another_registry(tmp_path):
+    """A perfectly valid result that names a different ops.toml.
+
+    Everything about it validates: the rows are well formed, the scope is
+    coherent, the names parse.  What is wrong is invisible in the file -- the
+    rates in it were divided by a flop count this ops.toml no longer computes,
+    and the coverage, shape groups and flops_per_iteration the reducer would
+    attach to them all come from the current registry."""
+    document = support.read_json(RESULTS / "gemm_eigen_accelerate.json")
+    document["scope"]["ops_toml_sha256"] = "f" * 64
+    return support.write_json(tmp_path / "other-registry.json", document)
+
+
+def test_a_result_from_another_registry_is_refused(result_from_another_registry):
+    proc = reduce_to([str(result_from_another_registry)])
+    assert proc.returncode != 0, (
+        "a result measured against a different ops.toml was reduced without comment; its rates keep the "
+        "old flop formula while everything around them comes from the new grid"
+    )
+    assert "ffffffffffff" in proc.stderr, proc.stderr
+    assert support.OPS_TOML_SHA256[:12] in proc.stderr, proc.stderr
+
+
+def test_registry_drift_can_be_published_only_with_the_caveat_attached(result_from_another_registry):
+    merged = merged_from([result_from_another_registry], extra=["--allow-registry-drift"])
+    notes = [note for record in merged["configs"].values() for note in record["notes"]]
+    assert any("ops.toml" in note for note in notes), (
+        "--allow-registry-drift published the numbers without the discrepancy reaching the page: "
+        f"{notes}"
+    )
+
+
+def test_a_result_that_states_no_registry_is_not_blocked(tmp_path):
+    """`scope.ops_toml_sha256` is nullable in the schema -- a hand-built binary
+    with no EIGEN_BENCH_OPS_TOML_SHA256 produces one.  Nothing can be reconciled,
+    so nothing is claimed, and the contribution is not refused for a fact it
+    never asserted."""
+    document = support.read_json(RESULTS / "gemm_eigen_accelerate.json")
+    document["scope"]["ops_toml_sha256"] = None
+    path = support.write_json(tmp_path / "unstated.json", document)
+    merged = merged_from([path])
+    assert merged["cells"]
+
+
+def test_a_matching_registry_reduces_silently(tmp_path):
+    proc = reduce_to([str(RESULTS / "gemm_eigen_accelerate.json")])
+    assert proc.returncode == 0, proc.stderr
+    assert "ops.toml" not in proc.stderr, (
+        "the committed fixtures state the current registry; nothing should be reported about them"
+    )
+

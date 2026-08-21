@@ -955,6 +955,233 @@ def test_every_executable_failing_at_runtime_exits_six(stub_run, stub_environmen
     stub_run(expect=6, env={"STUB_BENCH_FAIL_RC": "1"})
 
 
+def test_a_nonzero_exit_with_a_complete_output_file_still_yields_its_measurements(stub_run):
+    """The comparison binaries exit 1 whenever ANY shape disagreed with Eigen --
+    that is what ErrorTrackingReporter is for -- and Google Benchmark has written
+    every row by then.  Discarding the file on the status alone threw away every
+    shape that was fine because one was not, and made the per-row failure
+    handling below it unreachable for a real binary."""
+    proc = stub_run(expect=6, env={"STUB_BENCH_ERROR_RC": "1"})
+    document = json.loads(proc.stdout)
+    assert document["measurements"], (
+        "the benchmark wrote a complete output file and exited 1 for a failed shape; "
+        "every measurement in that file was discarded"
+    )
+    reasons = {entry["reason"] for entry in document["not_measured"]}
+    assert "runtime_error" in reasons, "the row the binary flagged must still be a runtime_error"
+    measured = {(m["arm"], tuple(sorted(m["shape"].items()))) for m in document["measurements"]}
+    assert ("eigen", (("k", 64), ("m", 64), ("n", 64))) in measured
+    # And the unit is still a failure: exit 6 above, not 0.
+
+
+def test_a_nonzero_exit_with_no_output_file_marks_every_cell(stub_run):
+    """The other half of the same branch: nothing was written, so nothing can be
+    distilled and every planned cell has to be stated as a runtime error."""
+    proc = stub_run(expect=6, env={"STUB_BENCH_FAIL_RC": "1"})
+    document = json.loads(proc.stdout)
+    assert not document["measurements"]
+    assert document["not_measured"]
+    assert {entry["reason"] for entry in document["not_measured"]} == {"runtime_error"}
+
+
+# --------------------------------------------------------------------------
+# What the build recorded about itself
+# --------------------------------------------------------------------------
+
+
+def _write_vendor_info(build_dir, **reference):
+    """A minimal vendor_info.json beside the stub binaries."""
+    directory = build_dir / "comparison"
+    directory.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema_version": "1.0.0",
+        "build_target": "bench_comparison_all",
+        "reference": {"available": bool(reference.get("arm")), **reference},
+        "targets": [],
+    }
+    (directory / "vendor_info.json").write_text(json.dumps(payload, indent=2))
+    return directory / "vendor_info.json"
+
+
+def test_a_reference_arm_requested_against_an_eigen_only_build_is_refused(stub_environment):
+    """With --no-configure the build tree is whatever is already there.
+
+    The guard used to be skipped whenever the build recorded NO reference
+    library, which is the dangerous half: an Eigen-only tree accepted a request
+    for Accelerate, ran its binaries, found no reference row for anything, and
+    filed the whole reference column as not_implemented -- under provenance
+    naming Accelerate. That publishes "the library does not implement this" about
+    a library that was never linked."""
+    build_dir = stub_environment["build_dir"] / "aarch64-neon__accelerate"
+    _write_vendor_info(build_dir, arm="")
+    proc = support.run_cli(
+        "run.py",
+        [
+            "--machine", "testmachine", "--machines-dir", str(MACHINES),
+            "--build-dir", str(stub_environment["build_dir"]),
+            "--no-configure", "--no-build", "--ops", "GEMM", "--scalars", "f64",
+            "--groups", "small", "--arms", "accelerate", "--allow-dirty", "--allow-noisy",
+            "--out", "-",
+        ],
+        env=stub_environment["env"],
+    )
+    assert proc.returncode == 2, f"expected a configuration error, got {proc.returncode}\n{proc.stderr}"
+    assert "no reference library" in proc.stderr
+
+
+def test_a_mismatched_reference_arm_is_still_refused(stub_environment):
+    build_dir = stub_environment["build_dir"] / "aarch64-neon__accelerate"
+    _write_vendor_info(build_dir, arm="openblas")
+    proc = support.run_cli(
+        "run.py",
+        [
+            "--machine", "testmachine", "--machines-dir", str(MACHINES),
+            "--build-dir", str(stub_environment["build_dir"]),
+            "--no-configure", "--no-build", "--ops", "GEMM", "--scalars", "f64",
+            "--groups", "small", "--arms", "accelerate", "--allow-dirty", "--allow-noisy",
+            "--out", "-",
+        ],
+        env=stub_environment["env"],
+    )
+    assert proc.returncode == 2, proc.stderr
+    assert "openblas" in proc.stderr
+
+
+def test_an_eigen_only_unit_accepts_a_build_that_names_no_reference(stub_environment):
+    """The other side of the same guard: an Eigen-only unit has nothing to
+    attribute to a vendor, so an Eigen-only build is exactly right for it."""
+    build_dir = stub_environment["build_dir"] / "aarch64-neon__eigen"
+    _write_vendor_info(build_dir, arm="")
+    proc = support.run_cli(
+        "run.py",
+        [
+            "--machine", "testmachine", "--machines-dir", str(MACHINES),
+            "--build-dir", str(stub_environment["build_dir"]),
+            "--no-configure", "--no-build", "--ops", "GEMM", "--scalars", "f64",
+            "--groups", "small", "--arms", "eigen", "--allow-dirty", "--allow-noisy",
+            "--out", "-",
+        ],
+        env=stub_environment["env"],
+    )
+    assert proc.returncode == 0, proc.stderr
+
+
+def test_the_families_a_build_can_call_beat_the_vendors_declaration(run_module):
+    """`provides` is what a vendor row declares; `families` is that reconciled
+    with what configuring found. A vendor shipping no LAPACK still gains the
+    family when find_package(LAPACK) supplied one, and reading `provides` alone
+    would report ?potrf absent on a build that links it perfectly well."""
+    provides = support.resolve_callable(run_module, "vendor_info_provides")
+    assert provides({"reference": {"provides": ["blas", "cblas"]}}) == ["blas", "cblas"]
+    assert provides(
+        {"reference": {"provides": ["blas", "cblas"], "families": ["blas", "cblas", "lapack"]}}
+    ) == ["blas", "cblas", "lapack"]
+    assert provides(None) == []
+
+
+def test_a_separately_found_lapack_is_not_attributed_to_the_blas_vendor(run_module):
+    """A POTRF row is headed with the reference arm, and a reader takes that to
+    be what computed it. When the vendor ships no LAPACK, the ?potrf in that row
+    belongs to a different package and the page has to say so."""
+    note = support.resolve_callable(run_module, "vendor_info_lapack_note")
+    assert note({"reference": {"arm": "netlib", "lapack": {"available": True, "provider": "vendor"}}}) is None
+    assert note({"reference": {"arm": "netlib", "lapack": {"available": False, "provider": ""}}}) is None
+    separate = note(
+        {
+            "reference": {
+                "arm": "netlib",
+                "lapack": {"available": True, "provider": "separate", "libraries": ["/usr/lib/liblapack.so"]},
+            }
+        }
+    )
+    assert separate and "netlib" in separate and "liblapack" in separate
+
+
+# --------------------------------------------------------------------------
+# Explicit negatives: a reason belongs to the shape it was recorded for
+# --------------------------------------------------------------------------
+
+
+def test_a_whole_grid_still_collapses_to_one_entry(run_module, registry):
+    """The other side of the same rule.  `shape: null` exists so a wholly
+    unimplemented operation writes one row instead of hundreds of identical ones,
+    and refusing to collapse anything would trade one bug for that one."""
+    collapse = support.resolve_callable(run_module, "collapse_not_measured")
+    plan = support.resolve_callable(run_module, "plan_cells")
+    cells = plan(registry, ops=["GEMM"], arms=["accelerate"], scalars=["f64"], groups=["small"])
+    assert len(cells) > 1
+    entries = [
+        {"op": c.op, "arm": c.arm, "scalar": c.scalar, "shape": c.shape,
+         "threads": c.threads, "reason": "not_implemented", "detail": "d"}
+        for c in cells
+    ]
+    whole = collapse(entries, attempted=cells)
+    assert len(whole) == 1 and whole[0]["shape"] is None, whole
+
+    # Drop one point and the claim is no longer about the whole grid.
+    part = collapse(entries[:-1], attempted=cells)
+    assert len(part) == len(entries) - 1, part
+    assert all(entry["shape"] is not None for entry in part)
+
+
+def test_a_partial_run_keeps_its_per_shape_reasons(stub_run, ops):
+    """`shape: null` claims the WHOLE grid, so a partial run must not emit it.
+
+    The stub measures two shapes of the six-point `small` grid and fails a third.
+    Collapsing every remaining entry that shares a reason into one whole-grid row
+    makes the reducer expand it back over all six points, on top of the
+    shape-specific reasons the same run recorded."""
+    document = stub_run()
+    grid = {tuple(sorted(dict(zip(["m", "n", "k"], point)).items()))
+            for point in support.family_points(ops, "square3", ["small"])}
+    measured = {(m["arm"], tuple(sorted(m["shape"].items()))) for m in document["measurements"]}
+    assert len(measured) < 2 * len(grid), "the fixture is supposed to be a partial run"
+
+    blanket = [e for e in document["not_measured"] if e.get("shape") is None]
+    assert not blanket, (
+        "a partial run emitted a whole-grid entry; the reducer expands it across every point "
+        f"of the grid: {json.dumps(blanket, sort_keys=True)}"
+    )
+
+    failed = [
+        e for e in document["not_measured"]
+        if e["reason"] == "runtime_error" and e["arm"] == "accelerate"
+    ]
+    assert [e["shape"] for e in failed] == [{"m": 96, "n": 96, "k": 96}], (
+        "the failed shape must stay attached to the shape that failed"
+    )
+
+
+def test_a_shape_specific_reason_survives_reduction(stub_run, tmp_path):
+    """End to end: run.py -> reduce.py, on the reason that a blanket entry ate.
+
+    The reducer resolves same-key contributions by timestamp, and every entry in
+    one result file carries the run's timestamp, so a whole-grid row appended
+    after a shape-specific one simply replaces it -- `runtime_error` at m:96
+    became `not_implemented`, which on a published page reads as "Eigen does not
+    implement this" about a shape that was measured and failed."""
+    document = stub_run()
+    result = support.write_json(tmp_path / "partial-run.json", document)
+    merged = support.cli_json("reduce.py", [str(result)])
+
+    def cell(shape):
+        for candidate in merged["cells"]:
+            if candidate["op"] == "GEMM" and candidate["scalar"] == "f64" and candidate["shape"] == shape:
+                return candidate
+        raise AssertionError(f"no cell for {shape}")
+
+    failed = cell({"m": 96, "n": 96, "k": 96})["arms"]["accelerate"]
+    assert failed["state"] == "not_measured"
+    assert failed["reason"] == "runtime_error", (
+        "the shape the binary reported an error for was overwritten during reduction: "
+        f"{json.dumps(failed, sort_keys=True)}"
+    )
+    # The shapes that really were never registered keep saying so.
+    assert cell({"m": 24, "n": 24, "k": 24})["arms"]["accelerate"]["reason"] == "not_implemented"
+    # And a measured shape is untouched by any of it.
+    assert cell({"m": 64, "n": 64, "k": 64})["arms"]["accelerate"]["state"] == "measured"
+
+
 def test_a_run_that_measured_none_of_its_runnable_cells_is_a_failure(stub_run, tmp_path, raw_gbench):
     """A binary that exits 0 having produced nothing for the plan is a broken
     run, not a coverage manifest reporting the operation unimplemented. Left as

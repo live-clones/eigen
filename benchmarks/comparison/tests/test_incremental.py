@@ -296,6 +296,76 @@ def test_merge_into_an_existing_merged_file_is_additive(second_contribution, tmp
     assert len(after["cells"]) > len(before["cells"])
 
 
+@pytest.fixture
+def caveat_carrying_contribution(tmp_path):
+    """A second contribution to the SAME configuration that carries every caveat.
+
+    `eigen_dirty` is deliberately not part of `config_id`, so a clean run and a
+    dirty run of the same commit share a configuration and the caveats have to be
+    unioned rather than resolved.  The scalar differs so the cells are disjoint
+    and only the configuration record is under test."""
+    document = support.read_json(RESULTS / "gemm_eigen_accelerate.json")
+    document["run_id"] = "m4pro-neon-accelerate-e2a2fda17-20260822T090000Z"
+    document["provenance"]["timestamp_utc"] = "2026-08-22T09:00:00Z"
+    document["provenance"]["eigen"]["dirty"] = True
+    document["provenance"].setdefault("run", {})["notes"] = "measured with an unverified machine profile"
+    document["provenance_gaps"] = [
+        {"field": "/provenance/cpu/turbo_enabled", "reason": "no way to read the turbo state on this host"}
+    ]
+    document["scope"]["scalars"] = ["f32"]
+    for measurement in document["measurements"]:
+        measurement["scalar"] = "f32"
+        measurement["name"] = measurement["name"].replace("/f64/", "/f32/")
+    return support.write_json(tmp_path / "dirty.json", document)
+
+
+def _sole_config(merged):
+    assert len(merged["configs"]) == 1, sorted(merged["configs"])
+    return next(iter(merged["configs"].values()))
+
+
+def test_merge_preserves_the_caveats_of_the_contribution_folded_in(caveat_carrying_contribution, tmp_path):
+    """The two documented routes to one store must agree about what a
+    configuration carries.
+
+    `reduce.py a.json b.json` unions the caveats; `reduce.py b.json --merge
+    a-merged.json` kept the base record whole and unioned only `provenance_refs`,
+    so a dirty, noisy, gap-carrying contribution rendered as clean the moment it
+    arrived incrementally.  A caveat that disappears according to how the store
+    was assembled is worse than no caveat at all."""
+    together = reduce_files([RESULTS / "gemm_eigen_accelerate.json", caveat_carrying_contribution])
+
+    base = tmp_path / "base.json"
+    proc = support.run_cli("reduce.py", [str(RESULTS / "gemm_eigen_accelerate.json"), "--out", str(base)])
+    assert proc.returncode == 0, proc.stderr
+    assert _sole_config(json.loads(base.read_text()))["eigen_dirty"] is False, "the base must start clean"
+    incremental = support.cli_json("reduce.py", [str(caveat_carrying_contribution), "--merge", str(base)])
+
+    left, right = _sole_config(together), _sole_config(incremental)
+    assert right["eigen_dirty"] is True, (
+        "a dirty contribution merged incrementally rendered as a clean, reproducible configuration"
+    )
+    assert right["notes"] == left["notes"] != [], "the incremental route dropped the run's notes"
+    assert right["provenance_gaps"] == left["provenance_gaps"], "the incremental route dropped a provenance gap"
+    assert sorted(right["provenance_refs"]) == sorted(left["provenance_refs"])
+
+
+def test_merge_takes_arm_metadata_from_the_newer_document(caveat_carrying_contribution, tmp_path):
+    """Library version is what a published column is headed with.  First-wins
+    kept the version that happened to be in the file being merged INTO, so
+    re-measuring against an upgraded vendor and merging the result went on
+    printing the superseded version string."""
+    document = support.read_json(caveat_carrying_contribution)
+    document["provenance"]["arms"]["accelerate"]["library_version"] = "macOS 26.0"
+    newer = support.write_json(tmp_path / "newer.json", document)
+
+    base = tmp_path / "base.json"
+    proc = support.run_cli("reduce.py", [str(RESULTS / "gemm_eigen_accelerate.json"), "--out", str(base)])
+    assert proc.returncode == 0, proc.stderr
+    merged = support.cli_json("reduce.py", [str(newer), "--merge", str(base)])
+    assert merged["arms"]["accelerate"]["library_version"] == "macOS 26.0"
+
+
 def test_reducing_the_same_contribution_twice_is_a_no_op():
     once = reduce_files([RESULTS / "gemm_eigen_accelerate.json"])
     twice = reduce_files([RESULTS / "gemm_eigen_accelerate.json", RESULTS / "gemm_eigen_accelerate.json"])
