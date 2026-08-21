@@ -36,7 +36,8 @@ _HERE = Path(__file__).resolve().parent
 if str(_HERE) not in sys.path:
     sys.path.insert(0, str(_HERE))
 
-from _common import (  # noqa: E402
+from _common import (
+    resolve_baseline,  # noqa: E402
     PipelineError,
     UsageErrorArgumentParser,
     arm_display,
@@ -191,7 +192,7 @@ def op_metadata(merged: Mapping[str, Any], registry: Mapping[str, Any], op: str)
 
 
 def baseline_of(merged: Mapping[str, Any], options: RenderOptions) -> Optional[str]:
-    return options.baseline or merged.get("baseline")
+    return resolve_baseline(merged, options.baseline)
 
 
 def config_display(merged: Mapping[str, Any], config_id: str) -> str:
@@ -370,6 +371,15 @@ def _ratio_cell(
         return Cell(NO_REFERENCE_TOKEN, notes.marker(text), muted=True)
     if state == "ok":
         return Cell(format_ratio(cell.get("ratio")))
+    if state == "degenerate":
+        return Cell(
+            options.not_measured_token,
+            notes.marker(
+                "Both arms were measured, but one reported a rate of zero, so no ratio is defined. "
+                "A zero rate is a broken measurement rather than a result; see the coverage manifest."
+            ),
+            muted=True,
+        )
     if state == "inconclusive":
         return Cell(
             f"{format_ratio(cell.get('ratio'))} (inconclusive)",
