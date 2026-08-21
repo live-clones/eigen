@@ -234,8 +234,6 @@ def _now_utc() -> str:
 
 def choose_baseline(results: Iterable[Mapping[str, Any]], explicit: Optional[str] = None) -> Optional[str]:
     """The reference arm ratios are taken against.  Ambiguity is an error."""
-    if explicit:
-        return explicit
     arms: set = set()
     for result in results:
         arms.update((result.get("provenance", {}) or {}).get("arms", {}) or {})
@@ -243,8 +241,30 @@ def choose_baseline(results: Iterable[Mapping[str, Any]], explicit: Optional[str
             arms.add(row.get("arm"))
         for row in result.get("not_measured", []) or []:
             arms.add(row.get("arm"))
-    arms.discard(EIGEN_ARM)
     arms.discard(None)
+    if explicit:
+        # Both refusals below describe a page that looks like a result and is
+        # not one, which is the failure mode this whole harness exists to
+        # prevent -- so they are errors, not warnings.
+        if explicit == EIGEN_ARM:
+            raise ReduceError(
+                f"--baseline {EIGEN_ARM!r} would take every ratio of the Eigen arm against itself: the "
+                "ratio column renders as a page of x1.00 'inconclusive' cells under a heading reading "
+                "'Eigen vs Eigen'. Name the reference library instead (one of: "
+                + (", ".join(sorted(arms - {EIGEN_ARM})) or "none present in this dataset")
+                + ").",
+                EXIT_USAGE,
+            )
+        if arms and explicit not in arms:
+            raise ReduceError(
+                f"--baseline {explicit!r} names an arm no result file carries, so every ratio would be "
+                "undefined and the whole page would render as 'not measured'. Present arms: "
+                + ", ".join(sorted(arms))
+                + ".",
+                EXIT_USAGE,
+            )
+        return explicit
+    arms.discard(EIGEN_ARM)
     if not arms:
         return None
     if len(arms) > 1:
