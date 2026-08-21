@@ -262,12 +262,7 @@ void stable_normalize_extremes() {
     VERIFY_IS_APPROX(input, expected);
   }
 
-  // For 32-bit ARM, the vectorized reductions flush single-precision subnormals to zero
-  // (FTZ), so stableNormalize cannot distinguish this input from zero and, per its
-  // contract for zero vectors, returns it unchanged.
-  constexpr bool subnormals_flushed = EIGEN_ARCH_ARM != 0 && sizeof(RealScalar) == 4;
-  if (std::numeric_limits<RealScalar>::has_denorm == std::denorm_present && denorm > RealScalar(0) &&
-      !subnormals_flushed) {
+  if (std::numeric_limits<RealScalar>::has_denorm == std::denorm_present) {
     const Vector2 input = Vector2::Constant(denorm);
     const Vector2 expected = Vector2::Constant(inv_sqrt_two);
     VERIFY_IS_APPROX(input.stableNormalized(), expected);
@@ -367,7 +362,7 @@ void stable_normalize_complex_extremes() {
     VERIFY_IS_APPROX(input.norm(), RealScalar(1));
   }
 
-  if (std::numeric_limits<RealScalar>::has_denorm == std::denorm_present && denorm > RealScalar(0)) {
+  if (std::numeric_limits<RealScalar>::has_denorm == std::denorm_present) {
     VectorX input(1);
     input(0) = Complex(denorm, -denorm);
     const Complex expected(inv_sqrt_two, -inv_sqrt_two);
@@ -468,6 +463,17 @@ void stable_norm_power_of_two_scaling() {
   const numext::uint64_t expected_double = 0x3616f714760d1964ull;
   const numext::uint64_t actual_double = numext::bit_cast<numext::uint64_t>(input_double.stableNorm());
   VERIFY(actual_double >= expected_double - 1 && actual_double <= expected_double + 1);
+
+  // Arbitrary reciprocal scaling rounds both normalized coefficients two ULPs away from their reference values.
+  Vector2f normalize_input;
+  normalize_input << numext::bit_cast<float>(numext::uint32_t(0x0971a50d)),
+      numext::bit_cast<float>(numext::uint32_t(0x07536745));
+  Vector2f expected_normalized;
+  expected_normalized << numext::bit_cast<float>(numext::uint32_t(0x3f7f9e41)),
+      numext::bit_cast<float>(numext::uint32_t(0x3d5fa0cb));
+  VERIFY_IS_EQUAL(normalize_input.stableNormalized(), expected_normalized);
+  normalize_input.stableNormalize();
+  VERIFY_IS_EQUAL(normalize_input, expected_normalized);
 }
 
 template <typename RealScalar>
