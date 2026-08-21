@@ -72,7 +72,10 @@ unconfigured target to drop. `test/buildsystem/` is skipped: its consumers are s
 test here. Targets absent from one configuration (optional dependencies such as CHOLMOD, CUDA or
 SYCL) are still filtered against `ninja -t targets` after cmake configure, because ninja aborts on an unknown target;
 a selection consisting only of such targets is a no-op, not a failure. A missing selection artifact must also fail the
-job rather than fall through to the default target, which would silently build everything.
+job rather than fall through to the default target, which would silently build everything. A `NONE` selection is read
+before the toolchain setup and the configure step, so a merge request that reaches no test costs a checkout rather than
+a full configure. `rules:` cannot decline to schedule that job in the first place, because GitLab evaluates them when
+the pipeline is created, before `select:tests` has run; only a child pipeline generated from the selection could.
 
 The build script expands the surviving selection through ninja's phony edges before it shuffles and batches. Most
 selected names are aggregates — `buildtests`, and the parent of every split test — and the batch loop can only spread
