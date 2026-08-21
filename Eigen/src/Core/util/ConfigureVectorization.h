@@ -239,6 +239,30 @@
 
 #if !(defined(EIGEN_DONT_VECTORIZE) || defined(EIGEN_GPUCC) || defined(EIGEN_VECTORIZE_GENERIC))
 
+// Whether the ARM SME backend can be built at all. Two hard requirements, both
+// properties of the translation unit rather than of the CPU:
+//   - SME2, not just SME: the micro-kernel's multi-vector loads (svld1_*_x2/x4)
+//     and svcount_t predicates are SME2 instructions.
+//   - scalable (VLA) SVE mode: the kernel derives its ZA-tile geometry from the
+//     runtime streaming vector length, so -msve-vector-bits=N would pin it to
+//     one SVL and silently miscompute at any other.
+#if defined(__ARM_FEATURE_SME2) && !(defined(__ARM_FEATURE_SVE_BITS) && (__ARM_FEATURE_SVE_BITS != 0))
+#define EIGEN_ARM64_SME_USABLE
+#endif
+
+// ... and whether it is the backend to use. SME is selected automatically when
+// it is usable: unlike SVE it needs no fixed vector length, and it only
+// replaces the GEMM kernels -- everything else keeps the NEON packet path. Two
+// escapes: EIGEN_ARM64_NO_SME turns it off, and EIGEN_ARM64_USE_SVE takes
+// precedence for callers who asked for SVE specifically.
+#if defined(EIGEN_ARM64_SME_USABLE) && !defined(EIGEN_ARM64_NO_SME) && !defined(EIGEN_ARM64_USE_SVE)
+#define EIGEN_ARM64_SME_SELECTED
+#endif
+
+#if defined(EIGEN_ARM64_USE_SME) && defined(EIGEN_ARM64_NO_SME)
+#error "EIGEN_ARM64_USE_SME and EIGEN_ARM64_NO_SME are mutually exclusive."
+#endif
+
 #if defined(EIGEN_SSE2_ON_NON_MSVC) || defined(EIGEN_SSE2_ON_MSVC_2008_OR_LATER)
 
 // Defines symbols for compile-time detection of which instructions are
@@ -431,12 +455,13 @@ extern "C" {
 #undef vector
 #undef pixel
 
-#elif defined(EIGEN_ARM64_USE_SME) && !defined(__ARM_FEATURE_SME)
+#elif defined(EIGEN_ARM64_USE_SME) && !defined(EIGEN_ARM64_SME_USABLE)
 
-#error "EIGEN_ARM64_USE_SME requires compiler support for SME."
+#error \
+    "EIGEN_ARM64_USE_SME requires a compiler targeting SME2 in scalable (SVE VLA) mode: build with e.g. -march=armv9.2-a+sme2 and without -msve-vector-bits."
 
 #elif ((defined __ARM_NEON) || (defined __ARM_NEON__)) && !(defined EIGEN_ARM64_USE_SVE) && \
-    !(defined EIGEN_ARM64_USE_SME)
+    !(defined EIGEN_ARM64_SME_SELECTED)
 
 #define EIGEN_VECTORIZE
 #define EIGEN_VECTORIZE_NEON
@@ -458,22 +483,14 @@ extern "C" {
 #error "Eigen requires a fixed SVE vector length but EIGEN_ARM64_SVE_VL is not set."
 #endif
 
-// We currently require SME to be enabled explicitly via EIGEN_ARM64_USE_SME and
-// will not select the backend automatically
-#elif (defined __ARM_FEATURE_SME) && (defined EIGEN_ARM64_USE_SME)
+// Selected automatically whenever the toolchain can provide it; see
+// EIGEN_ARM64_SME_SELECTED above for the conditions and the opt-out.
+#elif defined(EIGEN_ARM64_SME_SELECTED)
 
 #define EIGEN_VECTORIZE
 #define EIGEN_VECTORIZE_SME
 #include <arm_neon.h>
 #include <arm_sme.h>
-
-// The SME GEMM kernel derives its ZA-tile geometry from the runtime streaming
-// vector length (svcntsw()).  It is therefore built in scalable (VLA) SVE mode,
-// without -msve-vector-bits=N, so svcntsw() reflects the actual hardware SVL.
-#if defined __ARM_FEATURE_SVE_BITS && (__ARM_FEATURE_SVE_BITS != 0)
-#error \
-    "EIGEN_ARM64_USE_SME must be built without -msve-vector-bits (scalable/VLA mode): a fixed SVE vector length pins the kernel to one runtime streaming SVL and silently miscomputes at any other."
-#endif
 
 // Double-precision outer products (FMOPA into a ZA.D tile) need the optional
 // FEAT_SME_F64F64, which each compiler reports differently: GCC defines the ACLE
