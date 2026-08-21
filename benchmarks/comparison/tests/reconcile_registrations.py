@@ -86,7 +86,7 @@ def reconcile(names: list[str], registry) -> list[str]:
         try:
             parsed = parse_benchmark_name(name)
         except ValueError as exc:
-            problems.append(f"unparseable registration {name!r}: {exc}")
+            problems.append(f"unparsable registration {name!r}: {exc}")
             continue
         op = parsed["op"]
         entry = registry.ops.get(op)

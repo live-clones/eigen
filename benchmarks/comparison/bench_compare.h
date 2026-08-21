@@ -154,7 +154,7 @@ inline void skipWithReason(benchmark::State& state, const char* reason, const st
 // Memory budget
 // ---------------------------------------------------------------------------
 // Bytes a benchmark may allocate for its operands, from EIGEN_BENCH_MEMORY_BUDGET_BYTES.
-// Zero (the default when the variable is unset, empty or unparseable) means no
+// Zero (the default when the variable is unset, empty or unparsable) means no
 // budget is enforced, so a hand-run binary behaves exactly as before.
 //
 // This exists because the harness writes its result file only after every

@@ -243,7 +243,7 @@ def parse_name(name):
     for field in fields[3:]:
         key, sep, value = field.partition(":")
         if not sep or not value.isdigit():
-            raise ValueError(f"unparseable field {field!r} in {name!r}")
+            raise ValueError(f"unparsable field {field!r} in {name!r}")
         if key == "threads":
             threads = int(value)
         elif key in support.RESERVED_DIMS:
@@ -263,7 +263,7 @@ def reconcile(names, ops):
         try:
             parsed = parse_name(name)
         except ValueError as exc:
-            problems.append(f"unparseable: {exc}")
+            problems.append(f"unparsable: {exc}")
             continue
         op = parsed["op"]
         entry = ops["ops"].get(op)
@@ -420,7 +420,7 @@ def test_an_undeclared_scalar_fails(listed_benchmarks, ops):
 
 def test_a_registration_without_argnames_fails(listed_benchmarks, ops):
     problems = reconcile(listed_benchmarks + ["GEMM/eigen/f64/64/64/64"], ops)
-    assert any("unparseable" in p for p in problems), problems
+    assert any("unparsable" in p for p in problems), problems
 
 
 def test_the_stub_reproduces_a_listing_that_reconciles(tmp_path, ops, raw_gbench):

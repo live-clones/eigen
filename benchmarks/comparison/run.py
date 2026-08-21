@@ -863,7 +863,7 @@ def distill_benchmark_json(
             try:
                 parsed_failure = parse_benchmark_name(failed_name)
             except ValueError:
-                result.warnings.append(f"an errored row carries the unparseable name {failed_name!r}")
+                result.warnings.append(f"an errored row carries the unparsable name {failed_name!r}")
             else:
                 failure["op"] = parsed_failure["op"]
                 failure["arm"] = parsed_failure["arm"]
