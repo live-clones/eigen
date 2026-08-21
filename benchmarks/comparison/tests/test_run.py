@@ -613,45 +613,56 @@ def test_provenance_gaps_accompany_every_null_it_claims(stub_run, schema):
         )
 
 
-def test_the_over_budget_prefix_matches_the_header(run_module):
-    """One string, two languages, no test in between until now.
+def test_the_skip_envelope_matches_the_header(run_module):
+    """One grammar, two languages, nothing but this linking them.
 
-    bench_compare.h writes the prefix; run.py matches on it to file the cell as
-    `out_of_memory` instead of `runtime_error`. Nothing links the two but this
-    assertion: if they drift, an over-budget cell silently becomes a runtime
-    error, and the published page reports "too large for this machine" as a
-    failure of the library.
+    bench_compare.h writes the envelope; run.py parses the reason out of it to
+    file the cell as a machine fact rather than a library defect. If they drift,
+    every structured skip silently becomes a runtime_error and the published page
+    reports "too large for this machine" as a failure of Eigen.
     """
-    prefix = getattr(run_module, "OVER_BUDGET_PREFIX", None)
-    assert prefix, "run.py exposes no OVER_BUDGET_PREFIX"
     header = (support.COMPARISON_DIR / "bench_compare.h").read_text()
-    match = re.search(r'#define EIGEN_BENCH_OVER_BUDGET_PREFIX "([^"]*)"', header)
-    assert match, "bench_compare.h no longer defines EIGEN_BENCH_OVER_BUDGET_PREFIX"
-    assert match.group(1) == prefix, (
-        f"the header says {match.group(1)!r} and run.py matches {prefix!r}; an over-budget cell "
-        f"would be filed as a runtime error"
-    )
+    opener = re.search(r'#define EIGEN_BENCH_SKIP_ENVELOPE_OPEN "([^"]*)"', header)
+    closer = re.search(r'#define EIGEN_BENCH_SKIP_ENVELOPE_CLOSE "([^"]*)"', header)
+    assert opener and closer, "bench_compare.h no longer defines the skip envelope"
+
+    classify = support.resolve_callable(run_module, "classify_skip")
+    emitted = f"{opener.group(1)}out_of_memory{closer.group(1)}operands need 6.75 GiB, budget is 4.00 GiB"
+    reason, detail = classify(emitted)
+    assert reason == "out_of_memory", f"run.py did not parse the envelope the header emits: {emitted!r}"
+    assert detail == "operands need 6.75 GiB, budget is 4.00 GiB"
 
 
-def test_an_over_budget_skip_is_out_of_memory_not_a_runtime_error(stub_run, run_module):
-    """The two skips a benchmark can report mean opposite things.
-
-    "operands exceed the memory budget" is a fact about the machine; anything
-    else from SkipWithError is a fact about the code. The coverage manifest
-    renders them side by side, so filing the first as runtime_error puts a
-    machine limit on the page as a library defect.
-    """
-    prefix = getattr(run_module, "OVER_BUDGET_PREFIX")
-    document = stub_run()
-    reasons = {entry["reason"] for entry in document["not_measured"]}
-    assert "out_of_memory" not in reasons, "the stub run should not be over budget"
-
-    # The classifier itself, against both message shapes.
-    for message, expected in (
-        (prefix + "6.75 GiB needed, 4.00 GiB allowed", "out_of_memory"),
+@pytest.mark.parametrize(
+    "message, expected_reason",
+    [
+        ("[eigen-bench:skip:out_of_memory] operands need 6.75 GiB, budget is 4.00 GiB", "out_of_memory"),
+        ("[eigen-bench:skip:shape_unsupported] dimension 3000000000 does not fit", "shape_unsupported"),
+        # No envelope: a plain SkipWithError, which is what every other benchmark
+        # in the tree already uses for a genuine failure.
         ("gemm result disagrees with Eigen at m:8 n:8 k:8", "runtime_error"),
-    ):
-        assert ("out_of_memory" if message.startswith(prefix) else "runtime_error") == expected
+        ("", "runtime_error"),
+        (None, "runtime_error"),
+        # A reason the binary is not allowed to claim, and one that is not in the
+        # schema at all. Both degrade rather than inventing a category that would
+        # be rejected at write time.
+        ("[eigen-bench:skip:machine_unavailable] nice try", "runtime_error"),
+        ("[eigen-bench:skip:not_a_reason] typo", "runtime_error"),
+    ],
+)
+def test_classify_skip(run_module, message, expected_reason):
+    classify = support.resolve_callable(run_module, "classify_skip")
+    assert classify(message)[0] == expected_reason
+
+
+def test_benchmark_skip_reasons_are_a_subset_of_the_schema(run_module):
+    """A reason the binary may claim must be one the result file can carry."""
+    import json
+
+    schema = json.loads((support.COMPARISON_DIR / "result_schema.json").read_text())
+    allowed = set(schema["$defs"]["not_measured_entry"]["properties"]["reason"]["enum"])
+    claimable = set(getattr(run_module, "BENCHMARK_SKIP_REASONS"))
+    assert claimable <= allowed, f"{sorted(claimable - allowed)} would fail schema validation at write time"
 
 
 def test_the_memory_budget_is_passed_to_the_binary_but_not_called_threading(run_module, tmp_path):
@@ -679,6 +690,54 @@ def test_the_memory_budget_is_passed_to_the_binary_but_not_called_threading(run_
     assert load_machine_profile(MACHINES / "testmachine.toml").memory_budget_bytes is None
 
 
+SHIPPED_MACHINES = support.COMPARISON_DIR / "machines"
+
+
+def test_an_isa_targets_notes_reach_the_result_file(stub_run, tmp_path):
+    """A caveat in a TOML comment is a caveat the reader never sees.
+
+    An opt-in backend rarely covers every operation -- Eigen's SME has a GEMM
+    kernel and nothing else -- so a page can carry a row labelled with one
+    instruction set and measured with another. That is something the run
+    established and proceeded under, so it belongs in run.notes with the rest.
+    """
+    machines = tmp_path / "machines"
+    machines.mkdir()
+    for source in MACHINES.glob("*.toml"):
+        text = source.read_text()
+        isa_target = re.search(r'default_isa_target\s*=\s*"([^"]+)"', text).group(1)
+        text += f'\n[isa."{isa_target}"]\nnotes = "only GEMM has a kernel here"\n'
+        (machines / source.name).write_text(text)
+
+    document = stub_run(extra=["--machines-dir", str(machines)])
+    notes = document["provenance"]["run"]["notes"] or ""
+    assert "only GEMM has a kernel here" in notes, f"the ISA target's caveat never reached the run\n{notes!r}"
+    # Named, or a reader of a multi-ISA merge cannot tell which target it applies to.
+    assert "ISA target" in notes
+
+    assert "only GEMM" not in (stub_run()["provenance"]["run"]["notes"] or ""), (
+        "a target with no notes must add none"
+    )
+
+
+
+@pytest.mark.parametrize("path", sorted(SHIPPED_MACHINES.glob("*.toml")), ids=lambda p: p.stem)
+def test_every_shipped_machine_profile_loads(run_module, path):
+    """The profiles in the tree, not the fixtures the rest of this module uses.
+
+    Every other test here points --machines-dir at tests/fixtures/machines, so
+    nothing exercised machines/*.toml at all -- and a validation rule added to
+    parse_machine_profile invalidated one of them with no test able to see it.
+    A profile that does not load is a machine that cannot be measured.
+    """
+    load_machine_profile = support.resolve_callable(run_module, "load_machine_profile")
+    profile = load_machine_profile(path)
+    assert profile.id == path.stem
+    assert profile.default_isa_target in profile.isa_targets
+    for target in profile.isa_targets:
+        assert target in profile.isa, f"isa_targets names {target!r} with no [isa.{target!r}] block"
+
+
 def test_isa_flags_reach_the_compiler(run_module, tmp_path):
     """Otherwise the page names an instruction set the binary never used.
 
@@ -695,7 +754,7 @@ def test_isa_flags_reach_the_compiler(run_module, tmp_path):
 
     source = MACHINES / "testmachine.toml"
     text = source.read_text()
-    isa_target = re.search(r'default_isa_target\s*=\s*"([^"]+)"', text).group(1)
+    isa_target = load_machine_profile(source).default_isa_target
     text += f'\n[isa."{isa_target}"]\nflags = ["-mcpu=apple-m4", "-DEIGEN_ARM64_USE_SME"]\n'
     # The loader requires id == filename stem.
     path = tmp_path / "flagged" / "testmachine.toml"
@@ -728,7 +787,7 @@ def test_an_isa_target_that_sets_cxx_flags_twice_is_refused(run_module, tmp_path
 
     source = MACHINES / "testmachine.toml"
     text = source.read_text()
-    isa_target = re.search(r'default_isa_target\s*=\s*"([^"]+)"', text).group(1)
+    isa_target = load_machine_profile(source).default_isa_target
     text += (
         f'\n[isa."{isa_target}"]\nflags = ["-mcpu=apple-m4"]\n'
         'cmake_options = ["-DCMAKE_CXX_FLAGS=-mcpu=generic"]\n'

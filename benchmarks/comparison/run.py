@@ -164,6 +164,16 @@ class MachineProfile:
     def isa_flags(self, isa_target: str) -> tuple[str, ...]:
         return tuple(self.isa.get(isa_target, {}).get("flags", ()))
 
+    def isa_notes(self, isa_target: str) -> str | None:
+        """What measuring under this ISA target does and does not mean.
+
+        An opt-in backend rarely covers every operation -- Eigen's SME has a GEMM
+        kernel and nothing else -- so a page can carry a row that is labelled with
+        one instruction set and measured with another. That is a caveat the run
+        established and proceeded under, so it travels through run.notes.
+        """
+        return str(self.isa.get(isa_target, {}).get("notes", "")).strip() or None
+
     def reference_arms(self) -> tuple[str, ...]:
         return tuple(self.arms)
 
@@ -251,14 +261,14 @@ def parse_machine_profile(data: Mapping[str, Any], stem: str, sha256: str | None
     # say the same thing, and the second would silently win. An ISA target that
     # declares both is an authoring mistake whose symptom is a page claiming
     # compile flags the binary was never built with.
-    for target, entry in (data.get("isa", {}) or {}).items():
-        if not (entry.get("flags") or ()):
+    for target, entry in data.get("isa", {}).items():
+        if not entry.get("flags"):
             continue
-        for option in entry.get("cmake_options", ()) or ():
+        for option in entry.get("cmake_options", ()):
             if str(option).startswith("-DCMAKE_CXX_FLAGS"):
                 raise HarnessError(
-                    f"machine profile {machine_id!r} ISA target {str(target)!r} sets both `flags` and a "
-                    f"cmake_options entry {str(option)!r}; the latter would overwrite the former and the "
+                    f"machine profile {machine_id!r} ISA target {target!r} sets both `flags` and a "
+                    f"cmake_options entry {option!r}; the latter would overwrite the former and the "
                     "run would record flags it was not built with. Put them all in `flags`."
                 )
 
@@ -311,6 +321,45 @@ def load_machine_profile(path: Path) -> MachineProfile:
     return parse_machine_profile(data, path.stem, hashlib.sha256(raw).hexdigest())
 
 
+# The envelope comparison benchmarks wrap a skip reason in. Google Benchmark
+# gives a skipping benchmark one free-text channel, but WHY a cell was skipped is
+# a closed vocabulary (result_schema.json) whose members mean opposite things on
+# a published page: "too large for this machine" and "the reference BLAS uses
+# 32-bit indices" are facts about the machine and the build, where "the result
+# disagrees with Eigen" is a defect in the library. Rendering the first two as
+# the third would be a false statement about Eigen.
+#
+# Matching one grammar rather than one prose prefix per category is what keeps
+# adding a category from being a four-place edit across two languages. Must stay
+# in step with EIGEN_BENCH_SKIP_ENVELOPE_* in comparison/bench_compare.h; a test
+# asserts they agree.
+SKIP_ENVELOPE = re.compile(r"^\[eigen-bench:skip:([a-z][a-z0-9_]*)\]\s*(.*)$", re.DOTALL)
+
+# Reasons a benchmark may name. A subset of result_schema.json's not_measured
+# enum -- the rest are decided by the harness, never by the binary -- and a test
+# asserts it stays a subset.
+BENCHMARK_SKIP_REASONS = frozenset({"out_of_memory", "shape_unsupported", "scalar_unsupported", "timeout"})
+
+
+def classify_skip(message: str | None) -> tuple[str, str | None]:
+    """Split a SkipWithError message into (reason, detail).
+
+    A message with no envelope, or one naming a reason the binary is not allowed
+    to claim, is a genuine runtime error -- which is what a plain SkipWithError
+    already means everywhere else in benchmarks/. Degrading rather than trusting
+    the token keeps a typo in the C++ from inventing a category the schema would
+    then reject at write time.
+    """
+    text = message or ""
+    match = SKIP_ENVELOPE.match(text)
+    if match is None:
+        return "runtime_error", text or None
+    reason, detail = match.group(1), match.group(2).strip()
+    if reason not in BENCHMARK_SKIP_REASONS:
+        return "runtime_error", text
+    return reason, detail or None
+
+
 # ---------------------------------------------------------------------------
 # 4. Thread control
 # ---------------------------------------------------------------------------
@@ -320,11 +369,6 @@ def load_machine_profile(path: Path) -> MachineProfile:
 # unset OPENBLAS_NUM_THREADS silently races a multithreaded BLAS against a
 # single-threaded Eigen, and "the vendor is not linked today" is not a property
 # the harness can rely on the next time a build option changes.
-# Must match EIGEN_BENCH_OVER_BUDGET_PREFIX in comparison/bench_compare.h. A test
-# asserts the two agree; if they drift, an over-budget cell silently becomes a
-# runtime_error and reads as a library defect on the published page.
-OVER_BUDGET_PREFIX = "operands exceed the memory budget: "
-
 THREAD_COUNT_ENV_VARS: tuple[str, ...] = (
     "OMP_NUM_THREADS",
     "OPENBLAS_NUM_THREADS",
@@ -1252,7 +1296,7 @@ class GitFacts:
 NULL_COMMIT = "0" * 40
 
 
-def output_pathspecs(repo_root: Path, *outputs: Path | None) -> list[str]:
+def output_pathspecs(repo_root: Path, *outputs: Path) -> list[str]:
     """Pathspecs excluding the directories this run writes to, if they are in the repo.
 
     `dirty` asks whether the measured code can differ from the recorded commit,
@@ -1270,11 +1314,10 @@ def output_pathspecs(repo_root: Path, *outputs: Path | None) -> list[str]:
     git responsible for quoting, renames and collapsed untracked directories.
     """
     excluded = []
+    resolved_root = repo_root.resolve()
     for output in outputs:
-        if output is None:
-            continue
         try:
-            relative = output.resolve().relative_to(repo_root.resolve())
+            relative = output.resolve().relative_to(resolved_root)
         except (ValueError, OSError):
             # Outside the worktree (or unresolvable): it cannot appear in status.
             continue
@@ -1283,10 +1326,10 @@ def output_pathspecs(repo_root: Path, *outputs: Path | None) -> list[str]:
             # exclude everything and silently disable the guard.
             continue
         excluded.append(f":(exclude,top){relative.as_posix()}")
-    return [".", *excluded] if excluded else []
+    return [".", *excluded]
 
 
-def probe_git(repo_root: Path, *output_dirs: Path | None) -> GitFacts:
+def probe_git(repo_root: Path, *output_dirs: Path) -> GitFacts:
     """Read-only interrogation of the Eigen checkout."""
 
     def git(*args: str) -> str | None:
@@ -1302,7 +1345,7 @@ def probe_git(repo_root: Path, *output_dirs: Path | None) -> GitFacts:
     if not commit or not re.match(r"^[0-9a-f]{40}$", commit):
         return GitFacts(NULL_COMMIT, NULL_COMMIT[:9], True, None, None, available=False)
     pathspecs = output_pathspecs(repo_root, *output_dirs)
-    status = git("status", "--porcelain", *(["--", *pathspecs] if pathspecs else []))
+    status = git("status", "--porcelain", "--", *pathspecs)
     return GitFacts(
         commit=commit,
         commit_short=commit[:9],
@@ -1416,6 +1459,7 @@ class ProvenanceInputs:
     eigen_version: Mapping[str, Any]
     isa_target: str
     isa_flags: Sequence[str]
+    isa_notes: str | None
     arm_key: str | None
     arm_profile: ArmProfile | None
     arm_context: Mapping[str, str]
@@ -1645,15 +1689,18 @@ def assemble_provenance(inputs: ProvenanceInputs) -> tuple[dict, list[dict]]:
     # Each caveat belongs to exactly one channel, or the rendered page states it
     # twice under two headings that mean different things. `gap()` is for what
     # the run could not establish; `notes` is for what it established and
-    # proceeded under anyway. The two below are gaps, and the gap is what
-    # reaches the page -- appending them here as well duplicated the whole
-    # cpu_binding paragraph in the coverage manifest.
+    # proceeded under anyway. The commit branch below is a gap, and the gap is
+    # what reaches the page -- the cpu_binding caveat it used to duplicate is
+    # raised as a gap with the numa block above.
     notes = inputs.notes
     if not git_facts.available:
         gap(
             "/provenance/eigen/commit",
             "the Eigen checkout is not a git repository; the commit is recorded as forty zeros",
         )
+    if inputs.isa_notes:
+        note = f"ISA target {inputs.isa_target!r}: {inputs.isa_notes}"
+        notes = f"{notes}; {note}" if notes else note
     if not machine.locally_verified:
         note = (
             f"machine profile {machine.id!r} is marked locally_verified = false: its static facts have not "
@@ -1716,7 +1763,7 @@ def assemble_provenance(inputs: ProvenanceInputs) -> tuple[dict, list[dict]]:
         "run": {
             "repetitions": inputs.repetitions,
             "memory_budget_bytes": inputs.memory_budget_bytes,
-        "min_time": inputs.min_time,
+            "min_time": inputs.min_time,
             "benchmark_filter": inputs.benchmark_filter,
             "report_aggregates_only": False,
             "cpu_scaling_enabled": inputs.cpu_scaling_enabled,
@@ -2497,15 +2544,17 @@ def _measure_unit(
         measurements.extend(distilled.measurements)
         errored_keys = set()
         for failure in distilled.errors:
-            reporter.warn(f"[{label}] benchmark reported an error for {failure['name']}: {failure['message']}")
+            reason, detail = classify_skip(failure["message"])
+            # A structured skip is not an error; saying so would tell an operator
+            # watching the log that the library failed when the machine simply
+            # could not hold the operands.
+            if reason == "runtime_error":
+                reporter.warn(f"[{label}] benchmark reported an error for {failure['name']}: {failure['message']}")
+            else:
+                reporter.info(f"[{label}] {failure['name']} skipped ({reason}): {detail}")
             if "key" not in failure:
                 continue
             errored_keys.add(failure["key"])
-            # "too large for this machine" is a fact about the machine. Filing it
-            # as runtime_error would put it on the published page beside genuine
-            # kernel failures, which reads as a defect in the library.
-            message = failure["message"] or ""
-            reason = "out_of_memory" if message.startswith(OVER_BUDGET_PREFIX) else "runtime_error"
             not_measured.append(
                 {
                     "op": failure["op"],
@@ -2514,7 +2563,7 @@ def _measure_unit(
                     "shape": failure["shape"],
                     "threads": failure["threads"],
                     "reason": reason,
-                    "detail": message or None,
+                    "detail": detail,
                 }
             )
         mark(
@@ -2565,6 +2614,7 @@ def _measure_unit(
         eigen_version=eigen_version,
         isa_target=isa_target,
         isa_flags=machine.isa_flags(isa_target),
+        isa_notes=machine.isa_notes(isa_target),
         arm_key=arm_key,
         arm_profile=arm_profile,
         arm_context={k: str(v) for k, v in context.items() if k.startswith("eigen_bench.")},
