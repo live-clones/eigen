@@ -862,18 +862,27 @@ def distill_benchmark_json(
 
         real_times = [float(row["real_time"]) * scale for row in rows]
         cpu_times = [float(row.get("cpu_time", row["real_time"])) * scale for row in rows]
+        # The published rate is flops over WALL time, computed here rather than taken
+        # from the binary's counter. Google Benchmark's kIsIterationInvariantRate
+        # counters divide by CPU time while the reported real_time is wall clock, so
+        # taking the counter would put two numbers measured against different clocks
+        # in one cell. They agree only while a run is single-threaded and
+        # undisturbed: a threaded vendor BLAS accumulates CPU time across its
+        # workers and the counter would report it as several times slower than it
+        # is, and a descheduled run reports a rate faster than anything that
+        # happened. Wall clock is also the honest basis for a throughput comparison.
+        # ->UseRealTime() would fix the counter's divisor but renames every
+        # benchmark to `<name>/real_time`, which the name grammar rejects outright.
         rates: list[float] = []
         counter_missing = False
         for row, real_time in zip(rows, real_times):
-            if counter_name in row:
-                rates.append(float(row[counter_name]))
-            else:
+            if counter_name not in row:
                 counter_missing = True
-                rates.append(flops / real_time if real_time > 0 else 0.0)
+            rates.append(flops / real_time if real_time > 0 else 0.0)
         if counter_missing:
             result.warnings.append(
-                f"{run_name!r} emits no {counter_name!r} counter; the flop rate was derived from "
-                "flops_per_iteration and real_time"
+                f"{run_name!r} emits no {counter_name!r} counter, so the C++ flop formula could not be "
+                "cross-checked against ops.toml for this row"
             )
 
         # Two independent statements of the same quantity land in this row: `flops`,
@@ -884,13 +893,14 @@ def distill_benchmark_json(
         # looks self-consistent and only the absolute numbers are false. The counter
         # is a rate, so flops_per_iteration is rate * time.
         if not counter_missing and flops > 0:
-            for row, real_time, rate in zip(rows, real_times, rates):
-                if real_time <= 0 or rate <= 0:
+            for row, cpu_time in zip(rows, cpu_times):
+                counter = float(row.get(counter_name, 0.0))
+                if cpu_time <= 0 or counter <= 0:
                     continue
-                # kIsIterationInvariantRate reports value*iterations/elapsed, and
-                # real_time is per-iteration, so the iteration count cancels and the
-                # counter is simply flops/second per iteration.
-                implied = rate * real_time
+                # The counter divides by CPU time (see above), so recover the flop
+                # count it was built from using cpu_time, not the wall time the
+                # published rate uses.
+                implied = counter * cpu_time
                 # Generous slack: this is looking for a formula mismatch (a clean
                 # integer factor), not for timer noise.
                 if implied > 0 and not (0.8 <= implied / flops <= 1.25):
