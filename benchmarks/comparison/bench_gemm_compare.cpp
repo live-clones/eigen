@@ -3,13 +3,9 @@
 
 // Cross-library comparison benchmarks for GEMM, the general matrix-matrix product.
 //
-// One operation per source file. Both arms are emitted at each grid point by one
-// REGISTER_COMPARISON_POINT line over one shared grid macro; bench_gemv_compare.cpp
-// is the same file with a different kernel, driver and grid.
-//
-// This file supersedes the roles of Core/bench_gemm.cpp's BM_BlasGemm (dead code:
-// no target defines HAVE_BLAS) and Tuning/bench_blas_gemm.cpp (float only, smaller
-// grid, unguarded <cblas.h>). Both remain in the tree for now.
+// Supersedes the roles of Core/bench_gemm.cpp's BM_BlasGemm (dead code: no target
+// defines HAVE_BLAS) and Tuning/bench_blas_gemm.cpp (float only, smaller grid,
+// unguarded <cblas.h>). Both remain in the tree for now.
 
 #include <Eigen/Core>
 #include <complex>
@@ -21,11 +17,9 @@
 #include "benchmarks/comparison/bench_compare.h"
 
 #ifdef EIGEN_BENCH_REFERENCE_ARM
-// Fortran BLAS, declared here rather than pulled from a vendor header so that the
-// build needs only the library. The integer width follows eigen_bench::BlasInt,
-// i.e. Eigen::BlasIndex; getting it wrong silently corrupts every argument, so
-// the build must determine it rather than assume it, and bench_compare.h
-// static_asserts the vendor table's answer against Eigen's.
+// Declared rather than included, so the build needs the reference library but not
+// its development headers. The integer width is eigen_bench::BlasInt; see the
+// static_assert in bench_compare.h.
 extern "C" {
 void sgemm_(const char* transa, const char* transb, const eigen_bench::BlasInt* m, const eigen_bench::BlasInt* n,
             const eigen_bench::BlasInt* k, const float* alpha, const float* a, const eigen_bench::BlasInt* lda,
@@ -173,13 +167,10 @@ static void BM_GemmReference(benchmark::State& state) {
 }
 #endif
 
-// The whole square3 grid of ops.toml, in the order its default_groups lists it.
-// run.py narrows it with --benchmark_filter; registering less here would make a
-// group unreachable.
-//
-// A list macro rather than an arrow chain, because REGISTER_COMPARISON_POINT
-// emits the two arms of each shape adjacently and an arrow chain cannot express
-// that: see the note above the macro in bench_compare.h.
+// The whole square3 grid of ops.toml, in the order its default_groups lists it:
+// run.py narrows it with --benchmark_filter, so registering less would make a
+// group unreachable. A list macro rather than an arrow chain because the two
+// arms of a shape must be adjacent (see REGISTER_COMPARISON_POINT).
 // clang-format off
 #define GEMM_DIM_NAMES {"m", "n", "k"}
 

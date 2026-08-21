@@ -455,13 +455,11 @@ def reduce_results(
         run_id = str(result.get("run_id", ""))
         provenance = result.get("provenance", {}) or {}
         timestamp = _timestamp(result)
-        # Every result states the registry it was planned and counted against.
-        # Reading it is the only thing that can notice that an archived result is
-        # being folded into a store built from a DIFFERENT ops.toml: its rates
-        # were computed with that file's flop formulas, while the coverage,
-        # metadata, shape groups and flops_per_iteration attached to them here all
-        # come from the current one. Nothing downstream can see the difference --
-        # the rate looks like any other rate -- so it has to be caught at the door.
+        # An archived result folded into a store built from a DIFFERENT ops.toml
+        # keeps rates scaled by that file's flop formulas, while the coverage,
+        # metadata, shape groups and flops_per_iteration attached to them here
+        # come from the current one. The rate looks like any other rate
+        # downstream, so the digest has to be reconciled at the door.
         drift_note_for_config[:] = _registry_drift(
             result, run_id, ops_toml_sha256, allow_registry_drift, notify
         )
@@ -487,11 +485,9 @@ def reduce_results(
                     "library_path": meta.get("library_path"),
                     "threading_model": meta.get("threading_model"),
                     "interface": meta.get("interface"),
-                    # Which run this description came from, kept so `--merge` can
-                    # rank two merged documents by the same clock this loop uses.
-                    # Without it the incremental route had nothing to rank by and
-                    # fell back to first-wins, which published the version string
-                    # of whichever store was merged INTO.
+                    # Which run this description came from, so that `--merge` can
+                    # rank two merged documents by the clock this loop uses
+                    # instead of falling back to first-wins.
                     "observed_utc": timestamp,
                 }
                 arms_meta_stamp[arm] = timestamp
