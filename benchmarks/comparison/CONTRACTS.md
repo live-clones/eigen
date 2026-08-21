@@ -635,7 +635,9 @@ and never read Google Benchmark JSON.
       "eigen_dirty": false,
       "threads": 1,
       "cpu_model": "Apple M4 Pro",
-      "provenance_refs": ["<run_id>", "…"]
+      "provenance_refs": ["<run_id>", "…"],
+      "provenance_gaps": [ { "field": "/provenance/cpu/turbo_enabled", "reason": "…" } ],
+      "notes": ["measured at a 1-minute load average of 3.76, above the 1.00 …"]
     }
   },
 
@@ -650,6 +652,20 @@ and never read Google Benchmark JSON.
   "conflicts": [ /* section 5.6 */ ]
 }
 ```
+
+`provenance_gaps` and `notes` are the two caveat channels, and a caveat belongs
+to exactly one of them. A gap says the run **could not establish** something
+(`/provenance/cpu/turbo_enabled` on macOS). A note says the run **established
+the condition and proceeded anyway** — the operator's own `--note`, a machine
+profile marked `locally_verified = false`, or a load average above the
+profile's `max_load_avg` under `--allow-noisy`. They render under separate
+headings that make different claims, so writing one caveat to both states it
+twice and the second statement is wrong.
+
+Both are properties of the merged **set**, not of whichever contributing run
+sorted first: `touch_config` unions them across every run of a configuration,
+the same way `eigen_dirty` is OR'd. A configuration with no caveats carries
+`[]`, never `null` — absence of caveats is a positive statement, not an unknown.
 
 ### 5.2 `config_id`
 
