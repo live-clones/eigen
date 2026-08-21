@@ -75,6 +75,41 @@ void setNormCounters(benchmark::State& state, Index size) {
 }
 
 template <typename Scalar>
+Matrix<Scalar, Dynamic, 1> makeStableInput(Index size, InputScale scale) {
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  Matrix<Scalar, Dynamic, 1> input = makeInput<Scalar>(size, scale);
+  // Vary magnitudes so factor selection does not always receive an exact power of two.
+  for (Index i = 0; i < size; ++i) input(i) *= RealScalar(0.5) + RealScalar((i * 37) % 101) / RealScalar(202);
+  benchmark::DoNotOptimize(input.data());
+  benchmark::ClobberMemory();
+  return input;
+}
+
+template <typename Scalar>
+long double referenceNorm(const Matrix<Scalar, Dynamic, 1>& input) {
+  long double result = 0;
+  for (Index i = 0; i < input.size(); ++i) {
+    result = std::hypot(result, static_cast<long double>(numext::real(input(i))));
+    result = std::hypot(result, static_cast<long double>(numext::imag(input(i))));
+  }
+  return result;
+}
+
+template <typename Scalar>
+bool validNormalization(const Matrix<Scalar, Dynamic, 1>& input, const Matrix<Scalar, Dynamic, 1>& output) {
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  const long double norm = referenceNorm(input);
+  long double error = 0;
+  for (Index i = 0; i < input.size(); ++i) {
+    error = std::hypot(error, static_cast<long double>(numext::real(output(i))) -
+                                  static_cast<long double>(numext::real(input(i))) / norm);
+    error = std::hypot(error, static_cast<long double>(numext::imag(output(i))) -
+                                  static_cast<long double>(numext::imag(input(i))) / norm);
+  }
+  return error <= 64 * static_cast<long double>(NumTraits<RealScalar>::epsilon());
+}
+
+template <typename Scalar>
 void setNormalizeCounters(benchmark::State& state, Index size) {
   // Count logical traffic rather than implementation-specific passes.
   state.SetBytesProcessed(state.iterations() * size * static_cast<int64_t>(2 * sizeof(Scalar)));
@@ -106,10 +141,19 @@ static void BM_StableNorm(benchmark::State& state) {
   typedef typename NumTraits<Scalar>::Real RealScalar;
   const Index size = state.range(0);
   const InputScale scale = static_cast<InputScale>(state.range(1));
-  const Matrix<Scalar, Dynamic, 1> input = makeInput<Scalar>(size, scale);
+  const Matrix<Scalar, Dynamic, 1> input = makeStableInput<Scalar>(size, scale);
   state.SetLabel(inputScaleName(scale));
 
+  const long double reference = referenceNorm(input);
+  const long double error = std::abs(static_cast<long double>(input.stableNorm()) / reference - 1);
+  if (!(error <= 64 * static_cast<long double>(NumTraits<RealScalar>::epsilon()))) {
+    state.SkipWithError("stableNorm failed reference validation");
+    return;
+  }
+
   for (auto _ : state) {
+    benchmark::DoNotOptimize(input.data());
+    benchmark::ClobberMemory();
     RealScalar result = input.stableNorm();
     benchmark::DoNotOptimize(result);
   }
@@ -207,10 +251,16 @@ template <typename Scalar>
 static void BM_StableNormalize(benchmark::State& state) {
   const Index size = state.range(0);
   const InputScale scale = static_cast<InputScale>(state.range(1));
-  const Matrix<Scalar, Dynamic, 1> input = makeInput<Scalar>(size, scale);
+  const Matrix<Scalar, Dynamic, 1> input = makeStableInput<Scalar>(size, scale);
   const Index batch_size = normalizationBatchSize(size);
   std::vector<Matrix<Scalar, Dynamic, 1>> results(static_cast<std::size_t>(batch_size), input);
   state.SetLabel(inputScaleName(scale));
+
+  results[0].stableNormalize();
+  if (!validNormalization(input, results[0])) {
+    state.SkipWithError("stableNormalize failed reference validation");
+    return;
+  }
 
   while (state.KeepRunningBatch(batch_size)) {
     state.PauseTiming();
@@ -220,6 +270,27 @@ static void BM_StableNormalize(benchmark::State& state) {
       results[static_cast<std::size_t>(i)].stableNormalize();
       benchmark::DoNotOptimize(results[static_cast<std::size_t>(i)].data());
     }
+    benchmark::ClobberMemory();
+  }
+  setNormalizeCounters<Scalar>(state, size);
+}
+
+template <typename Scalar>
+static void BM_StableNormalized(benchmark::State& state) {
+  const Index size = state.range(0);
+  const InputScale scale = static_cast<InputScale>(state.range(1));
+  const Matrix<Scalar, Dynamic, 1> input = makeStableInput<Scalar>(size, scale);
+  const Matrix<Scalar, Dynamic, 1> checked = input.stableNormalized();
+  if (!validNormalization(input, checked)) {
+    state.SkipWithError("stableNormalized failed reference validation");
+    return;
+  }
+  state.SetLabel(inputScaleName(scale));
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(input.data());
+    benchmark::ClobberMemory();
+    const Matrix<Scalar, Dynamic, 1> result = input.stableNormalized();
+    benchmark::DoNotOptimize(result.data());
     benchmark::ClobberMemory();
   }
   setNormalizeCounters<Scalar>(state, size);
@@ -240,6 +311,7 @@ typedef Matrix<std::complex<double>, 2, 2> FixedMatrix4cd;
 
 // clang-format off
 #define NORM_ARGS ->ArgsProduct({{64, 4096, 65536}, {kOrdinary, kLarge, kSmall}})->ArgNames({"size", "scale"})
+#define STABLE_ARGS ->ArgsProduct({{3, 16, 64, 256, 1024, 4096}, {kOrdinary, kLarge, kSmall}})->ArgNames({"size", "scale"})
 #define FIXED_MAP_STABLE_NORM(Type, Label) BENCHMARK(BM_FixedMapStableNorm<Type>)->Name("FixedMapStableNorm_" #Label)
 BENCHMARK(BM_Norm<float>) NORM_ARGS ->Name("Norm_float");
 BENCHMARK(BM_Norm<double>) NORM_ARGS ->Name("Norm_double");
@@ -247,12 +319,12 @@ BENCHMARK(BM_Norm<half>) NORM_ARGS ->Name("Norm_half");
 BENCHMARK(BM_Norm<bfloat16>) NORM_ARGS ->Name("Norm_bfloat16");
 BENCHMARK(BM_Norm<std::complex<float>>) NORM_ARGS ->Name("Norm_cfloat");
 BENCHMARK(BM_Norm<std::complex<double>>) NORM_ARGS ->Name("Norm_cdouble");
-BENCHMARK(BM_StableNorm<float>) NORM_ARGS ->Name("StableNorm_float");
-BENCHMARK(BM_StableNorm<double>) NORM_ARGS ->Name("StableNorm_double");
-BENCHMARK(BM_StableNorm<half>) NORM_ARGS ->Name("StableNorm_half");
-BENCHMARK(BM_StableNorm<bfloat16>) NORM_ARGS ->Name("StableNorm_bfloat16");
-BENCHMARK(BM_StableNorm<std::complex<float>>) NORM_ARGS ->Name("StableNorm_cfloat");
-BENCHMARK(BM_StableNorm<std::complex<double>>) NORM_ARGS ->Name("StableNorm_cdouble");
+BENCHMARK(BM_StableNorm<float>) STABLE_ARGS ->Name("StableNorm_float");
+BENCHMARK(BM_StableNorm<double>) STABLE_ARGS ->Name("StableNorm_double");
+BENCHMARK(BM_StableNorm<half>) STABLE_ARGS ->Name("StableNorm_half");
+BENCHMARK(BM_StableNorm<bfloat16>) STABLE_ARGS ->Name("StableNorm_bfloat16");
+BENCHMARK(BM_StableNorm<std::complex<float>>) STABLE_ARGS ->Name("StableNorm_cfloat");
+BENCHMARK(BM_StableNorm<std::complex<double>>) STABLE_ARGS ->Name("StableNorm_cdouble");
 FIXED_MAP_STABLE_NORM(FixedRow16f, row16f);
 FIXED_MAP_STABLE_NORM(FixedCol16f, col16f);
 FIXED_MAP_STABLE_NORM(FixedMatrix4f, matrix4f);
@@ -283,13 +355,18 @@ BENCHMARK(BM_Normalize<half>) NORM_ARGS ->Name("Normalize_half");
 BENCHMARK(BM_Normalize<bfloat16>) NORM_ARGS ->Name("Normalize_bfloat16");
 BENCHMARK(BM_Normalize<std::complex<float>>) NORM_ARGS ->Name("Normalize_cfloat");
 BENCHMARK(BM_Normalize<std::complex<double>>) NORM_ARGS ->Name("Normalize_cdouble");
-BENCHMARK(BM_StableNormalize<float>) NORM_ARGS ->Name("StableNormalize_float");
-BENCHMARK(BM_StableNormalize<double>) NORM_ARGS ->Name("StableNormalize_double");
-BENCHMARK(BM_StableNormalize<half>) NORM_ARGS ->Name("StableNormalize_half");
-BENCHMARK(BM_StableNormalize<bfloat16>) NORM_ARGS ->Name("StableNormalize_bfloat16");
-BENCHMARK(BM_StableNormalize<std::complex<float>>) NORM_ARGS ->Name("StableNormalize_cfloat");
-BENCHMARK(BM_StableNormalize<std::complex<double>>) NORM_ARGS ->Name("StableNormalize_cdouble");
+BENCHMARK(BM_StableNormalize<float>) STABLE_ARGS ->Name("StableNormalize_float");
+BENCHMARK(BM_StableNormalize<double>) STABLE_ARGS ->Name("StableNormalize_double");
+BENCHMARK(BM_StableNormalize<half>) STABLE_ARGS ->Name("StableNormalize_half");
+BENCHMARK(BM_StableNormalize<bfloat16>) STABLE_ARGS ->Name("StableNormalize_bfloat16");
+BENCHMARK(BM_StableNormalize<std::complex<float>>) STABLE_ARGS ->Name("StableNormalize_cfloat");
+BENCHMARK(BM_StableNormalize<std::complex<double>>) STABLE_ARGS ->Name("StableNormalize_cdouble");
 #undef NORM_ARGS
+BENCHMARK(BM_StableNormalized<float>) STABLE_ARGS ->Name("StableNormalized_float");
+BENCHMARK(BM_StableNormalized<double>) STABLE_ARGS ->Name("StableNormalized_double");
+BENCHMARK(BM_StableNormalized<std::complex<float>>) STABLE_ARGS ->Name("StableNormalized_cfloat");
+BENCHMARK(BM_StableNormalized<std::complex<double>>) STABLE_ARGS ->Name("StableNormalized_cdouble");
+#undef STABLE_ARGS
 #undef FIXED_MAP_STABLE_NORM
 // clang-format on
 
