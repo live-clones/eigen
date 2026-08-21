@@ -803,9 +803,17 @@ smt_enabled = false
 numa_nodes = 1
 max_load_avg = 1.0               # run.py refuses above this without --allow-noisy
 
+[memory]
+benchmark_budget_bytes = 4294967296   # optional; omitted means no ceiling is enforced
+
 [frequency]
 governor = ""                    # "" means the platform exposes none; run.py emits a provenance_gaps entry
 pinned = false
+
+[isa."aarch64-neon"]
+flags = []                            # compiler options that select the instruction set
+cmake_options = ["-DEIGEN_BENCH_ISA_TARGET=aarch64-neon"]
+notes = ""                            # optional; travels to the page as a run note
 
 [arms.accelerate]
 cmake_options = ["-DEIGEN_BENCH_REFERENCE=accelerate"]
@@ -816,6 +824,24 @@ thread_env = { VECLIB_MAXIMUM_THREADS = "{threads}" }
 `{threads}` in a `thread_env` value is substituted with the run's thread count, so a multithreaded run does not
 silently measure a single-threaded reference. A literal (`"1"`) is passed verbatim, and is the right spelling
 only for a library that must stay sequential regardless of the run.
+
+An ISA target's **`flags` reach the compiler** as a single `-DCMAKE_CXX_FLAGS`; they are what select the
+instruction set, and an opt-in backend such as Eigen's SME needs its `-D…` here rather than in
+`cmake_options`. For that reason a target may **not** set `CMAKE_CXX_FLAGS` through `cmake_options` as well —
+`cmake_options` is appended last and would overwrite `flags`, leaving the run recording compile options its
+binary was never built with. `parse_machine_profile` refuses that combination when the profile loads.
+
+An ISA target's optional **`notes`** is prose about what measuring under that target does and does not mean —
+"only GEMM has an SME kernel today, so every other operation here is the same code as the NEON target". It
+travels through `provenance.run.notes` to the published page, because a caveat that lives only in a TOML
+comment is a caveat the reader never sees.
+
+**`[memory].benchmark_budget_bytes`** is optional and bounds one benchmark's operands. It is enforced inside
+the binary before the first allocation, so a point too large for the machine becomes a single `out_of_memory`
+cell instead of an allocation failure that loses every cell already measured in that invocation. Because the
+footprint scales with `sizeof(Scalar)`, one budget yields a different ceiling per scalar without the grid
+having to know about scalars. It bounds memory only — run time is bounded by choosing `--scalars` and
+`--groups`. Omit it and nothing is enforced.
 
 Every nullable `provenance` field that this file leaves empty obliges `run.py` to write a matching
 `provenance_gaps` entry (section 0 of `result_schema.json`). On this machine that is at minimum

@@ -349,9 +349,9 @@ def test_listing_covers_the_eigen_arm_for_every_implemented_op(listed_benchmarks
 # implements it -- GEMV already broke this test once that way -- so they clone a
 # real entry (for a resolvable shape_family and scalar list) under a key the
 # grammar accepts but no mnemonic will ever be.
-def _cloned_op(ops, key, status, template="GEMM"):
+def _cloned_op(ops, key, status):
     doctored = support.deep_copy(ops)
-    entry = support.deep_copy(ops["ops"][template])
+    entry = support.deep_copy(ops["ops"]["GEMM"])
     entry["status"] = status
     entry.pop("source", None)
     doctored["ops"][key] = entry

@@ -454,7 +454,16 @@ helper = "eigen_bench::trsmFlops<Scalar>(n, nrhs)"
 display_name = "POTRF"
 long_name = "Cholesky factorization"
 family = "lapack-factorization"
-description = "A = L*L^T (or U^H*U) for symmetric/Hermitian positive definite A. Eigen's LLT is the direct counterpart."
+description = """
+A = L*L^T (or U^H*U) for symmetric/Hermitian positive definite A. Eigen's LLT is
+the direct counterpart, and the Eigen arm is timed as the expression above --
+which is not quite only the factorization. LLT::compute additionally evaluates
+the operand's self-adjoint L1 norm, the quantity that makes LLT::rcond()
+available afterwards; ?potrf computes no norm, and a LAPACK user who wants rcond
+calls ?lange before ?pocon. On Apple M4 that norm is 5-13% of the Eigen arm for
+real scalars and more at the small end for complex. Read this row as "what the
+Eigen spelling costs against ?potrf", not as a kernel-for-kernel ratio.
+"""
 eigen_expr = "Eigen::LLT<MatrixType> llt(A)"
 eigen_class = "Eigen::LLT"
 eigen_doc = "Eigen::LLT"
