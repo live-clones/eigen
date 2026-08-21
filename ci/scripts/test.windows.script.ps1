@@ -35,6 +35,12 @@ cd $EIGEN_CI_BUILDDIR
 # Determine number of processors for parallel tests.
 $NPROC=${Env:NUMBER_OF_PROCESSORS}
 
+# Total attempts for flaky tests, matching test.linux.script.sh.  No job sets
+# this, and an empty value made the retry below spell "until-pass:", which ctest
+# rejects as a usage error -- so the retry never ran and its exit status masked
+# the test failure that triggered it.
+if (-Not ${EIGEN_CI_CTEST_REPEAT}) { $EIGEN_CI_CTEST_REPEAT = 3 }
+
 # @(), not "": an "ALL" selection leaves no regex and no label, so the
 # no-filter case is reachable and must contribute no argument to ctest.
 $target = @()
