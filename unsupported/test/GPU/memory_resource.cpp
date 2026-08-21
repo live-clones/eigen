@@ -121,6 +121,43 @@ void test_llt_on_resource(Index n) {
   VERIFY((spd * X - B).norm() / B.norm() < tol);
 }
 
+// A solver can take ownership of resource-backed storage. releaseBuffer() hands
+// the resource across with the block, so factoring a matrix in place no longer
+// requires it to be device-only, and an in-place solve gives the caller back a
+// result on the resource it supplied.
+template <typename Scalar>
+void test_solver_adopts_resource_backed(Index n) {
+  using MatrixType = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using HostMap = Eigen::Map<MatrixType>;
+
+  const MatrixType M = MatrixType::Random(n, n);
+  const MatrixType spd = M.adjoint() * M + MatrixType::Identity(n, n) * static_cast<Scalar>(n);
+  const MatrixType hb = MatrixType::Random(n, 1);
+  const RealScalar tol = RealScalar(20) * RealScalar(n) * NumTraits<Scalar>::epsilon();
+
+  gpu::Context ctx;
+  gpu::MemoryResource& r = gpu::mappedHostMemoryResource();
+
+  gpu::DeviceMatrix<Scalar> A(n, n, r);
+  HostMap(A.hostData(), n, n) = spd;
+
+  gpu::LLT<Scalar> llt;
+  llt.compute(std::move(A));  // factored in place in A's page-locked storage
+  VERIFY_IS_EQUAL(llt.info(), Success);
+  VERIFY(A.data() == nullptr);
+
+  gpu::DeviceMatrix<Scalar> d_b(n, 1, r);
+  HostMap(d_b.hostData(), n, 1) = hb;
+
+  gpu::DeviceMatrix<Scalar> d_x = llt.solve(std::move(d_b));
+  VERIFY(d_x.isHostAccessible());
+  VERIFY(d_x.memoryResource() == &r);
+
+  d_x.syncHost(ctx);
+  VERIFY((spd * HostMap(d_x.hostData(), n, 1) - hb).norm() / hb.norm() < tol);
+}
+
 // ---- Adopting a matrix the caller already has -------------------------------
 
 template <typename Scalar>
@@ -262,6 +299,7 @@ void test_scalar() {
   CALL_SUBTEST(test_gemm_on_each_resource<Scalar>(64));
   CALL_SUBTEST(test_gemm_on_each_resource<Scalar>(128));
   CALL_SUBTEST(test_llt_on_resource<Scalar>(64));
+  CALL_SUBTEST(test_solver_adopts_resource_backed<Scalar>(64));
   CALL_SUBTEST(test_adopted_host_matrix<Scalar>(64));
   CALL_SUBTEST(test_device_scalar_on_each_resource<Scalar>());
   CALL_SUBTEST(test_reduction_result_on_resource<Scalar>(97));

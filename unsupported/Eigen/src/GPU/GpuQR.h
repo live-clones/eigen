@@ -128,7 +128,7 @@ class QR {
     if (transposed_) {
       transpose_into_factor(d_A);
     } else {
-      d_qr_ = internal::DeviceBuffer::adopt(static_cast<void*>(d_A.release()), factorBytes());
+      d_qr_ = d_A.releaseBuffer();
     }
 
     factorize();
