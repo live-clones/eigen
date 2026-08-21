@@ -27,6 +27,8 @@
 #include <cstdint>
 #include <cstdlib>
 #include <limits>
+#include <mutex>
+#include <set>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -124,14 +126,33 @@ static_assert(sizeof(BlasInt) == 8,
 #endif
 
 // ---------------------------------------------------------------------------
+// Structured skips
+// ---------------------------------------------------------------------------
+// Google Benchmark gives a skipping benchmark exactly one channel to the
+// harness: the free-text error_message of SkipWithError. But WHY a cell was
+// skipped is not free text -- result_schema.json enumerates the vocabulary, and
+// the reasons mean opposite things on a published page. "too large for this
+// machine" and "the reference BLAS uses 32-bit indices" are facts about the
+// build and the machine; "the result disagrees with Eigen" is a defect in the
+// library. Rendering the first two as the third would be a false statement.
+//
+// So the message carries a machine-readable envelope and run.py parses the token
+// out of it, rather than each new category adding another prose prefix for
+// Python to match on. A message with no envelope is a genuine runtime error,
+// which is what a plain SkipWithError elsewhere in the tree already means.
+#define EIGEN_BENCH_SKIP_ENVELOPE_OPEN "[eigen-bench:skip:"
+#define EIGEN_BENCH_SKIP_ENVELOPE_CLOSE "] "
+
+// `reason` must be one of result_schema.json's not_measured reasons; run.py
+// checks the token against that enum and falls back to runtime_error if it does
+// not recognise it, so a typo degrades rather than inventing a category.
+inline void skipWithReason(benchmark::State& state, const char* reason, const std::string& detail) {
+  state.SkipWithError(std::string(EIGEN_BENCH_SKIP_ENVELOPE_OPEN) + reason + EIGEN_BENCH_SKIP_ENVELOPE_CLOSE + detail);
+}
+
+// ---------------------------------------------------------------------------
 // Memory budget
 // ---------------------------------------------------------------------------
-// The prefix every over-budget skip message starts with. run.py matches on it to
-// file the cell as `out_of_memory` rather than `runtime_error`: "too large for
-// this machine" is a fact about the machine, and reporting it as a defect on a
-// published page would be a false statement about the library.
-#define EIGEN_BENCH_OVER_BUDGET_PREFIX "operands exceed the memory budget: "
-
 // Bytes a benchmark may allocate for its operands, from EIGEN_BENCH_MEMORY_BUDGET_BYTES.
 // Zero (the default when the variable is unset, empty or unparseable) means no
 // budget is enforced, so a hand-run binary behaves exactly as before.
@@ -152,20 +173,33 @@ inline std::size_t memoryBudgetBytes() {
 }
 
 // Call BEFORE allocating. `bytes` is what the operands will occupy; a caller
-// that under-reports gets no protection, so it should count every array the
-// timed body needs, not just the largest.
+// that under-reports gets no protection, so it should count every array that is
+// live at once, not just the largest.
 inline bool skipIfOverMemoryBudget(benchmark::State& state, double bytes) {
   const std::size_t budget = memoryBudgetBytes();
   if (budget == 0 || bytes <= static_cast<double>(budget)) return false;
-  const double gib = 1024.0 * 1024.0 * 1024.0;
+  // Scaled to a unit that has significant digits at both ends: a GiB-only
+  // rendering prints "0.00 GiB, budget is 0.00 GiB" for a small budget, which
+  // states nothing on a page that has to justify why a cell is missing.
+  const double mib = 1024.0 * 1024.0;
+  const bool use_gib = bytes >= 1024.0 * mib && static_cast<double>(budget) >= 1024.0 * mib;
+  const double scale = use_gib ? 1024.0 * mib : mib;
+  const char* unit = use_gib ? " GiB" : " MiB";
   std::ostringstream message;
   message.setf(std::ios::fixed);
   message.precision(2);
-  message << EIGEN_BENCH_OVER_BUDGET_PREFIX << bytes / gib << " GiB needed, " << static_cast<double>(budget) / gib
-          << " GiB allowed";
-  state.SkipWithError(message.str());
+  message << "operands need " << bytes / scale << unit << ", budget is " << static_cast<double>(budget) / scale << unit;
+  skipWithReason(state, "out_of_memory", message.str());
   return true;
 }
+
+// Aliases for the two operand shapes every comparison benchmark uses. Named once
+// here so the shared helpers below have a signature to be written against.
+template <typename Scalar>
+using ColMatrix = Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic>;
+
+template <typename Scalar>
+using ColVector = Eigen::Matrix<Scalar, Eigen::Dynamic, 1>;
 
 // Does a dimension survive the narrowing to the reference arm's integer width?
 // Eigen::Index is 64-bit on every platform these benchmarks run on, so an LP64
@@ -176,6 +210,70 @@ inline bool skipIfOverMemoryBudget(benchmark::State& state, double bytes) {
 inline bool fitsBlasInt(Eigen::Index value) {
   return value >= 0 &&
          static_cast<std::uintmax_t>(value) <= static_cast<std::uintmax_t>((std::numeric_limits<BlasInt>::max)());
+}
+
+// Every driver's first act. Variadic so one call covers an op of any rank, and a
+// structured skip so the cell is filed as a property of the build rather than as
+// a library failure -- this is decided by EIGEN_64BIT_BLAS and the vendor table,
+// not by any kernel.
+template <typename... Dims>
+bool skipIfDimsExceedBlasInt(benchmark::State& state, Dims... dims) {
+  const Eigen::Index values[] = {static_cast<Eigen::Index>(dims)...};
+  for (const Eigen::Index value : values) {
+    if (!fitsBlasInt(value)) {
+      skipWithReason(state, "shape_unsupported",
+                     "dimension " + std::to_string(value) + " does not fit the reference library's " +
+                         std::to_string(8 * sizeof(BlasInt)) + "-bit integer width");
+      return true;
+    }
+  }
+  return false;
+}
+
+// Memoises the untimed correctness check per shape.
+//
+// Correctness is a deterministic property of (Scalar, kernel, shape), and Google
+// Benchmark enters a benchmark body once per repetition plus a few times while
+// it searches for an iteration count -- 13 times at the harness defaults.
+// Re-checking on every entry yields no new information and is not free: the
+// check runs a full untimed operation, so at the large end of a grid a binary
+// would spend more time validating than measuring. Declared as a function-local
+// static of a function template, it is already per (Scalar, Kernel); only the
+// shape has to be keyed. The mutex keeps that true under a threaded runner.
+template <typename Key>
+class ValidatedShapes {
+ public:
+  bool contains(const Key& key) const {
+    const std::lock_guard<std::mutex> guard(mutex_);
+    return set_.count(key) != 0;
+  }
+  // Call only after the check passed, so a failure cannot mark the shape good
+  // for the entries that follow it.
+  void insert(const Key& key) {
+    const std::lock_guard<std::mutex> guard(mutex_);
+    set_.insert(key);
+  }
+
+ private:
+  mutable std::mutex mutex_;
+  std::set<Key> set_;
+};
+
+// Does a kernel's result agree with the value Eigen computed for the same input?
+//
+// One numerical policy for every comparison, rather than one per operation:
+// relative to the larger of the two norms, scaled by the square root of the
+// contraction length because that is where the error accumulates. Negated so a
+// NaN result fails rather than passes -- every comparison operator against NaN
+// is false, so `<=` inside the negation is the only spelling that rejects it.
+template <typename Derived, typename OtherDerived>
+bool agreesWithEigen(const Eigen::MatrixBase<Derived>& expected, const Eigen::MatrixBase<OtherDerived>& actual,
+                     Eigen::Index contraction_length) {
+  using RealScalar = typename Eigen::NumTraits<typename Derived::Scalar>::Real;
+  const RealScalar tolerance =
+      RealScalar(64) * Eigen::numext::sqrt(RealScalar(contraction_length)) * Eigen::NumTraits<RealScalar>::epsilon();
+  const RealScalar magnitude = Eigen::numext::maxi(expected.norm(), actual.norm());
+  return !!((actual - expected).norm() <= tolerance * magnitude);
 }
 
 // ---------------------------------------------------------------------------
@@ -492,13 +590,29 @@ class ErrorTrackingReporter : public ::benchmark::ConsoleReporter {
   bool ReportContext(const Context& context) override { return ConsoleReporter::ReportContext(context); }
   void ReportRuns(const std::vector<Run>& reports) override {
     for (const Run& run : reports) {
-      if (run.skipped == ::benchmark::internal::SkippedWithError) errored_ = true;
+      if (run.skipped == ::benchmark::internal::SkippedWithError && !carriesSkipEnvelope(run.report_label) &&
+          !carriesSkipEnvelope(run.skip_message)) {
+        errored_ = true;
+      }
     }
     ConsoleReporter::ReportRuns(reports);
   }
   bool anyErrored() const { return errored_; }
 
  private:
+  // A structured skip is not an error. skipIfOverMemoryBudget and
+  // skipIfDimsExceedBlasInt report facts about the machine and the build, and
+  // the harness has a not_measured reason for each; only an unlabelled
+  // SkipWithError -- a kernel disagreeing with Eigen -- is a failure.
+  //
+  // The distinction has to live here and not only in run.py: a non-zero exit
+  // makes run.py condemn the whole invocation before it reads a single row, so
+  // one over-budget cell would discard every cell measured beside it. That is
+  // precisely the loss the budget exists to prevent.
+  static bool carriesSkipEnvelope(const std::string& message) {
+    return message.rfind(EIGEN_BENCH_SKIP_ENVELOPE_OPEN, 0) == 0;
+  }
+
   bool errored_ = false;
 };
 

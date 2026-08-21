@@ -12,7 +12,6 @@
 // grid, unguarded <cblas.h>). Both remain in the tree for now.
 
 #include <Eigen/Core>
-#include <array>
 #include <complex>
 #include <mutex>
 #include <set>
@@ -52,10 +51,10 @@ using eigen_bench::BlasInt;
 using eigen_bench::fitsBlasInt;
 
 template <typename Scalar>
-using GemmMatrix = Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic>;
+using GemmMatrix = eigen_bench::ColMatrix<Scalar>;
 
 template <typename Scalar>
-using GemmVector = Eigen::Matrix<Scalar, Eigen::Dynamic, 1>;
+using GemmVector = eigen_bench::ColVector<Scalar>;
 
 // C := C + A*B, the operation ops.toml records as GEMM with alpha = beta = 1.
 struct EigenGemmKernel {
@@ -112,10 +111,7 @@ static void runGemm(benchmark::State& state, Kernel kernel) {
   const Index n = static_cast<Index>(state.range(1));
   const Index k = static_cast<Index>(state.range(2));
 
-  if (!fitsBlasInt(m) || !fitsBlasInt(n) || !fitsBlasInt(k)) {
-    state.SkipWithError("dimension does not fit the reference BLAS integer width");
-    return;
-  }
+  if (eigen_bench::skipIfDimsExceedBlasInt(state, m, n, k)) return;
 
   // a (m-by-k), b (k-by-n) and c (m-by-n). Checked before the first allocation,
   // so an over-large point costs one skipped cell rather than the whole run.
@@ -132,24 +128,9 @@ static void runGemm(benchmark::State& state, Kernel kernel) {
   GemmMatrix<Scalar> b = GemmMatrix<Scalar>::Random(k, n);
   GemmMatrix<Scalar> c = GemmMatrix<Scalar>::Random(m, n);
 
-  // Correctness is a deterministic property of (Scalar, kernel, shape), and
-  // Google Benchmark enters this body once per repetition plus a few times while
-  // it searches for an iteration count -- 13 times at the harness defaults.
-  // Re-checking on every entry yields no new information and is not free: the
-  // check runs a full untimed GEMM, so at the large end of the grid the binary
-  // would spend more time validating than measuring. The set is a function-local
-  // static of a function template, hence already per (Scalar, Kernel); only the
-  // shape has to be keyed. The mutex keeps that true under a threaded runner.
-  static std::set<std::array<Index, 3>> validated_shapes;
-  static std::mutex validated_shapes_mutex;
+  static eigen_bench::ValidatedShapes<std::array<Index, 3>> validated;
   const std::array<Index, 3> shape = {m, n, k};
-  bool shape_is_validated;
-  {
-    const std::lock_guard<std::mutex> guard(validated_shapes_mutex);
-    shape_is_validated = validated_shapes.count(shape) != 0;
-  }
-
-  if (!shape_is_validated) {
+  if (!validated.contains(shape)) {
     // Freivalds' check (R. Freivalds, "Probabilistic machines can use less
     // running time", IFIP 1977): comparing (C + A*B)x against Cx + A*(B*x)
     // verifies the kernel's whole result against Eigen's own products in
@@ -161,19 +142,12 @@ static void runGemm(benchmark::State& state, Kernel kernel) {
     kernel(a, b, c);
     const GemmVector<Scalar> actual = c * x;
 
-    const RealScalar tolerance =
-        RealScalar(64) * Eigen::numext::sqrt(RealScalar(k)) * Eigen::NumTraits<RealScalar>::epsilon();
-    const RealScalar magnitude = Eigen::numext::maxi(expected.norm(), actual.norm());
-    // Negated so that a NaN result fails rather than passes.
-    if (!((actual - expected).norm() <= tolerance * magnitude)) {
+    if (!eigen_bench::agreesWithEigen(expected, actual, k)) {
       state.SkipWithError("gemm result disagrees with Eigen at m:" + std::to_string(m) + " n:" + std::to_string(n) +
                           " k:" + std::to_string(k));
       return;
     }
-    // Recorded only after the check passed, so a failure cannot mark the shape
-    // good for the entries that follow it.
-    const std::lock_guard<std::mutex> guard(validated_shapes_mutex);
-    validated_shapes.insert(shape);
+    validated.insert(shape);
   }
 
   for (auto _ : state) {
