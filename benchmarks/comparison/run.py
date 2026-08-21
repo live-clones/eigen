@@ -1230,35 +1230,41 @@ class GitFacts:
 NULL_COMMIT = "0" * 40
 
 
-def build_tree_pathspecs(repo_root: Path, build_base: Path | None) -> list[str]:
-    """Pathspecs excluding the build trees this run owns, if they are in the repo.
+def output_pathspecs(repo_root: Path, *outputs: Path | None) -> list[str]:
+    """Pathspecs excluding the directories this run writes to, if they are in the repo.
 
     `dirty` asks whether the measured code can differ from the recorded commit,
-    so it has to see an untracked .cpp or a modified header.  A build tree is an
-    output, not an input, and Eigen's .gitignore does not cover `build*/` -- so
-    without this the harness's own default --build-dir sits in the worktree as
-    untracked and trips the guard on the very first run.  A guard that always
-    fires teaches everyone to pass --allow-dirty by reflex, which marks every
-    result unreproducible and destroys the provenance it exists to protect.
+    so it has to see an untracked .cpp or a modified header.  The run's own
+    build trees and result files are outputs, not inputs -- and Eigen's
+    .gitignore covers `*.build*` but not `build*/`, so without this the
+    harness's own default --build-dir sits in the worktree as untracked and
+    trips the guard on the very first run.  The results directory is the same
+    story one step later: the first successful measurement made the second one
+    refuse.  A guard that always fires teaches everyone to pass --allow-dirty by
+    reflex, which marks every result unreproducible and destroys the provenance
+    it exists to protect.
 
     Excluding by pathspec rather than by filtering the porcelain output keeps
     git responsible for quoting, renames and collapsed untracked directories.
     """
-    if build_base is None:
-        return []
-    try:
-        relative = build_base.resolve().relative_to(repo_root.resolve())
-    except (ValueError, OSError):
-        # Outside the worktree (or unresolvable): it cannot appear in status.
-        return []
-    if relative == Path("."):
-        # --build-dir is the repo root itself; excluding it would exclude
-        # everything and silently disable the guard.
-        return []
-    return [".", f":(exclude,top){relative.as_posix()}"]
+    excluded = []
+    for output in outputs:
+        if output is None:
+            continue
+        try:
+            relative = output.resolve().relative_to(repo_root.resolve())
+        except (ValueError, OSError):
+            # Outside the worktree (or unresolvable): it cannot appear in status.
+            continue
+        if relative == Path("."):
+            # The output directory is the repo root itself; excluding it would
+            # exclude everything and silently disable the guard.
+            continue
+        excluded.append(f":(exclude,top){relative.as_posix()}")
+    return [".", *excluded] if excluded else []
 
 
-def probe_git(repo_root: Path, build_base: Path | None = None) -> GitFacts:
+def probe_git(repo_root: Path, *output_dirs: Path | None) -> GitFacts:
     """Read-only interrogation of the Eigen checkout."""
 
     def git(*args: str) -> str | None:
@@ -1273,7 +1279,7 @@ def probe_git(repo_root: Path, build_base: Path | None = None) -> GitFacts:
     commit = git("rev-parse", "HEAD")
     if not commit or not re.match(r"^[0-9a-f]{40}$", commit):
         return GitFacts(NULL_COMMIT, NULL_COMMIT[:9], True, None, None, available=False)
-    pathspecs = build_tree_pathspecs(repo_root, build_base)
+    pathspecs = output_pathspecs(repo_root, *output_dirs)
     status = git("status", "--porcelain", *(["--", *pathspecs] if pathspecs else []))
     return GitFacts(
         commit=commit,
@@ -2192,7 +2198,7 @@ def _run(args: argparse.Namespace, argv: Sequence[str], root: Path, reporter: Re
                 print(f"{cell.op} {cell.arm} {cell.scalar} {dims} threads:{cell.threads} isa:{isa}")
         return EXIT_OK
 
-    git_facts = probe_git(root, Path(args.build_dir))
+    git_facts = probe_git(root, Path(args.build_dir), Path(args.results_dir))
     host = probe_host()
     eigen_version = probe_eigen_version(root)
 
