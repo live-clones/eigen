@@ -108,7 +108,7 @@
   },
   "generated_utc": "2026-08-20T00:00:00Z",
   "kind": "eigen-benchmark-comparison-merged",
-  "ops_toml_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "ops_toml_sha256": "36e08ab195018546bce1fdc2592e3184d613941278a1534c71311298305a3fc2",
   "reducer_version": "1.0.0",
   "schema_version": "1.0.0"
 }
