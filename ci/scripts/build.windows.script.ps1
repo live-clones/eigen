@@ -1,9 +1,45 @@
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
+
+$rootdir = Get-Location
+
+# The affected-tests tier (see scripts/affected_tests.py) passes its selection
+# as a file rather than a variable so the list is not bounded by CI variable
+# limits.  The file holds "NONE" or one target per line; the full-suite form is
+# "buildtests" plus the targets it does not aggregate, and so takes the same
+# path as any other list.
+#
+# Read first, before vcvarsall, the ccache provisioning and the CMake configure:
+# a diff that reaches no test at all selects "NONE", and such a job should cost
+# a checkout rather than a full configure.  Declining to schedule it at all
+# would have to go through `rules:`, which GitLab evaluates when the pipeline is
+# created -- before select:tests has produced this file -- so exiting early is
+# the cheapest answer available within one pipeline.
+$requested = @()
+if (${EIGEN_CI_BUILD_TARGET_FILE}) {
+  $target_file = ${EIGEN_CI_BUILD_TARGET_FILE}
+  if (-Not [System.IO.Path]::IsPathRooted($target_file)) {
+    $target_file = Join-Path ${rootdir} $target_file
+  }
+  # Fail loudly rather than falling through to the default target: a missing
+  # selection would otherwise silently build the entire test suite.
+  if (-Not (Test-Path $target_file)) {
+    Write-Error ("EIGEN_CI_BUILD_TARGET_FILE=${EIGEN_CI_BUILD_TARGET_FILE} does not exist. " +
+                 "The select:tests artifact is missing; refusing to guess a build target.")
+    Exit 1
+  }
+  $requested = @(Get-Content $target_file | ForEach-Object { $_.Trim() } |
+                 Where-Object { $_ } | Sort-Object -Unique)
+  if ($requested -contains "NONE") {
+    Write-Host "No tests are affected by this merge request; nothing to build."
+    Exit 0
+  }
+}
+
 # Find Visual Studio installation directory. -products * includes Build
 # Tools installs, which vswhere's default product filter skips; without it a
 # Build Tools-only runner gets an empty path here, vcvarsall never runs, and
 # the configure step fails with "No CMAKE_CXX_COMPILER could be found".
-# SPDX-FileCopyrightText: The Eigen Authors
-# SPDX-License-Identifier: MPL-2.0
 $VS_INSTALL_DIR = &"${Env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath
 
 # Run VCVarsAll.bat initialization script and extract environment variables.
@@ -16,7 +52,6 @@ cmd.exe /c "`"${VS_INSTALL_DIR}\VC\Auxiliary\Build\vcvarsall.bat`" $EIGEN_CI_MSV
   }
 
 # Create and enter build directory.
-$rootdir = Get-Location
 if (-Not (Test-Path ${EIGEN_CI_BUILDDIR})) {
     mkdir $EIGEN_CI_BUILDDIR
 }
@@ -113,35 +148,12 @@ cmake -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel `
       -DEIGEN_TEST_CUSTOM_CXX_FLAGS="${EIGEN_CI_TEST_CUSTOM_CXX_FLAGS}" `
       ${launchers} ${split_args} "${rootdir}"
 
-# The affected-tests tier (see scripts/affected_tests.py) passes its selection
-# as a file rather than a variable so the list is not bounded by CI variable
-# limits.  The file holds "NONE" or one target per line; the full-suite form is
-# "buildtests" plus the targets it does not aggregate, and so takes the same
-# path as any other list.
 # Targets that this configuration did not register (optional dependencies such
-# as CHOLMOD or CUDA) are dropped here: ninja aborts on an unknown target, and
-# this is the first point that knows what CMake actually configured.
+# as CHOLMOD or CUDA) are dropped from the selection read above: ninja aborts on
+# an unknown target, and this is the first point that knows what CMake actually
+# configured.
 $selected_targets = @()
 if (${EIGEN_CI_BUILD_TARGET_FILE}) {
-  $target_file = ${EIGEN_CI_BUILD_TARGET_FILE}
-  if (-Not [System.IO.Path]::IsPathRooted($target_file)) {
-    $target_file = Join-Path ${rootdir} $target_file
-  }
-  # Fail loudly rather than falling through to the default target: a missing
-  # selection would otherwise silently build the entire test suite.
-  if (-Not (Test-Path $target_file)) {
-    Write-Error ("EIGEN_CI_BUILD_TARGET_FILE=${EIGEN_CI_BUILD_TARGET_FILE} does not exist. " +
-                 "The select:tests artifact is missing; refusing to guess a build target.")
-    cd ${rootdir}
-    Exit 1
-  }
-  $requested = @(Get-Content $target_file | ForEach-Object { $_.Trim() } |
-                 Where-Object { $_ } | Sort-Object -Unique)
-  if ($requested -contains "NONE") {
-    Write-Host "No tests are affected by this merge request; nothing to build."
-    cd ${rootdir}
-    Exit 0
-  }
   # Not redirected with 2>: the runner sets $ErrorActionPreference to Stop, and
   # redirecting a native command's stderr promotes each line it writes to a
   # terminating error, which would abort the job ahead of the report below.
