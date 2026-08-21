@@ -20,6 +20,12 @@ Two files sit beside it:
 
 `$STUB_BENCH_FAIL_RC`, when set, makes the stub exit with that code after
 writing the trace and nothing else, standing in for a benchmark that died.
+
+`$STUB_BENCH_ERROR_RC` is the other failure the real binaries have: everything is
+written normally and THEN the process exits non-zero.  That is what
+`ErrorTrackingReporter` in bench_compare.h does after an unstructured
+`SkipWithError` -- Google Benchmark has already emitted every row, and the status
+reports that one of them disagreed with Eigen.
 """
 
 import json
@@ -90,6 +96,11 @@ def main(argv):
         sys.stderr.write(f"stub_benchmark: wrote {len(rows)} rows to {out}\n")
     else:
         sys.stdout.write(text)
+
+    errored = os.environ.get("STUB_BENCH_ERROR_RC")
+    if errored:
+        sys.stderr.write("stub_benchmark: a benchmark reported an error\n")
+        return int(errored)
     return 0
 
 

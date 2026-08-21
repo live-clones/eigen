@@ -1091,13 +1091,35 @@ def diff_not_measured(
     return entries
 
 
-def collapse_not_measured(entries: Sequence[Mapping[str, Any]]) -> list[dict]:
+def _shape_key(shape: Mapping[str, Any] | None) -> tuple:
+    """Order-independent identity of a shape, for set comparison."""
+    return tuple(sorted((str(name), int(value)) for name, value in (shape or {}).items()))
+
+
+def collapse_not_measured(entries: Sequence[Mapping[str, Any]], attempted: Sequence[Cell] = ()) -> list[dict]:
     """Collapse per-shape entries that cover a whole (op, arm, scalar) grid.
 
     ``shape: null`` means "the whole grid for this op", which is both what the
-    schema documents and what keeps a wholly unimplemented operation from
-    writing hundreds of identical rows.
+    schema documents and what keeps a wholly unimplemented operation from writing
+    hundreds of identical rows. It is a claim about the WHOLE grid, so it may only
+    be made when the entries being collapsed really do cover it -- which is why
+    ``attempted`` (the plan before any filtering) has to be passed in.
+
+    Collapsing on "more than one entry shares a reason" instead was wrong in
+    exactly the case the harness is built for, the partial run. Select two shapes
+    of a grid and the unregistered remainder collapses into a whole-grid
+    ``not_implemented``; the reducer then expands that blanket entry back across
+    every point of the grid, where it lands on top of the shape-specific
+    ``runtime_error``, ``out_of_memory`` and ``excluded_by_filter`` entries the
+    same run recorded -- same key, same timestamp, and ``latest`` keeps the one
+    that arrived last. The published page then says "Eigen does not implement
+    this" about a shape that was measured and failed, or that the operator
+    excluded on purpose.
     """
+    grid: dict[tuple, set] = {}
+    for cell in attempted:
+        grid.setdefault((cell.op, cell.arm, cell.scalar, cell.threads), set()).add(_shape_key(cell.shape))
+
     grouped: dict[tuple, list[Mapping[str, Any]]] = {}
     order: list[tuple] = []
     for entry in entries:
@@ -1112,20 +1134,26 @@ def collapse_not_measured(entries: Sequence[Mapping[str, Any]]) -> list[dict]:
         members = grouped[key]
         op, arm, scalar, reason, detail = key
         threads = {member.get("threads") for member in members}
-        if len(members) > 1:
+        # One thread count, because the collapsed row carries exactly one; and the
+        # member shapes equal to the attempted grid, not merely a subset of it.
+        covers_grid = False
+        if len(members) > 1 and len(threads) == 1:
+            wanted = grid.get((op, arm, scalar, next(iter(threads))))
+            covers_grid = bool(wanted) and {_shape_key(m.get("shape")) for m in members} == wanted
+        if covers_grid:
             collapsed.append(
                 {
                     "op": op,
                     "arm": arm,
                     "scalar": scalar,
                     "shape": None,
-                    "threads": threads.pop() if len(threads) == 1 else None,
+                    "threads": threads.pop(),
                     "reason": reason,
                     "detail": detail,
                 }
             )
         else:
-            collapsed.append(dict(members[0]))
+            collapsed.extend(dict(member) for member in members)
     return collapsed
 
 
@@ -1487,6 +1515,10 @@ class ProvenanceInputs:
     load_avg_after: Sequence[float] | None
     duration_s: float | None
     notes: str | None
+    # Caveats the harness itself established, kept apart from the operator's
+    # --note so neither can silently overwrite the other. They are joined into
+    # run.notes with the rest.
+    harness_notes: Sequence[str] = ()
 
 
 def assemble_provenance(inputs: ProvenanceInputs) -> tuple[dict, list[dict]]:
@@ -1693,6 +1725,8 @@ def assemble_provenance(inputs: ProvenanceInputs) -> tuple[dict, list[dict]]:
     # what reaches the page -- the cpu_binding caveat it used to duplicate is
     # raised as a gap with the numa block above.
     notes = inputs.notes
+    for note in inputs.harness_notes:
+        notes = f"{notes}; {note}" if notes else note
     if not git_facts.available:
         gap(
             "/provenance/eigen/commit",
@@ -2021,14 +2055,45 @@ def executable_from_vendor_info(info: Mapping[str, Any] | None, target: str) -> 
 
 
 def vendor_info_provides(info: Mapping[str, Any] | None) -> list[str]:
-    """The interface families the linked reference library actually exposes.
+    """The interface families this build can actually CALL.
 
-    The vendor table records this per row; without it nothing can tell that, say,
-    netlib supplies BLAS and CBLAS but no LAPACK, and a LAPACK op would be planned
-    against a library that cannot perform it.
+    The vendor table records what a row declares; without it nothing can tell
+    that, say, netlib supplies BLAS and CBLAS but no LAPACK, and a LAPACK op would
+    be planned against a library that cannot perform it.
+
+    `families` is the declaration reconciled with what the configure step found --
+    it gains `lapack` when the BLAS vendor ships none and find_package(LAPACK)
+    supplied one elsewhere. `provides` alone would call ?potrf absent on a build
+    that links it perfectly well. Older vendor_info files carry only `provides`.
     """
     reference = ((info or {}).get("reference") or {})
+    families = reference.get("families")
+    if families:
+        return [str(x) for x in families]
     return [str(x) for x in (reference.get("provides") or [])]
+
+
+def vendor_info_lapack_note(info: Mapping[str, Any] | None) -> str | None:
+    """A caveat when LAPACK did not come from the library the column is named after.
+
+    A POTRF row is headed with the reference arm -- `openblas`, `netlib` -- and a
+    reader takes that to be what computed it. When the vendor ships no LAPACK and
+    find_package(LAPACK) found one somewhere else, the ?potrf in that row is a
+    different package's, and the row would attribute someone else's kernel to the
+    named vendor. That is established fact rather than a failure to establish
+    something, so it travels as a note and not as a provenance gap.
+    """
+    lapack = ((info or {}).get("reference") or {}).get("lapack") or {}
+    if not lapack.get("available") or lapack.get("provider") != "separate":
+        return None
+    libraries = ", ".join(str(x) for x in (lapack.get("libraries") or []))
+    arm = str(((info or {}).get("reference") or {}).get("arm") or "the reference BLAS")
+    return (
+        f"LAPACK routines in this run came from a separately found LAPACK"
+        + (f" ({libraries})" if libraries else "")
+        + f", not from {arm}, which supplies no LAPACK; rows whose reference is a LAPACK routine are "
+        "not that vendor's implementation"
+    )
 
 
 def find_benchmark_executable(build_dir: Path, target: str) -> Path | None:
@@ -2344,7 +2409,16 @@ def _run(args: argparse.Namespace, argv: Sequence[str], root: Path, reporter: Re
         runtime_failures += 1 if outcome.runtime_failed else 0
 
     if runtime_failures == len(units) and units:
-        reporter.error("every benchmark executable failed at runtime; nothing was measured")
+        # A unit can be a runtime failure and still have produced rows: the
+        # comparison binaries exit non-zero when any single shape disagreed with
+        # Eigen, having already written every other shape. The status has to say
+        # the run failed either way -- an operator who does not notice publishes
+        # a table built on a binary that reported a defect -- but the message must
+        # not claim the file is empty when it is not.
+        reporter.error(
+            "every benchmark executable failed at runtime; the result file(s) are written for "
+            "inspection and record what did and did not survive"
+        )
         return EXIT_RUNTIME
     if invalid:
         return EXIT_SCHEMA
@@ -2415,8 +2489,15 @@ def _measure_unit(
     measurements: list[dict] = []
     not_measured: list[dict] = []
 
-    # What the linked reference library actually exposes, per the vendor table.
-    reference_provides = vendor_info_provides(load_vendor_info(build_dir))
+    # What the linked reference library actually exposes, per the vendor table
+    # reconciled with what the configure step found.
+    _configured = load_vendor_info(build_dir)
+    reference_provides = vendor_info_provides(_configured)
+    harness_notes: list[str] = []
+    _lapack_note = vendor_info_lapack_note(_configured)
+    if _lapack_note and arm_key:
+        reporter.warn(f"[{label}] {_lapack_note}")
+        harness_notes.append(_lapack_note)
 
     def mark(cells: Sequence[Cell], reason: str, detail: str | None, measured: Iterable[tuple] = ()) -> None:
         """Record why these planned cells produced no timing.
@@ -2491,11 +2572,22 @@ def _measure_unit(
                 "all differ. Rebuild, or point --ops-toml at the registry the build used.",
                 EXIT_CONFIG,
             )
+        # Guarded on the REQUESTED arm, not on the built one. Skipping the check
+        # when the build recorded no reference library was the dangerous half of
+        # it: with --no-configure a requested Accelerate or OpenBLAS unit would
+        # happily reuse an Eigen-only build tree, run its executable, find no
+        # reference row for anything, and file the whole reference column as
+        # not_implemented -- while provenance named the vendor that was asked for.
+        # That publishes "the library does not implement this" about a library
+        # that was never linked. Only an Eigen-only unit may accept an empty
+        # build arm.
         built_arm = str((vendor_info.get("reference") or {}).get("arm") or "")
-        if built_arm and arm_key not in ("eigen", built_arm):
+        if arm_key and arm_key != "eigen" and arm_key != built_arm:
             raise HarnessError(
-                f"this unit measures arm {arm_key!r} but {build_dir} was linked against {built_arm!r}; "
-                "the result would attribute the numbers to a library that did not produce them",
+                f"this unit measures arm {arm_key!r} but {build_dir} was linked against "
+                f"{built_arm or 'no reference library'}; the result would attribute the numbers to a "
+                "library that did not produce them. Configure this build directory for the arm being "
+                "measured, or drop --no-configure.",
                 EXIT_CONFIG,
             )
 
@@ -2526,19 +2618,47 @@ def _measure_unit(
         benchmark_argv = command[len(pinning.command_prefix) + 1 :]
         executable_used = str(executable)
         completed = run_command(command, reporter=reporter, env=benchmark_env)
-        if completed.returncode != 0 or not raw_path.is_file():
+        # A non-zero status does NOT mean there is nothing to read.
+        # ErrorTrackingReporter deliberately returns 1 after any unstructured
+        # SkipWithError -- a kernel that disagreed with Eigen -- and Google
+        # Benchmark has written every row by then. Discarding the file here
+        # condemned the whole binary on one bad shape, filed every cell as
+        # runtime_error, and made the per-row failure handling below unreachable
+        # for a real comparison binary: the one shape that failed took the
+        # hundreds that did not down with it. So the unit is still a failure, but
+        # a present and parseable output is distilled and only the keys the
+        # binary itself reported an error for carry a failure reason.
+        document = None
+        if raw_path.is_file():
+            try:
+                document = json.loads(raw_path.read_text(encoding="utf-8"))
+            except ValueError as exc:
+                reporter.error(f"[{label}] {raw_path} is not readable as JSON: {exc}")
+        if completed.returncode != 0:
             runtime_failed = True
-            reporter.error(f"[{label}] {target} failed at runtime:\n{completed.stderr.strip()[-2000:]}")
+            reporter.error(
+                f"[{label}] {target} exited with status {completed.returncode}:\n"
+                f"{completed.stderr.strip()[-2000:]}"
+            )
+        if document is None:
+            runtime_failed = True
             mark(
                 target_cells,
                 "runtime_error",
-                f"{target} exited with status {completed.returncode}; see the harness log",
+                f"{target} exited with status {completed.returncode} and left no readable "
+                f"benchmark output; see the harness log",
             )
             continue
 
-        document = json.loads(raw_path.read_text(encoding="utf-8"))
         distilled = distill_benchmark_json(document, registry, planned=target_cells, threads=threads)
-        context.update(distilled.context)
+        # Not a plain update: the reference-arm gate in CMakeLists.txt can build
+        # ONE binary of a unit Eigen-only -- ?potrf against a vendor with no
+        # LAPACK -- and that binary publishes empty reference_* context keys.
+        # Whichever target sorted last would then decide the provenance for all of
+        # them, so an empty value never displaces one that was established.
+        for key, value in distilled.context.items():
+            if key not in context or value not in ("", None):
+                context[key] = value
         for warning in distilled.warnings:
             reporter.warn(f"[{label}] {warning}")
         measurements.extend(distilled.measurements)
@@ -2644,6 +2764,7 @@ def _measure_unit(
         load_avg_after=_load_avg_now(),
         duration_s=time.monotonic() - clock_started,
         notes=args.note,
+        harness_notes=harness_notes,
     )
     provenance, gaps = assemble_provenance(inputs)
 
@@ -2664,7 +2785,7 @@ def _measure_unit(
             ops_toml_sha256=registry.sha256,
         ),
         measurements=measurements,
-        not_measured=collapse_not_measured(not_measured),
+        not_measured=collapse_not_measured(not_measured, attempted=planned + excluded),
         source_files=source_files,
     )
 
