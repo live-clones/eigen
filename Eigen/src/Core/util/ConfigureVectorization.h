@@ -79,8 +79,12 @@
 #elif defined(__AVX512F__)
 // 64 bytes static alignment is preferred only if really required
 #define EIGEN_IDEAL_MAX_ALIGN_BYTES 64
-#elif defined(EIGEN_VECTORIZE_SME)
-#define EIGEN_IDEAL_MAX_ALIGN_BYTES 64
+// Deliberately no SME case: this block runs long before EIGEN_VECTORIZE_SME is
+// defined, so a test for it here is unreachable, and 16 is the right answer
+// anyway -- an SME build vectorizes everything but GEMM with NEON packets, and
+// the kernel's own buffers are heap-allocated. Raising it would change the
+// alignment, and so the ABI, of every fixed-size object relative to a NEON
+// build of the same headers.
 #elif defined(EIGEN_ARM64_USE_SVE) && defined(__ARM_FEATURE_SVE_BITS) && (__ARM_FEATURE_SVE_BITS != 0)
 // A fixed-length SVE packet is __ARM_FEATURE_SVE_BITS/8 bytes wide and asks for
 // exactly that much alignment; a fixed-size object has to be able to offer it or
