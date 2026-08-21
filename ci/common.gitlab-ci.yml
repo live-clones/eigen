@@ -6,12 +6,10 @@
 #   rules: !reference [.rules:<name>, rules]
 # Centralizing them keeps the "what triggers this job?" decision in one place.
 .rules:libeigen:smoketest:
-  # Every merge request, except one that already opted into a wider tier.  The
-  # affected tier builds and runs every test the diff can reach on the same
-  # native configurations the smoke list samples, and `all-tests` runs the whole
-  # suite on all of them; in both cases the fixed list is a subset already being
-  # paid for.  The namespace guard matters: neither wider tier has any job
-  # outside libeigen, so a fork keeps its smoke coverage whatever it is labelled.
+  # Every merge request, except one that opted into a wider tier; see
+  # .agents/ci.md.  The namespace guard is load-bearing: neither wider tier has
+  # any job outside libeigen, so a fork keeps its smoke coverage whatever it is
+  # labelled.
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/(affected|all)-tests/"
       when: never
@@ -45,14 +43,11 @@
         - test/gpu_common.h
         - unsupported/test/*.cu
         - unsupported/test/GPU/**/*
-    # `affected-tests` plus `backend::GPU` is the spelling to reach for, because
-    # it is the same backend axis every other configuration uses rather than a
-    # second mechanism to remember.  The standalone `gpu-tests` entry above
-    # stays for the case where GPU coverage is the only thing wanted.
-    # `all-platforms` is deliberately absent: it sweeps the CPU configurations,
-    # and these jobs hold scarce CUDA-tagged runners to build the whole GPU
-    # suite, which is not what "the affected tests, everywhere" should cost.
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/" && $CI_MERGE_REQUEST_LABELS =~ "/backend::GPU|backend::CUDA/"
+    # `gpu-tests` is the platform label for GPU and already stands alone above,
+    # so it composes with `affected-tests` without another entry.  It is also
+    # why `all-platforms` covers no GPU job, and none of the compile-only sets
+    # below: that label means "every platform that runs the affected selection",
+    # and these jobs ignore the selection to build the whole GPU suite.
 
 .rules:libeigen:affected-tests:
   # Opt-in middle tier between the fixed smoke list and the full `all-tests`
@@ -60,51 +55,32 @@
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/"
 
-# The rest of the affected tier is gated on the platform a job targets as well
-# as on the label.  A build job and its paired test job share one rule set: a
-# test job whose build did not run has nothing to execute.
+# The rest of the affected tier is gated on the platform a job targets, by the
+# diff or by a label.  Two entries per set rather than one, because GitLab ANDs
+# `if:` with `changes:` within an entry and this has to be an OR.  A build job
+# and its paired test job share a set: a test job whose build did not run has
+# nothing to execute.  See .agents/ci.md for the platform table.
 #
-# Each set has two entries, and GitLab runs the job when either matches:
-#
-#   changes:  the diff touches the backend, so the platform is selected for the
-#             author.  A wider x86 configuration compiles the narrower backends'
-#             headers, so an SSE change triggers the AVX and AVX-512 rules too.
-#   label:    the platform is asked for outright, whatever the diff contains.
-#             This is the axis orthogonal to the include graph: the graph
-#             decides *which tests*, the labels decide *where they run*.
-#
-# The label axis reuses the `backend::*` labels the tracker already carries, so
-# marking a merge request as being about a backend and asking for coverage of it
-# are the same act.  Two of them did not exist yet (`backend::LSX`,
-# `backend::RVV`), Windows is an OS rather than a backend (`platform::windows`),
-# and `all-platforms` selects every configuration below at once.  None of this
-# has any effect without `affected-tests`.
-#
-# Each set matches against the whole comma-separated label string independently,
-# so several backend labels select the union of their platforms: `backend::NEON`
-# with `backend::AltiVec` runs the 32-bit arm and ppc64le jobs, and nothing else
-# beyond the four unconditional configurations.
+# The `*-tests` labels are deliberately unscoped.  GitLab makes scoped labels
+# (`backend::NEON`) mutually exclusive, so a scoped axis could never express
+# `neon-tests` plus `altivec-tests` -- the union is the point.
 .rules:libeigen:affected-tests:sse:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/"
       changes:
         - Eigen/src/Core/arch/SSE/**/*
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/" && $CI_MERGE_REQUEST_LABELS =~ "/all-platforms|backend::SSE/"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/" && $CI_MERGE_REQUEST_LABELS =~ "/all-platforms|sse-tests/"
 
-# `backend::AVX` is a prefix of `backend::AVX512`, so this set also matches an
-# AVX-512-only label and builds plain AVX that nothing asked for.  Anchoring it
-# would need `$` inside the pattern, and a `$` that GitLab took literally rather
-# than as end-of-string would silently stop a trailing `backend::AVX` from
-# triggering anything -- a coverage hole nobody would see, traded against one
-# cheap extra x86-64 build.  The over-approximation is the same direction the
-# `changes:` fan-out above already takes.
+# A wider x86 configuration compiles the narrower backends' headers, so SSE fans
+# out to all three x86 sets.  Each set still names its own label, so no set
+# depends on another's pattern matching a substring of it.
 .rules:libeigen:affected-tests:avx:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/"
       changes:
         - Eigen/src/Core/arch/SSE/**/*
         - Eigen/src/Core/arch/AVX/**/*
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/" && $CI_MERGE_REQUEST_LABELS =~ "/all-platforms|backend::SSE|backend::AVX/"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/" && $CI_MERGE_REQUEST_LABELS =~ "/all-platforms|sse-tests|avx-tests/"
 
 .rules:libeigen:affected-tests:avx512:
   rules:
@@ -113,44 +89,46 @@
         - Eigen/src/Core/arch/SSE/**/*
         - Eigen/src/Core/arch/AVX/**/*
         - Eigen/src/Core/arch/AVX512/**/*
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/" && $CI_MERGE_REQUEST_LABELS =~ "/all-platforms|backend::SSE|backend::AVX/"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/" && $CI_MERGE_REQUEST_LABELS =~ "/all-platforms|sse-tests|avx-tests|avx512-tests/"
 
 # The AVX512-FP16 headers are excluded unless -mavx512fp16 is active, so the
-# AVX512DQ build does not parse them.
+# AVX512DQ build does not parse them.  No `all-platforms`: these jobs and the
+# SME one below compile the whole suite rather than the affected selection, and
+# have no paired test job.
 .rules:libeigen:affected-tests:avx512fp16:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/"
       changes:
         - Eigen/src/Core/arch/AVX512/*FP16*
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/" && $CI_MERGE_REQUEST_LABELS =~ "/all-platforms|backend::AVX512/"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/" && $CI_MERGE_REQUEST_LABELS =~ "/avx512-tests/"
 
 .rules:libeigen:affected-tests:neon:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/"
       changes:
         - Eigen/src/Core/arch/NEON/**/*
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/" && $CI_MERGE_REQUEST_LABELS =~ "/all-platforms|backend::NEON/"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/" && $CI_MERGE_REQUEST_LABELS =~ "/all-platforms|neon-tests/"
 
 .rules:libeigen:affected-tests:altivec:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/"
       changes:
         - Eigen/src/Core/arch/AltiVec/**/*
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/" && $CI_MERGE_REQUEST_LABELS =~ "/all-platforms|backend::AltiVec/"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/" && $CI_MERGE_REQUEST_LABELS =~ "/all-platforms|altivec-tests/"
 
 .rules:libeigen:affected-tests:lsx:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/"
       changes:
         - Eigen/src/Core/arch/LSX/**/*
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/" && $CI_MERGE_REQUEST_LABELS =~ "/all-platforms|backend::LSX/"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/" && $CI_MERGE_REQUEST_LABELS =~ "/all-platforms|lsx-tests/"
 
 .rules:libeigen:affected-tests:rvv10:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/"
       changes:
         - Eigen/src/Core/arch/RVV10/**/*
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/" && $CI_MERGE_REQUEST_LABELS =~ "/all-platforms|backend::RVV/"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/" && $CI_MERGE_REQUEST_LABELS =~ "/all-platforms|rvv-tests/"
 
 .rules:libeigen:affected-tests:sve-sme:
   rules:
@@ -162,15 +140,26 @@
         # outside arch/ but decide whether either backend is used at all.
         - Eigen/src/Core/util/ConfigureVectorization.h
         - Eigen/src/Core/GeneralProduct.h
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/" && $CI_MERGE_REQUEST_LABELS =~ "/all-platforms|backend::SVE|backend::SME/"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/" && $CI_MERGE_REQUEST_LABELS =~ "/sme-tests/"
 
-# Windows has no `changes:` entry.  MSVC diverges from the GCC and Clang jobs on
-# whole-library behaviour -- template instantiation limits, `EIGEN_STRONG_INLINE`,
-# heap exhaustion in the optimizer -- rather than on any subtree a diff could
-# name, so there is nothing to key an automatic trigger on.
+# No `changes:` entry: what MSVC catches is whole-library (instantiation limits,
+# `EIGEN_STRONG_INLINE`, optimizer heap exhaustion), not confined to any subtree
+# a diff could name, so there is nothing to key an automatic trigger on.
 .rules:libeigen:affected-tests:windows:
   rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/" && $CI_MERGE_REQUEST_LABELS =~ "/all-platforms|platform::windows/"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/" && $CI_MERGE_REQUEST_LABELS =~ "/all-platforms|windows-tests/"
+
+# Consumers of the select:tests artifacts, on either platform.  Kept here rather
+# than beside the jobs so the artifact contract is spelled once; ci/select.gitlab-ci.yml
+# produces these paths.
+.affected:build:
+  needs: [ select:tests ]
+  variables:
+    EIGEN_CI_BUILD_TARGET_FILE: affected/targets.txt
+
+.affected:test:
+  variables:
+    EIGEN_CI_CTEST_REGEX_FILE: affected/ctest_regex.txt
 
 .rules:libeigen:scheduled-or-web:
   rules:

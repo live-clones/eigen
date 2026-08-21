@@ -35,9 +35,8 @@ cd $EIGEN_CI_BUILDDIR
 # Determine number of processors for parallel tests.
 $NPROC=${Env:NUMBER_OF_PROCESSORS}
 
-# Set target based on regex or label.  An affected-tier selection of "ALL"
-# clears the regex and sets no label, so the no-filter case is now reachable and
-# has to contribute no argument at all rather than an empty string.
+# @(), not "": an "ALL" selection leaves no regex and no label, so the
+# no-filter case is reachable and must contribute no argument to ctest.
 $target = @()
 if (${EIGEN_CI_CTEST_REGEX}) {
   $target = "-R","${EIGEN_CI_CTEST_REGEX}"

@@ -694,23 +694,11 @@ build:linux:aarch64:clang-14:default:smoketest:
 # can reach.  The target list comes from the select:tests job; see
 # scripts/affected_tests.py.
 #
-# Four jobs always run under the label and give generic coverage.  The rest are
-# gated on the platform they target, either because the diff touches that
-# backend or because a label asks for it outright -- coverage the default smoke
-# matrix has no job for at all, since every smoke build is at baseline ISA.  The
-# trigger rules are shared with the paired test jobs; see
-# .rules:libeigen:affected-tests:* in ci/common.gitlab-ci.yml.
-#
-# The label also suppresses the smoke jobs (.rules:libeigen:smoketest), so the
-# unconditional set covers the same compilers smoke does on the native runners:
-# gcc-10 and clang-14, on x86-64 and aarch64.  Only riscv64 is not reproduced
-# here, because its native runner is a single scarce machine; `backend::RVV` or
-# `all-platforms` brings it back.
-
-.affected:build:
-  needs: [ select:tests ]
-  variables:
-    EIGEN_CI_BUILD_TARGET_FILE: affected/targets.txt
+# The four jobs below always run under the label; the rest are gated on the
+# platform they target.  Trigger rules are shared with the paired test jobs; see
+# .rules:libeigen:affected-tests:* in ci/common.gitlab-ci.yml, and .agents/ci.md
+# for which label selects what and how this tier relates to the smoke matrix it
+# suppresses.
 
 ##### Always, under the label ##################################################
 
