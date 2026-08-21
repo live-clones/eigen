@@ -27,6 +27,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <limits>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -121,6 +122,50 @@ static_assert(sizeof(BlasInt) == 8,
               "EIGEN_BENCH_REFERENCE_ILP64 selects a 64-bit-integer reference BLAS, but Eigen::BlasIndex is 32-bit: "
               "the build must define EIGEN_64BIT_BLAS as well.");
 #endif
+
+// ---------------------------------------------------------------------------
+// Memory budget
+// ---------------------------------------------------------------------------
+// The prefix every over-budget skip message starts with. run.py matches on it to
+// file the cell as `out_of_memory` rather than `runtime_error`: "too large for
+// this machine" is a fact about the machine, and reporting it as a defect on a
+// published page would be a false statement about the library.
+#define EIGEN_BENCH_OVER_BUDGET_PREFIX "operands exceed the memory budget: "
+
+// Bytes a benchmark may allocate for its operands, from EIGEN_BENCH_MEMORY_BUDGET_BYTES.
+// Zero (the default when the variable is unset, empty or unparseable) means no
+// budget is enforced, so a hand-run binary behaves exactly as before.
+//
+// This exists because the harness writes its result file only after every
+// benchmark in the invocation has finished. A cell that outgrows the machine
+// does not fail alone -- the allocation throws or the OS kills the process, and
+// the whole run is lost, including every cell already measured. Turning that
+// into one skipped cell with a reason is the difference between losing an hour
+// of measurement and losing a row.
+inline std::size_t memoryBudgetBytes() {
+  const char* raw = std::getenv("EIGEN_BENCH_MEMORY_BUDGET_BYTES");
+  if (raw == nullptr) return 0;
+  char* end = nullptr;
+  const unsigned long long value = std::strtoull(raw, &end, 10);
+  if (end == raw || value == 0) return 0;
+  return static_cast<std::size_t>(value);
+}
+
+// Call BEFORE allocating. `bytes` is what the operands will occupy; a caller
+// that under-reports gets no protection, so it should count every array the
+// timed body needs, not just the largest.
+inline bool skipIfOverMemoryBudget(benchmark::State& state, double bytes) {
+  const std::size_t budget = memoryBudgetBytes();
+  if (budget == 0 || bytes <= static_cast<double>(budget)) return false;
+  const double gib = 1024.0 * 1024.0 * 1024.0;
+  std::ostringstream message;
+  message.setf(std::ios::fixed);
+  message.precision(2);
+  message << EIGEN_BENCH_OVER_BUDGET_PREFIX << bytes / gib << " GiB needed, " << static_cast<double>(budget) / gib
+          << " GiB allowed";
+  state.SkipWithError(message.str());
+  return true;
+}
 
 // Does a dimension survive the narrowing to the reference arm's integer width?
 // Eigen::Index is 64-bit on every platform these benchmarks run on, so an LP64

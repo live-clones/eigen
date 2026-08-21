@@ -33,6 +33,23 @@ numa_nodes = 1
 # act, not something that happens next to a build.
 max_load_avg = 1.0
 
+[memory]
+# Ceiling on a single benchmark's operands, enforced in the binary before the
+# first allocation (bench_compare.h). Not a machine fact -- 24 GiB is the machine
+# fact -- but a budget: this is a laptop with a GUI session resident, so roughly
+# 4 GiB is what a benchmark can take without the rest of the system paging.
+#
+# Measured, not guessed. A square double GEMM holds 3n^2 operands: at n = 12288
+# that is 3.4 GiB and sustains 376 GFLOP/s, matching every smaller size; at
+# n = 16384 it is 6.0 GiB and the rate collapses to 242 GFLOP/s as macOS starts
+# compressing pages. The budget sits between the two.
+#
+# Because the footprint scales with sizeof(Scalar), one budget gives a different
+# ceiling per scalar for free: at n = 12288 float needs 1.7 GiB and passes,
+# complex<double> needs 6.8 GiB and is skipped as `out_of_memory`. It bounds
+# memory only -- run time is bounded by choosing --scalars and --groups.
+benchmark_budget_bytes = 4294967296
+
 microarchitecture = "Apple M4 (ARMv9.2-A, 4 performance + 6 efficiency cores)"
 
 notes = """
