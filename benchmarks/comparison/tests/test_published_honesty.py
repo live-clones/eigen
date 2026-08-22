@@ -11,6 +11,7 @@ run.
 """
 
 import json
+import re
 
 import pytest
 
@@ -319,3 +320,80 @@ def test_the_published_rate_is_wall_clock_not_cpu_time(run_module, registry, raw
             f"{seconds:.6g}s for {flops:.6g} flops, which implies {implied:.6g} flop/s. The rate and "
             "the time are being measured against different clocks."
         )
+
+
+def _vendor_table():
+    """The vendor rows from vendors.cmake, as {key: {FIELD: value}}.
+
+    A line scan, for the same reason CMakeLists.txt uses one on ops.toml: there
+    is no CMake parser here, and only the two fields below are needed.
+    """
+    text = (support.COMPARISON_DIR / "vendors.cmake").read_text()
+    vendors = {}
+    current = None
+    for line in text.splitlines():
+        declared = re.match(r"^eigen_bench_declare_vendor\(([a-z][a-z0-9_]*)\s*$", line)
+        if declared:
+            current = declared.group(1)
+            vendors[current] = {}
+            continue
+        if current is None:
+            continue
+        if line.startswith(")") or (line and not line[0].isspace()):
+            current = None
+            continue
+        field = re.match(r"^\s+([A-Z][A-Z0-9_]*)\s+(.*?)\)?\s*$", line)
+        if field:
+            vendors[current][field.group(1)] = field.group(2).strip()
+    return vendors
+
+
+def test_a_vendor_that_cannot_name_itself_is_checked_against_its_resolved_path():
+    """A "generic" BLAS must not be able to publish under a name it is not.
+
+    netlib's BLA_VENDOR is Generic, so it links whatever /usr/lib/<triplet>/
+    libblas.so points at. On Debian and Ubuntu that is an update-alternatives
+    symlink, and installing libopenblas-dev repoints it -- so the build linked
+    OpenBLAS and recorded `library_name: "Netlib reference BLAS"` with
+    `library_version: "unknown"`, which is the netlib *floor* column reporting a
+    tuned library's numbers.
+
+    Nothing in the result file could contradict it: netlib is the one row with no
+    VERSION_RUNTIME_SYMBOL, so there is no positive self-identification, and the
+    recorded library_path is the symlink rather than its target. The symbol
+    cannot be link-checked either -- Debian's libblas.so.3 reaches
+    libopenblas.so.0 only through DT_NEEDED, which a linker with
+    --no-copy-dt-needed-entries will not resolve a reference through.
+
+    This pins the coupling the CMake check depends on: a vendor row with no
+    runtime version query cannot identify itself, so CMakeLists.txt has to fall
+    back to where its library actually resolves.
+    """
+    vendors = _vendor_table()
+    assert vendors, "no vendor rows parsed out of vendors.cmake"
+
+    generic = {
+        key: row
+        for key, row in vendors.items()
+        if "Generic" in row.get("BLA_VENDOR", "")
+    }
+    assert generic, "no vendor declares BLA_VENDOR Generic; this test is aimed at the wrong row"
+    for key, row in generic.items():
+        assert not row.get("VERSION_RUNTIME_SYMBOL"), (
+            f"vendor {key!r} declares BLA_VENDOR Generic *and* a runtime version query; if it can "
+            "name itself, prefer that over the resolved-path check in CMakeLists.txt"
+        )
+
+    cmakelists = (support.COMPARISON_DIR / "CMakeLists.txt").read_text()
+    assert "NOT EIGEN_BENCH_BLAS_VERSION_RUNTIME_SYMBOL" in cmakelists, (
+        "the impostor check must be gated on the vendor being unable to name itself"
+    )
+    assert "REALPATH" in cmakelists, (
+        "a vendor that cannot name itself is identified by where its library resolves; without that "
+        "an update-alternatives symlink publishes OpenBLAS as the netlib floor"
+    )
+    # It has to be a refusal: a warning on a configure line is not what a reader
+    # of the published table ever sees.
+    check = cmakelists[cmakelists.index("NOT EIGEN_BENCH_BLAS_VERSION_RUNTIME_SYMBOL"):]
+    check = check[: check.index("# Compile definitions shared by every comparison target")]
+    assert "FATAL_ERROR" in check, "a mislabelled reference column must stop the build, not warn"
