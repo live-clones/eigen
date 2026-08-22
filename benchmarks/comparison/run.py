@@ -605,6 +605,20 @@ def make_config_id(
     )
 
 
+def resolve_output_dir(root: Path, value: Path | str) -> Path:
+    """A directory named on the command line, made absolute the way the build is.
+
+    ``--build-dir`` may be relative, and a relative one is created relative to
+    the repository root rather than to the process's CWD.  Everything that
+    reasons about that directory has to resolve it the same way -- the configure
+    step and the dirty check's exclusion pathspec alike.  Having the rule in one
+    place is the difference between those agreeing and them silently diverging,
+    which is what let the harness's own build tree read as an untracked change.
+    """
+    path = Path(value)
+    return path if path.is_absolute() else root / path
+
+
 def make_build_dir(base: Path, isa_target: str, arm: str) -> Path:
     """One build tree per (ISA target, reference arm); they differ in compile flags."""
     return Path(base) / f"{isa_target}__{arm}"
@@ -2348,12 +2362,21 @@ def _run(args: argparse.Namespace, argv: Sequence[str], root: Path, reporter: Re
                 print(f"{cell.op} {cell.arm} {cell.scalar} {dims} threads:{cell.threads} isa:{isa}")
         return EXIT_OK
 
-    git_facts = probe_git(root, Path(args.build_dir), Path(args.results_dir))
+    # --build-dir is resolved against the repository root when the build tree is
+    # actually created (see the same two lines further down, before configure),
+    # so it has to be resolved the same way here. output_pathspecs() resolves a
+    # relative path against the CWD, which is not the repo root whenever run.py
+    # is invoked from the directory it lives in -- the ordinary case. The
+    # exclusion then named <cwd>/build-comparison while the build sat at
+    # <root>/build-comparison, the guard saw the harness's own build tree as an
+    # untracked change, and every run after the first was refused on a clean
+    # checkout: exactly the failure output_pathspecs() was written to prevent.
+    git_facts = probe_git(root, resolve_output_dir(root, args.build_dir), Path(args.results_dir))
     host = probe_host()
     eigen_version = probe_eigen_version(root)
 
     if args.dry_run:
-        _print_plan(args, registry, machine, selection, git_facts, host)
+        _print_plan(args, registry, machine, selection, git_facts, host, root)
         return EXIT_OK
 
     if git_facts.dirty and not args.allow_dirty:
@@ -2475,9 +2498,7 @@ def _measure_unit(
     )
     shape_groups = {op: list(resolve_groups(registry, op, selection.groups)) for op in selection.ops}
 
-    build_dir = make_build_dir(Path(args.build_dir), isa_target, arm_key or "eigen")
-    if not build_dir.is_absolute():
-        build_dir = root / build_dir
+    build_dir = make_build_dir(resolve_output_dir(root, args.build_dir), isa_target, arm_key or "eigen")
 
     thread_env = build_thread_env(threads, arm=arm_profile, pinning_env=pinning.env)
     reporter.info(f"[{label}] thread environment: {json.dumps(thread_env, sort_keys=True)}")
@@ -2893,6 +2914,7 @@ def _print_plan(
     selection: Selection,
     git_facts: GitFacts,
     host: HostFacts,
+    root: Path,
 ) -> None:
     units = run_units(selection)
     print(f"machine:      {machine.id} ({machine.display_name})")
@@ -2921,7 +2943,7 @@ def _print_plan(
         )
         total += len(cells)
         targets = sorted({registry.target_for(op) or f"<no source for {op}>" for op in selection.ops})
-        build_dir = make_build_dir(Path(args.build_dir), isa_target, arm_key or "eigen")
+        build_dir = make_build_dir(resolve_output_dir(root, args.build_dir), isa_target, arm_key or "eigen")
         run_id = make_run_id(
             machine.id,
             isa_target,
