@@ -66,7 +66,7 @@ struct LLT_Traits;
  * considered. Therefore, the strict upper part (or the strict lower part when UpLo_ is Upper) does not have to
  * store correct values.
  *
- * \sa MatrixBase::llt(), SelfAdjointView::llt(), class LDLT
+ * \sa MatrixBase::llt(), MatrixBase::inverse(), SelfAdjointView::llt(), class LDLT
  */
 template <typename MatrixType_, int UpLo_>
 class LLT : public SolverBase<LLT<MatrixType_, UpLo_> > {
@@ -81,6 +81,7 @@ class LLT : public SolverBase<LLT<MatrixType_, UpLo_> > {
   enum { PacketSize = internal::packet_traits<Scalar>::size, AlignmentMask = int(PacketSize) - 1, UpLo = UpLo_ };
 
   using Traits = internal::LLT_Traits<MatrixType, UpLo>;
+  using PlainObject = typename MatrixType::PlainObject;
 
   /**
    * \brief Default Constructor.
@@ -166,6 +167,18 @@ class LLT : public SolverBase<LLT<MatrixType_, UpLo_> > {
   inline const MatrixType& matrixLLT() const {
     eigen_assert(m_isInitialized && "LLT is not initialized.");
     return m_matrix;
+  }
+  /** \returns the inverse of the matrix of which *this is the LLT decomposition.
+   *
+   * \warning The matrix being decomposed here is assumed to be invertible. If you need to check for
+   *          invertibility, use class FullPivLU instead.
+   *
+   * \sa MatrixBase::inverse()
+   */
+  inline Inverse<LLT> inverse() const {
+    eigen_assert(m_isInitialized && "LLT is not initialized.");
+    eigen_assert(m_matrix.rows() == m_matrix.cols() && "You can't take the inverse of a non-square matrix!");
+    return Inverse<LLT>(*this);
   }
 
   MatrixType reconstructedMatrix() const;
@@ -451,6 +464,23 @@ void LLT<MatrixType_, UpLo_>::_solve_impl_transposed(const RhsType& rhs, DstType
   matrixU().template conjugateIf<!Conjugate>().solveInPlace(dst);
 }
 #endif
+
+/***** Implementation details *****************************************************/
+
+namespace internal {
+
+/***** Implementation of inverse() *****************************************************/
+template <typename DstXprType, typename MatrixType, int UpLo>
+struct Assignment<DstXprType, Inverse<LLT<MatrixType, UpLo>>,
+                  assign_op<typename DstXprType::Scalar, typename LLT<MatrixType, UpLo>::Scalar>, Dense2Dense> {
+  typedef LLT<MatrixType, UpLo> LltType;
+  typedef Inverse<LltType> SrcXprType;
+  EIGEN_DEVICE_FUNC static void run(DstXprType& dst, const SrcXprType& src,
+                                    const assign_op<typename DstXprType::Scalar, typename LltType::Scalar>&) {
+    dst = src.nestedExpression().solve(MatrixType::Identity(src.rows(), src.cols()));
+  }
+};
+}  // end namespace internal
 
 /** \internal use x = llt_object.solve(x);
  *
