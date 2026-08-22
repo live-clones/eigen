@@ -35,10 +35,15 @@ namespace Eigen {
  *     eigendecomposition, SVD, inverse and determinant all factor through the
  *     operands, and diagonal (in particular identity) factors are stored and
  *     applied in diagonal form.
+ *   - \c Bccb      : a block circulant matrix with circulant blocks (the matrix
+ *     of a 2-D circular convolution), diagonalized by the 2-D DFT, with
+ *     closed-form solves, eigendecomposition and SVD.
  *
  * The operator types derive from \c EigenBase and store only compact generators
  * or factors. The FFT-backed operators (\c Circulant, \c Toeplitz and \c Hankel)
  * also keep a precomputed DFT symbol that every product reuses.
+ * The operator types derive from \c EigenBase and store only their compact
+ * generators together with a precomputed DFT symbol that every product reuses.
  * Because they expose \c operator* returning an Eigen product expression, they
  * also plug directly into the matrix-free iterative solvers
  * (\c ConjugateGradient, \c GMRES, \c MINRES, ...) without forming the dense
@@ -56,6 +61,14 @@ namespace Eigen {
  * \c Circulant additionally exposes its closed-form eigendecomposition and SVD
  * in the Fourier basis, a pseudo-inverse (minimum-norm least-squares) solve,
  * \c rank(), \c inverse() and \c determinant().
+ * The operator types are closed under transposition (\c transpose(),
+ * \c conjugate(), \c adjoint() return operators of the same kind, reusing the
+ * cached symbol), which in particular feeds the least-squares solvers \c LSMR
+ * and \c LeastSquaresConjugateGradient (again with \c IdentityPreconditioner).
+ * \c Circulant and \c Bccb additionally expose their closed-form
+ * eigendecomposition and SVD in the Fourier basis, a pseudo-inverse
+ * (minimum-norm least-squares) solve, \c rank(), \c inverse() and
+ * \c determinant().
  *
  * \code
  * #include <unsupported/Eigen/StructuredMatrices>
@@ -73,6 +86,7 @@ namespace Eigen {
 #include "src/StructuredMatrices/LookAheadLevinson.h"
 #include "src/StructuredMatrices/Hankel.h"
 #include "src/StructuredMatrices/KroneckerOperator.h"
+#include "src/StructuredMatrices/Bccb.h"
 // IWYU pragma: end_exports
 
 #include "../../Eigen/src/Core/util/ReenableStupidWarnings.h"
