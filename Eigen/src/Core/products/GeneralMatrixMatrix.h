@@ -455,8 +455,22 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, GemmProduct>
     return rhs.rows() > 0 && (rhs.rows() + dst.rows() + dst.cols()) < kCoeffBasedThreshold;
   }
 
+  // BLAS contract: a zero scalar factor leaves the destination unchanged and
+  // neither operand need be read, so that a non-finite coefficient cannot taint
+  // the result through 0 * Inf. general_matrix_matrix_product::run enforces it
+  // for the GEMM path, but the coeff-based path below has no such exit and
+  // would evaluate the product, so the factor is tested before the dispatch
+  // rather than inside either kernel.
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool scalarFactorIsZero(const Lhs& lhs, const Rhs& rhs) {
+    return numext::is_exactly_zero(combine_scalar_factors<Scalar>(lhs, rhs));
+  }
+
   template <typename Dst>
   static void evalTo(Dst& dst, const Lhs& lhs, const Rhs& rhs) {
+    if (scalarFactorIsZero(lhs, rhs)) {
+      dst.setZero();
+      return;
+    }
     if (useRuntimeCoeffBasedProduct(dst, rhs))
       lazyproduct::eval_dynamic(dst, lhs, rhs, internal::assign_op<typename Dst::Scalar, Scalar>());
     else {
@@ -467,6 +481,7 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, GemmProduct>
 
   template <typename Dst>
   static void addTo(Dst& dst, const Lhs& lhs, const Rhs& rhs) {
+    if (scalarFactorIsZero(lhs, rhs)) return;
     if (useRuntimeCoeffBasedProduct(dst, rhs))
       lazyproduct::eval_dynamic(dst, lhs, rhs, internal::add_assign_op<typename Dst::Scalar, Scalar>());
     else
@@ -475,6 +490,7 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, GemmProduct>
 
   template <typename Dst>
   static void subTo(Dst& dst, const Lhs& lhs, const Rhs& rhs) {
+    if (scalarFactorIsZero(lhs, rhs)) return;
     if (useRuntimeCoeffBasedProduct(dst, rhs))
       lazyproduct::eval_dynamic(dst, lhs, rhs, internal::sub_assign_op<typename Dst::Scalar, Scalar>());
     else

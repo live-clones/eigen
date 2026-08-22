@@ -36,9 +36,8 @@ static void BM_EigenGemm(benchmark::State& state) {
     benchmark::DoNotOptimize(c.data());
     benchmark::ClobberMemory();
   }
-  state.counters["GFLOPS"] = benchmark::Counter(kFlopsPerMulAdd * m * n * p,
-                                                benchmark::Counter::kIsIterationInvariantRate,
-                                                benchmark::Counter::kIs1000);
+  state.counters["GFLOPS"] = benchmark::Counter(
+      kFlopsPerMulAdd * m * n * p, benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
 }
 
 // clang-format off
