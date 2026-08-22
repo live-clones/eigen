@@ -439,11 +439,20 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, GemmProduct>
   using lazyproduct = generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, CoeffBasedProductMode>;
 
   // The runtime-size heuristic comes from bug 404 and was tuned with a
-  // helper program on Haswell. The rhs.rows() > 0 guard preserves the
-  // historical empty-product path through scaleAndAddTo().
+  // helper program on Haswell. The threshold belongs to the kernel the GEMM
+  // path would select, not to the path itself: the SME kernel needs a larger
+  // product before it beats the coeff-based one (see GeneralProduct.h). The
+  // rhs.rows() > 0 guard preserves the historical empty-product path through
+  // scaleAndAddTo().
+  static constexpr int kCoeffBasedThreshold =
+#ifdef EIGEN_VECTORIZE_SME
+      sme_has_gebp_kernel<LhsScalar, RhsScalar>::value ? EIGEN_SME_GEMM_TO_COEFFBASED_THRESHOLD :
+#endif
+                                                       EIGEN_GEMM_TO_COEFFBASED_THRESHOLD;
+
   template <typename Dst>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool useRuntimeCoeffBasedProduct(const Dst& dst, const Rhs& rhs) {
-    return rhs.rows() > 0 && (rhs.rows() + dst.rows() + dst.cols()) < EIGEN_GEMM_TO_COEFFBASED_THRESHOLD;
+    return rhs.rows() > 0 && (rhs.rows() + dst.rows() + dst.cols()) < kCoeffBasedThreshold;
   }
 
   template <typename Dst>
