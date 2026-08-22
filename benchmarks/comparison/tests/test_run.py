@@ -1329,3 +1329,121 @@ def test_a_dirty_worktree_is_refused_unless_allowed(stub_environment):
         "a dirty Eigen worktree makes the measurement unreproducible and must be refused without "
         f"--allow-dirty\n{proc.stderr[-2000:]}"
     )
+
+
+def _provenance_inputs(run_module, machine, *, load_before, load_after):
+    """A ProvenanceInputs carrying the two load readings and nothing else of interest.
+
+    Every other field is filled with the least interesting legal value, so a
+    failure in a test using this is about the load averages and not about
+    whatever else the provenance block happens to contain.
+    """
+    import datetime as _dt
+
+    host = run_module.HostFacts(
+        hostname="host",
+        system="Linux",
+        os_name="Linux",
+        os_release="test",
+        kernel=None,
+        arch="x86_64",
+        cpu_model=machine.cpu_model,
+        logical_cpus=1,
+        sockets=1,
+        cores_per_socket=1,
+        threads_per_core=1,
+        performance_cores=None,
+        efficiency_cores=None,
+        frequency_governor="performance",
+        memory_total_bytes=1 << 30,
+        transparent_huge_pages="never",
+        load_avg=tuple(load_before) if load_before else None,
+    )
+    return run_module.ProvenanceInputs(
+        timestamp=_dt.datetime(2026, 1, 1, tzinfo=_dt.timezone.utc),
+        machine=machine,
+        host=host,
+        git=run_module.GitFacts("a" * 40, "a" * 9, False, "main", "a" * 9, True),
+        eigen_version={},
+        isa_target=machine.default_isa_target,
+        isa_flags=(),
+        isa_notes=None,
+        arm_key=None,
+        arm_profile=None,
+        arm_context={},
+        compiler_id="GNU",
+        compiler_version="13.3.0",
+        compiler_path="/usr/bin/c++",
+        cxx_standard=17,
+        cxx_flags=(),
+        cmake_build_type="Release",
+        benchmark_library_version="v1.9.5",
+        threads=1,
+        thread_env={},
+        eigen_nb_threads=None,
+        pinning=run_module.PinningPlan(tool="none"),
+        caches=(),
+        cpu_scaling_enabled=False,
+        argv=("--machine", machine.id),
+        benchmark_argv=(),
+        executable=None,
+        repetitions=1,
+        min_time="0.5s",
+        benchmark_filter=None,
+        memory_budget_bytes=None,
+        load_avg_before=load_before,
+        load_avg_after=load_after,
+        duration_s=1.0,
+        notes=None,
+    )
+
+
+def test_the_harness_own_build_does_not_forge_an_allow_noisy_caveat(run_module):
+    """The noise caveat must describe the machine, not the harness running on it.
+
+    run.py checks the load average BEFORE the run and refuses without
+    --allow-noisy; it then builds with `cmake --build --parallel N` and measures.
+    A 1-minute load average sampled after all that reflects the harness itself.
+    Deciding the caveat on the peak of the two readings therefore stamped clean
+    runs with "the run was allowed to proceed with --allow-noisy" on command
+    lines that never passed it -- a result file contradicting its own
+    provenance.harness.argv, and, once merged, a coverage page attributing an
+    override to an operator who never made one.
+
+    Observed on three hosts before the fix, most starkly at load_avg_before 0.11
+    on an idle 72-core machine against a 0.50 threshold.
+    """
+    import dataclasses
+
+    load_machine_profile = support.resolve_callable(run_module, "load_machine_profile")
+    machine = dataclasses.replace(
+        load_machine_profile(MACHINES / "testmachine.toml"), max_load_avg=0.5
+    )
+
+    # The guard passed cleanly: 0.37 is well under 0.50. 0.81 is what the
+    # harness's own -j build left in the 1-minute average by the time the run
+    # ended.
+    provenance, _ = run_module.assemble_provenance(
+        _provenance_inputs(run_module, machine, load_before=[0.37, 0.3, 0.2], load_after=[0.81, 0.4, 0.3])
+    )
+    notes = provenance["run"]["notes"] or ""
+    assert "--allow-noisy" not in notes, (
+        "a run that never breached the threshold claimed it was forced through anyway:\n" + notes
+    )
+    assert "load average" not in notes, (
+        "the harness's own build raised a noise caveat against the machine:\n" + notes
+    )
+    # ... and both readings are still on the record, so nothing was hidden.
+    assert provenance["run"]["load_avg_before"][0] == pytest.approx(0.37)
+    assert provenance["run"]["load_avg_after"][0] == pytest.approx(0.81)
+
+    # The genuine case is unaffected: a breach at guard time is only reachable
+    # with --allow-noisy, and still has to travel with the numbers.
+    provenance, _ = run_module.assemble_provenance(
+        _provenance_inputs(run_module, machine, load_before=[0.87, 0.5, 0.4], load_after=[0.9, 0.5, 0.4])
+    )
+    notes = provenance["run"]["notes"] or ""
+    assert "0.87" in notes and "0.50" in notes, (
+        "a breached threshold must state both the reading and what the profile calls quiet:\n" + notes
+    )
+    assert "--allow-noisy" in notes
