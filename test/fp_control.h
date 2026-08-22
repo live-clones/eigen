@@ -6,6 +6,7 @@
 
 #include <cfenv>
 #include <cstdint>
+#include <limits>
 
 #include <Eigen/Core>
 
@@ -171,6 +172,43 @@ class ScopedFlushToZero {
   std::uint64_t control_state_;
   std::uint32_t vector_control_state_;
 };
+
+// Whether this environment computes with subnormal values of `Scalar`.  The
+// hardware may be in flush-to-zero mode, and the compiler may have been told it
+// may treat subnormals as zero; neither is visible to a compile-time predicate.
+// Without the barriers the probe folds under the translation unit's own rules
+// instead of observing the mode it is meant to report.
+//
+// One comparison settles both control bits: adding the subnormal to a value it
+// cannot perturb catches flush-on-input, and catches flush-on-output too, since
+// a product that flushed to zero leaves the sum unchanged.
+template <typename Scalar>
+bool subnormalsArePreserved() {
+  Scalar smallest_normal = (std::numeric_limits<Scalar>::min)();
+  EIGEN_OPTIMIZATION_BARRIER(smallest_normal)
+  Scalar subnormal = smallest_normal * Scalar(0.5);
+  EIGEN_OPTIMIZATION_BARRIER(subnormal)
+  Scalar sum = smallest_normal + subnormal;
+  EIGEN_OPTIMIZATION_BARRIER(sum)
+  return sum != smallest_normal;
+}
+
+// Whether dividing by a subnormal follows IEEE 754 here.  A compiler permitted
+// to relax floating point may rewrite `x / c` as `x * (Scalar(1) / c)`; for a
+// subnormal `c` the reciprocal overflows, turning a finite quotient infinite.
+//
+// The divisor stays a compile-time constant, because that rewrite is a folding
+// step the compiler only reaches while it can see the value.  The numerator is
+// forced to run time, because a compiler free to fold the whole quotient never
+// forms the reciprocal at all.
+template <typename Scalar>
+bool subnormalDivisionIsExact() {
+  if (!subnormalsArePreserved<Scalar>()) return false;
+  const Scalar denorm_min = (std::numeric_limits<Scalar>::denorm_min)();
+  Scalar numerator = denorm_min * Scalar(4);
+  EIGEN_OPTIMIZATION_BARRIER(numerator)
+  return numerator / denorm_min == Scalar(4);
+}
 
 }  // namespace Eigen
 
