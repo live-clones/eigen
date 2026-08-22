@@ -1741,10 +1741,19 @@ def assemble_provenance(inputs: ProvenanceInputs) -> tuple[dict, list[dict]]:
     # averages are recorded either way, but a reader of the page has no idea
     # what this machine declares as quiet, so the exceedance has to travel with
     # the numbers rather than being reconstructible from them.
-    peak_load = max((value[0] for value in (inputs.load_avg_before, inputs.load_avg_after) if value), default=None)
-    if peak_load is not None and peak_load > machine.max_load_avg:
+    #
+    # The reading this is decided on is deliberately the one the guard took,
+    # BEFORE the run: it is the only one that describes the machine rather than
+    # this process. load_avg_after is dominated by the harness's own parallel
+    # build and by the measurement itself, so taking the peak of the two made a
+    # quiet machine indict itself -- every run on a strict profile emitted a note
+    # claiming it had been forced through with --allow-noisy, on a command line
+    # that recorded no such flag two keys away in provenance.harness.argv. Both
+    # raw readings stay in run.load_avg_{before,after} for anyone who wants them.
+    guard_load = inputs.load_avg_before[0] if inputs.load_avg_before else None
+    if guard_load is not None and guard_load > machine.max_load_avg:
         note = (
-            f"measured at a 1-minute load average of {peak_load:.2f}, above the {machine.max_load_avg:.2f} "
+            f"measured at a 1-minute load average of {guard_load:.2f}, above the {machine.max_load_avg:.2f} "
             f"that machine profile {machine.id!r} declares as quiet: competing work may have displaced these "
             "measurements and the run was allowed to proceed with --allow-noisy"
         )
