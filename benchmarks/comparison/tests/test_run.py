@@ -25,6 +25,7 @@ import re
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -1447,3 +1448,100 @@ def test_the_harness_own_build_does_not_forge_an_allow_noisy_caveat(run_module):
         "a breached threshold must state both the reading and what the profile calls quiet:\n" + notes
     )
     assert "--allow-noisy" in notes
+
+
+def test_a_relative_build_dir_is_excluded_relative_to_the_repo_root(run_module, tmp_path, monkeypatch):
+    """The harness's own build tree must not read as an untracked change.
+
+    `output_pathspecs` exists so that "the first successful measurement made the
+    second one refuse" cannot happen. It was handed `Path(args.build_dir)`
+    unresolved, and `.resolve()` on a relative path resolves against the CWD --
+    which is not the repo root whenever run.py is invoked from the directory it
+    lives in, the ordinary case. The exclusion then named
+    <cwd>/build-comparison while the build was created at
+    <root>/build-comparison, and on a clean checkout every run after the first
+    was refused.
+
+    Driven entirely from tmp_path, so it depends on no property of the checkout
+    it runs in -- including whether that checkout happens to be clean.
+    """
+    root = tmp_path / "repo"
+    comparison = root / "benchmarks" / "comparison"
+    comparison.mkdir(parents=True)
+    # Invoked from where run.py lives, which is what makes the two bases differ.
+    monkeypatch.chdir(comparison)
+
+    resolve_output_dir = support.resolve_callable(run_module, "resolve_output_dir")
+    specs = run_module.output_pathspecs(root, resolve_output_dir(root, "build-comparison"))
+
+    assert ":(exclude,top)build-comparison" in specs, (
+        "the exclusion has to name the build tree where it is actually created, at the repo root; "
+        f"got {specs!r}"
+    )
+    assert not any("benchmarks/comparison/build-comparison" in spec for spec in specs), (
+        "the build tree was excluded relative to the CWD, so the real one stayed visible to the "
+        f"dirty check: {specs!r}"
+    )
+
+    # An absolute --build-dir was never affected, and must stay unaffected.
+    absolute = tmp_path / "elsewhere" / "build"
+    assert resolve_output_dir(root, absolute) == absolute
+    # ... and one outside the worktree contributes no exclusion, rather than an
+    # ill-formed pathspec that would silently disable the guard.
+    assert run_module.output_pathspecs(root, absolute) == ["."]
+
+
+def test_every_build_dir_consumer_resolves_it_the_same_way(run_module, tmp_path):
+    """The dirty check and the configure step must agree on where the build is.
+
+    They disagreed because each resolved --build-dir itself, and only one of the
+    two resolved it against the repo root. Both now go through
+    resolve_output_dir, so the invariant is that a relative --build-dir lands
+    under the root for every consumer.
+    """
+    resolve_output_dir = support.resolve_callable(run_module, "resolve_output_dir")
+    root = tmp_path / "repo"
+    resolved = resolve_output_dir(root, "build-comparison")
+    assert resolved == root / "build-comparison"
+    # make_build_dir is what the configure step actually uses; it must sit under
+    # the same resolved base the exclusion pathspec was computed from.
+    unit = run_module.make_build_dir(resolved, "x86-64-avx2", "openblas")
+    assert unit.is_absolute() and root in unit.parents
+
+
+def test_main_hands_the_dirty_check_a_root_resolved_build_dir(run_module, tmp_path, monkeypatch):
+    """The wiring, not just the helper: a call site that resolves it itself is the bug.
+
+    resolve_output_dir() being correct is not enough -- the defect was that
+    main() passed `Path(args.build_dir)` straight through while the configure
+    step resolved it against the repo root. This captures what probe_git is
+    actually called with, so re-introducing a bare `Path(args.build_dir)` at the
+    call site fails here even though the helper still works.
+    """
+    captured = {}
+
+    def fake_probe_git(repo_root, *output_dirs):
+        captured["root"] = repo_root
+        captured["outputs"] = output_dirs
+        # Report dirty so main() returns immediately after this call.
+        return run_module.GitFacts("b" * 40, "b" * 9, True, "main", "b" * 9, True)
+
+    monkeypatch.setattr(run_module, "probe_git", fake_probe_git)
+    # Anywhere that is not the repository root; the CWD is what used to leak in.
+    monkeypatch.chdir(tmp_path)
+
+    exit_code = run_module.main([
+        "--machine", "testmachine", "--machines-dir", str(MACHINES),
+        "--build-dir", "build-comparison",
+        "--no-configure", "--no-build", "--ops", "GEMM", "--scalars", "f64",
+        "--groups", "small", "--allow-noisy", "--out", "-",
+    ])
+
+    assert exit_code == 3, "the stubbed dirty worktree should have stopped the run here"
+    assert captured["outputs"], "probe_git was called with no output directories to exclude"
+    build_dir = Path(captured["outputs"][0])
+    assert build_dir.is_absolute(), f"a relative build dir resolves against the CWD: {build_dir}"
+    assert build_dir == captured["root"] / "build-comparison", (
+        "the dirty check was told to exclude a build directory that is not the one the configure "
+        f"step creates: {build_dir} vs {captured['root'] / 'build-comparison'}"
+    )
