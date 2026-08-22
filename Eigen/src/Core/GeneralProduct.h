@@ -37,6 +37,22 @@ enum { Large = 2, Small = 3 };
 #define EIGEN_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD (2 * EIGEN_GEMM_TO_COEFFBASED_THRESHOLD)
 #endif
 
+// The SME GEMM kernel's mr x nr block is several times wider than the generic
+// kernel's, so a product too small to fill it leaves most of the ZA grid masked
+// off and wastes the outer products it issues. Its crossover against the
+// coeff-based product therefore sits well above the generic kernel's, and the
+// Haswell value above sends products to the SME kernel that the coeff-based one
+// computes several times faster.
+//
+// Measured on Apple M4 at SVL=512 over m=n=k cubes, best of three interleaved
+// runs, in GF/s: the coeff-based product wins up to n=13 for complex<float>
+// (n=8: 41.1 against 8.7) and float, and up to n=11-12 for complex<double> and
+// double. 42 is 3*14, the first cube where the SME kernel leads for the widest
+// of those.
+#ifndef EIGEN_SME_GEMM_TO_COEFFBASED_THRESHOLD
+#define EIGEN_SME_GEMM_TO_COEFFBASED_THRESHOLD 42
+#endif
+
 namespace internal {
 
 template <int Rows, int Cols, int Depth>
