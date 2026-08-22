@@ -384,6 +384,30 @@ auto d_b = gpu::DeviceMatrix<double>::fromHost(b, ctx.stream());
 gpu::DeviceMatrix<double> d_x = llt_ctx.solve(d_b);
 ```
 
+#### Solver configuration (cuDSS >= 0.8)
+
+`gpu::SparseSolverConfig` passes cuDSS tuning knobs through to the solver:
+fill-reducing reordering, matching, pivoting strategy / threshold / epsilon,
+iterative refinement, and the hybrid host/device memory and execute modes.
+Fields left at their defaults keep the cuDSS defaults, which favor speed over
+maximum robustness — for badly scaled or nearly singular systems, consider
+enabling matching and iterative refinement:
+
+```cpp
+gpu::SparseSolverConfig cfg;
+cfg.reordering = gpu::SparseReordering::Amd;
+cfg.matching = gpu::SparseMatching::Auto;   // off by cuDSS default
+cfg.refinementSteps = 2;                    // iterative refinement in solve()
+gpu::SparseLU<double> lu;
+lu.setConfig(cfg);                          // before compute(): reordering and
+lu.compute(A);                              // matching apply at analysis time
+VectorXd x = lu.solve(b);
+```
+
+Each knob is consumed by the phase it affects (reordering/matching by
+`analyzePattern()`, pivoting by `factorize()`, refinement by `solve()`), so
+`setConfig()` must run before the first phase whose behavior it changes.
+
 ### FFT (cuFFT)
 
 ```cpp
@@ -877,6 +901,9 @@ gpu::SparseLLT&      compute(const SparseMatrixBase<D>& A)         // analyzePat
 DenseMatrix        solve(const MatrixBase<D>& B)         // -> host Matrix (syncs)
 DeviceMatrix       solve(const DeviceMatrix& d_B)        // -> DeviceMatrix (async, stays on device)
 
+gpu::SparseLLT&      setConfig(const SparseSolverConfig&) // cuDSS knobs (>= 0.8); call before the affected phase
+const SparseSolverConfig& config()                        // Last configuration set
+
 ComputationInfo    info()                                // Lazy sync
 Index              rows() / cols()
 cudaStream_t       stream()
@@ -1006,15 +1033,11 @@ template compatibility.
   is in users' hands; if the convenience overloads cause more confusion than
   they save, narrow toward a single explicit `fromHost` / `toHost` boundary.
 
-- **cuDSS configuration knobs.** cuDSS exposes settings for accuracy /
-  robustness (e.g. matching, pivoting) and execution mode (e.g. hybrid
-  memory, hybrid execute). The current bindings use cuDSS defaults, which
-  are tuned for performance rather than maximum robustness — for example,
-  matching is off by default. We don't expose configuration controls yet;
-  a follow-up should add a `gpu::SparseSolverConfig` (or per-solver
-  setters) covering at least matching, pivot threshold, and reordering
-  algorithm pass-through, and consider switching the defaults toward
-  robustness once exposed.
+- **Robustness-oriented cuDSS defaults.** `gpu::SparseSolverConfig` exposes
+  matching, pivoting, refinement, and the hybrid modes, but a
+  default-constructed solver still runs with cuDSS's performance-tuned
+  defaults (matching off). Consider flipping the shipped defaults toward
+  robustness now that users can override them.
 
 - **cuDSS threading layer for host-side reordering.** As of cuDSS 0.7.1
   fill-reducing reordering runs on the CPU. cuDSS supports a "threading

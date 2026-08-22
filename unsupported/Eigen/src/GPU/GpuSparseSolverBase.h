@@ -29,7 +29,95 @@
 
 namespace Eigen {
 namespace gpu {
+
+// The enumerators below carry the cuDSS values so apply_config() can
+// static_cast them. cuDSS < 0.8 names none of these algorithms, so there they
+// are plain placeholders and setConfig() accepts only a default config.
+// Default is a sentinel either way: apply_config() skips its cudssConfigSet(),
+// leaving the cuDSS default in place without depending on its numeric value.
+#if defined(CUDSS_VERSION) && CUDSS_VERSION >= 800
+#define EIGEN_CUDSS_ALG(value) = value
+#else
+#define EIGEN_CUDSS_ALG(value)
+#endif
+
+/** Fill-reducing reordering algorithm, applied during analyzePattern().
+ * Default lets cuDSS choose; Natural disables reordering. BtfColamd and
+ * Colamd are valid for general (SparseLU) matrices only. */
+enum class SparseReordering : int {
+  Default = -1,
+  BtfColamd EIGEN_CUDSS_ALG(CUDSS_REORDERING_ALG_BTF_COLAMD),
+  Colamd EIGEN_CUDSS_ALG(CUDSS_REORDERING_ALG_COLAMD),
+  Amd EIGEN_CUDSS_ALG(CUDSS_REORDERING_ALG_AMD),
+  NestedDissection EIGEN_CUDSS_ALG(CUDSS_REORDERING_ALG_NESTED_DISSECTION),
+  Natural EIGEN_CUDSS_ALG(CUDSS_REORDERING_ALG_NONE)
+};
+
+/** Matching algorithm, applied during analyzePattern() to improve numerical
+ * robustness. Off by cuDSS default; primarily useful for SparseLU on
+ * indefinite or badly scaled systems. Auto lets cuDSS pick. */
+enum class SparseMatching : int {
+  Default = -1,
+  None EIGEN_CUDSS_ALG(CUDSS_MATCHING_ALG_NONE),
+  MaxDiagCount EIGEN_CUDSS_ALG(CUDSS_MATCHING_ALG_MAX_DIAG_COUNT),
+  MaxMinDiag EIGEN_CUDSS_ALG(CUDSS_MATCHING_ALG_MAX_MIN_DIAG),
+  MaxMinDiagAlt EIGEN_CUDSS_ALG(CUDSS_MATCHING_ALG_MAX_MIN_DIAG_ALT),
+  MaxDiagSum EIGEN_CUDSS_ALG(CUDSS_MATCHING_ALG_MAX_DIAG_SUM),
+  MaxDiagProduct EIGEN_CUDSS_ALG(CUDSS_MATCHING_ALG_MAX_DIAG_PRODUCT),
+  Auto EIGEN_CUDSS_ALG(CUDSS_MATCHING_ALG_AUTO)
+};
+
+/** Pivoting strategy, applied during factorize(). Default resolves per
+ * matrix type. Validity of the other values depends on the matrix type and
+ * reordering algorithm; see the cuDSS documentation for cudssPivotType_t. */
+enum class SparsePivoting : int {
+  Default = -1,
+  None EIGEN_CUDSS_ALG(CUDSS_PIVOT_NONE),
+  GlobalCol EIGEN_CUDSS_ALG(CUDSS_PIVOT_GLOBAL_COL),
+  GlobalRow EIGEN_CUDSS_ALG(CUDSS_PIVOT_GLOBAL_ROW),
+  Diagonal EIGEN_CUDSS_ALG(CUDSS_PIVOT_DIAGONAL),
+  LocalBlock EIGEN_CUDSS_ALG(CUDSS_PIVOT_LOCAL_BLOCK)
+};
+
+#undef EIGEN_CUDSS_ALG
+
+/** Pass-through configuration for the cuDSS-backed sparse direct solvers
+ * (SparseLLT, SparseLDLT, SparseLU). Fields left at their defaults keep the
+ * corresponding cuDSS default, which is tuned for performance rather than
+ * maximum robustness (e.g. matching is off). Non-default fields require
+ * cuDSS >= 0.8, whose cudssReorderingAlg_t etc. name the algorithms with
+ * stable values; earlier versions accept only a default config. */
+struct SparseSolverConfig {
+  SparseReordering reordering = SparseReordering::Default;
+  SparseMatching matching = SparseMatching::Default;
+  SparsePivoting pivoting = SparsePivoting::Default;
+  /** Pivot admissibility threshold in [0, 1]; negative keeps the cuDSS default. */
+  double pivotThreshold = -1.0;
+  /** Perturbation applied to near-zero pivots; negative keeps the cuDSS default. */
+  double pivotEpsilon = -1.0;
+  /** Iterative-refinement steps during solve(); negative keeps the cuDSS default (0). */
+  int refinementSteps = -1;
+  /** Iterative-refinement stopping tolerance; negative keeps the cuDSS default. */
+  double refinementTolerance = -1.0;
+  /** Let factor data spill to host memory when device memory is insufficient. */
+  bool hybridMemory = false;
+  /** Device-memory budget in bytes for hybridMemory; negative keeps the cuDSS
+   * default heuristic, which is what cuDSS itself spells as -1. Zero is a
+   * budget of its own and is passed through. */
+  int64_t hybridMemoryDeviceLimit = -1;
+  /** Split factorization/solve work between host and device. */
+  bool hybridExecute = false;
+
+  /** True when every field keeps the cuDSS default. */
+  bool isDefault() const {
+    return reordering == SparseReordering::Default && matching == SparseMatching::Default &&
+           pivoting == SparsePivoting::Default && pivotThreshold < 0 && pivotEpsilon < 0 && refinementSteps < 0 &&
+           refinementTolerance < 0 && !hybridMemory && hybridMemoryDeviceLimit < 0 && !hybridExecute;
+  }
+};
+
 namespace internal {
+
 /** CRTP base for GPU sparse direct solvers.
  *
  * \tparam Scalar_  Element type (passed explicitly to avoid incomplete-type issues with CRTP).
@@ -66,6 +154,20 @@ class SparseSolverBase {
 
   SparseSolverBase(const SparseSolverBase&) = delete;
   SparseSolverBase& operator=(const SparseSolverBase&) = delete;
+
+  /** Apply \p cfg to this solver. Each knob is consumed by the phase it
+   * affects — reordering and matching by analyzePattern(), pivoting by
+   * factorize(), refinement by solve() — so call setConfig() before the
+   * first phase whose behavior it changes; phases already executed are
+   * unaffected. Non-default fields require cuDSS >= 0.8 (asserted). */
+  Derived& setConfig(const SparseSolverConfig& cfg) {
+    config_opts_ = cfg;
+    apply_config();
+    return derived();
+  }
+
+  /** The configuration most recently passed to setConfig(). */
+  const SparseSolverConfig& config() const { return config_opts_; }
 
   /** Symbolic analysis + numeric factorization. */
   template <typename InputType>
@@ -279,6 +381,7 @@ class SparseSolverBase {
   mutable ComputationInfo info_ = InvalidInput;
   mutable bool info_synced_ = true;
   bool analysis_done_ = false;
+  SparseSolverConfig config_opts_;
 
  private:
   Derived& derived() { return static_cast<Derived&>(*this); }
@@ -297,6 +400,59 @@ class SparseSolverBase {
     EIGEN_CUDSS_CHECK(cudssCreate(&handle_));
     EIGEN_CUDSS_CHECK(cudssSetStream(handle_, stream_));
     EIGEN_CUDSS_CHECK(cudssConfigCreate(&config_));
+  }
+
+  // Rebuild config_ from config_opts_. Recreating rather than mutating lets a
+  // field reset to Default restore the cuDSS default, whose numeric value is
+  // not part of the cuDSS API contract.
+  void apply_config() {
+#if defined(CUDSS_VERSION) && CUDSS_VERSION >= 800
+    if (config_) (void)cudssConfigDestroy(config_);
+    config_ = nullptr;
+    EIGEN_CUDSS_CHECK(cudssConfigCreate(&config_));
+    const SparseSolverConfig& c = config_opts_;
+    if (c.reordering != SparseReordering::Default) {
+      const cudssReorderingAlg_t v = static_cast<cudssReorderingAlg_t>(c.reordering);
+      EIGEN_CUDSS_CHECK(cudssConfigSet(config_, CUDSS_CONFIG_REORDERING_ALG, &v, sizeof(v)));
+    }
+    if (c.matching != SparseMatching::Default) {
+      const cudssMatchingAlg_t v = static_cast<cudssMatchingAlg_t>(c.matching);
+      EIGEN_CUDSS_CHECK(cudssConfigSet(config_, CUDSS_CONFIG_MATCHING_ALG, &v, sizeof(v)));
+    }
+    if (c.pivoting != SparsePivoting::Default) {
+      const cudssPivotType_t v = static_cast<cudssPivotType_t>(c.pivoting);
+      EIGEN_CUDSS_CHECK(cudssConfigSet(config_, CUDSS_CONFIG_PIVOT_TYPE, &v, sizeof(v)));
+    }
+    if (c.pivotThreshold >= 0) {
+      EIGEN_CUDSS_CHECK(
+          cudssConfigSet(config_, CUDSS_CONFIG_PIVOT_THRESHOLD, &c.pivotThreshold, sizeof(c.pivotThreshold)));
+    }
+    if (c.pivotEpsilon >= 0) {
+      EIGEN_CUDSS_CHECK(cudssConfigSet(config_, CUDSS_CONFIG_PIVOT_EPSILON, &c.pivotEpsilon, sizeof(c.pivotEpsilon)));
+    }
+    if (c.refinementSteps >= 0) {
+      EIGEN_CUDSS_CHECK(
+          cudssConfigSet(config_, CUDSS_CONFIG_IR_N_STEPS, &c.refinementSteps, sizeof(c.refinementSteps)));
+    }
+    if (c.refinementTolerance >= 0) {
+      EIGEN_CUDSS_CHECK(
+          cudssConfigSet(config_, CUDSS_CONFIG_IR_TOL, &c.refinementTolerance, sizeof(c.refinementTolerance)));
+    }
+    if (c.hybridMemory) {
+      const int v = 1;
+      EIGEN_CUDSS_CHECK(cudssConfigSet(config_, CUDSS_CONFIG_HYBRID_MEMORY_MODE, &v, sizeof(v)));
+      if (c.hybridMemoryDeviceLimit >= 0) {
+        const int64_t limit = c.hybridMemoryDeviceLimit;
+        EIGEN_CUDSS_CHECK(cudssConfigSet(config_, CUDSS_CONFIG_HYBRID_DEVICE_MEMORY_LIMIT, &limit, sizeof(limit)));
+      }
+    }
+    if (c.hybridExecute) {
+      const int v = 1;
+      EIGEN_CUDSS_CHECK(cudssConfigSet(config_, CUDSS_CONFIG_HYBRID_EXECUTE_MODE, &v, sizeof(v)));
+    }
+#else
+    eigen_assert(config_opts_.isDefault() && "SparseSolverConfig knobs require cuDSS >= 0.8");
+#endif
   }
 
   void ensure_solve_buffer(DeviceBuffer& buf, size_t needed) const {
@@ -418,12 +574,6 @@ class SparseSolverBase {
                                            mtype, mview, CUDSS_BASE_ZERO));
 #endif
   }
-
-  // TODO: expose a fill-reducing reordering choice. Since cuDSS 0.8,
-  // cudssReorderingAlg_t names the algorithms explicitly
-  // (CUDSS_REORDERING_ALG_{DEFAULT, BTF_COLAMD, COLAMD, AMD,
-  // NESTED_DISSECTION, NONE}), so this is now straightforward to expose; for
-  // now the cuDSS default is left in place.
 
   void create_placeholder_dense() {
     // A new analysis may change n_, so the cached solve descriptors are stale.
