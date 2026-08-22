@@ -162,6 +162,73 @@ if(EIGEN_BENCH_BLAS_FOUND AND EIGEN_BENCH_BLAS_VERSION_RUNTIME_SYMBOL)
 endif()
 
 # ---------------------------------------------------------------------------
+# Is the "generic" reference library actually a named vendor?
+# ---------------------------------------------------------------------------
+
+# A vendor that answers its own version query has identified itself. The one
+# that cannot is netlib, whose BLA_VENDOR is Generic and which therefore
+# resolves whatever /usr/lib/<triplet>/libblas.so happens to point at. On Debian
+# and Ubuntu that path is an update-alternatives symlink, and installing
+# libopenblas-dev repoints it: the build then links OpenBLAS, records "Netlib
+# reference BLAS" with an unknown version, and publishes a column headed with the
+# unoptimised reference implementation whose numbers are a tuned library's. That
+# is the worst shape a wrong number can take here, because the netlib column
+# exists precisely so it can be read as a floor.
+#
+# The symbol cannot be link-checked for this. Debian's libblas.so.3 is a
+# forwarding library: openblas_get_config() lives in libopenblas.so.0, reached
+# only through DT_NEEDED, and a linker with --no-copy-dt-needed-entries (the
+# default for many years) will not resolve a reference through an indirect
+# dependency. The evidence that does survive is the path: the alternatives
+# symlink resolves into the provider's own directory.
+if(EIGEN_BENCH_BLAS_FOUND AND NOT EIGEN_BENCH_BLAS_VERSION_RUNTIME_SYMBOL
+   AND EIGEN_BENCH_BLAS_LIBRARY_PATH AND EXISTS "${EIGEN_BENCH_BLAS_LIBRARY_PATH}")
+  # get_filename_component(... REALPATH) rather than file(REAL_PATH), which needs
+  # CMake 3.19; benchmarks/CMakeLists.txt declares 3.10.
+  get_filename_component(_resolved_library "${EIGEN_BENCH_BLAS_LIBRARY_PATH}" REALPATH)
+  string(TOLOWER "${_resolved_library}" _resolved_lower)
+  set(_impostor "")
+  if(NOT _resolved_library STREQUAL EIGEN_BENCH_BLAS_LIBRARY_PATH)
+    # Only a library that resolves somewhere else can be impersonating one; a
+    # real file at the declared path is taken at its word.
+    eigen_bench_vendor_keys(_all_vendor_keys)
+    foreach(_key IN LISTS _all_vendor_keys)
+      if(_key STREQUAL EIGEN_BENCH_BLAS_ARM)
+        continue()
+      endif()
+      eigen_bench_vendor_get(${_key} ALIASES _key_aliases)
+      foreach(_spelling IN LISTS _key _key_aliases)
+        # Matched against the resolved path only, never the declared one, so a
+        # vendor key that happens to appear in the user's own directory names
+        # cannot trigger this on its own.
+        if(_resolved_lower MATCHES "${_spelling}")
+          set(_impostor "${_key}")
+          break()
+        endif()
+      endforeach()
+      if(_impostor)
+        break()
+      endif()
+    endforeach()
+  endif()
+  if(_impostor)
+    eigen_bench_vendor_get(${_impostor} DISPLAY_NAME _impostor_name)
+    message(FATAL_ERROR
+      "Comparison benchmarks: the reference library selected as "
+      "'${EIGEN_BENCH_BLAS_ARM}' (${EIGEN_BENCH_BLAS_DISPLAY_NAME}) is "
+      "${EIGEN_BENCH_BLAS_LIBRARY_PATH}, which resolves to ${_resolved_library} -- "
+      "that is ${_impostor_name}, not what a column headed "
+      "'${EIGEN_BENCH_BLAS_DISPLAY_NAME}' would report. On Debian and Ubuntu "
+      "/usr/lib/<triplet>/libblas.so is an update-alternatives symlink and "
+      "installing a tuned BLAS repoints it; check with "
+      "`update-alternatives --query libblas.so-<triplet>`. Measure it under its own "
+      "name with -DEIGEN_BENCH_REFERENCE=${_impostor}, or point this build at a "
+      "genuine reference build with -DBLAS_LIBRARIES=<path>.")
+  endif()
+  message(STATUS "Comparison benchmarks: ${EIGEN_BENCH_BLAS_ARM} resolves to ${_resolved_library}")
+endif()
+
+# ---------------------------------------------------------------------------
 # Compile definitions shared by every comparison target
 # ---------------------------------------------------------------------------
 
