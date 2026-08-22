@@ -135,8 +135,14 @@ class DeviceMatrix {
     allocate(sizeInBytes());
   }
 
-  /** Allocate uninitialized device memory for a rows x cols matrix. */
-  DeviceMatrix(Index rows, Index cols) : rows_(rows), cols_(cols) {
+  /** Allocate uninitialized memory for a rows x cols matrix.
+   *
+   * With a host-accessible \p resource -- managed, mapped or registered
+   * storage -- hostData() is non-null and the host reads and writes the same
+   * bytes the device does, so fromHost() / toHost() are not needed at all.
+   * \p resource must outlive this matrix. */
+  DeviceMatrix(Index rows, Index cols, MemoryResource& resource = deviceMemoryResource())
+      : rows_(rows), cols_(cols), resource_(&resource) {
     eigen_assert(rows >= 0 && cols >= 0);
     allocate(sizeInBytes());
   }
@@ -161,9 +167,10 @@ class DeviceMatrix {
 
   ~DeviceMatrix() {
     // cudaEventDestroy on a pending event is non-blocking: the runtime defers
-    // teardown until the event completes. The trailing cudaFree() (via
-    // data_.reset()) is itself synchronous, so the buffer outlives any
-    // in-flight kernel that may still be touching it.
+    // teardown until the event completes. data_ then goes back to its resource;
+    // for the device-only kinds that release is stream-ordered on the legacy
+    // default stream, so the buffer outlives any in-flight kernel still
+    // touching it.
     if (ready_event_) (void)cudaEventDestroy(ready_event_);
   }
 
@@ -171,15 +178,15 @@ class DeviceMatrix {
       : data_(std::move(o.data_)),
         rows_(o.rows_),
         cols_(o.cols_),
-        capacity_bytes_(o.capacity_bytes_),
         ready_event_(o.ready_event_),
         ready_stream_(o.ready_stream_),
-        retained_buffer_(std::move(o.retained_buffer_)) {
+        retained_buffer_(std::move(o.retained_buffer_)),
+        resource_(o.resource_) {
     o.rows_ = 0;
     o.cols_ = 0;
-    o.capacity_bytes_ = 0;
     o.ready_event_ = nullptr;
     o.ready_stream_ = nullptr;
+    o.resource_ = &deviceMemoryResource();
   }
 
   DeviceMatrix& operator=(DeviceMatrix&& o) noexcept {
@@ -189,15 +196,15 @@ class DeviceMatrix {
       data_ = std::move(o.data_);
       rows_ = o.rows_;
       cols_ = o.cols_;
-      capacity_bytes_ = o.capacity_bytes_;
       ready_event_ = o.ready_event_;
       ready_stream_ = o.ready_stream_;
       retained_buffer_ = std::move(o.retained_buffer_);
+      resource_ = o.resource_;
       o.rows_ = 0;
       o.cols_ = 0;
-      o.capacity_bytes_ = 0;
       o.ready_event_ = nullptr;
       o.ready_stream_ = nullptr;
+      o.resource_ = &deviceMemoryResource();
     }
     return *this;
   }
@@ -223,7 +230,7 @@ class DeviceMatrix {
     const Ref<const PlainMatrix> mat(host.derived());
     DeviceMatrix dm(mat.rows(), mat.cols());
     if (dm.sizeInBytes() > 0) {
-      internal::upload_host_matrix(dm.data_.get(), mat.rows(), mat.data(), mat.outerStride(), mat.rows(), mat.cols(),
+      internal::upload_host_matrix(dm.data(), mat.rows(), mat.data(), mat.outerStride(), mat.rows(), mat.cols(),
                                    stream);
       EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream));
     }
@@ -245,8 +252,7 @@ class DeviceMatrix {
     eigen_assert(host_data != nullptr || (rows == 0 || cols == 0));
     DeviceMatrix dm(rows, cols);
     if (dm.sizeInBytes() > 0) {
-      EIGEN_CUDA_RUNTIME_CHECK(
-          cudaMemcpyAsync(dm.data_.get(), host_data, dm.sizeInBytes(), cudaMemcpyHostToDevice, stream));
+      EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(dm.data(), host_data, dm.sizeInBytes(), cudaMemcpyHostToDevice, stream));
       dm.recordReady(stream);
     }
     return dm;
@@ -263,8 +269,7 @@ class DeviceMatrix {
     PlainMatrix host_buf(rows_, cols_);
     if (sizeInBytes() > 0) {
       waitReady(stream);
-      EIGEN_CUDA_RUNTIME_CHECK(
-          cudaMemcpyAsync(host_buf.data(), data_.get(), sizeInBytes(), cudaMemcpyDeviceToHost, stream));
+      EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(host_buf.data(), data(), sizeInBytes(), cudaMemcpyDeviceToHost, stream));
       EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream));
     }
     return host_buf;
@@ -284,7 +289,7 @@ class DeviceMatrix {
     if (sizeInBytes() > 0) {
       waitReady(stream);
       EIGEN_CUDA_RUNTIME_CHECK(
-          cudaMemcpyAsync(pinned_buf.get(), data_.get(), sizeInBytes(), cudaMemcpyDeviceToHost, stream));
+          cudaMemcpyAsync(pinned_buf.get(), data(), sizeInBytes(), cudaMemcpyDeviceToHost, stream));
     }
     cudaEvent_t transfer_event;
     EIGEN_CUDA_RUNTIME_CHECK(cudaEventCreateWithFlags(&transfer_event, cudaEventDisableTiming));
@@ -300,8 +305,7 @@ class DeviceMatrix {
     DeviceMatrix result(rows_, cols_);
     if (sizeInBytes() > 0) {
       waitReady(stream);
-      EIGEN_CUDA_RUNTIME_CHECK(
-          cudaMemcpyAsync(result.data_.get(), data_.get(), sizeInBytes(), cudaMemcpyDeviceToDevice, stream));
+      EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(result.data(), data(), sizeInBytes(), cudaMemcpyDeviceToDevice, stream));
       result.recordReady(stream);
     }
     return result;
@@ -316,28 +320,50 @@ class DeviceMatrix {
     eigen_assert(rows >= 0 && cols >= 0);
     if (rows == rows_ && cols == cols_) return;
     const size_t bytes = static_cast<size_t>(rows) * static_cast<size_t>(cols) * sizeof(Scalar);
-    if (bytes > 0 && bytes <= capacity_bytes_ && data_) {
+    if (bytes > 0 && bytes <= data_.size() && data_.owns()) {
       // Reuse the allocation; the ready event still orders any in-flight
-      // writes to this buffer ahead of its next producer.
+      // writes to this buffer ahead of its next producer. A borrowed view owns
+      // nothing to reuse, so it reallocates.
       rows_ = rows;
       cols_ = cols;
       return;
     }
-    data_.reset();
-    capacity_bytes_ = 0;
-    if (ready_event_) {
-      EIGEN_CUDA_RUNTIME_CHECK(cudaEventDestroy(ready_event_));
-      ready_event_ = nullptr;
-    }
-    ready_stream_ = nullptr;
+    data_ = internal::DeviceBuffer();
+    clearReady();
     retained_buffer_ = internal::DeviceBuffer();
     rows_ = rows;
     cols_ = cols;
     allocate(bytes);
   }
 
-  Scalar* data() { return data_.get(); }
-  const Scalar* data() const { return data_.get(); }
+  Scalar* data() { return static_cast<Scalar*>(data_.get()); }
+  const Scalar* data() const { return static_cast<const Scalar*>(data_.get()); }
+
+  /** Host-addressable alias of data(), or null when the storage is device-only.
+   *
+   * Non-null exactly when the matrix was built on a host-accessible
+   * MemoryResource. Not necessarily equal to data(): malloc + cudaHostRegister
+   * yields distinct host and device addresses. */
+  Scalar* hostData() { return static_cast<Scalar*>(data_.hostData()); }
+  const Scalar* hostData() const { return static_cast<const Scalar*>(data_.hostData()); }
+
+  /** Whether hostData() is usable. */
+  bool isHostAccessible() const { return data_.isHostAccessible(); }
+
+  /** The resource this matrix allocates from; never null, since naming none
+   * means deviceMemoryResource().
+   *
+   * This is "where the next block comes from", which is not the same question
+   * as "who frees the current one": a view() borrows storage allocated
+   * elsewhere, and an empty matrix has no block at all. */
+  MemoryResource& memoryResource() const { return *resource_; }
+
+  /** Make device writes visible through hostData().
+   *
+   * Which synchronization that needs is a property of the storage, so the
+   * resource decides -- see internal::sync_for_host_access(). Callers do not
+   * have to know which kind they have. */
+  void syncHost(Context& ctx);
   Index rows() const { return rows_; }
   Index cols() const { return cols_; }
   bool empty() const { return rows_ == 0 || cols_ == 0; }
@@ -427,16 +453,28 @@ class DeviceMatrix {
   // array and serve both. Passing an explicit Context& lets callers keep every
   // operation on one stream, which elides the cross-stream event waits.
 
+  // Every reduction takes the resource its result lives in, defaulted so that
+  // naming one is optional. With a host-accessible resource cuBLAS writes the
+  // value where the host can already address it, and reading it back costs a
+  // synchronization and a load rather than a synchronization and a
+  // device-to-host copy. The storage is named rather than inherited from *this:
+  // a matrix on an adopted host buffer has nowhere to put a second allocation,
+  // and a reduction that silently changed where its result lived would be
+  // harder to reason about than one that was asked to.
+
   /** Dot product: this^H * other. The result stays on device until read through
    * DeviceScalar's conversion to Scalar, which syncs. */
-  DeviceScalar<Scalar> dot(Context& ctx, const DeviceMatrix& other) const;
+  DeviceScalar<Scalar> dot(Context& ctx, const DeviceMatrix& other,
+                           MemoryResource& resource = pooledDeviceMemoryResource()) const;
 
   /** Squared L2 norm via dot(x, x). For real types the result stays on device;
    * for complex it syncs, since DeviceScalar arithmetic is real-only. */
-  DeviceScalar<typename NumTraits<Scalar>::Real> squaredNorm(Context& ctx) const;
+  DeviceScalar<typename NumTraits<Scalar>::Real> squaredNorm(
+      Context& ctx, MemoryResource& resource = pooledDeviceMemoryResource()) const;
 
   /** L2 norm, without a host sync. */
-  DeviceScalar<typename NumTraits<Scalar>::Real> norm(Context& ctx) const;
+  DeviceScalar<typename NumTraits<Scalar>::Real> norm(Context& ctx,
+                                                      MemoryResource& resource = pooledDeviceMemoryResource()) const;
 
   /** Set all elements to zero. */
   void setZero(Context& ctx);
@@ -451,9 +489,10 @@ class DeviceMatrix {
   /** Deep copy: this = other (cuBLAS copy). Resizes if needed. */
   void copyFrom(Context& ctx, const DeviceMatrix& other);
 
-  DeviceScalar<Scalar> dot(const DeviceMatrix& other) const;
-  DeviceScalar<typename NumTraits<Scalar>::Real> squaredNorm() const;
-  DeviceScalar<typename NumTraits<Scalar>::Real> norm() const;
+  DeviceScalar<Scalar> dot(const DeviceMatrix& other, MemoryResource& resource = pooledDeviceMemoryResource()) const;
+  DeviceScalar<typename NumTraits<Scalar>::Real> squaredNorm(
+      MemoryResource& resource = pooledDeviceMemoryResource()) const;
+  DeviceScalar<typename NumTraits<Scalar>::Real> norm(MemoryResource& resource = pooledDeviceMemoryResource()) const;
   void setZero();
 
   // The operators below let iterative-solver code written against Matrix — say
@@ -516,10 +555,33 @@ class DeviceMatrix {
   /** Adopt an existing device pointer. Caller relinquishes ownership. */
   static DeviceMatrix adopt(Scalar* device_ptr, Index rows, Index cols) {
     DeviceMatrix dm;
-    dm.data_.reset(device_ptr);
     dm.rows_ = rows;
     dm.cols_ = cols;
-    dm.capacity_bytes_ = dm.sizeInBytes();
+    dm.data_ = internal::DeviceBuffer::adopt(device_ptr, dm.sizeInBytes());
+    return dm;
+  }
+
+  /** Adopt an existing buffer as a rows x cols matrix.
+   *
+   * Resource-backed storage goes back to its resource. Pooled device scratch
+   * is promoted to stream-ordered device ownership because a public matrix may
+   * be destroyed after use on another stream. \p buffer must hold at least
+   * rows * cols * sizeof(Scalar) bytes. */
+  static DeviceMatrix adopt(internal::DeviceBuffer&& buffer, Index rows, Index cols) {
+    DeviceMatrix dm;
+    dm.rows_ = rows;
+    dm.cols_ = cols;
+    eigen_assert(buffer.size() >= dm.sizeInBytes() && "adopted buffer is too small for the requested shape");
+    eigen_assert((buffer.owns() || !buffer) && "cannot adopt a borrowed buffer; use view()");
+    MemoryResource* resource = buffer.memoryResource();
+    if (resource == &pooledDeviceMemoryResource()) {
+      const size_t bytes = buffer.size();
+      void* pointer = buffer.release();
+      buffer = internal::DeviceBuffer::adopt(pointer, bytes);
+      resource = &deviceMemoryResource();
+    }
+    if (resource != nullptr) dm.resource_ = resource;
+    dm.data_ = std::move(buffer);
     return dm;
   }
 
@@ -532,38 +594,39 @@ class DeviceMatrix {
    * the borrowed pointer would be silently replaced, leaving the owner intact. */
   static DeviceMatrix view(Scalar* device_ptr, Index rows, Index cols) {
     DeviceMatrix dm;
-    dm.data_ =
-        std::unique_ptr<Scalar, internal::CudaFreeDeleter>(device_ptr, internal::CudaFreeDeleter{/*borrow=*/true});
     dm.rows_ = rows;
     dm.cols_ = cols;
+    dm.data_ = internal::DeviceBuffer::view(device_ptr, dm.sizeInBytes());
     return dm;
   }
 
-  /** Transfer ownership of the device pointer out. Zeros internal state. */
-  Scalar* release() {
-    Scalar* p = data_.release();
+  /** Hand the storage out as a buffer, leaving this matrix empty.
+   *
+   * The buffer keeps the resource that made it, so page-locked and pooled
+   * storage both survive the handoff. This is how the solvers take ownership of
+   * a matrix moved into compute(): pairs with adopt(DeviceBuffer&&, ...). */
+  internal::DeviceBuffer releaseBuffer() {
+    internal::DeviceBuffer buffer = std::move(data_);
     rows_ = 0;
     cols_ = 0;
-    capacity_bytes_ = 0;
-    if (ready_event_) {
-      EIGEN_CUDA_RUNTIME_CHECK(cudaEventDestroy(ready_event_));
-      ready_event_ = nullptr;
-    }
-    ready_stream_ = nullptr;
-    return p;
+    resource_ = &deviceMemoryResource();
+    clearReady();
+    return buffer;
   }
 
+  /** Transfer ownership of the device pointer out. Zeros internal state.
+   *
+   * A bare pointer loses how the storage was made, so DeviceBuffer::release()
+   * rejects both a borrowed view() and host-visible storage: whoever adopts the
+   * pointer next frees it with device_free. Prefer releaseBuffer(), which has
+   * neither restriction. */
+  Scalar* release() { return static_cast<Scalar*>(releaseBuffer().release()); }
+
  private:
-  // Fresh owning allocation of `bytes` (no-op for empty). Also resets the
-  // deleter so a previously borrowed (view) deleter cannot leak the new
-  // owned pointer.
-  void allocate(size_t bytes) {
-    if (bytes > 0) {
-      data_ = std::unique_ptr<Scalar, internal::CudaFreeDeleter>(static_cast<Scalar*>(internal::device_malloc(bytes)),
-                                                                 internal::CudaFreeDeleter{});
-      capacity_bytes_ = bytes;
-    }
-  }
+  // Fresh owning allocation of `bytes` (no-op for empty), replacing whatever
+  // data_ held -- including a borrowed view, whose deleter must not follow the
+  // new owned pointer.
+  void allocate(size_t bytes) { data_ = internal::DeviceBuffer(bytes, *resource_); }
 
   void ensureEvent() {
     if (!ready_event_) {
@@ -571,15 +634,26 @@ class DeviceMatrix {
     }
   }
 
+  void clearReady() {
+    if (ready_event_) {
+      EIGEN_CUDA_RUNTIME_CHECK(cudaEventDestroy(ready_event_));
+      ready_event_ = nullptr;
+    }
+    ready_stream_ = nullptr;
+  }
+
   void retainBuffer(internal::DeviceBuffer&& buffer) { retained_buffer_ = std::move(buffer); }
 
-  std::unique_ptr<Scalar, internal::CudaFreeDeleter> data_;
+  internal::DeviceBuffer data_;  // device storage, its host alias and its allocator
   Index rows_ = 0;
   Index cols_ = 0;
-  size_t capacity_bytes_ = 0;               // owned allocation size (0 for borrowed views)
   cudaEvent_t ready_event_ = nullptr;       // internal: tracks last write completion
   cudaStream_t ready_stream_ = nullptr;     // stream that recorded ready_event_ (for same-stream skip)
   internal::DeviceBuffer retained_buffer_;  // internal: keeps async aux buffers alive
+  // What this matrix allocates from. Never null; deviceMemoryResource() rather
+  // than the pooled one because a matrix's ready event lets another stream read
+  // its data, and the pool does not order reuse against that.
+  MemoryResource* resource_ = &deviceMemoryResource();
 };
 }  // namespace gpu
 }  // namespace Eigen
