@@ -1,0 +1,90 @@
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
+
+# Machine profile for the comparison harness. See CONTRACTS.md section 7.
+#
+# Every static fact below was read off the machine with `lscpu`, `numactl -H`,
+# `/proc/meminfo` and `g++ --version`.
+
+schema_version = "1.0.0"
+
+id = "zen2-3960x"
+display_name = "AMD Ryzen Threadripper 3960X (24C/48T, Zen 2), Ubuntu 24.04"
+cpu_model = "AMD Ryzen Threadripper 3960X 24-Core Processor"
+arch = "x86_64"
+
+locally_verified = true
+
+# Zen 2 has no AVX-512, so the avx512 target that zen4-7800x3d carries is absent
+# here rather than merely unmeasured: naming it would plan a grid this hardware
+# cannot run.
+isa_targets = ["x86-64", "x86-64-avx2"]
+default_isa_target = "x86-64-avx2"
+
+sockets = 1
+cores_per_socket = 24
+threads_per_core = 2
+smt_enabled = true
+numa_nodes = 1
+
+max_load_avg = 0.5
+
+microarchitecture = "AMD Zen 2 (Castle Peak)"
+
+[memory]
+# 124 GiB of DDR4 on a headless machine. 32 GiB leaves the page cache intact
+# while admitting every shape in the `large` group at every scalar.
+benchmark_budget_bytes = 34359738368
+
+notes = """
+Four CCDs of six cores, 16 MiB of L3 per CCX and 128 MiB per package, so L3 is
+*not* shared across the part: a shape that fits 128 MiB in aggregate does not fit
+any single core's 16 MiB. Level-3 fall-off here happens at a quarter of the size
+the package-level figure suggests, and a threaded run that spans CCDs pays an
+Infinity-fabric hop the 7800X3D's single CCD never pays.
+
+Verified with `lscpu -e`: logical CPUs 0-23 are one thread of each of the 24
+cores and 24-47 are their siblings, so [pinning].cpu_list = "0-23" is one thread
+per core and not twelve fully-loaded cores.
+"""
+
+[frequency]
+# Probed: performance.
+governor = "performance"
+pinned = true
+
+[pinning]
+tool = "taskset"
+cpu_list = "0-23"
+omp_proc_bind = "close"
+omp_places = "cores"
+
+[build]
+generator = "Ninja"
+build_type = "Release"
+cxx_standard = 17
+
+[isa."x86-64"]
+flags = []
+cmake_options = ["-DEIGEN_BENCH_ISA_TARGET=x86-64"]
+
+[isa."x86-64-avx2"]
+flags = ["-mavx2", "-mfma"]
+cmake_options = ["-DEIGEN_BENCH_ISA_TARGET=x86-64-avx2"]
+
+# --------------------------------------------------------------------------
+# Reference arms
+# --------------------------------------------------------------------------
+
+[arms.openblas]
+library_name = "OpenBLAS"
+cmake_options = ["-DEIGEN_BENCH_REFERENCE=openblas"]
+# Probed via openblas_get_config(): "OpenBLAS 0.3.26 NO_LAPACKE DYNAMIC_ARCH
+# NO_AFFINITY Zen MAX_THREADS=64". Note NO_LAPACKE: the vendor row in
+# vendors.cmake declares PROVIDES ... lapacke, which is not true of this build.
+# Nothing measured today needs LAPACKE, so it does not bite yet.
+version_fallback = "OpenBLAS 0.3.26"
+threading_model = "pthreads"
+interface = "lp64"
+provides = ["blas", "cblas", "lapack"]
+thread_env = { OPENBLAS_NUM_THREADS = "{threads}" }
