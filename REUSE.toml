@@ -155,3 +155,18 @@ SPDX-License-Identifier = "BSD-3-Clause"
 path = "debug/msvc/eigen_autoexp_part.dat"
 SPDX-FileCopyrightText = "The Eigen Authors"
 SPDX-License-Identifier = "MPL-2.0"
+
+# Cross-library benchmark comparison harness. Its contract document, JSON Schema,
+# and test fixtures are the files in that tree that cannot carry an inline tag:
+# JSON has no comment syntax, and a header in the Markdown would leak into the
+# rendered comparison tables. Every .h, .cpp, .py, .cmake, .toml and CMakeLists.txt
+# there carries the two-line header inline instead, and the fixture .dox is
+# covered by the Doxygen-source rule above.
+[[annotations]]
+path = [
+    "benchmarks/comparison/**.md",
+    "benchmarks/comparison/**.json",
+    "benchmarks/comparison/tests/fixtures/**.txt",
+]
+SPDX-FileCopyrightText = "The Eigen Authors"
+SPDX-License-Identifier = "MPL-2.0"

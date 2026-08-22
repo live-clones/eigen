@@ -1,0 +1,119 @@
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
+
+# Machine profile for the comparison harness. See CONTRACTS.md section 7.
+#
+# Every static fact below was read off the machine with `lscpu`, `numactl -H`,
+# `/proc/meminfo` and `g++ --version`, with one exception noted under
+# [cpu_model] below that the harness cannot probe on this architecture.
+
+schema_version = "1.0.0"
+
+id = "neoverse-v2-72c"
+display_name = "Arm Neoverse V2 (72-core, 1 socket), Ubuntu 24.04"
+# NOT PROBED, and not probeable. run.py reads cpu.model from /proc/cpuinfo's
+# "model name" line, which does not exist on aarch64 Linux -- the file carries
+# only "CPU implementer: 0x41" / "CPU part: 0xd4f". host.cpu_model is therefore
+# None here and run.py falls back to this string silently, with no
+# provenance_gaps entry saying so. Read off `lscpu` by hand instead; treat it as
+# an unverified declaration until run.py learns to decode the MIDR or read
+# lscpu.
+cpu_model = "Neoverse-V2"
+arch = "aarch64"
+
+locally_verified = true
+
+isa_targets = ["aarch64-neon", "aarch64-sve"]
+default_isa_target = "aarch64-neon"
+
+sockets = 1
+cores_per_socket = 72
+threads_per_core = 1
+smt_enabled = false
+# Truthfully 9, as lscpu and numactl report. Only node 0 is CPU-bearing and it
+# holds all 506 GiB; nodes 1-8 are accelerator nodes with no CPUs and 0 MB. The
+# count is declared honestly rather than flattened to 1, and [pinning] below
+# uses numactl so that node_of_run is recorded instead of leaving the
+# /provenance/numa/node_of_run gap that a >1-node profile otherwise earns.
+numa_nodes = 9
+
+max_load_avg = 0.5
+
+microarchitecture = "Arm Neoverse V2 (ARMv9.0-A)"
+
+[memory]
+# 494 GiB. 32 GiB is a budget, not the machine fact: it admits every shape in
+# the `large` group at every scalar while leaving the page cache alone.
+benchmark_budget_bytes = 34359738368
+
+notes = """
+72 single-threaded cores, so a logical CPU is a whole core and pinning cannot
+land two threads on one. 64 KiB L1d and 1 MiB L2 per core, and a 114 MiB L3
+shared by all 72 -- an unusually large last level, so level-3 fall-off happens
+much later here than on a desktop part and a shape group tuned to a laptop will
+not reach it.
+
+SVE2 with a 128-bit vector length (confirmed: /proc/sys/abi/sve_default_vector_length
+is 16 bytes), i8mm and bf16 are present. 128-bit SVE means the aarch64-sve target
+is a different instruction set at the same width as NEON, not a wider one; a
+difference between the two targets here is a code-generation difference, not a
+vector-width one, which makes this a cleaner control than a 256-bit SVE part.
+"""
+
+[frequency]
+# Probed: performance.
+governor = "performance"
+pinned = true
+
+[pinning]
+# numactl rather than taskset: the profile declares 9 NUMA nodes, and binding to
+# the one node that has CPUs and memory records node_of_run in the provenance
+# instead of leaving it null with a gap.
+tool = "numactl"
+numa_node = 0
+membind = true
+omp_proc_bind = "close"
+omp_places = "cores"
+
+[build]
+# No ninja on this host. The profile field exists for exactly this, so the
+# absence is a data change and not a harness change.
+generator = "Unix Makefiles"
+build_type = "Release"
+cxx_standard = 17
+
+[isa."aarch64-neon"]
+# Advanced SIMD is baseline on aarch64 and gcc targets the host by default.
+flags = []
+cmake_options = ["-DEIGEN_BENCH_ISA_TARGET=aarch64-neon"]
+
+[isa."aarch64-sve"]
+# Eigen's SVE backend is opt-in: without EIGEN_ARM64_USE_SVE the headers compile
+# to the same NEON kernels as the target above and the two would differ only in
+# their label. -msve-vector-bits=128 matches the hardware's actual vector length;
+# unlike the SME case it is required rather than forbidden here, because Eigen's
+# SVE packet types are fixed-size.
+flags = ["-march=armv9-a+sve2", "-msve-vector-bits=128", "-DEIGEN_ARM64_USE_SVE"]
+cmake_options = ["-DEIGEN_BENCH_ISA_TARGET=aarch64-sve"]
+
+# --------------------------------------------------------------------------
+# Reference arms
+# --------------------------------------------------------------------------
+
+[arms.openblas]
+library_name = "OpenBLAS"
+cmake_options = ["-DEIGEN_BENCH_REFERENCE=openblas"]
+# Probed via openblas_get_config(): "OpenBLAS 0.3.26 NO_LAPACKE DYNAMIC_ARCH
+# NO_AFFINITY neoversev1 MAX_THREADS=64".
+#
+# Read that kernel name before quoting a ratio from this host: the distribution
+# build dispatches to its *Neoverse V1* kernels on this Neoverse V2 part. The
+# comparison is still real -- it is what a user who apt-installs OpenBLAS gets --
+# but it is not OpenBLAS at its best on this hardware, and a page that does not
+# say so invites the reader to conclude the wrong thing. MAX_THREADS=64 is also
+# below this machine's 72 cores, which bounds any future threaded run.
+version_fallback = "OpenBLAS 0.3.26"
+threading_model = "pthreads"
+interface = "lp64"
+provides = ["blas", "cblas", "lapack"]
+thread_env = { OPENBLAS_NUM_THREADS = "{threads}" }

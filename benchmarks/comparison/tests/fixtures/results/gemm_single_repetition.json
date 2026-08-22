@@ -1,0 +1,814 @@
+{
+  "kind": "eigen-benchmark-comparison-result",
+  "measurements": [
+    {
+      "arm": "eigen",
+      "flops_nominal": false,
+      "flops_per_iteration": 27648.0,
+      "name": "GEMM/eigen/f64/m:24/n:24/k:24",
+      "op": "GEMM",
+      "repetitions": 1,
+      "scalar": "f64",
+      "shape": {
+        "k": 24,
+        "m": 24,
+        "n": 24
+      },
+      "shape_dims": [
+        "m",
+        "n",
+        "k"
+      ],
+      "shape_group": "small",
+      "source_time_unit": "ns",
+      "stats": {
+        "cpu_time_s": {
+          "count": 1,
+          "cv": null,
+          "mad": 0.0,
+          "max": 3.456e-06,
+          "mean": 3.456e-06,
+          "median": 3.456e-06,
+          "min": 3.456e-06,
+          "stddev": 0.0
+        },
+        "flop_rate": {
+          "count": 1,
+          "cv": null,
+          "mad": 0.0,
+          "max": 8000000000.0,
+          "mean": 8000000000.0,
+          "median": 8000000000.0,
+          "min": 8000000000.0,
+          "stddev": 0.0
+        },
+        "real_time_s": {
+          "count": 1,
+          "cv": null,
+          "mad": 0.0,
+          "max": 3.456e-06,
+          "mean": 3.456e-06,
+          "median": 3.456e-06,
+          "min": 3.456e-06,
+          "stddev": 0.0
+        }
+      },
+      "threads": 1,
+      "validated": true
+    },
+    {
+      "arm": "eigen",
+      "flops_nominal": false,
+      "flops_per_iteration": 65536.0,
+      "name": "GEMM/eigen/f64/m:32/n:32/k:32",
+      "op": "GEMM",
+      "repetitions": 1,
+      "scalar": "f64",
+      "shape": {
+        "k": 32,
+        "m": 32,
+        "n": 32
+      },
+      "shape_dims": [
+        "m",
+        "n",
+        "k"
+      ],
+      "shape_group": "small",
+      "source_time_unit": "ns",
+      "stats": {
+        "cpu_time_s": {
+          "count": 1,
+          "cv": null,
+          "mad": 0.0,
+          "max": 4.681142857142857e-06,
+          "mean": 4.681142857142857e-06,
+          "median": 4.681142857142857e-06,
+          "min": 4.681142857142857e-06,
+          "stddev": 0.0
+        },
+        "flop_rate": {
+          "count": 1,
+          "cv": null,
+          "mad": 0.0,
+          "max": 14000000000.0,
+          "mean": 14000000000.0,
+          "median": 14000000000.0,
+          "min": 14000000000.0,
+          "stddev": 0.0
+        },
+        "real_time_s": {
+          "count": 1,
+          "cv": null,
+          "mad": 0.0,
+          "max": 4.681142857142857e-06,
+          "mean": 4.681142857142857e-06,
+          "median": 4.681142857142857e-06,
+          "min": 4.681142857142857e-06,
+          "stddev": 0.0
+        }
+      },
+      "threads": 1,
+      "validated": true
+    },
+    {
+      "arm": "eigen",
+      "flops_nominal": false,
+      "flops_per_iteration": 221184.0,
+      "name": "GEMM/eigen/f64/m:48/n:48/k:48",
+      "op": "GEMM",
+      "repetitions": 1,
+      "scalar": "f64",
+      "shape": {
+        "k": 48,
+        "m": 48,
+        "n": 48
+      },
+      "shape_dims": [
+        "m",
+        "n",
+        "k"
+      ],
+      "shape_group": "small",
+      "source_time_unit": "ns",
+      "stats": {
+        "cpu_time_s": {
+          "count": 1,
+          "cv": null,
+          "mad": 0.0,
+          "max": 7.899428571428571e-06,
+          "mean": 7.899428571428571e-06,
+          "median": 7.899428571428571e-06,
+          "min": 7.899428571428571e-06,
+          "stddev": 0.0
+        },
+        "flop_rate": {
+          "count": 1,
+          "cv": null,
+          "mad": 0.0,
+          "max": 28000000000.0,
+          "mean": 28000000000.0,
+          "median": 28000000000.0,
+          "min": 28000000000.0,
+          "stddev": 0.0
+        },
+        "real_time_s": {
+          "count": 1,
+          "cv": null,
+          "mad": 0.0,
+          "max": 7.899428571428571e-06,
+          "mean": 7.899428571428571e-06,
+          "median": 7.899428571428571e-06,
+          "min": 7.899428571428571e-06,
+          "stddev": 0.0
+        }
+      },
+      "threads": 1,
+      "validated": true
+    },
+    {
+      "arm": "eigen",
+      "flops_nominal": false,
+      "flops_per_iteration": 524288.0,
+      "name": "GEMM/eigen/f64/m:64/n:64/k:64",
+      "op": "GEMM",
+      "repetitions": 1,
+      "scalar": "f64",
+      "shape": {
+        "k": 64,
+        "m": 64,
+        "n": 64
+      },
+      "shape_dims": [
+        "m",
+        "n",
+        "k"
+      ],
+      "shape_group": "small",
+      "source_time_unit": "ns",
+      "stats": {
+        "cpu_time_s": {
+          "count": 1,
+          "cv": null,
+          "mad": 0.0,
+          "max": 1.1650844444444444e-05,
+          "mean": 1.1650844444444444e-05,
+          "median": 1.1650844444444444e-05,
+          "min": 1.1650844444444444e-05,
+          "stddev": 0.0
+        },
+        "flop_rate": {
+          "count": 1,
+          "cv": null,
+          "mad": 0.0,
+          "max": 45000000000.0,
+          "mean": 45000000000.0,
+          "median": 45000000000.0,
+          "min": 45000000000.0,
+          "stddev": 0.0
+        },
+        "real_time_s": {
+          "count": 1,
+          "cv": null,
+          "mad": 0.0,
+          "max": 1.1650844444444444e-05,
+          "mean": 1.1650844444444444e-05,
+          "median": 1.1650844444444444e-05,
+          "min": 1.1650844444444444e-05,
+          "stddev": 0.0
+        }
+      },
+      "threads": 1,
+      "validated": true
+    },
+    {
+      "arm": "eigen",
+      "flops_nominal": false,
+      "flops_per_iteration": 1769472.0,
+      "name": "GEMM/eigen/f64/m:96/n:96/k:96",
+      "op": "GEMM",
+      "repetitions": 1,
+      "scalar": "f64",
+      "shape": {
+        "k": 96,
+        "m": 96,
+        "n": 96
+      },
+      "shape_dims": [
+        "m",
+        "n",
+        "k"
+      ],
+      "shape_group": "small",
+      "source_time_unit": "ns",
+      "stats": {
+        "cpu_time_s": {
+          "count": 1,
+          "cv": null,
+          "mad": 0.0,
+          "max": 2.268553846153846e-05,
+          "mean": 2.268553846153846e-05,
+          "median": 2.268553846153846e-05,
+          "min": 2.268553846153846e-05,
+          "stddev": 0.0
+        },
+        "flop_rate": {
+          "count": 1,
+          "cv": null,
+          "mad": 0.0,
+          "max": 78000000000.0,
+          "mean": 78000000000.0,
+          "median": 78000000000.0,
+          "min": 78000000000.0,
+          "stddev": 0.0
+        },
+        "real_time_s": {
+          "count": 1,
+          "cv": null,
+          "mad": 0.0,
+          "max": 2.268553846153846e-05,
+          "mean": 2.268553846153846e-05,
+          "median": 2.268553846153846e-05,
+          "min": 2.268553846153846e-05,
+          "stddev": 0.0
+        }
+      },
+      "threads": 1,
+      "validated": true
+    },
+    {
+      "arm": "eigen",
+      "flops_nominal": false,
+      "flops_per_iteration": 4194304.0,
+      "name": "GEMM/eigen/f64/m:128/n:128/k:128",
+      "op": "GEMM",
+      "repetitions": 1,
+      "scalar": "f64",
+      "shape": {
+        "k": 128,
+        "m": 128,
+        "n": 128
+      },
+      "shape_dims": [
+        "m",
+        "n",
+        "k"
+      ],
+      "shape_group": "small",
+      "source_time_unit": "ns",
+      "stats": {
+        "cpu_time_s": {
+          "count": 1,
+          "cv": null,
+          "mad": 0.0,
+          "max": 4.3690666666666665e-05,
+          "mean": 4.3690666666666665e-05,
+          "median": 4.3690666666666665e-05,
+          "min": 4.3690666666666665e-05,
+          "stddev": 0.0
+        },
+        "flop_rate": {
+          "count": 1,
+          "cv": null,
+          "mad": 0.0,
+          "max": 96000000000.0,
+          "mean": 96000000000.0,
+          "median": 96000000000.0,
+          "min": 96000000000.0,
+          "stddev": 0.0
+        },
+        "real_time_s": {
+          "count": 1,
+          "cv": null,
+          "mad": 0.0,
+          "max": 4.3690666666666665e-05,
+          "mean": 4.3690666666666665e-05,
+          "median": 4.3690666666666665e-05,
+          "min": 4.3690666666666665e-05,
+          "stddev": 0.0
+        }
+      },
+      "threads": 1,
+      "validated": true
+    },
+    {
+      "arm": "accelerate",
+      "flops_nominal": false,
+      "flops_per_iteration": 27648.0,
+      "name": "GEMM/accelerate/f64/m:24/n:24/k:24",
+      "op": "GEMM",
+      "repetitions": 1,
+      "scalar": "f64",
+      "shape": {
+        "k": 24,
+        "m": 24,
+        "n": 24
+      },
+      "shape_dims": [
+        "m",
+        "n",
+        "k"
+      ],
+      "shape_group": "small",
+      "source_time_unit": "ns",
+      "stats": {
+        "cpu_time_s": {
+          "count": 1,
+          "cv": null,
+          "mad": 0.0,
+          "max": 5.5296e-06,
+          "mean": 5.5296e-06,
+          "median": 5.5296e-06,
+          "min": 5.5296e-06,
+          "stddev": 0.0
+        },
+        "flop_rate": {
+          "count": 1,
+          "cv": null,
+          "mad": 0.0,
+          "max": 5000000000.0,
+          "mean": 5000000000.0,
+          "median": 5000000000.0,
+          "min": 5000000000.0,
+          "stddev": 0.0
+        },
+        "real_time_s": {
+          "count": 1,
+          "cv": null,
+          "mad": 0.0,
+          "max": 5.5296e-06,
+          "mean": 5.5296e-06,
+          "median": 5.5296e-06,
+          "min": 5.5296e-06,
+          "stddev": 0.0
+        }
+      },
+      "threads": 1,
+      "validated": true
+    },
+    {
+      "arm": "accelerate",
+      "flops_nominal": false,
+      "flops_per_iteration": 65536.0,
+      "name": "GEMM/accelerate/f64/m:32/n:32/k:32",
+      "op": "GEMM",
+      "repetitions": 1,
+      "scalar": "f64",
+      "shape": {
+        "k": 32,
+        "m": 32,
+        "n": 32
+      },
+      "shape_dims": [
+        "m",
+        "n",
+        "k"
+      ],
+      "shape_group": "small",
+      "source_time_unit": "ns",
+      "stats": {
+        "cpu_time_s": {
+          "count": 1,
+          "cv": null,
+          "mad": 0.0,
+          "max": 6.5536e-06,
+          "mean": 6.5536e-06,
+          "median": 6.5536e-06,
+          "min": 6.5536e-06,
+          "stddev": 0.0
+        },
+        "flop_rate": {
+          "count": 1,
+          "cv": null,
+          "mad": 0.0,
+          "max": 10000000000.0,
+          "mean": 10000000000.0,
+          "median": 10000000000.0,
+          "min": 10000000000.0,
+          "stddev": 0.0
+        },
+        "real_time_s": {
+          "count": 1,
+          "cv": null,
+          "mad": 0.0,
+          "max": 6.5536e-06,
+          "mean": 6.5536e-06,
+          "median": 6.5536e-06,
+          "min": 6.5536e-06,
+          "stddev": 0.0
+        }
+      },
+      "threads": 1,
+      "validated": true
+    },
+    {
+      "arm": "accelerate",
+      "flops_nominal": false,
+      "flops_per_iteration": 221184.0,
+      "name": "GEMM/accelerate/f64/m:48/n:48/k:48",
+      "op": "GEMM",
+      "repetitions": 1,
+      "scalar": "f64",
+      "shape": {
+        "k": 48,
+        "m": 48,
+        "n": 48
+      },
+      "shape_dims": [
+        "m",
+        "n",
+        "k"
+      ],
+      "shape_group": "small",
+      "source_time_unit": "ns",
+      "stats": {
+        "cpu_time_s": {
+          "count": 1,
+          "cv": null,
+          "mad": 0.0,
+          "max": 7.3728e-06,
+          "mean": 7.3728e-06,
+          "median": 7.3728e-06,
+          "min": 7.3728e-06,
+          "stddev": 0.0
+        },
+        "flop_rate": {
+          "count": 1,
+          "cv": null,
+          "mad": 0.0,
+          "max": 30000000000.0,
+          "mean": 30000000000.0,
+          "median": 30000000000.0,
+          "min": 30000000000.0,
+          "stddev": 0.0
+        },
+        "real_time_s": {
+          "count": 1,
+          "cv": null,
+          "mad": 0.0,
+          "max": 7.3728e-06,
+          "mean": 7.3728e-06,
+          "median": 7.3728e-06,
+          "min": 7.3728e-06,
+          "stddev": 0.0
+        }
+      },
+      "threads": 1,
+      "validated": true
+    },
+    {
+      "arm": "accelerate",
+      "flops_nominal": false,
+      "flops_per_iteration": 524288.0,
+      "name": "GEMM/accelerate/f64/m:64/n:64/k:64",
+      "op": "GEMM",
+      "repetitions": 1,
+      "scalar": "f64",
+      "shape": {
+        "k": 64,
+        "m": 64,
+        "n": 64
+      },
+      "shape_dims": [
+        "m",
+        "n",
+        "k"
+      ],
+      "shape_group": "small",
+      "source_time_unit": "ns",
+      "stats": {
+        "cpu_time_s": {
+          "count": 1,
+          "cv": null,
+          "mad": 0.0,
+          "max": 8.738133333333334e-06,
+          "mean": 8.738133333333334e-06,
+          "median": 8.738133333333334e-06,
+          "min": 8.738133333333334e-06,
+          "stddev": 0.0
+        },
+        "flop_rate": {
+          "count": 1,
+          "cv": null,
+          "mad": 0.0,
+          "max": 60000000000.0,
+          "mean": 60000000000.0,
+          "median": 60000000000.0,
+          "min": 60000000000.0,
+          "stddev": 0.0
+        },
+        "real_time_s": {
+          "count": 1,
+          "cv": null,
+          "mad": 0.0,
+          "max": 8.738133333333334e-06,
+          "mean": 8.738133333333334e-06,
+          "median": 8.738133333333334e-06,
+          "min": 8.738133333333334e-06,
+          "stddev": 0.0
+        }
+      },
+      "threads": 1,
+      "validated": true
+    },
+    {
+      "arm": "accelerate",
+      "flops_nominal": false,
+      "flops_per_iteration": 1769472.0,
+      "name": "GEMM/accelerate/f64/m:96/n:96/k:96",
+      "op": "GEMM",
+      "repetitions": 1,
+      "scalar": "f64",
+      "shape": {
+        "k": 96,
+        "m": 96,
+        "n": 96
+      },
+      "shape_dims": [
+        "m",
+        "n",
+        "k"
+      ],
+      "shape_group": "small",
+      "source_time_unit": "ns",
+      "stats": {
+        "cpu_time_s": {
+          "count": 1,
+          "cv": null,
+          "mad": 0.0,
+          "max": 1.96608e-05,
+          "mean": 1.96608e-05,
+          "median": 1.96608e-05,
+          "min": 1.96608e-05,
+          "stddev": 0.0
+        },
+        "flop_rate": {
+          "count": 1,
+          "cv": null,
+          "mad": 0.0,
+          "max": 90000000000.0,
+          "mean": 90000000000.0,
+          "median": 90000000000.0,
+          "min": 90000000000.0,
+          "stddev": 0.0
+        },
+        "real_time_s": {
+          "count": 1,
+          "cv": null,
+          "mad": 0.0,
+          "max": 1.96608e-05,
+          "mean": 1.96608e-05,
+          "median": 1.96608e-05,
+          "min": 1.96608e-05,
+          "stddev": 0.0
+        }
+      },
+      "threads": 1,
+      "validated": true
+    },
+    {
+      "arm": "accelerate",
+      "flops_nominal": false,
+      "flops_per_iteration": 4194304.0,
+      "name": "GEMM/accelerate/f64/m:128/n:128/k:128",
+      "op": "GEMM",
+      "repetitions": 1,
+      "scalar": "f64",
+      "shape": {
+        "k": 128,
+        "m": 128,
+        "n": 128
+      },
+      "shape_dims": [
+        "m",
+        "n",
+        "k"
+      ],
+      "shape_group": "small",
+      "source_time_unit": "ns",
+      "stats": {
+        "cpu_time_s": {
+          "count": 1,
+          "cv": null,
+          "mad": 0.0,
+          "max": 4.4150568421052634e-05,
+          "mean": 4.4150568421052634e-05,
+          "median": 4.4150568421052634e-05,
+          "min": 4.4150568421052634e-05,
+          "stddev": 0.0
+        },
+        "flop_rate": {
+          "count": 1,
+          "cv": null,
+          "mad": 0.0,
+          "max": 95000000000.0,
+          "mean": 95000000000.0,
+          "median": 95000000000.0,
+          "min": 95000000000.0,
+          "stddev": 0.0
+        },
+        "real_time_s": {
+          "count": 1,
+          "cv": null,
+          "mad": 0.0,
+          "max": 4.4150568421052634e-05,
+          "mean": 4.4150568421052634e-05,
+          "median": 4.4150568421052634e-05,
+          "min": 4.4150568421052634e-05,
+          "stddev": 0.0
+        }
+      },
+      "threads": 1,
+      "validated": true
+    }
+  ],
+  "not_measured": [],
+  "partial": true,
+  "provenance": {
+    "arms": {
+      "accelerate": {
+        "interface": "lp64",
+        "kind": "reference",
+        "library_name": "Apple Accelerate",
+        "library_version": "macOS 15.6",
+        "provides": [
+          "blas",
+          "cblas",
+          "lapack"
+        ],
+        "threading_model": "gcd"
+      },
+      "eigen": {
+        "kind": "eigen",
+        "library_name": "Eigen",
+        "library_version": "5.0.1-master"
+      }
+    },
+    "cpu": {
+      "caches": [
+        {
+          "level": 1,
+          "num_sharing": 1,
+          "size_bytes": 131072,
+          "type": "Data"
+        }
+      ],
+      "cores_per_socket": 14,
+      "efficiency_cores": 4,
+      "frequency_governor": null,
+      "logical_cpus": 14,
+      "model": "Apple M4 Pro",
+      "performance_cores": 10,
+      "smt_enabled": false,
+      "sockets": 1,
+      "threads_per_core": 1,
+      "vendor": "Apple"
+    },
+    "eigen": {
+      "branch": "benchmark-comparison-harness",
+      "commit": "e2a2fda17c0b1d3e4f5a6b7c8d9e0f1a2b3c4d5e",
+      "commit_short": "e2a2fda17",
+      "dirty": false
+    },
+    "harness": {
+      "argv": [
+        "run.py",
+        "--machine",
+        "m4pro"
+      ],
+      "benchmark_argv": [
+        "--benchmark_repetitions=10",
+        "--benchmark_min_time=0.5s"
+      ],
+      "name": "eigen-comparison-harness",
+      "version": "1.0.0"
+    },
+    "hostname": "test-host",
+    "machine_config_id": "m4pro",
+    "machine_config_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "memory": {
+      "total_bytes": 68719476736
+    },
+    "numa": {
+      "cpu_binding": null,
+      "node_of_run": null,
+      "nodes": 1,
+      "policy": null
+    },
+    "os": {
+      "arch": "arm64",
+      "kernel": "Darwin Kernel Version 25.6.0",
+      "name": "Darwin",
+      "release": "25.6.0"
+    },
+    "run": {
+      "min_time": "0.5s",
+      "repetitions": 1,
+      "report_aggregates_only": false
+    },
+    "threading": {
+      "eigen_has_openmp": false,
+      "eigen_nb_threads": 1,
+      "env": {
+        "ARMPL_NUM_THREADS": "1",
+        "BLIS_NUM_THREADS": "1",
+        "EIGEN_NB_THREADS": "1",
+        "GOTO_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1",
+        "NVPL_BLAS_NUM_THREADS": "1",
+        "OMP_NUM_THREADS": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "VECLIB_MAXIMUM_THREADS": "1"
+      },
+      "requested_threads": 1
+    },
+    "timestamp_utc": "2026-08-06T12:00:00Z",
+    "toolchain": {
+      "benchmark_library_version": "v1.9.5",
+      "cmake_build_type": "Release",
+      "compiler_id": "AppleClang",
+      "compiler_version": "17.0.0.17000013",
+      "cxx_flags": [
+        "-O3",
+        "-DNDEBUG"
+      ],
+      "cxx_standard": 17,
+      "isa_flags": [],
+      "isa_target": "aarch64-neon",
+      "link_flags": []
+    }
+  },
+  "provenance_gaps": [
+    {
+      "field": "/provenance/cpu/frequency_governor",
+      "reason": "macOS exposes no user-visible CPU frequency governor"
+    },
+    {
+      "field": "/provenance/numa/policy",
+      "reason": "Non-NUMA platform; no allocation policy is exposed"
+    }
+  ],
+  "run_id": "m4pro-neon-accelerate-e2a2fda17-20260806T120000Z",
+  "schema_version": "1.0.0",
+  "scope": {
+    "arms": [
+      "eigen",
+      "accelerate"
+    ],
+    "ops": [
+      "GEMM"
+    ],
+    "ops_toml_sha256": "d1c18c382f89d82e657ce5e8c47a718bdfd874a165783c0ce28b262615cf5051",
+    "scalars": [
+      "f64"
+    ],
+    "shape_groups": {
+      "GEMM": [
+        "small"
+      ]
+    },
+    "threads": [
+      1
+    ]
+  }
+}

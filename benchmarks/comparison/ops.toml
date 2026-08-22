@@ -1,0 +1,632 @@
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
+
+# Operation registry for the cross-library benchmark comparison harness.
+#
+# This file is DATA, not configuration of a build. Adding an operation, a shape
+# family, a scalar variant, or a vendor arm must be an edit to this file (plus a
+# benchmark source for a newly *implemented* op) and never a change to run.py,
+# reduce.py, render.py, or plots.py. Consumers that cannot find a key here must
+# report the row as unknown rather than inventing a default.
+#
+# Read benchmarks/comparison/CONTRACTS.md before editing: the `mnemonic` keys,
+# the `dims` lists of the shape families, and the `scalars` tags below are the
+# join key between the C++ registrations and the Python reducer.
+
+schema_version = "1.0.0"
+
+# The counter every comparison benchmark emits. Google Benchmark writes the raw
+# rate (flops per second) into JSON; the `kIs1000` argument in the house counter
+# idiom only affects console rendering. Consumers divide by 1e9 themselves.
+flop_counter_name = "GFLOPS"
+
+# ---------------------------------------------------------------------------
+# Scalar variants
+# ---------------------------------------------------------------------------
+# The type prefix (S/D/C/Z) of a BLAS/LAPACK routine is a dimension of an
+# operation, not a separate operation. `tag` is the token that appears in the
+# Google Benchmark name; it is deliberately short, lowercase and free of '/' and
+# ':' so it cannot be confused with a shape dimension.
+
+[scalars.f32]
+tag = "f32"
+cpp = "float"
+blas_prefix = "S"
+is_complex = false
+# Multiplier applied to an operation's real multiply-add-pair count.
+flop_scale = 2.0
+display = "float"
+
+[scalars.f64]
+tag = "f64"
+cpp = "double"
+blas_prefix = "D"
+is_complex = false
+flop_scale = 2.0
+display = "double"
+
+[scalars.c32]
+tag = "c32"
+cpp = "std::complex<float>"
+blas_prefix = "C"
+is_complex = true
+# 4 real multiplies + 4 real adds per complex multiply-add.
+flop_scale = 8.0
+display = "complex<float>"
+
+[scalars.c64]
+tag = "c64"
+cpp = "std::complex<double>"
+blas_prefix = "Z"
+is_complex = true
+flop_scale = 8.0
+display = "complex<double>"
+
+# Reduced-precision types have no netlib BLAS prefix. They are listed so the
+# schema does not have to change when an op gains a half-precision arm; ops opt
+# in by naming the tag in their own `scalars` list.
+[scalars.f16]
+tag = "f16"
+cpp = "Eigen::half"
+blas_prefix = ""
+is_complex = false
+flop_scale = 2.0
+display = "half"
+
+[scalars.bf16]
+tag = "bf16"
+cpp = "Eigen::bfloat16"
+blas_prefix = ""
+is_complex = false
+flop_scale = 2.0
+display = "bfloat16"
+
+# ---------------------------------------------------------------------------
+# Shape families
+# ---------------------------------------------------------------------------
+# A shape family names its dimensions once and lists its points as groups. The
+# order of `dims` is the order of the integers in each point, is the order the
+# C++ side passes to `->ArgNames()`/`->Args()`, and is therefore the order the
+# dimensions appear in the benchmark name. Changing it is a breaking change.
+#
+# Groups exist so that a partial run is expressible as data: `run.py --group`
+# selects a subset, and a result file records which groups it actually covered.
+# The effective grid of a family is the ordered union of its selected groups
+# with duplicate points removed, first occurrence winning.
+
+[shape_families.square3]
+dims = ["m", "n", "k"]
+description = "Square and rectangular level-3 shapes for C := op(A)*op(B), A is m-by-k, B is k-by-n."
+default_groups = ["fixed_tiny", "small", "medium", "large", "xlarge", "legacy_square_sweep", "aliasing", "nonsquare", "tall_skinny_cache", "tall_skinny_extreme"]
+
+[[shape_families.square3.groups]]
+name = "fixed_tiny"
+description = "Sizes a user would write as a fixed-size Matrix; dominated by call overhead and prologue."
+points = [[2,2,2], [3,3,3], [4,4,4], [6,6,6], [8,8,8], [12,12,12], [16,16,16]]
+
+[[shape_families.square3.groups]]
+name = "small"
+description = "Fits comfortably in L1/L2; micro-kernel and peeling behaviour dominate."
+points = [[24,24,24], [32,32,32], [48,48,48], [64,64,64], [96,96,96], [128,128,128]]
+
+[[shape_families.square3.groups]]
+name = "medium"
+description = "Blocking and packing become visible."
+points = [[192,192,192], [256,256,256], [384,384,384], [512,512,512], [768,768,768], [1024,1024,1024]]
+
+[[shape_families.square3.groups]]
+name = "large"
+description = "Asymptotic regime; memory bandwidth and multi-threading dominate."
+points = [[1536,1536,1536], [2048,2048,2048], [3072,3072,3072], [4096,4096,4096]]
+
+[[shape_families.square3.groups]]
+name = "xlarge"
+description = """
+Beyond the 4096 ceiling the original grid stopped at. The upper bound is memory,
+not the grid: a machine profile's [memory].benchmark_budget_bytes is enforced in
+the binary before the first allocation, so a point too big for the machine is
+skipped as `out_of_memory` with the footprint in the detail rather than killing
+the process and losing every cell already measured in that invocation. Because
+the footprint scales with sizeof(Scalar), one budget yields a different ceiling
+per scalar without the grid having to know about scalars.
+
+Run time is NOT bounded by that budget and has to be chosen. Cost grows as n^3
+and again with the scalar: on any target, a complex scalar moves four times the
+data of its real counterpart and pays more per element wherever the vectorized
+real kernel has no complex equivalent. At the top of this group one iteration can
+run to tens of seconds. Select --scalars and --groups accordingly, and use
+--dry-run to see the cell count before committing to a sweep.
+"""
+points = [[6144,6144,6144], [8192,8192,8192], [12288,12288,12288], [16384,16384,16384]]
+
+[[shape_families.square3.groups]]
+name = "legacy_square_sweep"
+description = """
+Square sizes carried over verbatim from benchmarks/Core/bench_gemm.cpp that the
+tiny/small/medium/large groups do not already contain. They give a finer sweep
+through the region where Eigen switches blocking strategy. Do not prune without
+re-measuring: the union of fixed_tiny+small+medium+large+legacy_square_sweep is
+exactly the 20 square points that benchmark has always reported.
+"""
+points = [[160,160,160], [224,224,224], [288,288,288], [320,320,320], [448,448,448]]
+
+[[shape_families.square3.groups]]
+name = "aliasing"
+description = """
+Non-power-of-two and just-past-power-of-two sizes. These probe cache-set
+aliasing and the remainder handling of the micro-kernel, which power-of-two
+grids hide completely.
+"""
+points = [[100,100,100], [200,200,200], [257,257,257], [500,500,500], [1000,1000,1000], [1001,1001,1001], [4097,4097,4097]]
+
+[[shape_families.square3.groups]]
+name = "nonsquare"
+description = "Rectangular shapes from benchmarks/Core/bench_gemm.cpp; each of m, n, k in turn is the long dimension."
+points = [[64,64,1024], [1024,64,64], [64,1024,64], [256,256,1024], [1024,256,256]]
+
+[[shape_families.square3.groups]]
+name = "tall_skinny_cache"
+description = """
+Preserved verbatim from benchmarks/Core/bench_gemm.cpp. These straddle the
+computeProductBlockingSizes cache threshold (k*n*sizeof(Lhs) near L1). The mc
+blocking path only engages when m is large, so reaching the threshold requires
+sweeping small n=k against a large m. The specific n=k values 96/128/144/160/176
+were chosen to bracket that transition; replacing them with a round sweep loses
+the measurement.
+"""
+points = [[4096,96,96], [4096,128,128], [4096,144,144], [4096,160,160], [4096,176,176], [8192,128,128]]
+
+[[shape_families.square3.groups]]
+name = "tall_skinny_extreme"
+description = """
+m >> n panel shapes typical of least-squares and Krylov work. n = k is an
+arbitrary but deliberate choice: it keeps the family three-dimensional without
+introducing a fourth free parameter, and it matches how tall_skinny_cache is
+parameterised.
+"""
+points = [[10000,8,8], [10000,100,100], [10000,1000,1000], [10000,4000,4000]]
+
+[shape_families.matvec2]
+dims = ["m", "n"]
+description = "Level-2 shapes for y := op(A)*x with A m-by-n."
+default_groups = ["fixed_tiny", "small", "medium", "large", "xlarge", "aliasing", "tall_skinny", "short_fat"]
+
+[[shape_families.matvec2.groups]]
+name = "fixed_tiny"
+points = [[2,2], [3,3], [4,4], [6,6], [8,8], [12,12], [16,16]]
+
+[[shape_families.matvec2.groups]]
+name = "small"
+points = [[24,24], [32,32], [48,48], [64,64], [96,96], [128,128]]
+
+[[shape_families.matvec2.groups]]
+name = "medium"
+points = [[192,192], [256,256], [384,384], [512,512], [768,768], [1024,1024]]
+
+[[shape_families.matvec2.groups]]
+name = "large"
+points = [[1536,1536], [2048,2048], [3072,3072], [4096,4096]]
+
+[[shape_families.matvec2.groups]]
+name = "xlarge"
+description = "Beyond 4096; bounded by [memory].benchmark_budget_bytes, see square3.xlarge."
+points = [[6144,6144], [8192,8192], [12288,12288], [16384,16384]]
+
+[[shape_families.matvec2.groups]]
+name = "aliasing"
+points = [[100,100], [200,200], [257,257], [500,500], [1000,1000], [1001,1001], [4097,4097]]
+
+[[shape_families.matvec2.groups]]
+name = "tall_skinny"
+points = [[10000,8], [10000,100], [10000,1000], [10000,4000]]
+
+[[shape_families.matvec2.groups]]
+name = "short_fat"
+description = "Transpose of tall_skinny; exercises the other GEMV kernel."
+points = [[8,10000], [100,10000], [1000,10000], [4000,10000]]
+
+[shape_families.vector1]
+dims = ["n"]
+description = "Level-1 shapes for a single vector length."
+default_groups = ["fixed_tiny", "small", "medium", "large", "aliasing", "streaming"]
+
+[[shape_families.vector1.groups]]
+name = "fixed_tiny"
+points = [[2], [3], [4], [6], [8], [12], [16]]
+
+[[shape_families.vector1.groups]]
+name = "small"
+points = [[24], [32], [48], [64], [96], [128]]
+
+[[shape_families.vector1.groups]]
+name = "medium"
+points = [[192], [256], [384], [512], [768], [1024]]
+
+[[shape_families.vector1.groups]]
+name = "large"
+points = [[1536], [2048], [3072], [4096]]
+
+[[shape_families.vector1.groups]]
+name = "aliasing"
+points = [[100], [200], [257], [500], [1000], [1001], [4097]]
+
+[[shape_families.vector1.groups]]
+name = "streaming"
+description = "Beyond last-level cache, where a level-1 kernel is purely bandwidth bound."
+points = [[100000], [1000000], [10000000]]
+
+[shape_families.square1]
+dims = ["n"]
+description = "A single order n for square symmetric/Hermitian or triangular operands (SYMV, POTRF, SYEV, GEEV)."
+default_groups = ["fixed_tiny", "small", "medium", "large", "xlarge", "aliasing"]
+
+[[shape_families.square1.groups]]
+name = "fixed_tiny"
+points = [[2], [3], [4], [6], [8], [12], [16]]
+
+[[shape_families.square1.groups]]
+name = "small"
+points = [[24], [32], [48], [64], [96], [128]]
+
+[[shape_families.square1.groups]]
+name = "medium"
+points = [[192], [256], [384], [512], [768], [1024]]
+
+[[shape_families.square1.groups]]
+name = "large"
+points = [[1536], [2048], [3072], [4096]]
+
+[[shape_families.square1.groups]]
+name = "xlarge"
+description = "Beyond 4096; bounded by [memory].benchmark_budget_bytes, see square3.xlarge."
+points = [[6144], [8192], [12288], [16384]]
+
+[[shape_families.square1.groups]]
+name = "aliasing"
+points = [[100], [200], [257], [500], [1000], [1001], [4097]]
+
+[shape_families.general2]
+dims = ["m", "n"]
+description = "Rectangular operands for factorizations and decompositions of an m-by-n matrix, m >= n unless a group says otherwise."
+default_groups = ["fixed_tiny", "small", "medium", "large", "aliasing", "tall_skinny"]
+
+[[shape_families.general2.groups]]
+name = "fixed_tiny"
+points = [[2,2], [3,3], [4,4], [6,6], [8,8], [12,12], [16,16]]
+
+[[shape_families.general2.groups]]
+name = "small"
+points = [[24,24], [32,32], [48,48], [64,64], [96,96], [128,128]]
+
+[[shape_families.general2.groups]]
+name = "medium"
+points = [[192,192], [256,256], [384,384], [512,512], [768,768], [1024,1024]]
+
+[[shape_families.general2.groups]]
+name = "large"
+points = [[1536,1536], [2048,2048], [3072,3072], [4096,4096]]
+
+[[shape_families.general2.groups]]
+name = "aliasing"
+points = [[100,100], [200,200], [257,257], [500,500], [1000,1000], [1001,1001], [4097,4097]]
+
+[[shape_families.general2.groups]]
+name = "tall_skinny"
+description = "Least-squares aspect ratios; the regime where a blocked panel factorization pays off."
+points = [[10000,8], [10000,100], [10000,1000], [10000,4000]]
+
+[shape_families.solve2]
+dims = ["n", "nrhs"]
+description = "Triangular solve and multi-right-hand-side solve shapes: an n-by-n operand against nrhs columns."
+default_groups = ["thin_rhs_small", "thin_rhs_medium", "thin_rhs_large", "square_rhs"]
+
+[[shape_families.solve2.groups]]
+name = "thin_rhs_small"
+points = [[32,1], [32,16], [32,64], [64,1], [64,16], [64,64], [128,1], [128,16], [128,64]]
+
+[[shape_families.solve2.groups]]
+name = "thin_rhs_medium"
+points = [[256,1], [256,16], [256,64], [512,1], [512,16], [512,64], [1024,1], [1024,16], [1024,64]]
+
+[[shape_families.solve2.groups]]
+name = "thin_rhs_large"
+points = [[2048,1], [2048,16], [2048,64], [4096,1], [4096,16], [4096,64]]
+
+[[shape_families.solve2.groups]]
+name = "square_rhs"
+description = "nrhs = n, the level-3-shaped end of the family."
+points = [[128,128], [512,512], [1024,1024], [2048,2048]]
+
+# ---------------------------------------------------------------------------
+# Operations
+# ---------------------------------------------------------------------------
+# Keyed by the BLAS/LAPACK mnemonic with the type prefix stripped, uppercase,
+# matching ^[A-Z][A-Z0-9_]*$. The key is the first field of every benchmark name
+# it produces. An operation that specialises a mnemonic (a transpose variant,
+# say) uses an underscore-suffixed key such as GEMM_TN and sets `base_mnemonic`
+# and `variant` so renderers can group it under the parent.
+#
+# `status` is one of:
+#   implemented  - a benchmark source registers both arms and the harness runs it
+#   planned      - registered here, no benchmark source yet; renders as "not measured"
+#
+# `reference.kind` is one of:
+#   blas | lapack   - a reference routine exists; `routine` names it with '?' for
+#                     the type prefix, so ?gemm resolves to sgemm/dgemm/cgemm/zgemm
+#   none            - no reference equivalent exists. `reason` is REQUIRED and is
+#                     rendered verbatim in the reference column so a table says
+#                     why the comparison cannot exist rather than leaving a blank
+#                     that reads as a missing measurement.
+#
+# `flops.real` is a formula over the family's dimension names, evaluated by the
+# reducer with a restricted arithmetic evaluator (see CONTRACTS.md section 5).
+# The scalar flop count is `flops.real * scalars.<tag>.flop_scale / 2`, i.e. the
+# formula already includes the real multiply-add factor of 2 so that GEMM reads
+# as the familiar 2*m*n*k. `flops.nominal = true` marks a count that is a
+# convention rather than a hardware-truthful operation count; it is still
+# identical for both arms, so the ratio is meaningful even where the absolute
+# GFLOP/s is not a machine-efficiency figure.
+
+[ops.GEMM]
+display_name = "GEMM"
+long_name = "General matrix-matrix product"
+family = "blas3"
+description = "C := alpha*A*B + beta*C for general dense A (m-by-k) and B (k-by-n). The workhorse of dense linear algebra and the operation most vendor libraries tune hardest."
+eigen_expr = "C.noalias() += A * B"
+eigen_class = ""
+eigen_doc = "Eigen::MatrixBase::operator*"
+shape_family = "square3"
+scalars = ["f32", "f64", "c32", "c64"]
+status = "implemented"
+source = "benchmarks/comparison/bench_gemm_compare.cpp"
+
+[ops.GEMM.reference]
+kind = "blas"
+routine = "?gemm"
+cblas = "cblas_?gemm"
+level = 3
+
+[ops.GEMM.flops]
+real = "2*m*n*k"
+nominal = false
+helper = "eigen_bench::gemmFlops<Scalar>(m, n, k)"
+
+[ops.GEMV]
+display_name = "GEMV"
+long_name = "General matrix-vector product"
+family = "blas2"
+description = """
+y := alpha*op(A)*x + beta*y for general dense A. Registered as trans='N' with
+alpha = beta = 1; the transposed form is a different reference call and would get
+its own GEMV_T key rather than a runtime branch.
+
+Above L2 this is a bandwidth measurement wearing a flop rate: 2*m*n is the honest
+operation count, but the achievable figure is set by how fast A can be streamed,
+not by the FMA units, so it sits far below peak for every implementation. The
+count is identical for both arms, so the ratio is sound; the absolute number is
+not a machine-efficiency figure and must not be read against a GEMM one. The
+tall_skinny and short_fat groups are both measured because the two aspect ratios
+take different paths through Eigen/src/Core/products/GeneralMatrixVector.h.
+"""
+eigen_expr = "y.noalias() += A * x"
+eigen_class = ""
+eigen_doc = "Eigen::MatrixBase::operator*"
+shape_family = "matvec2"
+scalars = ["f32", "f64", "c32", "c64"]
+status = "implemented"
+source = "benchmarks/comparison/bench_gemv_compare.cpp"
+
+[ops.GEMV.reference]
+kind = "blas"
+routine = "?gemv"
+cblas = "cblas_?gemv"
+level = 2
+
+[ops.GEMV.flops]
+real = "2*m*n"
+nominal = false
+helper = "eigen_bench::gemvFlops<Scalar>(m, n)"
+
+[ops.TRSM]
+display_name = "TRSM"
+long_name = "Triangular solve with multiple right-hand sides"
+family = "blas3"
+description = "B := alpha*op(A)^-1 * B with A triangular n-by-n and B n-by-nrhs. Registered as side='L', uplo='L', trans='N', diag='N'; other combinations get their own variant keys."
+eigen_expr = "A.triangularView<Eigen::Lower>().solveInPlace(B)"
+eigen_class = "Eigen::TriangularView"
+eigen_doc = "Eigen::TriangularView::solveInPlace"
+shape_family = "solve2"
+scalars = ["f32", "f64", "c32", "c64"]
+status = "planned"
+base_mnemonic = "TRSM"
+variant = "LLNN"
+
+[ops.TRSM.reference]
+kind = "blas"
+routine = "?trsm"
+cblas = "cblas_?trsm"
+level = 3
+
+[ops.TRSM.flops]
+real = "n*n*nrhs"
+nominal = false
+helper = "eigen_bench::trsmFlops<Scalar>(n, nrhs)"
+
+[ops.POTRF]
+display_name = "POTRF"
+long_name = "Cholesky factorization"
+family = "lapack-factorization"
+description = """
+A = L*L^T (or U^H*U) for symmetric/Hermitian positive definite A. Eigen's LLT is
+the direct counterpart, and the Eigen arm is timed as the expression above --
+which is not quite only the factorization. LLT::compute additionally evaluates
+the operand's self-adjoint L1 norm, the quantity that makes LLT::rcond()
+available afterwards; ?potrf computes no norm, and a LAPACK user who wants rcond
+calls ?lange before ?pocon. The norm is O(n^2) against the factorization's
+O(n^3/3), so its share of the Eigen arm falls with n and matters most at the
+small end. Read this row as "what the Eigen spelling costs against ?potrf", not
+as a kernel-for-kernel ratio.
+"""
+eigen_expr = "Eigen::LLT<MatrixType> llt(A)"
+eigen_class = "Eigen::LLT"
+eigen_doc = "Eigen::LLT"
+shape_family = "square1"
+scalars = ["f32", "f64", "c32", "c64"]
+status = "implemented"
+source = "benchmarks/comparison/bench_potrf_compare.cpp"
+
+[ops.POTRF.reference]
+kind = "lapack"
+routine = "?potrf"
+level = 3
+
+[ops.POTRF.flops]
+# Closed form of the summation loop already used by benchmarks/Cholesky/bench_cholesky.cpp
+# and benchmarks/Cholesky/bench_bunchkaufman.cpp:
+#   sum_{j=0}^{n-1} 2*((n-1-j)*j + (n-1-j) + j)
+# It agrees with the textbook n^3/3 asymptotically and reproduces the existing
+# reported numbers exactly, so adopting the shared helper changes no published value.
+real = "n*(n-1)*(n-2)/3 + 2*n*(n-1)"
+nominal = false
+helper = "eigen_bench::symmetricFactorizationFlops<Scalar>(n)"
+
+[ops.GETRF]
+display_name = "GETRF"
+long_name = "LU factorization with partial pivoting"
+family = "lapack-factorization"
+description = "P*A = L*U for general m-by-n A. Eigen's PartialPivLU is the counterpart for the square case; the rectangular case exercises the panel factorization."
+eigen_expr = "Eigen::PartialPivLU<MatrixType> lu(A)"
+eigen_class = "Eigen::PartialPivLU"
+eigen_doc = "Eigen::PartialPivLU"
+shape_family = "general2"
+scalars = ["f32", "f64", "c32", "c64"]
+status = "planned"
+
+[ops.GETRF.reference]
+kind = "lapack"
+routine = "?getrf"
+level = 3
+
+[ops.GETRF.flops]
+real = "m*n*n - n*n*n/3"
+nominal = false
+helper = "eigen_bench::getrfFlops<Scalar>(m, n)"
+
+[ops.GEQRF]
+display_name = "GEQRF"
+long_name = "Householder QR factorization"
+family = "lapack-factorization"
+description = "A = Q*R by Householder reflections, Q left in factored form. Eigen's HouseholderQR is the counterpart."
+eigen_expr = "Eigen::HouseholderQR<MatrixType> qr(A)"
+eigen_class = "Eigen::HouseholderQR"
+eigen_doc = "Eigen::HouseholderQR"
+shape_family = "general2"
+scalars = ["f32", "f64", "c32", "c64"]
+status = "planned"
+
+[ops.GEQRF.reference]
+kind = "lapack"
+routine = "?geqrf"
+level = 3
+
+[ops.GEQRF.flops]
+real = "2*m*n*n - 2*n*n*n/3"
+nominal = false
+helper = "eigen_bench::geqrfFlops<Scalar>(m, n)"
+
+[ops.GESDD]
+display_name = "GESDD"
+long_name = "Singular value decomposition, divide and conquer"
+family = "lapack-svd"
+description = "Thin SVD A = U*S*V^H by bidiagonalization plus a divide-and-conquer bidiagonal solve. Eigen's BDCSVD is the direct algorithmic counterpart; both are registered with thin U and V computed."
+eigen_expr = "Eigen::BDCSVD<MatrixType> svd(A, Eigen::ComputeThinU | Eigen::ComputeThinV)"
+eigen_class = "Eigen::BDCSVD"
+eigen_doc = "Eigen::BDCSVD"
+shape_family = "general2"
+scalars = ["f32", "f64", "c32", "c64"]
+status = "planned"
+
+[ops.GESDD.reference]
+kind = "lapack"
+routine = "?gesdd"
+level = 3
+
+[ops.GESDD.flops]
+# Conventional R-bidiagonalization count for thin U and V (Golub & Van Loan,
+# 4th ed., section 8.6). The divide-and-conquer bidiagonal stage is data
+# dependent, so no formula is exact; this one is applied identically to both
+# arms, which is what makes the ratio defensible.
+real = "8*m*n*n + 4*n*n*n/3"
+nominal = true
+helper = "eigen_bench::gesddFlops<Scalar>(m, n)"
+
+[ops.SYEV]
+display_name = "SYEV"
+long_name = "Symmetric/Hermitian eigendecomposition"
+family = "lapack-eigen"
+description = "Full eigendecomposition of a symmetric/Hermitian n-by-n matrix with eigenvectors. Eigen's SelfAdjointEigenSolver is the counterpart. HEEV is the same operation for the complex scalar variants and is not a separate key."
+eigen_expr = "Eigen::SelfAdjointEigenSolver<MatrixType> es(A)"
+eigen_class = "Eigen::SelfAdjointEigenSolver"
+eigen_doc = "Eigen::SelfAdjointEigenSolver"
+shape_family = "square1"
+scalars = ["f32", "f64", "c32", "c64"]
+status = "planned"
+
+[ops.SYEV.reference]
+kind = "lapack"
+routine = "?syev"
+complex_routine = "?heev"
+level = 3
+
+[ops.SYEV.flops]
+# Tridiagonal reduction (4/3 n^3) plus accumulation of the orthogonal factor
+# and the QR iteration; the iteration count is data dependent.
+real = "9*n*n*n"
+nominal = true
+helper = "eigen_bench::syevFlops<Scalar>(n)"
+
+[ops.FULLPIVLU]
+display_name = "FullPivLU"
+long_name = "LU factorization with complete pivoting"
+family = "eigen-only"
+description = "Rank-revealing LU with full pivoting. LAPACK has no supported driver for this factorization, so the Eigen arm is reported alone."
+eigen_expr = "Eigen::FullPivLU<MatrixType> lu(A)"
+eigen_class = "Eigen::FullPivLU"
+eigen_doc = "Eigen::FullPivLU"
+shape_family = "general2"
+scalars = ["f32", "f64", "c32", "c64"]
+status = "planned"
+
+[ops.FULLPIVLU.reference]
+kind = "none"
+reason = "No LAPACK driver: complete-pivoting LU (the deprecated ?gefa family aside) has no supported netlib equivalent."
+
+[ops.FULLPIVLU.flops]
+# The LU count, matching the named helper. Complete pivoting adds an O(n^3)
+# search that the count deliberately ignores, which is what makes it nominal; it
+# is not the QR count, and charging one arm twice what its own helper computes
+# would put two flop figures that disagree by 2x into the same measurement row.
+real = "m*n*n - n*n*n/3"
+nominal = true
+helper = "eigen_bench::getrfFlops<Scalar>(m, n)"
+
+[ops.RANDCOD]
+display_name = "RandCOD"
+long_name = "Randomized complete orthogonal decomposition"
+family = "eigen-only"
+description = "Randomized rank-revealing complete orthogonal decomposition. There is no LAPACK counterpart; ?geqp3 solves a related but different problem and is registered under its own key."
+eigen_expr = "Eigen::RandCOD<MatrixType> cod(A)"
+eigen_class = "Eigen::RandCOD"
+eigen_doc = "Eigen::RandCOD"
+shape_family = "general2"
+scalars = ["f32", "f64", "c32", "c64"]
+status = "planned"
+
+[ops.RANDCOD.reference]
+kind = "none"
+reason = "No LAPACK equivalent: randomized rank-revealing factorizations are not part of the netlib API surface."
+
+[ops.RANDCOD.flops]
+real = "2*m*n*n - 2*n*n*n/3"
+nominal = true
+helper = "eigen_bench::geqrfFlops<Scalar>(m, n)"
