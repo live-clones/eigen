@@ -284,12 +284,17 @@ void product_small_regressions() {
   }
 
   {
+    // A square fixed-size product takes the coeff-based path while
+    // Rows + Cols + Depth stays below EIGEN_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD,
+    // so the boundary is derived from the macro rather than hard-coded: backends
+    // that retune it (SME does) still have their own boundary checked here.
+    constexpr int kGemm = (EIGEN_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD + 2) / 3;
     typedef Eigen::Matrix<double, 10, 10> Matrix10;
-    typedef Eigen::Matrix<double, 13, 13> Matrix13;
-    typedef Eigen::Matrix<double, 14, 14> Matrix14;
+    typedef Eigen::Matrix<double, kGemm - 1, kGemm - 1> MatrixBelow;
+    typedef Eigen::Matrix<double, kGemm, kGemm> MatrixAt;
     VERIFY((internal::product_type<Matrix10, Matrix10>::value == CoeffBasedProductMode));
-    VERIFY((internal::product_type<Matrix13, Matrix13>::value == CoeffBasedProductMode));
-    VERIFY((internal::product_type<Matrix14, Matrix14>::value == GemmProduct));
+    VERIFY((internal::product_type<MatrixBelow, MatrixBelow>::value == CoeffBasedProductMode));
+    VERIFY((internal::product_type<MatrixAt, MatrixAt>::value == GemmProduct));
 
     Matrix10 A = Matrix10::Random();
     Matrix10 B = Matrix10::Random();
