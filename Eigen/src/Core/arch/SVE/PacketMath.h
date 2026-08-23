@@ -703,6 +703,335 @@ EIGEN_STRONG_INLINE PacketXf psqrt<PacketXf>(const PacketXf& a) {
   return svsqrt_f32_x(svptrue_b32(), a);
 }
 
+/********************************* float64 ************************************/
+// Double was missing from this backend: packet_traits<double> fell through to
+// default_packet_traits, so every double operation under EIGEN_ARM64_USE_SVE was
+// scalar.
+typedef svfloat64_t PacketXd __attribute__((arm_sve_vector_bits(EIGEN_ARM64_SVE_VL)));
+
+// The transcendentals stay at default_packet_traits' 0. Their generic
+// implementations reach pfrexp/pldexp, which for double need the 64-bit integer
+// packet this backend does not define -- add svint64_t and its integer_packet
+// typedef first, as the float section does with PacketXi, and the whole suite
+// follows through EIGEN_INSTANTIATE_GENERIC_MATH_FUNCS_DOUBLE.
+template <>
+struct packet_traits<double> : default_packet_traits {
+  typedef PacketXd type;
+  typedef PacketXd half;  // Half not implemented yet
+
+  enum {
+    Vectorizable = 1,
+    AlignedOnScalar = 1,
+    size = sve_packet_size_selector<double, EIGEN_ARM64_SVE_VL>::size,
+
+    HasAdd = 1,
+    HasSub = 1,
+    HasShift = 1,
+    HasMul = 1,
+    HasNegate = 1,
+    HasAbs = 1,
+    HasArg = 0,
+    HasMin = 1,
+    HasMax = 1,
+    HasConj = 1,
+    HasSetLinear = 0,
+    HasReduxp = 0,  // Not implemented in SVE
+
+    HasDiv = 1,
+    HasCmp = 1,
+    HasSqrt = 1
+  };
+};
+
+template <>
+struct unpacket_traits<PacketXd> {
+  typedef double type;
+  typedef PacketXd half;  // Half not yet implemented
+
+  enum {
+    size = sve_packet_size_selector<double, EIGEN_ARM64_SVE_VL>::size,
+    alignment = sve_packet_alignment_selector<EIGEN_ARM64_SVE_VL>::alignment,
+    vectorizable = true,
+    masked_load_available = false,
+    masked_store_available = false
+  };
+};
+
+template <>
+EIGEN_STRONG_INLINE void prefetch<double>(const double* addr) {
+  svprfd(svptrue_b64(), addr, SV_PLDL1KEEP);
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketXd pset1<PacketXd>(const double& from) {
+  return svdup_n_f64(from);
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketXd pset1frombits<PacketXd>(numext::uint64_t from) {
+  return svreinterpret_f64_u64(svdup_n_u64_x(svptrue_b64(), from));
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketXd plset<PacketXd>(const double& a) {
+  double c[packet_traits<double>::size];
+  for (int i = 0; i < packet_traits<double>::size; i++) c[i] = i;
+  return svadd_f64_x(svptrue_b64(), pset1<PacketXd>(a), svld1_f64(svptrue_b64(), c));
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketXd padd<PacketXd>(const PacketXd& a, const PacketXd& b) {
+  return svadd_f64_x(svptrue_b64(), a, b);
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketXd psub<PacketXd>(const PacketXd& a, const PacketXd& b) {
+  return svsub_f64_x(svptrue_b64(), a, b);
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketXd pnegate(const PacketXd& a) {
+  return svneg_f64_x(svptrue_b64(), a);
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketXd pconj(const PacketXd& a) {
+  return a;
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketXd pmul<PacketXd>(const PacketXd& a, const PacketXd& b) {
+  return svmul_f64_x(svptrue_b64(), a, b);
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketXd pdiv<PacketXd>(const PacketXd& a, const PacketXd& b) {
+  return svdiv_f64_x(svptrue_b64(), a, b);
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketXd pmadd(const PacketXd& a, const PacketXd& b, const PacketXd& c) {
+  return svmla_f64_x(svptrue_b64(), c, a, b);
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketXd pmin<PacketXd>(const PacketXd& a, const PacketXd& b) {
+  return svmin_f64_x(svptrue_b64(), a, b);
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketXd pmin<PropagateNaN, PacketXd>(const PacketXd& a, const PacketXd& b) {
+  return pmin<PacketXd>(a, b);
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketXd pmin<PropagateNumbers, PacketXd>(const PacketXd& a, const PacketXd& b) {
+  return svminnm_f64_x(svptrue_b64(), a, b);
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketXd pmax<PacketXd>(const PacketXd& a, const PacketXd& b) {
+  return svmax_f64_x(svptrue_b64(), a, b);
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketXd pmax<PropagateNaN, PacketXd>(const PacketXd& a, const PacketXd& b) {
+  return pmax<PacketXd>(a, b);
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketXd pmax<PropagateNumbers, PacketXd>(const PacketXd& a, const PacketXd& b) {
+  return svmaxnm_f64_x(svptrue_b64(), a, b);
+}
+
+// Comparisons in SVE return a predicate. Use svdup to set active lanes to all
+// ones and inactive lanes to zero, matching the float path above.
+template <>
+EIGEN_STRONG_INLINE PacketXd pcmp_le<PacketXd>(const PacketXd& a, const PacketXd& b) {
+  return svreinterpret_f64_u64(svdup_n_u64_z(svcmple_f64(svptrue_b64(), a, b), 0xffffffffffffffffull));
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketXd pcmp_lt<PacketXd>(const PacketXd& a, const PacketXd& b) {
+  return svreinterpret_f64_u64(svdup_n_u64_z(svcmplt_f64(svptrue_b64(), a, b), 0xffffffffffffffffull));
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketXd pcmp_eq<PacketXd>(const PacketXd& a, const PacketXd& b) {
+  return svreinterpret_f64_u64(svdup_n_u64_z(svcmpeq_f64(svptrue_b64(), a, b), 0xffffffffffffffffull));
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketXd pcmp_lt_or_nan<PacketXd>(const PacketXd& a, const PacketXd& b) {
+  return svreinterpret_f64_u64(
+      svdup_n_u64_z(svnot_b_z(svptrue_b64(), svcmpge_f64(svptrue_b64(), a, b)), 0xffffffffffffffffull));
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketXd pfloor<PacketXd>(const PacketXd& a) {
+  return svrintm_f64_x(svptrue_b64(), a);
+}
+template <>
+EIGEN_STRONG_INLINE PacketXd pceil<PacketXd>(const PacketXd& a) {
+  return svrintp_f64_x(svptrue_b64(), a);
+}
+template <>
+EIGEN_STRONG_INLINE PacketXd print<PacketXd>(const PacketXd& a) {
+  return svrintn_f64_x(svptrue_b64(), a);
+}
+template <>
+EIGEN_STRONG_INLINE PacketXd ptrunc<PacketXd>(const PacketXd& a) {
+  return svrintz_f64_x(svptrue_b64(), a);
+}
+template <>
+EIGEN_STRONG_INLINE PacketXd pround<PacketXd>(const PacketXd& a) {
+  return svrinta_f64_x(svptrue_b64(), a);
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketXd ptrue<PacketXd>(const PacketXd& /*a*/) {
+  PacketXd r = svreinterpret_f64_u64(svdup_n_u64_x(svptrue_b64(), 0xffffffffffffffffull));
+  EIGEN_FAST_MATH_CONSTANT_BARRIER(r);
+  return r;
+}
+
+// Logical operations are not supported for float64, so reinterpret casts.
+template <>
+EIGEN_STRONG_INLINE PacketXd pand<PacketXd>(const PacketXd& a, const PacketXd& b) {
+  return svreinterpret_f64_u64(svand_u64_x(svptrue_b64(), svreinterpret_u64_f64(a), svreinterpret_u64_f64(b)));
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketXd por<PacketXd>(const PacketXd& a, const PacketXd& b) {
+  return svreinterpret_f64_u64(svorr_u64_x(svptrue_b64(), svreinterpret_u64_f64(a), svreinterpret_u64_f64(b)));
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketXd pxor<PacketXd>(const PacketXd& a, const PacketXd& b) {
+  return svreinterpret_f64_u64(sveor_u64_x(svptrue_b64(), svreinterpret_u64_f64(a), svreinterpret_u64_f64(b)));
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketXd pandnot<PacketXd>(const PacketXd& a, const PacketXd& b) {
+  return svreinterpret_f64_u64(svbic_u64_x(svptrue_b64(), svreinterpret_u64_f64(a), svreinterpret_u64_f64(b)));
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketXd pload<PacketXd>(const double* from) {
+  EIGEN_DEBUG_ALIGNED_LOAD return svld1_f64(svptrue_b64(), from);
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketXd ploadu<PacketXd>(const double* from) {
+  EIGEN_DEBUG_UNALIGNED_LOAD return svld1_f64(svptrue_b64(), from);
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketXd ploaddup<PacketXd>(const double* from) {
+  svuint64_t indices = svindex_u64(0, 1);  // index {base=0, base+step=1, base+step*2, ...}
+  indices = svzip1_u64(indices, indices);  // index in the format {a0, a0, a1, a1, a2, a2, ...}
+  return svld1_gather_u64index_f64(svptrue_b64(), from, indices);
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketXd ploadquad<PacketXd>(const double* from) {
+  svuint64_t indices = svindex_u64(0, 1);  // index {base=0, base+step=1, base+step*2, ...}
+  indices = svzip1_u64(indices, indices);  // index in the format {a0, a0, a1, a1, a2, a2, ...}
+  indices = svzip1_u64(indices, indices);  // index in the format {a0, a0, a0, a0, a1, a1, a1, a1, ...}
+  return svld1_gather_u64index_f64(svptrue_b64(), from, indices);
+}
+
+template <>
+EIGEN_STRONG_INLINE void pstore<double>(double* to, const PacketXd& from) {
+  EIGEN_DEBUG_ALIGNED_STORE svst1_f64(svptrue_b64(), to, from);
+}
+
+template <>
+EIGEN_STRONG_INLINE void pstoreu<double>(double* to, const PacketXd& from) {
+  EIGEN_DEBUG_UNALIGNED_STORE svst1_f64(svptrue_b64(), to, from);
+}
+
+template <>
+EIGEN_DEVICE_FUNC inline PacketXd pgather<double, PacketXd>(const double* from, Index stride) {
+  // Index format: {base=0, base+stride, base+stride*2, base+stride*3, ...}
+  svint64_t indices = svindex_s64(0, stride);
+  return svld1_gather_s64index_f64(svptrue_b64(), from, indices);
+}
+
+template <>
+EIGEN_DEVICE_FUNC inline void pscatter<double, PacketXd>(double* to, const PacketXd& from, Index stride) {
+  // Index format: {base=0, base+stride, base+stride*2, base+stride*3, ...}
+  svint64_t indices = svindex_s64(0, stride);
+  svst1_scatter_s64index_f64(svptrue_b64(), to, indices, from);
+}
+
+template <>
+EIGEN_STRONG_INLINE double pfirst<PacketXd>(const PacketXd& a) {
+  // svlasta returns the first element if all predicate bits are 0
+  return svlasta_f64(svpfalse_b(), a);
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketXd preverse(const PacketXd& a) {
+  return svrev_f64(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketXd pabs(const PacketXd& a) {
+  return svabs_f64_x(svptrue_b64(), a);
+}
+
+template <>
+EIGEN_STRONG_INLINE double predux<PacketXd>(const PacketXd& a) {
+  return svaddv_f64(svptrue_b64(), a);
+}
+
+// Only works for SVE VLs that are a multiple of 128.
+template <>
+EIGEN_STRONG_INLINE double predux_mul<PacketXd>(const PacketXd& a) {
+  EIGEN_STATIC_ASSERT((EIGEN_ARM64_SVE_VL % 128 == 0), EIGEN_INTERNAL_ERROR_PLEASE_FILE_A_BUG_REPORT);
+  // Multiplying by the reverse pairs lane i with lane n-1-i, leaving every
+  // product of a pair in both halves; halving the span each round then folds
+  // the halves together. At VL = 128 there are two lanes and the first multiply
+  // has already combined them.
+  svfloat64_t prod = svmul_f64_x(svptrue_b64(), a, svrev_f64(a));
+  for (int span = unpacket_traits<PacketXd>::size / 2; span >= 2; span >>= 1) {
+    prod = svmul_f64_x(svptrue_b64(), prod, svtbl_f64(prod, svindex_u64(span, 1)));
+  }
+  return pfirst<PacketXd>(prod);
+}
+
+template <>
+EIGEN_STRONG_INLINE double predux_min<PacketXd>(const PacketXd& a) {
+  return svminv_f64(svptrue_b64(), a);
+}
+
+template <>
+EIGEN_STRONG_INLINE double predux_max<PacketXd>(const PacketXd& a) {
+  return svmaxv_f64(svptrue_b64(), a);
+}
+
+template <int N>
+EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<PacketXd, N>& kernel) {
+  double buffer[packet_traits<double>::size * N] = {0};
+  int i = 0;
+
+  svint64_t stride_index = svindex_s64(0, N);
+
+  for (i = 0; i < N; i++) {
+    svst1_scatter_s64index_f64(svptrue_b64(), buffer + i, stride_index, kernel.packet[i]);
+  }
+
+  for (i = 0; i < N; i++) {
+    kernel.packet[i] = svld1_f64(svptrue_b64(), buffer + i * packet_traits<double>::size);
+  }
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketXd psqrt<PacketXd>(const PacketXd& a) {
+  return svsqrt_f64_x(svptrue_b64(), a);
+}
+
 }  // namespace internal
 }  // namespace Eigen
 
