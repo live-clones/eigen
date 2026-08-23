@@ -57,3 +57,42 @@ foreach(pkg IN ITEMS CHOLMOD UMFPACK KLU SPQR)
     bs_fail("${pkg}_INCLUDES cached as '${CMAKE_MATCH_1}', expected ${include_dir}")
   endif()
 endforeach()
+
+# --- Upgrade path -------------------------------------------------------------
+# The scenario above starts from an empty cache, which is not how anyone meets
+# this bug: they have a build tree configured *before* the fix, whose cache
+# already holds the unusable generator-expression value.  `set(... CACHE ...)`
+# does nothing when the entry exists, so without FORCE the find modules would
+# leave that value in place and reconfiguring would never heal the tree.
+#
+# Seed exactly that state and require one configure to repair it.
+set(stale_bin "${WORK_DIR}/consumer-stale")
+file(MAKE_DIRECTORY "${stale_bin}")
+set(stale_genex "$<TARGET_PROPERTY:SuiteSparse::SuiteSparseConfig,INTERFACE_INCLUDE_DIRECTORIES>")
+set(seed "")
+foreach(pkg IN ITEMS CHOLMOD UMFPACK KLU SPQR)
+  string(APPEND seed "${pkg}_INCLUDES:PATH=${include_dir};${stale_genex}\n")
+  string(APPEND seed "${pkg}_LIBRARIES:STRING=SuiteSparse::${pkg}\n")
+endforeach()
+file(WRITE "${stale_bin}/CMakeCache.txt" "${seed}")
+
+bs_configure("the SuiteSparse consumer, cache poisoned by a pre-fix configure"
+             "${consumer_src}" "${stale_bin}"
+             "-DEIGEN_CMAKE_DIR=${EIGEN_SOURCE_DIR}/cmake"
+             "-DEXPECTED_INCLUDE_DIR=${include_dir}"
+             ${package_args})
+
+file(READ "${stale_bin}/CMakeCache.txt" stale_cache)
+foreach(pkg IN ITEMS CHOLMOD UMFPACK KLU SPQR)
+  if(NOT stale_cache MATCHES "\n${pkg}_INCLUDES:[A-Z]+=([^\n]*)")
+    bs_fail("${pkg}_INCLUDES was never cached in the poisoned tree")
+  endif()
+  # Hold the capture: any later MATCHES would overwrite CMAKE_MATCH_1.
+  set(healed "${CMAKE_MATCH_1}")
+  if(healed MATCHES "\\$<")
+    bs_fail("${pkg}_INCLUDES still holds a generator expression after re-configure: '${healed}'")
+  endif()
+  if(NOT healed STREQUAL "${include_dir}")
+    bs_fail("${pkg}_INCLUDES healed to '${healed}', expected ${include_dir}")
+  endif()
+endforeach()

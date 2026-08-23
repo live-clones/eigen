@@ -36,8 +36,12 @@ if(UMFPACK_FOUND AND TARGET SuiteSparse::UMFPACK)
     endforeach()
   endif()
   if(_umfpack_inc_dirs)
-    set(UMFPACK_INCLUDES "${_umfpack_inc_dirs}" CACHE PATH "UMFPACK include directory")
-    set(UMFPACK_LIBRARIES SuiteSparse::UMFPACK CACHE STRING "UMFPACK libraries")
+    # FORCE because a plain `set(... CACHE ...)` is a no-op when the entry
+    # already exists.  A build tree first configured before this fix still
+    # holds the unusable generator-expression value, and reconfiguring it
+    # would otherwise keep it forever.
+    set(UMFPACK_INCLUDES "${_umfpack_inc_dirs}" CACHE PATH "UMFPACK include directory" FORCE)
+    set(UMFPACK_LIBRARIES SuiteSparse::UMFPACK CACHE STRING "UMFPACK libraries" FORCE)
     # Mark as found and return early -- no need for the manual search below.
     mark_as_advanced(UMFPACK_INCLUDES UMFPACK_LIBRARIES)
     return()

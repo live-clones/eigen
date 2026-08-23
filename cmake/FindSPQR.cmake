@@ -39,8 +39,12 @@ if(SPQR_FOUND AND TARGET SuiteSparse::SPQR)
     endforeach()
   endif()
   if(_spqr_inc_dirs)
-    set(SPQR_INCLUDES "${_spqr_inc_dirs}" CACHE PATH "SPQR include directory")
-    set(SPQR_LIBRARIES SuiteSparse::SPQR CACHE STRING "SPQR libraries")
+    # FORCE because a plain `set(... CACHE ...)` is a no-op when the entry
+    # already exists.  A build tree first configured before this fix still
+    # holds the unusable generator-expression value, and reconfiguring it
+    # would otherwise keep it forever.
+    set(SPQR_INCLUDES "${_spqr_inc_dirs}" CACHE PATH "SPQR include directory" FORCE)
+    set(SPQR_LIBRARIES SuiteSparse::SPQR CACHE STRING "SPQR libraries" FORCE)
     # Mark as found and return early -- no need for the manual search below.
     mark_as_advanced(SPQR_INCLUDES SPQR_LIBRARIES)
     return()

@@ -36,8 +36,12 @@ if(CHOLMOD_FOUND AND TARGET SuiteSparse::CHOLMOD)
     endforeach()
   endif()
   if(_cholmod_inc_dirs)
-    set(CHOLMOD_INCLUDES "${_cholmod_inc_dirs}" CACHE PATH "CHOLMOD include directory")
-    set(CHOLMOD_LIBRARIES SuiteSparse::CHOLMOD CACHE STRING "CHOLMOD libraries")
+    # FORCE because a plain `set(... CACHE ...)` is a no-op when the entry
+    # already exists.  A build tree first configured before this fix still
+    # holds the unusable generator-expression value, and reconfiguring it
+    # would otherwise keep it forever.
+    set(CHOLMOD_INCLUDES "${_cholmod_inc_dirs}" CACHE PATH "CHOLMOD include directory" FORCE)
+    set(CHOLMOD_LIBRARIES SuiteSparse::CHOLMOD CACHE STRING "CHOLMOD libraries" FORCE)
     # Mark as found and return early -- no need for the manual search below.
     mark_as_advanced(CHOLMOD_INCLUDES CHOLMOD_LIBRARIES)
     return()
