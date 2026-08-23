@@ -774,9 +774,9 @@ EIGEN_STRONG_INLINE PacketXd pset1frombits<PacketXd>(numext::uint64_t from) {
 
 template <>
 EIGEN_STRONG_INLINE PacketXd plset<PacketXd>(const double& a) {
-  double c[packet_traits<double>::size];
-  for (int i = 0; i < packet_traits<double>::size; i++) c[i] = i;
-  return svadd_f64_x(svptrue_b64(), pset1<PacketXd>(a), svld1_f64(svptrue_b64(), c));
+  // The ramp comes from svindex + a widening convert rather than a constant
+  // array: no static storage, no load, and no alignment question.
+  return svadd_f64_x(svptrue_b64(), pset1<PacketXd>(a), svcvt_f64_s64_x(svptrue_b64(), svindex_s64(0, 1)));
 }
 
 template <>
@@ -928,17 +928,24 @@ EIGEN_STRONG_INLINE PacketXd ploadu<PacketXd>(const double* from) {
 
 template <>
 EIGEN_STRONG_INLINE PacketXd ploaddup<PacketXd>(const double* from) {
-  svuint64_t indices = svindex_u64(0, 1);  // index {base=0, base+step=1, base+step*2, ...}
-  indices = svzip1_u64(indices, indices);  // index in the format {a0, a0, a1, a1, a2, a2, ...}
-  return svld1_gather_u64index_f64(svptrue_b64(), from, indices);
+  // Load the size/2 values this reads into the low half and interleave them
+  // with themselves: svzip1 only consumes the low halves of its operands.
+  // The predicate is exact rather than svptrue -- ploaddup may only touch
+  // size/2 elements, and a wider one would read past the end of the input.
+  constexpr uint64_t kHalf = uint64_t(packet_traits<double>::size) / 2;
+  svfloat64_t lo = svld1_f64(svwhilelt_b64(uint64_t(0), kHalf), from);
+  return svzip1_f64(lo, lo);
 }
 
 template <>
 EIGEN_STRONG_INLINE PacketXd ploadquad<PacketXd>(const double* from) {
-  svuint64_t indices = svindex_u64(0, 1);  // index {base=0, base+step=1, base+step*2, ...}
-  indices = svzip1_u64(indices, indices);  // index in the format {a0, a0, a1, a1, a2, a2, ...}
-  indices = svzip1_u64(indices, indices);  // index in the format {a0, a0, a0, a0, a1, a1, a1, a1, ...}
-  return svld1_gather_u64index_f64(svptrue_b64(), from, indices);
+  // As ploaddup, one zip further: size/4 values, each repeated four times.
+  // At the smallest vector length size/4 rounds to zero, where one element
+  // still has to be read.
+  constexpr uint64_t kQuarter = numext::maxi(uint64_t(packet_traits<double>::size) / 4, uint64_t(1));
+  svfloat64_t lo = svld1_f64(svwhilelt_b64(uint64_t(0), kQuarter), from);
+  lo = svzip1_f64(lo, lo);
+  return svzip1_f64(lo, lo);
 }
 
 template <>
@@ -1013,7 +1020,7 @@ EIGEN_STRONG_INLINE double predux_max<PacketXd>(const PacketXd& a) {
 
 template <int N>
 EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<PacketXd, N>& kernel) {
-  double buffer[packet_traits<double>::size * N] = {0};
+  EIGEN_ALIGN_MAX double buffer[packet_traits<double>::size * N] = {};
   int i = 0;
 
   svint64_t stride_index = svindex_s64(0, N);
