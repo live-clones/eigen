@@ -1304,12 +1304,17 @@ inline std::ptrdiff_t parseCpuCacheSize(const char* text) {
   return value * multiplier;
 }
 
+/** \internal Whether \a text is where a sysfs line legitimately ends. */
+inline bool isCpuListTerminator(const char* text) { return *text == '\0' || *text == '\n' || *text == '\r'; }
+
 /** \internal
  * Counts the CPUs in a sysfs cpu list such as "0-3" or "0-3,8-11". \returns 0 if \a text is
  * malformed, so that an unparsable list reads as "unknown" rather than as a small count. */
 inline int parseCpuListCount(const char* text) {
+  if (isCpuListTerminator(text)) return 0;
   int count = 0;
-  for (const char* cursor = text; *cursor != '\0';) {
+  const char* cursor = text;
+  for (;;) {
     char* end = nullptr;
     const long first = std::strtol(cursor, &end, 10);
     if (end == cursor) return 0;
@@ -1320,10 +1325,18 @@ inline int parseCpuListCount(const char* text) {
       if (end == cursor || last < first) return 0;
     }
     count += static_cast<int>(last - first + 1);
-    if (*end != ',') break;
-    cursor = end + 1;
+    // A comma promises another range, so a list ending on one is malformed: going round the loop
+    // lands on the terminator and fails the strtol above.
+    if (*end == ',') {
+      cursor = end + 1;
+      continue;
+    }
+    // Anything other than a separator or the end of the line means the format is not what this
+    // parser assumes. Reading such a line as a small count would inflate l3_per_cpu, so treat the
+    // whole list as unknown instead.
+    if (!isCpuListTerminator(end)) return 0;
+    return count;
   }
-  return count;
 }
 
 /** \internal
