@@ -229,8 +229,7 @@ static EIGEN_ALWAYS_INLINE void sve_copy_panel_range(Scalar* EIGEN_RESTRICT dst,
                                                      Index src_stride, Index k0, Index k1, int width) __arm_streaming {
   const int svl = sme_traits<Scalar>::svl();
   for (int off = 0; off < width; off += svl) {
-    const int w = sme_min(width - off, svl);
-    const svbool_t pred = sme_traits<Scalar>::whilelt(0, w);
+    const svbool_t pred = sme_traits<Scalar>::whilelt(off, width);
     for (Index k = k0; k < k1; ++k) {
       sme_st1(pred, &dst[k * width + off], sme_ld1(pred, &src[k * src_stride + off]));
     }
@@ -268,7 +267,7 @@ static EIGEN_ALWAYS_INLINE void sme_transpose_pack_range(Scalar* EIGEN_RESTRICT 
 
   for (Index k = k0; k < k1; k += svl) {
     const int dk = static_cast<int>(sme_min(k1 - k, Index(svl)));
-    const svbool_t pg_d = Traits::whilelt(0, dk);
+    const svbool_t pg_d = Traits::whilelt(k, k1);
     int r0 = 0;
     // Pairs of full row-groups: tiles 0 and 1 in flight.
     for (; r0 + 2 * svl <= width; r0 += 2 * svl) {
@@ -287,7 +286,7 @@ static EIGEN_ALWAYS_INLINE void sme_transpose_pack_range(Scalar* EIGEN_RESTRICT 
     // (svl, 2*svl); a loop handles any leftover.
     for (; r0 < width; r0 += svl) {
       const int rg = sme_min(width - r0, svl);
-      const svbool_t pg_r = Traits::whilelt(0, rg);
+      const svbool_t pg_r = Traits::whilelt(r0, width);
       for (int r = 0; r < rg; ++r) {
         sme_ld1_hor_za<0>(uint32_t(r), pg_d, &src[(r0 + r) * src_stride + k]);
       }
@@ -956,18 +955,12 @@ EIGEN_ALWAYS_INLINE void sme_process(Scalar* EIGEN_RESTRICT C, Index C_stride_ro
   const int svl = Traits::svl();
 
   for (int rt = 0; rt < pw; rt += 2 * svl) {
-    const int rpw = sme_min(pw - rt, 2 * svl);
-    const int rlo = sme_min(rpw, svl);
-    const int rhi = rpw - rlo;  // >= 0; > 0 only when rpw > svl, in which case rlo == svl
-    const svbool_t pg_rlo = Traits::whilelt(0, rlo);
-    const svbool_t pg_rhi = Traits::whilelt(0, rhi);
+    const svbool_t pg_rlo = Traits::whilelt(rt, pw);
+    const svbool_t pg_rhi = Traits::whilelt(rt + svl, pw);
 
     for (int ct = 0; ct < cw; ct += 2 * svl) {
-      const int cpw = sme_min(cw - ct, 2 * svl);
-      const int clo = sme_min(cpw, svl);
-      const int chi = cpw - clo;
-      const svbool_t pg_clo = Traits::whilelt(0, clo);
-      const svbool_t pg_chi = Traits::whilelt(0, chi);
+      const svbool_t pg_clo = Traits::whilelt(ct, cw);
+      const svbool_t pg_chi = Traits::whilelt(ct + svl, cw);
 
       svzero_za();
       if (pw == 2 * svl && cw == 2 * svl) {
