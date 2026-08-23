@@ -268,6 +268,9 @@ set_property(TEST cmake_project_version PROPERTY LABELS "Official")
 
 ei_add_test(clz)
 ei_add_test(rand "-pthread" "${CMAKE_THREAD_LIBS_INIT}")
+# Same source with EIGEN_USE_PCG_RANDOM defined, so the opt-in backend is
+# actually compiled and its thread-safety subtest runs.
+ei_add_test(rand_pcg "-pthread" "${CMAKE_THREAD_LIBS_INIT}")
 ei_add_test(realview)
 ei_add_test(meta)
 ei_add_test(preprocessor_directives)
