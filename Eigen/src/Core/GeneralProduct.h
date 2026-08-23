@@ -53,6 +53,23 @@ enum { Large = 2, Small = 3 };
 #define EIGEN_SME_GEMM_TO_COEFFBASED_THRESHOLD 42
 #endif
 
+// The dimension-sum bound above grows with the depth, so it cannot reach a
+// small output over a long depth: a 2x2 result at k=1024 sums to 1028 and takes
+// the SME path with nearly the whole ZA grid predicated off. The crossover for
+// that shape family is an output *area* rather than a dimension sum, and it
+// tracks the scalar width.
+//
+// Measured on Apple M4 at SVL=512, every m x n with m,n in [2,12] against the
+// coeff-based path: the largest area at which *no* shape loses is 27, 14, 15 and
+// 6 for float, complex<float>, double and complex<double>. 96/sizeof (24, 12,
+// 12, 6) sits just inside all four, and holds out to k=32768 -- the worst cell
+// there is float 4x6 at 1.03x, i.e. neutral, while 2x2 is 13x and 3x3 2.0x.
+// A flat constant does not work: the value that is safe for complex<double>
+// admits only 2x2 for float, and float's would cost complex<double> up to 2x.
+#ifndef EIGEN_SME_GEMM_TO_COEFFBASED_OUTPUT_AREA_THRESHOLD
+#define EIGEN_SME_GEMM_TO_COEFFBASED_OUTPUT_AREA_THRESHOLD(Scalar) (96 / int(sizeof(Scalar)))
+#endif
+
 namespace internal {
 
 template <int Rows, int Cols, int Depth>
