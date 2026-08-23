@@ -375,20 +375,18 @@ static EIGEN_ALWAYS_INLINE void sve_copy_panel_range(std::complex<RealScalar>* E
   const RealScalar* EIGEN_RESTRICT rsrc = reinterpret_cast<const RealScalar*>(src);
   const int svl = Traits::svl();
   const Index step = Index(2 * width);
-  const Vec vzero = Traits::dup(RealScalar(0));
   for (int off = 0; off < width; off += svl) {
-    const int w = sme_min(width - off, svl);
+    const int w = width - off;
     const int lanes = 2 * w;
-    const bool two_vectors = lanes > svl;
-    const svbool_t pg_lo = Traits::whilelt(0, sme_min(lanes, svl));
-    const svbool_t pg_hi = Traits::whilelt(0, two_vectors ? lanes - svl : 0);
-    const svbool_t pg_w = Traits::whilelt(0, w);
+    const svbool_t pg_w = Traits::whilelt(off, width);
+    const svbool_t pg_lo = Traits::whilelt(0, lanes);
+    const svbool_t pg_hi = Traits::whilelt(svl, lanes);
     for (Index k = k0; k < k1; ++k) {
       const RealScalar* p = rsrc + Index(2) * (k * src_stride + Index(off));
       const Vec v_lo = sme_ld1(pg_lo, p);
-      // The second vector's lanes are all inactive when 2*w fits in one, and
-      // the source may then have nothing at p + svl to point at.
-      const Vec v_hi = two_vectors ? sme_ld1(pg_hi, p + svl) : vzero;
+      // pg_hi is all-false when 2*w fits in one vector, and an inactive lane
+      // makes no memory access -- so this never reads past the source.
+      const Vec v_hi = sme_ld1(pg_hi, p + svl);
       Vec im = sme_uzp2(v_lo, v_hi);
       EIGEN_IF_CONSTEXPR (Conjugate) {
         im = sme_neg(pg_w, im);
@@ -415,7 +413,11 @@ static EIGEN_ALWAYS_INLINE void sve_copy_panel(Scalar* EIGEN_RESTRICT dst, const
 // renamed, so a single tile would stall every load pass on the previous read
 // pass (write-after-read); two tiles in flight keep the phases independent.
 // Trailing row-groups (when width is not a multiple of 2*svl) use tile 0 with
-// predicated rows.  Both dst and src are indexed by the absolute depth index k:
+// predicated rows -- which is also what a panel narrower than 2*svl gets in
+// full: complex<float> has mr = svl at SVL=512, so its LHS panels take the
+// single-tile path and do not get the write-after-read overlap described above.
+// Widening the gate would need the pairing to run over depth instead of rows.
+// Both dst and src are indexed by the absolute depth index k:
 //   dst[k*width + r] = src[r*src_stride + k],  k in [k0,k1), r in [0,width).
 // The symm packers reuse this for the diagonal-split transposed/direct regions
 // (a depth sub-range at a depth offset, with a tail-panel width < mr).
@@ -521,7 +523,7 @@ static void tail_transpose_pack_real(RealScalar* EIGEN_RESTRICT dst_panel, const
   using Packet = typename packet_traits<RealScalar>::type;
   constexpr int PacketSize = int(packet_traits<RealScalar>::size);
   const Index peeled_tail = (tail / Index(PacketSize)) * Index(PacketSize);
-  const Index peeled_depth = (depth / Index(PacketSize)) * Index(PacketSize);
+  const Index peeled_depth = numext::round_down(depth, Index(PacketSize));
 
   Index i = 0;
   for (; i < peeled_tail; i += Index(PacketSize)) {
@@ -653,7 +655,7 @@ void sme_pack_lhs_fallback(Scalar* dst_base, const DataMapper& lhs, Index depth,
   for (Index i = 0; i < rows; i += MR) {
     const Index w = numext::mini(rows - i, Index(MR));
     Scalar* dst_panel = PanelMode ? dst_base + i * dst_stride + dst_offset * w : dst_base + i * depth;
-    const Index peeled_w = (vectorise && HasPacketPath) ? (w / PacketSize) * PacketSize : Index(0);
+    const Index peeled_w = (vectorise && HasPacketPath) ? numext::round_down(w, Index(PacketSize)) : Index(0);
     for (Index k = 0; k < depth; ++k) {
       Scalar* dst_step = dst_panel + k * w;
       Index r = 0;
@@ -692,7 +694,7 @@ void sme_pack_rhs_fallback(Scalar* dst_base, const DataMapper& rhs, Index depth,
   for (Index j = 0; j < cols; j += NR) {
     const Index w = numext::mini(cols - j, Index(NR));
     Scalar* dst_panel = PanelMode ? dst_base + j * dst_stride + dst_offset * w : dst_base + j * depth;
-    const Index peeled_w = (vectorise && HasPacketPath) ? (w / Index(PacketSize)) * Index(PacketSize) : Index(0);
+    const Index peeled_w = (vectorise && HasPacketPath) ? numext::round_down(w, Index(PacketSize)) : Index(0);
     Index c = 0;
     for (; c < peeled_w; c += Index(PacketSize)) {
       // Loop-invariant in k, but not hoisted out of the k loop by the compiler
@@ -1254,9 +1256,8 @@ EIGEN_ALWAYS_INLINE void sme_read_slice(svbool_t pg, typename sme_traits<RealSca
 
 // Accumulate a tile pair's `slices` slices into C along its contiguous axis,
 // `step` reals apart.  `lanes` is twice a slice's complex count; when it fits
-// one vector the high half is dropped from the loop entirely, rather than
-// predicated away per slice -- the destination may then have nothing at
-// p + svl to point at.
+// one vector the high half's predicate is empty, so its load and store are
+// no-ops even though the destination has nothing at p + svl to point at.
 template <typename RealScalar, int TileRe, int TileIm, bool Vertical, bool ScaleByAlpha, typename Index>
 EIGEN_ALWAYS_INLINE void sme_accumulate_pair_impl(
     RealScalar* EIGEN_RESTRICT p, Index step, int slices, int lanes, svbool_t pg,
@@ -1265,16 +1266,16 @@ EIGEN_ALWAYS_INLINE void sme_accumulate_pair_impl(
   using Traits = sme_traits<RealScalar>;
   using Vec = typename Traits::Vec;
   const int svl = Traits::svl();
-  const svbool_t pl0 = Traits::whilelt(0, sme_min(lanes, svl));
-  const svbool_t pl1 = Traits::whilelt(0, lanes > svl ? lanes - svl : 0);
+  const svbool_t pl0 = Traits::whilelt(0, lanes);
+  const svbool_t pl1 = Traits::whilelt(svl, lanes);
   for (int s = 0; s < slices; ++s, p += step) {
     Vec lo, hi;
     sme_read_slice<RealScalar, TileRe, TileIm, Vertical, ScaleByAlpha>(pg, valpha_re, valpha_im, vzero, uint32_t(s), lo,
                                                                        hi);
     sme_st1(pl0, p, sme_add(pl0, sme_ld1(pl0, p), lo));
-    if (lanes > svl) {
-      sme_st1(pl1, p + svl, sme_add(pl1, sme_ld1(pl1, p + svl), hi));
-    }
+    // pl1 is all-false when one vector covers the slice, and an inactive lane
+    // neither reads nor writes -- so this needs no `lanes > svl` guard.
+    sme_st1(pl1, p + svl, sme_add(pl1, sme_ld1(pl1, p + svl), hi));
   }
 }
 
@@ -1336,15 +1337,15 @@ EIGEN_ALWAYS_INLINE void sme_store_za_pair(std::complex<RealScalar>* EIGEN_RESTR
     Scalar scratch[sme_block<Scalar>::nr];
     RealScalar* rscratch = reinterpret_cast<RealScalar*>(scratch);
     const int lanes = 2 * cw;
-    const svbool_t pl0 = Traits::whilelt(0, sme_min(lanes, svl));
-    const svbool_t pl1 = Traits::whilelt(0, lanes > svl ? lanes - svl : 0);
+    const svbool_t pl0 = Traits::whilelt(0, lanes);
+    const svbool_t pl1 = Traits::whilelt(svl, lanes);
     for (int ri = 0; ri < pw; ++ri) {
       Vec lo, hi;
       sme_read_slice<RealScalar, TileRe, TileIm, false, true>(pg_n, valpha_re, valpha_im, vzero, uint32_t(ri), lo, hi);
       sme_st1(pl0, rscratch, lo);
-      if (lanes > svl) {
-        sme_st1(pl1, rscratch + svl, hi);
-      }
+      // scratch is nr complex, i.e. 2*nr >= 2*svl reals, so rscratch + svl is
+      // always in bounds; pl1 is all-false when one vector already covers cw.
+      sme_st1(pl1, rscratch + svl, hi);
       for (int ci = 0; ci < cw; ++ci) {
         C[(row_start + ri) * C_stride_row + (col_start + ci) * C_stride_col] += scratch[ci];
       }
@@ -1550,37 +1551,40 @@ EIGEN_ALWAYS_INLINE void sme_process(std::complex<RealScalar>* EIGEN_RESTRICT C,
     const int rpw = sme_min(pw - rt, GridRows * svl);
     const int r0 = sme_min(rpw, svl);
     const int r1 = rpw - r0;
-    const svbool_t pg_r0 = Traits::whilelt(0, r0);
-    const svbool_t pg_r1 = Traits::whilelt(0, r1);
+    const svbool_t pg_r0 = Traits::whilelt(0, rpw);
+    const svbool_t pg_r1 = Traits::whilelt(svl, rpw);
 
     for (int ct = 0; ct < cw; ct += GridCols * svl) {
       const int cpw = sme_min(cw - ct, GridCols * svl);
       const int c0 = sme_min(cpw, svl);
       const int c1 = cpw - c0;
-      const svbool_t pg_c0 = Traits::whilelt(0, c0);
-      const svbool_t pg_c1 = Traits::whilelt(0, c1);
+      const svbool_t pg_c0 = Traits::whilelt(0, cpw);
+      const svbool_t pg_c1 = Traits::whilelt(svl, cpw);
 
       svzero_za();
       for (Index k = 0; k < depth; ++k) {
         const RealScalar* pa = rA + k * a_step + Index(rt);
         const RealScalar* pb = rB + k * b_step + Index(ct);
+        // The second-tile loads are unconditional: their predicates are empty
+        // when the grid is a single tile wide or tall, so they touch no memory.
+        // Grouping them lets the compiler issue them in parallel, and gating the
+        // outer products on svptest_any keeps the depth loop unswitched without
+        // materialising the r1/c1 counts here.
         const Vec a0_re = sme_ld1(pg_r0, pa);
         const Vec a0_im = sme_ld1(pg_r0, pa + pw);
         const Vec b0_re = sme_ld1(pg_c0, pb);
         const Vec b0_im = sme_ld1(pg_c0, pb + cw);
+        const Vec a1_re = sme_ld1(pg_r1, pa + svl);
+        const Vec a1_im = sme_ld1(pg_r1, pa + pw + svl);
+        const Vec b1_re = sme_ld1(pg_c1, pb + svl);
+        const Vec b1_im = sme_ld1(pg_c1, pb + cw + svl);
         Cell00::accumulate(pg_r0, pg_c0, a0_re, a0_im, b0_re, b0_im);
-        Vec b1_re = Traits::dup(RealScalar(0));
-        Vec b1_im = b1_re;
-        if (c1 > 0) {
-          b1_re = sme_ld1(pg_c1, pb + svl);
-          b1_im = sme_ld1(pg_c1, pb + cw + svl);
+        if (svptest_any(pg_c1, pg_c1)) {
           Cell01::accumulate(pg_r0, pg_c1, a0_re, a0_im, b1_re, b1_im);
         }
-        if (r1 > 0) {
-          const Vec a1_re = sme_ld1(pg_r1, pa + svl);
-          const Vec a1_im = sme_ld1(pg_r1, pa + pw + svl);
+        if (svptest_any(pg_r1, pg_r1)) {
           Cell10::accumulate(pg_r1, pg_c0, a1_re, a1_im, b0_re, b0_im);
-          if (c1 > 0) {
+          if (svptest_any(pg_c1, pg_c1)) {
             Cell11::accumulate(pg_r1, pg_c1, a1_re, a1_im, b1_re, b1_im);
           }
         }
