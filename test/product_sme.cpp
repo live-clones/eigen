@@ -621,6 +621,40 @@ static std::vector<int> sme_edge_sizes() {
   return sizes;
 }
 
+// The dimension-sum and output-area bounds in GeneralProduct.h route a small
+// square product to the coeff-based evaluator, so the n x n sweeps above stop
+// reaching the SME kernel once n gets small -- which is exactly where the
+// intra-block ZA tile-split edges (T-1, T, T+1) live for double and
+// complex<double>.  Repeat the same widths over a depth that clears both
+// bounds, so every m and n edge still reaches the kernel, and check the
+// conjugated forms too: at those sizes test_conjugated_products compares a
+// lazyProduct against a lazyProduct and cannot fail.
+template <typename Scalar>
+static void test_edge_sizes_deep_k() {
+  const int depth = 4 * sme_mr<Scalar>();
+  for (int n : sme_edge_sizes<Scalar>()) {
+    if (n < 2) continue;
+    const SmeColMajorMat<Scalar> A = SmeColMajorMat<Scalar>::Random(n, depth);
+    const SmeColMajorMat<Scalar> B = SmeColMajorMat<Scalar>::Random(depth, n);
+    const SmeColMajorMat<Scalar> Aa = A.adjoint().eval();
+    const SmeColMajorMat<Scalar> Ba = B.adjoint().eval();
+    const SmeColMajorMat<Scalar> c_before = SmeColMajorMat<Scalar>::Random(n, n);
+    const SmeColMajorMat<Scalar> expected = c_before + A.lazyProduct(B);
+
+    SmeColMajorMat<Scalar> C = c_before;
+    C.noalias() += A * B;
+    VERIFY_IS_APPROX(C, expected);
+
+    C = c_before;
+    C.noalias() += Aa.adjoint() * B;
+    VERIFY_IS_APPROX(C, expected);
+
+    C = c_before;
+    C.noalias() += A * Ba.adjoint();
+    VERIFY_IS_APPROX(C, expected);
+  }
+}
+
 template <typename Scalar>
 static void test_conjugated_products() {
   for (int n : sme_edge_sizes<Scalar>()) {
@@ -653,6 +687,7 @@ static void test_products() {
   product(SmeColMajorMat<Scalar>(3, 4 * MR));
 
   test_deep_k_split<Scalar>();
+  test_edge_sizes_deep_k<Scalar>();
 
   // Random sizes
   for (int i = 0; i < g_repeat; i++) {
