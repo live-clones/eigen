@@ -11,37 +11,63 @@
 #define EIGEN_GEMM_THREADPOOL
 #include "main.h"
 
+// Eigen::setGemmThreadPool(nullptr) is the *getter*: Parallelizer.h only stores the pointer when
+// it is non-null, so once any test registers a pool it stays registered for the rest of the
+// process.  A "serial" reference computed after that point is really a threaded one, and the
+// comparison degenerates into threaded-against-threaded.
+//
+// parallelize_gemm decides on min(nbThreads(), work-derived bound) <= 1 before it ever reaches the
+// pool, so forcing the thread count is what actually pins the serial path.  It also makes the
+// stale registration harmless.
+struct ScopedSerialGemm {
+  ScopedSerialGemm() : saved_threads_(Eigen::nbThreads()) { Eigen::setNbThreads(1); }
+  // In a thread-pool build nbThreads() reports the raw -1 that means "never set", and
+  // setNbThreads rejects a negative count.  0 is its documented "back to the pool's count".
+  ~ScopedSerialGemm() { Eigen::setNbThreads(saved_threads_ > 0 ? saved_threads_ : 0); }
+  ScopedSerialGemm(const ScopedSerialGemm&) = delete;
+  ScopedSerialGemm& operator=(const ScopedSerialGemm&) = delete;
+
+ private:
+  int saved_threads_;
+};
+
 void test_parallelize_gemm() {
   constexpr int n = 1024;
   constexpr int num_threads = 4;
   MatrixXf a = MatrixXf::Random(n, n);
   MatrixXf b = MatrixXf::Random(n, n);
   MatrixXf c = MatrixXf::Random(n, n);
-  c.noalias() = a * b;
+  {
+    ScopedSerialGemm serial;
+    c.noalias() = a * b;
+  }
 
-  ThreadPool pool(num_threads);
+  // static: setGemmThreadPool cannot unregister, so a pool with narrower lifetime than the process
+  // would leave a dangling pointer registered for whatever runs next.
+  static ThreadPool pool(num_threads);
   Eigen::setGemmThreadPool(&pool);
   MatrixXf c_threaded(n, n);
   c_threaded.noalias() = a * b;
 
   VERIFY_IS_APPROX(c, c_threaded);
-  Eigen::setGemmThreadPool(nullptr);
 }
 
 void test_parallelize_gemm_varied() {
   constexpr int num_threads = 4;
-  ThreadPool pool(num_threads);
+  static ThreadPool pool(num_threads);
 
   // Non-square float
   {
     MatrixXf a = MatrixXf::Random(512, 2048);
     MatrixXf b = MatrixXf::Random(2048, 256);
     MatrixXf c_serial(512, 256);
-    c_serial.noalias() = a * b;
+    {
+      ScopedSerialGemm serial;
+      c_serial.noalias() = a * b;
+    }
     Eigen::setGemmThreadPool(&pool);
     MatrixXf c_threaded(512, 256);
     c_threaded.noalias() = a * b;
-    Eigen::setGemmThreadPool(nullptr);
     VERIFY_IS_APPROX(c_serial, c_threaded);
   }
 
@@ -50,11 +76,13 @@ void test_parallelize_gemm_varied() {
     MatrixXd a = MatrixXd::Random(512, 512);
     MatrixXd b = MatrixXd::Random(512, 512);
     MatrixXd c_serial(512, 512);
-    c_serial.noalias() = a * b;
+    {
+      ScopedSerialGemm serial;
+      c_serial.noalias() = a * b;
+    }
     Eigen::setGemmThreadPool(&pool);
     MatrixXd c_threaded(512, 512);
     c_threaded.noalias() = a * b;
-    Eigen::setGemmThreadPool(nullptr);
     VERIFY_IS_APPROX(c_serial, c_threaded);
   }
 
@@ -63,11 +91,13 @@ void test_parallelize_gemm_varied() {
     MatrixXcd a = MatrixXcd::Random(256, 256);
     MatrixXcd b = MatrixXcd::Random(256, 256);
     MatrixXcd c_serial(256, 256);
-    c_serial.noalias() = a * b;
+    {
+      ScopedSerialGemm serial;
+      c_serial.noalias() = a * b;
+    }
     Eigen::setGemmThreadPool(&pool);
     MatrixXcd c_threaded(256, 256);
     c_threaded.noalias() = a * b;
-    Eigen::setGemmThreadPool(nullptr);
     VERIFY_IS_APPROX(c_serial, c_threaded);
   }
 }
@@ -104,17 +134,20 @@ void test_balanced_gemm_range() {
 template <typename MatrixType>
 void verify_threaded_product(ThreadPool& pool, Index rows, Index depth, Index cols) {
   MatrixType a = MatrixType::Random(rows, depth), b = MatrixType::Random(depth, cols);
-  MatrixType c_serial = a * b;
+  MatrixType c_serial;
+  {
+    ScopedSerialGemm serial;
+    c_serial = a * b;
+  }
   Eigen::setGemmThreadPool(&pool);
   MatrixType c_threaded = a * b;
-  Eigen::setGemmThreadPool(nullptr);
   VERIFY_IS_APPROX(c_serial, c_threaded);
 }
 
 void test_parallelize_gemm_indivisible() {
   // Shapes deliberately not divisible by the thread count, where the split has to spread the
   // remainder rather than append it to the last thread.
-  ThreadPool pool(8);
+  static ThreadPool pool(8);
   verify_threaded_product<MatrixXf>(pool, 517, 331, 523);
   verify_threaded_product<MatrixXf>(pool, 1021, 331, 259);
   verify_threaded_product<MatrixXf>(pool, 64, 331, 4099);
