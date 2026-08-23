@@ -450,9 +450,31 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, GemmProduct>
 #endif
                                                        EIGEN_GEMM_TO_COEFFBASED_THRESHOLD;
 
+#ifdef EIGEN_VECTORIZE_SME
+  // Second bound for the SME kernel only: a small output over a long depth.
+  // The sum above grows with the depth and so never catches it, while the ZA
+  // grid this kernel fills is sized by the output (see GeneralProduct.h).
+  // Vector shapes are excluded -- scaleAndAddTo() routes those to GEMV, which
+  // is not the path being compared here.
+  static constexpr Index kCoeffBasedOutputArea = sme_has_gebp_kernel<LhsScalar, RhsScalar>::value
+                                                     ? Index(EIGEN_SME_GEMM_TO_COEFFBASED_OUTPUT_AREA_THRESHOLD(Scalar))
+                                                     : Index(0);
+
+  template <typename Dst>
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool outputAreaBelowThreshold(const Dst& dst) {
+    // Written as a division so the area comparison cannot overflow Index.
+    return dst.rows() > 1 && dst.cols() > 1 && dst.rows() <= kCoeffBasedOutputArea / dst.cols();
+  }
+#endif
+
   template <typename Dst>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool useRuntimeCoeffBasedProduct(const Dst& dst, const Rhs& rhs) {
-    return rhs.rows() > 0 && (rhs.rows() + dst.rows() + dst.cols()) < kCoeffBasedThreshold;
+    if (rhs.rows() <= 0) return false;
+    if ((rhs.rows() + dst.rows() + dst.cols()) < kCoeffBasedThreshold) return true;
+#ifdef EIGEN_VECTORIZE_SME
+    if (outputAreaBelowThreshold(dst)) return true;
+#endif
+    return false;
   }
 
   // BLAS contract: a zero scalar factor leaves the destination unchanged and
