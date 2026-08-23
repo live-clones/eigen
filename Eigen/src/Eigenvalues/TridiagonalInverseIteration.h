@@ -339,12 +339,14 @@ Index tridiagonal_inverse_iteration_block(const RealScalar* sdiag, const RealSca
  * \param[in]  eivals  the eigenvalues whose eigenvectors are wanted, non-decreasing (length \c m).
  * \param[out] eivecs  filled with the \c m eigenvectors as its columns (must be sized \c n x \c m);
  *                     column \c j is a unit-norm eigenvector for \c eivals[j].
+ * \param[in] cluster_gap_floor absolute lower bound for the eigenvalue gap treated as a cluster.
  * \returns the number of eigenvectors that did not converge within the inverse-iteration step limit
  *          (0 on full success); the caller maps a non-zero count to ComputationInfo::NoConvergence.
  */
 template <typename DiagType, typename SubdiagType, typename EivalType, typename EivecType>
-Index tridiagonal_inverse_iteration_connected(const DiagType& diag, const SubdiagType& subdiag, const EivalType& eivals,
-                                              EivecType& eivecs) {
+Index tridiagonal_inverse_iteration_connected(
+    const DiagType& diag, const SubdiagType& subdiag, const EivalType& eivals, EivecType& eivecs,
+    typename DiagType::Scalar cluster_gap_floor = typename DiagType::Scalar(0)) {
   using RealScalar = typename DiagType::Scalar;
   EIGEN_STATIC_ASSERT(NumTraits<RealScalar>::IsInteger == 0 && NumTraits<RealScalar>::IsComplex == 0,
                       THIS_FUNCTION_IS_NOT_FOR_INTEGER_OR_COMPLEX_TYPES)
@@ -367,6 +369,7 @@ Index tridiagonal_inverse_iteration_connected(const DiagType& diag, const Subdia
   safe_scaling<RealScalar>::scale_to(ssub, subdiag, maxCoeff, factors);
   Matrix<RealScalar, Dynamic, 1> xj_scaled(m);
   safe_scaling<RealScalar>::scale_to(xj_scaled, eivals, maxCoeff, factors);
+  RealScalar scaled_cluster_gap_floor = cluster_gap_floor / factors.scale;
   if (maxCoeff > RealScalar(0) && maxCoeff < (std::numeric_limits<RealScalar>::min)()) {
     // The first scale is clamped to normal range. Finish normalization in a second finite step
     // so the absolute pivot floor and growth threshold still see an O(1) matrix.
@@ -374,6 +377,7 @@ Index tridiagonal_inverse_iteration_connected(const DiagType& diag, const Subdia
     const auto remaining = safe_scaling<RealScalar>::scale_in_place(sdiag, scaledMax);
     safe_scaling<RealScalar>::scale_in_place(ssub, scaledMax, remaining);
     safe_scaling<RealScalar>::scale_in_place(xj_scaled, scaledMax, remaining);
+    scaled_cluster_gap_floor /= remaining.scale;
   }
 
   // Infinity norm of the scaled T: max_i (|e_{i-1}| + |d_i| + |e_i|), missing boundary off-diagonals zero.
@@ -385,8 +389,9 @@ Index tridiagonal_inverse_iteration_connected(const DiagType& diag, const Subdia
                                       .maxCoeff());
   if (numext::is_exactly_zero(onenrm)) onenrm = RealScalar(1);  // T == 0: any orthonormal basis works
 
-  // Cluster threshold and convergence threshold (LAPACK xSTEIN constants).
-  const RealScalar ortol = RealScalar(1e-3) * onenrm;
+  // Cluster threshold and convergence threshold (LAPACK xSTEIN constants). A split block also
+  // inherits the accuracy floor of eigenvalues bisected at the whole matrix's scale.
+  const RealScalar ortol = numext::maxi(RealScalar(1e-3) * onenrm, scaled_cluster_gap_floor);
   const RealScalar dtpcrt = numext::sqrt(RealScalar(0.1) / RealScalar(n));
   const int maxits = 5;
   const int extra = 2;
@@ -533,7 +538,7 @@ Index tridiagonal_inverse_iteration(const DiagType& diag, const SubdiagType& sub
   }
   bstart(nblocks) = n;
 
-  if (nblocks == 1) return tridiagonal_inverse_iteration_connected(diag, subdiag, eivals, eivecs);
+  if (nblocks == 1) return tridiagonal_inverse_iteration_connected(diag, subdiag, eivals, eivecs, RealScalar(0));
 
   // Per-block normalized data (block-local scale) for the assignment Sturm counts, and the
   // per-block localization tolerance btol: the count's rounding-displacement bound at the block's
@@ -545,10 +550,13 @@ Index tridiagonal_inverse_iteration(const DiagType& diag, const SubdiagType& sub
                                           (RealScalar(1) + eps) * (std::numeric_limits<RealScalar>::min)());
   VectorType alpha_all(n), beta_sq_all(n), bscale(nblocks), bpivmin(nblocks), btol(nblocks);
   RealScalar gscale = RealScalar(0);
+  RealScalar cluster_scale = RealScalar(0);
   for (Index b = 0; b < nblocks; ++b) {
     const Index b0 = bstart(b), nb = bstart(b + 1) - b0;
     RealScalar s = diag.segment(b0, nb).cwiseAbs().maxCoeff();
     if (nb > 1) s = numext::maxi(s, subdiag.segment(b0, nb - 1).cwiseAbs().maxCoeff());
+    // Zero blocks need a normalization placeholder, not an artificial eigenvalue-resolution floor.
+    cluster_scale = numext::maxi(cluster_scale, s);
     if (numext::is_exactly_zero(s)) s = RealScalar(1);
     gscale = numext::maxi(gscale, s);
     auto alpha = alpha_all.segment(b0, nb);
@@ -578,6 +586,10 @@ Index tridiagonal_inverse_iteration(const DiagType& diag, const SubdiagType& sub
   // once even at count knife-edges. A copy its own interval cannot supply is carried into the next
   // interval; copies left at the end pair up with the blocks holding leftover span capacity (a
   // miscount that let a block absorb a foreign copy freed exactly one such slot elsewhere).
+  // Bisection resolves eigenvalues at the scale of the full matrix. A tridiagonal's Gershgorin
+  // bound is at most 3*cluster_scale, so two shifts can carry a combined uncertainty of 6*eps*cluster_scale;
+  // include rounding headroom and reorthogonalize such unresolved shifts as one cluster.
+  const RealScalar cluster_gap_floor = RealScalar(8) * eps * cluster_scale;
   const RealScalar gtol = RealScalar(2.1) * (RealScalar(3) * RealScalar(n) * eps + RealScalar(4) * safemin) * gscale;
   Matrix<Index, Dynamic, 1> blockof(m), assigned(nblocks), caps(nblocks), below_prev(nblocks), below_cur(nblocks),
       below_edge(nblocks), carry(m), carry_next(m);
@@ -673,7 +685,7 @@ Index tridiagonal_inverse_iteration(const DiagType& diag, const SubdiagType& sub
     vloc.resize(nb, mb);
     const VectorType bdiag = diag.segment(b0, nb);
     const VectorType bsub = subdiag.segment(b0, nb > 1 ? nb - 1 : 0);
-    nonconv += tridiagonal_inverse_iteration_connected(bdiag, bsub, wloc, vloc);
+    nonconv += tridiagonal_inverse_iteration_connected(bdiag, bsub, wloc, vloc, cluster_gap_floor);
     for (Index k = 0; k < mb; ++k) eivecs.col(colmap(k)).segment(b0, nb) = vloc.col(k);
   }
   return nonconv;

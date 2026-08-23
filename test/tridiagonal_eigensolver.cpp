@@ -433,6 +433,35 @@ void tridiagonal_eigensolver_eigenvectors() {
       }
     }
 
+    // Eigenvalues of a small disconnected block are bisected only to the absolute accuracy of the
+    // full matrix. Shifts within that global accuracy must remain one inverse-iteration cluster,
+    // even when their gap is large relative to the small block itself.
+    {
+      VectorType d(3), e(2);
+      d << RealScalar(1), RealScalar(0), RealScalar(0);
+      e << RealScalar(0), eps / RealScalar(8);
+      TridiagonalEigenSolver<RealScalar> blocks(d, e);
+      VERIFY_IS_EQUAL(blocks.info(), Success);
+      const MatrixType V = blocks.eigenvectors();
+      VERIFY((V.transpose() * V - MatrixType::Identity(3, 3)).cwiseAbs().maxCoeff() <= RealScalar(32) * eps);
+    }
+
+    // A zero block's normalization placeholder must not change clustering under power-of-two scaling.
+    {
+      VectorType d(4), e(3), w(4);
+      d << RealScalar(0), RealScalar(2), RealScalar(2), RealScalar(2);
+      e << RealScalar(0), RealScalar(1), RealScalar(1);
+      const RealScalar root2 = numext::sqrt(RealScalar(2));
+      w << RealScalar(0), RealScalar(2) - root2, RealScalar(2), RealScalar(2) + root2;
+      TridiagonalEigenSolver<RealScalar> reference, scaled;
+      reference.computeEigenvectors(d, e, w);
+      const RealScalar scale = numext::ldexp(RealScalar(1), -60);
+      scaled.computeEigenvectors((d * scale).eval(), (e * scale).eval(), (w * scale).eval());
+      VERIFY_IS_EQUAL(reference.info(), Success);
+      VERIFY_IS_EQUAL(scaled.info(), Success);
+      VERIFY_IS_EQUAL((scaled.eigenvectors() - reference.eigenvectors()).cwiseAbs().maxCoeff(), RealScalar(0));
+    }
+
     // A huge disconnected block must not force splitting of a strongly connected small block: a
     // splitting safety floor expressed at the global scale used to break the trailing 2x2 into
     // singletons, returning coordinate vectors with O(1) local residual.
