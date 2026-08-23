@@ -209,6 +209,17 @@ class ScopedFlushToZero {
   std::uint32_t vector_control_state_;
 };
 
+// Force `x` through memory so the compiler cannot fold the surrounding
+// arithmetic.  EIGEN_OPTIMIZATION_BARRIER is not enough here: it expands to
+// nothing on MSVC cl.exe (Macros.h), and on that configuration the probes below
+// are exactly the constant-valued sequences it would have to stop.  A volatile
+// round trip costs a store and a load and works on every compiler.
+template <typename Scalar>
+EIGEN_DONT_INLINE Scalar fpBarrier(Scalar x) {
+  volatile Scalar sink = x;
+  return sink;
+}
+
 // Whether this environment computes with subnormal values of `Scalar`.  The
 // hardware may be in flush-to-zero mode, and the compiler may have been told it
 // may treat subnormals as zero; neither is visible to a compile-time predicate.
@@ -220,12 +231,9 @@ class ScopedFlushToZero {
 // a product that flushed to zero leaves the sum unchanged.
 template <typename Scalar>
 bool subnormalsArePreserved() {
-  Scalar smallest_normal = (std::numeric_limits<Scalar>::min)();
-  EIGEN_OPTIMIZATION_BARRIER(smallest_normal)
-  Scalar subnormal = smallest_normal * Scalar(0.5);
-  EIGEN_OPTIMIZATION_BARRIER(subnormal)
-  Scalar sum = smallest_normal + subnormal;
-  EIGEN_OPTIMIZATION_BARRIER(sum)
+  const Scalar smallest_normal = fpBarrier((std::numeric_limits<Scalar>::min)());
+  const Scalar subnormal = fpBarrier(smallest_normal * Scalar(0.5));
+  const Scalar sum = fpBarrier(smallest_normal + subnormal);
   return sum != smallest_normal;
 }
 
@@ -241,8 +249,7 @@ template <typename Scalar>
 bool subnormalDivisionIsExact() {
   if (!subnormalsArePreserved<Scalar>()) return false;
   const Scalar denorm_min = (std::numeric_limits<Scalar>::denorm_min)();
-  Scalar numerator = denorm_min * Scalar(4);
-  EIGEN_OPTIMIZATION_BARRIER(numerator)
+  const Scalar numerator = fpBarrier(denorm_min * Scalar(4));
   return numerator / denorm_min == Scalar(4);
 }
 
