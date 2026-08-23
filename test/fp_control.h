@@ -146,6 +146,42 @@ class ScopedFlushToZero {
 
   bool isSupported() const { return active_; }
 
+  // Whether the hardware's flush-to-zero controls are currently set, read back
+  // from the same registers the constructor writes. Reported separately from
+  // subnormalsArePreserved() below because it answers a narrower question: a
+  // compiler told it may treat subnormals as zero leaves these bits clear, so
+  // this is a diagnostic, not the gate. Returns false where there is no runtime
+  // control to read.
+  static bool isEnabled() {
+#if !EIGEN_TEST_HAS_RUNTIME_FTZ
+    return false;
+#elif EIGEN_TEST_HAS_X86_FTZ
+    // Flush-on-output (FTZ) and flush-on-input (DAZ) are separate bits, and
+    // either one is enough to lose a subnormal.
+    return _MM_GET_FLUSH_ZERO_MODE() == _MM_FLUSH_ZERO_ON || _MM_GET_DENORMALS_ZERO_MODE() == _MM_DENORMALS_ZERO_ON;
+#elif EIGEN_ARCH_ARM64 && defined(_MSC_VER)
+    return (arm64ControlState() & arm64FlushToZeroMask()) != 0;
+#elif EIGEN_ARCH_ARM64 && (defined(__GNUC__) || defined(__clang__))
+    std::uint64_t fpcr = 0;
+    asm volatile("mrs %0, fpcr" : "=r"(fpcr));
+    return (fpcr & arm64FlushToZeroMask()) != 0;
+#elif EIGEN_TEST_ARCH_ARM32 && defined(_MSC_VER)
+    unsigned int current_control = 0;
+    if (_controlfp_s(&current_control, 0, 0) != 0) return false;
+    return (current_control & _MCW_DN) == _DN_FLUSH;
+#elif EIGEN_TEST_ARCH_ARM32 && (defined(__GNUC__) || defined(__clang__))
+    std::uint32_t fpscr = 0;
+    asm volatile("vmrs %0, fpscr" : "=r"(fpscr));
+    return (fpscr & armFlushToZeroMask()) != 0;
+#elif EIGEN_ARCH_MIPS && defined(__mips_hard_float) && (defined(__GNUC__) || defined(__clang__))
+    std::uint32_t fcsr = 0;
+    asm volatile("cfc1 %0, $31" : "=r"(fcsr));
+    return (fcsr & mipsFlushToZeroMask()) != 0;
+#else
+    return false;
+#endif
+  }
+
   ScopedFlushToZero(const ScopedFlushToZero&) = delete;
   ScopedFlushToZero& operator=(const ScopedFlushToZero&) = delete;
 
