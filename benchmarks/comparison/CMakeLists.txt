@@ -141,12 +141,16 @@ endif()
 # missing query into a link failure. The declaration below deliberately does not
 # match the real prototype -- it only has to resolve at link time, and the header
 # declares the true signature in the translation unit that calls it.
+
 set(_reference_version_define "")
-if(EIGEN_BENCH_BLAS_FOUND AND EIGEN_BENCH_BLAS_VERSION_RUNTIME_SYMBOL)
+# An IMPORTED target is invisible inside the mini-project check_cxx_source_compiles
+# generates, so the link line has to name files. vendors.cmake owns that resolution.
+eigen_bench_resolve_linkables("${EIGEN_BENCH_BLAS_LINK_LIBRARIES}" _blas_linkables_for_check)
+if(EIGEN_BENCH_BLAS_FOUND AND EIGEN_BENCH_BLAS_VERSION_RUNTIME_SYMBOL AND _blas_linkables_for_check)
   include(CheckCXXSourceCompiles)
   set(_symbol "${EIGEN_BENCH_BLAS_VERSION_RUNTIME_SYMBOL}")
   string(TOUPPER "${_symbol}" _symbol_upper)
-  set(CMAKE_REQUIRED_LIBRARIES ${EIGEN_BENCH_BLAS_LINK_LIBRARIES})
+  set(CMAKE_REQUIRED_LIBRARIES ${_blas_linkables_for_check})
   set(CMAKE_REQUIRED_QUIET TRUE)
   check_cxx_source_compiles(
     "extern \"C\" void ${_symbol}();\nint main() { ${_symbol}(); return 0; }"
@@ -317,10 +321,27 @@ set(EIGEN_BENCH_LAPACK_AVAILABLE FALSE)
 set(EIGEN_BENCH_LAPACK_PROVIDER "")
 if(EIGEN_BENCH_BLAS_FOUND)
   if("lapack" IN_LIST EIGEN_BENCH_BLAS_PROVIDES)
-    # The vendor states it carries LAPACK in the library already linked.
-    set(EIGEN_BENCH_LAPACK_AVAILABLE TRUE)
-    set(EIGEN_BENCH_LAPACK_PROVIDER "vendor")
-    set(EIGEN_BENCH_LAPACK_LINK_LIBRARIES "")
+    if(EIGEN_BENCH_BLAS_LAPACK_PACKAGE)
+      # Same vendor, but LAPACK is a library of its own -- NVPL ships
+      # nvpl_lapack beside nvpl_blas. Still `vendor`, because the routine really
+      # does come from the vendor the column is named after, so no attribution
+      # caveat is owed; it just has to be linked rather than assumed present.
+      find_package(${EIGEN_BENCH_BLAS_LAPACK_PACKAGE} QUIET)
+      if(${EIGEN_BENCH_BLAS_LAPACK_PACKAGE}_FOUND AND EIGEN_BENCH_BLAS_LAPACK_PACKAGE_TARGETS)
+        set(EIGEN_BENCH_LAPACK_AVAILABLE TRUE)
+        set(EIGEN_BENCH_LAPACK_PROVIDER "vendor")
+        set(EIGEN_BENCH_LAPACK_LINK_LIBRARIES ${EIGEN_BENCH_BLAS_LAPACK_PACKAGE_TARGETS})
+        message(STATUS "  lapack:  ${EIGEN_BENCH_LAPACK_LINK_LIBRARIES} (the vendor's own, packaged separately)")
+      else()
+        message(STATUS "  lapack:  ${EIGEN_BENCH_BLAS_LAPACK_PACKAGE} not found; "
+                       "LAPACK-referenced operations will report reference_routine_absent")
+      endif()
+    else()
+      # The vendor states it carries LAPACK in the library already linked.
+      set(EIGEN_BENCH_LAPACK_AVAILABLE TRUE)
+      set(EIGEN_BENCH_LAPACK_PROVIDER "vendor")
+      set(EIGEN_BENCH_LAPACK_LINK_LIBRARIES "")
+    endif()
   else()
     find_package(LAPACK QUIET)
     if(LAPACK_FOUND)
@@ -345,8 +366,17 @@ endif()
 set(EIGEN_BENCH_REFERENCE_FAMILIES "")
 if(EIGEN_BENCH_BLAS_FOUND)
   set(EIGEN_BENCH_REFERENCE_FAMILIES ${EIGEN_BENCH_BLAS_PROVIDES})
-  if(EIGEN_BENCH_LAPACK_AVAILABLE AND NOT "lapack" IN_LIST EIGEN_BENCH_REFERENCE_FAMILIES)
-    list(APPEND EIGEN_BENCH_REFERENCE_FAMILIES lapack)
+  if(EIGEN_BENCH_LAPACK_AVAILABLE)
+    if(NOT "lapack" IN_LIST EIGEN_BENCH_REFERENCE_FAMILIES)
+      list(APPEND EIGEN_BENCH_REFERENCE_FAMILIES lapack)
+    endif()
+  else()
+    # PROVIDES is what the vendor row claims; this list is what the build can
+    # call. They part company whenever the claim cannot be linked -- a vendor
+    # whose LAPACK ships as a package that is not installed, and equally an
+    # OpenBLAS built NO_LAPACK. Withdrawing it here turns that into an explicit
+    # reference_routine_absent cell instead of a link failure.
+    list(REMOVE_ITEM EIGEN_BENCH_REFERENCE_FAMILIES lapack lapacke)
   endif()
 endif()
 
