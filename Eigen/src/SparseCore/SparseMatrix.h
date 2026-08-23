@@ -1562,10 +1562,12 @@ SparseMatrix<Scalar, Options_, StorageIndex_>::operator=(const SparseMatrixBase<
     // prefix sum
     StorageIndex count = 0;
     IndexVector positions(dest.outerSize());
+    // InnerIterator indices are in range; raw access avoids a false GCC 14+ negative-index warning.
+    StorageIndex* positionsData = positions.data();
     for (Index j = 0; j < dest.outerSize(); ++j) {
       StorageIndex tmp = dest.m_outerIndex[j];
       dest.m_outerIndex[j] = count;
-      positions[j] = count;
+      positionsData[j] = count;
       count += tmp;
     }
     dest.m_outerIndex[dest.outerSize()] = count;
@@ -1574,8 +1576,8 @@ SparseMatrix<Scalar, Options_, StorageIndex_>::operator=(const SparseMatrixBase<
     // pass 2
     for (StorageIndex j = 0; j < otherCopy.outerSize(); ++j) {
       for (typename OtherCopyEval::InnerIterator it(otherCopyEval, j); it; ++it) {
-        Index pos = internal::convert_index<Index>(positions[it.index()]);
-        positions[it.index()] = internal::convert_index<StorageIndex>(pos + 1);
+        Index pos = internal::convert_index<Index>(positionsData[it.index()]);
+        positionsData[it.index()] = internal::convert_index<StorageIndex>(pos + 1);
         dest.m_data.index(pos) = j;
         dest.m_data.value(pos) = it.value();
       }
