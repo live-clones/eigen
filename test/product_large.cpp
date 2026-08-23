@@ -76,6 +76,14 @@ void product_large_regressions() {
     VERIFY(internal::parseCpuListCount("0,2,4\n") == 3);
     VERIFY(internal::parseCpuListCount("") == 0);
     VERIFY(internal::parseCpuListCount("3-0") == 0);
+    VERIFY(internal::parseCpuListCount("0-3\r\n") == 4);
+    // Trailing text means the format is not the one assumed, so the count is not trustworthy:
+    // a small count here would inflate l3_per_cpu rather than leave the share unknown.
+    VERIFY(internal::parseCpuListCount("0-3junk") == 0);
+    VERIFY(internal::parseCpuListCount("0-3 8-11") == 0);
+    VERIFY(internal::parseCpuListCount("0-3,") == 0);
+    VERIFY(internal::parseCpuListCount("0-3,junk") == 0);
+    VERIFY(internal::parseCpuListCount("junk") == 0);
 
     // On a kernel that publishes the topology, Eigen has to pick it up instead of falling back to
     // its compiled-in defaults. glibc's sysconf answers only on x86, so before the sysfs fallback
