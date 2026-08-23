@@ -67,8 +67,9 @@ ERRORS=0
 # Generated drivers live outside the checkout, where clang-tidy cannot discover
 # Eigen's configuration.  The job is advisory (`allow_failure`), so promoting
 # warnings makes GitLab mark findings without blocking the pipeline.
+TIDY_CONFIG_ARG="--config-file=${REPO_ROOT}/.clang-tidy"
 TIDY_ARGS=(
-  "--config-file=${REPO_ROOT}/.clang-tidy"
+  "${TIDY_CONFIG_ARG}"
   "--warnings-as-errors=*"
 )
 
@@ -158,17 +159,39 @@ reduced_database() {
 # list of modules also checks the module in full wherever the dependency is
 # installed, and leaves the headers that never reach it -- five of the GPU
 # module's twenty-nine -- checked as they already are.
+#
+# Probe with clang++ rather than ${CXX}: the answer has to be the one
+# clang-tidy's own parse produces, and g++ neither searches the same
+# directories nor words the diagnostic the same way.
 third_party_include_missing_from() {
-  local output
-  output=$("${CXX:-clang++}" "${DRIVER_COMPILE_ARGS[@]}" -E -P -o /dev/null "$1" 2>&1) || true
-  if [[ "${output}" =~ fatal\ error:\ \'([^\']+)\'\ file\ not\ found ]]; then
-    # An in-tree include that does not resolve is a defect in the change, not
-    # a missing dependency; leave it to clang-tidy to report.
-    case "${BASH_REMATCH[1]}" in
-      Eigen/*|unsupported/*|./*|../*) return 0 ;;
-    esac
-    printf '%s\n' "${BASH_REMATCH[1]}"
+  local output diag location spelling directive
+  output=$(clang++ "${DRIVER_COMPILE_ARGS[@]}" -E -P -o /dev/null "$1" 2>&1) || true
+  diag=$(printf '%s\n' "${output}" \
+         | grep -m1 -E "fatal error: '[^']+' file not found") || return 0
+
+  # <path>:<line>:<column>: fatal error: '<spelling>' file not found
+  spelling=${diag##*fatal error: \'}
+  spelling=${spelling%%\'*}
+  location=${diag%%: fatal error:*}
+  location=${location%:*}
+
+  # An include the repository is expected to satisfy is a defect in the
+  # change, not a missing dependency; leave it to clang-tidy to report as the
+  # error it is. Eigen spells its own headers relative to the file that
+  # includes them, so the form of the directive is what separates the two:
+  # <cuda_runtime.h> and <cholmod.h> come from outside the tree, while
+  # "./InternalHeaderCheck.h" and "GenericPacketMathPow.h" do not, and no
+  # quoted third-party include in the tree is reachable without an
+  # EIGEN_USE_* macro this job does not define.
+  case "${spelling}" in
+    Eigen/*|unsupported/*|./*|../*) return 0 ;;
+  esac
+  directive=$(sed -n "${location##*:}p" "${location%:*}" 2>/dev/null)
+  if [[ "${directive}" =~ ^[[:space:]]*#[[:space:]]*include[[:space:]]*\" ]]; then
+    return 0
   fi
+
+  printf '%s\n' "${spelling}"
 }
 
 # Restrict diagnostics to the lines this merge request adds. Without it the
@@ -249,6 +272,7 @@ for file in "${CHANGED_FILES[@]}"; do
 #include <${MODULE_INCLUDE}>
 ${FORCE_INCLUDE}
 EOF
+      HEADER_FILTER="$(echo "${file}" | sed 's/[.[\*^$()+?{|]/\\&/g')"
 
       # Without the dependency clang drops the include and everything it
       # declares, then suppresses the diagnostics that would follow. What
@@ -263,8 +287,8 @@ EOF
       if [ -n "${MISSING_INCLUDE}" ]; then
         echo "=== ${file} (via ${MODULE_INCLUDE})${NOTE} — partial: <${MISSING_INCLUDE}> is not installed ==="
         clang-tidy \
-          "--config-file=${REPO_ROOT}/.clang-tidy" \
-          --header-filter="$(echo "${file}" | sed 's/[.[\*^$()+?{|]/\\&/g')" \
+          "${TIDY_CONFIG_ARG}" \
+          --header-filter="${HEADER_FILTER}" \
           --line-filter="${LINE_FILTER}" \
           "${DRIVER}" \
           -- "${DRIVER_COMPILE_ARGS[@]}" 2>&1 || true
@@ -274,7 +298,7 @@ EOF
       echo "=== ${file} (via ${MODULE_INCLUDE})${NOTE} ==="
       if ! clang-tidy \
             "${TIDY_ARGS[@]}" \
-            --header-filter="$(echo "${file}" | sed 's/[.[\*^$()+?{|]/\\&/g')" \
+            --header-filter="${HEADER_FILTER}" \
             --line-filter="${LINE_FILTER}" \
             "${DRIVER}" \
             -- "${DRIVER_COMPILE_ARGS[@]}" 2>&1; then
