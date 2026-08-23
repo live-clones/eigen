@@ -48,8 +48,7 @@ inline void setRandomSeed(uint64_t seed) { internal::set_random_seed(seed); }
  * The parameters \a rows and \a cols are the number of rows and of columns of
  * the returned matrix. Must be compatible with this MatrixBase type.
  *
- * Each thread has independent random state. Use Eigen::setRandomSeed() to control
- * seeding per-thread.
+ * \not_reentrant
  *
  * This variant is meant to be used for dynamic-size matrix types. For fixed-size types,
  * it is redundant to pass \a rows and \a cols as arguments, so Random() should be used
@@ -82,8 +81,7 @@ inline const typename DenseBase<Derived>::RandomReturnType DenseBase<Derived>::R
  *
  * \only_for_vectors
  *
- * Each thread has independent random state. Use Eigen::setRandomSeed() to control
- * seeding per-thread.
+ * \not_reentrant
  *
  * This variant is meant to be used for dynamic-size vector types. For fixed-size types,
  * it is redundant to pass \a size as argument, so Random() should be used
@@ -118,8 +116,7 @@ inline const typename DenseBase<Derived>::RandomReturnType DenseBase<Derived>::R
  * a temporary matrix whenever it is nested in a larger expression. This prevents unexpected
  * behavior with expressions involving random matrices.
  *
- * Each thread has independent random state. Use Eigen::setRandomSeed() to control
- * seeding per-thread.
+ * \not_reentrant
  *
  * \sa DenseBase::setRandom(), DenseBase::Random(Index,Index), DenseBase::Random(Index)
  */
@@ -132,6 +129,8 @@ inline const typename DenseBase<Derived>::RandomReturnType DenseBase<Derived>::R
  *
  * Numbers are uniformly spread through their whole definition range for integer types,
  * and in the [-1:1] range for floating point scalar types.
+ *
+ * \not_reentrant
  *
  * Example: \include MatrixBase_setRandom.cpp
  * Output: \verbinclude MatrixBase_setRandom.out
@@ -149,6 +148,7 @@ EIGEN_DEVICE_FUNC inline Derived& DenseBase<Derived>::setRandom() {
  * and in the [-1:1] range for floating point scalar types.
  *
  * \only_for_vectors
+ * \not_reentrant
  *
  * Example: \include Matrix_setRandom_int.cpp
  * Output: \verbinclude Matrix_setRandom_int.out
@@ -165,6 +165,8 @@ EIGEN_STRONG_INLINE Derived& PlainObjectBase<Derived>::setRandom(Index newSize) 
  *
  * Numbers are uniformly spread through their whole definition range for integer types,
  * and in the [-1:1] range for floating point scalar types.
+ *
+ * \not_reentrant
  *
  * \param rows the new number of rows
  * \param cols the new number of columns
@@ -187,6 +189,8 @@ EIGEN_STRONG_INLINE Derived& PlainObjectBase<Derived>::setRandom(Index rows, Ind
  * Numbers are uniformly spread through their whole definition range for integer types,
  * and in the [-1:1] range for floating point scalar types.
  *
+ * \not_reentrant
+ *
  * \sa DenseBase::setRandom(), setRandom(Index), setRandom(Index, NoChange_t), class CwiseNullaryOp, DenseBase::Random()
  */
 template <typename Derived>
@@ -200,6 +204,8 @@ EIGEN_STRONG_INLINE Derived& PlainObjectBase<Derived>::setRandom(NoChange_t, Ind
  *
  * Numbers are uniformly spread through their whole definition range for integer types,
  * and in the [-1:1] range for floating point scalar types.
+ *
+ * \not_reentrant
  *
  * \sa DenseBase::setRandom(), setRandom(Index), setRandom(NoChange_t, Index), class CwiseNullaryOp, DenseBase::Random()
  */
