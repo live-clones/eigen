@@ -36,8 +36,12 @@ if(KLU_FOUND AND TARGET SuiteSparse::KLU)
     endforeach()
   endif()
   if(_klu_inc_dirs)
-    set(KLU_INCLUDES "${_klu_inc_dirs}" CACHE PATH "KLU include directory")
-    set(KLU_LIBRARIES SuiteSparse::KLU CACHE STRING "KLU libraries")
+    # FORCE because a plain `set(... CACHE ...)` is a no-op when the entry
+    # already exists.  A build tree first configured before this fix still
+    # holds the unusable generator-expression value, and reconfiguring it
+    # would otherwise keep it forever.
+    set(KLU_INCLUDES "${_klu_inc_dirs}" CACHE PATH "KLU include directory" FORCE)
+    set(KLU_LIBRARIES SuiteSparse::KLU CACHE STRING "KLU libraries" FORCE)
     # Mark as found and return early -- no need for the manual search below.
     mark_as_advanced(KLU_INCLUDES KLU_LIBRARIES)
     return()
