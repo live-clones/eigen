@@ -42,7 +42,7 @@ struct sve_packet_alignment_selector {
 };
 
 /********************************* int32 **************************************/
-typedef svint32_t PacketXi __attribute__((arm_sve_vector_bits(EIGEN_ARM64_SVE_VL)));
+using PacketXi = svint32_t __attribute__((arm_sve_vector_bits(EIGEN_ARM64_SVE_VL)));
 
 template <>
 struct packet_traits<numext::int32_t> : default_packet_traits {
@@ -336,7 +336,7 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<PacketXi, N>& kernel) {
 
 /********************************* float32 ************************************/
 
-typedef svfloat32_t PacketXf __attribute__((arm_sve_vector_bits(EIGEN_ARM64_SVE_VL)));
+using PacketXf = svfloat32_t __attribute__((arm_sve_vector_bits(EIGEN_ARM64_SVE_VL)));
 
 template <>
 struct packet_traits<float> : default_packet_traits {
@@ -706,7 +706,7 @@ EIGEN_STRONG_INLINE PacketXf psqrt<PacketXf>(const PacketXf& a) {
 // Double was missing from this backend: packet_traits<double> fell through to
 // default_packet_traits, so every double operation under EIGEN_ARM64_USE_SVE was
 // scalar.
-typedef svfloat64_t PacketXd __attribute__((arm_sve_vector_bits(EIGEN_ARM64_SVE_VL)));
+using PacketXd = svfloat64_t __attribute__((arm_sve_vector_bits(EIGEN_ARM64_SVE_VL)));
 
 // The transcendentals stay at default_packet_traits' 0. Their generic
 // implementations reach pfrexp/pldexp, which for double need the 64-bit integer
