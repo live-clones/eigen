@@ -43,6 +43,8 @@ set(EIGEN_BENCH_VENDOR_FIELDS
     THREADING           # sequential | openmp | pthreads | tbb | gcd
     THREAD_ENV          # environment variable that caps the thread count
     PROVIDES            # subset of blas cblas lapack lapacke
+    LAPACK_PACKAGE      # config package carrying LAPACK, when it is a separate library
+    LAPACK_PACKAGE_TARGETS  # imported targets that package provides
     LIBRARY_PATH_FALLBACK  # used when BLAS_LIBRARIES holds no absolute path
     VERSION_PKGCONFIG   # pkg-config module name
     VERSION_HEADER      # header carrying the version
@@ -69,6 +71,87 @@ function(eigen_bench_declare_vendor key)
     set_property(GLOBAL PROPERTY EIGEN_BENCH_VENDOR_${key}_${field} "${V_${field}}")
   endforeach()
   set_property(GLOBAL APPEND PROPERTY EIGEN_BENCH_VENDOR_KEYS "${key}")
+endfunction()
+
+# Resolve a link list into something a try_compile can use.
+#
+# check_cxx_source_compiles generates a separate mini-project, and an IMPORTED
+# target is invisible inside it: passing one through CMAKE_REQUIRED_LIBRARIES
+# fails with "links to nvpl::blas_lp64_seq but the target was not found" before
+# the check ever runs. Two shapes have to be handled, and handling only the first
+# is worse than handling neither: a config package's target carries the path in
+# IMPORTED_LOCATION, while FindBLAS's BLAS::BLAS is INTERFACE IMPORTED with no
+# location at all and keeps the real libraries in INTERFACE_LINK_LIBRARIES. An
+# entry that resolves to nothing is dropped rather than abandoning the whole
+# list, so one interface-only target cannot silently disable a check that the
+# rest of the link line would have supported.
+function(eigen_bench_resolve_linkables in_list out)
+  set(result "")
+  foreach(entry IN LISTS in_list)
+    _eigen_bench_resolve_linkable("${entry}" 0 resolved)
+    if(resolved)
+      list(APPEND result ${resolved})
+    endif()
+  endforeach()
+  set(${out} "${result}" PARENT_SCOPE)
+endfunction()
+
+function(_eigen_bench_resolve_linkable entry depth out)
+  set(${out} "" PARENT_SCOPE)
+  # INTERFACE_LINK_LIBRARIES can name targets that name targets. The bound is a
+  # cycle guard, not a real limit -- link graphs this deep do not occur here.
+  if(depth GREATER 8)
+    return()
+  endif()
+  if(NOT TARGET "${entry}")
+    # A path or a bare -l flag: already what the check needs.
+    set(${out} "${entry}" PARENT_SCOPE)
+    return()
+  endif()
+
+  get_target_property(aliased "${entry}" ALIASED_TARGET)
+  if(aliased)
+    _eigen_bench_resolve_linkable("${aliased}" "${depth}" resolved)
+    set(${out} "${resolved}" PARENT_SCOPE)
+    return()
+  endif()
+
+  # IMPORTED_CONFIGURATIONS is what the target itself declares, so a package
+  # using a config name outside the usual four is still found.
+  get_target_property(configurations "${entry}" IMPORTED_CONFIGURATIONS)
+  if(NOT configurations)
+    set(configurations "")
+  endif()
+  set(location "")
+  foreach(suffix "" ${configurations})
+    if(suffix)
+      get_target_property(location "${entry}" IMPORTED_LOCATION_${suffix})
+    else()
+      get_target_property(location "${entry}" IMPORTED_LOCATION)
+    endif()
+    if(location)
+      break()
+    endif()
+  endforeach()
+  if(location)
+    set(${out} "${location}" PARENT_SCOPE)
+    return()
+  endif()
+
+  # No location: an interface target such as BLAS::BLAS, whose libraries are one
+  # level down.
+  set(result "")
+  math(EXPR next_depth "${depth} + 1")
+  get_target_property(interface_libraries "${entry}" INTERFACE_LINK_LIBRARIES)
+  if(interface_libraries)
+    foreach(dependency IN LISTS interface_libraries)
+      _eigen_bench_resolve_linkable("${dependency}" "${next_depth}" resolved)
+      if(resolved)
+        list(APPEND result ${resolved})
+      endif()
+    endforeach()
+  endif()
+  set(${out} "${result}" PARENT_SCOPE)
 endfunction()
 
 # eigen_bench_vendor_get(<key> <FIELD> <out-var>)
@@ -240,6 +323,12 @@ eigen_bench_declare_vendor(nvpl
   BLA_VENDOR NVPL
   PACKAGE nvpl_blas
   PACKAGE_TARGETS nvpl::blas_lp64_seq
+  # NVPL ships LAPACK as its own library and its own config package, unlike
+  # OpenBLAS, Accelerate and MKL, whose LAPACK is inside the library already
+  # linked. Without this the vendor declares PROVIDES ... lapack and then fails
+  # to link ?potrf.
+  LAPACK_PACKAGE nvpl_lapack
+  LAPACK_PACKAGE_TARGETS nvpl::lapack_lp64_seq
   MIN_CMAKE 4.1
   CBLAS_HEADER nvpl_blas_cblas.h
   CBLAS_HINTS $ENV{NVPL_ROOT} $ENV{NVPL_BLAS_ROOT} /opt/nvidia/nvpl
@@ -677,8 +766,12 @@ function(eigen_bench_select_blas_vendor)
       set(version_source "")
     endif()
 
+    # BLAS_LIBRARIES holds target names on the config-package route, so the scan
+    # for an absolute path finds nothing there; resolving the link line first
+    # gives those vendors a real library_path instead of an unexplained null.
     set(library_path "")
-    foreach(lib IN LISTS BLAS_LIBRARIES)
+    eigen_bench_resolve_linkables("${BLAS_LIBRARIES};${link_libraries}" resolved_libraries)
+    foreach(lib IN LISTS resolved_libraries)
       if(IS_ABSOLUTE "${lib}" AND EXISTS "${lib}")
         set(library_path "${lib}")
         break()
@@ -688,9 +781,10 @@ function(eigen_bench_select_blas_vendor)
       eigen_bench_vendor_get(${key} LIBRARY_PATH_FALLBACK library_path)
     endif()
 
+
     foreach(field DISPLAY_NAME INTERFACE_WIDTH THREADING THREAD_ENV PROVIDES
                   COMPILE_DEFINITIONS COMPILE_OPTIONS VERSION_RUNTIME
-                  VERSION_RUNTIME_SYMBOL NOTES)
+                  VERSION_RUNTIME_SYMBOL NOTES LAPACK_PACKAGE LAPACK_PACKAGE_TARGETS)
       eigen_bench_vendor_get(${key} ${field} ${field}_value)
     endforeach()
 
@@ -711,6 +805,8 @@ function(eigen_bench_select_blas_vendor)
     set(EIGEN_BENCH_BLAS_THREADING "${THREADING_value}" PARENT_SCOPE)
     set(EIGEN_BENCH_BLAS_THREAD_ENV "${THREAD_ENV_value}" PARENT_SCOPE)
     set(EIGEN_BENCH_BLAS_PROVIDES "${PROVIDES_value}" PARENT_SCOPE)
+    set(EIGEN_BENCH_BLAS_LAPACK_PACKAGE "${LAPACK_PACKAGE_value}" PARENT_SCOPE)
+    set(EIGEN_BENCH_BLAS_LAPACK_PACKAGE_TARGETS "${LAPACK_PACKAGE_TARGETS_value}" PARENT_SCOPE)
     set(EIGEN_BENCH_BLAS_COMPILE_DEFINITIONS "${COMPILE_DEFINITIONS_value}" PARENT_SCOPE)
     set(EIGEN_BENCH_BLAS_COMPILE_OPTIONS "${COMPILE_OPTIONS_value}" PARENT_SCOPE)
     set(EIGEN_BENCH_BLAS_NOTES "${NOTES_value}" PARENT_SCOPE)
