@@ -99,13 +99,15 @@ struct SparseSolverConfig {
   int refinementSteps = -1;
   /** Iterative-refinement stopping tolerance; negative keeps the cuDSS default. */
   double refinementTolerance = -1.0;
-  /** Let factor data spill to host memory when device memory is insufficient. */
+  /** Let factor data spill to host memory when device memory is insufficient.
+   * Changes what analyzePattern() builds — set it before that phase. */
   bool hybridMemory = false;
   /** Device-memory budget in bytes for hybridMemory; negative keeps the cuDSS
    * default heuristic, which is what cuDSS itself spells as -1. Zero is a
    * budget of its own and is passed through. */
   int64_t hybridMemoryDeviceLimit = -1;
-  /** Split factorization/solve work between host and device. */
+  /** Split factorization/solve work between host and device. cuDSS requires
+   * this before analysis, which it changes — set it before analyzePattern(). */
   bool hybridExecute = false;
 
   /** True when every field keeps the cuDSS default. */
@@ -155,14 +157,37 @@ class SparseSolverBase {
   SparseSolverBase(const SparseSolverBase&) = delete;
   SparseSolverBase& operator=(const SparseSolverBase&) = delete;
 
-  /** Apply \p cfg to this solver. Each knob is consumed by the phase it
-   * affects — reordering and matching by analyzePattern(), pivoting by
+  /** Apply \p cfg to this solver. Most knobs are consumed by the phase they
+   * affect — reordering and matching by analyzePattern(), pivoting by
    * factorize(), refinement by solve() — so call setConfig() before the
    * first phase whose behavior it changes; phases already executed are
-   * unaffected. Non-default fields require cuDSS >= 0.8 (asserted). */
+   * unaffected.
+   *
+   * The two hybrid *modes* are the exception. cuDSS builds different analysis
+   * state for them, and documents that analysis has to be redone when hybrid
+   * memory is enabled afterwards, so hybridMemory and hybridExecute must be
+   * set before analyzePattern(). Changing either one after analysis
+   * invalidates it: analyzePattern() has to be called again before
+   * factorize(), which would otherwise consume analysis state built for a
+   * different execution and memory mode. hybridMemoryDeviceLimit is only a
+   * budget within hybridMemory and may be changed between factorizations.
+   *
+   * Non-default fields require cuDSS >= 0.8 (asserted). */
   Derived& setConfig(const SparseSolverConfig& cfg) {
+    const bool hybrid_mode_changed =
+        cfg.hybridMemory != config_opts_.hybridMemory || cfg.hybridExecute != config_opts_.hybridExecute;
+    eigen_assert((!hybrid_mode_changed || !analysis_done_) &&
+                 "hybridMemory/hybridExecute change what analyzePattern() builds, so they must be set before it");
+
     config_opts_ = cfg;
     apply_config();
+
+    if (hybrid_mode_changed && analysis_done_) {
+      // The assert above is compiled out in release builds. Fail through
+      // info() rather than factorizing against the wrong analysis.
+      analysis_done_ = false;
+      info_ = InvalidInput;
+    }
     return derived();
   }
 
@@ -240,6 +265,12 @@ class SparseSolverBase {
   template <typename InputType>
   Derived& factorize(const SparseMatrixBase<InputType>& A) {
     eigen_assert(analysis_done_ && "factorize() requires analyzePattern() first");
+    if (!analysis_done_) {
+      // Reachable in release builds when a hybrid mode was changed after
+      // analysis; see setConfig().
+      info_ = InvalidInput;
+      return derived();
+    }
 
     if (n_ == 0) {
       info_ = Success;
@@ -407,7 +438,13 @@ class SparseSolverBase {
   // not part of the cuDSS API contract.
   void apply_config() {
 #if defined(CUDSS_VERSION) && CUDSS_VERSION >= 800
-    if (config_) (void)cudssConfigDestroy(config_);
+    if (config_) {
+      // cuDSS reads the config during execution, and both factorize() and the
+      // device-resident solve() return with their phase still queued. Retire
+      // that work before the config it is reading goes away.
+      EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream_));
+      (void)cudssConfigDestroy(config_);
+    }
     config_ = nullptr;
     EIGEN_CUDSS_CHECK(cudssConfigCreate(&config_));
     const SparseSolverConfig& c = config_opts_;
@@ -502,6 +539,10 @@ class SparseSolverBase {
 
   // Destructor-only cleanup: there is no useful recovery path for failures.
   void destroy_cudss_objects() {
+    // Same lifetime rule as apply_config(): the queued phase reads the data
+    // handle and the matrix descriptors as well as the config. Unchecked
+    // because this runs from the destructor.
+    (void)cudaStreamSynchronize(stream_);
     destroy_solve_descriptors();
     if (d_A_cudss_) {
       (void)cudssMatrixDestroy(d_A_cudss_);
