@@ -411,9 +411,8 @@ EIGEN_STRONG_INLINE PacketXf pset1frombits<PacketXf>(numext::uint32_t from) {
 
 template <>
 EIGEN_STRONG_INLINE PacketXf plset<PacketXf>(const float& a) {
-  float c[packet_traits<float>::size];
-  for (int i = 0; i < packet_traits<float>::size; i++) c[i] = i;
-  return svadd_f32_x(svptrue_b32(), pset1<PacketXf>(a), svld1_f32(svptrue_b32(), c));
+  // As the double overload: svindex + a convert, no constant array.
+  return svadd_f32_x(svptrue_b32(), pset1<PacketXf>(a), svcvt_f32_s32_x(svptrue_b32(), svindex_s32(0, 1)));
 }
 
 template <>
@@ -679,7 +678,7 @@ EIGEN_STRONG_INLINE float predux_max<PacketXf>(const PacketXf& a) {
 
 template <int N>
 EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<PacketXf, N>& kernel) {
-  float buffer[packet_traits<float>::size * N] = {0};
+  EIGEN_ALIGN_MAX float buffer[packet_traits<float>::size * N] = {};
   int i = 0;
 
   PacketXi stride_index = svindex_s32(0, N);
