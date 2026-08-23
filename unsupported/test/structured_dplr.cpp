@@ -465,6 +465,16 @@ void test_dplr_capacitance_overflow() {
     Vec b(1);
     b << 1.0;
     VERIFY(A.solve(b).allFinite());
+
+    // The right-hand side can overflow the splitting on its own: D^{-1} b is
+    // 1e400 here even though the operator is essentially the identity and the
+    // solution 1e200 is representable. solve() rescales b by a power of two for
+    // exactly this reason; without it the first term is Inf and the correction
+    // turns it into NaN. As above, the cancellation still costs the digits --
+    // this pins finiteness, not accuracy.
+    Vec big_b(1);
+    big_b << 1e200;
+    VERIFY(A.solve(big_b).allFinite());
   }
   {
     // The same overflow pattern in exact powers of two, where the Woodbury
