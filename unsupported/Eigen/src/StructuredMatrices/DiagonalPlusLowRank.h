@@ -326,9 +326,22 @@ class DiagonalPlusLowRank : public EigenBase<DiagonalPlusLowRank<Scalar_, Size_,
                             int(RowsAtCompileTime) == int(Rhs::RowsAtCompileTime),
                         YOU_MIXED_MATRICES_OF_DIFFERENT_SIZES)
     eigen_assert(b.rows() == rows() && "right-hand side has the wrong number of rows");
-    const auto dinv = m_d.cwiseInverse();
-    Matrix<Scalar, Size_, Rhs::ColsAtCompileTime> x = dinv.asDiagonal() * b;
+    const DiagonalVector dinv = m_d.cwiseInverse();
+    // D^{-1} b can overflow even when the solution is representable: with d = 1e-200 and
+    // b = 1e200 the operator is essentially the identity and x is 1e200, yet this term is 1e400.
+    // The solve is linear in b, so the right-hand side is rescaled by an exact power of two [4]
+    // on the same conservative exponent test the other kernels use, and the exponent is folded
+    // back into the result [5]. When the plain form provably cannot overflow it is kept, so
+    // moderate data stays bit-identical to the unnormalized evaluation.
+    const int eb = internal::structured_exponent_bound(b.derived());
+    const int ed = internal::structured_exponent_bound(dinv);
+    const bool rescale = !internal::dplr_product_fits<RealScalar>(ed, eb, 1);
+
+    Matrix<Scalar, Size_, Rhs::ColsAtCompileTime> x =
+        rescale ? (dinv.asDiagonal() * b.derived().unaryExpr(internal::dplr_ldexp_op<Scalar>{-eb})).eval()
+                : (dinv.asDiagonal() * b).eval();
     internal::dplr_capacitance_impl<Rank_>::subtractSolveCorrection(*this, dinv, x);
+    if (rescale) x = x.unaryExpr(internal::dplr_ldexp_op<Scalar>{eb});
     return x;
   }
 
