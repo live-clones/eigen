@@ -601,17 +601,19 @@ function(eigen_bench_select_blas_vendor)
     set(required TRUE)
   endif()
 
+  set(unusable_routes "")
   foreach(key IN LISTS candidates)
     eigen_bench_vendor_get(${key} PLATFORM platform)
     if(platform AND NOT ${platform})
       continue()
     endif()
+    # MIN_CMAKE is the release whose FindBLAS knows this BLA_VENDOR spelling, so
+    # it gates that route alone: a vendor shipping a config package is reachable
+    # through PACKAGE below on any CMake.
     eigen_bench_vendor_get(${key} MIN_CMAKE min_cmake)
+    set(bla_vendor_usable TRUE)
     if(min_cmake AND CMAKE_VERSION VERSION_LESS min_cmake)
-      if(required)
-        message(FATAL_ERROR "Vendor '${key}' needs CMake >= ${min_cmake}, have ${CMAKE_VERSION}")
-      endif()
-      continue()
+      set(bla_vendor_usable FALSE)
     endif()
 
     set(found FALSE)
@@ -629,7 +631,7 @@ function(eigen_bench_select_blas_vendor)
     endif()
 
     eigen_bench_vendor_get(${key} BLA_VENDOR bla_vendors)
-    if(NOT found)
+    if(NOT found AND bla_vendor_usable)
       foreach(bla_vendor IN LISTS bla_vendors)
         set(BLA_VENDOR ${bla_vendor})
         unset(BLAS_FOUND)
@@ -644,6 +646,13 @@ function(eigen_bench_select_blas_vendor)
       endforeach()
     endif()
     if(NOT found)
+      # Record why, so the single failure message below can say which routes were
+      # tried rather than a bare "not found" that sends someone looking for a
+      # library which is in fact installed.
+      if(NOT bla_vendor_usable)
+        list(APPEND unusable_routes
+             "${key}: FindBLAS route needs CMake >= ${min_cmake}, this is ${CMAKE_VERSION}")
+      endif()
       continue()
     endif()
 
@@ -721,7 +730,12 @@ function(eigen_bench_select_blas_vendor)
   endforeach()
 
   if(required)
-    message(FATAL_ERROR "EIGEN_BENCH_BLAS_VENDOR=${request} was requested but not found")
+    set(detail "")
+    if(unusable_routes)
+      list(JOIN unusable_routes "; " detail)
+      set(detail " (${detail})")
+    endif()
+    message(FATAL_ERROR "EIGEN_BENCH_BLAS_VENDOR=${request} was requested but not found${detail}")
   endif()
   message(STATUS "Comparison benchmarks: no reference BLAS found; building the eigen arm only")
 endfunction()
