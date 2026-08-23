@@ -112,11 +112,12 @@ def test_cuda_include_dir():
         with tempfile.TemporaryDirectory() as tmpdir:
             include = os.path.join(tmpdir, "include")
             os.makedirs(include)
+            absent = os.path.join(tmpdir, "absent")
             os.environ["CUDA_HOME"] = tmpdir
-            assert cuda_include_dir() != include, "an empty toolkit root must not be accepted"
+            assert cuda_include_dir(absent) is None, "an empty toolkit root must not be accepted"
             with open(os.path.join(include, "cuda_runtime.h"), "w", encoding="utf-8") as handle:
                 handle.write("\n")
-            assert cuda_include_dir() == include
+            assert cuda_include_dir(absent) == include
             assert compile_args("unsupported/Eigen/src/GPU/DeviceMatrix.h")[-2:] == ["-isystem", include]
     finally:
         for name, value in saved.items():
