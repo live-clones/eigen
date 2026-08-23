@@ -46,10 +46,10 @@ That makes it the better of the two for a published single-threaded number.
 SVE2 at a 128-bit vector length (/proc/sys/abi/sve_default_vector_length is 16
 bytes), plus i8mm and bf16.
 
-No BLAS/LAPACK development package is installed and this account cannot install
-one, so this profile declares NO reference arm: runs here measure the Eigen arm
-only and exercise the harness's no-reference-library path. Add an [arms.*] table
-once a reference library is available.
+NVPL is the reference arm that matches this hardware; OpenBLAS is carried
+alongside it so a number from here can be compared with the x86 hosts, which have
+no NVPL. Both were installed by the machine's owner -- this account has no sudo,
+so a missing package here is a request, not a command.
 """
 
 [frequency]
@@ -77,3 +77,30 @@ cmake_options = ["-DEIGEN_BENCH_ISA_TARGET=aarch64-neon"]
 [isa."aarch64-sve"]
 flags = ["-march=armv9-a+sve2", "-msve-vector-bits=128", "-DEIGEN_ARM64_USE_SVE"]
 cmake_options = ["-DEIGEN_BENCH_ISA_TARGET=aarch64-sve"]
+
+# --------------------------------------------------------------------------
+# Reference arms
+# --------------------------------------------------------------------------
+
+[arms.nvpl]
+library_name = "NVPL BLAS"
+cmake_options = ["-DEIGEN_BENCH_REFERENCE=nvpl"]
+# vendors.cmake tries the shipped nvpl_blas CMake config package before
+# BLA_VENDOR NVPL, which FindBLAS only learned in CMake 4.1; this host has 3.28,
+# so the config package is the path that resolves. NVPL answers
+# nvpl_blas_get_version() at runtime, so this fallback should not reach a result
+# file.
+version_fallback = "NVPL BLAS 0.6.0"
+threading_model = "sequential"
+interface = "lp64"
+provides = ["blas", "cblas", "lapack"]
+thread_env = { NVPL_BLAS_NUM_THREADS = "{threads}" }
+
+[arms.openblas]
+library_name = "OpenBLAS"
+cmake_options = ["-DEIGEN_BENCH_REFERENCE=openblas"]
+version_fallback = "OpenBLAS 0.3.26"
+threading_model = "pthreads"
+interface = "lp64"
+provides = ["blas", "cblas", "lapack"]
+thread_env = { OPENBLAS_NUM_THREADS = "{threads}" }
