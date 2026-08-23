@@ -205,8 +205,10 @@ void linearstructure_overflow() {
   // compiler's.  NVHPC is such an environment by default, through -Knoieee and
   // the -Mflushz that -fast implies.
   if (!subnormalDivisionIsExact<double>()) {
-    std::cout << "SKIP: linearstructure_overflow needs an environment that divides by subnormals per IEEE 754."
-              << std::endl;
+    std::cout << "SKIP: linearstructure_overflow needs an environment that divides by subnormals per IEEE 754 ("
+              << (Eigen::ScopedFlushToZero::isEnabled() ? "hardware flush-to-zero is enabled"
+                                                        : "the compiler relaxed the arithmetic")
+              << ")." << std::endl;
     return;
   }
 
@@ -224,6 +226,9 @@ template <int>
 void linearstructure_subnormal_probe() {
   Eigen::ScopedFlushToZero flush_to_zero;
   if (!flush_to_zero.isSupported()) return;
+  // The register read and the numerical probe have to agree on a mode that was
+  // just forced; if they ever disagree the diagnostic above is misleading.
+  VERIFY(Eigen::ScopedFlushToZero::isEnabled());
   VERIFY(!subnormalsArePreserved<double>());
   VERIFY(!subnormalDivisionIsExact<double>());
 }
