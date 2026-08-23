@@ -200,17 +200,13 @@ if(EIGEN_BENCH_BLAS_FOUND AND NOT EIGEN_BENCH_BLAS_VERSION_RUNTIME_SYMBOL
       if(_key STREQUAL EIGEN_BENCH_BLAS_ARM)
         continue()
       endif()
-      eigen_bench_vendor_get(${_key} ALIASES _key_aliases)
-      foreach(_spelling IN LISTS _key _key_aliases)
-        # Matched against the resolved path only, never the declared one, so a
-        # vendor key that happens to appear in the user's own directory names
-        # cannot trigger this on its own.
-        if(_resolved_lower MATCHES "${_spelling}")
-          set(_impostor "${_key}")
-          break()
-        endif()
-      endforeach()
-      if(_impostor)
+      # The vendor key only, and anchored on non-alphanumeric boundaries.
+      # ALIASES are the spellings a user may type for EIGEN_BENCH_REFERENCE; they
+      # are not filesystem evidence, and reusing them here would make
+      # /usr/lib/arm-linux-gnueabihf/ read as Arm Performance Libraries and
+      # widening the list for usability start failing configures.
+      if(_resolved_lower MATCHES "(^|[^a-z0-9])${_key}([^a-z0-9]|$)")
+        set(_impostor "${_key}")
         break()
       endif()
     endforeach()
