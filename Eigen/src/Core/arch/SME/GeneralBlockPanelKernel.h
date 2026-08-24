@@ -64,8 +64,9 @@ struct sme_traits<float> {
   // ZA.S tiles.
   static constexpr int kNumTiles = 4;
   static EIGEN_ALWAYS_INLINE int svl() __arm_streaming_compatible { return static_cast<int>(svcntsw()); }
-  static EIGEN_ALWAYS_INLINE svbool_t whilelt(int begin, int end) __arm_streaming {
-    return svwhilelt_b32(static_cast<uint32_t>(begin), static_cast<uint32_t>(end));
+  template <typename T, typename = std::enable_if_t<std::is_integral<T>::value>>
+  static EIGEN_ALWAYS_INLINE svbool_t whilelt(T begin, T end) __arm_streaming {
+    return svwhilelt_b32(begin, end);
   }
   static EIGEN_ALWAYS_INLINE svbool_t ptrue() __arm_streaming { return svptrue_b32(); }
   static EIGEN_ALWAYS_INLINE svcount_t ptrue_c() __arm_streaming { return svptrue_c32(); }
@@ -81,8 +82,9 @@ struct sme_traits<double> {
   // ZA.D tiles.
   static constexpr int kNumTiles = 8;
   static EIGEN_ALWAYS_INLINE int svl() __arm_streaming_compatible { return static_cast<int>(svcntsd()); }
-  static EIGEN_ALWAYS_INLINE svbool_t whilelt(int begin, int end) __arm_streaming {
-    return svwhilelt_b64(static_cast<uint64_t>(begin), static_cast<uint64_t>(end));
+  template <typename T, typename = std::enable_if_t<std::is_integral<T>::value>>
+  static EIGEN_ALWAYS_INLINE svbool_t whilelt(T begin, T end) __arm_streaming {
+    return svwhilelt_b64(begin, end);
   }
   static EIGEN_ALWAYS_INLINE svbool_t ptrue() __arm_streaming { return svptrue_b64(); }
   static EIGEN_ALWAYS_INLINE svcount_t ptrue_c() __arm_streaming { return svptrue_c64(); }
@@ -955,10 +957,16 @@ EIGEN_ALWAYS_INLINE void sme_process(Scalar* EIGEN_RESTRICT C, Index C_stride_ro
   const int svl = Traits::svl();
 
   for (int rt = 0; rt < pw; rt += 2 * svl) {
+    const int rpw = sme_min(pw - rt, 2 * svl);
+    const int rlo = sme_min(rpw, svl);
+    const int rhi = rpw - rlo;  // >= 0; > 0 only when rpw > svl, in which case rlo == svl
     const svbool_t pg_rlo = Traits::whilelt(rt, pw);
     const svbool_t pg_rhi = Traits::whilelt(rt + svl, pw);
 
     for (int ct = 0; ct < cw; ct += 2 * svl) {
+      const int cpw = sme_min(cw - ct, 2 * svl);
+      const int clo = sme_min(cpw, svl);
+      const int chi = cpw - clo;
       const svbool_t pg_clo = Traits::whilelt(ct, cw);
       const svbool_t pg_chi = Traits::whilelt(ct + svl, cw);
 
@@ -998,18 +1006,19 @@ EIGEN_ALWAYS_INLINE void sme_process(Scalar* EIGEN_RESTRICT C, Index C_stride_ro
         for (Index k = 0; k < depth; ++k) {
           Vec a_lo = sme_ld1(pg_rlo, &blA[k * pw + rt]);
           Vec b_lo = sme_ld1(pg_clo, &blB[k * cw + ct]);
+
+          Vec a_hi =
+              sme_ld1(pg_rhi, (const Scalar* EIGEN_RESTRICT)(uintptr_t(blA) + (k * pw + rt + svl) * sizeof(Scalar)));
+          Vec b_hi =
+              sme_ld1(pg_chi, (const Scalar* EIGEN_RESTRICT)(uintptr_t(blB) + (k * cw + ct + svl) * sizeof(Scalar)));
+
           sme_mopa<0>(pg_rlo, pg_clo, a_lo, b_lo);
-          Vec b_hi = Traits::dup(Scalar(0));
-          if (chi > 0) {
-            b_hi = sme_ld1(pg_chi, &blB[k * cw + ct + svl]);
+          if (svptest_any(pg_chi, pg_chi))
             sme_mopa<1>(pg_rlo, pg_chi, a_lo, b_hi);
-          }
-          if (rhi > 0) {
-            Vec a_hi = sme_ld1(pg_rhi, &blA[k * pw + rt + svl]);
+          if (svptest_any(pg_rhi, pg_rhi)) {
             sme_mopa<2>(pg_rhi, pg_clo, a_hi, b_lo);
-            if (chi > 0) {
+            if (svptest_any(pg_chi, pg_chi))
               sme_mopa<3>(pg_rhi, pg_chi, a_hi, b_hi);
-            }
           }
         }
       }
