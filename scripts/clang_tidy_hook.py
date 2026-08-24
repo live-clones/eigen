@@ -46,8 +46,12 @@ from style_common import (REPO_ROOT, diff_added_lines, hook_edit_snippets,  # no
 
 # Parsing an umbrella costs about a second, so keep the hook off trees whose
 # conventions these checks do not describe (bench/, demos/, doc/ examples).
-CHECKED_TREES = ("Eigen/", "unsupported/Eigen/", "test/", "unsupported/test/", "failtest/", "blas/", "lapack/")
-SRC_TREES = ("Eigen/src/", "unsupported/Eigen/src/")
+# unsupported/Eigen/ is kept for the legacy umbrella shims that still live
+# there; the implementation tree itself is contrib/, which has no shims and
+# so needs the src-tree rules.
+CHECKED_TREES = ("Eigen/", "contrib/Eigen/", "unsupported/Eigen/", "test/", "contrib/test/", "failtest/", "blas/",
+                 "lapack/")
+SRC_TREES = ("Eigen/src/", "contrib/Eigen/src/")
 # Modules whose umbrella needs a third-party header we cannot assume is present.
 EXTERNAL_DEP_MODULES = ("AccelerateSupport", "CholmodSupport", "KLUSupport", "MetisSupport",
                         "PaStiXSupport", "PardisoSupport", "SPQRSupport", "SuperLUSupport",
@@ -58,7 +62,7 @@ TIMEOUT_SECONDS = 30
 
 def module_of(rel_path):
     """Return the ``Eigen/src/<Module>`` name owning ``rel_path``, else None."""
-    m = re.match(r"^(?:unsupported/)?Eigen/src/([^/]+)/", rel_path)
+    m = re.match(r"^(?:contrib/)?Eigen/src/([^/]+)/", rel_path)
     return m.group(1) if m else None
 
 
@@ -81,14 +85,14 @@ def umbrella_for(rel_path, root=REPO_ROOT):
             continue
         if hit and os.path.isfile(os.path.join(root, hit.group(1))):
             return hit.group(1)
-    fallback = ("unsupported/Eigen/" if rel_path.startswith("unsupported/") else "Eigen/") + module
+    fallback = ("contrib/Eigen/" if rel_path.startswith("contrib/") else "Eigen/") + module
     return fallback if os.path.isfile(os.path.join(root, fallback)) else None
 
 
 def compile_args(rel_path, root=REPO_ROOT):
     """Include paths sufficient to parse ``rel_path`` without a compile database."""
     args = ["-std=c++14", "-I" + root]
-    if rel_path.startswith(("test/", "unsupported/test/")):
+    if rel_path.startswith(("test/", "contrib/test/")):
         args += ["-I" + os.path.join(root, "test")]
     return args
 

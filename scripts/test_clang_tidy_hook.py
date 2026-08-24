@@ -46,7 +46,7 @@ def test_line_filter_json():
 def test_module_of():
     assert module_of("Eigen/src/Core/Block.h") == "Core"
     assert module_of("Eigen/src/Core/arch/AVX/PacketMath.h") == "Core"
-    assert module_of("unsupported/Eigen/src/Tensor/TensorBlock.h") == "Tensor"
+    assert module_of("contrib/Eigen/src/Tensor/TensorBlock.h") == "Tensor"
     assert module_of("test/block.cpp") is None
     assert module_of("Eigen/Core") is None
 
@@ -55,7 +55,7 @@ def test_umbrella_resolution():
     # Read from the module's InternalHeaderCheck.h `#error` directive.
     assert umbrella_for("Eigen/src/Core/Block.h") == "Eigen/Core"
     # The Tensor module's umbrella lives outside its own directory tree.
-    assert umbrella_for("unsupported/Eigen/src/Tensor/TensorBlock.h") == "unsupported/Eigen/Tensor"
+    assert umbrella_for("contrib/Eigen/src/Tensor/TensorBlock.h") == "contrib/Eigen/Tensor"
     # Arch backends nested below the module root carry no directive of their
     # own and fall back to <root>/<Module>.
     assert umbrella_for("Eigen/src/Core/arch/AVX/PacketMath.h") == "Eigen/Core"
@@ -63,7 +63,7 @@ def test_umbrella_resolution():
     assert umbrella_for("Eigen/src/CholmodSupport/CholmodSupport.h") is None
     # Every module in the tree must resolve, or the hook silently skips files.
     unresolved = []
-    for tree in ("Eigen/src", "unsupported/Eigen/src"):
+    for tree in ("Eigen/src", "contrib/Eigen/src"):
         for module in sorted(os.listdir(os.path.join(REPO_ROOT, tree))):
             rel = "%s/%s/InternalHeaderCheck.h" % (tree, module)
             if not os.path.isfile(os.path.join(REPO_ROOT, rel)):
@@ -100,7 +100,7 @@ def test_compile_args():
     assert "-std=c++14" in args and "-I" + REPO_ROOT in args
     # Test sources include main.h from test/.
     assert any(a.endswith("/test") for a in compile_args("test/block.cpp"))
-    assert any(a.endswith("/test") for a in compile_args("unsupported/test/cxx11_tensor_block_access.cpp"))
+    assert any(a.endswith("/test") for a in compile_args("contrib/test/cxx11_tensor_block_access.cpp"))
     assert not any(a.endswith("/test") for a in compile_args("Eigen/src/Core/Block.h"))
 
 
