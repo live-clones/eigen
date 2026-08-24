@@ -425,11 +425,51 @@ void test_scalar() {
   CALL_SUBTEST(test_reduction_result_on_resource<Scalar>(97));
 }
 
+// ---- The caller's stream reaches the resource --------------------------------
+
+// A resource that records the stream it is handed. Storage itself comes from
+// the default device resource, so this only observes the contract.
+class StreamRecordingResource : public gpu::MemoryResource {
+ public:
+  gpu::Allocation allocate(size_t bytes, cudaStream_t stream) override {
+    allocate_stream = stream;
+    return gpu::deviceMemoryResource().allocate(bytes, stream);
+  }
+  void deallocate(const gpu::Allocation& a, size_t bytes, cudaStream_t stream) noexcept override {
+    deallocate_stream = stream;
+    gpu::deviceMemoryResource().deallocate(a, bytes, stream);
+  }
+  bool isHostAccessible() const noexcept override { return false; }
+  const char* name() const noexcept override { return "StreamRecordingResource"; }
+
+  cudaStream_t allocate_stream = reinterpret_cast<cudaStream_t>(-1);
+  cudaStream_t deallocate_stream = reinterpret_cast<cudaStream_t>(-1);
+};
+
+// A block must be released on the stream that last used it. The default stream
+// is not ordered against a cudaStreamNonBlocking one, so a resource built on
+// cudaFreeAsync would be free to recycle the block while work queued on that
+// stream is still reading it.
+void test_release_stream_follows_last_use() {
+  cudaStream_t stream = nullptr;
+  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
+  StreamRecordingResource resource;
+  {
+    gpu::DeviceMatrix<float> matrix(64, 64, resource);
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(matrix.data(), 0, matrix.sizeInBytes(), stream));
+    matrix.recordReady(stream);
+    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream));
+  }
+  VERIFY_IS_EQUAL(resource.deallocate_stream, stream);
+  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamDestroy(stream));
+}
+
 EIGEN_DECLARE_TEST(gpu_memory_resource) {
   gpu_test::require_cuda_device();
   CALL_SUBTEST_1(test_resource_properties());
   CALL_SUBTEST_1(test_resource_process_lifetime());
   CALL_SUBTEST_1(test_cache_defers_async_reuse());
+  CALL_SUBTEST_1(test_release_stream_follows_last_use());
   CALL_SUBTEST_1(test_release_rejects_resource_backed());
   CALL_SUBTEST_1(test_solver_promotes_pooled_result<float>());
   CALL_SUBTEST_1(test_solver_grows_after_adopted_host_matrix<float>());

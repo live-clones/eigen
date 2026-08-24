@@ -349,9 +349,14 @@ struct DeviceBufferDeleter {
   // The host alias goes back with the device pointer, since a resource that
   // page-locks ordinary memory frees the host pointer, not the device one.
   void* host = nullptr;
+  // The stream this block was last used on. A resource built on cudaFreeAsync
+  // recycles in stream order, so releasing on the default stream would let the
+  // block be handed out again while work queued on a non-blocking stream is
+  // still reading it -- the two are not ordered against each other.
+  cudaStream_t stream = nullptr;
 
   void operator()(void* p) const noexcept {
-    if (p && resource != nullptr) resource->deallocate(Allocation{p, host}, bytes, /*stream=*/nullptr);
+    if (p && resource != nullptr) resource->deallocate(Allocation{p, host}, bytes, stream);
   }
 };
 
@@ -374,10 +379,11 @@ class DeviceBuffer {
    * scratch and DeviceScalar want. DeviceMatrix names deviceMemoryResource()
    * instead: the pool does not order reuse against a consumer on another
    * stream, and a matrix's ready event exists precisely so there can be one. */
-  explicit DeviceBuffer(size_t bytes, MemoryResource& resource = pooledDeviceMemoryResource()) {
+  explicit DeviceBuffer(size_t bytes, MemoryResource& resource = pooledDeviceMemoryResource(),
+                        cudaStream_t stream = nullptr) {
     if (bytes == 0) return;
-    const Allocation a = resource.allocate(bytes, /*stream=*/nullptr);
-    reset(a.device, DeviceBufferDeleter{&resource, bytes, a.host});
+    const Allocation a = resource.allocate(bytes, stream);
+    reset(a.device, DeviceBufferDeleter{&resource, bytes, a.host, stream});
   }
 
   DeviceBuffer(DeviceBuffer&&) noexcept = default;
@@ -395,6 +401,14 @@ class DeviceBuffer {
 
   /** Whether hostData() is usable. */
   bool isHostAccessible() const noexcept { return hostData() != nullptr; }
+
+  /** Release this block on \p stream rather than on the default stream.
+   *
+   * Set it to whichever stream last read or wrote the storage: a stream-ordered
+   * resource must not recycle the block ahead of work still queued there. */
+  void setReleaseStream(cudaStream_t stream) noexcept {
+    if (ptr_) ptr_.get_deleter().stream = stream;
+  }
 
   /** The resource that will release this block. Null exactly when there is
    * nothing to release: an empty buffer, or a borrowed view(). */

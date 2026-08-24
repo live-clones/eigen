@@ -376,6 +376,9 @@ class DeviceMatrix {
     ensureEvent();
     EIGEN_CUDA_RUNTIME_CHECK(cudaEventRecord(ready_event_, stream));
     ready_stream_ = stream;
+    // Release on the stream the storage was last used on, not on whichever one
+    // allocated it: that is the ordering a stream-ordered resource needs.
+    data_.setReleaseStream(stream);
   }
 
   /** Make \p stream wait until the device data is ready.
