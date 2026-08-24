@@ -525,6 +525,105 @@ test:linux:sme512:gcc-14:full:unsupported:
     # would trip the runner's 1h no-log-output kill.
     EIGEN_CI_CTEST_EXCLUDE: tensor_thread_pool|FFT
 
+##### SVE ######################################################################
+
+# QEMU has emulated SVE since long before the 8.2 in ubuntu:24.04, so unlike
+# the SME jobs these stay on the default image and the static qemu binaries.
+.test:linux:sve:
+  extends: .test:linux:qemu
+  variables:
+    EIGEN_CI_CROSS_TARGET_TRIPLE: aarch64-linux-gnu
+    # The test stage never compiles -- failtest, the only test that does, is
+    # unlabelled and so out of reach of these label- and regex-selected runs.
+    # It needs only the aarch64 runtime (loader + libstdc++/libc under
+    # /usr/aarch64-linux-gnu, reached through qemu's -L prefix) and qemu-user.
+    # Named at the same version as the build compiler so the libstdc++ here
+    # cannot predate the one the binaries were linked against.
+    EIGEN_CI_CROSS_INSTALL: g++-13-aarch64-linux-gnu qemu-user-static
+    # Raised from the 2000s .test:linux:qemu inherits, to the same 3000s the SME
+    # jobs use: emulating 256-bit packets is far slower than 128-bit, and
+    # product_large_10 already takes 530s on an idle developer machine.
+    # Single-core TCG speed swings about 4x across SaaS hosts, which 2000s
+    # would not absorb.
+    EIGEN_CI_CTEST_ARGS: --timeout 3000
+
+# The subset the :default builds produce, shared so the two widths cannot drift
+# apart.  It cannot enforce the other half of that contract: these names must
+# stay in step with EIGEN_CI_BUILD_TARGET in .build:linux:cross:sve.  Selecting
+# a test that was not built fails loudly, but a target added there and not here
+# is cross-compiled on every run and silently never executed.  The regex is `^...$`-anchored with an explicit split suffix because a
+# bare `packetmath` would also match the packetmath_generic and
+# packetmath_fastmath_generic families; cmake does not register those under
+# gcc-13, and a toolchain that did would leave them selected here but never
+# built.  These jobs select by -R rather than by label, so the Unsupported
+# special_packetmath runs here alongside the Official rest.
+.test:linux:sve:subset:
+  variables:
+    EIGEN_CI_CTEST_REGEX: ^(packetmath|packetmath_fastmath|special_packetmath|vectorization_logic|product_small|product_large|redux)(_[0-9]+)?$
+
+# Every concrete job must pin QEMU's vector length: qemu otherwise runs at its
+# own default, and a binary built for a different width silently miscomputes
+# instead of failing to start.  SVE lengths are not independent the way SME's
+# streaming lengths are -- sve128 cannot be disabled ("cannot disable sve128"),
+# so the pin works by switching *off* every width above the one the binary was
+# built for, leaving that as the maximum.
+.test:linux:sve128:
+  extends: .test:linux:sve
+  needs: [ build:linux:cross:sve128:gcc-13:default ]
+  variables:
+    EIGEN_CI_TARGET_ARCH: aarch64-sve128
+    QEMU_CPU: max,sve128=on,sve256=off,sve512=off,sve1024=off,sve2048=off
+
+# 2h, not the project default: the subset is ~102 CTest entries at
+# EIGEN_CI_CTEST_PARALLEL=4, the 256-bit run takes 10 minutes on an idle
+# developer machine, and single-core TCG speed swings about 4x across SaaS
+# hosts.  Without this a slow host is killed mid-run instead of reporting.
+test:linux:sve128:gcc-13:default:
+  extends: [ .test:linux:sve128, .test:linux:sve:subset ]
+  timeout: 2h
+
+.test:linux:sve256:
+  extends: .test:linux:sve
+  needs: [ build:linux:cross:sve256:gcc-13:default ]
+  variables:
+    EIGEN_CI_TARGET_ARCH: aarch64-sve256
+    QEMU_CPU: max,sve128=on,sve256=on,sve512=off,sve1024=off,sve2048=off
+
+test:linux:sve256:gcc-13:default:
+  extends: [ .test:linux:sve256, .test:linux:sve:subset ]
+  timeout: 2h
+
+# Full SVE test run: the complete Official + Unsupported suite against the full
+# build, at the one width that suite is compiled for.  These select by label,
+# so they take the width anchor alone and never .test:linux:sve:subset, whose
+# -R regex would win over the label.  The 3h timeout is the GitLab SaaS
+# hosted-runner maximum.
+.test:linux:sve128:gcc-13:full:
+  extends: .test:linux:sve128
+  needs: [ build:linux:cross:sve128:gcc-13:full ]
+  timeout: 3h
+
+# -I <index>,,<total> intersects with -L, partitioning Official across the two
+# shards; --rerun-failed overrides -I, so retries stay shard-local.
+test:linux:sve128:gcc-13:full:official:
+  extends: .test:linux:sve128:gcc-13:full
+  parallel: 2
+  variables:
+    EIGEN_CI_CTEST_LABEL: Official
+    # Overriding EIGEN_CI_CTEST_ARGS replaces the whole value; restate --timeout.
+    EIGEN_CI_CTEST_ARGS: --timeout 3000 -I $CI_NODE_INDEX,,$CI_NODE_TOTAL
+
+test:linux:sve128:gcc-13:full:unsupported:
+  extends: .test:linux:sve128:gcc-13:full
+  variables:
+    EIGEN_CI_CTEST_LABEL: Unsupported
+    # tensor_thread_pool: threaded tests are useless under single-threaded TCG
+    # (the .test:linux:qemu default, restated because this replaces it). FFT:
+    # kissfft-based scalar/complex code with no SVE-specific path, and slow
+    # enough under TCG to threaten the per-test timeout; every native job
+    # covers it.
+    EIGEN_CI_CTEST_EXCLUDE: tensor_thread_pool|FFT
+
 ##### aarch64 ##################################################################
 
 .test:linux:aarch64:
@@ -863,3 +962,11 @@ test:linux:riscv64:gcc-15:default:affected:
   extends: [ .test:linux:riscv64:gcc-15:default, .affected:test ]
   needs: [ build:linux:riscv64:gcc-15:default:affected, select:tests ]
   rules: !reference [.rules:libeigen:affected-tests:rvv10, rules]
+
+# Runs the backend-critical subset against the whole-suite affected build; the
+# subset, not the selection, because a change under Eigen/src/Core/arch/ selects
+# every test and the full run belongs to the nightly.
+test:linux:sve128:gcc-13:affected:
+  extends: [ .test:linux:sve128:gcc-13:full, .test:linux:sve:subset ]
+  needs: [ build:linux:cross:sve128:gcc-13:full:affected ]
+  rules: !reference [.rules:libeigen:affected-tests:sve-sme, rules]
