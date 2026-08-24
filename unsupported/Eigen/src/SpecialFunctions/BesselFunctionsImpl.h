@@ -180,7 +180,15 @@ struct bessel_i0e_impl {
 template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
 struct generic_i0 {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T& x) {
-    return pmul(pexp(pabs(x)), generic_i0e<T, ScalarType>::run(x));
+    // Evaluating i0(x) = exp(|x|) * i0e(x) can prematurely cause intermediate overflow for large |x|
+    // i.e.  88.7229 < |x| <= 91.9021 for float
+    //      709.7827 < |x| <= 713.9871 for double
+    // Instead, use i0(x) = exp(|x|/2) * (exp(|x|/2) * i0e(x)).  Cutting |x| in half keeps the intermediate result
+    // finite for all finite results.
+    const T ax = pabs(x);
+    const T i0e = generic_i0e<T, ScalarType>::run(x);
+    const T half_exp = pexp(pmul(pset1<T>(ScalarType(0.5)), ax));
+    return pmul(half_exp, pmul(half_exp, i0e));
   }
 };
 
@@ -326,7 +334,15 @@ struct bessel_i1e_impl {
 template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
 struct generic_i1 {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T& x) {
-    return pmul(pexp(pabs(x)), generic_i1e<T, ScalarType>::run(x));
+    // Evaluating i1(x) = exp(|x|) * i1e(x) can prematurely cause intermediate overflow for large |x|
+    // i.e.  88.7228 < |x| <= 91.9062 for float
+    //      709.7827 < |x| <= 713.9876 for double
+    // Instead, use i1(x) = exp(|x|/2) * (exp(|x|/2) * i1e(x)).  Cutting |x| in half keeps the intermediate result
+    // finite for all finite results.
+    const T ax = pabs(x);
+    const T i1e = generic_i1e<T, ScalarType>::run(x);
+    const T half_exp = pexp(pmul(pset1<T>(ScalarType(0.5)), ax));
+    return pmul(half_exp, pmul(half_exp, i1e));
   }
 };
 

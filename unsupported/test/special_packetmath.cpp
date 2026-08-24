@@ -143,6 +143,23 @@ void packetmath_real() {
   CHECK_CWISE1_IF(PacketTraits::HasBessel, numext::bessel_i0, internal::pbessel_i0);
   CHECK_CWISE1_IF(PacketTraits::HasBessel, numext::bessel_i1, internal::pbessel_i1);
 
+  // Test boundary values for bessel_i* where naive exp(|x|) would overflow.
+  if (PacketTraits::HasBessel) {
+    if (sizeof(Scalar) == sizeof(float)) {
+      for (int i = 0; i < size; ++i) {
+        data1[i] = (i % 2 == 0) ? Scalar(90.0f) : Scalar(-90.0f);
+      }
+      CHECK_CWISE1_IF(PacketTraits::HasBessel, numext::bessel_i0, internal::pbessel_i0);
+      CHECK_CWISE1_IF(PacketTraits::HasBessel, numext::bessel_i1, internal::pbessel_i1);
+    } else if (sizeof(Scalar) >= sizeof(double)) {
+      for (int i = 0; i < size; ++i) {
+        data1[i] = (i % 2 == 0) ? Scalar(713.0) : Scalar(-713.0);
+      }
+      CHECK_CWISE1_IF(PacketTraits::HasBessel, numext::bessel_i0, internal::pbessel_i0);
+      CHECK_CWISE1_IF(PacketTraits::HasBessel, numext::bessel_i1, internal::pbessel_i1);
+    }
+  }
+
   // y_i, and k_i are valid for x > 0.
   {
     const int max_exponent = numext::mini(std::numeric_limits<Scalar>::max_exponent10 - 1, 5);
