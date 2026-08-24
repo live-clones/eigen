@@ -96,12 +96,17 @@ configuration that targets the backend the diff touches, through `rules:changes:
 | `arch/AltiVec` | ppc64le gcc-14 |
 | `arch/LSX` | loongarch64 gcc-14 |
 | `arch/RVV10` | riscv64 gcc-15 |
-| `arch/SVE`, `arch/SME` | the full SME build, compile-only |
+| `arch/SVE`, `arch/SME` | the full SME build (compile-only) and the full SVE-128 build with a subset test run |
 | `arch/GPU`, `test/*.cu`, `test/gpu_common.h`, `unsupported/test/*.cu`, `unsupported/test/GPU/**` | the CUDA build and test jobs |
 
 A wider x86 configuration compiles the narrower backends' headers, which is why SSE fans out to three builds. SVE and
-SME get compile coverage rather than a selection because their per-SVL test jobs already filter to a curated target
-subset through `EIGEN_CI_CTEST_REGEX`, which a selection would fight with.
+SME build the whole suite rather than a selection: a change under `Eigen/src/Core/arch/` reaches every test through
+`Eigen/Core`, so the selection is that whole suite anyway, and for SME it would additionally fight with the curated
+`EIGEN_CI_CTEST_REGEX` its per-SVL test jobs run. SME stops at compiling that suite: its kernel is reachable
+only through a handful of product paths, which the per-SVL test jobs cover under `all-tests`. SVE goes on to run the
+backend-critical subset against that build — `packetmath` with its fastmath and special-value siblings,
+`vectorization_logic`, `product_small`, `product_large` and `redux` — because it is a general packet backend, where
+compiling is much weaker evidence than computing.
 
 AVX512-FP16 headers are guarded by `EIGEN_VECTORIZE_AVX512FP16`, so an AVX512DQ build does not parse them. Changes to
 files matching `arch/AVX512/*FP16*` therefore also trigger the existing gcc-13 AVX512-FP16 official and unsupported
