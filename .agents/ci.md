@@ -120,7 +120,7 @@ platforms beyond the four unconditional jobs on two independent triggers, either
 | `arch/AltiVec` | `altivec-tests` | ppc64le gcc-14, under qemu | yes |
 | `arch/LSX` | `lsx-tests` | loongarch64 gcc-14, under qemu | yes |
 | `arch/RVV10` | `rvv-tests` | riscv64 gcc-15, on the native runner | yes |
-| `arch/SVE`, `arch/SME` | `sme-tests` | the full SME build, compile-only | no |
+| `arch/SVE`, `arch/SME` | `sme-tests` | the full SME build (compile-only) and the full SVE-128 build with a subset test run | no |
 | — | `windows-tests` | MSVC 14.29 x64 baseline | yes |
 | `arch/GPU`, `test/*.cu`, `test/gpu_common.h`, `unsupported/test/*.cu`, `unsupported/test/GPU/**` | `gpu-tests` | the CUDA build and test jobs | no |
 
@@ -131,13 +131,19 @@ a union, which is the point of the axis. Apart from `gpu-tests`, none of them do
 `affected-tests`.
 
 `all-platforms` is a shorthand for every row that *runs the affected selection*. The three rows marked "no" are
-excluded because their jobs ignore the selection and compile the whole suite instead — the AVX512-FP16 pair and the
-SME build are compile-only with no paired test job, and the GPU jobs build `buildtests_gpu`. Reaching those means
-naming their label, so `all-platforms` on a one-line change cannot silently buy hours of whole-suite compilation.
+excluded because their jobs ignore the selection and compile the whole suite instead — the AVX512-FP16 pair is
+compile-only with no paired test job, the SVE/SME row compiles that suite and runs a curated subset of it, and the
+GPU jobs build `buildtests_gpu`. Reaching those means naming their label, so `all-platforms` on a one-line change
+cannot silently buy hours of whole-suite compilation.
 
 A wider x86 configuration compiles the narrower backends' headers, which is why SSE fans out to three builds. SVE and
-SME get compile coverage rather than a selection because their per-SVL test jobs already filter to a curated target
-subset through `EIGEN_CI_CTEST_REGEX`, which a selection would fight with.
+SME build the whole suite rather than a selection: a change under `Eigen/src/Core/arch/` reaches every test through
+`Eigen/Core`, so the selection is that whole suite anyway, and for SME it would additionally fight with the curated
+`EIGEN_CI_CTEST_REGEX` its per-SVL test jobs run. SME stops at compiling that suite: its kernel is reachable
+only through a handful of product paths, which the per-SVL test jobs cover under `all-tests`. SVE goes on to run the
+backend-critical subset against that build — `packetmath` with its fastmath and special-value siblings,
+`vectorization_logic`, `product_small`, `product_large` and `redux` — because it is a general packet backend, where
+compiling is much weaker evidence than computing.
 
 Windows has no `changes:` trigger. What MSVC catches that the Linux jobs do not — template instantiation limits,
 `EIGEN_STRONG_INLINE` behaviour, optimizer heap exhaustion — is whole-library rather than confined to a subtree a
