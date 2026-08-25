@@ -14,6 +14,7 @@
 #define EIGEN_RUNTIME_NO_MALLOC
 
 #include "main.h"
+#include "fp_control.h"
 #include "svd_fill.h"
 #include "tridiag_test_matrices.h"
 #include <limits>
@@ -441,6 +442,38 @@ void selfadjointeigensolver_subnormal_coefficients() {
   }
 }
 
+void selfadjointeigensolver_power_of_two_scaling() {
+  // Reciprocal scaling perturbs one eigenvalue by one ULP in each solver path below.
+  Matrix2f directMatrix = Matrix2f::Zero();
+  directMatrix(0, 0) = numext::bit_cast<float>(numext::uint32_t(0x072319ed));
+  directMatrix(1, 1) = numext::bit_cast<float>(numext::uint32_t(0x06aceabe));
+  const SelfAdjointEigenSolver<Matrix2f> directSolver(directMatrix);
+  VERIFY_IS_EQUAL(directSolver.eigenvalues()(0), directMatrix(1, 1));
+  VERIFY_IS_EQUAL(directSolver.eigenvalues()(1), directMatrix(0, 0));
+
+  Matrix4f matrix = Matrix4f::Zero();
+  matrix.diagonal() << numext::bit_cast<float>(numext::uint32_t(0x44123456)),
+      numext::bit_cast<float>(numext::uint32_t(0x4f123456)), numext::bit_cast<float>(numext::uint32_t(0x537dcf0e)),
+      numext::bit_cast<float>(numext::uint32_t(0x58f6aaed));
+  const SelfAdjointEigenSolver<Matrix4f> solver(matrix);
+  VERIFY_IS_EQUAL(solver.eigenvalues(), matrix.diagonal());
+
+  Vector2f tridiagonal = Vector2f::Zero();
+  Matrix<float, 1, 1> subdiagonal;
+  subdiagonal(0) = numext::bit_cast<float>(numext::uint32_t(0x54fca0e4));
+  SelfAdjointEigenSolver<Matrix2f> tridiagonalSolver;
+  tridiagonalSolver.computeFromTridiagonal(tridiagonal, subdiagonal, EigenvaluesOnly);
+  VERIFY_IS_EQUAL(tridiagonalSolver.eigenvalues()(0), -subdiagonal(0));
+  VERIFY_IS_EQUAL(tridiagonalSolver.eigenvalues()(1), subdiagonal(0));
+
+  volatile float denormMinInput = std::numeric_limits<float>::denorm_min();
+  const float denormMin = denormMinInput;
+  if (!(denormMin > 0.0f)) return;
+  directMatrix.diagonal() << 1.5f, denormMin;
+  const SelfAdjointEigenSolver<Matrix2f> tailSolver(directMatrix);
+  VERIFY_IS_EQUAL(tailSolver.eigenvalues()(0), denormMin);
+}
+
 // Test computeFromTridiagonal with scaled inputs (regression for missing scaling).
 template <typename MatrixType>
 void selfadjointeigensolver_tridiagonal_scaled(const MatrixType& m) {
@@ -737,6 +770,51 @@ void selfadjointeigensolver_rowmajor() {
   }
 }
 
+template <typename MatrixType>
+void verify_direct_ftz_rescaling(const MatrixType& matrix) {
+  using Scalar = typename MatrixType::Scalar;
+  SelfAdjointEigenSolver<MatrixType> reference(matrix);
+  VERIFY_IS_EQUAL(reference.info(), Success);
+  ScopedFlushToZero flushToZero;
+  if (!flushToZero.isSupported()) return;
+
+  SelfAdjointEigenSolver<MatrixType> direct;
+  direct.computeDirect(matrix);
+  VERIFY_IS_EQUAL(direct.info(), Success);
+  const Scalar scale = matrix.cwiseAbs().maxCoeff();
+  const Scalar tolerance = Scalar(32) * NumTraits<Scalar>::epsilon();
+  VERIFY((direct.eigenvalues() / scale).isApprox(reference.eigenvalues() / scale, tolerance));
+  MatrixType scaledMatrix;
+  const auto factors = internal::safe_scaling<Scalar>::scale_to(scaledMatrix, matrix, scale);
+  typename SelfAdjointEigenSolver<MatrixType>::RealVectorType scaledEigenvalues;
+  internal::safe_scaling<Scalar>::scale_to(scaledEigenvalues, direct.eigenvalues(), scale, factors);
+  const MatrixType residual =
+      scaledMatrix * direct.eigenvectors() - direct.eigenvectors() * scaledEigenvalues.asDiagonal();
+  VERIFY(residual.norm() <= tolerance);
+}
+
+template <typename Scalar>
+void direct_3x3_ftz_rescaling() {
+  Matrix<Scalar, 3, 3> eigenvectors;
+  eigenvectors << Scalar(-0.6848395082687857), Scalar(-0.24329346407253183), Scalar(0.68687927487569134),
+      Scalar(0.71945209189636927), Scalar(-0.37540118169054804), Scalar(0.58434804718701527),
+      Scalar(0.11568723084293309), Scalar(0.89436136048295811), Scalar(0.43212755234417322);
+  const Scalar tiny = Scalar(100) * (std::numeric_limits<Scalar>::min)();
+  const Matrix<Scalar, 3, 1> eigenvalues(tiny, Scalar(2) * tiny, Scalar(3) * tiny);
+  verify_direct_ftz_rescaling((eigenvectors * eigenvalues.asDiagonal() * eigenvectors.transpose()).eval());
+}
+
+template <typename Scalar>
+void direct_2x2_ftz_rescaling() {
+  const Scalar cosine = numext::cos(Scalar(0.34));
+  const Scalar sine = numext::sin(Scalar(0.34));
+  Matrix<Scalar, 2, 2> eigenvectors;
+  eigenvectors << cosine, sine, -sine, cosine;
+  const Scalar tiny = Scalar(256) * (std::numeric_limits<Scalar>::min)();
+  const Matrix<Scalar, 2, 1> eigenvalues(tiny, Scalar(1.01) * tiny);
+  verify_direct_ftz_rescaling((eigenvectors * eigenvalues.asDiagonal() * eigenvectors.transpose()).eval());
+}
+
 // Test matrix with Inf entries returns NoConvergence (similar to NaN test).
 template <int>
 void selfadjointeigensolver_inf() {
@@ -968,6 +1046,7 @@ EIGEN_DECLARE_TEST(eigensolver_selfadjoint) {
   CALL_SUBTEST_4(generalizedselfadjointeigensolver_no_malloc<MatrixXd>());
   CALL_SUBTEST_5(generalizedselfadjointeigensolver_no_malloc<MatrixXcd>());
   CALL_SUBTEST_13(selfadjointeigensolver_subnormal_coefficients());
+  CALL_SUBTEST_13(selfadjointeigensolver_power_of_two_scaling());
 
   for (int i = 0; i < g_repeat; i++) {
     // trivial test for 1x1 matrices:
@@ -1064,7 +1143,11 @@ EIGEN_DECLARE_TEST(eigensolver_selfadjoint) {
 
   // Stress tests for direct 3x3 and 2x2 solvers.
   CALL_SUBTEST_17(direct_3x3_stress<0>());
+  CALL_SUBTEST_17(direct_3x3_ftz_rescaling<double>());
+  CALL_SUBTEST_13(direct_3x3_ftz_rescaling<float>());
   CALL_SUBTEST_15(direct_2x2_stress<0>());
+  CALL_SUBTEST_15(direct_2x2_ftz_rescaling<double>());
+  CALL_SUBTEST_12(direct_2x2_ftz_rescaling<float>());
 
   // Test Inf input handling.
   CALL_SUBTEST_17(selfadjointeigensolver_inf<0>());
