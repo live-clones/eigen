@@ -26,11 +26,6 @@ namespace internal {
 
 #define EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS 32
 
-// Required vector length constraints.
-EIGEN_STATIC_ASSERT((EIGEN_ARM64_SVE_VL >= 128) && (EIGEN_ARM64_SVE_VL <= 2048) &&
-                        ((EIGEN_ARM64_SVE_VL & (EIGEN_ARM64_SVE_VL - 1)) == 0),
-                    EIGEN_INTERNAL_ERROR_PLEASE_FILE_A_BUG_REPORT);
-
 template <typename Scalar, int SVEVectorLength>
 struct sve_packet_size_selector {
   enum { size = SVEVectorLength / (sizeof(Scalar) * CHAR_BIT) };
@@ -292,10 +287,9 @@ EIGEN_STRONG_INLINE numext::int32_t predux_mul<PacketXi>(const PacketXi& a) {
   // Multiply the vector by its reverse.
   svint32_t prod = svmul_s32_x(svptrue_b32(), a, svrev_s32(a));
 
-  // Extract the high half of the vector. Depending on the VL more reductions need to be done.
+  // Reduce with interleave-and-multiply.
   // NOTE: Skip the final reduction since it is already handled by `rev` above.
-  EIGEN_UNROLL_LOOP
-  for (int i = EIGEN_ARM64_SVE_VL; i > 2 * sizeof(numext::int32_t) * CHAR_BIT; i >>= 1)
+  for (int n = unpacket_traits<PacketXi>::size; n > 2; n >>= 1)
     prod = svmul_s32_x(svptrue_b32(), svzip1_s32(prod, prod), svzip2_s32(prod, prod));
 
   // The reduction is done to the first element.
@@ -314,11 +308,9 @@ EIGEN_STRONG_INLINE numext::int32_t predux_max<PacketXi>(const PacketXi& a) {
 
 template <int N>
 EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<PacketXi, N>& kernel) {
-  EIGEN_UNROLL_LOOP
+  EIGEN_STATIC_ASSERT((N & (N - 1)) == 0, EIGEN_INTERNAL_ERROR_PLEASE_FILE_A_BUG_REPORT);
   for (int stride = N / 2; stride > 0; stride >>= 1) {
-    EIGEN_UNROLL_LOOP
     for (int block = 0; block < N; block += 2 * stride) {
-      EIGEN_UNROLL_LOOP
       for (int k = 0; k < stride; ++k) {
         PacketXi lo = svzip1_s32(kernel.packet[block + k], kernel.packet[block + k + stride]);
         PacketXi hi = svzip2_s32(kernel.packet[block + k], kernel.packet[block + k + stride]);
@@ -641,10 +633,9 @@ EIGEN_STRONG_INLINE float predux_mul<PacketXf>(const PacketXf& a) {
   // Multiply the vector by its reverse.
   svfloat32_t prod = svmul_f32_x(svptrue_b32(), a, svrev_f32(a));
 
-  // Extract the high half of the vector. Depending on the VL more reductions need to be done.
+  // Reduce with interleave-and-multiply.
   // NOTE: Skip the final reduction since it is already handled by `rev` above.
-  EIGEN_UNROLL_LOOP
-  for (int i = EIGEN_ARM64_SVE_VL; i > 2 * sizeof(float) * CHAR_BIT; i >>= 1)
+  for (int n = unpacket_traits<PacketXf>::size; n > 2; n >>= 1)
     prod = svmul_f32_x(svptrue_b32(), svzip1_f32(prod, prod), svzip2_f32(prod, prod));
 
   // The reduction is done to the first element.
@@ -663,11 +654,9 @@ EIGEN_STRONG_INLINE float predux_max<PacketXf>(const PacketXf& a) {
 
 template <int N>
 EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<PacketXf, N>& kernel) {
-  EIGEN_UNROLL_LOOP
+  EIGEN_STATIC_ASSERT((N & (N - 1)) == 0, EIGEN_INTERNAL_ERROR_PLEASE_FILE_A_BUG_REPORT);
   for (int stride = N / 2; stride > 0; stride >>= 1) {
-    EIGEN_UNROLL_LOOP
     for (int block = 0; block < N; block += 2 * stride) {
-      EIGEN_UNROLL_LOOP
       for (int k = 0; k < stride; ++k) {
         PacketXf lo = svzip1_f32(kernel.packet[block + k], kernel.packet[block + k + stride]);
         PacketXf hi = svzip2_f32(kernel.packet[block + k], kernel.packet[block + k + stride]);
@@ -984,10 +973,9 @@ EIGEN_STRONG_INLINE double predux_mul<PacketXd>(const PacketXd& a) {
   // Multiply the vector by its reverse.
   svfloat64_t prod = svmul_f64_x(svptrue_b64(), a, svrev_f64(a));
 
-  // Extract the high half of the vector. Depending on the VL more reductions need to be done.
+  // Reduce with interleave-and-multiply.
   // NOTE: Skip the final reduction since it is already handled by `rev` above.
-  EIGEN_UNROLL_LOOP
-  for (int i = EIGEN_ARM64_SVE_VL; i > 2 * sizeof(double) * CHAR_BIT; i >>= 1)
+  for (int n = unpacket_traits<PacketXd>::size; n > 2; n >>= 1)
     prod = svmul_f64_x(svptrue_b64(), svzip1_f64(prod, prod), svzip2_f64(prod, prod));
 
   // The reduction is done to the first element.
@@ -1006,11 +994,9 @@ EIGEN_STRONG_INLINE double predux_max<PacketXd>(const PacketXd& a) {
 
 template <int N>
 EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<PacketXd, N>& kernel) {
-  EIGEN_UNROLL_LOOP
+  EIGEN_STATIC_ASSERT((N & (N - 1)) == 0, EIGEN_INTERNAL_ERROR_PLEASE_FILE_A_BUG_REPORT);
   for (int stride = N / 2; stride > 0; stride >>= 1) {
-    EIGEN_UNROLL_LOOP
     for (int block = 0; block < N; block += 2 * stride) {
-      EIGEN_UNROLL_LOOP
       for (int k = 0; k < stride; ++k) {
         PacketXd lo = svzip1_f64(kernel.packet[block + k], kernel.packet[block + k + stride]);
         PacketXd hi = svzip2_f64(kernel.packet[block + k], kernel.packet[block + k + stride]);

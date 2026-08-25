@@ -12,69 +12,74 @@
 #if defined(EIGEN_VECTORIZE_SVE)
 
 #include <cstdint>
+#include <type_traits>
 
 namespace Eigen {
 namespace {
 
 using internal::packet_traits;
 using internal::PacketBlock;
-using internal::PacketXd;
-using internal::PacketXf;
-using internal::PacketXi;
 using internal::pfirst;
 
-constexpr int kNI = packet_traits<numext::int32_t>::size;
-constexpr int kNF = packet_traits<float>::size;
-constexpr int kND = packet_traits<double>::size;
-
-// `ploadquad` reads one value per group of four lanes; at the smallest vector
-// length that would round down to zero groups, so at least one is read.
-constexpr int kQuarterI = (kNI / 4 > 0) ? kNI / 4 : 1;
-constexpr int kQuarterF = (kNF / 4 > 0) ? kNF / 4 : 1;
-
-template <int N>
-__attribute__((noinline)) void call_ptranspose(PacketBlock<PacketXi, N>& kernel) {
-  internal::ptranspose(kernel);
+template <typename Scalar>
+svbool_t all_true() = delete;
+template <>
+svbool_t all_true<numext::int32_t>() {
+  return svptrue_b32();
 }
-template <int N>
-__attribute__((noinline)) void call_ptranspose(PacketBlock<PacketXf, N>& kernel) {
-  internal::ptranspose(kernel);
+template <>
+svbool_t all_true<float>() {
+  return svptrue_b32();
 }
-template <int N>
-__attribute__((noinline)) void call_ptranspose(PacketBlock<PacketXd, N>& kernel) {
-  internal::ptranspose(kernel);
+template <>
+svbool_t all_true<double>() {
+  return svptrue_b64();
 }
 
-// ---- plset<PacketXi> ----
+template <typename Packet, int N>
+__attribute__((noinline)) void call_ptranspose(PacketBlock<Packet, N>& kernel) {
+  internal::ptranspose(kernel);
+}
 
+// ---- plset ----
+
+template <typename Scalar>
 void BM_Plset(benchmark::State& state) {
-  const numext::int32_t a = 7;
-  numext::int32_t out[kNI];
+  using Packet = typename packet_traits<Scalar>::type;
+  constexpr int N = packet_traits<Scalar>::size;
+  Scalar a = Scalar(7);
+  Scalar out[N];
 
-  svst1_s32(svptrue_b32(), out, internal::plset<PacketXi>(a));
-  for (int i = 0; i < kNI; ++i) {
-    if (out[i] != a + i) {
+  svst1(all_true<Scalar>(), out, internal::plset<Packet>(a));
+  for (int i = 0; i < N; ++i) {
+    if (out[i] != static_cast<Scalar>(a + i)) {
       state.SkipWithError("Plset: materialized result does not match scalar reference");
       return;
     }
   }
 
   for (auto _ : state) {
-    svst1_s32(svptrue_b32(), out, internal::plset<PacketXi>(a));
+    asm volatile("" : "+w"(a));
+    svst1(all_true<Scalar>(), out, internal::plset<Packet>(a));
     benchmark::DoNotOptimize(out);
   }
 }
-BENCHMARK(BM_Plset)->Name("Plset_int32");
+BENCHMARK(BM_Plset<numext::int32_t>)->Name("Plset_int32");
+BENCHMARK(BM_Plset<float>)->Name("Plset_float");
+BENCHMARK(BM_Plset<double>)->Name("Plset_double");
 
 // ---- ploaddup ----
 
-void BM_Ploaddup_int32(benchmark::State& state) {
-  numext::int32_t in[kNI];
-  for (int i = 0; i < kNI; ++i) in[i] = i;
-  numext::int32_t out[kNI];
+template <typename Scalar>
+void BM_Ploaddup(benchmark::State& state) {
+  using Packet = typename packet_traits<Scalar>::type;
+  constexpr int N = packet_traits<Scalar>::size;
+  Scalar in[N];
+  for (int i = 0; i < N; ++i) in[i] = static_cast<Scalar>(i);
+  Scalar out[N];
 
-  svst1_s32(svptrue_b32(), out, internal::ploaddup<PacketXi>(in));
-  for (int i = 0; i < kNI / 2; ++i) {
+  svst1(all_true<Scalar>(), out, internal::ploaddup<Packet>(in));
+  for (int i = 0; i < N / 2; ++i) {
     if (out[2 * i] != in[i] || out[2 * i + 1] != in[i]) {
       state.SkipWithError("Ploaddup: materialized result does not match scalar reference");
       return;
@@ -82,41 +87,30 @@ void BM_Ploaddup_int32(benchmark::State& state) {
   }
 
   for (auto _ : state) {
-    svst1_s32(svptrue_b32(), out, internal::ploaddup<PacketXi>(in));
+    svst1(all_true<Scalar>(), out, internal::ploaddup<Packet>(in));
     benchmark::DoNotOptimize(out);
   }
 }
-BENCHMARK(BM_Ploaddup_int32)->Name("Ploaddup_int32");
-
-void BM_Ploaddup_float(benchmark::State& state) {
-  float in[kNF];
-  for (int i = 0; i < kNF; ++i) in[i] = static_cast<float>(i);
-  float out[kNF];
-
-  svst1_f32(svptrue_b32(), out, internal::ploaddup<PacketXf>(in));
-  for (int i = 0; i < kNF / 2; ++i) {
-    if (out[2 * i] != in[i] || out[2 * i + 1] != in[i]) {
-      state.SkipWithError("Ploaddup: materialized result does not match scalar reference");
-      return;
-    }
-  }
-
-  for (auto _ : state) {
-    svst1_f32(svptrue_b32(), out, internal::ploaddup<PacketXf>(in));
-    benchmark::DoNotOptimize(out);
-  }
-}
-BENCHMARK(BM_Ploaddup_float)->Name("Ploaddup_float");
+BENCHMARK(BM_Ploaddup<numext::int32_t>)->Name("Ploaddup_int32");
+BENCHMARK(BM_Ploaddup<float>)->Name("Ploaddup_float");
+BENCHMARK(BM_Ploaddup<double>)->Name("Ploaddup_double");
 
 // ---- ploadquad ----
 
-void BM_Ploadquad_int32(benchmark::State& state) {
-  numext::int32_t in[kNI];
-  for (int i = 0; i < kNI; ++i) in[i] = i;
-  numext::int32_t out[kNI];
+template <typename Scalar>
+void BM_Ploadquad(benchmark::State& state) {
+  using Packet = typename packet_traits<Scalar>::type;
+  constexpr int N = packet_traits<Scalar>::size;
+  // `ploadquad` reads one value per group of four lanes; at the smallest
+  // vector length that would round down to zero groups, so at least one is
+  // read.
+  constexpr int kQuarter = (N / 4 > 0) ? N / 4 : 1;
+  Scalar in[N];
+  for (int i = 0; i < N; ++i) in[i] = static_cast<Scalar>(i);
+  Scalar out[N];
 
-  svst1_s32(svptrue_b32(), out, internal::ploadquad<PacketXi>(in));
-  for (int j = 0; j < kQuarterI; ++j) {
+  svst1(all_true<Scalar>(), out, internal::ploadquad<Packet>(in));
+  for (int j = 0; j < kQuarter; ++j) {
     for (int k = 0; k < 4; ++k) {
       if (out[4 * j + k] != in[j]) {
         state.SkipWithError("Ploadquad: materialized result does not match scalar reference");
@@ -126,33 +120,13 @@ void BM_Ploadquad_int32(benchmark::State& state) {
   }
 
   for (auto _ : state) {
-    svst1_s32(svptrue_b32(), out, internal::ploadquad<PacketXi>(in));
+    svst1(all_true<Scalar>(), out, internal::ploadquad<Packet>(in));
     benchmark::DoNotOptimize(out);
   }
 }
-BENCHMARK(BM_Ploadquad_int32)->Name("Ploadquad_int32");
-
-void BM_Ploadquad_float(benchmark::State& state) {
-  float in[kNF];
-  for (int i = 0; i < kNF; ++i) in[i] = static_cast<float>(i);
-  float out[kNF];
-
-  svst1_f32(svptrue_b32(), out, internal::ploadquad<PacketXf>(in));
-  for (int j = 0; j < kQuarterF; ++j) {
-    for (int k = 0; k < 4; ++k) {
-      if (out[4 * j + k] != in[j]) {
-        state.SkipWithError("Ploadquad: materialized result does not match scalar reference");
-        return;
-      }
-    }
-  }
-
-  for (auto _ : state) {
-    svst1_f32(svptrue_b32(), out, internal::ploadquad<PacketXf>(in));
-    benchmark::DoNotOptimize(out);
-  }
-}
-BENCHMARK(BM_Ploadquad_float)->Name("Ploadquad_float");
+BENCHMARK(BM_Ploadquad<numext::int32_t>)->Name("Ploadquad_int32");
+BENCHMARK(BM_Ploadquad<float>)->Name("Ploadquad_float");
+BENCHMARK(BM_Ploadquad<double>)->Name("Ploadquad_double");
 
 // ---- predux_mul ----
 // Inputs are chosen so the true product is exactly representable regardless
@@ -160,64 +134,45 @@ BENCHMARK(BM_Ploadquad_float)->Name("Ploadquad_float");
 // without rounding for float/double, and multiplying by 1 is exact and
 // overflow-free for int32.
 
-void BM_ReduxMul_int32(benchmark::State& state) {
-  numext::int32_t in[kNI];
-  for (int i = 0; i < kNI; ++i) in[i] = 1;
-  in[0] = -3;
-  in[kNI - 1] = 2;
-  const numext::int32_t expected = -6;
-  PacketXi a = svld1_s32(svptrue_b32(), in);
+template <typename Scalar>
+void fill_redux_mul_input(Scalar (&in)[packet_traits<Scalar>::size], Scalar& expected) {
+  constexpr int N = packet_traits<Scalar>::size;
+  if constexpr (std::is_integral<Scalar>::value) {
+    for (int i = 0; i < N; ++i) in[i] = Scalar(1);
+    in[0] = Scalar(-3);
+    in[N - 1] = Scalar(2);
+    expected = Scalar(-6);
+  } else {
+    expected = Scalar(1);
+    for (int i = 0; i < N; ++i) {
+      in[i] = static_cast<Scalar>(std::int64_t(1) << i);
+      expected *= in[i];
+    }
+  }
+}
 
-  if (internal::predux_mul<PacketXi>(a) != expected) {
+template <typename Scalar>
+void BM_ReduxMul(benchmark::State& state) {
+  using Packet = typename packet_traits<Scalar>::type;
+  constexpr int N = packet_traits<Scalar>::size;
+  Scalar in[N];
+  Scalar expected;
+  fill_redux_mul_input<Scalar>(in, expected);
+  Packet a = svld1(all_true<Scalar>(), in);
+
+  if (internal::predux_mul<Packet>(a) != expected) {
     state.SkipWithError("ReduxMul: materialized result does not match scalar reference");
     return;
   }
 
   for (auto _ : state) {
-    benchmark::DoNotOptimize(internal::predux_mul<PacketXi>(a));
+    asm volatile("" : "+w"(a));
+    benchmark::DoNotOptimize(internal::predux_mul<Packet>(a));
   }
 }
-BENCHMARK(BM_ReduxMul_int32)->Name("ReduxMul_int32");
-
-void BM_ReduxMul_float(benchmark::State& state) {
-  float in[kNF];
-  float expected = 1.0f;
-  for (int i = 0; i < kNF; ++i) {
-    in[i] = static_cast<float>(1 << i);
-    expected *= in[i];
-  }
-  PacketXf a = svld1_f32(svptrue_b32(), in);
-
-  if (internal::predux_mul<PacketXf>(a) != expected) {
-    state.SkipWithError("ReduxMul: materialized result does not match scalar reference");
-    return;
-  }
-
-  for (auto _ : state) {
-    benchmark::DoNotOptimize(internal::predux_mul<PacketXf>(a));
-  }
-}
-BENCHMARK(BM_ReduxMul_float)->Name("ReduxMul_float");
-
-void BM_ReduxMul_double(benchmark::State& state) {
-  double in[kND];
-  double expected = 1.0;
-  for (int i = 0; i < kND; ++i) {
-    in[i] = static_cast<double>(std::int64_t(1) << i);
-    expected *= in[i];
-  }
-  PacketXd a = svld1_f64(svptrue_b64(), in);
-
-  if (internal::predux_mul<PacketXd>(a) != expected) {
-    state.SkipWithError("ReduxMul: materialized result does not match scalar reference");
-    return;
-  }
-
-  for (auto _ : state) {
-    benchmark::DoNotOptimize(internal::predux_mul<PacketXd>(a));
-  }
-}
-BENCHMARK(BM_ReduxMul_double)->Name("ReduxMul_double");
+BENCHMARK(BM_ReduxMul<numext::int32_t>)->Name("ReduxMul_int32");
+BENCHMARK(BM_ReduxMul<float>)->Name("ReduxMul_float");
+BENCHMARK(BM_ReduxMul<double>)->Name("ReduxMul_double");
 
 // ---- ptranspose ----
 // Benchmarked at N == the type's packet width, i.e. a full square transpose,
@@ -226,86 +181,37 @@ BENCHMARK(BM_ReduxMul_double)->Name("ReduxMul_double");
 // repeatedly toggles between the original and transposed state, so checking
 // after the timed loop would depend on the (unpredictable) iteration count.
 
-void BM_Ptranspose_int32(benchmark::State& state) {
-  numext::int32_t in[kNI * kNI];
-  for (int i = 0; i < kNI * kNI; ++i) in[i] = i;
+template <typename Scalar>
+void BM_Ptranspose(benchmark::State& state) {
+  using Packet = typename packet_traits<Scalar>::type;
+  constexpr int N = packet_traits<Scalar>::size;
+  Scalar in[N * N];
+  for (int i = 0; i < N * N; ++i) in[i] = static_cast<Scalar>(i);
 
-  PacketBlock<PacketXi, kNI> check;
-  for (int i = 0; i < kNI; ++i) check.packet[i] = svld1_s32(svptrue_b32(), in + i * kNI);
-  call_ptranspose<kNI>(check);
-  for (int i = 0; i < kNI; ++i) {
-    numext::int32_t row[kNI];
-    svst1_s32(svptrue_b32(), row, check.packet[i]);
-    for (int k = 0; k < kNI; ++k) {
-      if (row[k] != in[k * kNI + i]) {
+  PacketBlock<Packet, N> check;
+  for (int i = 0; i < N; ++i) check.packet[i] = svld1(all_true<Scalar>(), in + i * N);
+  call_ptranspose<Packet, N>(check);
+  for (int i = 0; i < N; ++i) {
+    Scalar row[N];
+    svst1(all_true<Scalar>(), row, check.packet[i]);
+    for (int k = 0; k < N; ++k) {
+      if (row[k] != in[k * N + i]) {
         state.SkipWithError("Ptranspose: materialized result does not match scalar reference");
         return;
       }
     }
   }
 
-  PacketBlock<PacketXi, kNI> kernel;
-  for (int i = 0; i < kNI; ++i) kernel.packet[i] = svld1_s32(svptrue_b32(), in + i * kNI);
+  PacketBlock<Packet, N> kernel;
+  for (int i = 0; i < N; ++i) kernel.packet[i] = svld1(all_true<Scalar>(), in + i * N);
   for (auto _ : state) {
-    call_ptranspose<kNI>(kernel);
-    benchmark::DoNotOptimize(pfirst<PacketXi>(kernel.packet[0]));
+    call_ptranspose<Packet, N>(kernel);
+    benchmark::DoNotOptimize(pfirst<Packet>(kernel.packet[0]));
   }
 }
-BENCHMARK(BM_Ptranspose_int32)->Name("Ptranspose_int32");
-
-void BM_Ptranspose_float(benchmark::State& state) {
-  float in[kNF * kNF];
-  for (int i = 0; i < kNF * kNF; ++i) in[i] = static_cast<float>(i);
-
-  PacketBlock<PacketXf, kNF> check;
-  for (int i = 0; i < kNF; ++i) check.packet[i] = svld1_f32(svptrue_b32(), in + i * kNF);
-  call_ptranspose<kNF>(check);
-  for (int i = 0; i < kNF; ++i) {
-    float row[kNF];
-    svst1_f32(svptrue_b32(), row, check.packet[i]);
-    for (int k = 0; k < kNF; ++k) {
-      if (row[k] != in[k * kNF + i]) {
-        state.SkipWithError("Ptranspose: materialized result does not match scalar reference");
-        return;
-      }
-    }
-  }
-
-  PacketBlock<PacketXf, kNF> kernel;
-  for (int i = 0; i < kNF; ++i) kernel.packet[i] = svld1_f32(svptrue_b32(), in + i * kNF);
-  for (auto _ : state) {
-    call_ptranspose<kNF>(kernel);
-    benchmark::DoNotOptimize(pfirst<PacketXf>(kernel.packet[0]));
-  }
-}
-BENCHMARK(BM_Ptranspose_float)->Name("Ptranspose_float");
-
-void BM_Ptranspose_double(benchmark::State& state) {
-  double in[kND * kND];
-  for (int i = 0; i < kND * kND; ++i) in[i] = static_cast<double>(i);
-
-  PacketBlock<PacketXd, kND> check;
-  for (int i = 0; i < kND; ++i) check.packet[i] = svld1_f64(svptrue_b64(), in + i * kND);
-  call_ptranspose<kND>(check);
-  for (int i = 0; i < kND; ++i) {
-    double row[kND];
-    svst1_f64(svptrue_b64(), row, check.packet[i]);
-    for (int k = 0; k < kND; ++k) {
-      if (row[k] != in[k * kND + i]) {
-        state.SkipWithError("Ptranspose: materialized result does not match scalar reference");
-        return;
-      }
-    }
-  }
-
-  PacketBlock<PacketXd, kND> kernel;
-  for (int i = 0; i < kND; ++i) kernel.packet[i] = svld1_f64(svptrue_b64(), in + i * kND);
-  for (auto _ : state) {
-    call_ptranspose<kND>(kernel);
-    benchmark::DoNotOptimize(pfirst<PacketXd>(kernel.packet[0]));
-  }
-}
-BENCHMARK(BM_Ptranspose_double)->Name("Ptranspose_double");
+BENCHMARK(BM_Ptranspose<numext::int32_t>)->Name("Ptranspose_int32");
+BENCHMARK(BM_Ptranspose<float>)->Name("Ptranspose_float");
+BENCHMARK(BM_Ptranspose<double>)->Name("Ptranspose_double");
 
 }  // namespace
 }  // namespace Eigen
