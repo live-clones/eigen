@@ -105,6 +105,26 @@ void test_bug2633() {
   VERIFY(schur.info() == Eigen::Success);
 }
 
+void real_schur_power_of_two_scaling() {
+  // Reciprocal scaling rounds the smaller diagonal entry up by one ULP.
+  Matrix2f matrix = Matrix2f::Zero();
+  matrix(0, 0) = numext::bit_cast<float>(numext::uint32_t(0x58f6aaed));
+  matrix(0, 1) = numext::bit_cast<float>(numext::uint32_t(0x52123456));
+  matrix(1, 1) = numext::bit_cast<float>(numext::uint32_t(0x537dcf0e));
+
+  const RealSchur<Matrix2f> schur(matrix);
+  VERIFY_IS_EQUAL(schur.info(), Success);
+  VERIFY_IS_EQUAL(schur.matrixT(), matrix);
+
+  volatile float denormMinInput = std::numeric_limits<float>::denorm_min();
+  const float denormMin = denormMinInput;
+  if (!(denormMin > 0.0f)) return;
+  matrix.setZero();
+  matrix.diagonal() << 1.5f, denormMin;
+  const RealSchur<Matrix2f> tailSchur(matrix);
+  VERIFY_IS_EQUAL(tailSchur.matrixT()(1, 1), denormMin);
+}
+
 EIGEN_DECLARE_TEST(schur_real) {
   CALL_SUBTEST_1((schur<Matrix4f>()));
   CALL_SUBTEST_2((schur<MatrixXd>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4))));
@@ -115,4 +135,5 @@ EIGEN_DECLARE_TEST(schur_real) {
   CALL_SUBTEST_5(RealSchur<MatrixXf>(10));
 
   CALL_SUBTEST_6((test_bug2633()));
+  CALL_SUBTEST_6((real_schur_power_of_two_scaling()));
 }
