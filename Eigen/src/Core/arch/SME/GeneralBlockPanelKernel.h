@@ -84,9 +84,13 @@ struct sme_traits<float> {
   using Vec2 = svfloat32x2_t;
   using Vec4 = svfloat32x4_t;
   static EIGEN_ALWAYS_INLINE int svl() __arm_streaming_compatible { return static_cast<int>(svcntsw()); }
+  // svwhilelt is overloaded on the fixed-width integer types only, so widen
+  // here: an argument of a distinct type of the same width -- `Index` where
+  // `int64_t` is `long long` -- would otherwise match none of them exactly and
+  // make the call ambiguous.
   template <typename T, typename = std::enable_if_t<std::is_integral<T>::value>>
   static EIGEN_ALWAYS_INLINE svbool_t whilelt(T begin, T end) __arm_streaming {
-    return svwhilelt_b32(begin, end);
+    return svwhilelt_b32(static_cast<int64_t>(begin), static_cast<int64_t>(end));
   }
   static EIGEN_ALWAYS_INLINE svbool_t ptrue() __arm_streaming { return svptrue_b32(); }
   static EIGEN_ALWAYS_INLINE svcount_t ptrue_c() __arm_streaming { return svptrue_c32(); }
@@ -102,7 +106,7 @@ struct sme_traits<double> {
   static EIGEN_ALWAYS_INLINE int svl() __arm_streaming_compatible { return static_cast<int>(svcntsd()); }
   template <typename T, typename = std::enable_if_t<std::is_integral<T>::value>>
   static EIGEN_ALWAYS_INLINE svbool_t whilelt(T begin, T end) __arm_streaming {
-    return svwhilelt_b64(begin, end);
+    return svwhilelt_b64(static_cast<int64_t>(begin), static_cast<int64_t>(end));
   }
   static EIGEN_ALWAYS_INLINE svbool_t ptrue() __arm_streaming { return svptrue_b64(); }
   static EIGEN_ALWAYS_INLINE svcount_t ptrue_c() __arm_streaming { return svptrue_c64(); }
