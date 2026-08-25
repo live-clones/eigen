@@ -440,13 +440,14 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, GemmProduct>
 
   // The runtime-size heuristic comes from bug 404 and was tuned with a
   // helper program on Haswell. The threshold belongs to the kernel the GEMM
-  // path would select, not to the path itself: the SME kernel needs a larger
-  // product before it beats the coeff-based one (see GeneralProduct.h). The
-  // rhs.rows() > 0 guard preserves the historical empty-product path through
-  // scaleAndAddTo().
+  // path would select, not to the path itself, and for the SME kernel to the
+  // scalar type as well: it needs a larger product before it beats the
+  // coeff-based one, by an amount that falls as the scalar widens (see
+  // GeneralProduct.h). The rhs.rows() > 0 guard preserves the historical
+  // empty-product path through scaleAndAddTo().
   static constexpr int kCoeffBasedThreshold =
 #ifdef EIGEN_VECTORIZE_SME
-      sme_has_gebp_kernel<LhsScalar, RhsScalar>::value ? EIGEN_SME_GEMM_TO_COEFFBASED_THRESHOLD :
+      sme_has_gebp_kernel<LhsScalar, RhsScalar>::value ? sme_gemm_to_coeffbased_threshold<Scalar>::value :
 #endif
                                                        EIGEN_GEMM_TO_COEFFBASED_THRESHOLD;
 

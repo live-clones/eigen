@@ -37,27 +37,11 @@ enum { Large = 2, Small = 3 };
 #define EIGEN_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD (2 * EIGEN_GEMM_TO_COEFFBASED_THRESHOLD)
 #endif
 
-// The SME GEMM kernel's mr x nr block is several times wider than the generic
-// kernel's, so a product too small to fill it leaves most of the ZA grid masked
-// off and wastes the outer products it issues. Its crossover against the
-// coeff-based product therefore sits well above the generic kernel's, and the
-// Haswell value above sends products to the SME kernel that the coeff-based one
-// computes several times faster.
-//
-// Measured on Apple M4 at SVL=512 over m=n=k cubes, best of three interleaved
-// runs, in GF/s: the coeff-based product wins up to n=13 for complex<float>
-// (n=8: 41.1 against 8.7) and float, and up to n=11-12 for complex<double> and
-// double. 42 is 3*14, the first cube where the SME kernel leads for the widest
-// of those.
-#ifndef EIGEN_SME_GEMM_TO_COEFFBASED_THRESHOLD
-#define EIGEN_SME_GEMM_TO_COEFFBASED_THRESHOLD 42
-#endif
-
-// The dimension-sum bound above grows with the depth, so it cannot reach a
-// small output over a long depth: a 2x2 result at k=1024 sums to 1028 and takes
-// the SME path with nearly the whole ZA grid predicated off. The crossover for
-// that shape family is an output *area* rather than a dimension sum, and it
-// tracks the scalar width.
+// The dimension-sum bound in sme_gemm_to_coeffbased_threshold below grows with
+// the depth, so it cannot reach a small output over a long depth: a 2x2 result
+// at k=1024 sums to 1028 and takes the SME path with nearly the whole ZA grid
+// predicated off. The crossover for that shape family is an output *area* rather
+// than a dimension sum, and it tracks the scalar width.
 //
 // Measured on Apple M4 at SVL=512, every m x n with m,n in [2,12] against the
 // coeff-based path: the largest area at which *no* shape loses is 27, 14, 15 and
@@ -71,6 +55,48 @@ enum { Large = 2, Small = 3 };
 #endif
 
 namespace internal {
+
+#ifdef EIGEN_VECTORIZE_SME
+// Dimension sum below which the coeff-based product beats the SME GEMM kernel.
+// mr x nr is sized in ZA tiles, so a product too small to fill the grid wastes
+// most of the outer products the kernel issues, and the block holds fewer
+// scalars as the scalar widens: the crossover sits well above the Haswell-tuned
+// EIGEN_GEMM_TO_COEFFBASED_THRESHOLD, and it moves with the scalar type.
+//
+// First cube (m=n=k) at which the SME kernel wins, from two sweeps that each
+// built the same source twice with only this threshold changed, so that the real
+// dispatch selected the path in both:
+//
+//   scalar            M4   M4 Pro   M4 Pro, result 64-byte aligned
+//   complex<double>   14   14       15
+//   double            16   18       16
+//   complex<float>    20   19       19
+//   float             26   22       23
+//
+// The entries below are 3n for the largest of each row, so neither host loses at
+// the crossover it gets. Over the sizes where the two disagree the paths are
+// within 1.2x on both, while at n=14 a too-low bound costs 1.7x to 2.9x.
+//
+// Defining EIGEN_SME_GEMM_TO_COEFFBASED_THRESHOLD replaces every entry with one
+// value, which is what such a sweep wants. The primary template answers with the
+// generic threshold: sme_has_gebp_kernel gates the dispatch, so a scalar pair
+// without an SME kernel never reads the table.
+#ifdef EIGEN_SME_GEMM_TO_COEFFBASED_THRESHOLD
+template <typename Scalar>
+struct sme_gemm_to_coeffbased_threshold : std::integral_constant<int, EIGEN_SME_GEMM_TO_COEFFBASED_THRESHOLD> {};
+#else
+template <typename Scalar>
+struct sme_gemm_to_coeffbased_threshold : std::integral_constant<int, EIGEN_GEMM_TO_COEFFBASED_THRESHOLD> {};
+template <>
+struct sme_gemm_to_coeffbased_threshold<float> : std::integral_constant<int, 78> {};
+template <>
+struct sme_gemm_to_coeffbased_threshold<double> : std::integral_constant<int, 54> {};
+template <>
+struct sme_gemm_to_coeffbased_threshold<std::complex<float> > : std::integral_constant<int, 60> {};
+template <>
+struct sme_gemm_to_coeffbased_threshold<std::complex<double> > : std::integral_constant<int, 45> {};
+#endif
+#endif
 
 template <int Rows, int Cols, int Depth>
 struct product_type_selector;
