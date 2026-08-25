@@ -80,11 +80,14 @@
 // 64 bytes static alignment is preferred only if really required
 #define EIGEN_IDEAL_MAX_ALIGN_BYTES 64
 // Deliberately no SME case: this block runs long before EIGEN_VECTORIZE_SME is
-// defined, so a test for it here is unreachable, and 16 is the right answer
-// anyway -- an SME build vectorizes everything but GEMM with NEON packets, and
-// the kernel's own buffers are heap-allocated. Raising it would change the
-// alignment, and so the ABI, of every fixed-size object relative to a NEON
-// build of the same headers.
+// defined, so a test for it here is unreachable -- and moving it would be wrong
+// rather than merely late. Raising the value changes the alignment, and so the
+// ABI, of every fixed-size object relative to a NEON build of the same headers;
+// past 16 bytes aligned_malloc also switches to the prefixed
+// handmade_aligned_malloc, so a matrix allocated in an SME translation unit and
+// freed in a non-SME one corrupts the heap. Keeping 16 is not free: the SME GEMM
+// kernel is up to 3.4x faster at small sizes when the result matrix starts on a
+// 64-byte boundary, which is what 64 here would give every Eigen-owned matrix.
 #elif defined(EIGEN_ARM64_USE_SVE) && defined(__ARM_FEATURE_SVE_BITS) && (__ARM_FEATURE_SVE_BITS != 0)
 // A fixed-length SVE packet is __ARM_FEATURE_SVE_BITS/8 bytes wide and asks for
 // exactly that much alignment; a fixed-size object has to be able to offer it or
