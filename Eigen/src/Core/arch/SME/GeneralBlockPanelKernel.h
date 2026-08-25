@@ -331,7 +331,7 @@ static EIGEN_ALWAYS_INLINE T sme_min(T a, T b) __arm_streaming_compatible {
 // second-vector accesses below reach their address through uintptr_t.
 template <typename T>
 static EIGEN_ALWAYS_INLINE T* sme_offset(T* p, Index n) __arm_streaming_compatible {
-  return reinterpret_cast<T*>(uintptr_t(p) + uintptr_t(n) * sizeof(T));
+  return reinterpret_cast<T*>(uintptr_t(p) + ptrdiff_t(n) * sizeof(T));
 }
 
 // ---------------------------------------------------------------------------
