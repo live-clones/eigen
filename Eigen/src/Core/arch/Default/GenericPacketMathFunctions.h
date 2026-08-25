@@ -46,7 +46,7 @@ namespace internal {
 // heavier pfrexp_generic, saving ~12 ops. The minimax polynomial was found via
 // Sollya's fpminimax, giving faithfully-rounded results (max 1 ULP for log).
 template <typename Packet>
-EIGEN_STRONG_INLINE void plog_core_float(const Packet v, Packet& log_mantissa, Packet& e) {
+EIGEN_STRONG_INLINE void plog_core_float(const Packet& v, Packet& log_mantissa, Packet& e) {
   using PacketI = typename unpacket_traits<Packet>::integer_packet;
 
   const PacketI cst_min_normal = pset1<PacketI>(0x00800000);
@@ -106,7 +106,7 @@ EIGEN_STRONG_INLINE void plog_core_float(const Packet v, Packet& log_mantissa, P
 // Computes log(x) as e*C + log(m), where x = 2^e * m with m in [sqrt(1/2), sqrt(2))
 // and C = ln(2) for natural log, C = 1 for log2.
 template <typename Packet, bool base2>
-EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog_impl_float(const Packet _x) {
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog_impl_float(const Packet& _x) {
   Packet log_mantissa, e;
   plog_core_float(_x, log_mantissa, e);
 
@@ -133,12 +133,12 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog_impl_float(const
 }
 
 template <typename Packet>
-EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog_float(const Packet _x) {
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog_float(const Packet& _x) {
   return plog_impl_float<Packet, /* base2 */ false>(_x);
 }
 
 template <typename Packet>
-EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog2_float(const Packet _x) {
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog2_float(const Packet& _x) {
   return plog_impl_float<Packet, /* base2 */ true>(_x);
 }
 
@@ -151,7 +151,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog2_float(const Pac
 // Evaluates x - 0.5*x^2 + x^3 * P(x)/Q(x) where P and Q are degree-5.
 // See: http://www.netlib.org/cephes/
 template <typename Packet>
-EIGEN_STRONG_INLINE Packet plog_mantissa_double(const Packet x) {
+EIGEN_STRONG_INLINE Packet plog_mantissa_double(const Packet& x) {
   const Packet cst_cephes_log_p0 = pset1<Packet>(1.01875663804580931796E-4);
   const Packet cst_cephes_log_p1 = pset1<Packet>(4.97494994976747001425E-1);
   const Packet cst_cephes_log_p2 = pset1<Packet>(4.70579119878881725854E0);
@@ -198,7 +198,7 @@ struct packet_has_integer_packet<Packet, void_t<typename unpacket_traits<Packet>
 // Primary template: pfrexp-based fallback (used when integer_packet is absent).
 template <typename Packet, bool UseIntegerPacket>
 struct plog_range_reduce_double {
-  EIGEN_STRONG_INLINE static void run(const Packet v, Packet& f, Packet& e) {
+  EIGEN_STRONG_INLINE static void run(const Packet& v, Packet& f, Packet& e) {
     const Packet one = pset1<Packet>(1.0);
     const Packet cst_cephes_SQRTHF = pset1<Packet>(0.70710678118654752440E0);
     // pfrexp: f in [0.5, 1), e = unbiased exponent as double.
@@ -218,7 +218,7 @@ struct plog_range_reduce_double {
 // Requires unpacket_traits<Packet>::integer_packet to be a 64-bit integer packet.
 template <typename Packet>
 struct plog_range_reduce_double<Packet, true> {
-  EIGEN_STRONG_INLINE static void run(const Packet v, Packet& f, Packet& e) {
+  EIGEN_STRONG_INLINE static void run(const Packet& v, Packet& f, Packet& e) {
     using PacketI = typename unpacket_traits<Packet>::integer_packet;
     // 2^-1022: smallest positive normal double.
     const PacketI cst_min_normal = pset1<PacketI>(static_cast<int64_t>(0x0010000000000000LL));
@@ -270,7 +270,7 @@ struct plog_range_reduce_double<Packet, true> {
 // Selects the fast integer path when integer_packet is available, otherwise
 // falls back to pfrexp.
 template <typename Packet>
-EIGEN_STRONG_INLINE void plog_core_double(const Packet v, Packet& log_mantissa, Packet& e) {
+EIGEN_STRONG_INLINE void plog_core_double(const Packet& v, Packet& log_mantissa, Packet& e) {
   Packet f;
   plog_range_reduce_double<Packet, packet_has_integer_packet<Packet>::value>::run(v, f, e);
   log_mantissa = plog_mantissa_double(f);
@@ -286,7 +286,7 @@ EIGEN_STRONG_INLINE void plog_core_double(const Packet v, Packet& log_mantissa, 
  * for more detail see: http://www.netlib.org/cephes/
  */
 template <typename Packet, bool base2>
-EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog_impl_double(const Packet _x) {
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog_impl_double(const Packet& _x) {
   const Packet cst_minus_inf = por(psignmask<Packet>(), pinf<Packet>());
   const Packet cst_pos_inf = pinf<Packet>();
 
@@ -314,12 +314,12 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog_impl_double(cons
 }
 
 template <typename Packet>
-EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog_double(const Packet _x) {
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog_double(const Packet& _x) {
   return plog_impl_double<Packet, /* base2 */ false>(_x);
 }
 
 template <typename Packet>
-EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog2_double(const Packet _x) {
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog2_double(const Packet& _x) {
   return plog_impl_double<Packet, /* base2 */ true>(_x);
 }
 
@@ -447,7 +447,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_expm1(const P
 // "exp(x) = 2^m*exp(r)" where exp(r) is in the range [-1,1).
 // exp(r) is computed using a 6th order minimax polynomial approximation.
 template <typename Packet, bool IsFinite>
-EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_float(const Packet _x) {
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_float(const Packet& _x) {
   using PacketI = typename unpacket_traits<Packet>::integer_packet;
 
   const Packet cst_one = pset1<Packet>(1.0f);
@@ -515,7 +515,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_float(const Pack
 }
 
 template <typename Packet>
-EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_double(const Packet _x) {
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_double(const Packet& _x) {
   const Packet cst_zero = pset1<Packet>(0.0);
   const Packet cst_1 = pset1<Packet>(1.0);
   const Packet cst_2 = pset1<Packet>(2.0);
