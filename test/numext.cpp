@@ -447,23 +447,24 @@ struct check_rsqrt_impl<std::complex<T>> {
 #if (EIGEN_COMP_GNUC)
     {
       const int kNumCorners = 20;
+      // Keep the expected values explicit: fast-math changes complex division for zero and infinite operands.
       const ComplexT corners[kNumCorners][2] = {
           // Only consistent across GCC, clang
-          {ComplexT(zero, zero), ComplexT(zero, zero)},
-          {ComplexT(-zero, zero), ComplexT(zero, zero)},
-          {ComplexT(zero, -zero), ComplexT(zero, zero)},
-          {ComplexT(-zero, -zero), ComplexT(zero, zero)},
-          {ComplexT(one, inf), ComplexT(inf, inf)},
-          {ComplexT(nan, inf), ComplexT(inf, inf)},
-          {ComplexT(one, -inf), ComplexT(inf, -inf)},
-          {ComplexT(nan, -inf), ComplexT(inf, -inf)},
+          {ComplexT(zero, zero), ComplexT(inf, nan)},
+          {ComplexT(-zero, zero), ComplexT(inf, nan)},
+          {ComplexT(zero, -zero), ComplexT(inf, nan)},
+          {ComplexT(-zero, -zero), ComplexT(inf, nan)},
+          {ComplexT(one, inf), ComplexT(zero, zero)},
+          {ComplexT(nan, inf), ComplexT(zero, zero)},
+          {ComplexT(one, -inf), ComplexT(zero, zero)},
+          {ComplexT(nan, -inf), ComplexT(zero, zero)},
           // Consistent across GCC, clang, MSVC
-          {ComplexT(-inf, one), ComplexT(zero, inf)},
-          {ComplexT(inf, one), ComplexT(inf, zero)},
-          {ComplexT(-inf, -one), ComplexT(zero, -inf)},
-          {ComplexT(inf, -one), ComplexT(inf, -zero)},
-          {ComplexT(-inf, nan), ComplexT(nan, inf)},
-          {ComplexT(inf, nan), ComplexT(inf, nan)},
+          {ComplexT(-inf, one), ComplexT(zero, zero)},
+          {ComplexT(inf, one), ComplexT(zero, zero)},
+          {ComplexT(-inf, -one), ComplexT(zero, zero)},
+          {ComplexT(inf, -one), ComplexT(zero, zero)},
+          {ComplexT(-inf, nan), ComplexT(zero, zero)},
+          {ComplexT(inf, nan), ComplexT(zero, zero)},
           {ComplexT(zero, nan), ComplexT(nan, nan)},
           {ComplexT(one, nan), ComplexT(nan, nan)},
           {ComplexT(nan, zero), ComplexT(nan, nan)},
@@ -474,7 +475,7 @@ struct check_rsqrt_impl<std::complex<T>> {
 
       for (int i = 0; i < kNumCorners; ++i) {
         const ComplexT& x = corners[i][0];
-        const ComplexT rsqrtx = ComplexT(one, zero) / corners[i][1];
+        const ComplexT& rsqrtx = corners[i][1];
         VERIFY_IS_EQUAL_OR_NANS(numext::rsqrt(x), rsqrtx);
       }
     }
