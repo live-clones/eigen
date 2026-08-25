@@ -14,6 +14,7 @@
 #define EIGEN_RUNTIME_NO_MALLOC
 #include "main.h"
 #include <Eigen/SVD>
+#include "fp_control.h"
 
 #define SVD_DEFAULT(M) JacobiSVD<M>
 #define SVD_FOR_MIN_NORM(M) JacobiSVD<M, ColPivHouseholderQRPreconditioner>
@@ -130,6 +131,59 @@ void jacobisvd_mixed_option_enum_regression() {
   STATIC_CHECK(((int(ReversedMixedSVD::Options) & ComputeThinV) == 0));
 }
 
+void jacobisvd_power_of_two_scaling() {
+  // Reciprocal scaling rounds the smaller singular value up by one ULP.
+  Matrix2f matrix = Matrix2f::Zero();
+  matrix(0, 0) = numext::bit_cast<float>(numext::uint32_t(0x58f6aaed));
+  matrix(1, 1) = numext::bit_cast<float>(numext::uint32_t(0x537dcf0e));
+
+  const JacobiSVD<Matrix2f> svd(matrix);
+  VERIFY_IS_EQUAL(svd.singularValues()(0), matrix(0, 0));
+  VERIFY_IS_EQUAL(svd.singularValues()(1), matrix(1, 1));
+
+  Matrix<float, 3, 2> rectangular = Matrix<float, 3, 2>::Zero();
+  rectangular.template topRows<2>() = matrix;
+  const JacobiSVD<Matrix<float, 3, 2>> rectangularSvd(rectangular);
+  VERIFY_IS_EQUAL(rectangularSvd.singularValues(), matrix.diagonal());
+
+  const auto checkSubnormalScaling = [] {
+    volatile float normalMinInput = (std::numeric_limits<float>::min)();
+    const float inputScale = 256.0f * normalMinInput;
+    Matrix2cf normalized = Matrix2cf::Identity();
+    normalized(1, 0) = std::complex<float>(1.0f / 512.0f, -1.0f / 1024.0f);
+    Matrix2cf tiny = Matrix2cf::Identity() * inputScale;
+    // Narrowing an arithmetic product to float would flush the fixture before the solver sees it.
+    tiny(1, 0) = std::complex<float>(numext::bit_cast<float>(numext::uint32_t(0x00400000)),
+                                     numext::bit_cast<float>(numext::uint32_t(0x80200000)));
+    const JacobiSVD<Matrix2cf> normalizedSvd(normalized);
+    const JacobiSVD<Matrix2cf> tinySvd(tiny);
+    // These well-conditioned, nearly identity problems should agree to a few rounding errors.
+    const float tolerance = 8 * NumTraits<float>::epsilon();
+    VERIFY((tinySvd.singularValues() / inputScale - normalizedSvd.singularValues()).norm() <= tolerance);
+
+    Matrix<std::complex<float>, 3, 2> tinyTall = Matrix<std::complex<float>, 3, 2>::Zero();
+    tinyTall.template topRows<2>() = tiny;
+    const JacobiSVD<Matrix<std::complex<float>, 3, 2>> tinyTallSvd(tinyTall);
+    VERIFY((tinyTallSvd.singularValues() / inputScale - normalizedSvd.singularValues()).norm() <= tolerance);
+
+    const Matrix<std::complex<float>, 2, 3> tinyWide = tinyTall.adjoint();
+    const JacobiSVD<Matrix<std::complex<float>, 2, 3>> tinyWideSvd(tinyWide);
+    VERIFY((tinyWideSvd.singularValues() / inputScale - normalizedSvd.singularValues()).norm() <= tolerance);
+  };
+  checkSubnormalScaling();
+  {
+    ScopedFlushToZero flushToZero;
+    checkSubnormalScaling();
+  }
+
+  volatile float denormMinInput = std::numeric_limits<float>::denorm_min();
+  const float denormMin = denormMinInput;
+  if (!(denormMin > 0.0f)) return;
+  matrix.diagonal() << 1.5f, denormMin;
+  const JacobiSVD<Matrix2f> tailSvd(matrix);
+  VERIFY_IS_EQUAL(tailSvd.singularValues()(1), denormMin);
+}
+
 EIGEN_DECLARE_TEST(jacobisvd) {
   CALL_SUBTEST_1((jacobisvd_verify_inputs<Matrix4d>()));
   CALL_SUBTEST_2((jacobisvd_verify_inputs(Matrix<float, 5, Dynamic>(5, 6))));
@@ -202,6 +256,7 @@ EIGEN_DECLARE_TEST(jacobisvd) {
   CALL_SUBTEST_55(svd_preallocate<void>());
 
   CALL_SUBTEST_56(svd_underoverflow<void>());
+  CALL_SUBTEST_56(jacobisvd_power_of_two_scaling());
 
   // Check that the TriangularBase constructor works
   CALL_SUBTEST_57((svd_triangular_matrix<Matrix3d>()));

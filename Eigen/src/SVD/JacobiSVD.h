@@ -827,24 +827,27 @@ JacobiSVD<MatrixType, Options>& JacobiSVD<MatrixType, Options>::compute_impl(con
   const RealScalar considerAsZero = (std::numeric_limits<RealScalar>::min)();
 
   // Scaling factor to reduce over/under-flows
-  RealScalar scale = matrix.cwiseAbs().template maxCoeff<PropagateNaN>();
-  if (!(numext::isfinite)(scale)) {
+  const RealScalar maxCoeff = matrix.cwiseAbs().template maxCoeff<PropagateNaN>();
+  if (!(numext::isfinite)(maxCoeff)) {
     m_isInitialized = true;
     m_info = InvalidInput;
     m_nonzeroSingularValues = 0;
     m_singularValues.setZero();
     return *this;
   }
-  if (numext::is_exactly_zero(scale)) scale = RealScalar(1);
+  internal::safe_scaling_factors<RealScalar> factors;
 
   /*** step 1. The R-SVD step: we use a QR decomposition to reduce to the case of a square matrix */
 
   if (rows() != cols()) {
-    m_qr_precond_morecols.run(*this, matrix / scale);
-    m_qr_precond_morerows.run(*this, matrix / scale);
+    const auto scaledMatrix =
+        internal::safe_scaling<RealScalar>::scaled_expression(matrix.derived(), maxCoeff, factors);
+    m_qr_precond_morecols.run(*this, scaledMatrix);
+    m_qr_precond_morerows.run(*this, scaledMatrix);
   } else {
-    m_workMatrix =
-        matrix.template topLeftCorner<DiagSizeAtCompileTime, DiagSizeAtCompileTime>(diagSize(), diagSize()) / scale;
+    factors = internal::safe_scaling<RealScalar>::scale_to(
+        m_workMatrix,
+        matrix.template topLeftCorner<DiagSizeAtCompileTime, DiagSizeAtCompileTime>(diagSize(), diagSize()), maxCoeff);
     if (m_computeFullU) m_matrixU.setIdentity(rows(), rows());
     if (m_computeThinU) m_matrixU.setIdentity(rows(), diagSize());
     if (m_computeFullV) m_matrixV.setIdentity(cols(), cols());
@@ -909,7 +912,7 @@ JacobiSVD<MatrixType, Options>& JacobiSVD<MatrixType, Options>::compute_impl(con
     }
   }
 
-  m_singularValues *= scale;
+  internal::safe_scaling<RealScalar>::unscale_in_place(m_singularValues, factors);
 
   /*** step 4. Sort singular values in descending order and compute the number of nonzero singular values ***/
 
