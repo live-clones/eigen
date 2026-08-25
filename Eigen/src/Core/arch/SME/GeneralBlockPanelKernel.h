@@ -325,6 +325,15 @@ static EIGEN_ALWAYS_INLINE T sme_min(T a, T b) __arm_streaming_compatible {
   return a < b ? a : b;
 }
 
+// Offset a pointer by n elements without forming the pointer value: an access
+// whose predicate is empty makes no memory reference, but computing an address
+// more than one past the end of the object is undefined regardless, so the
+// second-vector accesses below reach their address through uintptr_t.
+template <typename T>
+static EIGEN_ALWAYS_INLINE T* sme_offset(T* p, Index n) __arm_streaming_compatible {
+  return reinterpret_cast<T*>(uintptr_t(p) + uintptr_t(n) * sizeof(T));
+}
+
 // ---------------------------------------------------------------------------
 // Packed panel layout and the primitives that produce it.
 //
@@ -386,8 +395,9 @@ static EIGEN_ALWAYS_INLINE void sve_copy_panel_range(std::complex<RealScalar>* E
       const RealScalar* p = rsrc + Index(2) * (k * src_stride + Index(off));
       const Vec v_lo = sme_ld1(pg_lo, p);
       // pg_hi is all-false when 2*w fits in one vector, and an inactive lane
-      // makes no memory access -- so this never reads past the source.
-      const Vec v_hi = sme_ld1(pg_hi, p + svl);
+      // makes no memory access -- but p + svl may still be past the source, so
+      // the address is formed through sme_offset.
+      const Vec v_hi = sme_ld1(pg_hi, sme_offset(p, svl));
       Vec im = sme_uzp2(v_lo, v_hi);
       EIGEN_IF_CONSTEXPR (Conjugate) {
         im = sme_neg(pg_w, im);
@@ -1275,8 +1285,10 @@ EIGEN_ALWAYS_INLINE void sme_accumulate_pair_impl(
                                                                        hi);
     sme_st1(pl0, p, sme_add(pl0, sme_ld1(pl0, p), lo));
     // pl1 is all-false when one vector covers the slice, and an inactive lane
-    // neither reads nor writes -- so this needs no `lanes > svl` guard.
-    sme_st1(pl1, p + svl, sme_add(pl1, sme_ld1(pl1, p + svl), hi));
+    // neither reads nor writes -- so this needs no `lanes > svl` guard, only an
+    // address the destination is allowed to form.
+    RealScalar* EIGEN_RESTRICT phi = sme_offset(p, Index(svl));
+    sme_st1(pl1, phi, sme_add(pl1, sme_ld1(pl1, phi), hi));
   }
 }
 
@@ -1469,18 +1481,14 @@ EIGEN_ALWAYS_INLINE void sme_process(Scalar* EIGEN_RESTRICT C, Index C_stride_ro
           Vec a_lo = sme_ld1(pg_rlo, &blA[k * pw + rt]);
           Vec b_lo = sme_ld1(pg_clo, &blB[k * cw + ct]);
 
-          Vec a_hi =
-              sme_ld1(pg_rhi, (const Scalar* EIGEN_RESTRICT)(uintptr_t(blA) + (k * pw + rt + svl) * sizeof(Scalar)));
-          Vec b_hi =
-              sme_ld1(pg_chi, (const Scalar* EIGEN_RESTRICT)(uintptr_t(blB) + (k * cw + ct + svl) * sizeof(Scalar)));
+          Vec a_hi = sme_ld1(pg_rhi, sme_offset(blA, k * pw + rt + svl));
+          Vec b_hi = sme_ld1(pg_chi, sme_offset(blB, k * cw + ct + svl));
 
           sme_mopa<0>(pg_rlo, pg_clo, a_lo, b_lo);
-          if (svptest_any(pg_chi, pg_chi))
-            sme_mopa<1>(pg_rlo, pg_chi, a_lo, b_hi);
+          if (svptest_any(pg_chi, pg_chi)) sme_mopa<1>(pg_rlo, pg_chi, a_lo, b_hi);
           if (svptest_any(pg_rhi, pg_rhi)) {
             sme_mopa<2>(pg_rhi, pg_clo, a_hi, b_lo);
-            if (svptest_any(pg_chi, pg_chi))
-              sme_mopa<3>(pg_rhi, pg_chi, a_hi, b_hi);
+            if (svptest_any(pg_chi, pg_chi)) sme_mopa<3>(pg_rhi, pg_chi, a_hi, b_hi);
           }
         }
       }
@@ -1576,10 +1584,10 @@ EIGEN_ALWAYS_INLINE void sme_process(std::complex<RealScalar>* EIGEN_RESTRICT C,
         const Vec a0_im = sme_ld1(pg_r0, pa + pw);
         const Vec b0_re = sme_ld1(pg_c0, pb);
         const Vec b0_im = sme_ld1(pg_c0, pb + cw);
-        const Vec a1_re = sme_ld1(pg_r1, pa + svl);
-        const Vec a1_im = sme_ld1(pg_r1, pa + pw + svl);
-        const Vec b1_re = sme_ld1(pg_c1, pb + svl);
-        const Vec b1_im = sme_ld1(pg_c1, pb + cw + svl);
+        const Vec a1_re = sme_ld1(pg_r1, sme_offset(pa, Index(svl)));
+        const Vec a1_im = sme_ld1(pg_r1, sme_offset(pa, Index(pw) + Index(svl)));
+        const Vec b1_re = sme_ld1(pg_c1, sme_offset(pb, Index(svl)));
+        const Vec b1_im = sme_ld1(pg_c1, sme_offset(pb, Index(cw) + Index(svl)));
         Cell00::accumulate(pg_r0, pg_c0, a0_re, a0_im, b0_re, b0_im);
         if (svptest_any(pg_c1, pg_c1)) {
           Cell01::accumulate(pg_r0, pg_c1, a0_re, a0_im, b1_re, b1_im);
