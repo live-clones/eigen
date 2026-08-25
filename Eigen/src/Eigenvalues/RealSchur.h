@@ -247,8 +247,8 @@ RealSchur<MatrixType>& RealSchur<MatrixType>::compute(const EigenBase<InputType>
   Index maxIters = m_maxIters;
   if (maxIters == -1) maxIters = m_maxIterationsPerRow * matrix.rows();
 
-  Scalar scale = matrix.derived().cwiseAbs().maxCoeff();
-  if (scale < considerAsZero) {
+  const Scalar maxCoeff = matrix.derived().cwiseAbs().maxCoeff();
+  if (maxCoeff < considerAsZero) {
     m_matT.setZero(matrix.rows(), matrix.cols());
     if (computeU) m_matU.setIdentity(matrix.rows(), matrix.cols());
     m_info = Success;
@@ -257,8 +257,10 @@ RealSchur<MatrixType>& RealSchur<MatrixType>::compute(const EigenBase<InputType>
     return *this;
   }
 
+  internal::safe_scaling_factors<Scalar> factors;
+
   // Step 1. Reduce to Hessenberg form
-  m_hess.compute(matrix.derived() / scale);
+  m_hess.compute(internal::safe_scaling<Scalar>::scaled_expression(matrix.derived(), maxCoeff, factors));
 
   // Step 2. Reduce to real Schur form
   // Note: we copy m_hess.matrixQ() into m_matU here and not in computeFromHessenberg
@@ -267,7 +269,7 @@ RealSchur<MatrixType>& RealSchur<MatrixType>::compute(const EigenBase<InputType>
   if (computeU) m_hess.matrixQ().evalTo(m_matU, m_workspaceVector);
   computeFromHessenberg(m_hess.matrixH(), m_matU, computeU);
 
-  m_matT *= scale;
+  internal::safe_scaling<Scalar>::unscale_in_place(m_matT, factors);
 
   return *this;
 }
