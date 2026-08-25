@@ -335,6 +335,17 @@ void svd_preallocate() {
   internal::set_is_malloc_allowed(false);
   svd2.compute(m);
   internal::set_is_malloc_allowed(true);
+
+  MatrixXf tall = MatrixXf::Random(4, 3);
+  MatrixXf wide = MatrixXf::Random(3, 4);
+  SVD_STATIC_OPTIONS(MatrixXf, ComputeThinU | ComputeThinV) tallSvd(4, 3);
+  SVD_STATIC_OPTIONS(MatrixXf, ComputeThinU | ComputeThinV) wideSvd(3, 4);
+  internal::set_is_malloc_allowed(false);
+  tallSvd.compute(tall);
+  wideSvd.compute(wide);
+  internal::set_is_malloc_allowed(true);
+  VERIFY_IS_APPROX(tall, tallSvd.matrixU() * tallSvd.singularValues().asDiagonal() * tallSvd.matrixV().adjoint());
+  VERIFY_IS_APPROX(wide, wideSvd.matrixU() * wideSvd.singularValues().asDiagonal() * wideSvd.matrixV().adjoint());
 }
 
 template <typename MatrixType, int QRPreconditioner = 0>
