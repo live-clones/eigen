@@ -262,6 +262,45 @@ void bdcsvd_fast_math_regression_1588() {
 }
 #endif
 
+void bdcsvd_power_of_two_scaling() {
+  // Reciprocal scaling rounds the smaller singular value down by one ULP in both entry paths.
+  const Index size = 20;
+  VectorXf diagonal = VectorXf::Zero(size);
+  diagonal(0) = numext::bit_cast<float>(numext::uint32_t(0x13afd4a1));
+  diagonal(1) = numext::bit_cast<float>(numext::uint32_t(0x11525720));
+
+  MatrixXf matrix = MatrixXf::Zero(size, size + 1);
+  matrix.leftCols(size).diagonal() = diagonal;
+  BDCSVD<MatrixXf> denseSvd;
+  denseSvd.setSwitchSize(8);
+  denseSvd.compute(matrix);
+  VERIFY_IS_EQUAL(denseSvd.singularValues()(0), diagonal(0));
+  VERIFY_IS_EQUAL(denseSvd.singularValues()(1), diagonal(1));
+
+  BDCSVD<MatrixXf> bidiagonalSvd;
+  bidiagonalSvd.setSwitchSize(8);
+  bidiagonalSvd.compute(diagonal, VectorXf::Zero(size - 1));
+  VERIFY_IS_EQUAL(bidiagonalSvd.singularValues()(0), diagonal(0));
+  VERIFY_IS_EQUAL(bidiagonalSvd.singularValues()(1), diagonal(1));
+
+  // A subnormal coupling remains significant relative to a uniformly tiny bidiagonal matrix. Scale it without first
+  // feeding the subnormal operand to packet arithmetic, which flushes it on ARMv7 NEON.
+  volatile float normalMin = (std::numeric_limits<float>::min)();
+  const float largest = 256.0f * normalMin;
+  const float coupling = 0.5f * normalMin;
+  diagonal.setZero();
+  diagonal(0) = largest;
+  VectorXf superdiagonal = VectorXf::Zero(size - 1);
+  superdiagonal(0) = coupling;
+  const float expectedRatio = numext::sqrt(1.0f + 1.0f / (512.0f * 512.0f));
+  for (Index switchSize : {Index(8), Index(32)}) {
+    bidiagonalSvd.setSwitchSize(switchSize);
+    bidiagonalSvd.compute(diagonal, superdiagonal);
+    VERIFY(numext::abs(bidiagonalSvd.singularValues()(0) / largest - expectedRatio) <=
+           2.0f * NumTraits<float>::epsilon());
+  }
+}
+
 EIGEN_DECLARE_TEST(bdcsvd) {
   CALL_SUBTEST_1((bdcsvd_asserts<Matrix3f>()));
   CALL_SUBTEST_2((bdcsvd_asserts<Matrix4d>()));
@@ -326,6 +365,7 @@ EIGEN_DECLARE_TEST(bdcsvd) {
   // CALL_SUBTEST_9( svd_preallocate<void>() );
 
   CALL_SUBTEST_45(svd_underoverflow<void>());
+  CALL_SUBTEST_45(bdcsvd_power_of_two_scaling());
 
   // Without total deflation issues.
   CALL_SUBTEST_46((compare_bdc_jacobi_instance(true)));
