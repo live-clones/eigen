@@ -557,6 +557,42 @@ void tridiagonal_eigensolver_narrow() {
   }
 }
 
+void tridiagonal_eigensolver_power_of_two_scaling() {
+  // Arbitrary reciprocal scaling moves the extreme bisection results one ULP away from a float-rounded
+  // double-precision reference.
+  Vector3f diag;
+  diag << numext::bit_cast<float>(numext::uint32_t(0xf055994f)), numext::bit_cast<float>(numext::uint32_t(0x6fb2331a)),
+      numext::bit_cast<float>(numext::uint32_t(0x70d02374));
+  Vector2f subdiag;
+  subdiag << numext::bit_cast<float>(numext::uint32_t(0x70b84b8a)),
+      numext::bit_cast<float>(numext::uint32_t(0x6fc495b1));
+  Vector3f expected;
+  expected << numext::bit_cast<float>(numext::uint32_t(0xf0e811b7)),
+      numext::bit_cast<float>(numext::uint32_t(0x708f34f5)), numext::bit_cast<float>(numext::uint32_t(0x70eac055));
+
+  TridiagonalEigenSolver<float> eigenvalues;
+  eigenvalues.computeEigenvalues(diag, subdiag);
+  VERIFY_IS_EQUAL(eigenvalues.info(), Success);
+  VERIFY_IS_EQUAL(eigenvalues.eigenvalues(), expected);
+
+  // The same rounding in inverse iteration produces a residual larger than epsilon times the matrix scale.
+  diag << numext::bit_cast<float>(numext::uint32_t(0x44d75b8b)), numext::bit_cast<float>(numext::uint32_t(0x45b9403d)),
+      numext::bit_cast<float>(numext::uint32_t(0x4554211f));
+  subdiag << numext::bit_cast<float>(numext::uint32_t(0x45609c76)),
+      numext::bit_cast<float>(numext::uint32_t(0xc590ed04));
+  expected << numext::bit_cast<float>(numext::uint32_t(0xc4e47d7d)),
+      numext::bit_cast<float>(numext::uint32_t(0x45173159)), numext::bit_cast<float>(numext::uint32_t(0x46235731));
+
+  TridiagonalEigenSolver<float> eigenvectors;
+  eigenvectors.computeEigenvectors(diag, subdiag, expected);
+  VERIFY_IS_EQUAL(eigenvectors.info(), Success);
+  const Matrix3d matrix = dense_symmetric_tridiag(diag, subdiag).cast<double>();
+  const Matrix3d vectors = eigenvectors.eigenvectors().cast<double>();
+  const double residual = (matrix * vectors - vectors * expected.cast<double>().asDiagonal()).cwiseAbs().maxCoeff();
+  const float scale = numext::maxi(diag.cwiseAbs().maxCoeff(), subdiag.cwiseAbs().maxCoeff());
+  VERIFY(residual <= double(NumTraits<float>::epsilon()) * double(scale));
+}
+
 EIGEN_DECLARE_TEST(tridiagonal_eigensolver) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(tridiagonal_eigensolver_bisection<double>());
@@ -566,4 +602,5 @@ EIGEN_DECLARE_TEST(tridiagonal_eigensolver) {
     CALL_SUBTEST_5(tridiagonal_eigensolver_narrow<Eigen::half>());
     CALL_SUBTEST_6(tridiagonal_eigensolver_narrow<Eigen::bfloat16>());
   }
+  CALL_SUBTEST_2(tridiagonal_eigensolver_power_of_two_scaling());
 }
