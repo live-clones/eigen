@@ -94,9 +94,7 @@ EIGEN_STRONG_INLINE PacketXi pset1<PacketXi>(const numext::int32_t& from) {
 
 template <>
 EIGEN_STRONG_INLINE PacketXi plset<PacketXi>(const numext::int32_t& a) {
-  numext::int32_t c[packet_traits<numext::int32_t>::size];
-  for (int i = 0; i < packet_traits<numext::int32_t>::size; i++) c[i] = i;
-  return svadd_s32_x(svptrue_b32(), pset1<PacketXi>(a), svld1_s32(svptrue_b32(), c));
+  return svindex_s32(a, 1);
 }
 
 template <>
@@ -218,17 +216,24 @@ EIGEN_STRONG_INLINE PacketXi ploadu<PacketXi>(const numext::int32_t* from) {
 
 template <>
 EIGEN_STRONG_INLINE PacketXi ploaddup<PacketXi>(const numext::int32_t* from) {
-  svuint32_t indices = svindex_u32(0, 1);  // index {base=0, base+step=1, base+step*2, ...}
-  indices = svzip1_u32(indices, indices);  // index in the format {a0, a0, a1, a1, a2, a2, ...}
-  return svld1_gather_u32index_s32(svptrue_b32(), from, indices);
+  // Load the size/2 values this reads into the low half and interleave them
+  // with themselves: svzip1 only consumes the low halves of its operands.
+  // The predicate is exact rather than svptrue -- ploaddup may only touch
+  // size/2 elements, and a wider one would read past the end of the input.
+  constexpr uint64_t kHalf = uint64_t(packet_traits<numext::int32_t>::size) / 2;
+  svint32_t lo = svld1_s32(svwhilelt_b32(uint64_t(0), kHalf), from);
+  return svzip1_s32(lo, lo);
 }
 
 template <>
 EIGEN_STRONG_INLINE PacketXi ploadquad<PacketXi>(const numext::int32_t* from) {
-  svuint32_t indices = svindex_u32(0, 1);  // index {base=0, base+step=1, base+step*2, ...}
-  indices = svzip1_u32(indices, indices);  // index in the format {a0, a0, a1, a1, a2, a2, ...}
-  indices = svzip1_u32(indices, indices);  // index in the format {a0, a0, a0, a0, a1, a1, a1, a1, ...}
-  return svld1_gather_u32index_s32(svptrue_b32(), from, indices);
+  // As ploaddup, one zip further: size/4 values, each repeated four times.
+  // At the smallest vector length size/4 rounds to zero, where one element
+  // still has to be read.
+  constexpr uint64_t kQuarter = numext::maxi(uint64_t(packet_traits<numext::int32_t>::size) / 4, uint64_t(1));
+  svint32_t lo = svld1_s32(svwhilelt_b32(uint64_t(0), kQuarter), from);
+  lo = svzip1_s32(lo, lo);
+  return svzip1_s32(lo, lo);
 }
 
 template <>
@@ -568,17 +573,24 @@ EIGEN_STRONG_INLINE PacketXf ploadu<PacketXf>(const float* from) {
 
 template <>
 EIGEN_STRONG_INLINE PacketXf ploaddup<PacketXf>(const float* from) {
-  svuint32_t indices = svindex_u32(0, 1);  // index {base=0, base+step=1, base+step*2, ...}
-  indices = svzip1_u32(indices, indices);  // index in the format {a0, a0, a1, a1, a2, a2, ...}
-  return svld1_gather_u32index_f32(svptrue_b32(), from, indices);
+  // Load the size/2 values this reads into the low half and interleave them
+  // with themselves: svzip1 only consumes the low halves of its operands.
+  // The predicate is exact rather than svptrue -- ploaddup may only touch
+  // size/2 elements, and a wider one would read past the end of the input.
+  constexpr uint64_t kHalf = uint64_t(packet_traits<float>::size) / 2;
+  svfloat32_t lo = svld1_f32(svwhilelt_b32(uint64_t(0), kHalf), from);
+  return svzip1_f32(lo, lo);
 }
 
 template <>
 EIGEN_STRONG_INLINE PacketXf ploadquad<PacketXf>(const float* from) {
-  svuint32_t indices = svindex_u32(0, 1);  // index {base=0, base+step=1, base+step*2, ...}
-  indices = svzip1_u32(indices, indices);  // index in the format {a0, a0, a1, a1, a2, a2, ...}
-  indices = svzip1_u32(indices, indices);  // index in the format {a0, a0, a0, a0, a1, a1, a1, a1, ...}
-  return svld1_gather_u32index_f32(svptrue_b32(), from, indices);
+  // As ploaddup, one zip further: size/4 values, each repeated four times.
+  // At the smallest vector length size/4 rounds to zero, where one element
+  // still has to be read.
+  constexpr uint64_t kQuarter = numext::maxi(uint64_t(packet_traits<float>::size) / 4, uint64_t(1));
+  svfloat32_t lo = svld1_f32(svwhilelt_b32(uint64_t(0), kQuarter), from);
+  lo = svzip1_f32(lo, lo);
+  return svzip1_f32(lo, lo);
 }
 
 template <>
