@@ -14,6 +14,19 @@ Build jobs publish the configured build directory as an artifact. Their paired t
 run CTest without rebuilding. When changing either side, keep the test job's `needs`, CTest label or filter, and the
 corresponding build target consistent; otherwise CTest can discover tests whose executables are absent.
 
+Publishing is opt-in per job rather than inherited: `.common:linux:cross` and `.common:windows` carry no `artifacts:`
+key, and a job picks up `.artifacts:linux:builddir`, `.artifacts:windows:builddir` or `.artifacts:test:results` as a
+second `extends:` parent. A test job takes the results template — it links nothing, so re-publishing the build
+directory it just downloaded would only duplicate the build job's artifact — and that template also registers
+`JUnitTestResults_*.xml` through `artifacts:reports:junit:`, which is what puts failures in the job's Tests tab and
+the merge request widget rather than only in the log. A job that needs neither, such as `test:linux:buildsystem`,
+extends the base alone and publishes nothing.
+
+Two things to know when reading a test report. Tests skipped by the pass cache are absent from that run's report, so
+a test count that falls between pipelines is expected rather than a regression — a skipped test is never reported as
+a failure. And the widget's *comparison* needs a base-branch report for the same job name; default-branch pushes run
+only a small subset of jobs, so most jobs show a summary without one.
+
 In merge-request pipelines the Linux test jobs also keep a content-addressed pass cache (a per-job-name GitLab cache
 holding `.testcache/`): [`test.linux.script.sh`](../ci/scripts/test.linux.script.sh) skips tests whose executable,
 emulator, CTest definition, and environment fingerprint (image, `lib*` package state, `ci/scripts/` and
