@@ -101,6 +101,22 @@ if [[ -n "${EIGEN_CI_BUILD_JOBS}" ]]; then
   jobs="-j${EIGEN_CI_BUILD_JOBS}"
 fi
 
+# A job's -j is sized for the runner its tags name: nvhpc's 16 assumes the
+# 2xlarge's 128 GB at ~8 GB per nvc++ frontend.  A self-hosted runner can
+# carry that same tag with far less memory, where the fixed -j is not a slow
+# build but an OOM storm that kills compilations until the retry drops to
+# EIGEN_CI_FALLBACK_JOBS.  When a job declares its per-process appetite, lower
+# -j to what MEM_MB says the container can actually hold.
+if [[ -n "${EIGEN_CI_MEM_PER_JOB_MB}" && -n "${MEM_MB}" ]]; then
+  mem_jobs=$((MEM_MB / EIGEN_CI_MEM_PER_JOB_MB))
+  ((mem_jobs < 1)) && mem_jobs=1
+  if ((mem_jobs < njobs)); then
+    echo "Build memory ${EIGEN_CI_MEM_PER_JOB_MB} MB/job: reducing -j${njobs} to -j${mem_jobs}"
+    njobs=${mem_jobs}
+    jobs="-j${njobs}"
+  fi
+fi
+
 # Fallback parallelism for retry builds after a failure (default: 2).
 fallback_jobs="-j${EIGEN_CI_FALLBACK_JOBS:-2}"
 

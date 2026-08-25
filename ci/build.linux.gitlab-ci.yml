@@ -243,6 +243,10 @@ build:linux:cross:x86-64:clang-19:default:asan-ubsan:unsupported:
     # batches, preventing simultaneous OOM-prone compilations.
     EIGEN_CI_BUILD_JOBS: "16"
     EIGEN_CI_FALLBACK_JOBS: "4"
+    # Self-hosted runners carrying the 2xlarge tag need not have its 128 GB,
+    # where a fixed -j16 OOM-kills nvcpfe instead of building.  Declaring the
+    # per-process appetite lets the build script lower -j to fit the cgroup.
+    EIGEN_CI_MEM_PER_JOB_MB: "8192"
   # Schedules and web pipelines only, not the `all-tests` label the rest of the
   # matrix inherits from .build:linux:cross. That slow frontend makes this the
   # single most expensive pair of jobs in the tree -- together about a quarter

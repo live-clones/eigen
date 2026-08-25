@@ -9,8 +9,21 @@ echo "Running ${CI_JOB_NAME}"
 # Get architecture and display CI configuration.
 export ARCH=`uname -m`
 export NPROC=`nproc`
+# Memory the job may use, in MB: the cgroup limit when the executor sets one,
+# otherwise the machine's RAM.  cgroup v2 writes the literal "max" when no
+# limit applies and v1 a sentinel far above RAM; both fall through to MemTotal.
+mem_mb=$(awk '/^MemTotal:/ {print int($2 / 1024)}' /proc/meminfo)
+for cgroup_file in /sys/fs/cgroup/memory.max /sys/fs/cgroup/memory/memory.limit_in_bytes; do
+  if [[ -r ${cgroup_file} ]] && read -r limit_mb < "${cgroup_file}" && [[ ${limit_mb} =~ ^[0-9]+$ ]]; then
+    limit_mb=$((limit_mb / 1024 / 1024))
+    ((limit_mb < mem_mb)) && mem_mb=${limit_mb}
+    break
+  fi
+done
+export MEM_MB=${mem_mb}
 echo "arch=$ARCH, target=${EIGEN_CI_TARGET_ARCH}"
 echo "Processors: ${NPROC}"
+echo "Memory (MB): ${MEM_MB}"
 echo "CI Variables:"
 export | grep EIGEN
 
