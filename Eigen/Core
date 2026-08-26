@@ -388,6 +388,7 @@ using std::size_t;
 #include "src/Core/CwiseUnaryView.h"
 #include "src/Core/SelfCwiseBinaryOp.h"
 #include "src/Core/InnerProduct.h"
+#include "src/Core/SafeScaling.h"
 #include "src/Core/Dot.h"
 #include "src/Core/StableNorm.h"
 #include "src/Core/Stride.h"
