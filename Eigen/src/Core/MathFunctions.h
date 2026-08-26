@@ -1938,6 +1938,44 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE T nextafter(const T& from, const T& to) {
   return nextafter(from, to);
 }
 
+/** Returns the smallest normal power of two greater than or equal to the nonnegative finite \a value.
+ *
+ * Zero is preserved. A value larger than the greatest finite power of two maps to infinity.
+ */
+template <typename Scalar,
+          std::enable_if_t<!std::is_same<Scalar, long double>::value && std::numeric_limits<Scalar>::is_iec559 &&
+                               std::numeric_limits<Scalar>::radix == 2 &&
+                               (sizeof(Scalar) == sizeof(uint16_t) || sizeof(Scalar) == sizeof(uint32_t) ||
+                                sizeof(Scalar) == sizeof(uint64_t)),
+                           int> = 0>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar ceil_power_of_two(const Scalar& value) {
+  using Bits = typename get_integer_by_size<sizeof(Scalar)>::unsigned_type;
+  constexpr int kFractionBits = std::numeric_limits<Scalar>::digits - 1;
+  constexpr int kExponentBits = int(sizeof(Scalar) * CHAR_BIT) - std::numeric_limits<Scalar>::digits;
+  constexpr Bits kExponentUnit = Bits(1) << kFractionBits;
+  constexpr Bits kFractionMask = kExponentUnit - 1;
+  constexpr Bits kExponentMask = ((Bits(1) << kExponentBits) - 1) << kFractionBits;
+  const Bits valueBits = bit_cast<Bits>(value);
+  const Bits resultBits = Bits((valueBits + kFractionMask) & kExponentMask);
+  return bit_cast<Scalar>(resultBits);
+}
+
+// long double has no portable object representation: depending on the ABI it can be binary64, padded x87 extended
+// precision, IEEE binary128, or IBM double-double. Construct the result arithmetically instead of inspecting its bits.
+#if !defined(EIGEN_GPU_COMPILE_PHASE)
+EIGEN_STRONG_INLINE long double ceil_power_of_two(const long double& value) {
+  EIGEN_USING_STD(frexp);
+  EIGEN_USING_STD(ldexp);
+  int exponent = 0;
+  const long double fraction = frexp(value, &exponent);
+  if (fraction == 0.0L) return 0.0L;
+  if (fraction == 0.5L) --exponent;
+  if (exponent < std::numeric_limits<long double>::min_exponent - 1)
+    exponent = std::numeric_limits<long double>::min_exponent - 1;
+  return ldexp(1.0L, exponent);
+}
+#endif
+
 #if defined(SYCL_DEVICE_ONLY)
 SYCL_SPECIALIZE_FLOATING_TYPES_BINARY(nextafter, nextafter)
 #endif
