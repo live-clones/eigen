@@ -255,24 +255,33 @@ EIGEN_DEVICE_FUNC void JacobiRotation<Scalar>::makeGivens(const Scalar& p, const
       if (r) *r = q * u;
     }
   } else {
-    // Out of safe range: prescale by max(|p|, |q|) clamped into [safmin, safmax].
-    const Scalar scale = numext::mini(safmax, numext::maxi(safmin, numext::maxi(abs_p, abs_q)));
-    const Scalar ps = p / scale;
-    const Scalar qs = q / scale;
+    // Out of safe range: use normal reciprocal powers of two for finite inputs. Keep the clamped division for
+    // non-finite inputs so an infinite component is not multiplied by a zero reciprocal.
+    internal::safe_scaling_factors<Scalar> factors;
+    if (mx <= NumTraits<Scalar>::highest()) {
+      factors = internal::safe_scaling<Scalar>::compute_factors(mx);
+    } else {
+      factors.scale = numext::mini(safmax, numext::maxi(safmin, mx));
+      factors.invScale = Scalar(1) / factors.scale;
+    }
+    Scalar ps;
+    Scalar qs;
+    internal::safe_scaling<Scalar>::scale_to(ps, p, mx, factors);
+    internal::safe_scaling<Scalar>::scale_to(qs, q, mx, factors);
     if (abs_p > abs_q) {
       Scalar t = qs / ps;
       Scalar u = sqrt(Scalar(1) + numext::abs2(t));
       if (ps < Scalar(0)) u = -u;
       m_c = Scalar(1) / u;
       m_s = -t * m_c;
-      if (r) *r = (ps * u) * scale;
+      if (r) *r = (ps * u) * factors.scale;
     } else {
       Scalar t = ps / qs;
       Scalar u = sqrt(Scalar(1) + numext::abs2(t));
       if (qs < Scalar(0)) u = -u;
       m_s = -Scalar(1) / u;
       m_c = -t * m_s;
-      if (r) *r = (qs * u) * scale;
+      if (r) *r = (qs * u) * factors.scale;
     }
   }
 }
