@@ -74,11 +74,11 @@ class JacobiRotation {
   EIGEN_DEVICE_FUNC bool makeJacobi(const MatrixBase<Derived>&, Index p, Index q);
   EIGEN_DEVICE_FUNC bool makeJacobi(const RealScalar& x, const Scalar& y, const RealScalar& z);
 
-  EIGEN_DEVICE_FUNC void makeGivens(const Scalar& p, const Scalar& q, Scalar* r = 0);
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void makeGivens(const Scalar& p, const Scalar& q, Scalar* r = 0);
 
  protected:
   EIGEN_DEVICE_FUNC void makeGivens(const Scalar& p, const Scalar& q, Scalar* r, std::true_type);
-  EIGEN_DEVICE_FUNC void makeGivens(const Scalar& p, const Scalar& q, Scalar* r, std::false_type);
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void makeGivens(const Scalar& p, const Scalar& q, Scalar* r, std::false_type);
 
   Scalar m_c, m_s;
 };
@@ -117,6 +117,44 @@ EIGEN_DEVICE_FUNC bool JacobiRotation<Scalar>::makeJacobi(const RealScalar& x, c
   }
 }
 
+namespace internal {
+
+template <typename Scalar>
+struct givens_result {
+  Scalar c;
+  Scalar s;
+  Scalar r;
+};
+
+// Keep exceptional scaling out of the ordinary makeGivens path. The returned state may use registers or an ABI return
+// buffer, depending on Scalar and the target.
+template <typename Scalar>
+EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE givens_result<Scalar> make_givens_scaled(const Scalar& p, const Scalar& q) {
+  EIGEN_USING_STD(sqrt);
+  const Scalar abs_p = numext::abs(p);
+  const Scalar abs_q = numext::abs(q);
+  const Scalar max_abs = numext::maxi(abs_p, abs_q);
+  Scalar ps;
+  Scalar qs;
+  const auto factors = safe_scaling<Scalar>::scale_to(ps, p, max_abs);
+  safe_scaling<Scalar>::scale_to(qs, q, max_abs, factors);
+  if (abs_p > abs_q) {
+    const Scalar t = qs / ps;
+    Scalar u = sqrt(Scalar(1) + numext::abs2(t));
+    if (ps < Scalar(0)) u = -u;
+    const Scalar c = Scalar(1) / u;
+    return {c, -t * c, (ps * u) * factors.scale};
+  } else {
+    const Scalar t = ps / qs;
+    Scalar u = sqrt(Scalar(1) + numext::abs2(t));
+    if (qs < Scalar(0)) u = -u;
+    const Scalar s = -Scalar(1) / u;
+    return {-t * s, s, (qs * u) * factors.scale};
+  }
+}
+
+}  // namespace internal
+
 /** Makes \c *this as a Jacobi rotation \c J such that applying \a J on both the right and left sides of the 2x2
  * selfadjoint matrix \f$ B = \left ( \begin{array}{cc} \text{this}_{pp} & \text{this}_{pq} \\ (\text{this}_{pq})^* &
  * \text{this}_{qq} \end{array} \right )\f$ yields a diagonal matrix \f$ A = J^* B J \f$
@@ -150,7 +188,8 @@ EIGEN_DEVICE_FUNC inline bool JacobiRotation<Scalar>::makeJacobi(const MatrixBas
  * \sa MatrixBase::applyOnTheLeft(), MatrixBase::applyOnTheRight()
  */
 template <typename Scalar>
-EIGEN_DEVICE_FUNC void JacobiRotation<Scalar>::makeGivens(const Scalar& p, const Scalar& q, Scalar* r) {
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void JacobiRotation<Scalar>::makeGivens(const Scalar& p, const Scalar& q,
+                                                                              Scalar* r) {
   makeGivens(p, q, r, internal::bool_constant<NumTraits<Scalar>::IsComplex>());
 }
 
@@ -204,8 +243,8 @@ EIGEN_DEVICE_FUNC void JacobiRotation<Scalar>::makeGivens(const Scalar& p, const
 
 // specialization for reals
 template <typename Scalar>
-EIGEN_DEVICE_FUNC void JacobiRotation<Scalar>::makeGivens(const Scalar& p, const Scalar& q, Scalar* r,
-                                                          std::false_type) {
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void JacobiRotation<Scalar>::makeGivens(const Scalar& p, const Scalar& q,
+                                                                              Scalar* r, std::false_type) {
   using std::abs;
   using std::sqrt;
   if (numext::is_exactly_zero(q)) {
@@ -225,9 +264,9 @@ EIGEN_DEVICE_FUNC void JacobiRotation<Scalar>::makeGivens(const Scalar& p, const
   // in the Level 1 BLAS", ACM TOMS 44(1), 2017.  When both |p| and |q| lie
   // in (rtmin, rtmax), the direct formula r = p * sqrt(1 + (q/p)^2) cannot
   // over- or underflow before the true result would.  Outside that range
-  // we prescale by max(|p|, |q|) (clamped into [safmin, safmax]) so that
-  // the squared sum stays in the representable range.  This preserves the
-  // existing Eigen sign convention (r >= 0, sign carried in c).
+  // finite inputs are prescaled by a nearby power of two with a normal
+  // reciprocal so that the squared sum stays in the representable range.
+  // This preserves the existing Eigen sign convention (r >= 0, sign carried in c).
   const Scalar safmin = (std::numeric_limits<Scalar>::min)();
   const Scalar safmax = Scalar(1) / safmin;
   const Scalar rtmin = sqrt(safmin);
@@ -237,43 +276,29 @@ EIGEN_DEVICE_FUNC void JacobiRotation<Scalar>::makeGivens(const Scalar& p, const
   const Scalar mx = numext::maxi(abs_p, abs_q);
   const Scalar mn = numext::mini(abs_p, abs_q);
 
-  if (EIGEN_PREDICT_TRUE(mx < rtmax && mn > rtmin)) {
-    // Safe range: existing direct formulas are stable.
-    if (abs_p > abs_q) {
-      Scalar t = q / p;
-      Scalar u = sqrt(Scalar(1) + numext::abs2(t));
-      if (p < Scalar(0)) u = -u;
-      m_c = Scalar(1) / u;
-      m_s = -t * m_c;
-      if (r) *r = p * u;
-    } else {
-      Scalar t = p / q;
-      Scalar u = sqrt(Scalar(1) + numext::abs2(t));
-      if (q < Scalar(0)) u = -u;
-      m_s = -Scalar(1) / u;
-      m_c = -t * m_s;
-      if (r) *r = q * u;
-    }
+  if (EIGEN_PREDICT_FALSE(!(mx < rtmax && mn > rtmin))) {
+    const internal::givens_result<Scalar> result = internal::make_givens_scaled(p, q);
+    m_c = result.c;
+    m_s = result.s;
+    if (r) *r = result.r;
+    return;
+  }
+
+  // Safe range: existing direct formulas are stable.
+  if (abs_p > abs_q) {
+    Scalar t = q / p;
+    Scalar u = sqrt(Scalar(1) + numext::abs2(t));
+    if (p < Scalar(0)) u = -u;
+    m_c = Scalar(1) / u;
+    m_s = -t * m_c;
+    if (r) *r = p * u;
   } else {
-    // Out of safe range: prescale by max(|p|, |q|) clamped into [safmin, safmax].
-    const Scalar scale = numext::mini(safmax, numext::maxi(safmin, numext::maxi(abs_p, abs_q)));
-    const Scalar ps = p / scale;
-    const Scalar qs = q / scale;
-    if (abs_p > abs_q) {
-      Scalar t = qs / ps;
-      Scalar u = sqrt(Scalar(1) + numext::abs2(t));
-      if (ps < Scalar(0)) u = -u;
-      m_c = Scalar(1) / u;
-      m_s = -t * m_c;
-      if (r) *r = (ps * u) * scale;
-    } else {
-      Scalar t = ps / qs;
-      Scalar u = sqrt(Scalar(1) + numext::abs2(t));
-      if (qs < Scalar(0)) u = -u;
-      m_s = -Scalar(1) / u;
-      m_c = -t * m_s;
-      if (r) *r = (qs * u) * scale;
-    }
+    Scalar t = p / q;
+    Scalar u = sqrt(Scalar(1) + numext::abs2(t));
+    if (q < Scalar(0)) u = -u;
+    m_s = -Scalar(1) / u;
+    m_c = -t * m_s;
+    if (r) *r = q * u;
   }
 }
 
