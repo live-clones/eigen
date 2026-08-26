@@ -1,15 +1,15 @@
-// Benchmarks for the SVE PacketMath implementations of `plset`, `ploaddup`,
-// `ploadquad`, `predux_mul`, and `ptranspose`. To compare against a prior
-// implementation, build and run this same file against the Eigen checkout
-// in question -- it only calls the public `Eigen::internal` packet API, so
-// it is source-compatible with whatever PacketMath.h happens to provide.
+// Benchmarks for the PacketMath implementations of `plset`, `ploaddup`,
+// `ploadquad`, `predux_mul`, and `ptranspose`, at the packet-op level and
+// shared across whichever architecture backend the build targets. To
+// compare against a prior implementation, build and run this same file
+// against the Eigen checkout in question -- it only calls the public
+// `Eigen::internal` packet API, so it is source-compatible with whatever
+// PacketMath.h happens to provide.
 // SPDX-FileCopyrightText: The Eigen Authors
 // SPDX-License-Identifier: MPL-2.0
 
 #include <benchmark/benchmark.h>
 #include <Eigen/Core>
-
-#if defined(EIGEN_VECTORIZE_SVE)
 
 #include <cstdint>
 #include <type_traits>
@@ -20,24 +20,11 @@ namespace {
 using internal::packet_traits;
 using internal::PacketBlock;
 using internal::pfirst;
-
-template <typename Scalar>
-svbool_t all_true() = delete;
-template <>
-svbool_t all_true<numext::int32_t>() {
-  return svptrue_b32();
-}
-template <>
-svbool_t all_true<float>() {
-  return svptrue_b32();
-}
-template <>
-svbool_t all_true<double>() {
-  return svptrue_b64();
-}
+using internal::ploadu;
+using internal::pstoreu;
 
 template <typename Packet, int N>
-__attribute__((noinline)) void call_ptranspose(PacketBlock<Packet, N>& kernel) {
+EIGEN_DONT_INLINE void call_ptranspose(PacketBlock<Packet, N>& kernel) {
   internal::ptranspose(kernel);
 }
 
@@ -50,7 +37,7 @@ void BM_Plset(benchmark::State& state) {
   Scalar a = Scalar(7);
   Scalar out[N];
 
-  svst1(all_true<Scalar>(), out, internal::plset<Packet>(a));
+  pstoreu(out, internal::plset<Packet>(a));
   for (int i = 0; i < N; ++i) {
     if (out[i] != static_cast<Scalar>(a + i)) {
       state.SkipWithError("Plset: materialized result does not match scalar reference");
@@ -58,10 +45,11 @@ void BM_Plset(benchmark::State& state) {
     }
   }
 
+  Scalar* outp = out;
+  benchmark::DoNotOptimize(outp);
   for (auto _ : state) {
-    asm volatile("" : "+w"(a));
-    svst1(all_true<Scalar>(), out, internal::plset<Packet>(a));
-    benchmark::DoNotOptimize(out);
+    benchmark::DoNotOptimize(a);
+    pstoreu(outp, internal::plset<Packet>(a));
   }
 }
 BENCHMARK(BM_Plset<numext::int32_t>)->Name("Plset_int32");
@@ -78,7 +66,7 @@ void BM_Ploaddup(benchmark::State& state) {
   for (int i = 0; i < N; ++i) in[i] = static_cast<Scalar>(i);
   Scalar out[N];
 
-  svst1(all_true<Scalar>(), out, internal::ploaddup<Packet>(in));
+  pstoreu(out, internal::ploaddup<Packet>(in));
   for (int i = 0; i < N / 2; ++i) {
     if (out[2 * i] != in[i] || out[2 * i + 1] != in[i]) {
       state.SkipWithError("Ploaddup: materialized result does not match scalar reference");
@@ -86,9 +74,10 @@ void BM_Ploaddup(benchmark::State& state) {
     }
   }
 
+  Scalar* outp = out;
   for (auto _ : state) {
-    svst1(all_true<Scalar>(), out, internal::ploaddup<Packet>(in));
-    benchmark::DoNotOptimize(out);
+    pstoreu(outp, internal::ploaddup<Packet>(in));
+    benchmark::DoNotOptimize(outp);
   }
 }
 BENCHMARK(BM_Ploaddup<numext::int32_t>)->Name("Ploaddup_int32");
@@ -109,9 +98,9 @@ void BM_Ploadquad(benchmark::State& state) {
   for (int i = 0; i < N; ++i) in[i] = static_cast<Scalar>(i);
   Scalar out[N];
 
-  svst1(all_true<Scalar>(), out, internal::ploadquad<Packet>(in));
+  pstoreu(out, internal::ploadquad<Packet>(in));
   for (int j = 0; j < kQuarter; ++j) {
-    for (int k = 0; k < 4; ++k) {
+    for (int k = 0; k < 4 && 4 * j + k < N; ++k) {
       if (out[4 * j + k] != in[j]) {
         state.SkipWithError("Ploadquad: materialized result does not match scalar reference");
         return;
@@ -119,9 +108,10 @@ void BM_Ploadquad(benchmark::State& state) {
     }
   }
 
+  Scalar* outp = out;
   for (auto _ : state) {
-    svst1(all_true<Scalar>(), out, internal::ploadquad<Packet>(in));
-    benchmark::DoNotOptimize(out);
+    pstoreu(outp, internal::ploadquad<Packet>(in));
+    benchmark::DoNotOptimize(outp);
   }
 }
 BENCHMARK(BM_Ploadquad<numext::int32_t>)->Name("Ploadquad_int32");
@@ -158,7 +148,7 @@ void BM_ReduxMul(benchmark::State& state) {
   Scalar in[N];
   Scalar expected;
   fill_redux_mul_input<Scalar>(in, expected);
-  Packet a = svld1(all_true<Scalar>(), in);
+  Packet a = ploadu<Packet>(in);
 
   if (internal::predux_mul<Packet>(a) != expected) {
     state.SkipWithError("ReduxMul: materialized result does not match scalar reference");
@@ -166,7 +156,7 @@ void BM_ReduxMul(benchmark::State& state) {
   }
 
   for (auto _ : state) {
-    asm volatile("" : "+w"(a));
+    benchmark::DoNotOptimize(a);
     benchmark::DoNotOptimize(internal::predux_mul<Packet>(a));
   }
 }
@@ -180,6 +170,11 @@ BENCHMARK(BM_ReduxMul<double>)->Name("ReduxMul_double");
 // Correctness is checked once on a scratch kernel -- ptranspose applied
 // repeatedly toggles between the original and transposed state, so checking
 // after the timed loop would depend on the (unpredictable) iteration count.
+//
+// call_ptranspose is deliberately EIGEN_DONT_INLINE: real callers inline
+// ptranspose on register-resident packets, but this wrapper forces the block
+// through memory, so this benchmark understates the win; transposeInPlace is
+// the macro benchmark for the inlined case.
 
 template <typename Scalar>
 void BM_Ptranspose(benchmark::State& state) {
@@ -189,11 +184,11 @@ void BM_Ptranspose(benchmark::State& state) {
   for (int i = 0; i < N * N; ++i) in[i] = static_cast<Scalar>(i);
 
   PacketBlock<Packet, N> check;
-  for (int i = 0; i < N; ++i) check.packet[i] = svld1(all_true<Scalar>(), in + i * N);
+  for (int i = 0; i < N; ++i) check.packet[i] = ploadu<Packet>(in + i * N);
   call_ptranspose<Packet, N>(check);
   for (int i = 0; i < N; ++i) {
     Scalar row[N];
-    svst1(all_true<Scalar>(), row, check.packet[i]);
+    pstoreu(row, check.packet[i]);
     for (int k = 0; k < N; ++k) {
       if (row[k] != in[k * N + i]) {
         state.SkipWithError("Ptranspose: materialized result does not match scalar reference");
@@ -203,7 +198,7 @@ void BM_Ptranspose(benchmark::State& state) {
   }
 
   PacketBlock<Packet, N> kernel;
-  for (int i = 0; i < N; ++i) kernel.packet[i] = svld1(all_true<Scalar>(), in + i * N);
+  for (int i = 0; i < N; ++i) kernel.packet[i] = ploadu<Packet>(in + i * N);
   for (auto _ : state) {
     call_ptranspose<Packet, N>(kernel);
     benchmark::DoNotOptimize(pfirst<Packet>(kernel.packet[0]));
@@ -215,5 +210,3 @@ BENCHMARK(BM_Ptranspose<double>)->Name("Ptranspose_double");
 
 }  // namespace
 }  // namespace Eigen
-
-#endif  // defined(EIGEN_VECTORIZE_SVE)
