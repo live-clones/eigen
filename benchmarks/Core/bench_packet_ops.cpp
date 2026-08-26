@@ -11,6 +11,7 @@
 #include <benchmark/benchmark.h>
 #include <Eigen/Core>
 
+#include <cmath>
 #include <cstdint>
 #include <type_traits>
 
@@ -67,8 +68,8 @@ void BM_Ploaddup(benchmark::State& state) {
   Scalar out[N];
 
   pstoreu(out, internal::ploaddup<Packet>(in));
-  for (int i = 0; i < N / 2; ++i) {
-    if (out[2 * i] != in[i] || out[2 * i + 1] != in[i]) {
+  for (int i = 0; i < N; ++i) {
+    if (out[i] != in[i / 2]) {
       state.SkipWithError("Ploaddup: materialized result does not match scalar reference");
       return;
     }
@@ -90,21 +91,15 @@ template <typename Scalar>
 void BM_Ploadquad(benchmark::State& state) {
   using Packet = typename packet_traits<Scalar>::type;
   constexpr int N = packet_traits<Scalar>::size;
-  // `ploadquad` reads one value per group of four lanes; at the smallest
-  // vector length that would round down to zero groups, so at least one is
-  // read.
-  constexpr int kQuarter = (N / 4 > 0) ? N / 4 : 1;
   Scalar in[N];
   for (int i = 0; i < N; ++i) in[i] = static_cast<Scalar>(i);
   Scalar out[N];
 
   pstoreu(out, internal::ploadquad<Packet>(in));
-  for (int j = 0; j < kQuarter; ++j) {
-    for (int k = 0; k < 4 && 4 * j + k < N; ++k) {
-      if (out[4 * j + k] != in[j]) {
-        state.SkipWithError("Ploadquad: materialized result does not match scalar reference");
-        return;
-      }
+  for (int i = 0; i < N; ++i) {
+    if (out[i] != in[i / 4]) {
+      state.SkipWithError("Ploadquad: materialized result does not match scalar reference");
+      return;
     }
   }
 
@@ -120,9 +115,10 @@ BENCHMARK(BM_Ploadquad<double>)->Name("Ploadquad_double");
 
 // ---- predux_mul ----
 // Inputs are chosen so the true product is exactly representable regardless
-// of the order the reduction folds lanes together: powers of two multiply
-// without rounding for float/double, and multiplying by 1 is exact and
-// overflow-free for int32.
+// of the order the reduction folds lanes together, at every vector length:
+// powers of two multiply without rounding, and centering the exponents around
+// zero keeps both the inputs and the product in range for float/double even
+// at N == 64; multiplying by 1 is exact and overflow-free for int32.
 
 template <typename Scalar>
 void fill_redux_mul_input(Scalar (&in)[packet_traits<Scalar>::size], Scalar& expected) {
@@ -130,14 +126,14 @@ void fill_redux_mul_input(Scalar (&in)[packet_traits<Scalar>::size], Scalar& exp
   if constexpr (std::is_integral<Scalar>::value) {
     for (int i = 0; i < N; ++i) in[i] = Scalar(1);
     in[0] = Scalar(-3);
-    in[N - 1] = Scalar(2);
-    expected = Scalar(-6);
-  } else {
-    expected = Scalar(1);
-    for (int i = 0; i < N; ++i) {
-      in[i] = static_cast<Scalar>(std::int64_t(1) << i);
-      expected *= in[i];
+    expected = Scalar(-3);
+    if (N > 1) {
+      in[N - 1] = Scalar(2);
+      expected = Scalar(-6);
     }
+  } else {
+    for (int i = 0; i < N; ++i) in[i] = std::ldexp(Scalar(1), i - N / 2);
+    expected = std::ldexp(Scalar(1), -N / 2);
   }
 }
 
