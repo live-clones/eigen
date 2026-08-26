@@ -103,6 +103,35 @@ void orthomethods_2() {
   VERIFY_IS_APPROX(v21.cross(v20), rv21.cross(v20));
 }
 
+template <typename VectorType>
+void unit_orthogonal_extremes(Index size = VectorType::SizeAtCompileTime) {
+  using Scalar = typename VectorType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  VectorType vector(size);
+  for (RealScalar magnitude :
+       {(std::numeric_limits<RealScalar>::min)(), (std::numeric_limits<RealScalar>::max)() / RealScalar(2)}) {
+    const auto verify_extreme = [&](const VectorType& input) {
+      const VectorType orthogonal = input.unitOrthogonal();
+      const VectorType scaled = input / magnitude;
+      const RealScalar tolerance = RealScalar(8) * NumTraits<RealScalar>::epsilon();
+      VERIFY(orthogonal.allFinite());
+      VERIFY(numext::abs(orthogonal.norm() - RealScalar(1)) <= tolerance);
+      VERIFY(numext::abs(orthogonal.dot(scaled)) <= tolerance * scaled.norm());
+    };
+
+    vector.setZero();
+    vector.coeffRef(0) = Scalar(magnitude);
+    vector.coeffRef(1) = Scalar(-magnitude);
+    verify_extreme(vector);
+    if (size >= 3) {
+      vector.setZero();
+      vector.coeffRef(2) = Scalar(magnitude);
+      verify_extreme(vector);
+    }
+  }
+}
+
 template <typename Scalar, int Size>
 void orthomethods(int size = Size) {
   typedef typename NumTraits<Scalar>::Real RealScalar;
@@ -144,10 +173,10 @@ EIGEN_DECLARE_TEST(geo_orthomethods) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(orthomethods_2<float>());
     CALL_SUBTEST_2(orthomethods_2<double>());
-    CALL_SUBTEST_4(orthomethods_2<std::complex<double> >());
+    CALL_SUBTEST_4(orthomethods_2<std::complex<double>>());
     CALL_SUBTEST_1(orthomethods_3<float>());
     CALL_SUBTEST_2(orthomethods_3<double>());
-    CALL_SUBTEST_4(orthomethods_3<std::complex<double> >());
+    CALL_SUBTEST_4(orthomethods_3<std::complex<double>>());
     CALL_SUBTEST_1((orthomethods<float, 2>()));
     CALL_SUBTEST_2((orthomethods<double, 2>()));
     CALL_SUBTEST_1((orthomethods<float, 3>()));
@@ -157,4 +186,8 @@ EIGEN_DECLARE_TEST(geo_orthomethods) {
     CALL_SUBTEST_5((orthomethods<float, Dynamic>(36)));
     CALL_SUBTEST_6((orthomethods<double, Dynamic>(35)));
   }
+  CALL_SUBTEST_1((unit_orthogonal_extremes<Vector2f>()));
+  CALL_SUBTEST_2((unit_orthogonal_extremes<Vector3d>()));
+  CALL_SUBTEST_4((unit_orthogonal_extremes<Matrix<std::complex<double>, 4, 1>>()));
+  CALL_SUBTEST_5((unit_orthogonal_extremes<VectorXf>(4)));
 }

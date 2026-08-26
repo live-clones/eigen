@@ -173,21 +173,29 @@ VectorwiseOp<ExpressionType, Direction>::cross(const MatrixBase<OtherDerived>& o
 
 namespace internal {
 
+template <typename Scalar>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Matrix<Scalar, 2, 1> unit_orthogonal_2d(const Scalar& x, const Scalar& y) {
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Vector2 = Matrix<Scalar, 2, 1>;
+  Vector2 scaled(x, y);
+  const RealScalar maxCoeff = scaled.cwiseAbs().maxCoeff();
+  safe_scaling<RealScalar>::scale_in_place(scaled, maxCoeff);
+  const RealScalar invNorm = RealScalar(1) / scaled.norm();
+  return Vector2(-numext::conj(scaled.y()) * invNorm, numext::conj(scaled.x()) * invNorm);
+}
+
 template <typename Derived, int Size = Derived::SizeAtCompileTime>
 struct unitOrthogonal_selector {
   using VectorType = typename plain_matrix_type<Derived>::type;
-  using Scalar = typename traits<Derived>::Scalar;
-  using RealScalar = typename NumTraits<Scalar>::Real;
-  using Vector2 = Matrix<Scalar, 2, 1>;
   EIGEN_DEVICE_FUNC static inline VectorType run(const Derived& src) {
     VectorType perp = VectorType::Zero(src.size());
     Index maxi = 0;
     Index sndi = 0;
     src.cwiseAbs().maxCoeff(&maxi);
     if (maxi == 0) sndi = 1;
-    RealScalar invnm = RealScalar(1) / (Vector2() << src.coeff(sndi), src.coeff(maxi)).finished().norm();
-    perp.coeffRef(maxi) = -numext::conj(src.coeff(sndi)) * invnm;
-    perp.coeffRef(sndi) = numext::conj(src.coeff(maxi)) * invnm;
+    const auto orthogonal = unit_orthogonal_2d(src.coeff(maxi), src.coeff(sndi));
+    perp.coeffRef(maxi) = orthogonal.x();
+    perp.coeffRef(sndi) = orthogonal.y();
 
     return perp;
   }
@@ -196,8 +204,6 @@ struct unitOrthogonal_selector {
 template <typename Derived>
 struct unitOrthogonal_selector<Derived, 3> {
   using VectorType = typename plain_matrix_type<Derived>::type;
-  using Scalar = typename traits<Derived>::Scalar;
-  using RealScalar = typename NumTraits<Scalar>::Real;
   EIGEN_DEVICE_FUNC static inline VectorType run(const Derived& src) {
     VectorType perp;
     /* Let us compute the crossed product of *this with a vector
@@ -208,9 +214,7 @@ struct unitOrthogonal_selector<Derived, 3> {
      * simply take ( -y, x, 0 ) and normalize it.
      */
     if ((!isMuchSmallerThan(src.x(), src.z())) || (!isMuchSmallerThan(src.y(), src.z()))) {
-      RealScalar invnm = RealScalar(1) / src.template head<2>().norm();
-      perp.coeffRef(0) = -numext::conj(src.y()) * invnm;
-      perp.coeffRef(1) = numext::conj(src.x()) * invnm;
+      perp.template head<2>() = unit_orthogonal_2d(src.x(), src.y());
       perp.coeffRef(2) = 0;
     }
     /* if both x and y are close to zero, then the vector is close
@@ -218,10 +222,8 @@ struct unitOrthogonal_selector<Derived, 3> {
      * So we take the crossed product with (1,0,0) and normalize it.
      */
     else {
-      RealScalar invnm = RealScalar(1) / src.template tail<2>().norm();
       perp.coeffRef(0) = 0;
-      perp.coeffRef(1) = -numext::conj(src.z()) * invnm;
-      perp.coeffRef(2) = numext::conj(src.y()) * invnm;
+      perp.template tail<2>() = unit_orthogonal_2d(src.y(), src.z());
     }
 
     return perp;
@@ -231,9 +233,7 @@ struct unitOrthogonal_selector<Derived, 3> {
 template <typename Derived>
 struct unitOrthogonal_selector<Derived, 2> {
   using VectorType = typename plain_matrix_type<Derived>::type;
-  EIGEN_DEVICE_FUNC static inline VectorType run(const Derived& src) {
-    return VectorType(-numext::conj(src.y()), numext::conj(src.x())).normalized();
-  }
+  EIGEN_DEVICE_FUNC static inline VectorType run(const Derived& src) { return unit_orthogonal_2d(src.x(), src.y()); }
 };
 
 }  // end namespace internal
