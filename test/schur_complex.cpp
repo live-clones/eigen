@@ -203,6 +203,18 @@ void schur_zero(Index size) {
   VERIFY_IS_EQUAL(schurOfA.matrixU(), ComplexMatrixType::Identity(size, size));
 }
 
+void schur_minimum_subnormal_tail() {
+  volatile float denormMinInput = std::numeric_limits<float>::denorm_min();
+  const float denormMin = denormMinInput;
+  if (!(denormMin > 0.0f)) return;
+
+  Matrix2f matrix = Matrix2f::Zero();
+  matrix.diagonal() << 1.5f, denormMin;
+  const ComplexSchur<Matrix2f> schur(matrix);
+  VERIFY_IS_EQUAL(schur.info(), Success);
+  VERIFY_IS_EQUAL(schur.matrixT()(1, 1), std::complex<float>(denormMin, 0.0f));
+}
+
 EIGEN_DECLARE_TEST(schur_complex) {
   CALL_SUBTEST_1((schur<Matrix4cd>()));
   CALL_SUBTEST_2((schur<MatrixXcf>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4))));
@@ -241,4 +253,5 @@ EIGEN_DECLARE_TEST(schur_complex) {
   CALL_SUBTEST_10((schur_zero<Matrix4cd>(4)));
   CALL_SUBTEST_10((schur_zero<MatrixXcf>(8)));
   CALL_SUBTEST_10((schur_zero<MatrixXf>(8)));
+  CALL_SUBTEST_10(schur_minimum_subnormal_tail());
 }
