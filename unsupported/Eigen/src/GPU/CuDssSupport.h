@@ -21,6 +21,17 @@
 #include "./GpuSupport.h"
 #include <cudss.h>
 
+/** 1 when the cuDSS headers this translation unit sees name the algorithms
+ * gpu::SparseSolverConfig forwards (cuDSS >= 0.8), 0 otherwise. The config type
+ * and its enumerators exist either way, so code that merely mentions one still
+ * compiles; a caller that has to adapt its behavior can branch on this macro
+ * instead. Where it is 0, setConfig() rejects every non-default field. */
+#if defined(CUDSS_VERSION) && CUDSS_VERSION >= 800
+#define EIGEN_HAS_CUDSS_SOLVER_CONFIG 1
+#else
+#define EIGEN_HAS_CUDSS_SOLVER_CONFIG 0
+#endif
+
 namespace Eigen {
 namespace gpu {
 namespace internal {

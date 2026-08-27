@@ -408,6 +408,14 @@ Each knob is consumed by the phase it affects (reordering/matching by
 `analyzePattern()`, pivoting by `factorize()`, refinement by `solve()`), so
 `setConfig()` must run before the first phase whose behavior it changes.
 
+cuDSS < 0.8 names none of these algorithms. The config type and its enumerators
+still compile there — whether a knob can be honored is a property of the cuDSS
+being linked, not of your source — but `setConfig()` refuses any non-default
+field: it asserts, and `info()` reports `InvalidInput` until the config is reset
+to default, so the request cannot be silently downgraded to the cuDSS defaults.
+`EIGEN_HAS_CUDSS_SOLVER_CONFIG` is 1 or 0 accordingly, for callers that need to
+branch at compile time.
+
 ### FFT (cuFFT)
 
 ```cpp
