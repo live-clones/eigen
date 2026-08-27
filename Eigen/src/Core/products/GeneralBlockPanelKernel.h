@@ -790,12 +790,19 @@ void loadQuadToDoublePacket(const Scalar* b, DoublePacket<RealPacket>& dest) {
   dest.second = pset1<RealPacket>(numext::imag(*b));
 }
 
-template <typename Scalar, typename RealPacket, std::enable_if_t<unpacket_traits<RealPacket>::size == 16, int> = 0>
+// A real packet of N lanes carries N/8 complex values, each spread over eight
+// lanes. ploadquad repeats every element four times, so it needs each value
+// listed twice. Sized off N rather than a fixed 16: SVE reaches 32 real lanes
+// at VL=1024 and 64 at VL=2048, which no fixed overload covers.
+template <typename Scalar, typename RealPacket, std::enable_if_t<(unpacket_traits<RealPacket>::size > 8), int> = 0>
 void loadQuadToDoublePacket(const Scalar* b, DoublePacket<RealPacket>& dest) {
-  // Workaround: load quad elements by reinterpreting real packets as complex.
   using RealScalar = typename NumTraits<Scalar>::Real;
-  RealScalar r[4] = {numext::real(b[0]), numext::real(b[0]), numext::real(b[1]), numext::real(b[1])};
-  RealScalar i[4] = {numext::imag(b[0]), numext::imag(b[0]), numext::imag(b[1]), numext::imag(b[1])};
+  constexpr int kQuads = unpacket_traits<RealPacket>::size / 4;
+  RealScalar r[kQuads], i[kQuads];
+  for (int j = 0; j < kQuads; ++j) {
+    r[j] = numext::real(b[j / 2]);
+    i[j] = numext::imag(b[j / 2]);
+  }
   dest.first = ploadquad<RealPacket>(r);
   dest.second = ploadquad<RealPacket>(i);
 }
