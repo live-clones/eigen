@@ -486,6 +486,18 @@ extern "C" {
 #error "Eigen requires a fixed SVE vector length but EIGEN_ARM64_SVE_VL is not set."
 #endif
 
+// TriangularMatrixMatrix.h puts a (2 * max(mr, nr))^2 panel of Scalar on the
+// stack, and mr is 3 * PacketSize, so for float -- the widest scalar this backend
+// vectorizes -- the panel is 9 * VL^2 / 64 bytes
+// -- 144 kB at VL=1024 and 576 kB at VL=2048, past the 128 kB default, and the
+// backend does not compile at those lengths without more room. Only ever raise
+// the limit: 0 disables the check, which several tests rely on.
+#if EIGEN_STACK_ALLOCATION_LIMIT != 0 && \
+    EIGEN_STACK_ALLOCATION_LIMIT < (9 * EIGEN_ARM64_SVE_VL * EIGEN_ARM64_SVE_VL / 64)
+#undef EIGEN_STACK_ALLOCATION_LIMIT
+#define EIGEN_STACK_ALLOCATION_LIMIT (9 * EIGEN_ARM64_SVE_VL * EIGEN_ARM64_SVE_VL / 64)
+#endif
+
 // Selected automatically whenever the toolchain can provide it; see
 // EIGEN_ARM64_SME_SELECTED above for the conditions and the opt-out.
 #elif defined(EIGEN_ARM64_SME_SELECTED)
