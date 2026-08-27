@@ -543,11 +543,17 @@ extern "C" {
 #error "Eigen requires a fixed RVV vector length but -mrvv-vector-bits=zvl is not set."
 #endif
 
+// Raise Eigen's own default only, as the SVE block above does: an explicit limit is a caller
+// policy on stack safety, and rewriting it defeats the policy. nomalloc, bdcsvd, jacobisvd,
+// diagonalview and diagonalmatrices set 0 to switch the check off, and clobbering that re-enables
+// alloca underneath the very tests written to catch it.
+#ifdef EIGEN_STACK_ALLOCATION_LIMIT_WAS_DEFAULTED
 #undef EIGEN_STACK_ALLOCATION_LIMIT
 #if __riscv_v_fixed_vlen <= 512
 #define EIGEN_STACK_ALLOCATION_LIMIT 196608
 #else
 #define EIGEN_STACK_ALLOCATION_LIMIT 393216
+#endif
 #endif
 
 #if defined(__riscv_zvfh) && defined(__riscv_zfh)
