@@ -438,6 +438,14 @@ Each knob is consumed by the phase it affects (reordering/matching by
 `analyzePattern()`, pivoting by `factorize()`, refinement by `solve()`), so
 `setConfig()` must run before the first phase whose behavior it changes.
 
+Every field is a pass-through, so which values are admissible for a given matrix
+type — and what each one does — is cuDSS's contract, not ours:
+[cuDSS Data Types](https://docs.nvidia.com/cuda/cudss/types.html) documents
+`cudssConfigParam_t` and the `cudssReorderingAlg_t` / `cudssMatchingAlg_t` /
+`cudssPivotType_t` values these enums mirror, and
+[cuDSS Advanced Features](https://docs.nvidia.com/cuda/cudss/advanced_features.html)
+describes the hybrid host/device memory and execute modes.
+
 cuDSS < 0.8 names none of these algorithms. The config type and its enumerators
 still compile there — whether a knob can be honored is a property of the cuDSS
 being linked, not of your source — but `setConfig()` refuses any non-default
