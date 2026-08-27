@@ -159,6 +159,8 @@ void test_refactorize(Index n) {
 
 // ---- Solver configuration ---------------------------------------------------
 
+#if EIGEN_HAS_CUDSS_SOLVER_CONFIG
+
 template <typename Scalar>
 void test_config(Index n) {
   using SpMat = SparseMatrix<Scalar, ColMajor, int>;
@@ -227,6 +229,8 @@ void test_config(Index n) {
   }
 }
 
+#endif  // EIGEN_HAS_CUDSS_SOLVER_CONFIG
+
 // ---- Empty matrix -----------------------------------------------------------
 
 template <typename Scalar>
@@ -270,7 +274,9 @@ void test_scalar() {
   CALL_SUBTEST(test_multiple_rhs<Scalar>(64, 4));
   CALL_SUBTEST(test_refactorize<Scalar>(64));
   CALL_SUBTEST(test_upper<Scalar>(64));
+#if EIGEN_HAS_CUDSS_SOLVER_CONFIG
   CALL_SUBTEST(test_config<Scalar>(64));
+#endif
 }
 
 // ---- Device-resident solve + Context binding -----------------------------------

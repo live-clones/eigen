@@ -123,6 +123,8 @@ void test_refactorize(Index n) {
 
 // ---- Solver configuration ---------------------------------------------------
 
+#if EIGEN_HAS_CUDSS_SOLVER_CONFIG
+
 template <typename Scalar>
 void test_config(Index n) {
   using SpMat = SparseMatrix<Scalar, ColMajor, int>;
@@ -178,6 +180,38 @@ void test_config(Index n) {
   }
 }
 
+#else  // !EIGEN_HAS_CUDSS_SOLVER_CONFIG
+
+// This cuDSS names none of the algorithms SparseSolverConfig forwards, so the
+// knobs cannot be honored. setConfig() must refuse them rather than solve with
+// the defaults they meant to replace, while a default config still works.
+template <typename Scalar>
+void test_config_unsupported(Index n) {
+  using SpMat = SparseMatrix<Scalar, ColMajor, int>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  SpMat A = make_general<Scalar>(n);
+  Vec b = Vec::Random(n);
+  const RealScalar tol = RealScalar(100) * RealScalar(n) * NumTraits<Scalar>::epsilon();
+
+  gpu::SparseSolverConfig cfg;
+  cfg.refinementSteps = 2;
+  gpu::SparseLU<Scalar> lu;
+  // Safe here where the module otherwise avoids VERIFY_RAISES_ASSERT: the
+  // assert fires before any GPU work is queued, and lu outlives the throw.
+  VERIFY_RAISES_ASSERT(lu.setConfig(cfg));
+
+  gpu::SparseSolverConfig default_cfg;
+  lu.setConfig(default_cfg);
+  lu.compute(A);
+  VERIFY_IS_EQUAL(lu.info(), Success);
+  Vec x = lu.solve(b);
+  VERIFY((A * x - b).norm() / b.norm() < tol);
+}
+
+#endif  // EIGEN_HAS_CUDSS_SOLVER_CONFIG
+
 // ---- Empty ------------------------------------------------------------------
 
 template <typename Scalar>
@@ -199,7 +233,11 @@ void test_scalar() {
   CALL_SUBTEST(test_solve<Scalar>(256));
   CALL_SUBTEST(test_multiple_rhs<Scalar>(64, 4));
   CALL_SUBTEST(test_refactorize<Scalar>(64));
+#if EIGEN_HAS_CUDSS_SOLVER_CONFIG
   CALL_SUBTEST(test_config<Scalar>(64));
+#else
+  CALL_SUBTEST(test_config_unsupported<Scalar>(64));
+#endif
 }
 
 EIGEN_DECLARE_TEST(gpu_cudss_lu) {

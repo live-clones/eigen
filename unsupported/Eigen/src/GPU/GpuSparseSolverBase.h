@@ -32,10 +32,15 @@ namespace gpu {
 
 // The enumerators below carry the cuDSS values so apply_config() can
 // static_cast them. cuDSS < 0.8 names none of these algorithms, so there they
-// are plain placeholders and setConfig() accepts only a default config.
+// are plain placeholders and setConfig() accepts only a default config. The
+// names stay visible either way: a translation unit that mentions
+// SparseReordering::Amd should not stop compiling because the cuDSS it links
+// cannot honor it, which is a runtime property of the library, not of the
+// source. Callers that do want the compile-time distinction have
+// EIGEN_HAS_CUDSS_SOLVER_CONFIG.
 // Default is a sentinel either way: apply_config() skips its cudssConfigSet(),
 // leaving the cuDSS default in place without depending on its numeric value.
-#if defined(CUDSS_VERSION) && CUDSS_VERSION >= 800
+#if EIGEN_HAS_CUDSS_SOLVER_CONFIG
 #define EIGEN_CUDSS_ALG(value) = value
 #else
 #define EIGEN_CUDSS_ALG(value)
@@ -86,7 +91,8 @@ enum class SparsePivoting : int {
  * corresponding cuDSS default, which is tuned for performance rather than
  * maximum robustness (e.g. matching is off). Non-default fields require
  * cuDSS >= 0.8, whose cudssReorderingAlg_t etc. name the algorithms with
- * stable values; earlier versions accept only a default config. */
+ * stable values; earlier versions accept only a default config, which
+ * EIGEN_HAS_CUDSS_SOLVER_CONFIG reports. */
 struct SparseSolverConfig {
   SparseReordering reordering = SparseReordering::Default;
   SparseMatching matching = SparseMatching::Default;
@@ -172,8 +178,25 @@ class SparseSolverBase {
    * different execution and memory mode. hybridMemoryDeviceLimit is only a
    * budget within hybridMemory and may be changed between factorizations.
    *
-   * Non-default fields require cuDSS >= 0.8 (asserted). */
+   * Non-default fields require cuDSS >= 0.8, which EIGEN_HAS_CUDSS_SOLVER_CONFIG
+   * reports. Below that, a non-default \p cfg is rejected rather than applied:
+   * it asserts, and info() reports InvalidInput until the config is reset to
+   * default. */
   Derived& setConfig(const SparseSolverConfig& cfg) {
+#if !EIGEN_HAS_CUDSS_SOLVER_CONFIG
+    eigen_assert(cfg.isDefault() && "SparseSolverConfig knobs require cuDSS >= 0.8");
+    if (!cfg.isDefault()) {
+      // The assert above is compiled out in release builds. Record what was
+      // asked for and fail through info() rather than factorizing with the
+      // cuDSS defaults this call meant to replace. analyzePattern() keeps
+      // failing while the stored config is one this cuDSS cannot honor.
+      config_opts_ = cfg;
+      analysis_done_ = false;
+      info_ = InvalidInput;
+      return derived();
+    }
+#endif
+
     const bool hybrid_mode_changed =
         cfg.hybridMemory != config_opts_.hybridMemory || cfg.hybridExecute != config_opts_.hybridExecute;
     eigen_assert((!hybrid_mode_changed || !analysis_done_) &&
@@ -208,6 +231,16 @@ class SparseSolverBase {
    * This phase is synchronous (blocks until complete). */
   template <typename InputType>
   Derived& analyzePattern(const SparseMatrixBase<InputType>& A) {
+#if !EIGEN_HAS_CUDSS_SOLVER_CONFIG
+    if (!config_opts_.isDefault()) {
+      // setConfig() refused this config; analyzing as if it had been applied
+      // would hand factorize() state built for settings the caller replaced.
+      info_ = InvalidInput;
+      analysis_done_ = false;
+      return derived();
+    }
+#endif
+
     const InputType& input = A.derived();
     check_storage_index_bounds<StorageIndex>(input.rows(), input.cols(), input.nonZeros());
     eigen_assert(input.rows() == input.cols() && "GpuSparseSolver requires a square matrix");
@@ -266,8 +299,8 @@ class SparseSolverBase {
   Derived& factorize(const SparseMatrixBase<InputType>& A) {
     eigen_assert(analysis_done_ && "factorize() requires analyzePattern() first");
     if (!analysis_done_) {
-      // Reachable in release builds when a hybrid mode was changed after
-      // analysis; see setConfig().
+      // Reachable in release builds whenever setConfig() invalidated the
+      // analysis rather than applying the request; see setConfig().
       info_ = InvalidInput;
       return derived();
     }
@@ -437,7 +470,7 @@ class SparseSolverBase {
   // field reset to Default restore the cuDSS default, whose numeric value is
   // not part of the cuDSS API contract.
   void apply_config() {
-#if defined(CUDSS_VERSION) && CUDSS_VERSION >= 800
+#if EIGEN_HAS_CUDSS_SOLVER_CONFIG
     if (config_) {
       // cuDSS reads the config during execution, and both factorize() and the
       // device-resident solve() return with their phase still queued. Retire
@@ -488,7 +521,8 @@ class SparseSolverBase {
       EIGEN_CUDSS_CHECK(cudssConfigSet(config_, CUDSS_CONFIG_HYBRID_EXECUTE_MODE, &v, sizeof(v)));
     }
 #else
-    eigen_assert(config_opts_.isDefault() && "SparseSolverConfig knobs require cuDSS >= 0.8");
+    // setConfig() returns early for anything else, so there is nothing to apply.
+    eigen_internal_assert(config_opts_.isDefault());
 #endif
   }
 
