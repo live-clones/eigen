@@ -564,8 +564,7 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
     const Index n = rows();
     s = symbol();
     mods = s.cwiseAbs();
-    if (!NumTraits<Scalar>::IsComplex)
-      for (Index k = 1; 2 * k < n; ++k) mods[n - k] = mods[k];
+    EIGEN_IF_CONSTEXPR (!NumTraits<Scalar>::IsComplex) mods.tail((n - 1) / 2) = mods.segment(1, (n - 1) / 2).reverse();
     return internal::structured_svd_permutation(mods);
   }
 
