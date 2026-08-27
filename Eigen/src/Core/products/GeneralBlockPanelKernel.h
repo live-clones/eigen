@@ -1722,11 +1722,11 @@ EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, 
         prefetch(&blA[0]);
         const RhsScalar* blB = &blockB[j2 * strideB + offsetB * 4];
 
-        // If LhsProgress is 8 or 16, it assumes that there is a
-        // half or quarter packet, respectively, of the same size as
-        // nr (which is currently 4) for the return type.
-        const int SResPacketHalfSize = unpacket_traits<typename unpacket_traits<SResPacket>::half>::size;
-        const int SResPacketQuarterSize =
+        // This loop packs groups of 4 columns, so the sub-packet holding them is 4
+        // lanes wide regardless of nr, which is tunable (EIGEN_SVE_GEBP_NR and
+        // friends) and 8 on several backends.
+        constexpr int SResPacketHalfSize = unpacket_traits<typename unpacket_traits<SResPacket>::half>::size;
+        constexpr int SResPacketQuarterSize =
             unpacket_traits<typename unpacket_traits<typename unpacket_traits<SResPacket>::half>::half>::size;
         // The following code assumes we can load SRhsPacket in such a way that
         // it multiplies blocks of 4 elements in SLhsPacket.  This is not the
@@ -1735,9 +1735,10 @@ EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, 
         constexpr bool kCanLoadSRhsQuad =
             (unpacket_traits<SLhsPacket>::size < 4) ||
             (unpacket_traits<SRhsPacket>::size % ((std::max<int>)(unpacket_traits<SLhsPacket>::size, 4) / 4)) == 0;
-        if (kCanLoadSRhsQuad && (SwappedTraits::LhsProgress % 4) == 0 && (SwappedTraits::LhsProgress <= 16) &&
-            (SwappedTraits::LhsProgress != 8 || SResPacketHalfSize == nr) &&
-            (SwappedTraits::LhsProgress != 16 || SResPacketQuarterSize == nr)) {
+        EIGEN_IF_CONSTEXPR (kCanLoadSRhsQuad && (SwappedTraits::LhsProgress % 4) == 0 &&
+                            (SwappedTraits::LhsProgress <= 16) &&
+                            (SwappedTraits::LhsProgress != 8 || SResPacketHalfSize == 4) &&
+                            (SwappedTraits::LhsProgress != 16 || SResPacketQuarterSize == 4)) {
           SAccPacket C0, C1, C2, C3;
           straits.initAcc(C0);
           straits.initAcc(C1);
