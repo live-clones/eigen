@@ -182,9 +182,11 @@ void test_config(Index n) {
 
 #else  // !EIGEN_HAS_CUDSS_SOLVER_CONFIG
 
-// This cuDSS names none of the algorithms SparseSolverConfig forwards, so the
-// knobs cannot be honored. setConfig() must refuse them rather than solve with
-// the defaults they meant to replace, while a default config still works.
+// This cuDSS names none of the algorithms SparseSolverConfig forwards, so their
+// enumerators are not declared here at all and only the remaining knobs can be
+// set. Those cannot be honored either: setConfig() must refuse them rather than
+// solve with the defaults they meant to replace, while a default config still
+// works.
 template <typename Scalar>
 void test_config_unsupported(Index n) {
   using SpMat = SparseMatrix<Scalar, ColMajor, int>;

@@ -446,11 +446,13 @@ type — and what each one does — is cuDSS's contract, not ours:
 [cuDSS Advanced Features](https://docs.nvidia.com/cuda/cudss/advanced_features.html)
 describes the hybrid host/device memory and execute modes.
 
-cuDSS < 0.8 names none of these algorithms. The config type and its enumerators
-still compile there — whether a knob can be honored is a property of the cuDSS
-being linked, not of your source — but `setConfig()` refuses any non-default
-field: it asserts, and `info()` reports `InvalidInput` until the config is reset
-to default, so the request cannot be silently downgraded to the cuDSS defaults.
+cuDSS < 0.8 names none of these algorithms. There the `SparseReordering`,
+`SparseMatching` and `SparsePivoting` enumerators other than `Default` are not
+declared, so selecting one is a compile error rather than a request the linked
+cuDSS cannot honor. The remaining fields — thresholds, refinement, the hybrid
+modes — still exist, and `setConfig()` refuses any non-default value of them: it
+asserts, and `info()` reports `InvalidInput` until the config is reset to
+default, so the request cannot be silently downgraded to the cuDSS defaults.
 `EIGEN_HAS_CUDSS_SOLVER_CONFIG` is 1 or 0 accordingly, for callers that need to
 branch at compile time.
 

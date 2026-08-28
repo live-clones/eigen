@@ -22,10 +22,10 @@
 #include <cudss.h>
 
 /** 1 when the cuDSS headers this translation unit sees name the algorithms
- * gpu::SparseSolverConfig forwards (cuDSS >= 0.8), 0 otherwise. The config type
- * and its enumerators exist either way, so code that merely mentions one still
- * compiles; a caller that has to adapt its behavior can branch on this macro
- * instead. Where it is 0, setConfig() rejects every non-default field. */
+ * gpu::SparseSolverConfig forwards (cuDSS >= 0.8), 0 otherwise. Where it is 0,
+ * the algorithm enumerators are not declared and setConfig() rejects every
+ * non-default field, so a caller that has to adapt its behavior branches on
+ * this macro. */
 #if defined(CUDSS_VERSION) && CUDSS_VERSION >= 800
 #define EIGEN_HAS_CUDSS_SOLVER_CONFIG 1
 #else

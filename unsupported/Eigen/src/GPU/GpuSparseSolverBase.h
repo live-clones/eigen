@@ -30,69 +30,69 @@
 namespace Eigen {
 namespace gpu {
 
-// The enumerators below carry the cuDSS values so apply_config() can
-// static_cast them. cuDSS < 0.8 names none of these algorithms, so there they
-// are plain placeholders and setConfig() accepts only a default config. The
-// names stay visible either way: a translation unit that mentions
-// SparseReordering::Amd should not stop compiling because the cuDSS it links
-// cannot honor it, which is a runtime property of the library, not of the
-// source. Callers that do want the compile-time distinction have
-// EIGEN_HAS_CUDSS_SOLVER_CONFIG.
-// Default is a sentinel either way: apply_config() skips its cudssConfigSet(),
-// leaving the cuDSS default in place without depending on its numeric value.
-#if EIGEN_HAS_CUDSS_SOLVER_CONFIG
-#define EIGEN_CUDSS_ALG(value) = value
-#else
-#define EIGEN_CUDSS_ALG(value)
-#endif
+// The named algorithms carry the cuDSS values, so apply_config() can
+// static_cast them. cuDSS < 0.8 names none of them, so there they are not
+// declared at all: selecting an algorithm the linked cuDSS cannot honor is a
+// compile error rather than a runtime rejection, and EIGEN_HAS_CUDSS_SOLVER_CONFIG
+// lets a caller branch on which case a build is in.
+// Default is declared either way and is a sentinel rather than a cuDSS value:
+// apply_config() skips its cudssConfigSet(), leaving the cuDSS default in place
+// without depending on its numeric value.
 
 /** Fill-reducing reordering algorithm, applied during analyzePattern().
  * Default lets cuDSS choose; Natural disables reordering. BtfColamd and
- * Colamd are valid for general (SparseLU) matrices only. */
+ * Colamd are valid for general (SparseLU) matrices only. The named
+ * algorithms are declared only for cuDSS >= 0.8. */
 enum class SparseReordering : int {
   Default = -1,
-  BtfColamd EIGEN_CUDSS_ALG(CUDSS_REORDERING_ALG_BTF_COLAMD),
-  Colamd EIGEN_CUDSS_ALG(CUDSS_REORDERING_ALG_COLAMD),
-  Amd EIGEN_CUDSS_ALG(CUDSS_REORDERING_ALG_AMD),
-  NestedDissection EIGEN_CUDSS_ALG(CUDSS_REORDERING_ALG_NESTED_DISSECTION),
-  Natural EIGEN_CUDSS_ALG(CUDSS_REORDERING_ALG_NONE)
+#if EIGEN_HAS_CUDSS_SOLVER_CONFIG
+  BtfColamd = CUDSS_REORDERING_ALG_BTF_COLAMD,
+  Colamd = CUDSS_REORDERING_ALG_COLAMD,
+  Amd = CUDSS_REORDERING_ALG_AMD,
+  NestedDissection = CUDSS_REORDERING_ALG_NESTED_DISSECTION,
+  Natural = CUDSS_REORDERING_ALG_NONE,
+#endif
 };
 
 /** Matching algorithm, applied during analyzePattern() to improve numerical
  * robustness. Off by cuDSS default; primarily useful for SparseLU on
- * indefinite or badly scaled systems. Auto lets cuDSS pick. */
+ * indefinite or badly scaled systems. Auto lets cuDSS pick. The named
+ * algorithms are declared only for cuDSS >= 0.8. */
 enum class SparseMatching : int {
   Default = -1,
-  None EIGEN_CUDSS_ALG(CUDSS_MATCHING_ALG_NONE),
-  MaxDiagCount EIGEN_CUDSS_ALG(CUDSS_MATCHING_ALG_MAX_DIAG_COUNT),
-  MaxMinDiag EIGEN_CUDSS_ALG(CUDSS_MATCHING_ALG_MAX_MIN_DIAG),
-  MaxMinDiagAlt EIGEN_CUDSS_ALG(CUDSS_MATCHING_ALG_MAX_MIN_DIAG_ALT),
-  MaxDiagSum EIGEN_CUDSS_ALG(CUDSS_MATCHING_ALG_MAX_DIAG_SUM),
-  MaxDiagProduct EIGEN_CUDSS_ALG(CUDSS_MATCHING_ALG_MAX_DIAG_PRODUCT),
-  Auto EIGEN_CUDSS_ALG(CUDSS_MATCHING_ALG_AUTO)
+#if EIGEN_HAS_CUDSS_SOLVER_CONFIG
+  None = CUDSS_MATCHING_ALG_NONE,
+  MaxDiagCount = CUDSS_MATCHING_ALG_MAX_DIAG_COUNT,
+  MaxMinDiag = CUDSS_MATCHING_ALG_MAX_MIN_DIAG,
+  MaxMinDiagAlt = CUDSS_MATCHING_ALG_MAX_MIN_DIAG_ALT,
+  MaxDiagSum = CUDSS_MATCHING_ALG_MAX_DIAG_SUM,
+  MaxDiagProduct = CUDSS_MATCHING_ALG_MAX_DIAG_PRODUCT,
+  Auto = CUDSS_MATCHING_ALG_AUTO,
+#endif
 };
 
 /** Pivoting strategy, applied during factorize(). Default resolves per
  * matrix type. Validity of the other values depends on the matrix type and
- * reordering algorithm; see the cuDSS documentation for cudssPivotType_t. */
+ * reordering algorithm; see the cuDSS documentation for cudssPivotType_t.
+ * The named strategies are declared only for cuDSS >= 0.8. */
 enum class SparsePivoting : int {
   Default = -1,
-  None EIGEN_CUDSS_ALG(CUDSS_PIVOT_NONE),
-  GlobalCol EIGEN_CUDSS_ALG(CUDSS_PIVOT_GLOBAL_COL),
-  GlobalRow EIGEN_CUDSS_ALG(CUDSS_PIVOT_GLOBAL_ROW),
-  Diagonal EIGEN_CUDSS_ALG(CUDSS_PIVOT_DIAGONAL),
-  LocalBlock EIGEN_CUDSS_ALG(CUDSS_PIVOT_LOCAL_BLOCK)
+#if EIGEN_HAS_CUDSS_SOLVER_CONFIG
+  None = CUDSS_PIVOT_NONE,
+  GlobalCol = CUDSS_PIVOT_GLOBAL_COL,
+  GlobalRow = CUDSS_PIVOT_GLOBAL_ROW,
+  Diagonal = CUDSS_PIVOT_DIAGONAL,
+  LocalBlock = CUDSS_PIVOT_LOCAL_BLOCK,
+#endif
 };
-
-#undef EIGEN_CUDSS_ALG
 
 /** Pass-through configuration for the cuDSS-backed sparse direct solvers
  * (SparseLLT, SparseLDLT, SparseLU). Fields left at their defaults keep the
  * corresponding cuDSS default, which is tuned for performance rather than
  * maximum robustness (e.g. matching is off). Non-default fields require
  * cuDSS >= 0.8, whose cudssReorderingAlg_t etc. name the algorithms with
- * stable values; earlier versions accept only a default config, which
- * EIGEN_HAS_CUDSS_SOLVER_CONFIG reports. */
+ * stable values; earlier versions declare no algorithm enumerator and accept
+ * only a default config, which EIGEN_HAS_CUDSS_SOLVER_CONFIG reports. */
 struct SparseSolverConfig {
   SparseReordering reordering = SparseReordering::Default;
   SparseMatching matching = SparseMatching::Default;
@@ -179,9 +179,10 @@ class SparseSolverBase {
    * budget within hybridMemory and may be changed between factorizations.
    *
    * Non-default fields require cuDSS >= 0.8, which EIGEN_HAS_CUDSS_SOLVER_CONFIG
-   * reports. Below that, a non-default \p cfg is rejected rather than applied:
-   * it asserts, and info() reports InvalidInput until the config is reset to
-   * default. */
+   * reports. Below that, the algorithm enumerators are not declared, so
+   * selecting one does not compile; a non-default value of the remaining
+   * fields is rejected rather than applied, asserting and leaving info()
+   * reporting InvalidInput until the config is reset to default. */
   Derived& setConfig(const SparseSolverConfig& cfg) {
 #if !EIGEN_HAS_CUDSS_SOLVER_CONFIG
     eigen_assert(cfg.isDefault() && "SparseSolverConfig knobs require cuDSS >= 0.8");
