@@ -46,11 +46,10 @@ void BM_Plset(benchmark::State& state) {
     }
   }
 
-  Scalar* outp = out;
-  benchmark::DoNotOptimize(outp);
+  benchmark::DoNotOptimize(a);
   for (auto _ : state) {
-    benchmark::DoNotOptimize(a);
-    pstoreu(outp, internal::plset<Packet>(a));
+    pstoreu(out, internal::plset<Packet>(a));
+    benchmark::DoNotOptimize(out);
   }
 }
 BENCHMARK(BM_Plset<numext::int32_t>)->Name("Plset_int32");
@@ -75,10 +74,10 @@ void BM_Ploaddup(benchmark::State& state) {
     }
   }
 
-  Scalar* outp = out;
+  benchmark::DoNotOptimize(in);
   for (auto _ : state) {
-    pstoreu(outp, internal::ploaddup<Packet>(in));
-    benchmark::DoNotOptimize(outp);
+    pstoreu(out, internal::ploaddup<Packet>(in));
+    benchmark::DoNotOptimize(out);
   }
 }
 BENCHMARK(BM_Ploaddup<numext::int32_t>)->Name("Ploaddup_int32");
@@ -103,10 +102,10 @@ void BM_Ploadquad(benchmark::State& state) {
     }
   }
 
-  Scalar* outp = out;
+  benchmark::DoNotOptimize(in);
   for (auto _ : state) {
-    pstoreu(outp, internal::ploadquad<Packet>(in));
-    benchmark::DoNotOptimize(outp);
+    pstoreu(out, internal::ploadquad<Packet>(in));
+    benchmark::DoNotOptimize(out);
   }
 }
 BENCHMARK(BM_Ploadquad<numext::int32_t>)->Name("Ploadquad_int32");
@@ -151,10 +150,8 @@ void BM_ReduxMul(benchmark::State& state) {
     return;
   }
 
-  for (auto _ : state) {
-    benchmark::DoNotOptimize(a);
-    benchmark::DoNotOptimize(internal::predux_mul<Packet>(a));
-  }
+  benchmark::DoNotOptimize(a);
+  for (auto _ : state) benchmark::DoNotOptimize(internal::predux_mul<Packet>(a));
 }
 BENCHMARK(BM_ReduxMul<numext::int32_t>)->Name("ReduxMul_int32");
 BENCHMARK(BM_ReduxMul<float>)->Name("ReduxMul_float");
