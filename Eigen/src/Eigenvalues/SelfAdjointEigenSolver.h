@@ -26,30 +26,10 @@ namespace internal {
 template <typename SolverType, int Size, bool IsComplex>
 struct direct_selfadjoint_eigenvalues;
 
-template <typename MatrixType, bool WidenFloat = is_same<typename MatrixType::Scalar, float>::value>
-struct direct_selfadjoint_eigensolver_matrix_scaling {
-  using Scalar = typename MatrixType::Scalar;
-
-  EIGEN_DEVICE_FUNC static void run(MatrixType& matrix, const Scalar& scale) { matrix /= scale; }
-};
-
-template <typename MatrixType>
-struct direct_selfadjoint_eigensolver_matrix_scaling<MatrixType, true> {
-  EIGEN_DEVICE_FUNC static void run(MatrixType& matrix, float scale) {
-    // Below this threshold, a subnormal coefficient can be significant relative to the matrix norm.  Widening keeps
-    // ARM NEON from flushing that coefficient before the division brings it into the normal range.
-    if (scale >= (std::numeric_limits<float>::min)() / NumTraits<float>::epsilon()) {
-      matrix /= scale;
-      return;
-    }
-    const double wideScale = double(scale);
-    for (Index col = 0; col < matrix.cols(); ++col) {
-      for (Index row = 0; row < matrix.rows(); ++row) {
-        matrix.coeffRef(row, col) = float(double(matrix.coeff(row, col)) / wideScale);
-      }
-    }
-  }
-};
+template <typename SolverType, int Size, bool IsComplex,
+          bool EnablePrescaling =
+              !IsComplex && (Size == 2 || Size == 3) && std::is_floating_point<typename SolverType::Scalar>::value>
+struct direct_selfadjoint_eigensolver_dispatch;
 
 template <bool PerBlockScaling, typename MatrixType, typename DiagType, typename SubDiagType>
 EIGEN_DEVICE_FUNC ComputationInfo computeFromTridiagonal_impl(DiagType& diag, SubDiagType& subdiag,
@@ -130,7 +110,8 @@ class SelfAdjointEigenSolver {
   using RealScalar = typename NumTraits<Scalar>::Real;
 
   friend struct internal::direct_selfadjoint_eigenvalues<SelfAdjointEigenSolver, Size, NumTraits<Scalar>::IsComplex>;
-
+  friend struct internal::direct_selfadjoint_eigensolver_dispatch<SelfAdjointEigenSolver, Size,
+                                                                  NumTraits<Scalar>::IsComplex>;
   /** \brief Type for vector of eigenvalues as returned by eigenvalues().
    *
    * This is a column vector with entries of type #RealScalar.
@@ -693,6 +674,45 @@ struct direct_selfadjoint_eigenvalues {
   }
 };
 
+template <int Size, typename Scalar>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool direct_selfadjoint_eigensolver_safe_range(const Scalar&, false_type) {
+  return false;
+}
+
+template <int Size, typename Scalar>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool direct_selfadjoint_eigensolver_safe_range(const Scalar& maxCoeff,
+                                                                                     true_type) {
+  using Binary = binary_floating_point_traits<Scalar>;
+  using Bits = typename Binary::Bits;
+  const Bits maxCoeffMagnitude = Binary::magnitude(maxCoeff);
+  EIGEN_IF_CONSTEXPR (Size == 2) {
+    // computeRoots uses at most 8*M^2 and eigenvector normalization less than 16*M^2.
+    constexpr int kMinSafeExponent = (std::numeric_limits<Scalar>::min_exponent - 1) / 2;
+    constexpr int kMaxSafeExponent = (std::numeric_limits<Scalar>::max_exponent - 4) / 2;
+    constexpr Bits kMinSafeBits = Bits(kMinSafeExponent + Binary::kExponentBias) << Binary::kFractionBits;
+    constexpr Bits kMaxSafeBits = (Bits(kMaxSafeExponent + Binary::kExponentBias) << Binary::kFractionBits) - Bits(1);
+    return maxCoeffMagnitude > kMinSafeBits && maxCoeffMagnitude < kMaxSafeBits;
+  } else {
+    // For |m(i,j)| <= M, the largest degree-six intermediate in computeRoots is bounded by 64*M^6. The eigenvector
+    // cross products have degree four and fit within the same range.
+    constexpr int kMinSafeExponent = (std::numeric_limits<Scalar>::min_exponent - 1) / 6;
+    constexpr int kMaxSafeExponent = (std::numeric_limits<Scalar>::max_exponent - 6) / 6;
+    constexpr Bits kMinSafeBits = Bits(kMinSafeExponent + Binary::kExponentBias) << Binary::kFractionBits;
+    constexpr Bits kMaxSafeBits = Bits(kMaxSafeExponent + Binary::kExponentBias) << Binary::kFractionBits;
+    return maxCoeffMagnitude > kMinSafeBits && maxCoeffMagnitude < kMaxSafeBits;
+  }
+}
+
+template <int Size, typename Scalar>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool direct_selfadjoint_eigensolver_safe_range(const Scalar& maxCoeff) {
+  static_assert(Size == 2 || Size == 3, "direct eigensolver safe ranges are defined only for sizes 2 and 3");
+  using HasBinaryRepresentation =
+      bool_constant<supports_power_of_two_scaling<Scalar>::value && std::numeric_limits<Scalar>::is_iec559 &&
+                    (sizeof(Scalar) == sizeof(numext::uint16_t) || sizeof(Scalar) == sizeof(numext::uint32_t) ||
+                     sizeof(Scalar) == sizeof(numext::uint64_t))>;
+  return direct_selfadjoint_eigensolver_safe_range<Size>(maxCoeff, HasBinaryRepresentation());
+}
+
 template <typename SolverType>
 struct direct_selfadjoint_eigenvalues<SolverType, 3, false> {
   using MatrixType = typename SolverType::MatrixType;
@@ -766,6 +786,10 @@ struct direct_selfadjoint_eigenvalues<SolverType, 3, false> {
   }
 
   EIGEN_DEVICE_FUNC static inline void run(SolverType& solver, const MatrixType& mat, int options) {
+    run(solver, mat, options, mat.trace() / Scalar(3));
+  }
+
+  EIGEN_DEVICE_FUNC static inline void run(SolverType& solver, const MatrixType& mat, int options, Scalar shift) {
     eigen_assert(mat.cols() == 3 && mat.cols() == mat.rows());
     eigen_assert((options & ~(EigVecMask | GenEigMask)) == 0 && (options & EigVecMask) != EigVecMask &&
                  "invalid option parameter");
@@ -774,14 +798,14 @@ struct direct_selfadjoint_eigenvalues<SolverType, 3, false> {
     EigenvectorsType& eivecs = solver.m_eivec;
     VectorType& eivals = solver.m_eivalues;
 
-    // Shift the matrix to the mean eigenvalue and map the matrix coefficients to [-1:1] to avoid over- and underflow.
-    Scalar shift = mat.trace() / Scalar(3);
     // TODO: avoid this copy. Currently necessary to suppress bogus values when determining maxCoeff and for
     // computing the eigenvectors later.
     MatrixType scaledMat = mat.template selfadjointView<Lower>();
     scaledMat.diagonal().array() -= shift;
-    Scalar scale = scaledMat.cwiseAbs().maxCoeff();
-    if (scale > 0) direct_selfadjoint_eigensolver_matrix_scaling<MatrixType>::run(scaledMat, scale);
+    const Scalar maxCoeff = scaledMat.cwiseAbs().maxCoeff();
+    safe_scaling_factors<Scalar> factors;
+    if (EIGEN_PREDICT_FALSE(!direct_selfadjoint_eigensolver_safe_range<3>(maxCoeff)))
+      factors = safe_scaling<Scalar>::scale_in_place(scaledMat, maxCoeff);
 
     // compute the eigenvalues
     computeRoots(scaledMat, eivals);
@@ -853,7 +877,7 @@ struct direct_selfadjoint_eigenvalues<SolverType, 3, false> {
     }
 
     // Rescale back to the original size.
-    eivals *= scale;
+    eivals *= factors.scale;
     eivals.array() += shift;
 
     solver.m_info = Success;
@@ -879,6 +903,10 @@ struct direct_selfadjoint_eigenvalues<SolverType, 2, false> {
   }
 
   EIGEN_DEVICE_FUNC static inline void run(SolverType& solver, const MatrixType& mat, int options) {
+    run(solver, mat, options, mat.trace() / Scalar(2));
+  }
+
+  EIGEN_DEVICE_FUNC static inline void run(SolverType& solver, const MatrixType& mat, int options, Scalar shift) {
     EIGEN_USING_STD(sqrt);
     EIGEN_USING_STD(abs);
 
@@ -890,13 +918,13 @@ struct direct_selfadjoint_eigenvalues<SolverType, 2, false> {
     EigenvectorsType& eivecs = solver.m_eivec;
     VectorType& eivals = solver.m_eivalues;
 
-    // Shift the matrix to the mean eigenvalue and map the matrix coefficients to [-1:1] to avoid over- and underflow.
-    Scalar shift = mat.trace() / Scalar(2);
     MatrixType scaledMat = mat;
     scaledMat.coeffRef(0, 1) = mat.coeff(1, 0);
     scaledMat.diagonal().array() -= shift;
-    Scalar scale = scaledMat.cwiseAbs().maxCoeff();
-    if (scale > Scalar(0)) direct_selfadjoint_eigensolver_matrix_scaling<MatrixType>::run(scaledMat, scale);
+    const Scalar maxCoeff = scaledMat.cwiseAbs().maxCoeff();
+    safe_scaling_factors<Scalar> factors;
+    if (EIGEN_PREDICT_FALSE(!direct_selfadjoint_eigensolver_safe_range<2>(maxCoeff)))
+      factors = safe_scaling<Scalar>::scale_in_place(scaledMat, maxCoeff);
 
     // Compute the eigenvalues
     computeRoots(scaledMat, eivals);
@@ -918,12 +946,14 @@ struct direct_selfadjoint_eigenvalues<SolverType, 2, false> {
           eivecs.col(1) /= sqrt(c2 + b2);
         }
 
-        eivecs.col(0) << eivecs.col(1).unitOrthogonal();
+        // This vector was just normalized, so swapping its coefficients and negating one preserves its norm.
+        eivecs(0, 0) = -eivecs(1, 1);
+        eivecs(1, 0) = eivecs(0, 1);
       }
     }
 
     // Rescale back to the original size.
-    eivals *= scale;
+    safe_scaling<Scalar>::unscale_in_place(eivals, factors);
     eivals.array() += shift;
 
     solver.m_info = Success;
@@ -932,12 +962,116 @@ struct direct_selfadjoint_eigenvalues<SolverType, 2, false> {
   }
 };
 
+template <typename SolverType, int Size, bool IsComplex, bool EnablePrescaling>
+struct direct_selfadjoint_eigensolver_dispatch {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(SolverType& solver,
+                                                        const typename SolverType::MatrixType& matrix, int options) {
+    direct_selfadjoint_eigenvalues<SolverType, Size, IsComplex>::run(solver, matrix, options);
+  }
+};
+
+template <typename Scalar, bool = std::is_same<Scalar, float>::value || std::is_same<Scalar, double>::value>
+struct direct_selfadjoint_eigensolver_max_abs {
+  template <typename MatrixType>
+  EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE static Scalar run(const MatrixType& matrix) {
+    Scalar maxCoeff(0);
+    for (Index col = 0; col < matrix.cols(); ++col) {
+      for (Index row = col; row < matrix.rows(); ++row) {
+        maxCoeff = numext::maxi(maxCoeff, numext::abs(matrix.coeff(row, col)));
+      }
+    }
+    return maxCoeff;
+  }
+};
+
+template <typename Scalar>
+struct direct_selfadjoint_eigensolver_max_abs<Scalar, true> {
+  template <typename MatrixType>
+  EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE static Scalar run(const MatrixType& matrix) {
+    using Binary = binary_floating_point_traits<Scalar>;
+    using Bits = typename Binary::Bits;
+    Bits maxBits = 0;
+    for (Index col = 0; col < matrix.cols(); ++col) {
+      for (Index row = col; row < matrix.rows(); ++row) {
+        const Bits bits = Binary::magnitude(matrix.coeff(row, col));
+        if (bits > maxBits) maxBits = bits;
+      }
+    }
+    return numext::bit_cast<Scalar>(maxBits);
+  }
+};
+
+template <int Size, typename MatrixType, typename Scalar>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool direct_selfadjoint_eigensolver_centering_overflows(const MatrixType& matrix,
+                                                                                              const Scalar& shift) {
+  // For Size == 2, the centered diagonals are +/-(a-b)/2 and remain representable for finite a and b. With three
+  // coefficients, one centered diagonal can exceed the finite range, for example diag(max, max, -max).
+  EIGEN_IF_CONSTEXPR (Size == 3) {
+    const Scalar highest = NumTraits<Scalar>::highest();
+    // Adding less than half an ulp to the largest finite value still rounds to a finite result.
+    if (numext::abs(shift) <= highest * NumTraits<Scalar>::epsilon() / Scalar(4)) return false;
+    Scalar limit;
+    if (shift > Scalar(0)) {
+      limit = shift - highest;
+      for (Index i = 0; i < Size; ++i)
+        if (matrix.coeff(i, i) < limit) return true;
+    } else if (shift < Scalar(0)) {
+      limit = highest + shift;
+      for (Index i = 0; i < Size; ++i)
+        if (matrix.coeff(i, i) > limit) return true;
+    }
+  }
+  return false;
+}
+
+template <typename SolverType, int Size, bool IsComplex>
+struct direct_selfadjoint_eigensolver_dispatch<SolverType, Size, IsComplex, true> {
+  using MatrixType = typename SolverType::MatrixType;
+  using Scalar = typename SolverType::Scalar;
+
+ private:
+  EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE static void run_prescaled(SolverType& solver, const MatrixType& matrix,
+                                                                int options, const Scalar& maxCoeff,
+                                                                bool useIterativeSolver) {
+    MatrixType scaledMatrix = matrix.template selfadjointView<Lower>();
+    const auto factors = safe_scaling<Scalar>::scale_in_place(scaledMatrix, maxCoeff);
+    if (useIterativeSolver) {
+      solver.compute(scaledMatrix, options);
+    } else {
+      const Scalar shift = scaledMatrix.trace() / Scalar(Size);
+      direct_selfadjoint_eigenvalues<SolverType, Size, IsComplex>::run(solver, scaledMatrix, options, shift);
+    }
+    for (Index i = 0; i < Size; ++i) {
+      solver.m_eivalues(i) = scale_binary_by_power_of_two(solver.m_eivalues(i), factors.scale);
+    }
+  }
+
+ public:
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(SolverType& solver, const MatrixType& matrix, int options) {
+    // Form the mean with complementary weights so finite diagonal coefficients cannot overflow.
+    Scalar shift = matrix.coeff(0, 0);
+    for (Index i = 1; i < Size; ++i) {
+      const Scalar divisor = Scalar(i + 1);
+      shift = (Scalar(i) / divisor) * shift + matrix.coeff(i, i) / divisor;
+    }
+    const bool centeringOverflows = direct_selfadjoint_eigensolver_centering_overflows<Size>(matrix, shift);
+    if (EIGEN_PREDICT_FALSE(centeringOverflows || safe_scaling_needs_subnormal_recovery<Scalar>::run_or_zero(shift))) {
+      const Scalar maxCoeff = direct_selfadjoint_eigensolver_max_abs<Scalar>::run(matrix);
+      if (centeringOverflows || safe_scaling_needs_subnormal_recovery<Scalar>::run(maxCoeff)) {
+        run_prescaled(solver, matrix, options, maxCoeff, centeringOverflows);
+        return;
+      }
+    }
+    direct_selfadjoint_eigenvalues<SolverType, Size, IsComplex>::run(solver, matrix, options, shift);
+  }
+};
+
 }  // namespace internal
 
 template <typename MatrixType>
 EIGEN_DEVICE_FUNC SelfAdjointEigenSolver<MatrixType>& SelfAdjointEigenSolver<MatrixType>::computeDirect(
     const MatrixType& matrix, int options) {
-  internal::direct_selfadjoint_eigenvalues<SelfAdjointEigenSolver, Size, NumTraits<Scalar>::IsComplex>::run(
+  internal::direct_selfadjoint_eigensolver_dispatch<SelfAdjointEigenSolver, Size, NumTraits<Scalar>::IsComplex>::run(
       *this, matrix, options);
   return *this;
 }
