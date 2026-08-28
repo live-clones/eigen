@@ -248,9 +248,9 @@ EIGEN_DEVICE_FUNC void JacobiRotation<Scalar>::makeGivens(const Scalar& p, const
   // in the Level 1 BLAS", ACM TOMS 44(1), 2017.  When both |p| and |q| lie
   // in (rtmin, rtmax), the direct formula r = p * sqrt(1 + (q/p)^2) cannot
   // over- or underflow before the true result would.  Outside that range
-  // we prescale by max(|p|, |q|) (clamped into [safmin, safmax]) so that
-  // the squared sum stays in the representable range.  This preserves the
-  // existing Eigen sign convention (r >= 0, sign carried in c).
+  // finite inputs are prescaled by a nearby power of two with a normal
+  // reciprocal so that the squared sum stays in the representable range.
+  // This preserves the existing Eigen sign convention (r >= 0, sign carried in c).
   const Scalar safmin = (std::numeric_limits<Scalar>::min)();
   const Scalar safmax = Scalar(1) / safmin;
   const Scalar rtmin = sqrt(safmin);
@@ -278,18 +278,9 @@ EIGEN_DEVICE_FUNC void JacobiRotation<Scalar>::makeGivens(const Scalar& p, const
       if (r) *r = q * u;
     }
   } else {
-    // Out of safe range: use normal reciprocal powers of two for finite inputs. Keep the clamped division for
-    // non-finite inputs so an infinite component is not multiplied by a zero reciprocal.
-    internal::safe_scaling_factors<Scalar> factors;
-    if (mx <= NumTraits<Scalar>::highest()) {
-      factors = internal::safe_scaling<Scalar>::compute_factors(mx);
-    } else {
-      factors.scale = numext::mini(safmax, numext::maxi(safmin, mx));
-      factors.invScale = Scalar(1) / factors.scale;
-    }
     Scalar ps;
     Scalar qs;
-    internal::safe_scaling<Scalar>::scale_to(ps, p, mx, factors);
+    const auto factors = internal::safe_scaling<Scalar>::scale_to(ps, p, mx);
     internal::safe_scaling<Scalar>::scale_to(qs, q, mx, factors);
     if (abs_p > abs_q) {
       Scalar t = qs / ps;
