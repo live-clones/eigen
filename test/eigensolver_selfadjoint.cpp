@@ -14,6 +14,7 @@
 #define EIGEN_RUNTIME_NO_MALLOC
 
 #include "main.h"
+#include "fp_control.h"
 #include "svd_fill.h"
 #include "tridiag_test_matrices.h"
 #include <limits>
@@ -769,6 +770,70 @@ void selfadjointeigensolver_rowmajor() {
   }
 }
 
+template <typename MatrixType>
+void verify_direct_ftz_rescaling(const MatrixType& matrix) {
+  using Scalar = typename MatrixType::Scalar;
+  SelfAdjointEigenSolver<MatrixType> reference(matrix);
+  VERIFY_IS_EQUAL(reference.info(), Success);
+  const Scalar scale = matrix.cwiseAbs().maxCoeff();
+  const auto factors = internal::safe_scaling<Scalar>::compute_floor_factors(scale);
+  typename SelfAdjointEigenSolver<MatrixType>::RealVectorType scaledReference;
+  internal::safe_scaling<Scalar>::scale_to(scaledReference, reference.eigenvalues(), scale, factors);
+  ScopedFlushToZero flushToZero;
+  if (!flushToZero.isSupported()) return;
+
+  SelfAdjointEigenSolver<MatrixType> direct;
+  direct.computeDirect(matrix);
+  VERIFY_IS_EQUAL(direct.info(), Success);
+  const Scalar tolerance = Scalar(32) * NumTraits<Scalar>::epsilon();
+  typename SelfAdjointEigenSolver<MatrixType>::RealVectorType scaledEigenvalues;
+  internal::safe_scaling<Scalar>::scale_to(scaledEigenvalues, direct.eigenvalues(), scale, factors);
+  VERIFY(scaledEigenvalues.isApprox(scaledReference, tolerance));
+  MatrixType scaledMatrix;
+  internal::safe_scaling<Scalar>::scale_to(scaledMatrix, matrix, scale, factors);
+  const MatrixType residual =
+      scaledMatrix * direct.eigenvectors() - direct.eigenvectors() * scaledEigenvalues.asDiagonal();
+  VERIFY(residual.norm() <= tolerance);
+}
+
+template <typename Scalar>
+void direct_3x3_ftz_rescaling() {
+  Matrix<Scalar, 3, 3> eigenvectors;
+  eigenvectors << Scalar(-0.6848395082687857), Scalar(-0.24329346407253183), Scalar(0.68687927487569134),
+      Scalar(0.71945209189636927), Scalar(-0.37540118169054804), Scalar(0.58434804718701527),
+      Scalar(0.11568723084293309), Scalar(0.89436136048295811), Scalar(0.43212755234417322);
+  const Scalar tiny = Scalar(100) * (std::numeric_limits<Scalar>::min)();
+  const Matrix<Scalar, 3, 1> eigenvalues(tiny, Scalar(2) * tiny, Scalar(3) * tiny);
+  verify_direct_ftz_rescaling((eigenvectors * eigenvalues.asDiagonal() * eigenvectors.transpose()).eval());
+
+  volatile Scalar denormMinInput = std::numeric_limits<Scalar>::denorm_min();
+  const Scalar subnormal = Scalar(64) * denormMinInput;
+  if (subnormal > Scalar(0)) {
+    Matrix<Scalar, 3, 3> zeroTrace;
+    zeroTrace << subnormal, subnormal, Scalar(0), subnormal, -subnormal, subnormal, Scalar(0), subnormal, Scalar(0);
+    verify_direct_ftz_rescaling(zeroTrace);
+  }
+}
+
+template <typename Scalar>
+void direct_2x2_ftz_rescaling() {
+  const Scalar cosine = numext::cos(Scalar(0.34));
+  const Scalar sine = numext::sin(Scalar(0.34));
+  Matrix<Scalar, 2, 2> eigenvectors;
+  eigenvectors << cosine, sine, -sine, cosine;
+  const Scalar tiny = Scalar(256) * (std::numeric_limits<Scalar>::min)();
+  const Matrix<Scalar, 2, 1> eigenvalues(tiny, Scalar(1.01) * tiny);
+  verify_direct_ftz_rescaling((eigenvectors * eigenvalues.asDiagonal() * eigenvectors.transpose()).eval());
+
+  volatile Scalar denormMinInput = std::numeric_limits<Scalar>::denorm_min();
+  const Scalar subnormal = Scalar(64) * denormMinInput;
+  if (subnormal > Scalar(0)) {
+    Matrix<Scalar, 2, 2> zeroTrace;
+    zeroTrace << subnormal, subnormal, subnormal, -subnormal;
+    verify_direct_ftz_rescaling(zeroTrace);
+  }
+}
+
 // Test matrix with Inf entries returns NoConvergence (similar to NaN test).
 template <int>
 void selfadjointeigensolver_inf() {
@@ -1097,7 +1162,11 @@ EIGEN_DECLARE_TEST(eigensolver_selfadjoint) {
 
   // Stress tests for direct 3x3 and 2x2 solvers.
   CALL_SUBTEST_17(direct_3x3_stress<0>());
+  CALL_SUBTEST_17(direct_3x3_ftz_rescaling<double>());
+  CALL_SUBTEST_13(direct_3x3_ftz_rescaling<float>());
   CALL_SUBTEST_15(direct_2x2_stress<0>());
+  CALL_SUBTEST_15(direct_2x2_ftz_rescaling<double>());
+  CALL_SUBTEST_12(direct_2x2_ftz_rescaling<float>());
 
   // Test Inf input handling.
   CALL_SUBTEST_17(selfadjointeigensolver_inf<0>());
