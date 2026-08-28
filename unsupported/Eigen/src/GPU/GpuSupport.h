@@ -111,15 +111,79 @@ inline void device_free(void* p) noexcept {
   }
 }
 
-struct CudaFreeDeleter {
-  // When `borrow == true`, the unique_ptr does not free the pointer. Used by
-  // DeviceMatrix::view() to wrap a non-owning device pointer with the same
-  // smart-pointer machinery as owning storage, without changing the type.
-  bool borrow = false;
-  void operator()(void* p) const noexcept {
-    if (p && !borrow) device_free(p);
-  }
+/** Device properties that decide whether host-addressable storage is usable,
+ * and what it costs. Probed once per process from the device current at first
+ * use, matching device_supports_memory_pools(). */
+struct DeviceCapabilities {
+  bool integrated = false;
+  bool concurrent_managed_access = false;
+  bool can_map_host_memory = false;
+  bool managed_memory = false;
 };
+
+inline const DeviceCapabilities& device_capabilities() {
+  static const DeviceCapabilities caps = [] {
+    DeviceCapabilities c;
+    int device = 0;
+    if (cudaGetDevice(&device) != cudaSuccess) return c;
+    cudaDeviceProp prop{};
+    if (cudaGetDeviceProperties(&prop, device) != cudaSuccess) return c;
+    c.integrated = prop.integrated != 0;
+    c.concurrent_managed_access = prop.concurrentManagedAccess != 0;
+    c.can_map_host_memory = prop.canMapHostMemory != 0;
+    c.managed_memory = prop.managedMemory != 0;
+    return c;
+  }();
+  return caps;
+}
+
+}  // namespace internal
+
+/** \ingroup GPU_Module
+ * A block of storage, as returned by a MemoryResource.
+ *
+ * \a device is what kernels and NVIDIA library calls receive; \a host is a
+ * host-addressable alias of the same bytes, or null for device-only memory.
+ * The two are equal for some resources and different for others -- on Tegra,
+ * malloc + cudaHostRegister returns distinct addresses -- so callers must not
+ * assume either. */
+struct Allocation {
+  void* device = nullptr;
+  void* host = nullptr;
+
+  explicit operator bool() const noexcept { return device != nullptr; }
+};
+
+/** \ingroup GPU_Module
+ * \class MemoryResource
+ * \brief Supplies the storage behind a DeviceMatrix.
+ *
+ * Resources carry no per-allocation state and must outlive every buffer that
+ * names them; the built-in ones are process-wide singletons. See
+ * GpuMemoryResource.h for the concrete kinds. */
+class MemoryResource {
+ public:
+  virtual ~MemoryResource() = default;
+
+  virtual Allocation allocate(size_t bytes, cudaStream_t stream) = 0;
+  virtual void deallocate(const Allocation& a, size_t bytes, cudaStream_t stream) noexcept = 0;
+
+  /** Whether Allocation::host is non-null: the host reads and writes this
+   * memory directly, so no upload or download is needed. */
+  virtual bool isHostAccessible() const noexcept = 0;
+
+  /** Whether the host may touch the memory while device work is outstanding.
+   * False for managed memory wherever concurrentManagedAccess is 0. */
+  virtual bool allowsConcurrentHostAccess() const noexcept { return false; }
+
+  /** Whether the resource can serve another allocation while an earlier one
+   * remains live. Custom resources conservatively default to false. */
+  virtual bool supportsMultipleAllocations() const noexcept { return false; }
+
+  virtual const char* name() const noexcept = 0;
+};
+
+namespace internal {
 
 struct CudaFreeHostDeleter {
   void operator()(void* p) const noexcept {
@@ -198,79 +262,230 @@ struct DeviceBufferPool {
   std::vector<Entry> free_list_;
 };
 
-// Stateful deleter that returns small buffers to the thread-local pool and
-// device_free's larger ones. size==0 means "always device_free" (adopted ptrs).
-struct PooledCudaFreeDeleter {
-  size_t size = 0;
+/** Device-only storage from the module's stream-ordered allocator.
+ *
+ * The only correct choice on a discrete GPU, and what a DeviceMatrix uses when
+ * it names nothing else. device_malloc / device_free order allocation and
+ * release on the legacy default stream, so a block is never handed out again
+ * while a kernel enqueued on a blocking stream may still be reading it. */
+class DeviceMemoryResource final : public MemoryResource {
+ public:
+  Allocation allocate(size_t bytes, cudaStream_t /*stream*/) override {
+    Allocation a;
+    a.device = device_malloc(bytes);
+    return a;
+  }
+  void deallocate(const Allocation& a, size_t /*bytes*/, cudaStream_t /*stream*/) noexcept override {
+    device_free(a.device);
+  }
+  bool isHostAccessible() const noexcept override { return false; }
+  bool supportsMultipleAllocations() const noexcept override { return true; }
+  const char* name() const noexcept override { return "device"; }
+};
+
+/** Device-only storage with small blocks recycled through DeviceBufferPool.
+ *
+ * The default for DeviceScalar and for the module's internal scratch: sizes
+ * that churn once per iteration and would otherwise pay cudaMallocAsync every
+ * time. The pool hands a freed block straight to the next requester with no
+ * stream ordering, which suits storage created and consumed on one stream and
+ * is exactly why DeviceMatrix names the plain device resource instead. Blocks
+ * over the pool's threshold fall through to the same allocator. */
+class PooledDeviceMemoryResource final : public MemoryResource {
+ public:
+  Allocation allocate(size_t bytes, cudaStream_t /*stream*/) override {
+    Allocation a;
+    // Bypass the pool once its thread_local has been destroyed (allocation from
+    // a static or TLS destructor); deallocate() then also takes the direct path.
+    const bool pooled = bytes <= DeviceBufferPool<>::kSmallBufferThreshold &&
+                        DeviceBufferPool<>::threadState() != DeviceBufferPool<>::State::kDestroyed;
+    a.device = pooled ? DeviceBufferPool<>::threadLocal().allocate(bytes) : device_malloc(bytes);
+    return a;
+  }
+  void deallocate(const Allocation& a, size_t bytes, cudaStream_t /*stream*/) noexcept override {
+    if (!a.device) return;
+    if (bytes <= DeviceBufferPool<>::kSmallBufferThreshold &&
+        DeviceBufferPool<>::threadState() == DeviceBufferPool<>::State::kAlive) {
+      DeviceBufferPool<>::threadLocal().deallocate(a.device, bytes);
+    } else {
+      // Over the threshold, or pooled storage outliving the pool during TLS
+      // teardown: the pool's blocks come from device_malloc, so a direct free
+      // is correct either way.
+      device_free(a.device);
+    }
+  }
+  bool isHostAccessible() const noexcept override { return false; }
+  bool supportsMultipleAllocations() const noexcept override { return true; }
+  const char* name() const noexcept override { return "pooled-device"; }
+};
+
+}  // namespace internal
+
+/** \ingroup GPU_Module
+ * Device-only storage through the stream-ordered memory pool. What a
+ * DeviceMatrix allocates from when it names no other resource. */
+inline MemoryResource& deviceMemoryResource() {
+  static internal::DeviceMemoryResource r;
+  return r;
+}
+
+/** \ingroup GPU_Module
+ * Device-only storage with small blocks recycled per thread. What a
+ * DeviceScalar -- and so every reduction result -- allocates from when it names
+ * no other resource. */
+inline MemoryResource& pooledDeviceMemoryResource() {
+  static internal::PooledDeviceMemoryResource r;
+  return r;
+}
+
+namespace internal {
+
+struct DeviceBufferDeleter {
+  // The resource that will release this block: it knows how the block was made,
+  // and cudaFree, cudaFreeHost and unregister-then-free are not
+  // interchangeable. Null means the block is borrowed and freed by its owner.
+  MemoryResource* resource = nullptr;
+  size_t bytes = 0;
+  // The host alias goes back with the device pointer, since a resource that
+  // page-locks ordinary memory frees the host pointer, not the device one.
+  void* host = nullptr;
+  // The stream this block was last used on. A resource built on cudaFreeAsync
+  // recycles in stream order, so releasing on the default stream would let the
+  // block be handed out again while work queued on a non-blocking stream is
+  // still reading it -- the two are not ordered against each other.
+  cudaStream_t stream = nullptr;
 
   void operator()(void* p) const noexcept {
-    if (!p) return;
-    if (size > 0 && size <= DeviceBufferPool<>::kSmallBufferThreshold &&
-        DeviceBufferPool<>::threadState() == DeviceBufferPool<>::State::kAlive) {
-      DeviceBufferPool<>::threadLocal().deallocate(p, size);
-    } else {
-      device_free(p);
-    }
+    if (p && resource != nullptr) resource->deallocate(Allocation{p, host}, bytes, stream);
   }
 };
 
+/** Owning handle for a block of GPU-visible storage.
+ *
+ * Every block comes from a MemoryResource, and the buffer holds the one that
+ * will release it, so "no resource" is not a state the buffer has to represent
+ * -- the resource is simply defaulted. A resource may also supply a
+ * host-addressable alias of the same bytes -- hostData() -- which is what lets
+ * the host read and write the storage with no transfer at all. DeviceMatrix and
+ * DeviceScalar are typed wrappers around one of these, so both get every
+ * storage kind from the same place. */
 class DeviceBuffer {
  public:
   DeviceBuffer() = default;
 
-  explicit DeviceBuffer(size_t bytes) : bytes_(bytes) {
-    if (bytes > 0) {
-      void* p = nullptr;
-      // Bypass the pool once its thread_local has been destroyed (allocation
-      // from a static/TLS destructor); the matching deleter then also takes
-      // the direct device_free path.
-      if (bytes <= DeviceBufferPool<>::kSmallBufferThreshold &&
-          DeviceBufferPool<>::threadState() != DeviceBufferPool<>::State::kDestroyed) {
-        p = DeviceBufferPool<>::threadLocal().allocate(bytes);
-      } else {
-        p = device_malloc(bytes);
-      }
-      ptr_ = std::unique_ptr<void, PooledCudaFreeDeleter>(p, PooledCudaFreeDeleter{bytes});
-    }
+  /** Allocate \p bytes from \p resource, which must outlive the buffer.
+   *
+   * The default recycles small blocks per thread, which is what the module's
+   * scratch and DeviceScalar want. DeviceMatrix names deviceMemoryResource()
+   * instead: the pool does not order reuse against a consumer on another
+   * stream, and a matrix's ready event exists precisely so there can be one. */
+  explicit DeviceBuffer(size_t bytes, MemoryResource& resource = pooledDeviceMemoryResource(),
+                        cudaStream_t stream = nullptr) {
+    if (bytes == 0) return;
+    const Allocation a = resource.allocate(bytes, stream);
+    reset(a.device, DeviceBufferDeleter{&resource, bytes, a.host, stream});
   }
 
-  // Explicit moves so a moved-from buffer reports size() == 0 (callers use
-  // size() for grow-only reuse decisions; a stale size on a null buffer would
-  // suppress the reallocation).
-  DeviceBuffer(DeviceBuffer&& o) noexcept : ptr_(std::move(o.ptr_)), bytes_(o.bytes_) { o.bytes_ = 0; }
-  DeviceBuffer& operator=(DeviceBuffer&& o) noexcept {
-    if (this != &o) {
-      ptr_ = std::move(o.ptr_);
-      bytes_ = o.bytes_;
-      o.bytes_ = 0;
-    }
-    return *this;
-  }
+  DeviceBuffer(DeviceBuffer&&) noexcept = default;
+  DeviceBuffer& operator=(DeviceBuffer&&) noexcept = default;
+  DeviceBuffer(const DeviceBuffer&) = delete;
+  DeviceBuffer& operator=(const DeviceBuffer&) = delete;
 
+  /** Device pointer: what kernels and NVIDIA library calls receive. */
   void* get() const noexcept { return ptr_.get(); }
-  void* release() noexcept {
-    bytes_ = 0;
-    return ptr_.release();
+
+  /** Host-addressable alias of the same bytes, or null for device-only storage.
+   * Not necessarily equal to get(): malloc + cudaHostRegister yields distinct
+   * host and device addresses. */
+  void* hostData() const noexcept { return ptr_ ? ptr_.get_deleter().host : nullptr; }
+
+  /** Whether hostData() is usable. */
+  bool isHostAccessible() const noexcept { return hostData() != nullptr; }
+
+  /** Release this block on \p stream rather than on the default stream.
+   *
+   * Set it to whichever stream last read or wrote the storage: a stream-ordered
+   * resource must not recycle the block ahead of work still queued there. */
+  void setReleaseStream(cudaStream_t stream) noexcept {
+    if (ptr_) ptr_.get_deleter().stream = stream;
   }
+
+  /** The resource that will release this block. Null exactly when there is
+   * nothing to release: an empty buffer, or a borrowed view(). */
+  MemoryResource* memoryResource() const noexcept { return ptr_ ? ptr_.get_deleter().resource : nullptr; }
+
+  /** Whether destruction releases the storage. False for view(). */
+  bool owns() const noexcept { return memoryResource() != nullptr; }
+
+  /** Logical allocation size in bytes, tracked for adopted pointers as well.
+   * Reported as 0 once the pointer is gone -- callers use it for grow-only
+   * reuse decisions, and a stale size on a moved-from buffer would suppress
+   * the reallocation. */
+  size_t size() const noexcept { return ptr_ ? ptr_.get_deleter().bytes : 0; }
+
   explicit operator bool() const noexcept { return static_cast<bool>(ptr_); }
 
-  /** Logical allocation size in bytes, tracked for adopted pointers as well. */
-  size_t size() const noexcept { return bytes_; }
+  /** Hand the device pointer out, leaving the buffer empty.
+   *
+   * A bare pointer records nothing about how its storage was made, and whoever
+   * adopts it next will free it with device_free, so only the two device-only
+   * resources qualify. Prefer moving the whole buffer where the caller can.
+   *
+   * Not noexcept: the guard is eigen_assert, which the test harness throws. */
+  void* release() {
+    eigen_assert(releasableAsBarePointer() &&
+                 "only device-only storage can be released as a bare pointer: a borrowed view does not own its "
+                 "memory, and host-visible storage can only be freed by its MemoryResource");
+    // The stale deleter is unobservable: every accessor guards on ptr_, and
+    // unique_ptr never invokes a deleter for a null pointer.
+    return ptr_.release();
+  }
 
-  // Adopt an existing device pointer of `bytes` usable bytes. Caller
-  // relinquishes ownership. Adopted buffers bypass the pool on destruction
-  // (deleter size == 0).
-  static DeviceBuffer adopt(void* p, size_t bytes) noexcept {
+  /** Adopt an existing device pointer of \p bytes usable bytes obtained from
+   * device_malloc. Caller relinquishes ownership. */
+  static DeviceBuffer adopt(void* p, size_t bytes) noexcept { return wrap(p, bytes, &deviceMemoryResource()); }
+
+  /** Non-owning view over storage that someone else owns and outlives it. */
+  static DeviceBuffer view(void* p, size_t bytes) noexcept { return wrap(p, bytes, /*resource=*/nullptr); }
+
+ private:
+  // Wrap an existing pointer; a null resource means nothing frees it.
+  static DeviceBuffer wrap(void* p, size_t bytes, MemoryResource* resource) noexcept {
     DeviceBuffer b;
-    b.ptr_ = std::unique_ptr<void, PooledCudaFreeDeleter>(p, PooledCudaFreeDeleter{});
-    b.bytes_ = p ? bytes : 0;
+    if (p) b.reset(p, DeviceBufferDeleter{resource, bytes});
     return b;
   }
 
- private:
-  std::unique_ptr<void, PooledCudaFreeDeleter> ptr_;
-  size_t bytes_ = 0;
+  // Both device-only resources hand out storage that device_free releases --
+  // the pool's blocks come from device_malloc like any other. An empty buffer
+  // releases a null pointer, which is harmless.
+  bool releasableAsBarePointer() const noexcept {
+    MemoryResource* r = memoryResource();
+    return !ptr_ || r == &deviceMemoryResource() || r == &pooledDeviceMemoryResource();
+  }
+
+  void reset(void* p, const DeviceBufferDeleter& deleter) {
+    ptr_ = std::unique_ptr<void, DeviceBufferDeleter>(p, deleter);
+  }
+
+  std::unique_ptr<void, DeviceBufferDeleter> ptr_;
 };
+
+/** Order a host read or write of storage the device also sees.
+ *
+ * Which synchronization that needs is a property of the storage, so the
+ * resource decides: managed memory on a device without concurrentManagedAccess
+ * forbids host access while *any* device work is outstanding and needs a
+ * device-wide wait, while page-locked host memory only needs the stream that
+ * produced the value. Device-only storage takes the stream wait too: the host
+ * cannot address it at all, so its callers have already stopped. */
+inline void sync_for_host_access(const MemoryResource& resource, cudaStream_t stream) {
+  if (resource.isHostAccessible() && !resource.allowsConcurrentHostAccess()) {
+    EIGEN_CUDA_RUNTIME_CHECK(cudaDeviceSynchronize());
+  } else {
+    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream));
+  }
+}
 
 // cudaMemcpyAsync only overlaps with compute when the host side is pinned, so
 // async D2H staging goes through this buffer.

@@ -46,6 +46,7 @@
 #include "src/GPU/DeviceScalar.h"
 #include "src/GPU/DeviceMatrix.h"
 #include "src/GPU/GpuContext.h"
+#include "src/GPU/GpuMemoryResource.h"
 #include "src/GPU/DeviceExpr.h"
 #include "src/GPU/DeviceBlasExpr.h"
 #include "src/GPU/DeviceSolverExpr.h"

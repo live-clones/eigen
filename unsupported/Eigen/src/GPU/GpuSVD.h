@@ -155,8 +155,7 @@ class SVD {
     if (transposed_) {
       transpose_into_input(d_A);
     } else {
-      const size_t a_bytes = d_A.sizeInBytes();
-      d_A_ = internal::DeviceBuffer::adopt(static_cast<void*>(d_A.release()), a_bytes);
+      d_A_ = d_A.releaseBuffer();
     }
 
     factorize();

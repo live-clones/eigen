@@ -157,7 +157,68 @@ device via NPP, avoiding extra synchronizations. Small device allocations
 Pool contract: recycled pointers are safe for same-thread, same-stream reuse
 (the typical iterative-solver pattern, where one `gpu::Context` drives all
 work). Mixing pooled buffers across threads or CUDA streams without external
-synchronization is not supported.
+synchronization is not supported. The pool is reachable as
+`gpu::pooledDeviceMemoryResource()`, which is what a `DeviceScalar` and the
+module's scratch buffers use by default. `DeviceMatrix` names
+`gpu::deviceMemoryResource()` instead: its storage may be handed to a consumer
+on another stream, which the pool does not order.
+
+### `gpu::MemoryResource`
+
+Where a `DeviceMatrix` or `DeviceScalar` gets its memory. Both are typed
+wrappers around one `internal::DeviceBuffer`, and the buffer holds the
+resource, so the storage kind is one axis of variation rather than one class
+per combination:
+
+```cpp
+gpu::deviceMemoryResource()          // cudaMallocAsync -- the DeviceMatrix default
+gpu::pooledDeviceMemoryResource()    // ... with small blocks recycled per thread;
+                                     //     the DeviceScalar and scratch default
+gpu::managedMemoryResource()         // cudaMallocManaged
+gpu::mappedHostMemoryResource()      // cudaHostAlloc(cudaHostAllocMapped)
+gpu::registeredHostMemoryResource()  // malloc + cudaHostRegister
+gpu::HostMatrixResource<Scalar>      // adopts a moved Eigen matrix
+```
+
+Every buffer has a resource -- "none" is spelled by taking the default -- so
+naming one is always optional and `memoryResource()` is never null.
+
+The built-in host-visible resources have process lifetime, while their bounded
+allocation caches remain per-thread. Each cache records a completion event
+before accepting released blocks and does not reuse them until prior work on
+blocking streams has finished; this preserves asynchronous destruction without
+putting a device-wide wait in the allocation fast path. As with the device
+allocator, borrowed nonblocking streams require
+`EIGEN_GPU_NO_STREAM_ORDERED_ALLOC` or external ordering.
+
+A host-accessible resource gives the buffer a second, host-addressable
+pointer to the same bytes, so no upload or download is needed at all:
+
+```cpp
+gpu::DeviceMatrix<float> A(n, n, gpu::mappedHostMemoryResource());
+Eigen::Map<MatrixXf>(A.hostData(), n, n) = ...;   // filled in place, no upload
+C.device(ctx) = A * B;
+C.syncHost(ctx);                                  // resource decides what that means
+```
+
+The same applies one type down. Every reduction takes the resource its result
+lives in as a trailing defaulted argument, so it can be named when it matters
+and ignored when it does not:
+
+```cpp
+gpu::DeviceScalar<float> a = x.dot(ctx, y);       // pooled device storage, as before
+gpu::DeviceScalar<float> b = x.dot(ctx, y, gpu::mappedHostMemoryResource());
+float value = b;                                  // sync and load; no D2H copy
+```
+
+Device-side scalar arithmetic places its result on the left operand's resource,
+so a chain stays exactly as host-readable as the reduction that started it.
+
+`hostData()` is not necessarily equal to `data()`: `malloc` +
+`cudaHostRegister` returns distinct host and device addresses, which is why
+`gpu::Allocation` carries both. On a discrete GPU the default device-only
+resource is the only correct choice; the host-visible kinds pay off on an
+integrated part (`gpu::deviceIsIntegrated()`).
 
 ### `gpu::Context`
 
@@ -366,7 +427,10 @@ The cached API keeps the factored matrix on device, avoiding redundant
 host-device transfers and re-factorizations. All five solvers accept
 `compute(DeviceMatrix&&)` to adopt the input and factor it in place with no
 copy (for QR/SVD with m < n the internal transpose still copies), and all five
-can bind to a `gpu::Context` to share its stream and handles. All solvers also
+can bind to a `gpu::Context` to share its stream and handles. The input's
+buffer moves across whole, so a matrix on any resource can be factored in
+place, and an in-place `solve(DeviceMatrix&&)` gives the caller back a result
+on the resource it supplied. All solvers also
 accept host dense expressions directly as a convenience (e.g.,
 `gpu::LLT<double> llt(A)` or `qr.solve(B)`), which handles upload/download
 internally. Host `compute()` finishes its upload before returning, while
@@ -656,7 +720,7 @@ one column.
 // Construction
 DeviceMatrix<Scalar>()                                   // Empty (0x0)
 DeviceMatrix<Scalar>(Index n)                            // Allocate column vector (n x 1)
-DeviceMatrix<Scalar>(rows, cols)                         // Allocate uninitialized
+DeviceMatrix<Scalar>(rows, cols, MemoryResource& = deviceMemoryResource())  // Allocate uninitialized
 DeviceMatrix<Scalar>(expr)                               // Copy-init from any supported expression
                                                          // (GEMM, geam/scaled, LLT/LU solve, TRSM,
                                                          //  SYMM, SpMV/SpMM)
@@ -665,6 +729,9 @@ DeviceMatrix<Scalar>(expr)                               // Copy-init from any s
 static DeviceMatrix fromHost(matrix, stream=nullptr)           // -> DeviceMatrix (syncs)
 static DeviceMatrix fromHostAsync(ptr, rows, cols, stream)         // -> DeviceMatrix (no sync, caller manages ptr lifetime)
 static DeviceMatrix adopt(Scalar* device_ptr, rows, cols)          // Owning wrapper over a raw device pointer
+static DeviceMatrix adopt(internal::DeviceBuffer&&, rows, cols)    // ... keeping the buffer's own resource
+internal::DeviceBuffer releaseBuffer()                             // Hand the storage out, resource included
+Scalar*            release()                                       // ... as a bare pointer (device-only storage only)
 static DeviceMatrix view(Scalar* device_ptr, rows, cols)           // Non-owning view (does not free on destruction)
 PlainMatrix        toHost(stream=nullptr)                      // -> host Matrix (syncs)
 HostTransfer       toHostAsync(stream=nullptr)                 // -> HostTransfer future (no sync)
@@ -676,6 +743,10 @@ Index   cols()
 size_t  sizeInBytes()
 bool    empty()
 Scalar* data()                                           // Raw device pointer
+Scalar* hostData()                                       // Host alias, or null when device-only
+bool    isHostAccessible()
+MemoryResource& memoryResource()                         // Never null; deviceMemoryResource() by default
+void    syncHost(gpu::Context&)                          // Make device writes visible through hostData()
 void    resize(Index rows, Index cols)                   // Discard contents; keeps the allocation
                                                          // when it is already large enough
 
@@ -690,9 +761,12 @@ Assignment   device(gpu::Context& ctx)                // Bind assignment to expl
 DeviceMatrix&      noalias()                             // No-op (all ops are implicitly noalias)
 
 // BLAS Level-1 (all have overloads with explicit gpu::Context& parameter)
-DeviceScalar<Scalar>     dot(const DeviceMatrix& other)  // cuBLAS dot/dotc -> DeviceScalar
-DeviceScalar<RealScalar> norm()                          // cuBLAS nrm2 -> DeviceScalar
-DeviceScalar<RealScalar>  squaredNorm()                    // dot(self, self) -> DeviceScalar (no sync)
+// Each reduction takes the resource its result lives in as a trailing defaulted
+// argument -- `x.dot(ctx, y, gpu::mappedHostMemoryResource())` to make the result
+// host-readable without a copy; omit it for pooled device storage.
+DeviceScalar<Scalar>     dot(const DeviceMatrix& other, MemoryResource& = pooledDeviceMemoryResource())
+DeviceScalar<RealScalar> norm(MemoryResource& = pooledDeviceMemoryResource())      // cuBLAS nrm2
+DeviceScalar<RealScalar> squaredNorm(MemoryResource& = pooledDeviceMemoryResource())  // dot(self, self)
 void                     setZero()                       // cudaMemsetAsync
 void                     addScaled(gpu::Context&, Scalar alpha, const DeviceMatrix& x)  // this += alpha * x (axpy)
 void                     scale(gpu::Context&, Scalar alpha)                              // this *= alpha (scal)
@@ -718,13 +792,16 @@ Device-resident scalar. Returned by `dot()`, `norm()`, and `squaredNorm()`.
 Implicit conversion to `Scalar` triggers `cudaStreamSynchronize` + download.
 
 ```cpp
-DeviceScalar(cudaStream_t stream = nullptr)              // Allocate uninitialized
-DeviceScalar(Scalar host_val, cudaStream_t stream)       // Upload host value
+DeviceScalar(cudaStream_t = nullptr, MemoryResource& = pooledDeviceMemoryResource())
+DeviceScalar(Scalar host_val, cudaStream_t, MemoryResource& = pooledDeviceMemoryResource())
 
-Scalar         get()                                     // Download (syncs stream)
-               operator Scalar()                         // Implicit conversion (syncs)
-Scalar*        devicePtr()                               // Raw device pointer
-cudaStream_t   stream()
+Scalar          get()                                    // Syncs; downloads only if device-only
+                operator Scalar()                        // Implicit conversion (syncs)
+Scalar*         devicePtr()                              // Raw device pointer
+Scalar*         hostData()                               // Host alias, or null
+bool            isHostAccessible()
+MemoryResource& memoryResource()                         // Never null; the default when none was named
+cudaStream_t    stream()
 
 // Device-side arithmetic (no host sync, real types only)
 DeviceScalar   operator/(DeviceScalar, DeviceScalar)     // NPP nppsDiv
@@ -1071,13 +1148,14 @@ template compatibility.
 
 | File | Depends on | Contents |
 |------|-----------|----------|
-| `GpuSupport.h` | `<cuda_runtime.h>` | Error macro, `DeviceBuffer`, `DeviceBufferPool`, `cuda_data_type<>` |
+| `GpuSupport.h` | `<cuda_runtime.h>` | Error macro, `gpu::MemoryResource`/`Allocation`, the two device-only resources, `DeviceBuffer`, `DeviceBufferPool`, `cuda_data_type<>` |
 | `DeviceMatrix.h` | `GpuSupport.h` | `gpu::DeviceMatrix<>`, `gpu::HostTransfer<>` |
 | `DeviceExpr.h` | `DeviceMatrix.h` | GEMM, geam, and device-scalar expression wrappers |
 | `DeviceBlasExpr.h` | `DeviceMatrix.h` | TRSM, SYMM, SYRK expression wrappers |
 | `DeviceSolverExpr.h` | `DeviceMatrix.h` | Solver expression wrappers (LLT, LU) |
 | `DeviceScalar.h` | `GpuSupport.h`, `DeviceScalarOps.h` | `gpu::DeviceScalar<>` (device-resident scalar) |
 | `DeviceScalarOps.h` | `<npps_*.h>` | Scalar div/neg/cwiseProduct via NPP |
+| `GpuMemoryResource.h` | `GpuSupport.h` | Host-visible resources: managed, mapped/registered host, caching, `HostMatrixResource<>` |
 | `DeviceDispatch.h` | all above | All dispatch functions, BLAS-1 out-of-line defs, `gpu::Assignment` |
 | `GpuContext.h` | `CuBlasSupport.h`, `CuSolverSupport.h` | `gpu::Context` |
 | `CuBlasSupport.h` | `GpuSupport.h`, `<cublas_v2.h>`, `<cublasLt.h>` | cuBLAS error macro, type-specific wrappers |
