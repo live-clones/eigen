@@ -441,6 +441,38 @@ void selfadjointeigensolver_subnormal_coefficients() {
   }
 }
 
+void selfadjointeigensolver_power_of_two_scaling() {
+  // Reciprocal scaling perturbs one eigenvalue by one ULP in each solver path below.
+  Matrix2f directMatrix = Matrix2f::Zero();
+  directMatrix(0, 0) = numext::bit_cast<float>(numext::uint32_t(0x072319ed));
+  directMatrix(1, 1) = numext::bit_cast<float>(numext::uint32_t(0x06aceabe));
+  const SelfAdjointEigenSolver<Matrix2f> directSolver(directMatrix);
+  VERIFY_IS_EQUAL(directSolver.eigenvalues()(0), directMatrix(1, 1));
+  VERIFY_IS_EQUAL(directSolver.eigenvalues()(1), directMatrix(0, 0));
+
+  Matrix4f matrix = Matrix4f::Zero();
+  matrix.diagonal() << numext::bit_cast<float>(numext::uint32_t(0x44123456)),
+      numext::bit_cast<float>(numext::uint32_t(0x4f123456)), numext::bit_cast<float>(numext::uint32_t(0x537dcf0e)),
+      numext::bit_cast<float>(numext::uint32_t(0x58f6aaed));
+  const SelfAdjointEigenSolver<Matrix4f> solver(matrix);
+  VERIFY_IS_EQUAL(solver.eigenvalues(), matrix.diagonal());
+
+  Vector2f tridiagonal = Vector2f::Zero();
+  Matrix<float, 1, 1> subdiagonal;
+  subdiagonal(0) = numext::bit_cast<float>(numext::uint32_t(0x54fca0e4));
+  SelfAdjointEigenSolver<Matrix2f> tridiagonalSolver;
+  tridiagonalSolver.computeFromTridiagonal(tridiagonal, subdiagonal, EigenvaluesOnly);
+  VERIFY_IS_EQUAL(tridiagonalSolver.eigenvalues()(0), -subdiagonal(0));
+  VERIFY_IS_EQUAL(tridiagonalSolver.eigenvalues()(1), subdiagonal(0));
+
+  volatile float denormMinInput = std::numeric_limits<float>::denorm_min();
+  const float denormMin = denormMinInput;
+  if (!(denormMin > 0.0f)) return;
+  directMatrix.diagonal() << 1.5f, denormMin;
+  const SelfAdjointEigenSolver<Matrix2f> tailSolver(directMatrix);
+  VERIFY_IS_EQUAL(tailSolver.eigenvalues()(0), denormMin);
+}
+
 // Test computeFromTridiagonal with scaled inputs (regression for missing scaling).
 template <typename MatrixType>
 void selfadjointeigensolver_tridiagonal_scaled(const MatrixType& m) {
@@ -968,6 +1000,7 @@ EIGEN_DECLARE_TEST(eigensolver_selfadjoint) {
   CALL_SUBTEST_4(generalizedselfadjointeigensolver_no_malloc<MatrixXd>());
   CALL_SUBTEST_5(generalizedselfadjointeigensolver_no_malloc<MatrixXcd>());
   CALL_SUBTEST_13(selfadjointeigensolver_subnormal_coefficients());
+  CALL_SUBTEST_13(selfadjointeigensolver_power_of_two_scaling());
 
   for (int i = 0; i < g_repeat; i++) {
     // trivial test for 1x1 matrices:
