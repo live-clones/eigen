@@ -491,6 +491,25 @@ void check_nextafter() {
 }
 
 template <typename T>
+void check_ceil_power_of_two() {
+  const T zero(0);
+  const T one(1);
+  const T two(2);
+  const T min = (std::numeric_limits<T>::min)();
+  const T denormMin = std::numeric_limits<T>::denorm_min();
+  const T inf = std::numeric_limits<T>::infinity();
+
+  VERIFY_IS_EQUAL(numext::ceil_power_of_two(zero), zero);
+  VERIFY_IS_EQUAL(numext::ceil_power_of_two(denormMin), min);
+  VERIFY_IS_EQUAL(numext::ceil_power_of_two(min), min);
+  VERIFY_IS_EQUAL(numext::ceil_power_of_two(T(0.75)), one);
+  VERIFY_IS_EQUAL(numext::ceil_power_of_two(one), one);
+  VERIFY_IS_EQUAL(numext::ceil_power_of_two(one + NumTraits<T>::epsilon()), two);
+  VERIFY_IS_EQUAL(numext::ceil_power_of_two(T(3)), T(4));
+  VERIFY_IS_EQUAL(numext::ceil_power_of_two((std::numeric_limits<T>::max)()), inf);
+}
+
+template <typename T>
 void check_shift() {
   using SignedT = typename numext::get_integer_by_size<sizeof(T)>::signed_type;
   using UnsignedT = typename numext::get_integer_by_size<sizeof(T)>::unsigned_type;
@@ -603,6 +622,12 @@ EIGEN_DECLARE_TEST(numext) {
     CALL_SUBTEST(check_nextafter<float>());
     CALL_SUBTEST(check_nextafter<double>());
     CALL_SUBTEST(check_nextafter<long double>());
+
+    CALL_SUBTEST(check_ceil_power_of_two<half>());
+    CALL_SUBTEST(check_ceil_power_of_two<bfloat16>());
+    CALL_SUBTEST(check_ceil_power_of_two<float>());
+    CALL_SUBTEST(check_ceil_power_of_two<double>());
+    CALL_SUBTEST(check_ceil_power_of_two<long double>());
 
     CALL_SUBTEST(check_shift<int8_t>());
     CALL_SUBTEST(check_shift<int16_t>());
