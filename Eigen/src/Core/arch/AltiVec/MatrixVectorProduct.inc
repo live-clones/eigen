@@ -1275,14 +1275,18 @@ EIGEN_ALWAYS_INLINE Packet2d pload_real_row(double* src) {
   return pload_real(src);
 }
 
-EIGEN_ALWAYS_INLINE Packet2cf padd(const Packet2cf& a, std::complex<float>& b) {
+// Never executed: predux_complex only forms these calls when ResPacket is a
+// scalar, where GEMV_IS_COMPLEX_COMPLEX is false. They exist because under C++14
+// EIGEN_IF_CONSTEXPR is a plain if, so that arm still has to compile, and its
+// scalar operand arrives as a const reference.
+EIGEN_ALWAYS_INLINE Packet2cf padd(const Packet2cf& a, const std::complex<float>& b) {
   EIGEN_UNUSED_VARIABLE(b);
-  return a;  // Just for compilation
+  return a;
 }
 
-EIGEN_ALWAYS_INLINE Packet1cd padd(const Packet1cd& a, std::complex<double>& b) {
+EIGEN_ALWAYS_INLINE Packet1cd padd(const Packet1cd& a, const std::complex<double>& b) {
   EIGEN_UNUSED_VARIABLE(b);
-  return a;  // Just for compilation
+  return a;
 }
 
 /** \internal set a scalar from complex location */
