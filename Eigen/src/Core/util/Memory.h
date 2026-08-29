@@ -1279,16 +1279,26 @@ struct CpuCacheTopology {
   std::ptrdiff_t l3_per_cpu = 0;
 };
 
-/** \internal Reads the first line of CPU 0's cache attribute \a name into \a value. */
+/** \internal Reads the first line of the file at \a relative under the CPU topology directory \a root into
+ * \a value. The directory is /sys/devices/system/cpu in production; tests substitute a fixture tree. */
 template <int Size>
-inline bool readCpuCacheAttribute(int index, const char* name, char (&value)[Size]) {
-  char path[96];
-  std::snprintf(path, sizeof(path), "/sys/devices/system/cpu/cpu0/cache/index%d/%s", index, name);
+inline bool readSysfsLine(const char* root, const char* relative, char (&value)[Size]) {
+  char path[512];
+  const int length = std::snprintf(path, sizeof(path), "%s/%s", root, relative);
+  if (length <= 0 || length >= static_cast<int>(sizeof(path))) return false;
   std::FILE* file = std::fopen(path, "r");
   if (file == nullptr) return false;
   const bool ok = std::fgets(value, Size, file) != nullptr;
   std::fclose(file);
   return ok;
+}
+
+/** \internal Reads the first line of \a cpu's cache attribute \a name into \a value. */
+template <int Size>
+inline bool readCpuCacheAttribute(const char* root, int cpu, int index, const char* name, char (&value)[Size]) {
+  char relative[64];
+  const int length = std::snprintf(relative, sizeof(relative), "cpu%d/cache/index%d/%s", cpu, index, name);
+  return length > 0 && length < static_cast<int>(sizeof(relative)) && readSysfsLine(root, relative, value);
 }
 
 /** \internal Parses a sysfs cache size such as "64K". \returns 0 if \a text is not a positive size. */
@@ -1308,23 +1318,28 @@ inline std::ptrdiff_t parseCpuCacheSize(const char* text) {
 inline bool isCpuListTerminator(const char* text) { return *text == '\0' || *text == '\n' || *text == '\r'; }
 
 /** \internal
- * Counts the CPUs in a sysfs cpu list such as "0-3" or "0-3,8-11". \returns 0 if \a text is
- * malformed, so that an unparsable list reads as "unknown" rather than as a small count. */
-inline int parseCpuListCount(const char* text) {
-  if (isCpuListTerminator(text)) return 0;
-  int count = 0;
+ * Calls \a visit(first, last) for each range of a sysfs cpu list such as "0-3" or "0-3,8-11". \returns false
+ * if \a text is malformed, so that an unparsable list reads as "unknown" rather than as whatever the ranges
+ * before the parse went wrong added up to. */
+template <typename Visitor>
+inline bool parseCpuList(const char* text, Visitor&& visit) {
+  if (isCpuListTerminator(text)) return false;
+  // Far above the 8192 CPUs current kernels can number, so a larger id means the line is not a cpu list;
+  // bounding it also keeps a caller that walks the ranges from visiting ids that cannot exist.
+  const long max_cpu_id = 1 << 16;
   const char* cursor = text;
   for (;;) {
     char* end = nullptr;
     const long first = std::strtol(cursor, &end, 10);
-    if (end == cursor) return 0;
+    if (end == cursor || first < 0) return false;
     long last = first;
     if (*end == '-') {
       cursor = end + 1;
       last = std::strtol(cursor, &end, 10);
-      if (end == cursor || last < first) return 0;
+      if (end == cursor || last < first) return false;
     }
-    count += static_cast<int>(last - first + 1);
+    if (last >= max_cpu_id) return false;
+    visit(static_cast<int>(first), static_cast<int>(last));
     // A comma promises another range, so a list ending on one is malformed: going round the loop
     // lands on the terminator and fails the strtol above.
     if (*end == ',') {
@@ -1332,21 +1347,27 @@ inline int parseCpuListCount(const char* text) {
       continue;
     }
     // Anything other than a separator or the end of the line means the format is not what this
-    // parser assumes. Reading such a line as a small count would inflate l3_per_cpu, so treat the
-    // whole list as unknown instead.
-    if (!isCpuListTerminator(end)) return 0;
-    return count;
+    // parser assumes.
+    return isCpuListTerminator(end);
   }
 }
 
 /** \internal
- * \returns CPU 0's data-cache geometry as published by sysfs.
+ * Counts the CPUs in a sysfs cpu list. \returns 0 if \a text is malformed: reading such a line as a small
+ * count would inflate l3_per_cpu, so the whole list is treated as unknown instead. */
+inline int parseCpuListCount(const char* text) {
+  int count = 0;
+  return parseCpuList(text, [&count](int first, int last) { count += last - first + 1; }) ? count : 0;
+}
+
+/** \internal
+ * \returns \a cpu's data-cache geometry as published under \a root.
  *
  * l3_per_cpu is the L3 instance size divided by the CPUs sharing it, and is deliberately derived
  * within this single pass: the l3 reported elsewhere is a package total on a multi-die part -- 128MB
  * on a 32-core Threadripper whose cores each reach one 16MB slice -- so pairing it with one
  * instance's sharer count would overstate the share eightfold. */
-inline CpuCacheTopology queryCpuCacheTopologySysfs() {
+inline CpuCacheTopology readCpuCacheTopologySysfs(const char* root, int cpu) {
   CpuCacheTopology topology;
   // One directory per cache, numbered contiguously from zero. The bound only guards a malformed
   // sysfs; it is far above what any current CPU reports.
@@ -1355,7 +1376,7 @@ inline CpuCacheTopology queryCpuCacheTopologySysfs() {
     // sharers and hand out too large a share.
     char value[512];
 
-    if (!readCpuCacheAttribute(index, "level", value)) break;
+    if (!readCpuCacheAttribute(root, cpu, index, "level", value)) break;
     const long level = std::strtol(value, nullptr, 10);
     std::ptrdiff_t* target =
         level == 1 ? &topology.l1 : (level == 2 ? &topology.l2 : (level == 3 ? &topology.l3 : nullptr));
@@ -1363,19 +1384,70 @@ inline CpuCacheTopology queryCpuCacheTopologySysfs() {
 
     // "Data", "Instruction", or "Unified". An instruction cache never holds the operands a product
     // blocks for, so it must not be mistaken for the L1 data cache.
-    if (!readCpuCacheAttribute(index, "type", value) || value[0] == 'I') continue;
+    if (!readCpuCacheAttribute(root, cpu, index, "type", value) || value[0] == 'I') continue;
 
-    if (!readCpuCacheAttribute(index, "size", value)) continue;
+    if (!readCpuCacheAttribute(root, cpu, index, "size", value)) continue;
     const std::ptrdiff_t size = parseCpuCacheSize(value);
     if (size <= 0) continue;
     *target = size;
 
-    if (level == 3 && readCpuCacheAttribute(index, "shared_cpu_list", value) && std::strchr(value, '\n') != nullptr) {
+    if (level == 3 && readCpuCacheAttribute(root, cpu, index, "shared_cpu_list", value) &&
+        std::strchr(value, '\n') != nullptr) {
       const int sharing = parseCpuListCount(value);
       if (sharing > 0) topology.l3_per_cpu = size / sharing;
     }
   }
   return topology;
+}
+
+/** \internal The smaller of two reported sizes, where 0 stands for "not reported". */
+inline std::ptrdiff_t smallerReportedCacheSize(std::ptrdiff_t a, std::ptrdiff_t b) {
+  return a == 0 ? b : (b == 0 ? a : (std::min)(a, b));
+}
+
+/** \internal
+ * \returns the geometry a thread confined to the CPUs \a is_allowed(cpu) admits can rely on: per level, the
+ * smallest cache any of those CPUs reports, so that blocking sized from it fits wherever the thread lands.
+ * The candidates are the CPUs listed online under \a root; one that publishes no cache directory contributes
+ * nothing, and a level it does not report is left to the CPUs that do. */
+template <typename IsAllowed>
+inline CpuCacheTopology queryCpuCacheTopologySysfs(const char* root, IsAllowed&& is_allowed) {
+  CpuCacheTopology topology;
+  char online[512];
+  if (!readSysfsLine(root, "online", online) || std::strchr(online, '\n') == nullptr) return topology;
+  // Validate the whole line before acting on any range of it, so that a malformed list reads as "unknown".
+  if (!parseCpuList(online, [](int, int) {})) return topology;
+  parseCpuList(online, [&](int first, int last) {
+    for (int cpu = first; cpu <= last; ++cpu) {
+      if (!is_allowed(cpu)) continue;
+      const CpuCacheTopology candidate = readCpuCacheTopologySysfs(root, cpu);
+      topology.l1 = smallerReportedCacheSize(topology.l1, candidate.l1);
+      topology.l2 = smallerReportedCacheSize(topology.l2, candidate.l2);
+      topology.l3 = smallerReportedCacheSize(topology.l3, candidate.l3);
+      topology.l3_per_cpu = smallerReportedCacheSize(topology.l3_per_cpu, candidate.l3_per_cpu);
+    }
+  });
+  return topology;
+}
+
+/** \internal
+ * \returns the geometry the calling thread can rely on: that of the CPUs its affinity mask admits, narrowed as
+ * queryCpuCacheTopologySysfs(root, is_allowed) describes. Sampling one fixed CPU would not do: a cpuset or
+ * taskset can exclude CPU 0 while its directory stays readable, and on a heterogeneous part the excluded CPUs
+ * can be the ones with the large caches. Where the mask is unavailable every online CPU is a candidate, which
+ * is the conservative answer. */
+inline CpuCacheTopology queryCpuCacheTopologySysfs(const char* root = "/sys/devices/system/cpu") {
+#ifdef CPU_SETSIZE
+  // The affinity API is a GNU extension that glibc, musl and bionic expose under _GNU_SOURCE, which g++ and
+  // clang++ predefine for C++; CPU_SETSIZE is defined exactly when it is exposed. The query fails on a machine
+  // with more CPU ids than cpu_set_t holds.
+  cpu_set_t allowed;
+  if (sched_getaffinity(0, sizeof(allowed), &allowed) == 0) {
+    return queryCpuCacheTopologySysfs(root,
+                                      [&allowed](int cpu) { return cpu < CPU_SETSIZE && CPU_ISSET(cpu, &allowed); });
+  }
+#endif
+  return queryCpuCacheTopologySysfs(root, [](int) { return true; });
 }
 
 #endif  // EIGEN_CPU_CACHE_SYSFS
