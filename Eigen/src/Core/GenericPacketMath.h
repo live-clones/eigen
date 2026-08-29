@@ -326,10 +326,11 @@ template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet padd(const Packet& a, const Packet& b) {
   return a + b;
 }
-// Avoid compiler warning for boolean algebra.
+// Use eager integer operations intentionally: logical operators may introduce short-circuit branches and inhibit
+// vectorization, while applying bitwise operators directly to bool triggers compiler warnings.
 template <>
 EIGEN_DEVICE_FUNC inline bool padd(const bool& a, const bool& b) {
-  return a || b;
+  return static_cast<unsigned int>(a) | static_cast<unsigned int>(b);
 }
 
 /** \internal \returns a packet version of \a *from, (un-aligned masked add)
@@ -365,10 +366,11 @@ template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet pmul(const Packet& a, const Packet& b) {
   return a * b;
 }
-// Avoid compiler warning for boolean algebra.
+// Use eager integer operations intentionally: logical operators may introduce short-circuit branches and inhibit
+// vectorization, while applying bitwise operators directly to bool triggers compiler warnings.
 template <>
 EIGEN_DEVICE_FUNC inline bool pmul(const bool& a, const bool& b) {
-  return a && b;
+  return static_cast<unsigned int>(a) & static_cast<unsigned int>(b);
 }
 
 /** \internal \returns a / b (coeff-wise) */
@@ -376,10 +378,11 @@ template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet pdiv(const Packet& a, const Packet& b) {
   return a / b;
 }
-// Avoid compiler warning for boolean algebra.
+// Use eager integer operations intentionally: logical operators may introduce short-circuit branches and inhibit
+// vectorization, while applying bitwise operators directly to bool triggers compiler warnings.
 template <>
 EIGEN_DEVICE_FUNC inline bool pdiv(const bool& a, const bool& b) {
-  return a && b;
+  return static_cast<unsigned int>(a) & static_cast<unsigned int>(b);
 }
 
 // In the generic packet case, memset to all one bits.
@@ -466,12 +469,16 @@ struct bit_not {
 
 template <>
 struct bit_and<bool> {
-  EIGEN_DEVICE_FUNC constexpr EIGEN_ALWAYS_INLINE bool operator()(const bool& a, const bool& b) const { return a && b; }
+  EIGEN_DEVICE_FUNC constexpr EIGEN_ALWAYS_INLINE bool operator()(const bool& a, const bool& b) const {
+    return static_cast<unsigned int>(a) & static_cast<unsigned int>(b);
+  }
 };
 
 template <>
 struct bit_or<bool> {
-  EIGEN_DEVICE_FUNC constexpr EIGEN_ALWAYS_INLINE bool operator()(const bool& a, const bool& b) const { return a || b; }
+  EIGEN_DEVICE_FUNC constexpr EIGEN_ALWAYS_INLINE bool operator()(const bool& a, const bool& b) const {
+    return static_cast<unsigned int>(a) | static_cast<unsigned int>(b);
+  }
 };
 
 template <>
