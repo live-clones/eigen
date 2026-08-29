@@ -232,16 +232,18 @@ template <typename Scalar>
 bool subnormalDivisionIsExact() {
   using Packet = typename internal::packet_traits<Scalar>::type;
   constexpr int packet_size = internal::packet_traits<Scalar>::size;
-  volatile Scalar numerators[packet_size];
-  Scalar loaded[packet_size];
+
+  volatile Scalar opaque_numerator;
+  Scalar numerators[packet_size];
   for (int k = 0; k < packet_size; ++k) {
-    numerators[k] = Scalar(k + 1) * (std::numeric_limits<Scalar>::min)();
-    loaded[k] = numerators[k];
+    opaque_numerator = Scalar(k + 1) * (std::numeric_limits<Scalar>::min)();
+    numerators[k] = opaque_numerator;
   }
+
+  const Packet divisor = internal::pset1<Packet>((std::numeric_limits<Scalar>::denorm_min)());
   Scalar quotients[packet_size];
-  internal::pstoreu(quotients,
-                    internal::pdiv<Packet>(internal::ploadu<Packet>(loaded),
-                                           internal::pset1<Packet>((std::numeric_limits<Scalar>::denorm_min)())));
+  internal::pstoreu(quotients, internal::pdiv<Packet>(internal::ploadu<Packet>(numerators), divisor));
+
   // (k + 1) * min / denorm_min == (k + 1) * 2^(digits - 1) == (k + 1) / epsilon.
   for (int k = 0; k < packet_size; ++k) {
     if (quotients[k] != Scalar(k + 1) / std::numeric_limits<Scalar>::epsilon()) return false;

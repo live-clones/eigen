@@ -205,10 +205,10 @@ void linearstructure_overflow() {
   // from the compiler's.  NVHPC is such an environment by default, through
   // -Knoieee.
   if (!subnormalDivisionIsExact<double>()) {
+    const char* reason = ScopedFlushToZero::hardwareFlushesSubnormalInputs() ? "the hardware flushes subnormal inputs"
+                                                                             : "the compiler relaxed the division";
     std::cout << "SKIP: linearstructure_overflow needs an environment that divides by subnormals per IEEE 754 ("
-              << (Eigen::ScopedFlushToZero::hardwareFlushesSubnormalInputs() ? "the hardware flushes subnormal inputs"
-                                                                             : "the compiler relaxed the division")
-              << ")." << std::endl;
+              << reason << ")." << std::endl;
     return;
   }
 
