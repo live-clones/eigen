@@ -274,6 +274,12 @@ test:linux:x86-64:nvhpc-26.1:default:unsupported:
     EIGEN_CI_TEST_CACHE: "off"
   cache: []
   rules: !reference [.rules:libeigen:gpu, rules]
+  # GitLab's SaaS GPU runners, Tesla T4 (sm_75): the architecture the paired
+  # builds target.  Keep this tag off self-hosted runners.  On a newer GPU the
+  # sm_75 binaries run only through the driver's PTX JIT, and the CUDA 11.5
+  # libraries have no kernels for anything past Ampere at all (cufft_1 and
+  # cufft_2 abort in cufftPlan1d), so a runner that borrows the tag pulls these
+  # jobs onto hardware they were not built for -- and allow_failure hides it.
   tags:
     - saas-linux-medium-amd64-gpu-standard
 
