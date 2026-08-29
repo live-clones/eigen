@@ -11,6 +11,7 @@ check does invoke it, and is skipped when clang-tidy is not installed.
 Usage: python3 scripts/test_clang_tidy_hook.py
 """
 
+import io
 import json
 import os
 import shutil
@@ -20,6 +21,7 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import clang_tidy_hook
 from clang_tidy_hook import (compile_args, cuda_include_dir, module_of, run_clang_tidy,
                              tidy_target, umbrella_for)
 from style_common import REPO_ROOT, as_ranges, line_filter_json
@@ -168,6 +170,32 @@ def test_broken_translation_unit_is_not_reported_clean():
         assert diagnostics == [], diagnostics
         reasons = [reason for path, reason in skipped if path == "test/broken.cpp"]
         assert reasons == ["translation unit did not compile"], skipped
+
+
+def test_hook_mode_reports_broken_unit_without_blocking():
+    """A translation unit clang-tidy could not compile is named on stderr but
+    must not block the edit, since it carries no finding to act on.  A real
+    finding on an added line still blocks."""
+    payload = {"tool_name": "Write",
+               "tool_input": {"file_path": os.path.join(REPO_ROOT, "test", "probe.cpp"),
+                              "content": "int probe = 0;\n"}}
+
+    def run(diagnostics, skipped):
+        saved = (sys.stdin, sys.stderr, clang_tidy_hook.hook_post_image_and_added,
+                 clang_tidy_hook.run_clang_tidy)
+        sys.stdin, sys.stderr = io.StringIO(json.dumps(payload)), io.StringIO()
+        clang_tidy_hook.hook_post_image_and_added = lambda *args: (["int probe = 0;"], {1}, True)
+        clang_tidy_hook.run_clang_tidy = lambda per_file, **kwargs: (diagnostics, skipped)
+        try:
+            return clang_tidy_hook.run_hook_mode(), sys.stderr.getvalue()
+        finally:
+            (sys.stdin, sys.stderr, clang_tidy_hook.hook_post_image_and_added,
+             clang_tidy_hook.run_clang_tidy) = saved
+
+    code, err = run([], [("test/probe.cpp", "translation unit did not compile")])
+    assert code == 0 and "did not compile" in err, (code, err)
+    code, err = run(["test/probe.cpp:1:1: warning: use 'using' [modernize-use-using]"], [])
+    assert code == 2 and "modernize-use-using" in err, (code, err)
 
 
 def test_new_src_header_is_checked():

@@ -26,8 +26,9 @@ No compilation database is required: ``-std=c++14 -I<repo>`` is enough to parse
 any file in the C++14 trees, which keeps the hook usable in a fresh checkout
 with no build directory.
 
-The hook fails open — a missing clang-tidy, an unparsable file, or any
-unexpected error exits 0 rather than blocking the harness.
+The hook fails open — a missing clang-tidy, an unparsable file, a translation
+unit that does not compile, or any unexpected error exits 0 rather than blocking
+the harness. Only real findings on added lines block.
 """
 
 import argparse
@@ -204,9 +205,11 @@ def run_hook_mode(tidy=None):
     if not diagnostics:
         broken = [reason for path, reason in (skipped or []) if reason == "translation unit did not compile"]
         if broken:
-            # Do not claim the file is clean when nothing was actually checked.
+            # Say so rather than claiming the file is clean, but do not block: a
+            # header edited mid-refactor routinely fails to parse on its own, and
+            # that carries no finding to act on.
             sys.stderr.write("clang-tidy (%s): not checked — the translation unit did not compile.\n" % rel_path)
-            return 2
+            return 0
         return 0
     sys.stderr.write("clang-tidy (%s) — added lines only:\n" % rel_path)
     for line in diagnostics[:8]:
