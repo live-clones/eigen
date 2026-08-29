@@ -274,38 +274,37 @@ test:linux:x86-64:nvhpc-26.1:default:unsupported:
     EIGEN_CI_TEST_CACHE: "off"
   cache: []
   rules: !reference [.rules:libeigen:gpu, rules]
-  # Name the GPU and driver the job landed on before anything else.  The
-  # binaries are built for one architecture (see the tag note below), and the
-  # log is the only place that says which runner pool picked the job up.
+  # Name the GPU and driver the job landed on before anything else: with two
+  # runner pools behind one tag, the log is the only place that says which
+  # one picked the job up.
   before_script:
     - nvidia-smi
     - . ci/scripts/common.linux.before_script.sh
-  # GitLab's SaaS GPU runners, Tesla T4 (sm_75): the architecture the paired
-  # builds target.  Keep this tag off self-hosted runners.  On a newer GPU the
-  # sm_75 binaries run only through the driver's PTX JIT, and the CUDA 11.5
-  # libraries have no kernels for anything past Ampere at all (cufft_1 and
-  # cufft_2 abort in cufftPlan1d), so a runner that borrows the tag pulls these
-  # jobs onto hardware they were not built for -- and allow_failure hides it.
+  # GitLab's SaaS GPU runners (Tesla T4, sm_75) carry this tag, and so does the
+  # self-hosted eigen-gpu-testing-001.gcloud (L4, sm_89); the paired builds
+  # target both.  A runner with yet another GPU needs its architecture added
+  # to the build template before it takes this tag: otherwise its jobs run
+  # through PTX JIT at best, and lose the toolkit's libraries at worst.
   tags:
     - saas-linux-medium-amd64-gpu-standard
 
-# ---- CUDA 11.5 + oldest supported compilers ---------------------------------
+# ---- CUDA 11.8 + oldest supported compilers ---------------------------------
 
-# GCC-10, CUDA-11.5
-test:linux:cuda-11.5:gcc-10:
+# GCC-10, CUDA-11.8
+test:linux:cuda-11.8:gcc-10:
   extends: .test:linux:cuda
-  image: nvidia/cuda:11.5.2-devel-ubuntu20.04
-  needs: [ build:linux:cuda-11.5:gcc-10 ]
+  image: nvidia/cuda:11.8.0-devel-ubuntu20.04
+  needs: [ build:linux:cuda-11.8:gcc-10 ]
   variables:
     EIGEN_CI_INSTALL: gcc-10 g++-10
     EIGEN_CI_C_COMPILER: gcc-10
     EIGEN_CI_CXX_COMPILER: g++-10
 
-# Clang-14, CUDA-11.5
-test:linux:cuda-11.5:clang-14:
+# Clang-14, CUDA-11.8
+test:linux:cuda-11.8:clang-14:
   extends: .test:linux:cuda
-  image: nvidia/cuda:11.5.2-devel-ubuntu20.04
-  needs: [ build:linux:cuda-11.5:clang-14 ]
+  image: nvidia/cuda:11.8.0-devel-ubuntu20.04
+  needs: [ build:linux:cuda-11.8:clang-14 ]
   before_script:
     # This override replaces the template's before_script, so repeat its
     # first step.
@@ -325,7 +324,7 @@ test:linux:cuda-11.5:clang-14:
     EIGEN_CI_CXX_COMPILER: clang++-14
     EIGEN_CI_C_COMPILER: clang-14
 
-# ---- New: latest CUDA -------------------------------------------------------
+# ---- Latest CUDA ------------------------------------------------------------
 
 # GCC-13, CUDA-12.6
 test:linux:cuda-12.6:gcc-13:
