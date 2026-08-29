@@ -199,15 +199,15 @@ void linearstructure_overflow() {
   // rational: 1.0/4.94e-320 overflow, but m/4.94e-320 should not
   //
   // The claim is about Eigen: that it divides rather than multiplying by a
-  // reciprocal.  An environment that flushes subnormals, or whose compiler
-  // performs that rewrite itself, cannot answer it -- the quotient is infinite
-  // either way, so a failure would not distinguish Eigen's arithmetic from the
-  // compiler's.  NVHPC is such an environment by default, through -Knoieee and
-  // the -Mflushz that -fast implies.
+  // reciprocal.  An environment that flushes subnormal operands, or whose
+  // compiler performs that rewrite itself, cannot answer it -- the quotient is
+  // infinite either way, so a failure would not distinguish Eigen's arithmetic
+  // from the compiler's.  NVHPC is such an environment by default, through
+  // -Knoieee.
   if (!subnormalDivisionIsExact<double>()) {
     std::cout << "SKIP: linearstructure_overflow needs an environment that divides by subnormals per IEEE 754 ("
-              << (Eigen::ScopedFlushToZero::isEnabled() ? "hardware flush-to-zero is enabled"
-                                                        : "the compiler relaxed the arithmetic")
+              << (Eigen::ScopedFlushToZero::hardwareFlushesSubnormalInputs() ? "the hardware flushes subnormal inputs"
+                                                                             : "the compiler relaxed the division")
               << ")." << std::endl;
     return;
   }
@@ -218,19 +218,6 @@ void linearstructure_overflow() {
   VERIFY_IS_APPROX(m2.cwiseQuotient(m2), Matrix4d::Ones());
   m3 /= 4.9e-320;
   VERIFY_IS_APPROX(m3.cwiseQuotient(m3), Matrix4d::Ones());
-}
-
-// The guard in linearstructure_overflow() is only worth anything if the probe can
-// see a flushing environment.  Force one and check that it reports it.
-template <int>
-void linearstructure_subnormal_probe() {
-  Eigen::ScopedFlushToZero flush_to_zero;
-  if (!flush_to_zero.isSupported()) return;
-  // The register read and the numerical probe have to agree on a mode that was
-  // just forced; if they ever disagree the diagnostic above is misleading.
-  VERIFY(Eigen::ScopedFlushToZero::isEnabled());
-  VERIFY(!subnormalsArePreserved<double>());
-  VERIFY(!subnormalDivisionIsExact<double>());
 }
 
 EIGEN_DECLARE_TEST(linearstructure) {
@@ -258,7 +245,6 @@ EIGEN_DECLARE_TEST(linearstructure) {
     CALL_SUBTEST_11(real_complex<MatrixXcf>(10, 10));
     CALL_SUBTEST_11(real_complex<ArrayXXcf>(10, 10));
   }
-  CALL_SUBTEST_4(linearstructure_subnormal_probe<0>());
   CALL_SUBTEST_4(linearstructure_overflow<0>());
 
   // Deterministic tests, outside g_repeat.

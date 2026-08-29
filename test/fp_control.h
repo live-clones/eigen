@@ -148,19 +148,17 @@ class ScopedFlushToZero {
 
   bool isSupported() const { return active_; }
 
-  // Whether the hardware's flush-to-zero controls are currently set, read back
-  // from the same registers the constructor writes. Reported separately from
-  // subnormalsArePreserved() below because it answers a narrower question: a
-  // compiler told it may treat subnormals as zero leaves these bits clear, so
-  // this is a diagnostic, not the gate. Returns false where there is no runtime
-  // control to read.
-  static bool isEnabled() {
+  // Whether the hardware currently flushes subnormal inputs to zero, read from
+  // the registers the constructor writes.  On x86 that is DAZ; the FTZ bit the
+  // constructor sets only flushes results.  The Arm and MIPS controls flush
+  // both.  A compiler told it may treat subnormals as zero leaves every bit
+  // clear, so this is a diagnostic, not a gate.  Returns false where there is
+  // no runtime control to read.
+  static bool hardwareFlushesSubnormalInputs() {
 #if !EIGEN_TEST_HAS_RUNTIME_FTZ
     return false;
 #elif EIGEN_TEST_HAS_X86_FTZ
-    // Flush-on-output (FTZ) and flush-on-input (DAZ) are separate bits, and
-    // either one is enough to lose a subnormal.
-    return _MM_GET_FLUSH_ZERO_MODE() == _MM_FLUSH_ZERO_ON || _MM_GET_DENORMALS_ZERO_MODE() == _MM_DENORMALS_ZERO_ON;
+    return _MM_GET_DENORMALS_ZERO_MODE() == _MM_DENORMALS_ZERO_ON;
 #elif EIGEN_ARCH_ARM64 && defined(_MSC_VER)
     return (arm64ControlState() & arm64FlushToZeroMask()) != 0;
 #elif EIGEN_ARCH_ARM64 && (defined(__GNUC__) || defined(__clang__))
@@ -211,48 +209,26 @@ class ScopedFlushToZero {
   std::uint32_t vector_control_state_;
 };
 
-// Force `x` through memory so the compiler cannot fold the surrounding
-// arithmetic.  EIGEN_OPTIMIZATION_BARRIER is not enough here: it expands to
-// nothing on MSVC cl.exe (Macros.h), and on that configuration the probes below
-// are exactly the constant-valued sequences it would have to stop.  A volatile
-// round trip costs a store and a load and works on every compiler.
-template <typename Scalar>
-EIGEN_DONT_INLINE Scalar fpBarrier(Scalar x) {
-  volatile Scalar sink = x;
-  return sink;
-}
-
-// Whether this environment computes with subnormal values of `Scalar`.  The
-// hardware may be in flush-to-zero mode, and the compiler may have been told it
-// may treat subnormals as zero; neither is visible to a compile-time predicate.
-// Without the barriers the probe folds under the translation unit's own rules
-// instead of observing the mode it is meant to report.
+// Whether dividing a normal value by a subnormal divisor yields its IEEE 754
+// quotient here.  Two things defeat it: hardware that flushes subnormal inputs
+// (x86 DAZ, Arm FZ, MIPS FS) reads the divisor as zero, and a compiler
+// permitted to relax floating point may rewrite `x / c` as
+// `x * (Scalar(1) / c)`, whose reciprocal overflows.  The x86 FTZ bit alone
+// does not: it flushes results, and this quotient is normal.
 //
-// One comparison settles both control bits: adding the subnormal to a value it
-// cannot perturb catches flush-on-input, and catches flush-on-output too, since
-// a product that flushed to zero leaves the sum unchanged.
-template <typename Scalar>
-bool subnormalsArePreserved() {
-  const Scalar smallest_normal = fpBarrier((std::numeric_limits<Scalar>::min)());
-  const Scalar subnormal = fpBarrier(smallest_normal * Scalar(0.5));
-  const Scalar sum = fpBarrier(smallest_normal + subnormal);
-  return sum != smallest_normal;
-}
-
-// Whether dividing by a subnormal follows IEEE 754 here.  A compiler permitted
-// to relax floating point may rewrite `x / c` as `x * (Scalar(1) / c)`; for a
-// subnormal `c` the reciprocal overflows, turning a finite quotient infinite.
-//
-// The divisor stays a compile-time constant, because that rewrite is a folding
+// The divisor stays a compile-time constant, because the rewrite is a folding
 // step the compiler only reaches while it can see the value.  The numerator is
-// forced to run time, because a compiler free to fold the whole quotient never
-// forms the reciprocal at all.
+// read through `volatile`, because a compiler free to fold the whole quotient
+// never forms the reciprocal at all; EIGEN_OPTIMIZATION_BARRIER would not do,
+// since it expands to nothing on MSVC cl.exe.  The result is compared with the
+// exact quotient rather than tested for finiteness: under -ffinite-math-only
+// GCC folds `quotient <= max` to true before the division runs.
 template <typename Scalar>
 bool subnormalDivisionIsExact() {
-  if (!subnormalsArePreserved<Scalar>()) return false;
-  const Scalar denorm_min = (std::numeric_limits<Scalar>::denorm_min)();
-  const Scalar numerator = fpBarrier(denorm_min * Scalar(4));
-  return numerator / denorm_min == Scalar(4);
+  volatile Scalar numerator = (std::numeric_limits<Scalar>::min)();
+  const Scalar quotient = numerator / (std::numeric_limits<Scalar>::denorm_min)();
+  // min / denorm_min == 2^(digits - 1) == 1 / epsilon.
+  return quotient == Scalar(1) / std::numeric_limits<Scalar>::epsilon();
 }
 
 }  // namespace Eigen
