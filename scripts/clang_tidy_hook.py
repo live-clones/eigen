@@ -205,10 +205,11 @@ def run_hook_mode(tidy=None):
     if not diagnostics:
         broken = [reason for path, reason in (skipped or []) if reason == "translation unit did not compile"]
         if broken:
-            # Say so rather than claiming the file is clean, but do not block: a
-            # header edited mid-refactor routinely fails to parse on its own, and
-            # that carries no finding to act on.
-            sys.stderr.write("clang-tidy (%s): not checked — the translation unit did not compile.\n" % rel_path)
+            # A header edited mid-refactor routinely fails to parse on its own,
+            # so show the user a non-blocking notice rather than feeding Claude
+            # an error with no finding to act on.
+            message = "clang-tidy (%s): not checked — the translation unit did not compile." % rel_path
+            sys.stdout.write(json.dumps({"systemMessage": message}) + "\n")
             return 0
         return 0
     sys.stderr.write("clang-tidy (%s) — added lines only:\n" % rel_path)
