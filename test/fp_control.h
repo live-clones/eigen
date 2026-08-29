@@ -25,6 +25,8 @@
 #if !EIGEN_TEST_DEVICE_COMPILE && EIGEN_ARCH_i386_OR_x86_64 && \
     (defined(__SSE__) || defined(_M_X64) || (defined(_M_IX86_FP) && _M_IX86_FP >= 1))
 #include <xmmintrin.h>
+// The DAZ controls live here, not in <xmmintrin.h>.
+#include <pmmintrin.h>
 #define EIGEN_TEST_HAS_X86_FTZ 1
 #else
 #define EIGEN_TEST_HAS_X86_FTZ 0
