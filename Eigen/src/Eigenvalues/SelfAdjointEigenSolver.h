@@ -945,8 +945,10 @@ EIGEN_DEVICE_FUNC static void tridiagonal_qr_step(RealScalar* diag, RealScalar* 
   } else if (!numext::is_exactly_zero(e)) {
     const RealScalar e2 = numext::abs2(e);
     if (numext::is_exactly_zero(e2)) {
-      // LAPACK's xSTEQR uses this dimensionless form. Keeping td/e inside hypot prevents fast-math from reassociating
-      // the correction into an underflowing e^2 expression.
+      // Scaling prevents e^2 and td^2 from overflowing, but e^2 can still underflow. A subdiagonal that survives
+      // deflation satisfies (e/epsilon)^2 > 2*abs(td), so td/e remains bounded in this branch. LAPACK's xSTEQR uses
+      // this dimensionless form; keeping td/e inside hypot prevents fast-math from reassociating the correction into
+      // an underflowing e^2 expression.
       const RealScalar ratio = td / e;
       const RealScalar h = numext::hypot(ratio, RealScalar(1));
       mu -= e / (ratio + (ratio > RealScalar(0) ? h : -h));
