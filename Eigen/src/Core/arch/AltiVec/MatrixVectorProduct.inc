@@ -479,7 +479,7 @@ EIGEN_ALWAYS_INLINE void loadVecLoopVSX(Index k, LhsMapper& lhs, Packet4f (&a0)[
   }
   a0[k + 0][0] = oneConvertBF16Hi(c0.m_val);
 
-  EIGEN_IF_CONSTEXPR (num_acc > (k + 1)) {
+  if (num_acc > (k + 1)) {
     a0[k + 1][0] = oneConvertBF16Lo(c0.m_val);
     EIGEN_IF_CONSTEXPR (!zero) {
       a0[k + 1][1] = oneConvertBF16Lo(b1.m_val);
@@ -765,7 +765,7 @@ EIGEN_ALWAYS_INLINE void outputVecResults(Packet4f (&acc)[num_acc][size], float*
     Packet4f d0 = ploadu<Packet4f>(result + k);
     d0 = pmadd(acc[k + 0][0], pAlpha, d0);
 
-    EIGEN_IF_CONSTEXPR (num_acc > (k + 3)) {
+    if (num_acc > (k + 3)) {
       pstoreu(result + k, d0);
     } else {
       if (extra == 3) {
@@ -779,7 +779,7 @@ EIGEN_ALWAYS_INLINE void outputVecResults(Packet4f (&acc)[num_acc][size], float*
 
 template <Index num_acc>
 EIGEN_ALWAYS_INLINE void preduxVecResults2VSX(Packet4f (&acc)[num_acc][2], Index k) {
-  EIGEN_IF_CONSTEXPR (num_acc > (k + 1)) {
+  if (num_acc > (k + 1)) {
     acc[k][1] = vec_mergel(acc[k + 0][0], acc[k + 1][0]);
     acc[k][0] = vec_mergeh(acc[k + 0][0], acc[k + 1][0]);
     acc[k][0] = acc[k][0] + acc[k][1];
@@ -798,7 +798,7 @@ template <Index num_acc>
 EIGEN_ALWAYS_INLINE void preduxVecResultsVSX(Packet4f (&acc)[num_acc][2]) {
   for (Index k = 0; k < num_acc; k += 4) {
     preduxVecResults2VSX<num_acc>(acc, k + 0);
-    EIGEN_IF_CONSTEXPR (num_acc > (k + 2)) {
+    if (num_acc > (k + 2)) {
       preduxVecResults2VSX<num_acc>(acc, k + 2);
 #ifdef EIGEN_VECTORIZE_VSX
       acc[k + 0][0] = reinterpret_cast<Packet4f>(
