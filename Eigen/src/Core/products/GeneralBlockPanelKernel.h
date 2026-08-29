@@ -83,13 +83,10 @@ const std::ptrdiff_t defaultL3CacheSize = EIGEN_SET_DEFAULT_L3_CACHE_SIZE(512 * 
 struct CacheSizes {
   CacheSizes() : m_l1(-1), m_l2(-1), m_l3(-1), m_l3_per_cpu(0) {
     std::ptrdiff_t l1CacheSize, l2CacheSize, l3CacheSize;
-    queryCacheSizes(l1CacheSize, l2CacheSize, l3CacheSize);
+    queryCacheSizes(l1CacheSize, l2CacheSize, l3CacheSize, m_l3_per_cpu);
     m_l1 = manage_caching_sizes_helper(l1CacheSize, defaultL1CacheSize);
     m_l2 = manage_caching_sizes_helper(l2CacheSize, defaultL2CacheSize);
     m_l3 = manage_caching_sizes_helper(l3CacheSize, defaultL3CacheSize);
-#ifdef EIGEN_CPU_CACHE_SYSFS
-    m_l3_per_cpu = queryCpuCacheTopologySysfs().l3_per_cpu;
-#endif
   }
 
   std::ptrdiff_t m_l1;
