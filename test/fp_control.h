@@ -216,19 +216,37 @@ class ScopedFlushToZero {
 // `x * (Scalar(1) / c)`, whose reciprocal overflows.  The x86 FTZ bit alone
 // does not: it flushes results, and this quotient is normal.
 //
-// The divisor stays a compile-time constant, because the rewrite is a folding
-// step the compiler only reaches while it can see the value.  The numerator is
-// read through `volatile`, because a compiler free to fold the whole quotient
-// never forms the reciprocal at all; EIGEN_OPTIMIZATION_BARRIER would not do,
-// since it expands to nothing on MSVC cl.exe.  The result is compared with the
-// exact quotient rather than tested for finiteness: under -ffinite-math-only
-// GCC folds `quotient <= max` to true before the division runs.
+// The division is the packet primitive that `Matrix / scalar` lowers to, plain
+// `/` where `Scalar` is not vectorized, because a compiler may relax the one
+// and leave the other alone: MSVC /fp:fast rewrites scalar division but not
+// _mm_div_pd.  The lanes are distinct runtime values, all of them checked, so
+// the packet division cannot be narrowed back to a scalar one.  The divisor
+// stays a compile-time constant, because the rewrite is a folding step the
+// compiler only reaches while it can see the value.  The numerators are read
+// through `volatile`, because a compiler free to fold the whole quotient never
+// forms the reciprocal at all; EIGEN_OPTIMIZATION_BARRIER would not do, since
+// it expands to nothing on MSVC cl.exe.  The result is compared with the exact
+// quotient rather than tested for finiteness: under -ffinite-math-only GCC
+// folds `quotient <= max` to true before the division runs.
 template <typename Scalar>
 bool subnormalDivisionIsExact() {
-  volatile Scalar numerator = (std::numeric_limits<Scalar>::min)();
-  const Scalar quotient = numerator / (std::numeric_limits<Scalar>::denorm_min)();
-  // min / denorm_min == 2^(digits - 1) == 1 / epsilon.
-  return quotient == Scalar(1) / std::numeric_limits<Scalar>::epsilon();
+  using Packet = typename internal::packet_traits<Scalar>::type;
+  constexpr int packet_size = internal::packet_traits<Scalar>::size;
+  volatile Scalar numerators[packet_size];
+  Scalar loaded[packet_size];
+  for (int k = 0; k < packet_size; ++k) {
+    numerators[k] = Scalar(k + 1) * (std::numeric_limits<Scalar>::min)();
+    loaded[k] = numerators[k];
+  }
+  Scalar quotients[packet_size];
+  internal::pstoreu(quotients,
+                    internal::pdiv<Packet>(internal::ploadu<Packet>(loaded),
+                                           internal::pset1<Packet>((std::numeric_limits<Scalar>::denorm_min)())));
+  // (k + 1) * min / denorm_min == (k + 1) * 2^(digits - 1) == (k + 1) / epsilon.
+  for (int k = 0; k < packet_size; ++k) {
+    if (quotients[k] != Scalar(k + 1) / std::numeric_limits<Scalar>::epsilon()) return false;
+  }
+  return true;
 }
 
 }  // namespace Eigen
