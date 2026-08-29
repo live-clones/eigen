@@ -1381,8 +1381,10 @@ inline CpuCacheTopology queryCpuCacheTopologySysfs() {
 #endif  // EIGEN_CPU_CACHE_SYSFS
 
 /** \internal
- * Queries and returns the cache sizes in Bytes of the L1, L2, and L3 data caches respectively */
-inline void queryCacheSizes(std::ptrdiff_t& l1, std::ptrdiff_t& l2, std::ptrdiff_t& l3) {
+ * Queries and returns the cache sizes in Bytes of the L1, L2, and L3 data caches respectively, and in
+ * \a l3_per_cpu one CPU's share of the L3 where the platform publishes the sharing, 0 otherwise. */
+inline void queryCacheSizes(std::ptrdiff_t& l1, std::ptrdiff_t& l2, std::ptrdiff_t& l3, std::ptrdiff_t& l3_per_cpu) {
+  l3_per_cpu = 0;
 #ifdef EIGEN_CPUID
   int abcd[4];
   const int GenuineIntel[] = {0x756e6547, 0x49656e69, 0x6c65746e};
@@ -1442,23 +1444,31 @@ inline void queryCacheSizes(std::ptrdiff_t& l1, std::ptrdiff_t& l2, std::ptrdiff
     if (sysctlbyname("hw.l3cachesize", &val, &val_size, nullptr, 0) == 0 && val > 0) l3 = val;
   }
 #elif EIGEN_OS_UNIX && defined(_SC_LEVEL1_DCACHE_SIZE)
-  // On Linux and other POSIX systems, use sysconf to query cache sizes.
+  // A glibc extension: POSIX specifies no cache queries, and musl defines none of these names.
   l1 = sysconf(_SC_LEVEL1_DCACHE_SIZE);
   l2 = sysconf(_SC_LEVEL2_CACHE_SIZE);
   l3 = sysconf(_SC_LEVEL3_CACHE_SIZE);
-#ifdef EIGEN_CPU_CACHE_SYSFS
-  // glibc answers the _SC_LEVEL*_CACHE_SIZE queries from CPUID and so only implements them on x86;
-  // every other architecture gets 0 and would silently fall back to the compiled-in default sizes.
-  if (l1 <= 0 || l2 <= 0 || l3 <= 0) {
-    const CpuCacheTopology topology = queryCpuCacheTopologySysfs();
-    if (l1 <= 0) l1 = topology.l1;
-    if (l2 <= 0) l2 = topology.l2;
-    if (l3 <= 0) l3 = topology.l3;
-  }
-#endif
 #else
   l1 = l2 = l3 = -1;
 #endif
+#ifdef EIGEN_CPU_CACHE_SYSFS
+  // glibc answers the _SC_LEVEL*_CACHE_SIZE queries from CPUID and so only implements them on x86; every
+  // other architecture gets 0, and musl has no such queries at all. Whatever the platform left unknown comes
+  // from the topology Linux publishes on every architecture, as does the L3 share, so that all four numbers
+  // describe the same CPUs.
+  const CpuCacheTopology topology = queryCpuCacheTopologySysfs();
+  if (l1 <= 0) l1 = topology.l1;
+  if (l2 <= 0) l2 = topology.l2;
+  if (l3 <= 0) l3 = topology.l3;
+  l3_per_cpu = topology.l3_per_cpu;
+#endif
+}
+
+/** \internal
+ * Queries and returns the cache sizes in Bytes of the L1, L2, and L3 data caches respectively */
+inline void queryCacheSizes(std::ptrdiff_t& l1, std::ptrdiff_t& l2, std::ptrdiff_t& l3) {
+  std::ptrdiff_t l3_per_cpu;
+  queryCacheSizes(l1, l2, l3, l3_per_cpu);
 }
 
 /** \internal
