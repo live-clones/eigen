@@ -100,6 +100,11 @@ build:windows:x86-64:msvc-14.29:avx512dq:
     EIGEN_CI_ADDITIONAL_ARGS:
       -DEIGEN_TEST_CUDA=on
       -DEIGEN_CUDA_COMPUTE_ARCH=${EIGEN_CI_CUDA_COMPUTE_ARCH}
+  # Name the GPU and driver on this runner first; the arch list above has to
+  # match it.
+  before_script:
+    - nvidia-smi
+    - . ci/scripts/common.windows.before_script.ps1
   rules: !reference [.rules:libeigen:gpu, rules]
   tags:
     - eigen-runner

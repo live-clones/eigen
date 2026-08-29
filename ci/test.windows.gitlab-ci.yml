@@ -74,6 +74,10 @@ test:windows:x86-64:msvc-14.29:avx512dq:unsupported:
   allow_failure: true
   variables:
     EIGEN_CI_CTEST_LABEL: gpu
+  # Name the GPU and driver the tests run on.
+  before_script:
+    - nvidia-smi
+    - . ci/scripts/common.windows.before_script.ps1
   rules: !reference [.rules:libeigen:gpu, rules]
   tags:
     - eigen-runner
