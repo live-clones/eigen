@@ -1439,8 +1439,15 @@ void bool_logical_ops() {
   lhs[3] = true;
   rhs[3] = true;
 
-  VERIFY_IS_CWISE_EQUAL(lhs && rhs, (lhs.cast<int>() * rhs.cast<int>()) != 0);
-  VERIFY_IS_CWISE_EQUAL(lhs || rhs, (lhs.cast<int>() + rhs.cast<int>()) != 0);
+  ArrayX<bool> actual_and(size), actual_or(size), expected_and(size), expected_or(size);
+  actual_and = lhs && rhs;
+  actual_or = lhs || rhs;
+  for (Index i = 0; i < size; ++i) {
+    expected_and[i] = lhs[i] && rhs[i];
+    expected_or[i] = lhs[i] || rhs[i];
+  }
+  VERIFY_IS_CWISE_EQUAL(actual_and, expected_and);
+  VERIFY_IS_CWISE_EQUAL(actual_or, expected_or);
 }
 
 EIGEN_DECLARE_TEST(array_cwise) {
