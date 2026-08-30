@@ -49,8 +49,11 @@
   # output, so ninja rebuilt every target despite a successfully restored
   # cache. ccache keys on file content and compiler, which survives the
   # re-clone. No ${CI_COMMIT_REF_SLUG} in the key: pipelines share one cache
-  # pool per EIGEN_CI_CCACHE_POOL (GitLab still keeps protected refs' caches
-  # separate from unprotected ones).
+  # pool per EIGEN_CI_CCACHE_POOL. GitLab still splits each pool by a suffix:
+  # `-protected` for a pipeline on a protected ref or started by a Maintainer
+  # or Owner, `-non_protected` otherwise. A Developer-started merge request
+  # pipeline therefore has a pool the scheduled master builds never fill; a
+  # maintainer starting that pipeline puts it on the shared one.
   cache:
     key: "$EIGEN_CI_CCACHE_POOL-ccache"
     paths:
