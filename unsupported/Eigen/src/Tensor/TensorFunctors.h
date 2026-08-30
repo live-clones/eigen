@@ -307,8 +307,10 @@ struct reducer_traits<ProdReducer<T>, Device> {
   };
 };
 
+// Inputs have already been evaluated when reduce() is called; eager bitwise operations keep scalar reduction loops
+// branch-free.
 struct AndReducer {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void reduce(bool t, bool* accum) const { *accum = *accum && t; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void reduce(bool t, bool* accum) const { *accum = *accum & t; }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool initialize() const { return true; }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool finalize(bool accum) const { return accum; }
 };
@@ -319,7 +321,7 @@ struct reducer_traits<AndReducer, Device> {
 };
 
 struct OrReducer {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void reduce(bool t, bool* accum) const { *accum = *accum || t; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void reduce(bool t, bool* accum) const { *accum = *accum | t; }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool initialize() const { return false; }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool finalize(bool accum) const { return accum; }
 };
