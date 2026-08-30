@@ -30,14 +30,25 @@ template <typename MatrixType, typename ResultType>
 struct compute_inverse_cholesky {
   EIGEN_DEVICE_FUNC static inline void run(const MatrixType& m, ResultType& result) {
     using Scalar = typename MatrixType::Scalar;
+    using RealScalar = typename NumTraits<Scalar>::Real;
+    using LLTType = Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::ColsAtCompileTime>;
 
-    auto llt = m.template selfadjointView<Eigen::Upper>().llt();
-    eigen_assert(llt.info() == Success && "LLT failed");
+    const Index n = m.rows();
+    eigen_assert((n == m.cols()) && "Input matrix must be square");
+    LLTType upper = LLTType::Zero(n, n);
 
-    const auto& decomposition = llt.matrixLLT();
-    const Index n = decomposition.rows();
+    for (Index i = 0; i < n; ++i) {
+      const auto block = upper.topRows(i);
+      const auto d = numext::real(m(i, i)) - block.col(i).squaredNorm();
+      eigen_assert(d > RealScalar(0) && "Input must be positive-definite");
+
+      const auto diag = numext::sqrt(d);
+      upper(i, i) = Scalar(diag);
+      for (Index j = i + 1; j < n; ++j) upper(i, j) = (m(i, j) - block.col(i).dot(block.col(j))) / diag;
+    }
+
     for (Index i = n - 1; i >= 0; --i) {
-      const auto u = decomposition.row(i).tail(n - i);
+      const auto u = upper.row(i).tail(n - i);
       for (Index j = n - 1; j >= i; --j) {
         Scalar rhs = i == j ? Scalar(1) / u(0) : Scalar(0);
         if (i < n - 1) rhs -= (u.tail(n - i - 1) * result.col(j).tail(n - i - 1)).value();
