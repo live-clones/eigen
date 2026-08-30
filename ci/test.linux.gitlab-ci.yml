@@ -626,8 +626,8 @@ test:linux:sme512:gcc-14:full:unsupported:
 # (four- and eight-wide double packets, deeper predux_mul folds and ptranspose
 # networks), and a packet size of eight, which is where the GEBP column-group
 # guard went wrong, is reached by float at 256 and by double at 512. The job
-# names carry the compiler that built the binaries, which is gcc-13 above 128
-# bits -- see the note on .build:linux:cross:sve:gcc-13.
+# names carry the compiler that built the binaries, which is gcc-13 at every
+# width -- see the note on .build:linux:cross:sve:gcc-13.
 test:linux:sve128:gcc-13:official:
   extends: .test:linux:sve:vl128
   variables:
