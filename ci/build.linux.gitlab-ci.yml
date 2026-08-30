@@ -948,7 +948,7 @@ build:linux:cross:sme:gcc-14:no-f64f64:affected:
 build:linux:cross:sve:gcc-13:vl128:affected:
   extends: build:linux:cross:sve:gcc-13:vl128
   variables:
-    EIGEN_CI_CCACHE_POOL: build-linux-cross-sve-gcc-14-vl128
+    EIGEN_CI_CCACHE_POOL: build-linux-cross-sve-gcc-13-vl128
   rules: !reference [.rules:libeigen:affected-tests:sve, rules]
 
 build:linux:cross:sve:gcc-13:vl512:affected:
