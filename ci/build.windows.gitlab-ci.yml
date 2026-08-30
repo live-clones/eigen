@@ -41,8 +41,8 @@
   # hits survive a re-checkout that re-stamps every source mtime (which made
   # the old build-directory cache rebuild everything anyway). No
   # ${CI_COMMIT_REF_SLUG} in the keys: pipelines share one cache pool per
-  # EIGEN_CI_CCACHE_POOL (GitLab still keeps protected refs' caches separate
-  # from unprotected ones). Both entries push even when the build fails
+  # EIGEN_CI_CCACHE_POOL, split by GitLab's protection suffix as described in
+  # the Linux template. Both entries push even when the build fails
   # (when: always): the retry pipeline after a compile error is exactly where
   # hits matter most.
   cache:
