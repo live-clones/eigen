@@ -32,15 +32,15 @@ struct compute_inverse_cholesky {
     using Scalar = typename MatrixType::Scalar;
     using RealScalar = typename NumTraits<Scalar>::Real;
     using ScratchMatrix =
-        Matrix<Scalar, MatrixType::RowsAtCompileTime != Dynamic ? MatrixType::RowsAtCompileTime + 1 : Dynamic,
-               MatrixType::ColsAtCompileTime, MatrixType::ColsAtCompileTime != 1 ? RowMajor : ColMajor>;
+        Matrix<Scalar, MatrixType::RowsAtCompileTime,
+               MatrixType::ColsAtCompileTime != Dynamic ? MatrixType::ColsAtCompileTime + 1 : Dynamic>;
 
     const Index n = m.rows();
     eigen_assert(m.rows() == m.cols() && "Input must be square");
-    ScratchMatrix buffer(n + 1, n);
+    ScratchMatrix buffer(n, n + 1);
 
-    auto upper = buffer.topRows(fix<MatrixType::RowsAtCompileTime>(int(n)));
-    auto scratch = buffer.row(fix<MatrixType::RowsAtCompileTime>(int(n))).transpose();
+    auto upper = buffer.leftCols(fix<MatrixType::ColsAtCompileTime>(int(n)));
+    auto scratch = buffer.col(fix<MatrixType::ColsAtCompileTime>(int(n)));
 
     for (Index i = 0; i < n; ++i) {
       const auto block = upper.topRows(i);
@@ -54,10 +54,13 @@ struct compute_inverse_cholesky {
     }
 
     for (Index i = n - 1; i >= 0; --i) {
-      const auto u = upper.row(i).tail(n - i);
+      const Index len = n - i - 1;
+      const Scalar d = upper(i, i);
+      scratch.head(len) = upper.row(i).tail(len).transpose();
+      const auto u = scratch.head(len).transpose();
       for (Index j = n - 1; j >= i; --j) {
-        Scalar rhs = i == j ? Scalar(1) / u(0) : Scalar(0);
-        if (i < n - 1) rhs -= (u.tail(n - i - 1) * result.col(j).tail(n - i - 1)).value();
+        Scalar rhs = i == j ? Scalar(1) / d : Scalar(0);
+        if (len) rhs -= (u * result.col(j).tail(len)).value();
         result(i, j) = rhs;
         if (j > i) result(j, i) = numext::conj(result(i, j));
       }
