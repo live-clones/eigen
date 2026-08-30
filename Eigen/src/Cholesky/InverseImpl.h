@@ -31,20 +31,26 @@ struct compute_inverse_cholesky {
   EIGEN_DEVICE_FUNC static inline void run(const MatrixType& m, ResultType& result) {
     using Scalar = typename MatrixType::Scalar;
     using RealScalar = typename NumTraits<Scalar>::Real;
-    using LLTType = Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::ColsAtCompileTime>;
+    using ScratchMatrix =
+        Matrix<Scalar, MatrixType::RowsAtCompileTime != Dynamic ? MatrixType::RowsAtCompileTime + 1 : Dynamic,
+               MatrixType::ColsAtCompileTime, MatrixType::ColsAtCompileTime != 1 ? RowMajor : ColMajor>;
 
     const Index n = m.rows();
-    eigen_assert((n == m.cols()) && "Input matrix must be square");
-    LLTType upper = LLTType::Zero(n, n);
+    eigen_assert(m.rows() == m.cols() && "Input must be square");
+    ScratchMatrix buffer(n + 1, n);
+
+    auto upper = buffer.topRows(fix<MatrixType::RowsAtCompileTime>(int(n)));
+    auto scratch = buffer.row(fix<MatrixType::RowsAtCompileTime>(int(n))).transpose();
 
     for (Index i = 0; i < n; ++i) {
       const auto block = upper.topRows(i);
-      const auto d = numext::real(m(i, i)) - block.col(i).squaredNorm();
+      scratch.head(i).array() = block.diagonal().array() * block.col(i).array();
+
+      const RealScalar d = numext::real(m(i, i)) - numext::real(scratch.head(i).dot(block.col(i)));
       eigen_assert(d > RealScalar(0) && "Input must be positive-definite");
 
-      const auto diag = numext::sqrt(d);
-      upper(i, i) = Scalar(diag);
-      for (Index j = i + 1; j < n; ++j) upper(i, j) = (m(i, j) - block.col(i).dot(block.col(j))) / diag;
+      upper(i, i) = Scalar(d);
+      for (Index j = i + 1; j < n; ++j) upper(i, j) = (m(i, j) - scratch.head(i).dot(block.col(j))) / Scalar(d);
     }
 
     for (Index i = n - 1; i >= 0; --i) {
@@ -52,7 +58,7 @@ struct compute_inverse_cholesky {
       for (Index j = n - 1; j >= i; --j) {
         Scalar rhs = i == j ? Scalar(1) / u(0) : Scalar(0);
         if (i < n - 1) rhs -= (u.tail(n - i - 1) * result.col(j).tail(n - i - 1)).value();
-        result(i, j) = rhs / u(0);
+        result(i, j) = rhs;
         if (j > i) result(j, i) = numext::conj(result(i, j));
       }
     }
