@@ -502,6 +502,8 @@ struct scalar_boolean_and_op {
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const {
+    // Boolean packets are canonical byte values, so their logical AND is also their bitwise AND.
+    EIGEN_IF_CONSTEXPR ((std::is_same<Scalar, bool>::value)) return pand(a, b);
     const Packet cst_one = pset1<Packet>(Scalar(1));
     // and(a,b) == !or(!a,!b)
     Packet not_a = pcmp_eq(a, pzero(a));
@@ -536,6 +538,8 @@ struct scalar_boolean_or_op {
   }
   template <typename Packet>
   EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const {
+    // Boolean packets are canonical byte values, so their logical OR is also their bitwise OR.
+    EIGEN_IF_CONSTEXPR ((std::is_same<Scalar, bool>::value)) return por(a, b);
     const Packet cst_one = pset1<Packet>(Scalar(1));
     // if or(a,b) == 0, then a == 0 and b == 0
     // or(a,b) == !nor(a,b)
