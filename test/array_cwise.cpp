@@ -1450,6 +1450,33 @@ void bool_logical_ops() {
   VERIFY_IS_CWISE_EQUAL(actual_or, expected_or);
 }
 
+template <typename RealScalar>
+void complex_classification() {
+  using Complex = std::complex<RealScalar>;
+  const RealScalar inf = NumTraits<RealScalar>::infinity();
+  const RealScalar nan = NumTraits<RealScalar>::quiet_NaN();
+
+  struct TestCase {
+    Complex value;
+    bool finite;
+    bool infinite;
+    bool not_a_number;
+  };
+  const TestCase test_cases[] = {
+      {Complex(0, 0), true, false, false},     {Complex(inf, 0), false, true, false},
+      {Complex(0, inf), false, true, false},   {Complex(nan, 0), false, false, true},
+      {Complex(0, nan), false, false, true},   {Complex(inf, nan), false, false, true},
+      {Complex(nan, inf), false, false, true}, {Complex(-inf, -inf), false, true, false},
+      {Complex(nan, nan), false, false, true},
+  };
+
+  for (const TestCase& test_case : test_cases) {
+    VERIFY_IS_EQUAL((numext::isfinite)(test_case.value), test_case.finite);
+    VERIFY_IS_EQUAL((numext::isinf)(test_case.value), test_case.infinite);
+    VERIFY_IS_EQUAL((numext::isnan)(test_case.value), test_case.not_a_number);
+  }
+}
+
 EIGEN_DECLARE_TEST(array_cwise) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(array_generic(Array<float, 1, 1>()));
@@ -1522,6 +1549,9 @@ EIGEN_DECLARE_TEST(array_cwise) {
     CALL_SUBTEST_18(array_complex(
         ArrayXXcd(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
   }
+  CALL_SUBTEST_17(complex_classification<float>());
+  CALL_SUBTEST_18(complex_classification<double>());
+  CALL_SUBTEST_18(complex_classification<long double>());
 
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_19(float_pow_test());

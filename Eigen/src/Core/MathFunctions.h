@@ -2017,7 +2017,13 @@ namespace internal {
 
 template <typename T>
 EIGEN_DEVICE_FUNC bool isfinite_impl(const std::complex<T>& x) {
-  return (numext::isfinite)(numext::real(x)) && (numext::isfinite)(numext::imag(x));
+  EIGEN_IF_CONSTEXPR ((std::is_floating_point<T>::value)) {
+    // Eager classification lets coefficient-wise loops remain branch-free.
+    return static_cast<unsigned int>((numext::isfinite)(numext::real(x))) &
+           static_cast<unsigned int>((numext::isfinite)(numext::imag(x)));
+  } else {
+    return (numext::isfinite)(numext::real(x)) && (numext::isfinite)(numext::imag(x));
+  }
 }
 
 template <typename T>
@@ -2027,7 +2033,15 @@ EIGEN_DEVICE_FUNC bool isnan_impl(const std::complex<T>& x) {
 
 template <typename T>
 EIGEN_DEVICE_FUNC bool isinf_impl(const std::complex<T>& x) {
-  return ((numext::isinf)(numext::real(x)) || (numext::isinf)(numext::imag(x))) && (!(numext::isnan)(x));
+  EIGEN_IF_CONSTEXPR ((std::is_floating_point<T>::value)) {
+    const bool has_inf = static_cast<unsigned int>((numext::isinf)(numext::real(x))) |
+                         static_cast<unsigned int>((numext::isinf)(numext::imag(x)));
+    const bool has_nan = static_cast<unsigned int>((numext::isnan)(numext::real(x))) |
+                         static_cast<unsigned int>((numext::isnan)(numext::imag(x)));
+    return static_cast<unsigned int>(has_inf) & static_cast<unsigned int>(!has_nan);
+  } else {
+    return ((numext::isinf)(numext::real(x)) || (numext::isinf)(numext::imag(x))) && (!(numext::isnan)(x));
+  }
 }
 
 /****************************************************************************
