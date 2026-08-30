@@ -577,12 +577,12 @@ test:linux:sme512:gcc-14:full:unsupported:
     # too; the :official jobs are unaffected either way, as both names are
     # Unsupported tests.
     EIGEN_CI_CTEST_EXCLUDE: tensor_thread_pool|FFT
-    # The test stage never compiles, so no build compiler is named here and one
-    # anchor serves both widths whichever GCC built them: all this needs is the
-    # aarch64 runtime and qemu-user, and the default-version cross g++ supplies
-    # the libraries on any release.
-    EIGEN_CI_CXX_COMPILER: aarch64-linux-gnu-g++
-    EIGEN_CI_CROSS_INSTALL: g++-aarch64-linux-gnu qemu-user
+    # The cross package is named per width below rather than here: the failtest
+    # and buildsystem tests run `cmake --build`, which reconfigures against the
+    # compiler CMakeCache.txt records, so the test image needs the exact
+    # versioned cross g++ its build job used -- not the default-version one.
+    # Only the affected-tier jobs reach them, being the ones that apply no label
+    # filter; failtests carry no label and buildsystem tests carry their own.
 
 # Each concrete job must set QEMU_CPU, and both halves of it: sveN=on advertises
 # the width, sve-default-vector-length (in bytes) selects the one a task
@@ -595,18 +595,21 @@ test:linux:sme512:gcc-14:full:unsupported:
   needs: [ build:linux:cross:sve:gcc-14:vl128 ]
   variables:
     QEMU_CPU: max,sve128=on,sve-default-vector-length=16
+    EIGEN_CI_CROSS_INSTALL: g++-14-aarch64-linux-gnu qemu-user
 
 .test:linux:sve:vl256:
   extends: .test:linux:sve
   needs: [ build:linux:cross:sve:gcc-13:vl256 ]
   variables:
     QEMU_CPU: max,sve256=on,sve-default-vector-length=32
+    EIGEN_CI_CROSS_INSTALL: g++-13-aarch64-linux-gnu qemu-user
 
 .test:linux:sve:vl512:
   extends: .test:linux:sve
   needs: [ build:linux:cross:sve:gcc-13:vl512 ]
   variables:
     QEMU_CPU: max,sve512=on,sve-default-vector-length=64
+    EIGEN_CI_CROSS_INSTALL: g++-13-aarch64-linux-gnu qemu-user
 
 # The three lengths SVE hardware implements: 128 (Neoverse V2, Grace), 256
 # (Neoverse V1, Graviton3) and 512 (A64FX). Running all three is what makes the
