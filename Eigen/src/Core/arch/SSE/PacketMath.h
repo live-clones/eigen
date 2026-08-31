@@ -1256,11 +1256,6 @@ EIGEN_STRONG_INLINE Packet4i pabs(const Packet4i& a) {
   return _mm_sub_epi32(_mm_xor_si128(a, signbit), signbit);
 #endif
 }
-template <>
-EIGEN_STRONG_INLINE Packet4ui pabs(const Packet4ui& a) {
-  return a;
-}
-
 #ifdef EIGEN_VECTORIZE_SSE4_1
 template <>
 EIGEN_STRONG_INLINE Packet4f pround<Packet4f>(const Packet4f& a) {
