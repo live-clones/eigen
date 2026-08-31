@@ -624,9 +624,13 @@ EIGEN_DEVICE_FUNC inline bool pselect<bool>(const bool& cond, const bool& a, con
   return cond ? a : b;
 }
 
+/** \internal Whether plain pmin/pmax already propagate NaN for \a Packet. */
+template <typename Packet>
+struct pminmax_propagates_nan : bool_constant<false> {};
+
 /** \internal \returns the min or max of \a a and \a b (coeff-wise)
     If either \a a or \a b are NaN, the result is implementation defined. */
-template <int NaNPropagation, bool IsInteger>
+template <int NaNPropagation, bool IsInteger, bool NativePropagatesNaN = false>
 struct pminmax_impl {
   template <typename Packet, typename Op>
   static EIGEN_DEVICE_FUNC inline Packet run(const Packet& a, const Packet& b, Op op) {
@@ -637,7 +641,7 @@ struct pminmax_impl {
 /** \internal \returns the min or max of \a a and \a b (coeff-wise)
     If either \a a or \a b are NaN, NaN is returned. */
 template <>
-struct pminmax_impl<PropagateNaN, false> {
+struct pminmax_impl<PropagateNaN, false, false> {
   template <typename Packet, typename Op>
   static EIGEN_DEVICE_FUNC inline Packet run(const Packet& a, const Packet& b, Op op) {
     // pselect is an ordinary call, so op(a, b) is evaluated even where an operand is NaN;
@@ -653,8 +657,8 @@ struct pminmax_impl<PropagateNaN, false> {
 /** \internal \returns the min or max of \a a and \a b (coeff-wise)
     If both \a a and \a b are NaN, NaN is returned.
     Equivalent to std::fmin(a, b).  */
-template <>
-struct pminmax_impl<PropagateNumbers, false> {
+template <bool NativePropagatesNaN>
+struct pminmax_impl<PropagateNumbers, false, NativePropagatesNaN> {
   template <typename Packet, typename Op>
   static EIGEN_DEVICE_FUNC inline Packet run(const Packet& a, const Packet& b, Op op) {
     Packet not_nan_mask_a = pcmp_eq(a, a);
@@ -677,7 +681,9 @@ EIGEN_DEVICE_FUNC inline Packet pmin(const Packet& a, const Packet& b) {
 template <int NaNPropagation, typename Packet>
 EIGEN_DEVICE_FUNC inline Packet pmin(const Packet& a, const Packet& b) {
   constexpr bool IsInteger = NumTraits<typename unpacket_traits<Packet>::type>::IsInteger;
-  return pminmax_impl<NaNPropagation, IsInteger>::run(a, b, EIGEN_BINARY_OP_NAN_PROPAGATION(Packet, (pmin<Packet>)));
+  constexpr bool NativePropagatesNaN = pminmax_propagates_nan<Packet>::value;
+  return pminmax_impl<NaNPropagation, IsInteger, NativePropagatesNaN>::run(
+      a, b, EIGEN_BINARY_OP_NAN_PROPAGATION(Packet, (pmin<Packet>)));
 }
 
 /** \internal \returns the max of \a a and \a b  (coeff-wise)
@@ -692,7 +698,9 @@ EIGEN_DEVICE_FUNC inline Packet pmax(const Packet& a, const Packet& b) {
 template <int NaNPropagation, typename Packet>
 EIGEN_DEVICE_FUNC inline Packet pmax(const Packet& a, const Packet& b) {
   constexpr bool IsInteger = NumTraits<typename unpacket_traits<Packet>::type>::IsInteger;
-  return pminmax_impl<NaNPropagation, IsInteger>::run(a, b, EIGEN_BINARY_OP_NAN_PROPAGATION(Packet, (pmax<Packet>)));
+  constexpr bool NativePropagatesNaN = pminmax_propagates_nan<Packet>::value;
+  return pminmax_impl<NaNPropagation, IsInteger, NativePropagatesNaN>::run(
+      a, b, EIGEN_BINARY_OP_NAN_PROPAGATION(Packet, (pmax<Packet>)));
 }
 
 /** \internal \returns the absolute value of \a a */
