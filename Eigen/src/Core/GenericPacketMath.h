@@ -1483,8 +1483,13 @@ predux_half(const Packet& a) {
   return a;
 }
 
+template <typename Packet, typename Op, std::enable_if_t<unpacket_traits<Packet>::size == 1, int> = 0>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename unpacket_traits<Packet>::type predux_helper(const Packet& a, Op) {
+  return pfirst(a);
+}
+
 // Slow generic implementation of Packet reduction.
-template <typename Packet, typename Op>
+template <typename Packet, typename Op, std::enable_if_t<unpacket_traits<Packet>::size != 1, int> = 0>
 EIGEN_DEVICE_FUNC inline typename unpacket_traits<Packet>::type predux_helper(const Packet& a, Op op) {
   using Scalar = typename unpacket_traits<Packet>::type;
   const size_t n = unpacket_traits<Packet>::size;
@@ -1498,15 +1503,20 @@ EIGEN_DEVICE_FUNC inline typename unpacket_traits<Packet>::type predux_helper(co
   return elements[0];
 }
 
+template <typename Packet, std::enable_if_t<unpacket_traits<Packet>::size == 1, int> = 0>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename unpacket_traits<Packet>::type predux_one_element(const Packet& a) {
+  return pfirst(a);
+}
+
 /** \internal \returns the sum of the elements of \a a*/
 template <typename Packet>
-EIGEN_DEVICE_FUNC inline typename unpacket_traits<Packet>::type predux(const Packet& a) {
-  return a;
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename unpacket_traits<Packet>::type predux(const Packet& a) {
+  return predux_one_element(a);
 }
 
 /** \internal \returns the product of the elements of \a a */
 template <typename Packet>
-EIGEN_DEVICE_FUNC inline typename unpacket_traits<Packet>::type predux_mul(const Packet& a) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename unpacket_traits<Packet>::type predux_mul(const Packet& a) {
   using Scalar = typename unpacket_traits<Packet>::type;
   return predux_helper(a, EIGEN_BINARY_OP_NAN_PROPAGATION(Scalar, (pmul<Scalar>)));
 }
