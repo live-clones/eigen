@@ -617,6 +617,13 @@ EIGEN_STRONG_INLINE float predux<Packet1Xf>(const Packet1Xf& a) {
 }
 
 template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet1Xf& a) {
+  const PacketMask32 mask =
+      __riscv_vmsne_vx_u32m1_b32(__riscv_vreinterpret_v_f32m1_u32m1(a), 0, unpacket_traits<Packet1Xf>::size);
+  return __riscv_vcpop_m_b32(mask, unpacket_traits<Packet1Xf>::size) != 0;
+}
+
+template <>
 EIGEN_STRONG_INLINE float predux_mul<Packet1Xf>(const Packet1Xf& a) {
   // Multiply the vector by its reverse
   Packet1Xf prod = __riscv_vfmul_vv_f32m1(preverse(a), a, unpacket_traits<Packet1Xf>::size);
@@ -1307,6 +1314,13 @@ template <>
 EIGEN_STRONG_INLINE double predux<Packet1Xd>(const Packet1Xd& a) {
   return __riscv_vfmv_f(__riscv_vfredusum_vs_f64m1_f64m1(
       a, __riscv_vfmv_v_f_f64m1(0.0, unpacket_traits<Packet1Xd>::size), unpacket_traits<Packet1Xd>::size));
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet1Xd& a) {
+  const PacketMask64 mask =
+      __riscv_vmsne_vx_u64m1_b64(__riscv_vreinterpret_v_f64m1_u64m1(a), 0, unpacket_traits<Packet1Xd>::size);
+  return __riscv_vcpop_m_b64(mask, unpacket_traits<Packet1Xd>::size) != 0;
 }
 
 template <>

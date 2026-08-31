@@ -1570,7 +1570,8 @@ EIGEN_DEVICE_FUNC inline bool predux_any(const Packet& a) {
   //  - Scalar(1)
   //  - bits full of ones (NaN for floats),
   //  - or first bit equals to 1 (1 for ints, smallest denormal for floats).
-  // For all these cases, taking the sum is just fine, and this boils down to a no-op for scalars.
+  // This arithmetic fallback boils down to a no-op for scalars. Vector backends whose masks use floating-point bit
+  // patterns must specialize this with an integer-bit reduction because fast-math or FTZ can discard those values.
   using Scalar = typename unpacket_traits<Packet>::type;
   return numext::not_equal_strict(predux(a), Scalar(0));
 }
