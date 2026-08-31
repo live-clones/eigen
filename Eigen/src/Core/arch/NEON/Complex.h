@@ -616,11 +616,6 @@ EIGEN_STRONG_INLINE Packet1cd pandnot<Packet1cd>(const Packet1cd& a, const Packe
 }
 
 template <>
-EIGEN_STRONG_INLINE Packet1cd ploaddup<Packet1cd>(const std::complex<double>* from) {
-  return pset1<Packet1cd>(*from);
-}
-
-template <>
 EIGEN_STRONG_INLINE void pstore<std::complex<double>>(std::complex<double>* to, const Packet1cd& from) {
   EIGEN_DEBUG_ALIGNED_STORE pstore(assume_aligned<unpacket_traits<Packet1cd>::alignment>(reinterpret_cast<double*>(to)),
                                    from.v);
