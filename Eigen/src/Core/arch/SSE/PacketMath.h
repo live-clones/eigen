@@ -1185,10 +1185,6 @@ EIGEN_STRONG_INLINE Packet4i psignbit(const Packet4i& a) {
   return _mm_srai_epi32(a, 31);
 }
 template <>
-EIGEN_STRONG_INLINE Packet4ui psignbit(const Packet4ui& a) {
-  return pzero(a);
-}
-template <>
 EIGEN_STRONG_INLINE Packet2l psignbit(const Packet2l& a) {
   Packet4i tmp = psignbit<Packet4i>(Packet4i(a));
   return Packet2l(_mm_shuffle_epi32(tmp, (shuffle_mask<1, 1, 3, 3>::mask)));
