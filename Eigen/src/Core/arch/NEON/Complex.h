@@ -377,10 +377,6 @@ EIGEN_STRONG_INLINE std::complex<float> pfirst<Packet2cf>(const Packet2cf& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE Packet1cf preverse(const Packet1cf& a) {
-  return a;
-}
-template <>
 EIGEN_STRONG_INLINE Packet2cf preverse(const Packet2cf& a) {
   return Packet2cf(vcombine_f32(vget_high_f32(a.v), vget_low_f32(a.v)));
 }
@@ -651,11 +647,6 @@ EIGEN_STRONG_INLINE std::complex<double> pfirst<Packet1cd>(const Packet1cd& a) {
   EIGEN_ALIGN16 std::complex<double> res;
   pstore<std::complex<double>>(&res, a);
   return res;
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet1cd preverse(const Packet1cd& a) {
-  return a;
 }
 
 template <>
