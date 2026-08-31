@@ -217,10 +217,6 @@ EIGEN_STRONG_INLINE Packet1cd pandnot<Packet1cd>(const Packet1cd& a, const Packe
   return Packet1cd(vec_and(a.v, vec_nor(b.v, b.v)));
 }
 template <>
-EIGEN_STRONG_INLINE Packet1cd ploaddup<Packet1cd>(const std::complex<double>* from) {
-  return pset1<Packet1cd>(*from);
-}
-template <>
 EIGEN_STRONG_INLINE Packet1cd pcmp_eq(const Packet1cd& a, const Packet1cd& b) {
   Packet2d eq = vec_cmpeq(a.v, b.v);
   Packet2d tmp = {eq[1], eq[0]};

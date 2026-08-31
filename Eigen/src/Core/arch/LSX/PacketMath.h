@@ -1446,10 +1446,6 @@ EIGEN_STRONG_INLINE Packet4f ploaddup<Packet4f>(const float* from) {
   return make_packet4f(f0, f0, f1, f1);
 }
 template <>
-EIGEN_STRONG_INLINE Packet2d ploaddup<Packet2d>(const double* from) {
-  return pset1<Packet2d>(from[0]);
-}
-template <>
 EIGEN_STRONG_INLINE Packet16c ploaddup<Packet16c>(const int8_t* from) {
   Packet16c tmp = pload<Packet16c>(from);
   return __lsx_vilvl_b(tmp, tmp);
@@ -1463,10 +1459,6 @@ template <>
 EIGEN_STRONG_INLINE Packet4i ploaddup<Packet4i>(const int32_t* from) {
   Packet4i tmp = pload<Packet4i>(from);
   return __lsx_vilvl_w(tmp, tmp);
-}
-template <>
-EIGEN_STRONG_INLINE Packet2l ploaddup<Packet2l>(const int64_t* from) {
-  return pset1<Packet2l>(from[0]);
 }
 template <>
 EIGEN_STRONG_INLINE Packet16uc ploaddup<Packet16uc>(const uint8_t* from) {
@@ -1483,11 +1475,6 @@ EIGEN_STRONG_INLINE Packet4ui ploaddup<Packet4ui>(const uint32_t* from) {
   Packet4ui tmp = pload<Packet4ui>(from);
   return __lsx_vilvl_w(tmp, tmp);
 }
-template <>
-EIGEN_STRONG_INLINE Packet2ul ploaddup<Packet2ul>(const uint64_t* from) {
-  return pset1<Packet2ul>(from[0]);
-}
-
 template <>
 EIGEN_STRONG_INLINE void pstore<float>(float* to, const Packet4f& from) {
   EIGEN_DEBUG_ALIGNED_STORE __lsx_vst(from, to, 0);
