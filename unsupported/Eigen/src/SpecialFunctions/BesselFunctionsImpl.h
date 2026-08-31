@@ -181,14 +181,20 @@ template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
 struct generic_i0 {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T& x) {
     // Evaluating i0(x) = exp(|x|) * i0e(x) can prematurely cause intermediate overflow for large |x|
-    // i.e.  88.7229 < |x| <= 91.9021 for float
-    //      709.7827 < |x| <= 713.9871 for double
+    // i.e.  88.7228 < |x| <= 91.9008 for float
+    //      709.7827 < |x| <= 713.9869 for double
     // Instead, use i0(x) = exp(|x|/2) * (exp(|x|/2) * i0e(x)).  Cutting |x| in half keeps the intermediate result
     // finite for all finite results.
     const T ax = pabs(x);
     const T i0e = generic_i0e<T, ScalarType>::run(x);
     const T half_exp = pexp(pmul(pset1<T>(ScalarType(0.5)), ax));
-    return pmul(half_exp, pmul(half_exp, i0e));
+    T scaled = pmul(half_exp, i0e);
+#if defined(__FAST_MATH__) || defined(__ASSOCIATIVE_MATH__) || EIGEN_COMP_NVHPC
+    // Unfortunately fast-math reassociates (exp(|x|/2) * exp(|x|/2)) * i0e(x) which reintroduces the overflow,
+    // so we need to tell it not to.
+    EIGEN_OPTIMIZATION_BARRIER(scaled)
+#endif
+    return pmul(half_exp, scaled);
   }
 };
 
@@ -335,14 +341,19 @@ template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
 struct generic_i1 {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T& x) {
     // Evaluating i1(x) = exp(|x|) * i1e(x) can prematurely cause intermediate overflow for large |x|
-    // i.e.  88.7228 < |x| <= 91.9062 for float
+    // i.e.  88.7228 < |x| <= 91.9063 for float
     //      709.7827 < |x| <= 713.9876 for double
     // Instead, use i1(x) = exp(|x|/2) * (exp(|x|/2) * i1e(x)).  Cutting |x| in half keeps the intermediate result
     // finite for all finite results.
     const T ax = pabs(x);
     const T i1e = generic_i1e<T, ScalarType>::run(x);
     const T half_exp = pexp(pmul(pset1<T>(ScalarType(0.5)), ax));
-    return pmul(half_exp, pmul(half_exp, i1e));
+    T scaled = pmul(half_exp, i1e);
+#if defined(__FAST_MATH__) || defined(__ASSOCIATIVE_MATH__) || EIGEN_COMP_NVHPC
+    // Reassociating back to (exp(|x|/2) * exp(|x|/2)) * i1e(x) would reintroduce the overflow.
+    EIGEN_OPTIMIZATION_BARRIER(scaled)
+#endif
+    return pmul(half_exp, scaled);
   }
 };
 

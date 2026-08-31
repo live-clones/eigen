@@ -270,53 +270,52 @@ void array_bessel_functions() {
   }
 }
 
+// exp(|x|) overflows above |x| ~ 88.7228 (float) / ~709.7827 (double), while i0/i1 stay finite up to
+// |x| ~ 91.9008 / ~713.9869, so these arguments exercise the intermediate-overflow path.
+// Reference values computed with mpmath at 40 digits.
 template <typename ArrayType>
-void test_bessel_i_large_finite() {
-  typedef typename ArrayType::Scalar Scalar;
-  if (sizeof(Scalar) == sizeof(float)) {
-    // Float boundary testing: exp(x) overflows near ~88.72; I0/I1(90.0) remain finite (~5.14e37).
-    ArrayType x(4);
-    x << Scalar(90.0f), Scalar(-90.0f), Scalar(91.0f), Scalar(-91.0f);
-    ArrayType i0_res = bessel_i0(x);
-    ArrayType i1_res = bessel_i1(x);
-    for (Index i = 0; i < x.size(); ++i) {
-      VERIFY((numext::isfinite)(i0_res(i)));
-      VERIFY((numext::isfinite)(i1_res(i)));
-      VERIFY_IS_APPROX(numext::bessel_i0(x(i)), i0_res(i));
-      VERIFY_IS_APPROX(numext::bessel_i1(x(i)), i1_res(i));
-    }
-    // Verify parity: I0 is even, I1 is odd
-    VERIFY_IS_APPROX(i0_res(0), i0_res(1));
-    VERIFY_IS_APPROX(i1_res(0), -i1_res(1));
-  } else if (sizeof(Scalar) >= sizeof(double)) {
-    // Double boundary testing: exp(x) overflows near ~709.78; I0/I1(713.0) remain finite (~6.705e307 / 6.700e307).
-    ArrayType x(4);
-    x << Scalar(713.0), Scalar(-713.0), Scalar(712.0), Scalar(-712.0);
-    ArrayType i0_res = bessel_i0(x);
-    ArrayType i1_res = bessel_i1(x);
-
-    Scalar truth_i0_713 = Scalar(6.7051282636709964e+307);
-    Scalar truth_i1_713 = Scalar(6.7004245591864022e+307);
-
-    VERIFY((numext::isfinite)(i0_res(0)));
-    VERIFY((numext::isfinite)(i1_res(0)));
-    VERIFY_IS_APPROX(i0_res(0), truth_i0_713);
-    VERIFY_IS_APPROX(i0_res(1), truth_i0_713);
-    VERIFY_IS_APPROX(i1_res(0), truth_i1_713);
-    VERIFY_IS_APPROX(i1_res(1), -truth_i1_713);
-
-    for (Index i = 0; i < x.size(); ++i) {
-      VERIFY((numext::isfinite)(i0_res(i)));
-      VERIFY((numext::isfinite)(i1_res(i)));
-      VERIFY_IS_APPROX(numext::bessel_i0(x(i)), i0_res(i));
-      VERIFY_IS_APPROX(numext::bessel_i1(x(i)), i1_res(i));
-    }
+void test_bessel_i_large_finite(const typename ArrayType::Scalar (&x_val)[2],
+                                const typename ArrayType::Scalar (&i0_truth)[2],
+                                const typename ArrayType::Scalar (&i1_truth)[2]) {
+  ArrayType x(4);
+  x << x_val[0], -x_val[0], x_val[1], -x_val[1];
+  ArrayType i0_res = bessel_i0(x);
+  ArrayType i1_res = bessel_i1(x);
+  for (Index i = 0; i < x.size(); ++i) {
+    VERIFY((numext::isfinite)(i0_res(i)));
+    VERIFY((numext::isfinite)(i1_res(i)));
+    // The vectorized and scalar paths must agree.
+    VERIFY_IS_APPROX(numext::bessel_i0(x(i)), i0_res(i));
+    VERIFY_IS_APPROX(numext::bessel_i1(x(i)), i1_res(i));
   }
+  // i0 is even, i1 is odd.
+  VERIFY_IS_APPROX(i0_res(0), i0_truth[0]);
+  VERIFY_IS_APPROX(i0_res(1), i0_truth[0]);
+  VERIFY_IS_APPROX(i0_res(2), i0_truth[1]);
+  VERIFY_IS_APPROX(i0_res(3), i0_truth[1]);
+  VERIFY_IS_APPROX(i1_res(0), i1_truth[0]);
+  VERIFY_IS_APPROX(i1_res(1), -i1_truth[0]);
+  VERIFY_IS_APPROX(i1_res(2), i1_truth[1]);
+  VERIFY_IS_APPROX(i1_res(3), -i1_truth[1]);
+}
+
+void test_bessel_i_large_finite_float() {
+  const float x[2] = {90.0f, 91.0f};
+  const float i0_truth[2] = {5.1392383455086638e+37f, 1.3892714060989622e+38f};
+  const float i1_truth[2] = {5.1106068152565982e+37f, 1.3816168414593216e+38f};
+  test_bessel_i_large_finite<ArrayXf>(x, i0_truth, i1_truth);
+}
+
+void test_bessel_i_large_finite_double() {
+  const double x[2] = {712.0, 713.0};
+  const double i0_truth[2] = {2.4684110577627524e+307, 6.7051282636709964e+307};
+  const double i1_truth[2] = {2.4666770135246152e+307, 6.7004245591864022e+307};
+  test_bessel_i_large_finite<ArrayXd>(x, i0_truth, i1_truth);
 }
 
 EIGEN_DECLARE_TEST(bessel_functions) {
   CALL_SUBTEST_1(array_bessel_functions<ArrayXf>());
-  CALL_SUBTEST_1(test_bessel_i_large_finite<ArrayXf>());
+  CALL_SUBTEST_1(test_bessel_i_large_finite_float());
   CALL_SUBTEST_2(array_bessel_functions<ArrayXd>());
-  CALL_SUBTEST_2(test_bessel_i_large_finite<ArrayXd>());
+  CALL_SUBTEST_2(test_bessel_i_large_finite_double());
 }
