@@ -78,6 +78,13 @@ struct sse_predux_max_prop_impl : sse_predux_common<Packet, sse_max_prop_wrapper
 // Packet16b stores one bool per byte. Reduce the byte-wise zero mask rather than extracting and short-circuiting two
 // scalar halves. This also treats every nonzero byte as true, matching the scalar reduction for non-canonical inputs.
 template <>
+EIGEN_STRONG_INLINE Index predux_count(const Packet16b& a) {
+  const __m128i normalized = _mm_min_epu8(a, _mm_set1_epi8(1));
+  const __m128i sums = _mm_sad_epu8(normalized, _mm_setzero_si128());
+  return static_cast<Index>(_mm_cvtsi128_si32(sums) + _mm_cvtsi128_si32(_mm_unpackhi_epi64(sums, sums)));
+}
+
+template <>
 EIGEN_STRONG_INLINE bool predux(const Packet16b& a) {
   return _mm_movemask_epi8(_mm_cmpeq_epi8(a, _mm_setzero_si128())) != 0xffff;
 }
@@ -272,6 +279,14 @@ EIGEN_STRONG_INLINE bool predux_any(const Packet4f& a) {
   return _mm_movemask_ps(a) != 0x0;
 }
 
+#ifdef EIGEN_VECTORIZE_SSE4_2
+template <>
+EIGEN_STRONG_INLINE Index predux_count(const Packet4f& a) {
+  const unsigned int mask = static_cast<unsigned int>(_mm_movemask_ps(_mm_cmpneq_ps(a, _mm_setzero_ps())));
+  return Index(popcount(mask));
+}
+#endif
+
 /* -- -- -- -- -- -- -- -- -- -- -- -- Packet2d -- -- -- -- -- -- -- -- -- -- -- -- */
 
 template <typename Op>
@@ -337,6 +352,14 @@ template <>
 EIGEN_STRONG_INLINE bool predux_any(const Packet2d& a) {
   return _mm_movemask_pd(a) != 0x0;
 }
+
+#ifdef EIGEN_VECTORIZE_SSE4_2
+template <>
+EIGEN_STRONG_INLINE Index predux_count(const Packet2d& a) {
+  const unsigned int mask = static_cast<unsigned int>(_mm_movemask_pd(_mm_cmpneq_pd(a, _mm_setzero_pd())));
+  return Index(popcount(mask));
+}
+#endif
 
 }  // end namespace internal
 

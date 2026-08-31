@@ -33,11 +33,13 @@ void verify_mask_reduction() {
 
   std::memset(static_cast<void*>(mask), 0, sizeof(mask));
   VERIFY(!(mask_any<Scalar, Packet>(mask)));
+  VERIFY_IS_EQUAL(Eigen::internal::predux_count(Eigen::internal::ploadu<Packet>(mask)), 0);
 
   for (int lane = 0; lane < packet_size; ++lane) {
     std::memset(static_cast<void*>(mask), 0, sizeof(mask));
     std::memset(static_cast<void*>(mask + lane), 0xff, sizeof(Scalar));
     VERIFY((mask_any<Scalar, Packet>(mask)));
+    VERIFY_IS_EQUAL(Eigen::internal::predux_count(Eigen::internal::ploadu<Packet>(mask)), 1);
   }
 }
 
@@ -164,6 +166,7 @@ struct packetmath_fastmath_runner<Scalar, true> {
       VERIFY((mask_any<Scalar, Packet>(mask)));
     }
 
+    verify_mask_reduction<Scalar, Packet>();
     verify_minmax_reduction<Scalar, Packet>();
   }
 };

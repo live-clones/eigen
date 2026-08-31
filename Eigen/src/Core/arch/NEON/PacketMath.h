@@ -3366,6 +3366,12 @@ template <>
 EIGEN_STRONG_INLINE float predux<Packet4f>(const Packet4f& a) {
   return vaddvq_f32(a);
 }
+
+template <>
+EIGEN_STRONG_INLINE Index predux_count(const Packet4f& a) {
+  const uint32x4_t nonzero = vbicq_u32(vdupq_n_u32(1), vceqq_f32(a, vdupq_n_f32(0.0f)));
+  return static_cast<Index>(vaddvq_u32(nonzero));
+}
 #else
 template <>
 EIGEN_STRONG_INLINE float predux<Packet2f>(const Packet2f& a) {
