@@ -350,7 +350,7 @@ class DiagonalPlusLowRank : public EigenBase<DiagonalPlusLowRank<Scalar_, Size_,
    * \f$ U' = -D^{-1} U (I_k + V^H D^{-1} U)^{-1} \f$ and \f$ V' = D^{-H} V \f$.
    * \warning Same invertibility requirements as \ref solve. */
   DiagonalPlusLowRank inverse() const {
-    const auto dinv = m_d.cwiseInverse();
+    const DiagonalVector dinv = m_d.cwiseInverse();
     FactorType Up(rows(), correctionRank());
     internal::dplr_capacitance_impl<Rank_>::inverseFactor(*this, dinv, Up);
     FactorType Vp = dinv.conjugate().asDiagonal() * m_V;
