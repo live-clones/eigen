@@ -896,79 +896,6 @@ EIGEN_STRONG_INLINE Packet2l pnegate(const Packet2l& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE Packet2f pconj(const Packet2f& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet4f pconj(const Packet4f& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet4c pconj(const Packet4c& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet8c pconj(const Packet8c& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet16c pconj(const Packet16c& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet4uc pconj(const Packet4uc& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet8uc pconj(const Packet8uc& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet16uc pconj(const Packet16uc& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet4s pconj(const Packet4s& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet8s pconj(const Packet8s& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet4us pconj(const Packet4us& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet8us pconj(const Packet8us& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet2i pconj(const Packet2i& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet4i pconj(const Packet4i& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet2ui pconj(const Packet2ui& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet4ui pconj(const Packet4ui& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet2l pconj(const Packet2l& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet2ul pconj(const Packet2ul& a) {
-  return a;
-}
-
-template <>
 EIGEN_STRONG_INLINE Packet2f pmul<Packet2f>(const Packet2f& a, const Packet2f& b) {
   return vmul_f32(a, b);
 }
@@ -4850,11 +4777,6 @@ EIGEN_STRONG_INLINE Packet4bf ptrunc<Packet4bf>(const Packet4bf& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE Packet4bf pconj(const Packet4bf& a) {
-  return a;
-}
-
-template <>
 EIGEN_STRONG_INLINE Packet4bf padd<Packet4bf>(const Packet4bf& a, const Packet4bf& b) {
   return F32ToBf16(padd<Packet4f>(Bf16ToF32(a), Bf16ToF32(b)));
 }
@@ -5110,11 +5032,6 @@ EIGEN_STRONG_INLINE Packet2d paddsub<Packet2d>(const Packet2d& a, const Packet2d
 template <>
 EIGEN_STRONG_INLINE Packet2d pnegate(const Packet2d& a) {
   return vnegq_f64(a);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet2d pconj(const Packet2d& a) {
-  return a;
 }
 
 template <>
@@ -5480,15 +5397,6 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pset1(const half& from) {
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pset1(const half& from) {
   return vdup_n_f16(from.x);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet8hf pconj(const Packet8hf& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet4hf pconj(const Packet4hf& a) {
-  return a;
 }
 
 #define EIGEN_MAKE_HALF_BITWISE_BINOP(name, op)                                                     \

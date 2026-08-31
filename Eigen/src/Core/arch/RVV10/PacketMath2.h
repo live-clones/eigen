@@ -56,11 +56,6 @@ EIGEN_STRONG_INLINE Packet2Xi pnegate(const Packet2Xi& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE Packet2Xi pconj(const Packet2Xi& a) {
-  return a;
-}
-
-template <>
 EIGEN_STRONG_INLINE Packet2Xi pmul<Packet2Xi>(const Packet2Xi& a, const Packet2Xi& b) {
   return __riscv_vmul(a, b, unpacket_traits<Packet2Xi>::size);
 }
@@ -359,11 +354,6 @@ template <>
 EIGEN_STRONG_INLINE Packet2Xf psignbit(const Packet2Xf& a) {
   return __riscv_vreinterpret_v_i32m2_f32m2(
       __riscv_vsra_vx_i32m2(__riscv_vreinterpret_v_f32m2_i32m2(a), 31, unpacket_traits<Packet2Xi>::size));
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet2Xf pconj(const Packet2Xf& a) {
-  return a;
 }
 
 template <>
@@ -711,11 +701,6 @@ EIGEN_STRONG_INLINE Packet2Xl pnegate(const Packet2Xl& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE Packet2Xl pconj(const Packet2Xl& a) {
-  return a;
-}
-
-template <>
 EIGEN_STRONG_INLINE Packet2Xl pmul<Packet2Xl>(const Packet2Xl& a, const Packet2Xl& b) {
   return __riscv_vmul(a, b, unpacket_traits<Packet2Xl>::size);
 }
@@ -1015,11 +1000,6 @@ template <>
 EIGEN_STRONG_INLINE Packet2Xd psignbit(const Packet2Xd& a) {
   return __riscv_vreinterpret_v_i64m2_f64m2(
       __riscv_vsra_vx_i64m2(__riscv_vreinterpret_v_f64m2_i64m2(a), 63, unpacket_traits<Packet2Xl>::size));
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet2Xd pconj(const Packet2Xd& a) {
-  return a;
 }
 
 template <>
@@ -1369,11 +1349,6 @@ EIGEN_STRONG_INLINE Packet2Xs psub<Packet2Xs>(const Packet2Xs& a, const Packet2X
 template <>
 EIGEN_STRONG_INLINE Packet2Xs pnegate(const Packet2Xs& a) {
   return __riscv_vneg(a, unpacket_traits<Packet2Xs>::size);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet2Xs pconj(const Packet2Xs& a) {
-  return a;
 }
 
 template <>

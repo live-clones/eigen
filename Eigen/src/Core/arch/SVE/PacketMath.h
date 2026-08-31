@@ -122,11 +122,6 @@ EIGEN_STRONG_INLINE PacketXi pnegate(const PacketXi& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE PacketXi pconj(const PacketXi& a) {
-  return a;
-}
-
-template <>
 EIGEN_STRONG_INLINE PacketXi pmul<PacketXi>(const PacketXi& a, const PacketXi& b) {
   return svmul_s32_x(svptrue_b32(), a, b);
 }
@@ -416,11 +411,6 @@ EIGEN_STRONG_INLINE PacketXl psub<PacketXl>(const PacketXl& a, const PacketXl& b
 template <>
 EIGEN_STRONG_INLINE PacketXl pnegate(const PacketXl& a) {
   return svneg_s64_x(svptrue_b64(), a);
-}
-
-template <>
-EIGEN_STRONG_INLINE PacketXl pconj(const PacketXl& a) {
-  return a;
 }
 
 template <>
@@ -729,11 +719,6 @@ EIGEN_STRONG_INLINE PacketXf psub<PacketXf>(const PacketXf& a, const PacketXf& b
 template <>
 EIGEN_STRONG_INLINE PacketXf pnegate(const PacketXf& a) {
   return svneg_f32_x(svptrue_b32(), a);
-}
-
-template <>
-EIGEN_STRONG_INLINE PacketXf pconj(const PacketXf& a) {
-  return a;
 }
 
 template <>
@@ -1114,11 +1099,6 @@ EIGEN_STRONG_INLINE PacketXd psub<PacketXd>(const PacketXd& a, const PacketXd& b
 template <>
 EIGEN_STRONG_INLINE PacketXd pnegate(const PacketXd& a) {
   return svneg_f64_x(svptrue_b64(), a);
-}
-
-template <>
-EIGEN_STRONG_INLINE PacketXd pconj(const PacketXd& a) {
-  return a;
 }
 
 template <>
