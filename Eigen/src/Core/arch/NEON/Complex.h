@@ -391,24 +391,12 @@ EIGEN_STRONG_INLINE Packet2cf pcplxflip<Packet2cf>(const Packet2cf& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE std::complex<float> predux<Packet1cf>(const Packet1cf& a) {
-  std::complex<float> s;
-  vst1_f32((float*)&s, a.v);
-  return s;
-}
-template <>
 EIGEN_STRONG_INLINE std::complex<float> predux<Packet2cf>(const Packet2cf& a) {
   std::complex<float> s;
   vst1_f32(reinterpret_cast<float*>(&s), vadd_f32(vget_low_f32(a.v), vget_high_f32(a.v)));
   return s;
 }
 
-template <>
-EIGEN_STRONG_INLINE std::complex<float> predux_mul<Packet1cf>(const Packet1cf& a) {
-  std::complex<float> s;
-  vst1_f32((float*)&s, a.v);
-  return s;
-}
 template <>
 EIGEN_STRONG_INLINE std::complex<float> predux_mul<Packet2cf>(const Packet2cf& a) {
   float32x2_t a1, a2, v1, v2, prod;
@@ -647,16 +635,6 @@ EIGEN_STRONG_INLINE std::complex<double> pfirst<Packet1cd>(const Packet1cd& a) {
   EIGEN_ALIGN16 std::complex<double> res;
   pstore<std::complex<double>>(&res, a);
   return res;
-}
-
-template <>
-EIGEN_STRONG_INLINE std::complex<double> predux<Packet1cd>(const Packet1cd& a) {
-  return pfirst(a);
-}
-
-template <>
-EIGEN_STRONG_INLINE std::complex<double> predux_mul<Packet1cd>(const Packet1cd& a) {
-  return pfirst(a);
 }
 
 EIGEN_MAKE_CONJ_HELPER_CPLX_REAL(Packet1cd, Packet2d)
