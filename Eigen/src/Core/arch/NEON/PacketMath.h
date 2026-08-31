@@ -3999,6 +3999,11 @@ EIGEN_STRONG_INLINE uint64_t predux_max<Packet2ul>(const Packet2ul& a) {
 }
 
 template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet2f& x) {
+  return vget_lane_u64(vreinterpret_u64_f32(x), 0) != 0;
+}
+
+template <>
 EIGEN_STRONG_INLINE bool predux_any(const Packet4f& x) {
   uint32x4_t u = vreinterpretq_u32_f32(x);
 #if EIGEN_ARCH_ARM64
@@ -4919,6 +4924,11 @@ EIGEN_STRONG_INLINE bfloat16 predux_mul<Packet4bf>(const Packet4bf& a) {
 }
 
 template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet4bf& a) {
+  return vget_lane_u64(vreinterpret_u64_u16(Packet4us(a)), 0) != 0;
+}
+
+template <>
 EIGEN_STRONG_INLINE Packet4bf preverse<Packet4bf>(const Packet4bf& a) {
   return Packet4bf(preverse<Packet4us>(Packet4us(a)));
 }
@@ -5291,6 +5301,11 @@ EIGEN_STRONG_INLINE Packet2d psignbit(const Packet2d& a) {
 template <>
 EIGEN_STRONG_INLINE double predux<Packet2d>(const Packet2d& a) {
   return vaddvq_f64(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet2d& a) {
+  return vmaxvq_u32(vreinterpretq_u32_f64(a)) != 0;
 }
 
 // Other reduction functions:

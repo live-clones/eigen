@@ -611,6 +611,13 @@ EIGEN_STRONG_INLINE float predux<Packet4Xf>(const Packet4Xf& a) {
 }
 
 template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet4Xf& a) {
+  const PacketMask8 mask =
+      __riscv_vmsne_vx_u32m4_b8(__riscv_vreinterpret_v_f32m4_u32m4(a), 0, unpacket_traits<Packet4Xf>::size);
+  return __riscv_vcpop_m_b8(mask, unpacket_traits<Packet4Xf>::size) != 0;
+}
+
+template <>
 EIGEN_STRONG_INLINE float predux_mul<Packet4Xf>(const Packet4Xf& a) {
   Packet1Xf half1 = __riscv_vfmul_vv_f32m1(__riscv_vget_v_f32m4_f32m1(a, 0), __riscv_vget_v_f32m4_f32m1(a, 1),
                                            unpacket_traits<Packet1Xf>::size);
@@ -1254,6 +1261,13 @@ template <>
 EIGEN_STRONG_INLINE double predux<Packet4Xd>(const Packet4Xd& a) {
   return __riscv_vfmv_f(__riscv_vfredusum_vs_f64m4_f64m1(
       a, __riscv_vfmv_v_f_f64m1(0.0, unpacket_traits<Packet4Xd>::size / 4), unpacket_traits<Packet4Xd>::size));
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet4Xd& a) {
+  const PacketMask16 mask =
+      __riscv_vmsne_vx_u64m4_b16(__riscv_vreinterpret_v_f64m4_u64m4(a), 0, unpacket_traits<Packet4Xd>::size);
+  return __riscv_vcpop_m_b16(mask, unpacket_traits<Packet4Xd>::size) != 0;
 }
 
 template <>
