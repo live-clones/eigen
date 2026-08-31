@@ -1260,14 +1260,9 @@ EIGEN_STRONG_INLINE Packet2f pmin<PropagateNumbers, Packet2f>(const Packet2f& a,
 #endif
 
 template <>
-EIGEN_STRONG_INLINE Packet4f pmin<PropagateNaN, Packet4f>(const Packet4f& a, const Packet4f& b) {
-  return pmin<Packet4f>(a, b);
-}
-
+struct pminmax_propagates_nan<Packet2f> : bool_constant<true> {};
 template <>
-EIGEN_STRONG_INLINE Packet2f pmin<PropagateNaN, Packet2f>(const Packet2f& a, const Packet2f& b) {
-  return pmin<Packet2f>(a, b);
-}
+struct pminmax_propagates_nan<Packet4f> : bool_constant<true> {};
 
 template <>
 EIGEN_STRONG_INLINE Packet4c pmin<Packet4c>(const Packet4c& a, const Packet4c& b) {
@@ -1353,16 +1348,6 @@ EIGEN_STRONG_INLINE Packet2f pmax<PropagateNumbers, Packet2f>(const Packet2f& a,
   return vmaxnm_f32(a, b);
 }
 #endif
-
-template <>
-EIGEN_STRONG_INLINE Packet4f pmax<PropagateNaN, Packet4f>(const Packet4f& a, const Packet4f& b) {
-  return pmax<Packet4f>(a, b);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet2f pmax<PropagateNaN, Packet2f>(const Packet2f& a, const Packet2f& b) {
-  return pmax<Packet2f>(a, b);
-}
 
 template <>
 EIGEN_STRONG_INLINE Packet4c pmax<Packet4c>(const Packet4c& a, const Packet4c& b) {
@@ -5059,18 +5044,11 @@ EIGEN_STRONG_INLINE Packet2d pmax<PropagateNumbers, Packet2d>(const Packet2d& a,
 #endif
 
 template <>
-EIGEN_STRONG_INLINE Packet2d pmin<PropagateNaN, Packet2d>(const Packet2d& a, const Packet2d& b) {
-  return pmin<Packet2d>(a, b);
-}
+struct pminmax_propagates_nan<Packet2d> : bool_constant<true> {};
 
 template <>
 EIGEN_STRONG_INLINE Packet2d pmax<Packet2d>(const Packet2d& a, const Packet2d& b) {
   return vmaxq_f64(a, b);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet2d pmax<PropagateNaN, Packet2d>(const Packet2d& a, const Packet2d& b) {
-  return pmax<Packet2d>(a, b);
 }
 
 // Logical Operations are not supported for float, so we have to reinterpret casts using NEON intrinsics
@@ -5356,6 +5334,11 @@ template <>
 struct unpacket_traits<Packet8hf> : neon_unpacket_default<Packet8hf, half> {
   using half = Packet4hf;
 };
+
+template <>
+struct pminmax_propagates_nan<Packet4hf> : bool_constant<true> {};
+template <>
+struct pminmax_propagates_nan<Packet8hf> : bool_constant<true> {};
 
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pset1(const half& from) {
@@ -6160,20 +6143,6 @@ EIGEN_MAKE_HALF_NEG_FMA(pnmsub, pmadd, Packet8hf);
 EIGEN_MAKE_HALF_NEG_FMA(pnmsub, pmadd, Packet4hf);
 
 #undef EIGEN_MAKE_HALF_NEG_FMA
-
-#define EIGEN_MAKE_HALF_NAN_MAXMIN(name, packet)                                                              \
-  template <>                                                                                                 \
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE packet name<PropagateNaN, packet>(const packet& a, const packet& b) { \
-    return name<packet>(a, b);                                                                                \
-  }                                                                                                           \
-  static_assert(true, "Trailing semicolon required")
-
-EIGEN_MAKE_HALF_NAN_MAXMIN(pmin, Packet8hf);
-EIGEN_MAKE_HALF_NAN_MAXMIN(pmin, Packet4hf);
-EIGEN_MAKE_HALF_NAN_MAXMIN(pmax, Packet8hf);
-EIGEN_MAKE_HALF_NAN_MAXMIN(pmax, Packet4hf);
-
-#undef EIGEN_MAKE_HALF_NAN_MAXMIN
 
 #endif  // end EIGEN_ARCH_ARM64 && EIGEN_HAS_ARM64_FP16
 

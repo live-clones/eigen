@@ -186,6 +186,9 @@ EIGEN_STRONG_INLINE Packet1Xh pnmsub(const Packet1Xh& a, const Packet1Xh& b, con
 }
 
 template <>
+struct pminmax_propagates_nan<Packet1Xh> : bool_constant<true> {};
+
+template <>
 EIGEN_STRONG_INLINE Packet1Xh pmin<Packet1Xh>(const Packet1Xh& a, const Packet1Xh& b) {
   const Eigen::half nan = (std::numeric_limits<Eigen::half>::quiet_NaN)();
   Packet1Xh nans = __riscv_vfmv_v_f_f16m1(numext::bit_cast<_Float16>(nan), unpacket_traits<Packet1Xh>::size);
@@ -194,11 +197,6 @@ EIGEN_STRONG_INLINE Packet1Xh pmin<Packet1Xh>(const Packet1Xh& a, const Packet1X
   mask = __riscv_vmand_mm_b16(mask, mask2, unpacket_traits<Packet1Xh>::size);
 
   return __riscv_vfmin_vv_f16m1_tumu(mask, nans, a, b, unpacket_traits<Packet1Xh>::size);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet1Xh pmin<PropagateNaN, Packet1Xh>(const Packet1Xh& a, const Packet1Xh& b) {
-  return pmin<Packet1Xh>(a, b);
 }
 
 template <>
@@ -215,11 +213,6 @@ EIGEN_STRONG_INLINE Packet1Xh pmax<Packet1Xh>(const Packet1Xh& a, const Packet1X
   mask = __riscv_vmand_mm_b16(mask, mask2, unpacket_traits<Packet1Xh>::size);
 
   return __riscv_vfmax_vv_f16m1_tumu(mask, nans, a, b, unpacket_traits<Packet1Xh>::size);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet1Xh pmax<PropagateNaN, Packet1Xh>(const Packet1Xh& a, const Packet1Xh& b) {
-  return pmax<Packet1Xh>(a, b);
 }
 
 template <>
@@ -570,6 +563,9 @@ EIGEN_STRONG_INLINE Packet2Xh pnmsub(const Packet2Xh& a, const Packet2Xh& b, con
 }
 
 template <>
+struct pminmax_propagates_nan<Packet2Xh> : bool_constant<true> {};
+
+template <>
 EIGEN_STRONG_INLINE Packet2Xh pmin<Packet2Xh>(const Packet2Xh& a, const Packet2Xh& b) {
   const Eigen::half nan = (std::numeric_limits<Eigen::half>::quiet_NaN)();
   Packet2Xh nans = __riscv_vfmv_v_f_f16m2(numext::bit_cast<_Float16>(nan), unpacket_traits<Packet2Xh>::size);
@@ -578,11 +574,6 @@ EIGEN_STRONG_INLINE Packet2Xh pmin<Packet2Xh>(const Packet2Xh& a, const Packet2X
   mask = __riscv_vmand_mm_b8(mask, mask2, unpacket_traits<Packet2Xh>::size);
 
   return __riscv_vfmin_vv_f16m2_tumu(mask, nans, a, b, unpacket_traits<Packet2Xh>::size);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet2Xh pmin<PropagateNaN, Packet2Xh>(const Packet2Xh& a, const Packet2Xh& b) {
-  return pmin<Packet2Xh>(a, b);
 }
 
 template <>
@@ -599,11 +590,6 @@ EIGEN_STRONG_INLINE Packet2Xh pmax<Packet2Xh>(const Packet2Xh& a, const Packet2X
   mask = __riscv_vmand_mm_b8(mask, mask2, unpacket_traits<Packet2Xh>::size);
 
   return __riscv_vfmax_vv_f16m2_tumu(mask, nans, a, b, unpacket_traits<Packet2Xh>::size);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet2Xh pmax<PropagateNaN, Packet2Xh>(const Packet2Xh& a, const Packet2Xh& b) {
-  return pmax<Packet2Xh>(a, b);
 }
 
 template <>
