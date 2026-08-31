@@ -627,6 +627,26 @@ static void test_zero_dim_contraction_2d() {
     VERIFY_IS_EQUAL(t_result_eval.data()[i], Scalar(0));
   }
 
+  // Test large contraction: {64, 0} * {0, 64} -> {64, 64}
+  // This exercises the path where max(m, n) >= 48, which previously triggered a
+  // SIGFPE (division by zero) in computeProductBlockingSizes.
+  {
+    Tensor<Scalar, 2, DataLayout> t_left_large(64, 0);
+    Tensor<Scalar, 2, DataLayout> t_right_large(0, 64);
+    Tensor<Scalar, 2, DataLayout> t_result_large(64, 64);
+    t_result_large.setConstant(non_zero);
+
+    t_result_large = t_left_large.contract(t_right_large, dims);
+
+    VERIFY_IS_EQUAL(t_result_large.dimension(0), 64);
+    VERIFY_IS_EQUAL(t_result_large.dimension(1), 64);
+    VERIFY_IS_EQUAL(t_result_large.size(), 64 * 64);
+
+    for (Index i = 0; i < t_result_large.size(); ++i) {
+      VERIFY_IS_EQUAL(t_result_large.data()[i], Scalar(0));
+    }
+  }
+
   // 1D Vector contractions (GEMV shapes)
   // Matrix {10, 0} * Vector {0} -> Vector {10}
   Tensor<Scalar, 1, DataLayout> vec_right(0);
@@ -843,6 +863,24 @@ static void test_zero_dim_contraction_output_kernel() {
     VERIFY_IS_EQUAL(t_result.dimension(1), 20);
     for (Index i = 0; i < t_result.size(); ++i) {
       VERIFY_IS_EQUAL(t_result.data()[i], Scalar(0));
+    }
+  }
+
+  // Large contraction with bias addition on zero-sized contraction dimension:
+  // {64, 0} * {0, 64} -> {64, 64}
+  {
+    Tensor<Scalar, 2, DataLayout> t_left_large(64, 0);
+    Tensor<Scalar, 2, DataLayout> t_right_large(0, 64);
+    Tensor<Scalar, 2, DataLayout> t_result_large(64, 64);
+    t_result_large.setConstant(non_zero);
+
+    Eigen::array<DimPair, 1> dims = {{DimPair(1, 0)}};
+    t_result_large = t_left_large.contract(t_right_large, dims, AddBiasOutputKernel<Scalar>(bias));
+
+    VERIFY_IS_EQUAL(t_result_large.dimension(0), 64);
+    VERIFY_IS_EQUAL(t_result_large.dimension(1), 64);
+    for (Index i = 0; i < t_result_large.size(); ++i) {
+      VERIFY_IS_EQUAL(t_result_large.data()[i], bias);
     }
   }
 

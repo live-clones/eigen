@@ -866,8 +866,8 @@ struct TensorContractionEvaluatorBase {
 
     if (m == 0 || n == 0) return;
     if (k_slice == 0) {
+      this->m_device.fill(buffer, buffer + m * n, Scalar(0));
       if (use_output_kernel) {
-        this->m_device.fill(buffer, buffer + m * n, Scalar(0));
         using OutputMapper = internal::blas_data_mapper<Scalar, Index, ColMajor>;
         m_output_kernel(OutputMapper(buffer, m), m_tensor_contraction_params, static_cast<Index>(0),
                         static_cast<Index>(0), m, n);
