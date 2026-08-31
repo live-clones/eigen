@@ -696,20 +696,17 @@ EIGEN_DEVICE_FUNC inline Packet pmax(const Packet& a, const Packet& b) {
 }
 
 /** \internal \returns the absolute value of \a a */
-template <typename Packet>
+template <typename Packet, std::enable_if_t<!(NumTraits<typename unpacket_traits<Packet>::type>::IsInteger &&
+                                              !NumTraits<typename unpacket_traits<Packet>::type>::IsSigned),
+                                            int> = 0>
 EIGEN_DEVICE_FUNC inline Packet pabs(const Packet& a) {
   return numext::abs(a);
 }
-template <>
-EIGEN_DEVICE_FUNC inline unsigned int pabs(const unsigned int& a) {
-  return a;
-}
-template <>
-EIGEN_DEVICE_FUNC inline unsigned long pabs(const unsigned long& a) {
-  return a;
-}
-template <>
-EIGEN_DEVICE_FUNC inline unsigned long long pabs(const unsigned long long& a) {
+
+template <typename Packet, std::enable_if_t<NumTraits<typename unpacket_traits<Packet>::type>::IsInteger &&
+                                                !NumTraits<typename unpacket_traits<Packet>::type>::IsSigned,
+                                            int> = 0>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet pabs(const Packet& a) {
   return a;
 }
 
