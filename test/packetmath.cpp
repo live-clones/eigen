@@ -925,11 +925,12 @@ void packetmath() {
     }
   }
 
-  // REF_ADD folds with defined wraparound for signed integers (matching predux,
-  // which wraps mod 2^N) and with || for bool, avoiding both signed-overflow UB
-  // and the MSVC C4804 "unsafe use of bool" warning that raw operator+ triggers.
-  ref[0] = Scalar(0);
-  for (int i = 0; i < PacketSize; ++i) ref[0] = REF_ADD(ref[0], data1[i]);
+  // Bfloat16 packets widen to float before reducing, so do not round the reference after every scalar addition.
+  // REF_ADD preserves defined wraparound for signed integers and logical OR for bool.
+  using ReduxReferenceScalar = std::conditional_t<std::is_same<Scalar, bfloat16>::value, float, Scalar>;
+  ReduxReferenceScalar redux_ref(0);
+  for (int i = 0; i < PacketSize; ++i) redux_ref = REF_ADD(redux_ref, static_cast<ReduxReferenceScalar>(data1[i]));
+  ref[0] = static_cast<Scalar>(redux_ref);
   VERIFY(test::isApproxAbs(ref[0], internal::predux(internal::pload<Packet>(data1)), refvalue) && "internal::predux");
 
   if (!std::is_same<Packet, typename internal::unpacket_traits<Packet>::half>::value) {
