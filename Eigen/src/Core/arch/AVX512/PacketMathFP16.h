@@ -736,6 +736,23 @@ EIGEN_STRONG_INLINE half predux<Packet8h>(const Packet8h& a) {
   return half(_mm_reduce_add_ph(a));
 }
 
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet32h& a) {
+  return avx512_predux_any(_mm512_castph_si512(a));
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet16h& a) {
+  const __m256i bits = _mm256_castph_si256(a);
+  return _mm256_testz_si256(bits, bits) == 0;
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet8h& a) {
+  const __m128i bits = _mm_castph_si128(a);
+  return _mm_testz_si128(bits, bits) == 0;
+}
+
 // predux_half
 template <>
 EIGEN_STRONG_INLINE Packet16h predux_half<Packet32h>(const Packet32h& a) {
