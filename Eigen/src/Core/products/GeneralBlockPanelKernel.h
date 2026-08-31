@@ -486,10 +486,10 @@ struct RhsPanelHelper {
 template <typename Packet>
 struct QuadPacket {
   Packet B_0, B1, B2, B3;
-  const Packet& get(const FixedInt<0>&) const { return B_0; }
-  const Packet& get(const FixedInt<1>&) const { return B1; }
-  const Packet& get(const FixedInt<2>&) const { return B2; }
-  const Packet& get(const FixedInt<3>&) const { return B3; }
+  EIGEN_DEVICE_FUNC const Packet& get(const FixedInt<0>&) const { return B_0; }
+  EIGEN_DEVICE_FUNC const Packet& get(const FixedInt<1>&) const { return B1; }
+  EIGEN_DEVICE_FUNC const Packet& get(const FixedInt<2>&) const { return B2; }
+  EIGEN_DEVICE_FUNC const Packet& get(const FixedInt<3>&) const { return B3; }
 };
 
 template <int N, typename T1, typename T2, typename T3>
@@ -1150,7 +1150,7 @@ struct last_row_process_16_packets {
   using SResPacket = typename SwappedTraits::ResPacket;
   using SAccPacket = typename SwappedTraits::AccPacket;
 
-  EIGEN_STRONG_INLINE void operator()(const DataMapper& res, SwappedTraits& straits, const LhsScalar* blA,
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void operator()(const DataMapper& res, SwappedTraits& straits, const LhsScalar* blA,
                                       const RhsScalar* blB, Index depth, const Index endk, Index i, Index j2,
                                       ResScalar alpha, SAccPacket& C0) const {
     EIGEN_UNUSED_VARIABLE(res);
