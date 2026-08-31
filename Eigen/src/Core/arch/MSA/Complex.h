@@ -561,13 +561,6 @@ EIGEN_STRONG_INLINE std::complex<double> pfirst<Packet1cd>(const Packet1cd& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE Packet1cd preverse(const Packet1cd& a) {
-  EIGEN_MSA_DEBUG;
-
-  return a;
-}
-
-template <>
 EIGEN_STRONG_INLINE std::complex<double> predux<Packet1cd>(const Packet1cd& a) {
   EIGEN_MSA_DEBUG;
 

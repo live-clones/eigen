@@ -1154,7 +1154,7 @@ EIGEN_DEVICE_FUNC inline void prefetch(const Scalar* addr) {
 
 /** \internal \returns the reversed elements of \a a*/
 template <typename Packet>
-EIGEN_DEVICE_FUNC inline Packet preverse(const Packet& a) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet preverse(const Packet& a) {
   return a;
 }
 
