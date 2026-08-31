@@ -144,6 +144,11 @@ EIGEN_STRONG_INLINE bool predux_any(const Packet16f& a) {
   return avx512_predux_any(_mm512_castps_si512(a));
 }
 
+template <>
+EIGEN_STRONG_INLINE Index predux_count(const Packet16f& a) {
+  return Index(popcount(static_cast<unsigned int>(_mm512_cmp_ps_mask(a, _mm512_setzero_ps(), _CMP_NEQ_UQ))));
+}
+
 /* -- -- -- -- -- -- -- -- -- -- -- -- Packet8d -- -- -- -- -- -- -- -- -- -- -- -- */
 
 template <>
@@ -197,6 +202,11 @@ EIGEN_STRONG_INLINE double predux_max<PropagateNaN>(const Packet8d& a) {
 template <>
 EIGEN_STRONG_INLINE bool predux_any(const Packet8d& a) {
   return avx512_predux_any(_mm512_castpd_si512(a));
+}
+
+template <>
+EIGEN_STRONG_INLINE Index predux_count(const Packet8d& a) {
+  return Index(popcount(static_cast<unsigned int>(_mm512_cmp_pd_mask(a, _mm512_setzero_pd(), _CMP_NEQ_UQ))));
 }
 
 #ifndef EIGEN_VECTORIZE_AVX512FP16
