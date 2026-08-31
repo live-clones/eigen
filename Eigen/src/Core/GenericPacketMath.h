@@ -357,8 +357,12 @@ EIGEN_DEVICE_FUNC inline Packet pnegate(const Packet& a) {
 
 /** \internal \returns conj(a) (coeff-wise) */
 template <typename Packet>
-EIGEN_DEVICE_FUNC inline Packet pconj(const Packet& a) {
-  return numext::conj(a);
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet pconj(const Packet& a) {
+  using Scalar = typename unpacket_traits<Packet>::type;
+  EIGEN_IF_CONSTEXPR (NumTraits<Scalar>::IsComplex)
+    return numext::conj(a);
+  else
+    return a;
 }
 
 /** \internal \returns a * b (coeff-wise) */

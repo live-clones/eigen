@@ -56,11 +56,6 @@ EIGEN_STRONG_INLINE Packet1Xi pnegate(const Packet1Xi& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE Packet1Xi pconj(const Packet1Xi& a) {
-  return a;
-}
-
-template <>
 EIGEN_STRONG_INLINE Packet1Xi pmul<Packet1Xi>(const Packet1Xi& a, const Packet1Xi& b) {
   return __riscv_vmul(a, b, unpacket_traits<Packet1Xi>::size);
 }
@@ -375,11 +370,6 @@ template <>
 EIGEN_STRONG_INLINE Packet1Xf psignbit(const Packet1Xf& a) {
   return __riscv_vreinterpret_v_i32m1_f32m1(
       __riscv_vsra_vx_i32m1(__riscv_vreinterpret_v_f32m1_i32m1(a), 31, unpacket_traits<Packet1Xi>::size));
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet1Xf pconj(const Packet1Xf& a) {
-  return a;
 }
 
 template <>
@@ -764,11 +754,6 @@ EIGEN_STRONG_INLINE Packet1Xl pnegate(const Packet1Xl& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE Packet1Xl pconj(const Packet1Xl& a) {
-  return a;
-}
-
-template <>
 EIGEN_STRONG_INLINE Packet1Xl pmul<Packet1Xl>(const Packet1Xl& a, const Packet1Xl& b) {
   return __riscv_vmul(a, b, unpacket_traits<Packet1Xl>::size);
 }
@@ -1082,11 +1067,6 @@ template <>
 EIGEN_STRONG_INLINE Packet1Xd psignbit(const Packet1Xd& a) {
   return __riscv_vreinterpret_v_i64m1_f64m1(
       __riscv_vsra_vx_i64m1(__riscv_vreinterpret_v_f64m1_i64m1(a), 63, unpacket_traits<Packet1Xl>::size));
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet1Xd pconj(const Packet1Xd& a) {
-  return a;
 }
 
 template <>
@@ -1466,11 +1446,6 @@ EIGEN_STRONG_INLINE Packet1Xs psub<Packet1Xs>(const Packet1Xs& a, const Packet1X
 template <>
 EIGEN_STRONG_INLINE Packet1Xs pnegate(const Packet1Xs& a) {
   return __riscv_vneg(a, unpacket_traits<Packet1Xs>::size);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet1Xs pconj(const Packet1Xs& a) {
-  return a;
 }
 
 template <>
