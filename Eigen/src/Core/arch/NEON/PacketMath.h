@@ -3245,6 +3245,12 @@ template <>
 EIGEN_STRONG_INLINE float predux<Packet4f>(const Packet4f& a) {
   return vaddvq_f32(a);
 }
+
+template <>
+EIGEN_STRONG_INLINE Index predux_count(const Packet4f& a) {
+  const uint32x4_t nonzero = vbicq_u32(vdupq_n_u32(1), vceqq_f32(a, vdupq_n_f32(0.0f)));
+  return static_cast<Index>(vaddvq_u32(nonzero));
+}
 #else
 template <>
 EIGEN_STRONG_INLINE float predux<Packet2f>(const Packet2f& a) {
@@ -5163,6 +5169,13 @@ EIGEN_STRONG_INLINE Packet2d psignbit(const Packet2d& a) {
 template <>
 EIGEN_STRONG_INLINE double predux<Packet2d>(const Packet2d& a) {
   return vaddvq_f64(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE Index predux_count(const Packet2d& a) {
+  // Each zero lane contributes UINT64_MAX, so unsigned 2 + sum(mask) is the number of nonzero lanes.
+  const uint64_t zeroMaskSum = vaddvq_u64(vceqq_f64(a, vdupq_n_f64(0.0)));
+  return static_cast<Index>(zeroMaskSum + 2);
 }
 
 template <>
