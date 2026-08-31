@@ -1301,23 +1301,6 @@ EIGEN_STRONG_INLINE Packet2l pabs(const Packet2l& a) {
   return __lsx_vabsd_d(a, pzero(a));
 }
 template <>
-EIGEN_STRONG_INLINE Packet16uc pabs(const Packet16uc& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet8us pabs(const Packet8us& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet4ui pabs(const Packet4ui& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet2ul pabs(const Packet2ul& a) {
-  return a;
-}
-
-template <>
 EIGEN_STRONG_INLINE Packet16c pabsdiff(const Packet16c& a, const Packet16c& b) {
   return __lsx_vabsd_b(a, b);
 }

@@ -3196,18 +3196,6 @@ EIGEN_STRONG_INLINE Packet16c pabs(const Packet16c& a) {
   return vabsq_s8(a);
 }
 template <>
-EIGEN_STRONG_INLINE Packet4uc pabs(const Packet4uc& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet8uc pabs(const Packet8uc& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet16uc pabs(const Packet16uc& a) {
-  return a;
-}
-template <>
 EIGEN_STRONG_INLINE Packet4s pabs(const Packet4s& a) {
   return vabs_s16(a);
 }
@@ -3216,28 +3204,12 @@ EIGEN_STRONG_INLINE Packet8s pabs(const Packet8s& a) {
   return vabsq_s16(a);
 }
 template <>
-EIGEN_STRONG_INLINE Packet4us pabs(const Packet4us& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet8us pabs(const Packet8us& a) {
-  return a;
-}
-template <>
 EIGEN_STRONG_INLINE Packet2i pabs(const Packet2i& a) {
   return vabs_s32(a);
 }
 template <>
 EIGEN_STRONG_INLINE Packet4i pabs(const Packet4i& a) {
   return vabsq_s32(a);
-}
-template <>
-EIGEN_STRONG_INLINE Packet2ui pabs(const Packet2ui& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet4ui pabs(const Packet4ui& a) {
-  return a;
 }
 template <>
 EIGEN_STRONG_INLINE Packet2l pabs(const Packet2l& a) {
@@ -3252,11 +3224,6 @@ EIGEN_STRONG_INLINE Packet2l pabs(const Packet2l& a) {
   return veorq_s64(vreinterpretq_s64_u64(sum), mask);
 #endif
 }
-template <>
-EIGEN_STRONG_INLINE Packet2ul pabs(const Packet2ul& a) {
-  return a;
-}
-
 template <>
 EIGEN_STRONG_INLINE Packet2f psignbit(const Packet2f& a) {
   return vreinterpret_f32_s32(vshr_n_s32(vreinterpret_s32_f32(a), 31));

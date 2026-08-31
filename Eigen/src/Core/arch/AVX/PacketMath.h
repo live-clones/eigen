@@ -697,10 +697,6 @@ EIGEN_STRONG_INLINE Packet4l pabs<Packet4l>(const Packet4l& a) {
   return psub(cmp, pxor(a, cmp));
 }
 template <>
-EIGEN_STRONG_INLINE Packet4ul pabs<Packet4ul>(const Packet4ul& a) {
-  return a;
-}
-template <>
 EIGEN_STRONG_INLINE Packet4l pmul<Packet4l>(const Packet4l& a, const Packet4l& b) {
   // 64-bit mul requires avx512, so do this with 32-bit multiplication
   __m256i upper32_a = _mm256_srli_epi64(a, 32);
@@ -1804,11 +1800,6 @@ EIGEN_STRONG_INLINE Packet8i pabs(const Packet8i& a) {
   return _mm256_insertf128_si256(_mm256_castsi128_si256(lo), (hi), 1);
 #endif
 }
-template <>
-EIGEN_STRONG_INLINE Packet8ui pabs(const Packet8ui& a) {
-  return a;
-}
-
 #ifndef EIGEN_VECTORIZE_AVX512FP16
 template <>
 EIGEN_STRONG_INLINE Packet8h psignbit(const Packet8h& a) {
