@@ -1412,14 +1412,6 @@ EIGEN_STRONG_INLINE Packet4f ploaddup<Packet4f>(const float* from) {
   return vec4f_swizzle1(_mm_castsi128_ps(ploadu_si64(reinterpret_cast<const void*>(from))), 0, 0, 1, 1);
 }
 template <>
-EIGEN_STRONG_INLINE Packet2d ploaddup<Packet2d>(const double* from) {
-  return pset1<Packet2d>(from[0]);
-}
-template <>
-EIGEN_STRONG_INLINE Packet2l ploaddup<Packet2l>(const int64_t* from) {
-  return pset1<Packet2l>(from[0]);
-}
-template <>
 EIGEN_STRONG_INLINE Packet4i ploaddup<Packet4i>(const int* from) {
   Packet4i tmp;
   tmp = _mm_loadl_epi64(reinterpret_cast<const __m128i*>(from));
