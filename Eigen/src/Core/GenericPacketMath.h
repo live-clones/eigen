@@ -1788,14 +1788,15 @@ EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet prsqrt(const Packet&
 }
 
 template <typename Packet, bool IsScalar = is_scalar<Packet>::value,
-          bool IsInteger = NumTraits<typename unpacket_traits<Packet>::type>::IsInteger>
+          bool IsInteger = NumTraits<typename unpacket_traits<Packet>::type>::IsInteger,
+          bool IsUnsigned = IsInteger && !NumTraits<typename unpacket_traits<Packet>::type>::IsSigned>
 struct psignbit_impl;
-template <typename Packet, bool IsInteger>
-struct psignbit_impl<Packet, true, IsInteger> {
+template <typename Packet, bool IsInteger, bool IsUnsigned>
+struct psignbit_impl<Packet, true, IsInteger, IsUnsigned> {
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE static constexpr Packet run(const Packet& a) { return numext::signbit(a); }
 };
 template <typename Packet>
-struct psignbit_impl<Packet, false, false> {
+struct psignbit_impl<Packet, false, false, false> {
   // generic implementation if not specialized in PacketMath.h
   // slower than arithmetic shift
   using Scalar = typename unpacket_traits<Packet>::type;
@@ -1806,9 +1807,13 @@ struct psignbit_impl<Packet, false, false> {
   }
 };
 template <typename Packet>
-struct psignbit_impl<Packet, false, true> {
-  // generic implementation for integer packets
+struct psignbit_impl<Packet, false, true, false> {
+  // generic implementation for signed integer packets
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE static constexpr Packet run(const Packet& a) { return pcmp_lt(a, pzero(a)); }
+};
+template <typename Packet>
+struct psignbit_impl<Packet, false, true, true> {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE static constexpr Packet run(const Packet& a) { return pzero(a); }
 };
 /** \internal \returns the sign bit of \a a as a bitmask*/
 template <typename Packet>
