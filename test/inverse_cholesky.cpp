@@ -70,6 +70,19 @@ void inverse_cholesky(const MatrixType& m) {
 EIGEN_DECLARE_TEST(inverse_cholesky) {
   int s = 0;
   for (int i = 0; i < g_repeat; i++) {
+    // Fixed sizes straddling the point at which the inversion switches to its blocked sweep, so
+    // that both compile-time paths are instantiated: 47 is the last size taking the unblocked
+    // recurrence, 48 the first taking the blocked one, and 64 makes the sweep end on a partial
+    // panel (64 = 24 + 24 + 16) where 48 divides evenly into whole ones.
+    CALL_SUBTEST_7(inverse_cholesky(Matrix<double, 47, 47>()));
+    CALL_SUBTEST_7(inverse_cholesky(Matrix<double, 48, 48>()));
+    CALL_SUBTEST_7(inverse_cholesky(Matrix<double, 64, 64>()));
+    CALL_SUBTEST_8(inverse_cholesky(Matrix<float, 47, 47>()));
+    CALL_SUBTEST_8(inverse_cholesky(Matrix<float, 48, 48>()));
+    CALL_SUBTEST_8(inverse_cholesky(Matrix<float, 64, 64>()));
+    CALL_SUBTEST_9(inverse_cholesky(Matrix<std::complex<float>, 48, 48>()));
+    CALL_SUBTEST_9(inverse_cholesky(Matrix<std::complex<double>, 48, 48>()));
+
     CALL_SUBTEST_1(inverse_cholesky(Matrix<double, 1, 1>()));
     CALL_SUBTEST_1(inverse_cholesky(Matrix2d()));
     CALL_SUBTEST_1(inverse_cholesky(Matrix3d()));
@@ -115,6 +128,19 @@ EIGEN_DECLARE_TEST(inverse_cholesky) {
     TEST_SET_BUT_UNUSED_VARIABLE(s);
     CALL_SUBTEST_5(inverse_cholesky(MatrixXd(1, 1)));
 
+    // The range above starts above the size at which the inversion switches to its blocked sweep,
+    // so a second draw covers the run-time sizes that take the unblocked recurrence, and the two
+    // sizes straddling the switch are pinned rather than left to the draw.
+    s = internal::random<int>(2, 47);
+    CALL_SUBTEST_5(inverse_cholesky(MatrixXf(s, s)));
+    TEST_SET_BUT_UNUSED_VARIABLE(s);
+    CALL_SUBTEST_5(inverse_cholesky(MatrixXd(s, s)));
+    TEST_SET_BUT_UNUSED_VARIABLE(s);
+    CALL_SUBTEST_5(inverse_cholesky(MatrixXf(47, 47)));
+    CALL_SUBTEST_5(inverse_cholesky(MatrixXf(48, 48)));
+    CALL_SUBTEST_5(inverse_cholesky(MatrixXd(47, 47)));
+    CALL_SUBTEST_5(inverse_cholesky(MatrixXd(48, 48)));
+
     s = internal::random<int>(25, 100);
     CALL_SUBTEST_6(inverse_cholesky(MatrixXcf(s, s)));
     TEST_SET_BUT_UNUSED_VARIABLE(s);
@@ -123,5 +149,11 @@ EIGEN_DECLARE_TEST(inverse_cholesky) {
     CALL_SUBTEST_6(inverse_cholesky(MatrixXcd(s, s)));
     TEST_SET_BUT_UNUSED_VARIABLE(s);
     CALL_SUBTEST_6(inverse_cholesky(MatrixXcd(1, 1)));
+
+    // This draw already straddles the switch to the blocked sweep; pin the two sizes either side.
+    CALL_SUBTEST_6(inverse_cholesky(MatrixXcf(47, 47)));
+    CALL_SUBTEST_6(inverse_cholesky(MatrixXcf(48, 48)));
+    CALL_SUBTEST_6(inverse_cholesky(MatrixXcd(47, 47)));
+    CALL_SUBTEST_6(inverse_cholesky(MatrixXcd(48, 48)));
   }
 }

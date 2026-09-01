@@ -20,8 +20,11 @@ static void BM_Cholesky_Inverse_Dynamic(benchmark::State& state) {
   MatrixType covMat = a * a.adjoint();
   MatrixType inv(n, n);
   for (auto _ : state) {
+    // covMat is loop invariant, so it is clobbered to keep the inversion from being hoisted out,
+    // and inv is escaped as an lvalue so that the stores into it cannot be elided.
+    benchmark::DoNotOptimize(covMat);
     inv = internal::inverse_cholesky(covMat);
-    benchmark::DoNotOptimize(inv.data());
+    benchmark::DoNotOptimize(inv);
   }
 }
 BENCHMARK(BM_Cholesky_Inverse_Dynamic)->DenseRange(1, 20, 1);
@@ -33,8 +36,9 @@ static void BM_Cholesky_Inverse_Fixed(benchmark::State& state) {
   MatrixType covMat = a * a.adjoint();
   MatrixType inv;
   for (auto _ : state) {
+    benchmark::DoNotOptimize(covMat);
     inv = internal::inverse_cholesky(covMat);
-    benchmark::DoNotOptimize(inv.data());
+    benchmark::DoNotOptimize(inv);
   }
 }
 
