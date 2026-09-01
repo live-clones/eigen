@@ -750,7 +750,8 @@ struct TensorContractionEvaluatorBase {
 #if !defined(EIGEN_HIPCC)
   EIGEN_DEVICE_FUNC
 #endif
-  void evalGemv(Scalar* buffer) const {
+      void
+      evalGemv(Scalar* buffer) const {
     const Index rows = m_i_size;
     const Index cols = m_k_size;
 
@@ -802,7 +803,8 @@ struct TensorContractionEvaluatorBase {
 #if !defined(EIGEN_HIPCC)
   EIGEN_DEVICE_FUNC
 #endif
-  void evalGemvDirect(Scalar* buffer) const {
+      void
+      evalGemvDirect(Scalar* buffer) const {
     using MatScalar = std::remove_const_t<
         std::conditional_t<MatrixIsRight, typename EvalRightArgType::Scalar, typename EvalLeftArgType::Scalar>>;
     using VecScalar = std::remove_const_t<
@@ -837,7 +839,8 @@ struct TensorContractionEvaluatorBase {
 #if !defined(EIGEN_HIPCC)
   EIGEN_DEVICE_FUNC
 #endif
-  void evalGemm(Scalar* buffer) const {
+      void
+      evalGemm(Scalar* buffer) const {
     // columns in left side, rows in right side
     const Index k = this->m_k_size;
     this->template evalGemmPartial<lhs_inner_dim_contiguous, rhs_inner_dim_contiguous, rhs_inner_dim_reordered,
