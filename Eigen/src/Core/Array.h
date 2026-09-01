@@ -95,7 +95,7 @@ class Array : public PlainObjectBase<Array<Scalar_, Rows_, Cols_, Options_, MaxR
    *
    * \callgraph
    */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Array& operator=(const Array& other) { return Base::_set(other); }
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Array& operator=(const Array& other) { return Base::_set(other); }
 
   /** Default constructor.
    *
@@ -113,7 +113,7 @@ class Array : public PlainObjectBase<Array<Scalar_, Rows_, Cols_, Options_, MaxR
 #endif
   /** \brief Move constructor */
   EIGEN_DEVICE_FUNC constexpr Array(Array&&) = default;
-  EIGEN_DEVICE_FUNC Array& operator=(Array&& other) noexcept(std::is_nothrow_move_assignable<Scalar>::value) {
+  EIGEN_DEVICE_FUNC constexpr Array& operator=(Array&& other) noexcept(std::is_nothrow_move_assignable<Scalar>::value) {
     this->m_storage = std::move(other.m_storage);
     return *this;
   }
