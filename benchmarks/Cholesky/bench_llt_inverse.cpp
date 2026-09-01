@@ -25,7 +25,8 @@ using RealScalar = NumTraits<Scalar>::Real;
 // left at its real-arithmetic count so that the real and complex builds stay comparable.
 static double potri_cost(int n) { return 2.0 / 3.0 * double(n) * n * n; }
 static double solve_identity_cost(int n) { return 2.0 * double(n) * n * n; }
-static double trtri_cost(int n) { return 1.0 / 3.0 * double(n) * n * n; }
+// TRTRI and LAUUM each cost n^3/3, the two halves of the POTRI sequence above.
+static double potri_kernel_cost(int n) { return 1.0 / 3.0 * double(n) * n * n; }
 static double trsm_identity_cost(int n) { return double(n) * n * n; }
 
 static MatrixType make_spd(int n) {
@@ -76,7 +77,7 @@ static void BM_TriangularInverseInPlace(benchmark::State& state) {
     benchmark::DoNotOptimize(x.data());
     benchmark::ClobberMemory();
   }
-  set_rate(state, trtri_cost(n));
+  set_rate(state, potri_kernel_cost(n));
 }
 BENCHMARK(BM_TriangularInverseInPlace)->RangeMultiplier(2)->Range(8, 2048);
 
@@ -104,6 +105,6 @@ static void BM_TriangularAdjointSquare(benchmark::State& state) {
     benchmark::DoNotOptimize(x.data());
     benchmark::ClobberMemory();
   }
-  set_rate(state, trtri_cost(n));
+  set_rate(state, potri_kernel_cost(n));
 }
 BENCHMARK(BM_TriangularAdjointSquare)->RangeMultiplier(2)->Range(8, 2048);

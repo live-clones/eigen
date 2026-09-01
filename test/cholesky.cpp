@@ -56,8 +56,9 @@ void test_chol_update(const MatrixType& symm) {
 // exactly self-adjoint, and accuracy is checked as the backward error of the corresponding solve.
 template <typename MatrixType, int UpLo>
 void check_llt_inverse(const MatrixType& symm) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using DynMatrixType = Matrix<Scalar, Dynamic, Dynamic>;
   const Index n = symm.rows();
 
   const MatrixType tri = symm.template triangularView<UpLo>();
@@ -67,7 +68,7 @@ void check_llt_inverse(const MatrixType& symm) {
   const MatrixType inv = llt.inverse();
   VERIFY_IS_EQUAL(inv.rows(), n);
   VERIFY_IS_EQUAL(inv.cols(), n);
-  VERIFY_IS_CWISE_EQUAL(inv, MatrixType(inv.adjoint()));
+  VERIFY_IS_CWISE_EQUAL(inv, inv.adjoint());
 
   // |A X - I| <= c*n*eps*|A|*|X| for a Cholesky solve (Higham, Accuracy and Stability of Numerical
   // Algorithms, 2nd ed., Thm 10.4). The factor 16 absorbs c and the entrywise-to-norm step; the
@@ -85,7 +86,7 @@ void check_llt_inverse(const MatrixType& symm) {
   VERIFY((inv - reference).norm() <= forward_bound);
 
   // The destination need not be a plain object.
-  Matrix<Scalar, Dynamic, Dynamic> host = Matrix<Scalar, Dynamic, Dynamic>::Random(n + 2, n + 2);
+  DynMatrixType host = DynMatrixType::Random(n + 2, n + 2);
   host.bottomRightCorner(n, n) = llt.inverse();
   VERIFY((symm * host.bottomRightCorner(n, n) - MatrixType::Identity(n, n)).norm() <= residual_bound);
 }
@@ -96,11 +97,11 @@ void check_llt_inverse(const MatrixType& symm) {
 template <typename Scalar>
 void llt_inverse_threshold_boundary() {
   static_assert(!NumTraits<Scalar>::IsComplex, "only real scalars are thresholded");
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
 
-  const Index t = EIGEN_LLT_INVERSE_POTRI_THRESHOLD;
-  const Index sizes[] = {t - 1, t, t + 1};
+  const Index threshold = EIGEN_LLT_INVERSE_POTRI_THRESHOLD;
+  const Index sizes[] = {threshold - 1, threshold, threshold + 1};
   for (Index n : sizes) {
     MatrixType r = MatrixType::Random(n, n);
     MatrixType symm = r * r.adjoint();

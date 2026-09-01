@@ -527,22 +527,21 @@ struct Assignment<DstXprType, Inverse<LLT<MatrixType, UpLo_> >,
     const Index size = llt.rows();
     if ((dst.rows() != size) || (dst.cols() != size)) dst.resize(size, size);
 
-    const Index potri_threshold =
+    // Complex is never thresholded; see EIGEN_LLT_INVERSE_POTRI_THRESHOLD.
+    constexpr Index kPotriThreshold =
         NumTraits<typename LltType::Scalar>::IsComplex ? Index(0) : Index(EIGEN_LLT_INVERSE_POTRI_THRESHOLD);
-    if (size < potri_threshold) {
-      dst.setIdentity();
-      llt.solveInPlace(dst);
-      // A^-1 is self-adjoint, so its diagonal is real, but the two triangular solves leave rounding
-      // noise in the imaginary part and the mirror below writes only the strict triangle.
-      dst.diagonal() = dst.diagonal().real().template cast<typename DstXprType::Scalar>();
-    } else {
+    if (size >= kPotriThreshold) {
       // A = L L^*, hence A^-1 = L^-* L^-1: invert the factor (xTRTRI), then square it (xLAUUM).
       dst.template triangularView<UpLo_>() = llt.matrixLLT().template triangularView<UpLo_>();
       dst.template triangularView<UpLo_>().inverseInPlace();
       internal::triangular_adjoint_square_in_place<UpLo_>(dst);
+    } else {
+      dst.setIdentity();
+      llt.solveInPlace(dst);
     }
-    // Mirror. Coefficient (i, j) of the destination triangle reads (j, i), which lies in the computed
-    // triangle and is never written here, so the aliasing is benign.
+    // Mirror; (i, j) reads (j, i), which lies in the computed triangle and is never written here, so
+    // the aliasing is benign. The computed diagonal is exactly real (a squaredNorm above the
+    // threshold, a real scalar below it), so the result is exactly self-adjoint.
     dst.template triangularView<kMirrorMode>() = dst.adjoint();
   }
 };
