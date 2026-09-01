@@ -39,6 +39,9 @@ VectorType setupRandomSvs(const Index dim, const RealScalar max);
 template <typename VectorType, typename RealScalar>
 VectorType setupRangeSvs(const Index dim, const RealScalar min, const RealScalar max);
 
+template <typename MatrixType>
+void setRandomWellConditionedDiagonal(MatrixType& m);
+
 }  // end namespace Eigen
 
 #endif  // EIGEN_COMP_ICC
@@ -236,6 +239,33 @@ VectorType setupRangeSvs(const Index dim, const RealScalar min, const RealScalar
   const RealScalar c_min = svs(dim - 1), c_max = svs(0);
   svs = (svs - VectorType::Constant(dim, c_min)) / (c_max - c_min);
   return min * (VectorType::Ones(dim) - svs) + max * svs;
+}
+
+/**
+ * Overwrites the diagonal of a matrix with random entries of modulus in [1/2, 1],
+ * leaving the other entries untouched.
+ *
+ * For a diagonal matrix built this way the condition number is at most 2 and
+ * `|det| >= 2^-dim`, which is what makes a determinant check against the product of
+ * the entries meaningful. Drawing the diagonal from the whole unit disk instead
+ * leaves the conditioning unconstrained: the smallest of `dim` draws falls below the
+ * `4*dim*eps` rank threshold of the rank-revealing decompositions with probability
+ * about `4*dim^2*eps`, and there `determinant()` returns exactly zero by contract
+ * while the reference product does not.
+ *
+ * @tparam MatrixType type of the matrix whose diagonal is set
+ * @param m matrix whose diagonal is overwritten
+ */
+template <typename MatrixType>
+void setRandomWellConditionedDiagonal(MatrixType& m) {
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  for (Index i = 0; i < m.diagonalSize(); ++i) {
+    // numext::sign is the unit-modulus phase for complex scalars and +-1 for real ones.
+    const Scalar z = internal::random<Scalar>();
+    const Scalar phase = numext::is_exactly_zero(z) ? Scalar(1) : numext::sign(z);
+    m.diagonal()(i) = phase * internal::random<RealScalar>(RealScalar(0.5), RealScalar(1));
+  }
 }
 
 }  // end namespace Eigen
