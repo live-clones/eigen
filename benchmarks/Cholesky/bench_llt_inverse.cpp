@@ -49,7 +49,7 @@ static void BM_LLT_Inverse(benchmark::State& state) {
   }
   set_rate(state, potri_cost(n));
 }
-BENCHMARK(BM_LLT_Inverse)->RangeMultiplier(2)->Range(8, 1024);
+BENCHMARK(BM_LLT_Inverse)->RangeMultiplier(2)->Range(8, 2048);
 
 static void BM_LLT_SolveIdentity(benchmark::State& state) {
   const int n = state.range(0);
@@ -62,7 +62,7 @@ static void BM_LLT_SolveIdentity(benchmark::State& state) {
   }
   set_rate(state, solve_identity_cost(n));
 }
-BENCHMARK(BM_LLT_SolveIdentity)->RangeMultiplier(2)->Range(8, 1024);
+BENCHMARK(BM_LLT_SolveIdentity)->RangeMultiplier(2)->Range(8, 2048);
 
 // The two kernels LLT::inverse() is built from, and the pre-existing operation each replaces. Both
 // pairs carry the same O(n^2) per-iteration setup, so the ratio within a pair is meaningful.
@@ -78,7 +78,7 @@ static void BM_TriangularInverseInPlace(benchmark::State& state) {
   }
   set_rate(state, trtri_cost(n));
 }
-BENCHMARK(BM_TriangularInverseInPlace)->RangeMultiplier(2)->Range(8, 1024);
+BENCHMARK(BM_TriangularInverseInPlace)->RangeMultiplier(2)->Range(8, 2048);
 
 static void BM_TriangularSolveIdentity(benchmark::State& state) {
   const int n = state.range(0);
@@ -92,7 +92,7 @@ static void BM_TriangularSolveIdentity(benchmark::State& state) {
   }
   set_rate(state, trsm_identity_cost(n));
 }
-BENCHMARK(BM_TriangularSolveIdentity)->RangeMultiplier(2)->Range(8, 1024);
+BENCHMARK(BM_TriangularSolveIdentity)->RangeMultiplier(2)->Range(8, 2048);
 
 static void BM_TriangularAdjointSquare(benchmark::State& state) {
   const int n = state.range(0);
@@ -106,4 +106,4 @@ static void BM_TriangularAdjointSquare(benchmark::State& state) {
   }
   set_rate(state, trtri_cost(n));
 }
-BENCHMARK(BM_TriangularAdjointSquare)->RangeMultiplier(2)->Range(8, 1024);
+BENCHMARK(BM_TriangularAdjointSquare)->RangeMultiplier(2)->Range(8, 2048);

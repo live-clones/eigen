@@ -18,8 +18,9 @@ namespace Eigen {
 
 namespace internal {
 
-// In-place counterparts of LAPACK xTRTRI and xLAUUM: each overwrites its operand and allocates
-// nothing beyond the packing buffers of the TRSM, GEMM and HERK kernels it calls.
+// In-place counterparts of LAPACK xTRTRI and xLAUUM. Each overwrites its operand; the only scratch is
+// one block-sized panel, at most 128x128 elements whatever the matrix size, through which the in-place
+// TRMM steps run Eigen's blocked kernel, the same way optimized BLAS implement xTRMM.
 
 // Only the lower forms exist. An upper U runs the lower kernel on Transpose<MatrixType>: with
 // V = U^T, V^-1 = (U^-1)^T and V^* V = conj(U U^*) = (U U^*)^T since U U^* is self-adjoint, so the
@@ -33,6 +34,10 @@ EIGEN_DEVICE_FUNC inline Index triangular_in_place_block_size(Index size) {
   Index block_size = ((size / 8) / 16) * 16;
   return numext::mini(numext::maxi(block_size, Index(8)), Index(128));
 }
+
+template <typename MatrixType>
+using triangular_in_place_workspace = Matrix<typename MatrixType::Scalar, Dynamic, Dynamic,
+                                             (int(traits<MatrixType>::Flags) & RowMajorBit) ? RowMajor : ColMajor>;
 
 // Unblocked lower triangular inverse. Column j of X = L^-1 solves L x = e_j, and that substitution
 // reads only columns >= j of L, so running j upwards lets each column be overwritten as it is solved.
@@ -59,10 +64,10 @@ EIGEN_DEVICE_FUNC void triangular_inverse_unblocked(MatrixType& mat) {
   }
 }
 
-// Blocked lower triangular inverse. With L = [[L11, 0], [L21, L22]] the inverse is
-// [[L11^-1, 0], [-L22^-1 L21 L11^-1, L22^-1]], and the off-diagonal block is formed by two triangular
-// solves against the still-unmodified L11 and L22 rather than by a multiplication, which is why no
-// in-place TRMM is needed here.
+// Blocked lower triangular inverse, block columns bottom-up as in LAPACK xTRTRI. With
+// L = [[L11, 0], [L21, L22]] the inverse is [[L11^-1, 0], [-L22^-1 L21 L11^-1, L22^-1]]; walking upwards
+// makes X22 = L22^-1 available first, so the large operation is the TRMM X22 L21 rather than a solve
+// against L22, and Eigen's TRMM runs closer to GEMM rate than its TRSM does on a 128-column operand.
 template <unsigned int Mode, typename MatrixType>
 EIGEN_DEVICE_FUNC void triangular_inverse_lower(MatrixType& mat) {
   eigen_assert(mat.rows() == mat.cols());
@@ -72,16 +77,26 @@ EIGEN_DEVICE_FUNC void triangular_inverse_lower(MatrixType& mat) {
     return;
   }
   const Index block_size = triangular_in_place_block_size(n);
-  for (Index k = 0; k < n; k += block_size) {
+  triangular_in_place_workspace<MatrixType> work(block_size, block_size);
+  for (Index k = ((n - 1) / block_size) * block_size; k >= 0; k -= block_size) {
     const Index bs = numext::mini(block_size, n - k);
     const Index rs = n - k - bs;
     Block<MatrixType, Dynamic, Dynamic> L11(mat, k, k, bs, bs);
     if (rs > 0) {
       Block<MatrixType, Dynamic, Dynamic> L21(mat, k + bs, k, rs, bs);
-      Block<MatrixType, Dynamic, Dynamic> L22(mat, k + bs, k + bs, rs, rs);
-      L21 = -L21;
-      L22.template triangularView<Mode>().solveInPlace(L21);
+      Block<MatrixType, Dynamic, Dynamic> X22(mat, k + bs, k + bs, rs, rs);
+      // L21 <- X22 L21. Row panel r of the product reads only rows <= r of L21, so going upwards
+      // leaves every row a later panel still needs untouched.
+      for (Index r_end = rs; r_end > 0; r_end -= block_size) {
+        const Index r = numext::maxi(Index(0), r_end - block_size);
+        const Index h = r_end - r;
+        work.topLeftCorner(h, bs) = L21.middleRows(r, h);
+        L21.middleRows(r, h).noalias() =
+            X22.block(r, r, h, h).template triangularView<Mode>() * work.topLeftCorner(h, bs);
+        if (r > 0) L21.middleRows(r, h).noalias() += X22.block(r, 0, h, r) * L21.topRows(r);
+      }
       L11.template triangularView<Mode>().template solveInPlace<OnTheRight>(L21);
+      L21 = -L21;
     }
     triangular_inverse_unblocked<Mode>(L11);
   }
@@ -106,36 +121,6 @@ struct triangular_inverse_selector<Mode, false> {
     triangular_inverse_lower<(Mode & UnitDiag) | Lower>(matt);
   }
 };
-
-// other <- tri^* other, for lower triangular tri, in place. Row i of the result reads only rows >= i
-// of other, so the rows can be overwritten top down.
-template <typename TriType, typename OtherType>
-void triangular_adjoint_lmul_unblocked(const TriType& tri, OtherType& other) {
-  const Index m = tri.rows();
-  for (Index i = 0; i < m; ++i) {
-    other.row(i) *= numext::conj(tri.coeff(i, i));
-    const Index rs = m - i - 1;
-    if (rs > 0) other.row(i).noalias() += tri.col(i).tail(rs).adjoint() * other.bottomRows(rs);
-  }
-}
-
-template <typename TriType, typename OtherType>
-void triangular_adjoint_lmul_in_place(const TriType& tri, OtherType& other) {
-  const Index m = tri.rows();
-  if (m < kTriangularInPlaceMinBlocked) {
-    triangular_adjoint_lmul_unblocked(tri, other);
-    return;
-  }
-  const Index block_size = triangular_in_place_block_size(m);
-  for (Index i = 0; i < m; i += block_size) {
-    const Index bs = numext::mini(block_size, m - i);
-    const Index rs = m - i - bs;
-    // Rows [i, i+bs) of tri^* other are T11^* B1 + T21^* B2, and B2 is untouched until a later pass.
-    Block<OtherType, Dynamic, Dynamic> B1(other, i, 0, bs, other.cols());
-    triangular_adjoint_lmul_unblocked(tri.block(i, i, bs, bs), B1);
-    if (rs > 0) B1.noalias() += tri.block(i + bs, i, rs, bs).adjoint() * other.bottomRows(rs);
-  }
-}
 
 // Unblocked lower self-adjoint square: mat <- lower(L^* L). Row i of the result reads column i of L
 // below the diagonal and rows > i of the columns left of it, none of which row i's own update writes.
@@ -165,14 +150,20 @@ void triangular_adjoint_square_lower(MatrixType& mat) {
     return;
   }
   const Index block_size = triangular_in_place_block_size(n);
+  triangular_in_place_workspace<MatrixType> work(block_size, block_size);
   for (Index k = 0; k < n; k += block_size) {
     const Index bs = numext::mini(block_size, n - k);
     const Index rs = n - k - bs;
     Block<MatrixType, Dynamic, Dynamic> L11(mat, k, k, bs, bs);
     if (k > 0) {
-      // A(k:k+bs, 0:k) = sum over rows m >= k of L(m, k:k+bs)^* L(m, 0:k), split at m = k+bs.
+      // A(k:k+bs, 0:k) = sum over rows m >= k of L(m, k:k+bs)^* L(m, 0:k), split at m = k+bs. The
+      // first part is the TRMM L11^* B in place, done by column panels through the workspace.
       Block<MatrixType, Dynamic, Dynamic> B(mat, k, 0, bs, k);
-      triangular_adjoint_lmul_in_place(L11, B);
+      for (Index c = 0; c < k; c += block_size) {
+        const Index w = numext::mini(block_size, k - c);
+        work.topLeftCorner(bs, w) = B.middleCols(c, w);
+        B.middleCols(c, w).noalias() = L11.adjoint().template triangularView<Upper>() * work.topLeftCorner(bs, w);
+      }
       if (rs > 0) B.noalias() += mat.block(k + bs, k, rs, bs).adjoint() * mat.block(k + bs, 0, rs, k);
     }
     triangular_adjoint_square_unblocked(L11);
