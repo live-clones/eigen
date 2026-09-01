@@ -1026,6 +1026,13 @@
 #define EIGEN_DEVICE_FUNC
 #endif
 
+// Define compile-time constants for use by both the host and device functions
+#if defined(EIGEN_CUDA_ARCH) || defined(EIGEN_HIP_DEVICE_COMPILE)
+#define EIGEN_DEVICE_CONST __device__
+#else
+#define EIGEN_DEVICE_CONST
+#endif
+
 // this macro allows to get rid of linking errors about multiply defined functions.
 //  - static is not very good because it prevents definitions from different object files to be merged.
 //           So static causes the resulting linked executable to be bloated with multiple copies of the same function.
