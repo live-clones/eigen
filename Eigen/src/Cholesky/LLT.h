@@ -173,7 +173,8 @@ class LLT : public SolverBase<LLT<MatrixType_, UpLo_> > {
    *
    * The result is computed as \f$ A^{-1} = L^{-*} L^{-1} \f$ by inverting the stored factor in place and
    * squaring it, the LAPACK \c *POTRI sequence, for 2n^3/3 flops against the 2n^3 of solving with an
-   * explicit identity right hand side. No storage beyond the destination is used.
+   * explicit identity right hand side. Beyond the destination, only a block-sized scratch panel of at most
+   * 128x128 coefficients is used, whatever the matrix size.
    *
    * The matrix must be positive definite, that is, info() must be \c Success.
    *

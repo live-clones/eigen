@@ -554,8 +554,9 @@ class TriangularViewImpl<MatrixType_, Mode_, Dense> : public TriangularBase<Tria
    * diagonal yields a non-finite result. The opposite triangle is neither read nor written, and with a
    * \c #UnitDiag mode the diagonal itself is left alone as well.
    *
-   * This is the operation of the \c *TRTRI LAPACK routines. It costs n^3/3 flops and no scratch storage,
-   * where solving against an explicit identity right hand side costs n^3.
+   * This is the operation of the \c *TRTRI LAPACK routines. It costs n^3/3 flops, where solving against an
+   * explicit identity right hand side costs n^3, and its only scratch is one block-sized panel of at most
+   * 128x128 coefficients, independent of the matrix size.
    *
    * \sa TriangularView::solveInPlace(), MatrixBase::inverse()
    */
