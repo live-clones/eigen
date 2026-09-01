@@ -52,6 +52,44 @@ void test_chol_update(const MatrixType& symm) {
   }
 }
 
+// A^-1 from an LLT factorization. The kernels fill one triangle and mirror it, so the result is
+// exactly self-adjoint, and accuracy is checked as the backward error of the corresponding solve.
+template <typename MatrixType, int UpLo>
+void check_llt_inverse(const MatrixType& symm) {
+  typedef typename MatrixType::Scalar Scalar;
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  const Index n = symm.rows();
+
+  const MatrixType tri = symm.template triangularView<UpLo>();
+  LLT<MatrixType, UpLo> llt(tri);
+  VERIFY(llt.info() == Success);
+
+  const MatrixType inv = llt.inverse();
+  VERIFY_IS_EQUAL(inv.rows(), n);
+  VERIFY_IS_EQUAL(inv.cols(), n);
+  VERIFY_IS_CWISE_EQUAL(inv, MatrixType(inv.adjoint()));
+
+  // |A X - I| <= c*n*eps*|A|*|X| for a Cholesky solve (Higham, Accuracy and Stability of Numerical
+  // Algorithms, 2nd ed., Thm 10.4). The factor 16 absorbs c and the entrywise-to-norm step; the
+  // largest ratio measured over this family is 2, at n = 1.
+  const RealScalar eps = NumTraits<RealScalar>::epsilon();
+  const RealScalar residual_bound = RealScalar(16 * n) * eps * symm.norm() * inv.norm();
+  VERIFY((numext::isfinite)(residual_bound));
+  VERIFY((symm * inv - MatrixType::Identity(n, n)).norm() <= residual_bound);
+
+  // The same answer as solving against an explicit identity, to within the forward error, which the
+  // residual bound multiplied by cond(A) <= |A|*|X| bounds in turn.
+  const MatrixType reference = llt.solve(MatrixType::Identity(n, n));
+  const RealScalar forward_bound = residual_bound * inv.norm();
+  VERIFY((numext::isfinite)(forward_bound));
+  VERIFY((inv - reference).norm() <= forward_bound);
+
+  // The destination need not be a plain object.
+  Matrix<Scalar, Dynamic, Dynamic> host = Matrix<Scalar, Dynamic, Dynamic>::Random(n + 2, n + 2);
+  host.bottomRightCorner(n, n) = llt.inverse();
+  VERIFY((symm * host.bottomRightCorner(n, n) - MatrixType::Identity(n, n)).norm() <= residual_bound);
+}
+
 template <typename MatrixType>
 void cholesky(const MatrixType& m) {
   /* this test covers the following files:
@@ -111,6 +149,9 @@ void cholesky(const MatrixType& m) {
         (RealScalar(1) / matrix_l1_norm<MatrixType, Upper>(symmUp)) / matrix_l1_norm<MatrixType, Upper>(symmUp_inverse);
     rcond_est = cholup.rcond();
     VERIFY(rcond_est >= rcond / 10 && rcond_est <= rcond * 10);
+
+    check_llt_inverse<SquareMatrixType, Lower>(symm);
+    check_llt_inverse<SquareMatrixType, Upper>(symm);
 
     MatrixType neg = -symmLo;
     chollo.compute(neg);

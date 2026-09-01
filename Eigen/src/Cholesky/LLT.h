@@ -81,6 +81,7 @@ class LLT : public SolverBase<LLT<MatrixType_, UpLo_> > {
   enum { PacketSize = internal::packet_traits<Scalar>::size, AlignmentMask = int(PacketSize) - 1, UpLo = UpLo_ };
 
   using Traits = internal::LLT_Traits<MatrixType, UpLo>;
+  using PlainObject = typename MatrixType::PlainObject;
 
   /**
    * \brief Default Constructor.
@@ -166,6 +167,21 @@ class LLT : public SolverBase<LLT<MatrixType_, UpLo_> > {
   inline const MatrixType& matrixLLT() const {
     eigen_assert(m_isInitialized && "LLT is not initialized.");
     return m_matrix;
+  }
+
+  /** \returns the inverse of the matrix of which \c *this is the Cholesky decomposition.
+   *
+   * The result is computed as \f$ A^{-1} = L^{-*} L^{-1} \f$ by inverting the stored factor in place and
+   * squaring it, the LAPACK \c *POTRI sequence, for 2n^3/3 flops against the 2n^3 of solving with an
+   * explicit identity right hand side. No storage beyond the destination is used.
+   *
+   * The matrix must be positive definite, that is, info() must be \c Success.
+   *
+   * \sa solve(), MatrixBase::inverse()
+   */
+  inline Inverse<LLT> inverse() const {
+    eigen_assert(m_isInitialized && "LLT is not initialized.");
+    return Inverse<LLT>(*this);
   }
 
   MatrixType reconstructedMatrix() const;
@@ -473,6 +489,35 @@ void LLT<MatrixType, UpLo_>::solveInPlace(const MatrixBase<Derived>& bAndX) cons
   matrixL().solveInPlace(bAndX);
   matrixU().solveInPlace(bAndX);
 }
+
+namespace internal {
+
+/***** Implementation of inverse() *****************************************************/
+template <typename DstXprType, typename MatrixType, int UpLo_>
+struct Assignment<DstXprType, Inverse<LLT<MatrixType, UpLo_> >,
+                  internal::assign_op<typename DstXprType::Scalar, typename LLT<MatrixType, UpLo_>::Scalar>,
+                  Dense2Dense> {
+  using LltType = LLT<MatrixType, UpLo_>;
+  using SrcXprType = Inverse<LltType>;
+  static constexpr unsigned int kMirrorMode = UpLo_ == Lower ? StrictlyUpper : StrictlyLower;
+  static void run(DstXprType& dst, const SrcXprType& src,
+                  const internal::assign_op<typename DstXprType::Scalar, typename LltType::Scalar>&) {
+    const LltType& llt = src.nestedExpression();
+    eigen_assert(llt.info() == Success && "LLT::inverse(): the factorization failed.");
+    const Index size = llt.rows();
+    if ((dst.rows() != size) || (dst.cols() != size)) dst.resize(size, size);
+
+    // A = L L^*, hence A^-1 = L^-* L^-1: invert the factor (xTRTRI), then square it (xLAUUM).
+    dst.template triangularView<UpLo_>() = llt.matrixLLT().template triangularView<UpLo_>();
+    dst.template triangularView<UpLo_>().inverseInPlace();
+    internal::triangular_adjoint_square_in_place<UpLo_>(dst);
+    // Mirror. Coefficient (i, j) of the destination triangle reads (j, i), which lies in the computed
+    // triangle and is never written here, so the aliasing is benign.
+    dst.template triangularView<kMirrorMode>() = dst.adjoint();
+  }
+};
+
+}  // end namespace internal
 
 /** \returns the matrix represented by the decomposition,
  * i.e., it returns the product: L L^*.

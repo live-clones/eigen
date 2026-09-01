@@ -1,0 +1,225 @@
+// This file is part of Eigen, a lightweight C++ template library
+// for linear algebra.
+//
+// Copyright (C) 2026 Rasmus Munk Larsen <rmlarsen@gmail.com>
+//
+// This Source Code Form is subject to the terms of the Mozilla
+// Public License v. 2.0. If a copy of the MPL was not distributed
+// with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
+
+#ifndef EIGEN_TRIANGULARINPLACE_H
+#define EIGEN_TRIANGULARINPLACE_H
+
+// IWYU pragma: private
+#include "./InternalHeaderCheck.h"
+
+namespace Eigen {
+
+namespace internal {
+
+// In-place counterparts of LAPACK xTRTRI and xLAUUM: each overwrites its operand and allocates
+// nothing beyond the packing buffers of the TRSM, GEMM and HERK kernels it calls.
+
+// Only the lower forms exist. An upper U runs the lower kernel on Transpose<MatrixType>: with
+// V = U^T, V^-1 = (U^-1)^T and V^* V = conj(U U^*) = (U U^*)^T since U U^* is self-adjoint, so the
+// lower triangle of the transposed view is the upper triangle of the original in both cases.
+
+// The kernels below have the panel-times-trailing-block shape of the Cholesky factorization, so they
+// take both the size below which blocking does not pay and the block size from llt_inplace::blocked().
+constexpr Index kTriangularInPlaceMinBlocked = 32;
+
+EIGEN_DEVICE_FUNC inline Index triangular_in_place_block_size(Index size) {
+  Index block_size = ((size / 8) / 16) * 16;
+  return numext::mini(numext::maxi(block_size, Index(8)), Index(128));
+}
+
+// Unblocked lower triangular inverse. Column j of X = L^-1 solves L x = e_j, and that substitution
+// reads only columns >= j of L, so running j upwards lets each column be overwritten as it is solved.
+template <unsigned int Mode, typename MatrixType>
+EIGEN_DEVICE_FUNC void triangular_inverse_unblocked(MatrixType& mat) {
+  using Scalar = typename MatrixType::Scalar;
+  constexpr bool kUnitDiag = (Mode & UnitDiag) != 0;
+  const Index n = mat.rows();
+  for (Index j = 0; j < n; ++j) {
+    Scalar xj = Scalar(1);
+    EIGEN_IF_CONSTEXPR (!kUnitDiag) {
+      xj = Scalar(1) / mat.coeff(j, j);
+      mat.coeffRef(j, j) = xj;
+    }
+    const Index rs = n - j - 1;
+    if (rs == 0) continue;
+    // x is e_j, so the first elimination step reduces to a scaling of the column below the diagonal.
+    mat.col(j).tail(rs) *= -xj;
+    for (Index k = j + 1; k < n; ++k) {
+      EIGEN_IF_CONSTEXPR (!kUnitDiag) mat.coeffRef(k, j) /= mat.coeff(k, k);
+      const Index len = n - k - 1;
+      if (len > 0) mat.col(j).tail(len) -= mat.coeff(k, j) * mat.col(k).tail(len);
+    }
+  }
+}
+
+// Blocked lower triangular inverse. With L = [[L11, 0], [L21, L22]] the inverse is
+// [[L11^-1, 0], [-L22^-1 L21 L11^-1, L22^-1]], and the off-diagonal block is formed by two triangular
+// solves against the still-unmodified L11 and L22 rather than by a multiplication, which is why no
+// in-place TRMM is needed here.
+template <unsigned int Mode, typename MatrixType>
+EIGEN_DEVICE_FUNC void triangular_inverse_lower(MatrixType& mat) {
+  eigen_assert(mat.rows() == mat.cols());
+  const Index n = mat.rows();
+  if (n < kTriangularInPlaceMinBlocked) {
+    triangular_inverse_unblocked<Mode>(mat);
+    return;
+  }
+  const Index block_size = triangular_in_place_block_size(n);
+  for (Index k = 0; k < n; k += block_size) {
+    const Index bs = numext::mini(block_size, n - k);
+    const Index rs = n - k - bs;
+    Block<MatrixType, Dynamic, Dynamic> L11(mat, k, k, bs, bs);
+    if (rs > 0) {
+      Block<MatrixType, Dynamic, Dynamic> L21(mat, k + bs, k, rs, bs);
+      Block<MatrixType, Dynamic, Dynamic> L22(mat, k + bs, k + bs, rs, rs);
+      L21 = -L21;
+      L22.template triangularView<Mode>().solveInPlace(L21);
+      L11.template triangularView<Mode>().template solveInPlace<OnTheRight>(L21);
+    }
+    triangular_inverse_unblocked<Mode>(L11);
+  }
+}
+
+template <unsigned int Mode, bool IsLower = (Mode & Lower) != 0>
+struct triangular_inverse_selector;
+
+template <unsigned int Mode>
+struct triangular_inverse_selector<Mode, true> {
+  template <typename MatrixType>
+  EIGEN_DEVICE_FUNC static void run(MatrixType& mat) {
+    triangular_inverse_lower<Mode>(mat);
+  }
+};
+
+template <unsigned int Mode>
+struct triangular_inverse_selector<Mode, false> {
+  template <typename MatrixType>
+  EIGEN_DEVICE_FUNC static void run(MatrixType& mat) {
+    Transpose<MatrixType> matt(mat);
+    triangular_inverse_lower<(Mode & UnitDiag) | Lower>(matt);
+  }
+};
+
+// other <- tri^* other, for lower triangular tri, in place. Row i of the result reads only rows >= i
+// of other, so the rows can be overwritten top down.
+template <typename TriType, typename OtherType>
+void triangular_adjoint_lmul_unblocked(const TriType& tri, OtherType& other) {
+  const Index m = tri.rows();
+  for (Index i = 0; i < m; ++i) {
+    other.row(i) *= numext::conj(tri.coeff(i, i));
+    const Index rs = m - i - 1;
+    if (rs > 0) other.row(i).noalias() += tri.col(i).tail(rs).adjoint() * other.bottomRows(rs);
+  }
+}
+
+template <typename TriType, typename OtherType>
+void triangular_adjoint_lmul_in_place(const TriType& tri, OtherType& other) {
+  const Index m = tri.rows();
+  if (m < kTriangularInPlaceMinBlocked) {
+    triangular_adjoint_lmul_unblocked(tri, other);
+    return;
+  }
+  const Index block_size = triangular_in_place_block_size(m);
+  for (Index i = 0; i < m; i += block_size) {
+    const Index bs = numext::mini(block_size, m - i);
+    const Index rs = m - i - bs;
+    // Rows [i, i+bs) of tri^* other are T11^* B1 + T21^* B2, and B2 is untouched until a later pass.
+    Block<OtherType, Dynamic, Dynamic> B1(other, i, 0, bs, other.cols());
+    triangular_adjoint_lmul_unblocked(tri.block(i, i, bs, bs), B1);
+    if (rs > 0) B1.noalias() += tri.block(i + bs, i, rs, bs).adjoint() * other.bottomRows(rs);
+  }
+}
+
+// Unblocked lower self-adjoint square: mat <- lower(L^* L). Row i of the result reads column i of L
+// below the diagonal and rows > i of the columns left of it, none of which row i's own update writes.
+template <typename MatrixType>
+void triangular_adjoint_square_unblocked(MatrixType& mat) {
+  using Scalar = typename MatrixType::Scalar;
+  const Index n = mat.rows();
+  for (Index i = 0; i < n; ++i) {
+    const Scalar lii = mat.coeff(i, i);
+    const Index rs = n - i - 1;
+    mat.coeffRef(i, i) = Scalar(mat.col(i).tail(rs + 1).squaredNorm());
+    if (i > 0) {
+      mat.row(i).head(i) *= numext::conj(lii);
+      if (rs > 0) mat.row(i).head(i).noalias() += mat.col(i).tail(rs).adjoint() * mat.bottomLeftCorner(rs, i);
+    }
+  }
+}
+
+// Blocked lower self-adjoint square, left-looking as in LAPACK xLAUUM: block row k of the result is
+// completed against the columns to its left before the trailing block rows consume the factor.
+template <typename MatrixType>
+void triangular_adjoint_square_lower(MatrixType& mat) {
+  eigen_assert(mat.rows() == mat.cols());
+  const Index n = mat.rows();
+  if (n < kTriangularInPlaceMinBlocked) {
+    triangular_adjoint_square_unblocked(mat);
+    return;
+  }
+  const Index block_size = triangular_in_place_block_size(n);
+  for (Index k = 0; k < n; k += block_size) {
+    const Index bs = numext::mini(block_size, n - k);
+    const Index rs = n - k - bs;
+    Block<MatrixType, Dynamic, Dynamic> L11(mat, k, k, bs, bs);
+    if (k > 0) {
+      // A(k:k+bs, 0:k) = sum over rows m >= k of L(m, k:k+bs)^* L(m, 0:k), split at m = k+bs.
+      Block<MatrixType, Dynamic, Dynamic> B(mat, k, 0, bs, k);
+      triangular_adjoint_lmul_in_place(L11, B);
+      if (rs > 0) B.noalias() += mat.block(k + bs, k, rs, bs).adjoint() * mat.block(k + bs, 0, rs, k);
+    }
+    triangular_adjoint_square_unblocked(L11);
+    if (rs > 0) L11.template selfadjointView<Lower>().rankUpdate(mat.block(k + bs, k, rs, bs).adjoint());
+  }
+}
+
+template <int UpLo, bool IsLower = (UpLo & Lower) != 0>
+struct triangular_adjoint_square_selector;
+
+template <int UpLo>
+struct triangular_adjoint_square_selector<UpLo, true> {
+  template <typename MatrixType>
+  static void run(MatrixType& mat) {
+    triangular_adjoint_square_lower(mat);
+  }
+};
+
+template <int UpLo>
+struct triangular_adjoint_square_selector<UpLo, false> {
+  template <typename MatrixType>
+  static void run(MatrixType& mat) {
+    Transpose<MatrixType> matt(mat);
+    triangular_adjoint_square_lower(matt);
+  }
+};
+
+/** \internal Replaces the \a UpLo triangle of \a mat, holding a triangular factor T, by the same
+ * triangle of the self-adjoint product T^* T (\c Lower) or T T^* (\c Upper). The opposite triangle is
+ * neither read nor written. This is LAPACK's xLAUUM. */
+template <int UpLo, typename MatrixType>
+void triangular_adjoint_square_in_place(MatrixType& mat) {
+  triangular_adjoint_square_selector<UpLo>::run(mat);
+}
+
+}  // end namespace internal
+
+#ifndef EIGEN_PARSED_BY_DOXYGEN
+template <typename MatrixType, unsigned int Mode>
+EIGEN_DEVICE_FUNC void TriangularViewImpl<MatrixType, Mode, Dense>::inverseInPlace() {
+  EIGEN_STATIC_ASSERT_LVALUE(MatrixType)
+  EIGEN_STATIC_ASSERT((Mode & (Upper | Lower)) != 0 && (Mode & ZeroDiag) == 0, PROGRAMMING_ERROR)
+  eigen_assert(derived().rows() == derived().cols());
+  internal::triangular_inverse_selector<Mode>::run(derived().nestedExpression());
+}
+#endif
+
+}  // end namespace Eigen
+
+#endif  // EIGEN_TRIANGULARINPLACE_H
