@@ -26,27 +26,36 @@ namespace internal {
 // V = U^T, V^-1 = (U^-1)^T and V^* V = conj(U U^*) = (U U^*)^T since U U^* is self-adjoint, so the
 // lower triangle of the transposed view is the upper triangle of the original in both cases.
 
-// The kernels below have the panel-times-trailing-block shape of the Cholesky factorization, so they
-// take both the size below which blocking does not pay and the block size from llt_inplace::blocked().
-constexpr Index kTriangularInPlaceMinBlocked = 32;
+// Both kernels have the panel-times-trailing-block shape of the Cholesky factorization, so the block
+// size tracks llt_inplace::blocked(), but each has its own floor and its own size below which the
+// unblocked form still wins: TRTRI's blocked step is a TRMM plus a TRSM against a bs-wide panel, and
+// its unblocked form is already a sequence of TRMVs, while LAUUM's is a TRMM plus a HERK and its
+// unblocked form is a sequence of GEMVs against a strided row. Measured on Zen 4 at n = 32..512.
+constexpr Index kTriangularInverseMinBlocked = 64;
+constexpr Index kTriangularInverseMinBlockSize = 24;
+constexpr Index kAdjointSquareMinBlocked = 128;
+constexpr Index kAdjointSquareMinBlockSize = 48;
 
-EIGEN_DEVICE_FUNC inline Index triangular_in_place_block_size(Index size) {
-  Index block_size = ((size / 8) / 16) * 16;
-  return numext::mini(numext::maxi(block_size, Index(8)), Index(128));
+EIGEN_DEVICE_FUNC inline Index triangular_in_place_block_size(Index size, Index min_block_size) {
+  const Index block_size = ((size / 8) / 8) * 8;
+  return numext::mini(numext::maxi(block_size, min_block_size), Index(128));
 }
 
 template <typename MatrixType>
 using triangular_in_place_workspace = Matrix<typename MatrixType::Scalar, Dynamic, Dynamic,
                                              (int(traits<MatrixType>::Flags) & RowMajorBit) ? RowMajor : ColMajor>;
 
-// Unblocked lower triangular inverse. Column j of X = L^-1 solves L x = e_j, and that substitution
-// reads only columns >= j of L, so running j upwards lets each column be overwritten as it is solved.
-template <unsigned int Mode, typename MatrixType>
-EIGEN_DEVICE_FUNC void triangular_inverse_unblocked(MatrixType& mat) {
+// Unblocked lower triangular inverse, columns bottom-up so that the trailing block already holds
+// X22 = L22^-1 when column j is reached: then X(j+1:, j) = -X22 L(j+1:, j) / L(j, j), one TRMV per
+// column rather than the chain of AXPYs a forward substitution per column would run. \a tmp is
+// scratch of at least n - 1 entries, since the TRMV's destination is its own operand.
+template <unsigned int Mode, typename MatrixType, typename VectorType>
+EIGEN_DEVICE_FUNC void triangular_inverse_unblocked(MatrixType& mat, VectorType& tmp) {
   using Scalar = typename MatrixType::Scalar;
   constexpr bool kUnitDiag = (Mode & UnitDiag) != 0;
   const Index n = mat.rows();
-  for (Index j = 0; j < n; ++j) {
+  eigen_internal_assert(n < 2 || tmp.size() >= n - 1);
+  for (Index j = n - 1; j >= 0; --j) {
     Scalar xj = Scalar(1);
     EIGEN_IF_CONSTEXPR (!kUnitDiag) {
       xj = Scalar(1) / mat.coeff(j, j);
@@ -54,13 +63,8 @@ EIGEN_DEVICE_FUNC void triangular_inverse_unblocked(MatrixType& mat) {
     }
     const Index rs = n - j - 1;
     if (rs == 0) continue;
-    // x is e_j, so the first elimination step reduces to a scaling of the column below the diagonal.
-    mat.col(j).tail(rs) *= -xj;
-    for (Index k = j + 1; k < n; ++k) {
-      EIGEN_IF_CONSTEXPR (!kUnitDiag) mat.coeffRef(k, j) /= mat.coeff(k, k);
-      const Index len = n - k - 1;
-      if (len > 0) mat.col(j).tail(len) -= mat.coeff(k, j) * mat.col(k).tail(len);
-    }
+    tmp.head(rs).noalias() = mat.block(j + 1, j + 1, rs, rs).template triangularView<Mode>() * mat.col(j).tail(rs);
+    mat.col(j).tail(rs) = -xj * tmp.head(rs);
   }
 }
 
@@ -72,11 +76,16 @@ template <unsigned int Mode, typename MatrixType>
 EIGEN_DEVICE_FUNC void triangular_inverse_lower(MatrixType& mat) {
   eigen_assert(mat.rows() == mat.cols());
   const Index n = mat.rows();
-  if (n < kTriangularInPlaceMinBlocked) {
-    triangular_inverse_unblocked<Mode>(mat);
+  if (n < kTriangularInverseMinBlocked) {
+    using Scalar = typename MatrixType::Scalar;
+    ei_declare_aligned_stack_constructed_variable(Scalar, tmp_data, numext::maxi(n, Index(1)), 0);
+    Map<Matrix<Scalar, Dynamic, 1> > tmp(tmp_data, n);
+    triangular_inverse_unblocked<Mode>(mat, tmp);
     return;
   }
-  const Index block_size = triangular_in_place_block_size(n);
+  const Index block_size = triangular_in_place_block_size(n, kTriangularInverseMinBlockSize);
+  // One block-sized panel, whose first column doubles as the TRMV scratch of the unblocked kernel:
+  // that kernel runs on L11 only after the panel's other uses in the same iteration are finished.
   triangular_in_place_workspace<MatrixType> work(block_size, block_size);
   for (Index k = ((n - 1) / block_size) * block_size; k >= 0; k -= block_size) {
     const Index bs = numext::mini(block_size, n - k);
@@ -98,7 +107,8 @@ EIGEN_DEVICE_FUNC void triangular_inverse_lower(MatrixType& mat) {
       L11.template triangularView<Mode>().template solveInPlace<OnTheRight>(L21);
       L21 = -L21;
     }
-    triangular_inverse_unblocked<Mode>(L11);
+    auto tmp = work.col(0);
+    triangular_inverse_unblocked<Mode>(L11, tmp);
   }
 }
 
@@ -145,11 +155,11 @@ template <typename MatrixType>
 void triangular_adjoint_square_lower(MatrixType& mat) {
   eigen_assert(mat.rows() == mat.cols());
   const Index n = mat.rows();
-  if (n < kTriangularInPlaceMinBlocked) {
+  if (n < kAdjointSquareMinBlocked) {
     triangular_adjoint_square_unblocked(mat);
     return;
   }
-  const Index block_size = triangular_in_place_block_size(n);
+  const Index block_size = triangular_in_place_block_size(n, kAdjointSquareMinBlockSize);
   triangular_in_place_workspace<MatrixType> work(block_size, block_size);
   for (Index k = 0; k < n; k += block_size) {
     const Index bs = numext::mini(block_size, n - k);

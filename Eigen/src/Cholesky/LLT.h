@@ -14,6 +14,19 @@
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
 
+// Smallest n at which LLT::inverse() runs the POTRI sequence on a real scalar rather than solving
+// against an explicit identity. POTRI's n^3/3 runs in the unblocked TRTRI and LAUUM kernels at small
+// n, the solve's 3x at the blocked TRSM rate, so a wider ISA helps the competitor more and moves the
+// crossover right: on Zen 4 it is n = 32 under SSE2 and AVX2, 128 (double) to 256 (float) under
+// AVX-512. Complex is not thresholded: POTRI leads from n = 8 in all twelve configurations measured.
+#ifndef EIGEN_LLT_INVERSE_POTRI_THRESHOLD
+#if defined(EIGEN_VECTORIZE_AVX512)
+#define EIGEN_LLT_INVERSE_POTRI_THRESHOLD 256
+#else
+#define EIGEN_LLT_INVERSE_POTRI_THRESHOLD 32
+#endif
+#endif
+
 namespace Eigen {
 
 namespace internal {
@@ -175,6 +188,12 @@ class LLT : public SolverBase<LLT<MatrixType_, UpLo_> > {
    * squaring it, the LAPACK \c *POTRI sequence, for 2n^3/3 flops against the 2n^3 of solving with an
    * explicit identity right hand side. Beyond the destination, only a block-sized scratch panel of at most
    * 128x128 coefficients is used, whatever the matrix size.
+   *
+   * Fewer flops is not fewer seconds at every size: for a real scalar below
+   * \c EIGEN_LLT_INVERSE_POTRI_THRESHOLD (32, or 256 where AVX-512 is enabled) the POTRI sequence runs in
+   * its unblocked kernels while the solve against an identity runs its 3x at the blocked TRSM rate, so that
+   * is what this method does there. Complex scalars always take the POTRI path. The result is exactly
+   * self-adjoint either way: one triangle is computed and mirrored onto the other.
    *
    * The matrix must be positive definite, that is, info() must be \c Success.
    *
@@ -508,10 +527,20 @@ struct Assignment<DstXprType, Inverse<LLT<MatrixType, UpLo_> >,
     const Index size = llt.rows();
     if ((dst.rows() != size) || (dst.cols() != size)) dst.resize(size, size);
 
-    // A = L L^*, hence A^-1 = L^-* L^-1: invert the factor (xTRTRI), then square it (xLAUUM).
-    dst.template triangularView<UpLo_>() = llt.matrixLLT().template triangularView<UpLo_>();
-    dst.template triangularView<UpLo_>().inverseInPlace();
-    internal::triangular_adjoint_square_in_place<UpLo_>(dst);
+    const Index potri_threshold =
+        NumTraits<typename LltType::Scalar>::IsComplex ? Index(0) : Index(EIGEN_LLT_INVERSE_POTRI_THRESHOLD);
+    if (size < potri_threshold) {
+      dst.setIdentity();
+      llt.solveInPlace(dst);
+      // A^-1 is self-adjoint, so its diagonal is real, but the two triangular solves leave rounding
+      // noise in the imaginary part and the mirror below writes only the strict triangle.
+      dst.diagonal() = dst.diagonal().real().template cast<typename DstXprType::Scalar>();
+    } else {
+      // A = L L^*, hence A^-1 = L^-* L^-1: invert the factor (xTRTRI), then square it (xLAUUM).
+      dst.template triangularView<UpLo_>() = llt.matrixLLT().template triangularView<UpLo_>();
+      dst.template triangularView<UpLo_>().inverseInPlace();
+      internal::triangular_adjoint_square_in_place<UpLo_>(dst);
+    }
     // Mirror. Coefficient (i, j) of the destination triangle reads (j, i), which lies in the computed
     // triangle and is never written here, so the aliasing is benign.
     dst.template triangularView<kMirrorMode>() = dst.adjoint();
