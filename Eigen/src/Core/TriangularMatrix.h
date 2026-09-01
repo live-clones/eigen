@@ -548,6 +548,19 @@ class TriangularViewImpl<MatrixType_, Mode_, Dense> : public TriangularBase<Tria
     return solveInPlace<OnTheLeft>(other);
   }
 
+  /** Replaces the referenced triangular part by its inverse.
+   *
+   * \c *this must be square and invertible; as with solveInPlace(), no check is made and a zero on the
+   * diagonal yields a non-finite result. The opposite triangle is neither read nor written, and with a
+   * \c #UnitDiag mode the diagonal itself is left alone as well.
+   *
+   * This is the operation of the \c *TRTRI LAPACK routines. It costs n^3/3 flops and no scratch storage,
+   * where solving against an explicit identity right hand side costs n^3.
+   *
+   * \sa TriangularView::solveInPlace(), MatrixBase::inverse()
+   */
+  EIGEN_DEVICE_FUNC void inverseInPlace();
+
   /** Swaps the coefficients of the common triangular parts of two matrices */
   template <typename OtherDerived>
   EIGEN_DEVICE_FUNC
