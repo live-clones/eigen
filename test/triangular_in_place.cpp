@@ -164,6 +164,7 @@ EIGEN_DECLARE_TEST(triangular_in_place) {
   const Index sizes[] = {0, 1, 2, 3, 7, 16, 31, 32, 33, 40, 64, 65, 128, 256};
   for (int i = 0; i < g_repeat; i++) {
     for (Index n : sizes) {
+      EIGEN_UNUSED_VARIABLE(n);  // the part-6 build compiles no subtest that takes n
       CALL_SUBTEST_1(triangular_inverse_all_modes<MatrixXd>(n));
       CALL_SUBTEST_2(triangular_inverse_all_modes<MatrixXcd>(n));
       CALL_SUBTEST_3(triangular_inverse_all_modes<MatrixXf>(n));
