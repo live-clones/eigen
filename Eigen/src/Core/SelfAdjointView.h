@@ -215,18 +215,29 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
    */
   EIGEN_DEVICE_FUNC typename NumTraits<Scalar>::Real l1Norm() const {
     using RealScalar_ = typename NumTraits<Scalar>::Real;
+    // Reading the mirrored term of column j as a row of the stored triangle costs a stride-n
+    // traversal of a column-major matrix. Instead accumulate column sums a panel at a time:
+    // |a_ij| from a column left of the panel is added to the sum of column i, which walks that
+    // column. Only the panel's diagonal block keeps the row traversal, where it is cache resident,
+    // and a panel-sized accumulator stays a stack object.
+    static constexpr int kPanelSize = 64;
     RealScalar_ norm = RealScalar_(0);
     const Index n = m_matrix.rows();
-    for (Index col = 0; col < n; ++col) {
-      RealScalar_ abs_col_sum;
+    Matrix<RealScalar_, kPanelSize, 1> sums;
+    for (Index p = 0; p < n; p += kPanelSize) {
+      const Index len = numext::mini(Index(kPanelSize), n - p);
       EIGEN_IF_CONSTEXPR (UpLo == Lower) {
-        abs_col_sum =
-            m_matrix.col(col).tail(n - col).template lpNorm<1>() + m_matrix.row(col).head(col).template lpNorm<1>();
+        for (Index j = 0; j < len; ++j)
+          sums.coeffRef(j) = m_matrix.col(p + j).tail(n - p - j).template lpNorm<1>() +
+                             m_matrix.row(p + j).segment(p, j).template lpNorm<1>();
+        for (Index j = 0; j < p; ++j) sums.head(len) += m_matrix.col(j).segment(p, len).cwiseAbs();
       } else {
-        abs_col_sum =
-            m_matrix.col(col).head(col).template lpNorm<1>() + m_matrix.row(col).tail(n - col).template lpNorm<1>();
+        for (Index j = 0; j < len; ++j)
+          sums.coeffRef(j) = m_matrix.col(p + j).head(p + j + 1).template lpNorm<1>() +
+                             m_matrix.row(p + j).segment(p + j + 1, len - j - 1).template lpNorm<1>();
+        for (Index j = p + len; j < n; ++j) sums.head(len) += m_matrix.col(j).segment(p, len).cwiseAbs();
       }
-      if (abs_col_sum > norm) norm = abs_col_sum;
+      norm = numext::maxi(norm, sums.head(len).maxCoeff());
     }
     return norm;
   }
