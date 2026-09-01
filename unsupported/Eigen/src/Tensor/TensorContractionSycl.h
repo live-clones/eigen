@@ -1344,13 +1344,6 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
   }
   const Eigen::SyclDevice &device() const { return this->m_device; }
   void evalToSycl(typename Base::EvaluatorPointerType buffer) const {
-    if (this->m_i_size == 0 || this->m_j_size == 0) {
-      return;
-    }
-    if (this->m_k_size == 0) {
-      this->m_device.fill(buffer, buffer + this->m_i_size * this->m_j_size, Scalar(0));
-      return;
-    }
     if (this->m_lhs_inner_dim_contiguous) {
       if (this->m_rhs_inner_dim_contiguous) {
         if (this->m_rhs_inner_dim_reordered) {
@@ -1382,21 +1375,9 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
     }
   }
 
-  template <int Alignment>
-  void evalProduct(typename Base::EvaluatorPointerType buffer) const {
-    evalToSycl(buffer);
-  }
-
   template <bool lhs_inner_dim_contiguous, bool rhs_inner_dim_contiguous, bool rhs_inner_dim_reordered, int Alignment>
   void evalTyped(typename Base::EvaluatorPointerType buffer) const {
     const auto triple_dim = TripleDim{this->m_i_size, this->m_j_size, this->m_k_size};
-    if (triple_dim.M == 0 || triple_dim.N == 0) {
-      return;
-    }
-    if (triple_dim.K == 0) {
-      this->m_device.fill(buffer, buffer + triple_dim.M * triple_dim.N, Scalar(0));
-      return;
-    }
     typedef internal::TensorContractionInputMapper<
         LhsScalar, StorageIndex, internal::Lhs, LeftEvaluator, left_nocontract_t, contract_t,
         PacketType<CoeffReturnType, Device>::size, lhs_inner_dim_contiguous, false, Unaligned, MakePointer>
