@@ -102,7 +102,7 @@ EIGEN_DEVICE_FUNC void triangular_inverse_lower(MatrixType& mat) {
   }
 }
 
-template <unsigned int Mode, bool IsLower = (Mode & Lower) != 0>
+template <unsigned int Mode, bool IsLower = (int(Mode) & int(Lower)) != 0>
 struct triangular_inverse_selector;
 
 template <unsigned int Mode>
@@ -118,7 +118,7 @@ struct triangular_inverse_selector<Mode, false> {
   template <typename MatrixType>
   EIGEN_DEVICE_FUNC static void run(MatrixType& mat) {
     Transpose<MatrixType> matt(mat);
-    triangular_inverse_lower<(Mode & UnitDiag) | Lower>(matt);
+    triangular_inverse_lower<(int(Mode) & int(UnitDiag)) | int(Lower)>(matt);
   }
 };
 
@@ -171,7 +171,7 @@ void triangular_adjoint_square_lower(MatrixType& mat) {
   }
 }
 
-template <int UpLo, bool IsLower = (UpLo & Lower) != 0>
+template <int UpLo, bool IsLower = (int(UpLo) & int(Lower)) != 0>
 struct triangular_adjoint_square_selector;
 
 template <int UpLo>
@@ -205,7 +205,7 @@ void triangular_adjoint_square_in_place(MatrixType& mat) {
 template <typename MatrixType, unsigned int Mode>
 EIGEN_DEVICE_FUNC void TriangularViewImpl<MatrixType, Mode, Dense>::inverseInPlace() {
   EIGEN_STATIC_ASSERT_LVALUE(MatrixType)
-  EIGEN_STATIC_ASSERT((Mode & (Upper | Lower)) != 0 && (Mode & ZeroDiag) == 0, PROGRAMMING_ERROR)
+  EIGEN_STATIC_ASSERT((int(Mode) & int(Upper | Lower)) != 0 && (int(Mode) & int(ZeroDiag)) == 0, PROGRAMMING_ERROR)
   eigen_assert(derived().rows() == derived().cols());
   internal::triangular_inverse_selector<Mode>::run(derived().nestedExpression());
 }
