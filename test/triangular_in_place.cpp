@@ -18,14 +18,11 @@ static constexpr int kResidualFactor = 16;
 // Forward error against the reference solve, bounded by the residual bound times cond(T) <= |T|*|X|.
 static constexpr int kForwardFactor = 16;
 
-// The part of the storage that a triangularView<Mode>() does not own, and that inverseInPlace() must
-// therefore leave bit for bit unchanged.
-template <unsigned int Mode>
-struct untouched_mode {
-  static constexpr unsigned int value = (Mode & UnitDiag) != 0
-                                            ? ((Mode & Lower) != 0 ? unsigned(Upper) : unsigned(Lower))
-                                            : ((Mode & Lower) != 0 ? unsigned(StrictlyUpper) : unsigned(StrictlyLower));
-};
+// The part of the storage that a triangularView<mode>() does not own, and that an in-place kernel must
+// therefore leave bit for bit unchanged: the opposite triangle, plus the diagonal under UnitDiag.
+constexpr unsigned int untouched_mode(unsigned int mode) {
+  return ((mode & Lower) != 0 ? unsigned(Upper) : unsigned(Lower)) | ((mode & UnitDiag) != 0 ? 0u : unsigned(ZeroDiag));
+}
 
 template <unsigned int Mode, typename MatrixType, typename OperandType>
 void check_triangular_inverse(const MatrixType& t, OperandType& x, bool well_conditioned) {
@@ -39,7 +36,7 @@ void check_triangular_inverse(const MatrixType& t, OperandType& x, bool well_con
   x = t;
   x.template triangularView<Mode>().inverseInPlace();
 
-  const unsigned int kUntouched = untouched_mode<Mode>::value;
+  constexpr unsigned int kUntouched = untouched_mode(Mode);
   VERIFY_IS_CWISE_EQUAL(x.template triangularView<kUntouched>().toDenseMatrix(),
                         t.template triangularView<kUntouched>().toDenseMatrix());
 
@@ -79,50 +76,35 @@ MatrixType ill_conditioned_triangular(Index n) {
   return t;
 }
 
+template <typename MatrixType, typename OperandType>
+void check_inverse_all_modes(const MatrixType& t, OperandType& x, bool well_conditioned) {
+  check_triangular_inverse<Lower>(t, x, well_conditioned);
+  check_triangular_inverse<Upper>(t, x, well_conditioned);
+  check_triangular_inverse<UnitLower>(t, x, well_conditioned);
+  check_triangular_inverse<UnitUpper>(t, x, well_conditioned);
+}
+
 template <typename MatrixType>
 void triangular_inverse_all_modes(Index n) {
   MatrixType x(n, n);
-  const MatrixType well = well_conditioned_triangular<MatrixType>(n);
-  const MatrixType ill = ill_conditioned_triangular<MatrixType>(n);
-
-  check_triangular_inverse<Lower>(well, x, true);
-  check_triangular_inverse<Upper>(well, x, true);
-  check_triangular_inverse<UnitLower>(well, x, true);
-  check_triangular_inverse<UnitUpper>(well, x, true);
-
-  check_triangular_inverse<Lower>(ill, x, false);
-  check_triangular_inverse<Upper>(ill, x, false);
-  check_triangular_inverse<UnitLower>(ill, x, false);
-  check_triangular_inverse<UnitUpper>(ill, x, false);
+  check_inverse_all_modes(well_conditioned_triangular<MatrixType>(n), x, /*well_conditioned=*/true);
+  check_inverse_all_modes(ill_conditioned_triangular<MatrixType>(n), x, /*well_conditioned=*/false);
 }
 
 // The destination of LLT::inverse() need not be a plain object, so run the kernel through a block of a
 // larger matrix: a non-zero offset and an outer stride that does not match the block width.
 template <typename MatrixType>
 void triangular_inverse_on_block(Index n) {
-  using Scalar = typename MatrixType::Scalar;
-  using RealScalar = typename NumTraits<Scalar>::Real;
-  const RealScalar eps = NumTraits<RealScalar>::epsilon();
-
-  const MatrixType t = well_conditioned_triangular<MatrixType>(n);
+  const Index row_offset = 2, col_offset = 3;
   MatrixType host = MatrixType::Random(n + 3, n + 5);
-  const MatrixType host_copy = host;
-  Block<MatrixType> x(host, 2, 3, n, n);
-  x = t;
-  x.template triangularView<Lower>().inverseInPlace();
+  MatrixType expected = host;
+  Block<MatrixType> x(host, row_offset, col_offset, n, n);
 
-  const MatrixType td = t.template triangularView<Lower>().toDenseMatrix();
-  const MatrixType xd = x.template triangularView<Lower>().toDenseMatrix();
-  const RealScalar residual = (td * xd - MatrixType::Identity(n, n)).norm();
-  const RealScalar residual_bound = RealScalar(kResidualFactor * n) * eps * td.norm() * xd.norm();
-  VERIFY((numext::isfinite)(residual_bound));
-  VERIFY(residual <= residual_bound);
+  check_triangular_inverse<Lower>(well_conditioned_triangular<MatrixType>(n), x, /*well_conditioned=*/true);
 
   // Nothing outside the block moved.
-  VERIFY_IS_CWISE_EQUAL(host.topRows(2), host_copy.topRows(2));
-  VERIFY_IS_CWISE_EQUAL(host.leftCols(3), host_copy.leftCols(3));
-  VERIFY_IS_CWISE_EQUAL(host.bottomRows(1), host_copy.bottomRows(1));
-  VERIFY_IS_CWISE_EQUAL(host.rightCols(2), host_copy.rightCols(2));
+  expected.block(row_offset, col_offset, n, n) = x;
+  VERIFY_IS_CWISE_EQUAL(host, expected);
 }
 
 // internal::triangular_adjoint_square_in_place() is what LLT::inverse() uses to turn L^-1 into
@@ -147,7 +129,7 @@ void adjoint_square_in_place(Index n) {
   VERIFY((numext::isfinite)(bound));
   VERIFY((computed - expected.template triangularView<UpLo>().toDenseMatrix()).norm() <= bound);
 
-  constexpr unsigned int kUntouched = UpLo == Lower ? unsigned(StrictlyUpper) : unsigned(StrictlyLower);
+  constexpr unsigned int kUntouched = untouched_mode(UpLo);
   VERIFY_IS_CWISE_EQUAL(a.template triangularView<kUntouched>().toDenseMatrix(),
                         t.template triangularView<kUntouched>().toDenseMatrix());
 }

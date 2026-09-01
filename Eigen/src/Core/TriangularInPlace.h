@@ -113,10 +113,7 @@ EIGEN_DEVICE_FUNC void triangular_inverse_lower(MatrixType& mat) {
 }
 
 template <unsigned int Mode, bool IsLower = (int(Mode) & int(Lower)) != 0>
-struct triangular_inverse_selector;
-
-template <unsigned int Mode>
-struct triangular_inverse_selector<Mode, true> {
+struct triangular_inverse_selector {
   template <typename MatrixType>
   EIGEN_DEVICE_FUNC static void run(MatrixType& mat) {
     triangular_inverse_lower<Mode>(mat);
@@ -141,7 +138,7 @@ void triangular_adjoint_square_unblocked(MatrixType& mat) {
   for (Index i = 0; i < n; ++i) {
     const Scalar lii = mat.coeff(i, i);
     const Index rs = n - i - 1;
-    mat.coeffRef(i, i) = Scalar(mat.col(i).tail(rs + 1).squaredNorm());
+    mat.coeffRef(i, i) = Scalar(mat.col(i).tail(n - i).squaredNorm());
     if (i > 0) {
       mat.row(i).head(i) *= numext::conj(lii);
       if (rs > 0) mat.row(i).head(i).noalias() += mat.col(i).tail(rs).adjoint() * mat.bottomLeftCorner(rs, i);
@@ -182,10 +179,7 @@ void triangular_adjoint_square_lower(MatrixType& mat) {
 }
 
 template <int UpLo, bool IsLower = (int(UpLo) & int(Lower)) != 0>
-struct triangular_adjoint_square_selector;
-
-template <int UpLo>
-struct triangular_adjoint_square_selector<UpLo, true> {
+struct triangular_adjoint_square_selector {
   template <typename MatrixType>
   static void run(MatrixType& mat) {
     triangular_adjoint_square_lower(mat);
