@@ -90,6 +90,27 @@ void check_llt_inverse(const MatrixType& symm) {
   VERIFY((symm * host.bottomRightCorner(n, n) - MatrixType::Identity(n, n)).norm() <= residual_bound);
 }
 
+// LLT::inverse() dispatches on EIGEN_LLT_INVERSE_POTRI_THRESHOLD, so straddle it deterministically:
+// the random sizes above reach only whichever side of it EIGEN_TEST_MAX_SIZE happens to allow. Only
+// real scalars are thresholded, so only they have a boundary to straddle.
+template <typename Scalar>
+void llt_inverse_threshold_boundary() {
+  static_assert(!NumTraits<Scalar>::IsComplex, "only real scalars are thresholded");
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
+
+  const Index t = EIGEN_LLT_INVERSE_POTRI_THRESHOLD;
+  const Index sizes[] = {t - 1, t, t + 1};
+  for (Index n : sizes) {
+    MatrixType r = MatrixType::Random(n, n);
+    MatrixType symm = r * r.adjoint();
+    symm.diagonal().array() += RealScalar(n);
+
+    check_llt_inverse<MatrixType, Lower>(symm);
+    check_llt_inverse<MatrixType, Upper>(symm);
+  }
+}
+
 template <typename MatrixType>
 void cholesky(const MatrixType& m) {
   /* this test covers the following files:
@@ -796,6 +817,8 @@ EIGEN_DECLARE_TEST(cholesky) {
   CALL_SUBTEST_6(cholesky_blocking_boundary<std::complex<double> >());
   CALL_SUBTEST_2(cholesky_rowmajor_boundary<double>());
   CALL_SUBTEST_8(cholesky_rowmajor_boundary<float>());
+  CALL_SUBTEST_2(llt_inverse_threshold_boundary<double>());
+  CALL_SUBTEST_8(llt_inverse_threshold_boundary<float>());
 
   TEST_SET_BUT_UNUSED_VARIABLE(nb_temporaries);
 }
