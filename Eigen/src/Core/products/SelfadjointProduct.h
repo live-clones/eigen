@@ -24,7 +24,8 @@ namespace Eigen {
 
 template <typename Scalar, typename Index, int UpLo, bool ConjLhs, bool ConjRhs>
 struct selfadjoint_rank1_update<Scalar, Index, ColMajor, UpLo, ConjLhs, ConjRhs> {
-  EIGEN_DEVICE_FUNC static void run(Index size, Scalar* mat, Index stride, const Scalar* vecX, const Scalar* vecY, const Scalar& alpha) {
+  EIGEN_DEVICE_FUNC static void run(Index size, Scalar* mat, Index stride, const Scalar* vecX, const Scalar* vecY,
+                                    const Scalar& alpha) {
     using Packet = typename internal::packet_traits<Scalar>::type;
     const Index PacketSize = internal::unpacket_traits<Packet>::size;
 
@@ -129,7 +130,8 @@ struct selfadjoint_rank1_update<Scalar, Index, ColMajor, UpLo, ConjLhs, ConjRhs>
 
 template <typename Scalar, typename Index, int UpLo, bool ConjLhs, bool ConjRhs>
 struct selfadjoint_rank1_update<Scalar, Index, RowMajor, UpLo, ConjLhs, ConjRhs> {
-  EIGEN_DEVICE_FUNC static void run(Index size, Scalar* mat, Index stride, const Scalar* vecX, const Scalar* vecY, const Scalar& alpha) {
+  EIGEN_DEVICE_FUNC static void run(Index size, Scalar* mat, Index stride, const Scalar* vecX, const Scalar* vecY,
+                                    const Scalar& alpha) {
     selfadjoint_rank1_update<Scalar, Index, ColMajor, UpLo == Lower ? Upper : Lower, ConjRhs, ConjLhs>::run(
         size, mat, stride, vecY, vecX, alpha);
   }

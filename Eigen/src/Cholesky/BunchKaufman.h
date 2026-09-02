@@ -444,7 +444,8 @@ struct bunch_kaufman<Lower> {
   //   - transpositions encodes the symmetric permutation P (applied in increasing index order).
   // Returns 0 on success, or the (1-based) index of the first exactly-zero pivot encountered.
   template <typename MatrixType, typename TranspositionType, typename SubDiagType>
-  EIGEN_DEVICE_FUNC static Index unblocked(MatrixType& mat, TranspositionType& transpositions, SubDiagType& subdiag, Index k0 = 0) {
+  EIGEN_DEVICE_FUNC static Index unblocked(MatrixType& mat, TranspositionType& transpositions, SubDiagType& subdiag,
+                                           Index k0 = 0) {
     using numext::abs;
     using Scalar = typename MatrixType::Scalar;
     using RealScalar = typename MatrixType::RealScalar;
@@ -592,8 +593,8 @@ struct bunch_kaufman<Lower> {
   // columns, so that the caller can apply the deferred trailing update A22 <- A22 - L21 * (L21*D)^* with
   // a single level-3 (triangular) matrix product. Returns the number kb (<= nb) of columns factorized.
   template <typename MatrixType, typename WorkspaceType, typename TranspositionType, typename SubDiagType>
-  EIGEN_DEVICE_FUNC static Index partial_factor(MatrixType& mat, Index k0, Index nb, WorkspaceType& W, TranspositionType& transpositions,
-                              SubDiagType& subdiag, Index& info) {
+  EIGEN_DEVICE_FUNC static Index partial_factor(MatrixType& mat, Index k0, Index nb, WorkspaceType& W,
+                                                TranspositionType& transpositions, SubDiagType& subdiag, Index& info) {
     using numext::abs;
     using Scalar = typename MatrixType::Scalar;
     using RealScalar = typename MatrixType::RealScalar;
@@ -732,7 +733,7 @@ struct bunch_kaufman<Lower> {
   // Blocked (level-3 BLAS) Bunch-Kaufman factorization of the lower triangle of `mat`, in place.
   template <typename MatrixType, typename TranspositionType, typename SubDiagType, typename WorkspaceType>
   static EIGEN_DEVICE_FUNC Index blocked(MatrixType& mat, TranspositionType& transpositions, SubDiagType& subdiag,
-                       WorkspaceType& workspace) {
+                                         WorkspaceType& workspace) {
     const Index n = mat.rows();
     const Index nb = bunch_kaufman_blocksize<typename MatrixType::Scalar>();
     if (nb < 2 || n <= nb) return unblocked(mat, transpositions, subdiag, 0);
@@ -768,15 +769,15 @@ struct bunch_kaufman<Lower> {
 template <>
 struct bunch_kaufman<Upper> {
   template <typename MatrixType, typename TranspositionType, typename SubDiagType>
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Index unblocked(MatrixType& mat, TranspositionType& transpositions, SubDiagType& subdiag,
-                                             Index k0 = 0) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Index unblocked(MatrixType& mat, TranspositionType& transpositions,
+                                                               SubDiagType& subdiag, Index k0 = 0) {
     Transpose<MatrixType> matt(mat);
     return bunch_kaufman<Lower>::unblocked(matt, transpositions, subdiag, k0);
   }
 
   template <typename MatrixType, typename TranspositionType, typename SubDiagType, typename WorkspaceType>
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Index blocked(MatrixType& mat, TranspositionType& transpositions, SubDiagType& subdiag,
-                                           WorkspaceType& workspace) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Index blocked(MatrixType& mat, TranspositionType& transpositions,
+                                                             SubDiagType& subdiag, WorkspaceType& workspace) {
     Transpose<MatrixType> matt(mat);
     return bunch_kaufman<Lower>::blocked(matt, transpositions, subdiag, workspace);
   }
@@ -928,7 +929,8 @@ EIGEN_DEVICE_FUNC void BunchKaufman<MatrixType, UpLo_>::computeInertia() {
  * upper variant) of \a a. */
 template <typename MatrixType, int UpLo_>
 template <typename InputType>
-EIGEN_DEVICE_FUNC BunchKaufman<MatrixType, UpLo_>& BunchKaufman<MatrixType, UpLo_>::compute(const EigenBase<InputType>& a) {
+EIGEN_DEVICE_FUNC BunchKaufman<MatrixType, UpLo_>& BunchKaufman<MatrixType, UpLo_>::compute(
+    const EigenBase<InputType>& a) {
   eigen_assert(a.rows() == a.cols());
   const Index size = a.rows();
 
@@ -966,7 +968,8 @@ EIGEN_DEVICE_FUNC void BunchKaufman<MatrixType_, UpLo_>::_solve_impl(const RhsTy
 
 template <typename MatrixType_, int UpLo_>
 template <bool Conjugate, typename RhsType, typename DstType>
-EIGEN_DEVICE_FUNC void BunchKaufman<MatrixType_, UpLo_>::_solve_impl_transposed(const RhsType& rhs, DstType& dst) const {
+EIGEN_DEVICE_FUNC void BunchKaufman<MatrixType_, UpLo_>::_solve_impl_transposed(const RhsType& rhs,
+                                                                                DstType& dst) const {
   // A^{-1} b = P^T L^{-*} D^{-1} L^{-1} P b   (and the conjugated variants for transpose / adjoint solves).
   dst = m_transpositions * rhs;
   matrixL().template conjugateIf<!Conjugate>().solveInPlace(dst);
@@ -1105,7 +1108,8 @@ SelfAdjointView<MatrixType, UpLo>::bunchKaufman() const {
  * \sa SelfAdjointView::bunchKaufman()
  */
 template <typename Derived>
-EIGEN_DEVICE_FUNC inline BunchKaufman<typename MatrixBase<Derived>::PlainObject> MatrixBase<Derived>::bunchKaufman() const {
+EIGEN_DEVICE_FUNC inline BunchKaufman<typename MatrixBase<Derived>::PlainObject> MatrixBase<Derived>::bunchKaufman()
+    const {
   return BunchKaufman<PlainObject>(derived());
 }
 

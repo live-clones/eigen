@@ -408,13 +408,8 @@ EIGEN_DEVICE_FUNC inline T* move_construct_elements_of_array(T* ptr, T* src, std
 
 template <typename T>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void check_size_for_overflow(std::size_t size) {
-// #if defined(EIGEN_GPU_COMPILE_PHASE)
-//   EIGEN_STATIC_ASSERT(false, THIS_EIGEN_OPERATION_REQUIRES_DYNAMIC_ALLOCATION_WHICH_IS_NOT_SUPPORTED_ON_DEVICE);
-//   // throw_std_bad_alloc();
-// #else
   constexpr std::size_t max_elements = (std::numeric_limits<std::ptrdiff_t>::max)() / sizeof(T);
   if (size > max_elements) throw_std_bad_alloc();
-// #endif
 }
 
 /** \internal Allocates \a size objects of type T. The returned pointer is guaranteed to have 16 bytes alignment.

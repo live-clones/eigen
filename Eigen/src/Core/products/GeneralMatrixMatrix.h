@@ -332,7 +332,7 @@ class gemm_blocking_space<StorageOrder, LhsScalar_, RhsScalar_, MaxRows, MaxCols
 
  public:
   EIGEN_DEVICE_FUNC gemm_blocking_space(Index /*rows*/, Index /*cols*/, Index /*depth*/, Index /*num_threads*/,
-                      bool /*full_rows = false*/) {
+                                        bool /*full_rows = false*/) {
     this->m_mc = ActualRows;
     this->m_nc = ActualCols;
     this->m_kc = MaxDepth;

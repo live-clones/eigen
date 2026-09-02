@@ -1483,15 +1483,15 @@ struct diagonal_product_evaluator_base : evaluator_base<Derived> {
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packet_segment_impl(Index row, Index col, Index id, Index begin, Index count,
-                                                     std::true_type) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packet_segment_impl(Index row, Index col, Index id, Index begin,
+                                                                       Index count, std::true_type) const {
     return internal::pmul(m_matImpl.template packetSegment<LoadMode, PacketType>(row, col, begin, count),
                           internal::pset1<PacketType>(m_diagImpl.coeff(id)));
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packet_segment_impl(Index row, Index col, Index id, Index begin, Index count,
-                                                     std::false_type) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packet_segment_impl(Index row, Index col, Index id, Index begin,
+                                                                       Index count, std::false_type) const {
     enum {
       InnerSize = (MatrixType::Flags & RowMajorBit) ? MatrixType::ColsAtCompileTime : MatrixType::RowsAtCompileTime,
       DiagonalPacketLoadMode = plain_enum_min(
@@ -1760,10 +1760,10 @@ struct permutation_matrix_product<ExpressionType, Side, Transposed, DenseShape> 
   using MatrixTypeCleaned = remove_all_t<MatrixType>;
 
   template <typename Dest, typename PermutationType>
-static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Dest& dst, const PermutationType& perm,
-                                                      const ExpressionType& xpr) {
-  MatrixType mat(xpr);
-  const Index n = Side == OnTheLeft ? mat.rows() : mat.cols();
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Dest& dst, const PermutationType& perm,
+                                                        const ExpressionType& xpr) {
+    MatrixType mat(xpr);
+    const Index n = Side == OnTheLeft ? mat.rows() : mat.cols();
     // FIXME we need an is_same for expression that is not sensitive to constness. For instance
     // is_same_xpr<Block<const Matrix>, Block<Matrix> >::value should be true.
     // if(std::is_same<MatrixTypeCleaned,Dest>::value && extract_data(dst) == extract_data(mat))

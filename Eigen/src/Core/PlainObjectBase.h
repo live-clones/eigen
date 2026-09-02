@@ -573,15 +573,23 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
   EIGEN_DEVICE_FUNC static inline MapType Map(Scalar* data) { return MapType(data); }
   EIGEN_DEVICE_FUNC static inline ConstMapType Map(const Scalar* data, Index size) { return ConstMapType(data, size); }
   EIGEN_DEVICE_FUNC static inline MapType Map(Scalar* data, Index size) { return MapType(data, size); }
-  EIGEN_DEVICE_FUNC static inline ConstMapType Map(const Scalar* data, Index rows, Index cols) { return ConstMapType(data, rows, cols); }
-  EIGEN_DEVICE_FUNC static inline MapType Map(Scalar* data, Index rows, Index cols) { return MapType(data, rows, cols); }
+  EIGEN_DEVICE_FUNC static inline ConstMapType Map(const Scalar* data, Index rows, Index cols) {
+    return ConstMapType(data, rows, cols);
+  }
+  EIGEN_DEVICE_FUNC static inline MapType Map(Scalar* data, Index rows, Index cols) {
+    return MapType(data, rows, cols);
+  }
 
-  EIGEN_DEVICE_FUNC static inline ConstAlignedMapType MapAligned(const Scalar* data) { return ConstAlignedMapType(data); }
+  EIGEN_DEVICE_FUNC static inline ConstAlignedMapType MapAligned(const Scalar* data) {
+    return ConstAlignedMapType(data);
+  }
   EIGEN_DEVICE_FUNC static inline AlignedMapType MapAligned(Scalar* data) { return AlignedMapType(data); }
   EIGEN_DEVICE_FUNC static inline ConstAlignedMapType MapAligned(const Scalar* data, Index size) {
     return ConstAlignedMapType(data, size);
   }
-  EIGEN_DEVICE_FUNC static inline AlignedMapType MapAligned(Scalar* data, Index size) { return AlignedMapType(data, size); }
+  EIGEN_DEVICE_FUNC static inline AlignedMapType MapAligned(Scalar* data, Index size) {
+    return AlignedMapType(data, size);
+  }
   EIGEN_DEVICE_FUNC static inline ConstAlignedMapType MapAligned(const Scalar* data, Index rows, Index cols) {
     return ConstAlignedMapType(data, rows, cols);
   }
@@ -590,33 +598,33 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
   }
 
   template <int Outer, int Inner>
-  EIGEN_DEVICE_FUNC static inline typename StridedConstMapType<Stride<Outer, Inner>>::type Map(const Scalar* data,
-                                                                             const Stride<Outer, Inner>& stride) {
+  EIGEN_DEVICE_FUNC static inline typename StridedConstMapType<Stride<Outer, Inner>>::type Map(
+      const Scalar* data, const Stride<Outer, Inner>& stride) {
     return typename StridedConstMapType<Stride<Outer, Inner>>::type(data, stride);
   }
   template <int Outer, int Inner>
-  EIGEN_DEVICE_FUNC static inline typename StridedMapType<Stride<Outer, Inner>>::type Map(Scalar* data,
-                                                                        const Stride<Outer, Inner>& stride) {
+  EIGEN_DEVICE_FUNC static inline typename StridedMapType<Stride<Outer, Inner>>::type Map(
+      Scalar* data, const Stride<Outer, Inner>& stride) {
     return typename StridedMapType<Stride<Outer, Inner>>::type(data, stride);
   }
   template <int Outer, int Inner>
-  EIGEN_DEVICE_FUNC static inline typename StridedConstMapType<Stride<Outer, Inner>>::type Map(const Scalar* data, Index size,
-                                                                             const Stride<Outer, Inner>& stride) {
+  EIGEN_DEVICE_FUNC static inline typename StridedConstMapType<Stride<Outer, Inner>>::type Map(
+      const Scalar* data, Index size, const Stride<Outer, Inner>& stride) {
     return typename StridedConstMapType<Stride<Outer, Inner>>::type(data, size, stride);
   }
   template <int Outer, int Inner>
-  EIGEN_DEVICE_FUNC static inline typename StridedMapType<Stride<Outer, Inner>>::type Map(Scalar* data, Index size,
-                                                                        const Stride<Outer, Inner>& stride) {
+  EIGEN_DEVICE_FUNC static inline typename StridedMapType<Stride<Outer, Inner>>::type Map(
+      Scalar* data, Index size, const Stride<Outer, Inner>& stride) {
     return typename StridedMapType<Stride<Outer, Inner>>::type(data, size, stride);
   }
   template <int Outer, int Inner>
-  EIGEN_DEVICE_FUNC static inline typename StridedConstMapType<Stride<Outer, Inner>>::type Map(const Scalar* data, Index rows, Index cols,
-                                                                             const Stride<Outer, Inner>& stride) {
+  EIGEN_DEVICE_FUNC static inline typename StridedConstMapType<Stride<Outer, Inner>>::type Map(
+      const Scalar* data, Index rows, Index cols, const Stride<Outer, Inner>& stride) {
     return typename StridedConstMapType<Stride<Outer, Inner>>::type(data, rows, cols, stride);
   }
   template <int Outer, int Inner>
-  EIGEN_DEVICE_FUNC static inline typename StridedMapType<Stride<Outer, Inner>>::type Map(Scalar* data, Index rows, Index cols,
-                                                                        const Stride<Outer, Inner>& stride) {
+  EIGEN_DEVICE_FUNC static inline typename StridedMapType<Stride<Outer, Inner>>::type Map(
+      Scalar* data, Index rows, Index cols, const Stride<Outer, Inner>& stride) {
     return typename StridedMapType<Stride<Outer, Inner>>::type(data, rows, cols, stride);
   }
 

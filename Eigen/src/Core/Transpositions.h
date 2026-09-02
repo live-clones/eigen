@@ -90,10 +90,14 @@ class TranspositionsBase {
   */
 
   /** \returns the inverse transformation */
-  EIGEN_DEVICE_FUNC inline Transpose<TranspositionsBase> inverse() const { return Transpose<TranspositionsBase>(derived()); }
+  EIGEN_DEVICE_FUNC inline Transpose<TranspositionsBase> inverse() const {
+    return Transpose<TranspositionsBase>(derived());
+  }
 
   /** \returns the transpose transformation */
-  EIGEN_DEVICE_FUNC inline Transpose<TranspositionsBase> transpose() const { return Transpose<TranspositionsBase>(derived()); }
+  EIGEN_DEVICE_FUNC inline Transpose<TranspositionsBase> transpose() const {
+    return Transpose<TranspositionsBase>(derived());
+  }
 };
 
 namespace internal {
@@ -160,18 +164,6 @@ class Transpositions
   EIGEN_DEVICE_FUNC Transpositions& operator=(const TranspositionsBase<OtherDerived>& other) {
     return Base::operator=(other);
   }
-
-  #ifndef EIGEN_PARSED_BY_DOXYGEN
-  /** This is a special case of the templated operator=. Its purpose is to
-    * prevent a default operator= from hiding the templated operator=.
-    */
-  EIGEN_DEVICE_FUNC
-  Transpositions& operator=(const Transpositions& other)
-  {
-    m_indices = other.m_indices;
-    return *this;
-  }
-  #endif
 
   /** Constructs an uninitialized permutation matrix of given size.
    */
@@ -311,15 +303,16 @@ class Transpose<TranspositionsBase<TranspositionsDerived> > {
   /** \returns the \a matrix with the inverse transpositions applied to the columns.
    */
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC friend const Product<OtherDerived, Transpose, AliasFreeProduct> operator*(const MatrixBase<OtherDerived>& matrix,
-                                                                            const Transpose& trt) {
+  EIGEN_DEVICE_FUNC friend const Product<OtherDerived, Transpose, AliasFreeProduct> operator*(
+      const MatrixBase<OtherDerived>& matrix, const Transpose& trt) {
     return Product<OtherDerived, Transpose, AliasFreeProduct>(matrix.derived(), trt);
   }
 
   /** \returns the \a matrix with the inverse transpositions applied to the rows.
    */
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC const Product<Transpose, OtherDerived, AliasFreeProduct> operator*(const MatrixBase<OtherDerived>& matrix) const {
+  EIGEN_DEVICE_FUNC const Product<Transpose, OtherDerived, AliasFreeProduct> operator*(
+      const MatrixBase<OtherDerived>& matrix) const {
     return Product<Transpose, OtherDerived, AliasFreeProduct>(*this, matrix.derived());
   }
 
