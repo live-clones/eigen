@@ -253,12 +253,11 @@ void test_dpr1_invalid_options() {
   VERIFY_RAISES_ASSERT((es.compute(d, 1.0, z, ComputeFullU)));
 }
 
-// Regression (MR 2694 review): poles spanning the full exponent range with a
-// huge but representable update. Pole differences (d_1 - d_0 = 1.5*DBL_MAX)
-// overflow unless the solver rescales the problem by an exact power of two;
-// it used to report Success with an infinite eigenvalue. The reference is a
-// dense solve of the exactly rescaled problem 2^-e * (d, rho), whose spectrum
-// is exactly 2^-e times the original.
+// Regression (MR 2694 review): poles spanning the full exponent range with a huge but representable
+// update. Pole differences (d_1 - d_0 = 1.5*DBL_MAX) overflow unless the problem is rescaled by an
+// exact power of two; the solver used to report Success with an infinite eigenvalue. The reference is
+// a dense solve of the rescaled problem 2^-e * (d, rho), whose spectrum is exactly 2^-e times the
+// original.
 void test_dpr1_full_range_poles() {
   typedef Matrix<double, Dynamic, 1> Vec;
   typedef Matrix<double, Dynamic, Dynamic> Mat;
@@ -351,13 +350,11 @@ void test_dpr1_overflowing_spectrum() {
   VERIFY((numext::isnan)(es2.eigenvalues()[0]));
 }
 
-// Regression (MR 2694 review): the normalized secular problem can round a root
-// across the maximum-finite boundary before it is scaled back. Finiteness of
-// that rounded root therefore cannot classify the exact spectrum. The first
-// update has lambda = DBL_MAX - 19/256 ulp, which rounds to DBL_MAX; the second
-// has lambda = DBL_MAX + 3739/2048 ulp and genuinely overflows. The constants
-// are assembled from their exact binary significands because hexadecimal
-// floating-point literals are not part of the project's C++14 baseline.
+// Regression (MR 2694 review): the normalized secular problem can round a root across the
+// maximum-finite boundary before it is scaled back, so that root's finiteness cannot classify the
+// exact spectrum. The first update has lambda = DBL_MAX - 19/256 ulp, which rounds to DBL_MAX; the
+// second has lambda = DBL_MAX + 3739/2048 ulp and genuinely overflows. Constants are assembled from
+// their exact significands, hexadecimal float literals not being in the C++14 baseline.
 void test_dpr1_maximum_range_rounding() {
   typedef Matrix<double, Dynamic, 1> Vec;
   const double dmax = (std::numeric_limits<double>::max)();
@@ -430,12 +427,11 @@ void test_dpr1_exact_endpoint_sum() {
   VERIFY(unresolved.info() != Success);
 }
 
-// Regression (MR 2694 review): rho*||z||^2 = 2*max overflows, but the single
-// eigenvalue d + rho*z^2 = -max + 2*max = max is representable. The solver
-// must pick its power-of-two rescaling from component exponents alone -- never
-// materializing rho*||z||^2 at full scale -- and succeed. The secular root
-// sits exactly on the far end of its bisection bracket here, so the computed
-// eigenvalue lands within a couple of ulps of (not exactly at) max.
+// Regression (MR 2694 review): rho*||z||^2 = 2*max overflows, but the single eigenvalue
+// d + rho*z^2 = -max + 2*max = max is representable. The rescaling must come from component exponents
+// alone, never materializing rho*||z||^2 at full scale. The secular root sits exactly on the far end
+// of its bisection bracket, so the computed eigenvalue lands within a couple of ulps of max rather
+// than exactly at it.
 template <typename Scalar>
 void test_dpr1_overflowing_update_representable_spectrum() {
   typedef Matrix<Scalar, Dynamic, 1> Vec;
