@@ -622,17 +622,11 @@ void cholesky_determinant(Index size) {
 
   LLT<MatrixType, Lower> lltlo(spd);
   VERIFY(lltlo.info() == Success);
-  VERIFY_IS_APPROX(lltlo.determinant(), Scalar(absdet));
-  VERIFY_IS_APPROX(lltlo.absDeterminant(), absdet);
-  VERIFY_IS_MUCH_SMALLER_THAN(lltlo.logAbsDeterminant() - logabsdet, RealScalar(1));
-  VERIFY_IS_APPROX(lltlo.signDeterminant(), Scalar(1));
+  check_determinant(lltlo, Scalar(absdet), logabsdet);
 
   LLT<MatrixType, Upper> lltup(spd);
   VERIFY(lltup.info() == Success);
-  VERIFY_IS_APPROX(lltup.determinant(), Scalar(absdet));
-  VERIFY_IS_APPROX(lltup.absDeterminant(), absdet);
-  VERIFY_IS_MUCH_SMALLER_THAN(lltup.logAbsDeterminant() - logabsdet, RealScalar(1));
-  VERIFY_IS_APPROX(lltup.signDeterminant(), Scalar(1));
+  check_determinant(lltup, Scalar(absdet), logabsdet);
 
   // Negating D leaves |det(A)| alone and makes A negative definite, so det(A) picks up a factor (-1)^n.
   // LDLT's D is purely diagonal and so does not cover the indefinite case; BunchKaufman does, and
@@ -643,17 +637,11 @@ void cholesky_determinant(Index size) {
 
   LDLT<MatrixType, Lower> ldltlo(negdef);
   VERIFY(ldltlo.info() == Success);
-  VERIFY_IS_APPROX(ldltlo.determinant(), Scalar(det));
-  VERIFY_IS_APPROX(ldltlo.absDeterminant(), absdet);
-  VERIFY_IS_MUCH_SMALLER_THAN(ldltlo.logAbsDeterminant() - logabsdet, RealScalar(1));
-  VERIFY_IS_APPROX(ldltlo.signDeterminant(), Scalar(numext::sign(det)));
+  check_determinant(ldltlo, Scalar(det), logabsdet);
 
   LDLT<MatrixType, Upper> ldltup(negdef);
   VERIFY(ldltup.info() == Success);
-  VERIFY_IS_APPROX(ldltup.determinant(), Scalar(det));
-  VERIFY_IS_APPROX(ldltup.absDeterminant(), absdet);
-  VERIFY_IS_MUCH_SMALLER_THAN(ldltup.logAbsDeterminant() - logabsdet, RealScalar(1));
-  VERIFY_IS_APPROX(ldltup.signDeterminant(), Scalar(numext::sign(det)));
+  check_determinant(ldltup, Scalar(det), logabsdet);
 }
 
 // The determinant of an empty matrix is the empty product, 1.
@@ -691,13 +679,13 @@ void cholesky_determinant_overflow() {
 
     LLT<MatrixType> llt(a);
     VERIFY(llt.info() == Success);
-    VERIFY(!(numext::isfinite)(llt.absDeterminant()) || numext::is_exactly_zero(llt.absDeterminant()));
+    VERIFY(determinant_out_of_range(llt.absDeterminant()));
     VERIFY_IS_APPROX(llt.logAbsDeterminant(), logabsdet);
     VERIFY_IS_EQUAL(llt.signDeterminant(), Scalar(1));
 
     LDLT<MatrixType> ldlt(a);
     VERIFY(ldlt.info() == Success);
-    VERIFY(!(numext::isfinite)(ldlt.absDeterminant()) || numext::is_exactly_zero(ldlt.absDeterminant()));
+    VERIFY(determinant_out_of_range(ldlt.absDeterminant()));
     VERIFY_IS_APPROX(ldlt.logAbsDeterminant(), logabsdet);
     VERIFY_IS_EQUAL(ldlt.signDeterminant(), Scalar(1));
   }

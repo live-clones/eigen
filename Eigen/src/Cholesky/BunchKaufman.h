@@ -299,7 +299,8 @@ class BunchKaufman : public SolverBase<BunchKaufman<MatrixType_, UpLo_> > {
    *
    * \note This method is useful to work around the risk of overflow/underflow that's inherent
    * to determinant computation. The 2x2 blocks of D are scaled by their off-diagonal entry before their
-   * determinant is formed, so a block whose own determinant overflows still contributes exactly.
+   * determinant is formed, so a block whose own determinant is out of range still contributes a
+   * finite term.
    *
    * \sa determinant(), absDeterminant(), signDeterminant(), MatrixBase::determinant()
    */
@@ -360,10 +361,10 @@ class BunchKaufman : public SolverBase<BunchKaufman<MatrixType_, UpLo_> > {
   /** \internal Compute the inertia (counts of positive / negative / zero eigenvalues) from D. */
   void computeInertia();
 
-  /** \internal \returns the determinant of the diagonal block of D that starts at row \a k, advancing \a k
-   * past that block. D is Hermitian, so a block determinant is real: \f$ d_{11} \f$ for a 1x1 block and
+  /** \internal \returns \f$ \det(D) \f$, the product over the 1x1 and 2x2 diagonal blocks of D. D is
+   * Hermitian, so a block determinant is real: \f$ d_{11} \f$ for a 1x1 block and
    * \f$ d_{11} d_{22} - |d_{21}|^2 \f$ for a 2x2 one. */
-  RealScalar blockDeterminantD(Index& k) const;
+  RealScalar determinantD() const;
 
   MatrixType m_matrix;
   RealScalar m_l1_norm;
@@ -977,18 +978,23 @@ bool BunchKaufman<MatrixType, UpLo_>::solveInPlace(MatrixBase<Derived>& bAndX) c
 }
 
 template <typename MatrixType, int UpLo_>
-typename BunchKaufman<MatrixType, UpLo_>::RealScalar BunchKaufman<MatrixType, UpLo_>::blockDeterminantD(
-    Index& k) const {
+typename BunchKaufman<MatrixType, UpLo_>::RealScalar BunchKaufman<MatrixType, UpLo_>::determinantD() const {
   const Index n = m_matrix.rows();
-  const RealScalar d11 = numext::real(m_matrix.coeff(k, k));
-  if (k + 1 < n && !numext::is_exactly_zero(m_subdiag.coeff(k))) {
-    const RealScalar d22 = numext::real(m_matrix.coeff(k + 1, k + 1));
-    const RealScalar d21 = numext::abs(m_subdiag.coeff(k));
-    k += 2;
-    return d11 * d22 - d21 * d21;
+  RealScalar det(1);
+  Index k = 0;
+  while (k < n) {
+    const RealScalar d11 = numext::real(m_matrix.coeff(k, k));
+    if (k + 1 < n && !numext::is_exactly_zero(m_subdiag.coeff(k))) {
+      const RealScalar d22 = numext::real(m_matrix.coeff(k + 1, k + 1));
+      const RealScalar d21 = numext::abs(m_subdiag.coeff(k));
+      det *= d11 * d22 - d21 * d21;
+      k += 2;
+    } else {
+      det *= d11;
+      k += 1;
+    }
   }
-  k += 1;
-  return d11;
+  return det;
 }
 
 // A = P^T L D L^* P with L unit triangular, so det(A) = det(D) = prod over the 1x1 and 2x2 blocks of D.
@@ -996,21 +1002,13 @@ typename BunchKaufman<MatrixType, UpLo_>::RealScalar BunchKaufman<MatrixType, Up
 template <typename MatrixType, int UpLo_>
 typename BunchKaufman<MatrixType, UpLo_>::Scalar BunchKaufman<MatrixType, UpLo_>::determinant() const {
   eigen_assert(m_isInitialized && "BunchKaufman is not initialized.");
-  const Index n = m_matrix.rows();
-  RealScalar det(1);
-  Index k = 0;
-  while (k < n) det *= blockDeterminantD(k);
-  return Scalar(det);
+  return Scalar(determinantD());
 }
 
 template <typename MatrixType, int UpLo_>
 typename BunchKaufman<MatrixType, UpLo_>::RealScalar BunchKaufman<MatrixType, UpLo_>::absDeterminant() const {
   eigen_assert(m_isInitialized && "BunchKaufman is not initialized.");
-  const Index n = m_matrix.rows();
-  RealScalar det(1);
-  Index k = 0;
-  while (k < n) det *= blockDeterminantD(k);
-  return numext::abs(det);
+  return numext::abs(determinantD());
 }
 
 template <typename MatrixType, int UpLo_>
@@ -1021,13 +1019,14 @@ typename BunchKaufman<MatrixType, UpLo_>::RealScalar BunchKaufman<MatrixType, Up
   Index k = 0;
   while (k < n) {
     if (k + 1 < n && !numext::is_exactly_zero(m_subdiag.coeff(k))) {
-      // det = |d21|^2 * (d11 d22 / |d21|^2 - 1), so log|det| = 2 log|d21| + log|scaled|; forming
-      // d11 d22 - |d21|^2 directly would over/underflow on extreme-scaled 2x2 blocks.
+      // det = |d21|^2 * ((d11/|d21|) (d22/|d21|) - 1), so log|det| = 2 log|d21| + log|scaled|; forming
+      // d11 d22 - |d21|^2 directly would over/underflow on extreme-scaled 2x2 blocks. Divide by |d21|
+      // rather than multiply by its reciprocal, which overflows once |d21| is subnormal.
       const RealScalar d11 = numext::real(m_matrix.coeff(k, k));
       const RealScalar d22 = numext::real(m_matrix.coeff(k + 1, k + 1));
-      const Scalar id = Scalar(1) / m_subdiag.coeff(k);
-      const RealScalar scaled = numext::real((d22 * id) * (d11 * numext::conj(id))) - RealScalar(1);
-      result += RealScalar(2) * numext::log(numext::abs(m_subdiag.coeff(k))) + numext::log(numext::abs(scaled));
+      const RealScalar d21 = numext::abs(m_subdiag.coeff(k));
+      const RealScalar scaled = (d11 / d21) * (d22 / d21) - RealScalar(1);
+      result += RealScalar(2) * numext::log(d21) + numext::log(numext::abs(scaled));
       k += 2;
     } else {
       result += numext::log(numext::abs(numext::real(m_matrix.coeff(k, k))));

@@ -203,7 +203,7 @@ class LLT : public SolverBase<LLT<MatrixType_, UpLo_> > {
    * of large enough dimension, there is a risk of overflow/underflow.
    * One way to work around that is to use logAbsDeterminant() instead.
    *
-   * \sa absDeterminant(), logAbsDeterminant(), MatrixBase::determinant()
+   * \sa absDeterminant(), logAbsDeterminant(), signDeterminant(), MatrixBase::determinant()
    */
   Scalar determinant() const;
 
@@ -218,7 +218,7 @@ class LLT : public SolverBase<LLT<MatrixType_, UpLo_> > {
    * of large enough dimension, there is a risk of overflow/underflow.
    * One way to work around that is to use logAbsDeterminant() instead.
    *
-   * \sa determinant(), logAbsDeterminant(), MatrixBase::determinant()
+   * \sa determinant(), logAbsDeterminant(), signDeterminant(), MatrixBase::determinant()
    */
   RealScalar absDeterminant() const;
 
@@ -231,7 +231,7 @@ class LLT : public SolverBase<LLT<MatrixType_, UpLo_> > {
    * \note This method is useful to work around the risk of overflow/underflow that's inherent
    * to determinant computation.
    *
-   * \sa determinant(), absDeterminant(), MatrixBase::determinant()
+   * \sa determinant(), absDeterminant(), signDeterminant(), MatrixBase::determinant()
    */
   RealScalar logAbsDeterminant() const;
 
