@@ -50,6 +50,15 @@ void test_simplicial_cholesky_T() {
   check_sparse_nonhermitian_determinant(nhldlt_colmajor_lower_amd);
   check_sparse_nonhermitian_determinant(nhldlt_colmajor_upper_amd);
 
+  check_sparse_spd_log_abs_determinant(llt_colmajor_lower_amd);
+  check_sparse_spd_log_abs_determinant(llt_colmajor_upper_amd);
+  check_sparse_spd_log_abs_determinant(ldlt_colmajor_lower_amd);
+  check_sparse_spd_log_abs_determinant(ldlt_colmajor_upper_amd);
+  check_sparse_nonhermitian_log_abs_determinant(nhllt_colmajor_lower_amd);
+  check_sparse_nonhermitian_log_abs_determinant(nhllt_colmajor_upper_amd);
+  check_sparse_nonhermitian_log_abs_determinant(nhldlt_colmajor_lower_amd);
+  check_sparse_nonhermitian_log_abs_determinant(nhldlt_colmajor_upper_amd);
+
   check_sparse_spd_solving(ldlt_colmajor_lower_nat, (std::min)(300, EIGEN_TEST_MAX_SIZE), 1000);
   check_sparse_spd_solving(ldlt_colmajor_upper_nat, (std::min)(300, EIGEN_TEST_MAX_SIZE), 1000);
   check_sparse_nonhermitian_solving(nhldlt_colmajor_lower_nat, (std::min)(300, EIGEN_TEST_MAX_SIZE), 1000);
