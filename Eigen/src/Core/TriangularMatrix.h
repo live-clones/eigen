@@ -1155,7 +1155,7 @@ struct Assignment<DstXprType, Product<Lhs, Rhs, DefaultProduct>,
                   internal::assign_op<Scalar, typename Product<Lhs, Rhs, DefaultProduct>::Scalar>, Dense2Triangular> {
   using SrcXprType = Product<Lhs, Rhs, DefaultProduct>;
   static EIGEN_DEVICE_FUNC void run(DstXprType& dst, const SrcXprType& src,
-                  const internal::assign_op<Scalar, typename SrcXprType::Scalar>& func) {
+                                    const internal::assign_op<Scalar, typename SrcXprType::Scalar>& func) {
     enum { UseTriangularAssignmentLoop = is_dense_structured_diagonal_product<Lhs, Rhs>::value };
     triangular_product_assignment_dispatcher<UseTriangularAssignmentLoop>::run(dst, src, func, Scalar(1), false);
   }
@@ -1168,7 +1168,7 @@ struct Assignment<DstXprType, Product<Lhs, Rhs, DefaultProduct>,
                   Dense2Triangular> {
   using SrcXprType = Product<Lhs, Rhs, DefaultProduct>;
   static EIGEN_DEVICE_FUNC void run(DstXprType& dst, const SrcXprType& src,
-                  const internal::add_assign_op<Scalar, typename SrcXprType::Scalar>& func) {
+                                    const internal::add_assign_op<Scalar, typename SrcXprType::Scalar>& func) {
     enum { UseTriangularAssignmentLoop = is_dense_structured_diagonal_product<Lhs, Rhs>::value };
     triangular_product_assignment_dispatcher<UseTriangularAssignmentLoop>::run(dst, src, func, Scalar(1), true);
   }
@@ -1181,7 +1181,7 @@ struct Assignment<DstXprType, Product<Lhs, Rhs, DefaultProduct>,
                   Dense2Triangular> {
   using SrcXprType = Product<Lhs, Rhs, DefaultProduct>;
   static EIGEN_DEVICE_FUNC void run(DstXprType& dst, const SrcXprType& src,
-                  const internal::sub_assign_op<Scalar, typename SrcXprType::Scalar>& func) {
+                                    const internal::sub_assign_op<Scalar, typename SrcXprType::Scalar>& func) {
     enum { UseTriangularAssignmentLoop = is_dense_structured_diagonal_product<Lhs, Rhs>::value };
     triangular_product_assignment_dispatcher<UseTriangularAssignmentLoop>::run(dst, src, func, Scalar(-1), true);
   }
