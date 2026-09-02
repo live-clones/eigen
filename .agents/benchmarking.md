@@ -32,7 +32,7 @@ do not assume they validate `unsupported/benchmarks` changes.
 ### GPU kernel benchmarks
 
 `benchmarks/GPU/` times the kernels Eigen generates for `GpuDevice` (elementwise expressions, launch overhead,
-contractions and allocation) against hand-written kernels and vendor baselines. It is part of the supported
+reductions, contractions and allocation) against hand-written kernels and vendor baselines. It is part of the supported
 benchmark project behind an option, so the CPU tree builds as before:
 
 ```bash
@@ -42,7 +42,7 @@ cmake --build build-bench-gpu
 ./build-bench-gpu/GPU/bench_gpu_elementwise --benchmark_repetitions=10 --benchmark_report_aggregates_only=true
 ```
 
-The subtree holds `bench_gpu_elementwise`, `bench_gpu_launch`,
+The subtree holds `bench_gpu_elementwise`, `bench_gpu_launch`, `bench_gpu_reduction` (against CUB),
 `bench_gpu_contraction` (against cuBLAS) and `bench_gpu_alloc`. The weekly scheduled pipeline builds them in a CUDA
 image on a CPU runner and runs them on the L4 through `bench:build:gpu:cuda-12.6` and `bench:run:gpu:cuda-l4`,
 under the target name `cuda-l4`; `EIGEN_BENCH_CMAKE_ARGS` is how that job passes the CUDA options to the
