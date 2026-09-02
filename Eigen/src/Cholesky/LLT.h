@@ -110,7 +110,8 @@ class LLT : public SolverBase<LLT<MatrixType_, UpLo_> > {
    * according to the specified problem \a size.
    * \sa LLT()
    */
-  EIGEN_DEVICE_FUNC explicit LLT(Index size) : m_matrix(size, size), m_l1_norm(0), m_isInitialized(false), m_info(InvalidInput) {}
+  EIGEN_DEVICE_FUNC explicit LLT(Index size)
+      : m_matrix(size, size), m_l1_norm(0), m_isInitialized(false), m_info(InvalidInput) {}
 
   template <typename InputType>
   EIGEN_DEVICE_FUNC explicit LLT(const EigenBase<InputType>& matrix)
@@ -320,7 +321,7 @@ struct llt_inplace;
 
 template <typename MatrixType, typename VectorType>
 EIGEN_DEVICE_FUNC static Index llt_rank_update_lower(MatrixType& mat, const VectorType& vec,
-                                   const typename MatrixType::RealScalar& sigma) {
+                                                     const typename MatrixType::RealScalar& sigma) {
   using std::sqrt;
   using Scalar = typename MatrixType::Scalar;
   using RealScalar = typename MatrixType::RealScalar;
@@ -521,7 +522,8 @@ EIGEN_DEVICE_FUNC LLT<MatrixType, UpLo_>& LLT<MatrixType, UpLo_>::compute(const 
  */
 template <typename MatrixType_, int UpLo_>
 template <typename VectorType>
-EIGEN_DEVICE_FUNC LLT<MatrixType_, UpLo_>& LLT<MatrixType_, UpLo_>::rankUpdate(const VectorType& v, const RealScalar& sigma) {
+EIGEN_DEVICE_FUNC LLT<MatrixType_, UpLo_>& LLT<MatrixType_, UpLo_>::rankUpdate(const VectorType& v,
+                                                                               const RealScalar& sigma) {
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(VectorType);
   eigen_assert(v.size() == m_matrix.cols());
   eigen_assert(m_isInitialized);
@@ -667,8 +669,8 @@ EIGEN_DEVICE_FUNC inline LLT<typename MatrixBase<Derived>::PlainObject> MatrixBa
  * \sa SelfAdjointView::llt()
  */
 template <typename MatrixType, unsigned int UpLo>
-EIGEN_DEVICE_FUNC inline LLT<typename SelfAdjointView<MatrixType, UpLo>::PlainObject, UpLo> SelfAdjointView<MatrixType, UpLo>::llt()
-    const {
+EIGEN_DEVICE_FUNC inline LLT<typename SelfAdjointView<MatrixType, UpLo>::PlainObject, UpLo>
+SelfAdjointView<MatrixType, UpLo>::llt() const {
   return LLT<PlainObject, UpLo>(m_matrix);
 }
 

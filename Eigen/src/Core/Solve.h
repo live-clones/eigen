@@ -126,7 +126,8 @@ struct evaluator<Solve<Decomposition, RhsType> >
 template <typename DstXprType, typename DecType, typename RhsType, typename Scalar>
 struct Assignment<DstXprType, Solve<DecType, RhsType>, internal::assign_op<Scalar, Scalar>, Dense2Dense> {
   using SrcXprType = Solve<DecType, RhsType>;
-  static EIGEN_DEVICE_FUNC void run(DstXprType &dst, const SrcXprType &src, const internal::assign_op<Scalar, Scalar> &) {
+  static EIGEN_DEVICE_FUNC void run(DstXprType &dst, const SrcXprType &src,
+                                    const internal::assign_op<Scalar, Scalar> &) {
     Index dstRows = src.rows();
     Index dstCols = src.cols();
     if ((dst.rows() != dstRows) || (dst.cols() != dstCols)) dst.resize(dstRows, dstCols);
@@ -140,7 +141,8 @@ template <typename DstXprType, typename DecType, typename RhsType, typename Scal
 struct Assignment<DstXprType, Solve<Transpose<const DecType>, RhsType>, internal::assign_op<Scalar, Scalar>,
                   Dense2Dense> {
   using SrcXprType = Solve<Transpose<const DecType>, RhsType>;
-  static EIGEN_DEVICE_FUNC void run(DstXprType &dst, const SrcXprType &src, const internal::assign_op<Scalar, Scalar> &) {
+  static EIGEN_DEVICE_FUNC void run(DstXprType &dst, const SrcXprType &src,
+                                    const internal::assign_op<Scalar, Scalar> &) {
     Index dstRows = src.rows();
     Index dstCols = src.cols();
     if ((dst.rows() != dstRows) || (dst.cols() != dstCols)) dst.resize(dstRows, dstCols);
@@ -153,13 +155,14 @@ struct Assignment<DstXprType, Solve<Transpose<const DecType>, RhsType>, internal
 template <typename DstXprType, typename DecType, typename RhsType, typename Scalar>
 struct Assignment<
     DstXprType,
-    Solve<CwiseUnaryOp<internal::scalar_conjugate_op<typename DecType::Scalar>, const Transpose<const DecType> >,
+    Solve<CwiseUnaryOp<internal::scalar_conjugate_op<typename DecType::Scalar>, const Transpose<const DecType>>,
           RhsType>,
     internal::assign_op<Scalar, Scalar>, Dense2Dense> {
   using SrcXprType =
       Solve<CwiseUnaryOp<internal::scalar_conjugate_op<typename DecType::Scalar>, const Transpose<const DecType>>,
             RhsType>;
-  static EIGEN_DEVICE_FUNC void run(DstXprType &dst, const SrcXprType &src, const internal::assign_op<Scalar, Scalar> &) {
+  static EIGEN_DEVICE_FUNC void run(DstXprType &dst, const SrcXprType &src,
+                                    const internal::assign_op<Scalar, Scalar> &) {
     Index dstRows = src.rows();
     Index dstCols = src.cols();
     if ((dst.rows() != dstRows) || (dst.cols() != dstCols)) dst.resize(dstRows, dstCols);

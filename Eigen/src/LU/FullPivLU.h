@@ -711,7 +711,8 @@ EIGEN_DEVICE_FUNC void FullPivLU<MatrixType_, PermutationIndex_>::_solve_impl(co
 
 template <typename MatrixType_, typename PermutationIndex_>
 template <bool Conjugate, typename RhsType, typename DstType>
-EIGEN_DEVICE_FUNC void FullPivLU<MatrixType_, PermutationIndex_>::_solve_impl_transposed(const RhsType& rhs, DstType& dst) const {
+EIGEN_DEVICE_FUNC void FullPivLU<MatrixType_, PermutationIndex_>::_solve_impl_transposed(const RhsType& rhs,
+                                                                                         DstType& dst) const {
   /* The decomposition PAQ = LU can be rewritten as A = P^{-1} L U Q^{-1},
    * and since permutations are real and unitary, we can write this
    * as   A^T = Q U^T L^T P,
@@ -768,8 +769,9 @@ struct Assignment<
     Dense2Dense> {
   using LuType = FullPivLU<MatrixType, PermutationIndex>;
   using SrcXprType = Inverse<LuType>;
-  EIGEN_DEVICE_FUNC static void run(DstXprType& dst, const SrcXprType& src,
-                  const internal::assign_op<typename DstXprType::Scalar, typename MatrixType::Scalar>&) {
+  EIGEN_DEVICE_FUNC static void run(
+      DstXprType& dst, const SrcXprType& src,
+      const internal::assign_op<typename DstXprType::Scalar, typename MatrixType::Scalar>&) {
     dst = src.nestedExpression().solve(MatrixType::Identity(src.rows(), src.cols()));
   }
 };
@@ -785,7 +787,8 @@ struct Assignment<
  */
 template <typename Derived>
 template <typename PermutationIndex>
-EIGEN_DEVICE_FUNC inline FullPivLU<typename MatrixBase<Derived>::PlainObject, PermutationIndex> MatrixBase<Derived>::fullPivLu() const {
+EIGEN_DEVICE_FUNC inline FullPivLU<typename MatrixBase<Derived>::PlainObject, PermutationIndex>
+MatrixBase<Derived>::fullPivLu() const {
   return FullPivLU<PlainObject, PermutationIndex>(eval());
 }
 

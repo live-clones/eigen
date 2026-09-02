@@ -30,8 +30,8 @@ struct trsmKernelL {
   // (-size, 0]. Both origins are elements of the panel, so callers never form a pointer outside
   // the matrix they solve in. The AVX-512 specializations take both by the top-left element and
   // convert when they delegate here.
-  EIGEN_DEVICE_FUNC static void kernel(Index size, Index otherSize, const Scalar* _tri, Index triStride, Scalar* _other, Index otherIncr,
-                     Index otherStride);
+  EIGEN_DEVICE_FUNC static void kernel(Index size, Index otherSize, const Scalar* _tri, Index triStride, Scalar* _other,
+                                       Index otherIncr, Index otherStride);
 };
 
 template <typename Scalar, typename Index, int Mode, bool Conjugate, int TriStorageOrder, int OtherInnerStride,
@@ -45,10 +45,10 @@ struct trsmKernelR {
 
 template <typename Scalar, typename Index, int Mode, bool Conjugate, int TriStorageOrder, int OtherInnerStride,
           bool Specialized>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void trsmKernelL<Scalar, Index, Mode, Conjugate, TriStorageOrder, OtherInnerStride,
-                                     Specialized>::kernel(Index size, Index otherSize, const Scalar* _tri,
-                                                          Index triStride, Scalar* _other, Index otherIncr,
-                                                          Index otherStride) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void
+trsmKernelL<Scalar, Index, Mode, Conjugate, TriStorageOrder, OtherInnerStride, Specialized>::kernel(
+    Index size, Index otherSize, const Scalar* _tri, Index triStride, Scalar* _other, Index otherIncr,
+    Index otherStride) {
   using TriMapper = const_blas_data_mapper<Scalar, Index, TriStorageOrder>;
   using OtherMapper = blas_data_mapper<Scalar, Index, ColMajor, Unaligned, OtherInnerStride>;
   TriMapper tri(_tri, triStride);
@@ -177,8 +177,8 @@ EIGEN_STRONG_INLINE void trsmKernelR<Scalar, Index, Mode, Conjugate, TriStorageO
 template <typename Scalar, typename Index, int Side, int Mode, bool Conjugate, int TriStorageOrder,
           int OtherInnerStride>
 struct triangular_solve_matrix<Scalar, Index, Side, Mode, Conjugate, TriStorageOrder, RowMajor, OtherInnerStride> {
-  static EIGEN_DEVICE_FUNC void run(Index size, Index cols, const Scalar* tri, Index triStride, Scalar* _other, Index otherIncr,
-                  Index otherStride, level3_blocking<Scalar, Scalar>& blocking) {
+  static EIGEN_DEVICE_FUNC void run(Index size, Index cols, const Scalar* tri, Index triStride, Scalar* _other,
+                                    Index otherIncr, Index otherStride, level3_blocking<Scalar, Scalar>& blocking) {
     triangular_solve_matrix<
         Scalar, Index, Side == OnTheLeft ? OnTheRight : OnTheLeft, (Mode & UnitDiag) | ((Mode & Upper) ? Lower : Upper),
         NumTraits<Scalar>::IsComplex && Conjugate, TriStorageOrder == RowMajor ? ColMajor : RowMajor, ColMajor,
@@ -190,16 +190,16 @@ struct triangular_solve_matrix<Scalar, Index, Side, Mode, Conjugate, TriStorageO
  */
 template <typename Scalar, typename Index, int Mode, bool Conjugate, int TriStorageOrder, int OtherInnerStride>
 struct triangular_solve_matrix<Scalar, Index, OnTheLeft, Mode, Conjugate, TriStorageOrder, ColMajor, OtherInnerStride> {
-  static EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void run(Index size, Index otherSize, const Scalar* _tri, Index triStride, Scalar* _other,
-                                    Index otherIncr, Index otherStride, level3_blocking<Scalar, Scalar>& blocking);
+  static EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void run(Index size, Index otherSize, const Scalar* _tri, Index triStride,
+                                                      Scalar* _other, Index otherIncr, Index otherStride,
+                                                      level3_blocking<Scalar, Scalar>& blocking);
 };
 
 template <typename Scalar, typename Index, int Mode, bool Conjugate, int TriStorageOrder, int OtherInnerStride>
-EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void triangular_solve_matrix<Scalar, Index, OnTheLeft, Mode, Conjugate, TriStorageOrder, ColMajor,
-                                               OtherInnerStride>::run(Index size, Index otherSize, const Scalar* _tri,
-                                                                      Index triStride, Scalar* _other, Index otherIncr,
-                                                                      Index otherStride,
-                                                                      level3_blocking<Scalar, Scalar>& blocking) {
+EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void
+triangular_solve_matrix<Scalar, Index, OnTheLeft, Mode, Conjugate, TriStorageOrder, ColMajor, OtherInnerStride>::run(
+    Index size, Index otherSize, const Scalar* _tri, Index triStride, Scalar* _other, Index otherIncr,
+    Index otherStride, level3_blocking<Scalar, Scalar>& blocking) {
   Index cols = otherSize;
 
   std::ptrdiff_t l1, l2, l3;
@@ -326,16 +326,16 @@ EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void triangular_solve_matrix<Scalar, Index, 
 template <typename Scalar, typename Index, int Mode, bool Conjugate, int TriStorageOrder, int OtherInnerStride>
 struct triangular_solve_matrix<Scalar, Index, OnTheRight, Mode, Conjugate, TriStorageOrder, ColMajor,
                                OtherInnerStride> {
-  static EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void run(Index size, Index otherSize, const Scalar* _tri, Index triStride, Scalar* _other,
-                                    Index otherIncr, Index otherStride, level3_blocking<Scalar, Scalar>& blocking);
+  static EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void run(Index size, Index otherSize, const Scalar* _tri, Index triStride,
+                                                      Scalar* _other, Index otherIncr, Index otherStride,
+                                                      level3_blocking<Scalar, Scalar>& blocking);
 };
 
 template <typename Scalar, typename Index, int Mode, bool Conjugate, int TriStorageOrder, int OtherInnerStride>
-EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void triangular_solve_matrix<Scalar, Index, OnTheRight, Mode, Conjugate, TriStorageOrder, ColMajor,
-                                               OtherInnerStride>::run(Index size, Index otherSize, const Scalar* _tri,
-                                                                      Index triStride, Scalar* _other, Index otherIncr,
-                                                                      Index otherStride,
-                                                                      level3_blocking<Scalar, Scalar>& blocking) {
+EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void
+triangular_solve_matrix<Scalar, Index, OnTheRight, Mode, Conjugate, TriStorageOrder, ColMajor, OtherInnerStride>::run(
+    Index size, Index otherSize, const Scalar* _tri, Index triStride, Scalar* _other, Index otherIncr,
+    Index otherStride, level3_blocking<Scalar, Scalar>& blocking) {
   Index rows = otherSize;
 
 #if defined(EIGEN_VECTORIZE_AVX512) && defined(EIGEN_USE_AVX512_TRSM_R_KERNELS) && EIGEN_USE_AVX512_TRSM_R_KERNELS && \

@@ -87,18 +87,6 @@ class PermutationBase : public EigenBase<Derived> {
     return derived();
   }
 
-  #ifndef EIGEN_PARSED_BY_DOXYGEN
-  /** This is a special case of the templated operator=. Its purpose is to
-    * prevent a default operator= from hiding the templated operator=.
-    */
-  EIGEN_DEVICE_FUNC
-  Derived& operator=(const PermutationBase& other)
-  {
-    indices() = other.indices();
-    return derived();
-  }
-  #endif
-
   /** \returns the number of rows */
   inline EIGEN_DEVICE_FUNC Index rows() const { return Index(indices().size()); }
 
@@ -232,7 +220,7 @@ class PermutationBase : public EigenBase<Derived> {
    */
   template <typename Other>
   friend EIGEN_DEVICE_FUNC inline PlainPermutationType operator*(const InverseImpl<Other, PermutationStorage>& other,
-                                               const PermutationBase& perm) {
+                                                                 const PermutationBase& perm) {
     return PlainPermutationType(internal::PermPermProduct, other.eval(), perm);
   }
 
@@ -315,13 +303,6 @@ class PermutationMatrix
   template <typename OtherDerived>
   EIGEN_DEVICE_FUNC inline PermutationMatrix(const PermutationBase<OtherDerived>& other) : m_indices(other.indices()) {}
 
-  #ifndef EIGEN_PARSED_BY_DOXYGEN
-  /** Standard copy constructor. Defined only to prevent a default copy constructor
-    * from hiding the other templated constructor */
-  EIGEN_DEVICE_FUNC
-  inline PermutationMatrix(const PermutationMatrix& other) : m_indices(other.indices()) {}
-  #endif
-
   /** Generic constructor from expression of the indices. The indices
    * array has the meaning that the permutations sends each integer i to indices[i].
    *
@@ -351,18 +332,6 @@ class PermutationMatrix
     return Base::operator=(tr.derived());
   }
 
-    #ifndef EIGEN_PARSED_BY_DOXYGEN
-    /** This is a special case of the templated operator=. Its purpose is to
-      * prevent a default operator= from hiding the templated operator=.
-      */
-    EIGEN_DEVICE_FUNC
-    PermutationMatrix& operator=(const PermutationMatrix& other)
-    {
-      m_indices = other.m_indices;
-      return *this;
-    }
-    #endif
-
   /** const version of indices(). */
   EIGEN_DEVICE_FUNC const IndicesType& indices() const { return m_indices; }
   /** \returns a reference to the stored array representing the permutation. */
@@ -380,7 +349,8 @@ class PermutationMatrix
       m_indices.coeffRef(other.derived().nestedExpression().indices().coeff(i)) = i;
   }
   template <typename Lhs, typename Rhs>
-  EIGEN_DEVICE_FUNC PermutationMatrix(internal::PermPermProduct_t, const Lhs& lhs, const Rhs& rhs) : m_indices(lhs.indices().size()) {
+  EIGEN_DEVICE_FUNC PermutationMatrix(internal::PermPermProduct_t, const Lhs& lhs, const Rhs& rhs)
+      : m_indices(lhs.indices().size()) {
     Base::assignProduct(lhs, rhs);
   }
 #endif
@@ -551,15 +521,16 @@ class InverseImpl<PermutationType, PermutationStorage> : public EigenBase<Invers
   /** \returns the matrix with the inverse permutation applied to the columns.
    */
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC friend const Product<OtherDerived, InverseType, DefaultProduct> operator*(const MatrixBase<OtherDerived>& matrix,
-                                                                            const InverseType& trPerm) {
+  EIGEN_DEVICE_FUNC friend const Product<OtherDerived, InverseType, DefaultProduct> operator*(
+      const MatrixBase<OtherDerived>& matrix, const InverseType& trPerm) {
     return Product<OtherDerived, InverseType, DefaultProduct>(matrix.derived(), trPerm.derived());
   }
 
   /** \returns the matrix with the inverse permutation applied to the rows.
    */
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC const Product<InverseType, OtherDerived, DefaultProduct> operator*(const MatrixBase<OtherDerived>& matrix) const {
+  EIGEN_DEVICE_FUNC const Product<InverseType, OtherDerived, DefaultProduct> operator*(
+      const MatrixBase<OtherDerived>& matrix) const {
     return Product<InverseType, OtherDerived, DefaultProduct>(derived(), matrix.derived());
   }
 };
