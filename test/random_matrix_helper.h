@@ -247,11 +247,13 @@ VectorType setupRangeSvs(const Index dim, const RealScalar min, const RealScalar
  *
  * For a diagonal matrix built this way the condition number is at most 2 and
  * `|det| >= 2^-dim`, which is what makes a determinant check against the product of
- * the entries meaningful. Drawing the diagonal from the whole unit disk instead
- * leaves the conditioning unconstrained: the smallest of `dim` draws falls below the
- * `4*dim*eps` rank threshold of the rank-revealing decompositions with probability
- * about `4*dim^2*eps`, and there `determinant()` returns exactly zero by contract
- * while the reference product does not.
+ * the entries meaningful. Drawing unconstrained entries instead leaves the
+ * conditioning unbounded. For real scalars, the smallest magnitude among `dim`
+ * uniform draws from [-1, 1) falls below the `4*dim*eps*maxPivot` rank threshold
+ * with probability about `4*dim^2*eps` when `maxPivot` is of order one. Complex
+ * draws use independent real and imaginary components, so their near-zero
+ * probability is quadratic in the threshold, but they can likewise make the
+ * determinant check ill-conditioned.
  *
  * @tparam MatrixType type of the matrix whose diagonal is set
  * @param m matrix whose diagonal is overwritten
