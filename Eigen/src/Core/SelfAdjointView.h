@@ -214,34 +214,48 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
    * since |conj(x)| = |x| the result matches the L1 norm of the full matrix.
    */
   EIGEN_DEVICE_FUNC typename NumTraits<Scalar>::Real l1Norm() const {
+    // For a self-adjoint matrix |a_ij| = |a_ji|, so the stored triangle of a row-major matrix is
+    // the transposed, column-major, complementary one and yields the same norm read the fast way.
+    constexpr int kTransposedMode = (UpLo == Lower) ? Upper : Lower;
+    EIGEN_IF_CONSTEXPR (bool(MatrixType::IsRowMajor)) {
+      return l1NormColumnwise<kTransposedMode>(m_matrix.transpose());
+    } else {
+      return l1NormColumnwise<UpLo>(m_matrix);
+    }
+  }
+
+ private:
+  // Reading the mirrored term of column j as a row of the stored triangle costs a stride-n
+  // traversal of a column-major matrix. Instead accumulate column sums a panel at a time:
+  // |a_ij| from a column left of the panel is added to the sum of column i, which walks that
+  // column. Only the panel's diagonal block keeps the row traversal, where it is cache resident,
+  // and a panel-sized accumulator stays a stack object.
+  template <int Mode, typename Mat>
+  EIGEN_DEVICE_FUNC static typename NumTraits<Scalar>::Real l1NormColumnwise(const Mat& m) {
     using RealScalar_ = typename NumTraits<Scalar>::Real;
-    // Reading the mirrored term of column j as a row of the stored triangle costs a stride-n
-    // traversal of a column-major matrix. Instead accumulate column sums a panel at a time:
-    // |a_ij| from a column left of the panel is added to the sum of column i, which walks that
-    // column. Only the panel's diagonal block keeps the row traversal, where it is cache resident,
-    // and a panel-sized accumulator stays a stack object.
     static constexpr int kPanelSize = 64;
     RealScalar_ norm = RealScalar_(0);
-    const Index n = m_matrix.rows();
+    const Index n = m.rows();
     Matrix<RealScalar_, kPanelSize, 1> sums;
     for (Index p = 0; p < n; p += kPanelSize) {
       const Index len = numext::mini(Index(kPanelSize), n - p);
-      EIGEN_IF_CONSTEXPR (UpLo == Lower) {
+      EIGEN_IF_CONSTEXPR (Mode == Lower) {
         for (Index j = 0; j < len; ++j)
-          sums.coeffRef(j) = m_matrix.col(p + j).tail(n - p - j).template lpNorm<1>() +
-                             m_matrix.row(p + j).segment(p, j).template lpNorm<1>();
-        for (Index j = 0; j < p; ++j) sums.head(len) += m_matrix.col(j).segment(p, len).cwiseAbs();
+          sums.coeffRef(j) =
+              m.col(p + j).tail(n - p - j).template lpNorm<1>() + m.row(p + j).segment(p, j).template lpNorm<1>();
+        for (Index j = 0; j < p; ++j) sums.head(len) += m.col(j).segment(p, len).cwiseAbs();
       } else {
         for (Index j = 0; j < len; ++j)
-          sums.coeffRef(j) = m_matrix.col(p + j).head(p + j + 1).template lpNorm<1>() +
-                             m_matrix.row(p + j).segment(p + j + 1, len - j - 1).template lpNorm<1>();
-        for (Index j = p + len; j < n; ++j) sums.head(len) += m_matrix.col(j).segment(p, len).cwiseAbs();
+          sums.coeffRef(j) = m.col(p + j).head(p + j + 1).template lpNorm<1>() +
+                             m.row(p + j).segment(p + j + 1, len - j - 1).template lpNorm<1>();
+        for (Index j = p + len; j < n; ++j) sums.head(len) += m.col(j).segment(p, len).cwiseAbs();
       }
       norm = numext::maxi(norm, sums.head(len).maxCoeff());
     }
     return norm;
   }
 
+ public:
   /////////// Cholesky module ///////////
 
   LLT<PlainObject, UpLo> llt() const;
