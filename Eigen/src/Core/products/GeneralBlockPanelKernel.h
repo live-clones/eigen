@@ -75,6 +75,81 @@ const std::ptrdiff_t defaultL2CacheSize = EIGEN_SET_DEFAULT_L2_CACHE_SIZE(512 * 
 const std::ptrdiff_t defaultL3CacheSize = EIGEN_SET_DEFAULT_L3_CACHE_SIZE(512 * 1024);
 #endif
 
+#ifdef EIGEN_CUDA_ARCH
+#if EIGEN_CUDA_ARCH >= 1000
+// Blackwell
+//   - the L1 cache is configurable at runtime, with a minimum of 28 KB/SM
+//   - the L2 cache depends on the actual card, with a minimum of 384 KB/SM
+const std::ptrdiff_t gpuL1CacheSize = EIGEN_SET_DEFAULT_L1_CACHE_SIZE(28 * 1024);
+const std::ptrdiff_t gpuL2CacheSize = EIGEN_SET_DEFAULT_L2_CACHE_SIZE(384 * 1024);
+const std::ptrdiff_t gpuL3CacheSize = EIGEN_SET_DEFAULT_L3_CACHE_SIZE(0);
+#elif EIGEN_CUDA_ARCH >= 900
+// Hopper
+//   - the L1 cache is configurable at runtime, with a minimum of 28 KB/SM
+//   - the L2 cache depends on the actual card, with a minimum of 64 KB/SM
+const std::ptrdiff_t gpuL1CacheSize = EIGEN_SET_DEFAULT_L1_CACHE_SIZE(28 * 1024);
+const std::ptrdiff_t gpuL2CacheSize = EIGEN_SET_DEFAULT_L2_CACHE_SIZE(64 * 1024);
+const std::ptrdiff_t gpuL3CacheSize = EIGEN_SET_DEFAULT_L3_CACHE_SIZE(0);
+#elif EIGEN_CUDA_ARCH >= 890
+// Ada Lovelace
+//   - the L1 cache is configurable at runtime, with a minimum of 28 KB/SM
+//   - the L2 cache depends on the actual card, with a minimum of 128 KB/SM
+const std::ptrdiff_t gpuL1CacheSize = EIGEN_SET_DEFAULT_L1_CACHE_SIZE(28 * 1024);
+const std::ptrdiff_t gpuL2CacheSize = EIGEN_SET_DEFAULT_L2_CACHE_SIZE(128 * 1024);
+const std::ptrdiff_t gpuL3CacheSize = EIGEN_SET_DEFAULT_L3_CACHE_SIZE(0);
+#elif EIGEN_CUDA_ARCH >= 860
+// Ampere
+//   - the L1 cache is configurable at runtime, with a minimum of 28 KB/SM
+//   - the L2 cache depends on the actual card, with a minimum of 64 KB/SM
+const std::ptrdiff_t gpuL1CacheSize = EIGEN_SET_DEFAULT_L1_CACHE_SIZE(28 * 1024);
+const std::ptrdiff_t gpuL2CacheSize = EIGEN_SET_DEFAULT_L2_CACHE_SIZE(64 * 1024);
+const std::ptrdiff_t gpuL3CacheSize = EIGEN_SET_DEFAULT_L3_CACHE_SIZE(0);
+#elif EIGEN_CUDA_ARCH >= 800
+// Ampere (A100)
+//   - the L1 cache is configurable at runtime, with a minimum of 28 KB/SM
+//   - the L2 is                                                 320 KB/SM
+const std::ptrdiff_t gpuL1CacheSize = EIGEN_SET_DEFAULT_L1_CACHE_SIZE(28 * 1024);
+const std::ptrdiff_t gpuL2CacheSize = EIGEN_SET_DEFAULT_L2_CACHE_SIZE(320 * 1024);
+const std::ptrdiff_t gpuL3CacheSize = EIGEN_SET_DEFAULT_L3_CACHE_SIZE(0);
+#elif EIGEN_CUDA_ARCH >= 700
+// Volta, Turing
+//   - the L1 cache is configurable at runtime, with a minimum of 32 KB/SM
+//   - the L2 cache depends on the actual card, with a minimum of 64 KB/SM
+const std::ptrdiff_t gpuL1CacheSize = EIGEN_SET_DEFAULT_L1_CACHE_SIZE(32 * 1024);
+const std::ptrdiff_t gpuL2CacheSize = EIGEN_SET_DEFAULT_L2_CACHE_SIZE(64 * 1024);
+const std::ptrdiff_t gpuL3CacheSize = EIGEN_SET_DEFAULT_L3_CACHE_SIZE(0);
+#else
+// Kepler, Maxwell, Pascal
+//   - the L1 cache is configurable at runtime, with a minimum of 16 KB/SM
+//   - the L2 cache depends on the actual card, with a minimum of 64 KB/SM
+const std::ptrdiff_t gpuL1CacheSize = EIGEN_SET_DEFAULT_L1_CACHE_SIZE(16 * 1024);
+const std::ptrdiff_t gpuL2CacheSize = EIGEN_SET_DEFAULT_L2_CACHE_SIZE(64 * 1024);
+const std::ptrdiff_t gpuL3CacheSize = EIGEN_SET_DEFAULT_L3_CACHE_SIZE(0);
+#endif
+#elif defined(EIGEN_HIP_DEVICE_COMPILE)
+#if defined(__gfx90a__) || defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+// CDNA2/CDNA3 (MI200/MI300 series)
+const std::ptrdiff_t gpuL1CacheSize = EIGEN_SET_DEFAULT_L1_CACHE_SIZE(16 * 1024);
+const std::ptrdiff_t gpuL2CacheSize = EIGEN_SET_DEFAULT_L2_CACHE_SIZE(256 * 1024);
+const std::ptrdiff_t gpuL3CacheSize = EIGEN_SET_DEFAULT_L3_CACHE_SIZE(0);
+#elif defined(__gfx908__)
+// CDNA (MI100)
+const std::ptrdiff_t gpuL1CacheSize = EIGEN_SET_DEFAULT_L1_CACHE_SIZE(16 * 1024);
+const std::ptrdiff_t gpuL2CacheSize = EIGEN_SET_DEFAULT_L2_CACHE_SIZE(128 * 1024);
+const std::ptrdiff_t gpuL3CacheSize = EIGEN_SET_DEFAULT_L3_CACHE_SIZE(0);
+#elif defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__)
+// RDNA3 (Radeon RX 7000 / Radeon Pro W7000 series)
+const std::ptrdiff_t gpuL1CacheSize = EIGEN_SET_DEFAULT_L1_CACHE_SIZE(32 * 1024);
+const std::ptrdiff_t gpuL2CacheSize = EIGEN_SET_DEFAULT_L2_CACHE_SIZE(128 * 1024);
+const std::ptrdiff_t gpuL3CacheSize = EIGEN_SET_DEFAULT_L3_CACHE_SIZE(0);
+#else
+// Older/unrecognized AMD GPU architectures (RDNA1/2, GCN, ...).
+const std::ptrdiff_t gpuL1CacheSize = EIGEN_SET_DEFAULT_L1_CACHE_SIZE(16 * 1024);
+const std::ptrdiff_t gpuL2CacheSize = EIGEN_SET_DEFAULT_L2_CACHE_SIZE(64 * 1024);
+const std::ptrdiff_t gpuL3CacheSize = EIGEN_SET_DEFAULT_L3_CACHE_SIZE(0);
+#endif
+#endif
+
 #undef EIGEN_SET_DEFAULT_L1_CACHE_SIZE
 #undef EIGEN_SET_DEFAULT_L2_CACHE_SIZE
 #undef EIGEN_SET_DEFAULT_L3_CACHE_SIZE
@@ -86,9 +161,10 @@ struct CacheSizes {
 #if !defined(EIGEN_CUDA_ARCH)
     queryCacheSizes(l1CacheSize, l2CacheSize, l3CacheSize, m_l3_per_cpu);
 #else
-    l1CacheSize = defaultL1CacheSize;
-    l2CacheSize = 1572864;
-    l3CacheSize = defaultL3CacheSize;
+    // No OS to query on device; use the per-architecture GPU cache sizes
+    l1CacheSize = gpuL1CacheSize;
+    l2CacheSize = gpuL2CacheSize;
+    l3CacheSize = gpuL3CacheSize;
     m_l3_per_cpu = 0;
 #endif
     m_l1 = manage_caching_sizes_helper(l1CacheSize, defaultL1CacheSize);
@@ -107,30 +183,7 @@ struct CacheSizes {
 /** \internal */
 EIGEN_DEVICE_FUNC inline void manage_caching_sizes(Action action, std::ptrdiff_t* l1, std::ptrdiff_t* l2, std::ptrdiff_t* l3,
                                  std::ptrdiff_t* l3_per_cpu = nullptr) {
-  #ifdef EIGEN_CUDA_ARCH
-  if (action==GetAction)
-  {
-    #if EIGEN_CUDA_ARCH >= 700
-    // Volta, Turing, or newer
-    //   - the L1 cache is configurable at runtime, with a minimum of 32 KB/SM
-    //   - the L2 cache depends on the actual card, with a minimum of 64 KB/SM
-    *l1 =   32 * 1024;
-    *l2 =   64 * 1024;
-    *l3 =           0;
-    #else
-    // Kepler, Maxwell, Pascal
-    //   - the L1 cache is configurable at runtime, with a minimum of 16 KB/SM
-    //   - the L2 cache depends on the actual card, with a minimum of 64 KB/SM
-    *l1 =   16 * 1024;
-    *l2 =   64 * 1024;
-    *l3 =           0;
-    #endif
-  }
-  else
-  {
-    eigen_internal_assert(false);
-  }
-  #else // EIGEN_CUDA_ARCH
+#if !defined(EIGEN_GPU_COMPILE_PHASE)
   static CacheSizes m_cacheSizes;
 
   if (action == SetAction) {
@@ -149,7 +202,18 @@ EIGEN_DEVICE_FUNC inline void manage_caching_sizes(Action action, std::ptrdiff_t
   } else {
     eigen_internal_assert(false);
   }
-  #endif
+#else
+  // No OS to query on device; use the per-architecture GPU cache sizes
+  if (action == GetAction) {
+    eigen_internal_assert(l1 != 0 && l2 != 0);
+    *l1 = manage_caching_sizes_helper(gpuL1CacheSize, defaultL1CacheSize);
+    *l2 = manage_caching_sizes_helper(gpuL2CacheSize, defaultL2CacheSize);
+    *l3 = manage_caching_sizes_helper(gpuL3CacheSize, defaultL3CacheSize);
+    if (l3_per_cpu != nullptr) *l3_per_cpu = 0;
+  } else {
+    eigen_internal_assert(false);
+  }
+#endif
 }
 
 /* Helper for computeProductBlockingSizes.
