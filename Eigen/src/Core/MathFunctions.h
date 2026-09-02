@@ -1960,8 +1960,9 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE T nextafter(const T& from, const T& to) {
   return nextafter(from, to);
 }
 
-/** Returns the smallest normal power of two greater than or equal to the nonnegative finite \a value.
+/** Returns the smallest normal power of two greater than or equal to \a value.
  *
+ * \pre \a value is finite and nonnegative.
  * Zero is preserved. A value larger than the greatest finite power of two maps to infinity.
  */
 template <typename Scalar,
