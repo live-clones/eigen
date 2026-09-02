@@ -97,6 +97,10 @@ guarantees are under `unsupported/Eigen/`, with tests under `unsupported/test/`.
 impact: Tensor is a foundational TensorFlow dependency. Public umbrella headers are the source of truth for a module's
 exported internals.
 
+The `lapack/*.f` files are vendored netlib LAPACK reference sources; do not modify or review them. Tree-wide
+clang-format and SPDX-tagging commits are listed in `.git-blame-ignore-revs`; pass that file to `git blame` with
+`--ignore-revs-file` to see the history beneath them.
+
 Every new source file needs accurate REUSE metadata; [`.agents/conventions.md`](.agents/conventions.md) records the
 required header form and the `REUSE.toml` rules for files that cannot carry an inline tag.
 
