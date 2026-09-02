@@ -878,6 +878,16 @@ void direct_3x3_centering_overflow() {
   VERIFY_IS_EQUAL(solver.eigenvalues(), VectorType(-highest, highest, highest));
 }
 
+void direct_long_double_scaling() {
+  Matrix<long double, 2, 2> matrix2;
+  matrix2 << 2.0L, 1.0L, 1.0L, 3.0L;
+  selfadjointeigensolver_essential_check(matrix2);
+
+  Matrix<long double, 3, 3> matrix3;
+  matrix3 << 3.0L, 0.5L, -0.25L, 0.5L, 2.0L, 0.75L, -0.25L, 0.75L, 4.0L;
+  selfadjointeigensolver_essential_check(matrix3);
+}
+
 // Test matrix with Inf entries returns NoConvergence (similar to NaN test).
 template <int>
 void selfadjointeigensolver_inf() {
@@ -1218,6 +1228,7 @@ EIGEN_DECLARE_TEST(eigensolver_selfadjoint) {
   CALL_SUBTEST_15((direct_trace_overflow<double, 2>()));
   CALL_SUBTEST_12(direct_2x2_ftz_rescaling<float>());
   CALL_SUBTEST_12((direct_trace_overflow<float, 2>()));
+  CALL_SUBTEST_17(direct_long_double_scaling());
 
   // Test Inf input handling.
   CALL_SUBTEST_17(selfadjointeigensolver_inf<0>());
