@@ -262,6 +262,60 @@ class BunchKaufman : public SolverBase<BunchKaufman<MatrixType_, UpLo_> > {
 
   MatrixType reconstructedMatrix() const;
 
+  /** \returns the determinant of the matrix of which *this is the Bunch-Kaufman decomposition.
+   *
+   * It has only linear complexity (that is, O(n) where n is the dimension of the square matrix)
+   * as the decomposition has already been computed.
+   *
+   * \warning a determinant can be very big or small, so for matrices
+   * of large enough dimension, there is a risk of overflow/underflow.
+   * One way to work around that is to use logAbsDeterminant() and signDeterminant() instead.
+   * Also, do not rely on the determinant being exactly zero for testing
+   * singularity or rank-deficiency.
+   *
+   * \sa absDeterminant(), logAbsDeterminant(), signDeterminant(), MatrixBase::determinant()
+   */
+  Scalar determinant() const;
+
+  /** \returns the absolute value of the determinant of the matrix of which *this is the Bunch-Kaufman
+   * decomposition.
+   *
+   * It has only linear complexity (that is, O(n) where n is the dimension of the square matrix)
+   * as the decomposition has already been computed.
+   *
+   * \warning a determinant can be very big or small, so for matrices
+   * of large enough dimension, there is a risk of overflow/underflow.
+   * One way to work around that is to use logAbsDeterminant() instead.
+   *
+   * \sa determinant(), logAbsDeterminant(), signDeterminant(), MatrixBase::determinant()
+   */
+  RealScalar absDeterminant() const;
+
+  /** \returns the natural log of the absolute value of the determinant of the matrix of which *this is the
+   * Bunch-Kaufman decomposition.
+   *
+   * It has only linear complexity (that is, O(n) where n is the dimension of the square matrix)
+   * as the decomposition has already been computed.
+   *
+   * \note This method is useful to work around the risk of overflow/underflow that's inherent
+   * to determinant computation. The 2x2 blocks of D are scaled by their off-diagonal entry before their
+   * determinant is formed, so a block whose own determinant overflows still contributes exactly.
+   *
+   * \sa determinant(), absDeterminant(), signDeterminant(), MatrixBase::determinant()
+   */
+  RealScalar logAbsDeterminant() const;
+
+  /** \returns the sign of the determinant of the matrix of which *this is the Bunch-Kaufman decomposition,
+   * that is, \c 1, \c -1, or \c 0 if the matrix is singular.
+   *
+   * The sign is read off the inertia rather than computed from a product, so it is exact and cannot
+   * overflow: \f$ \mathrm{sign}(\det A) = (-1)^{n_-} \f$, with \f$ n_- \f$ the number of negative
+   * eigenvalues, which congruence leaves invariant (Sylvester's law of inertia).
+   *
+   * \sa determinant(), absDeterminant(), logAbsDeterminant(), MatrixBase::determinant()
+   */
+  Scalar signDeterminant() const;
+
   /** \returns the adjoint of \c *this, that is, a const reference to the decomposition itself as the underlying matrix
    * is self-adjoint.
    *
@@ -305,6 +359,11 @@ class BunchKaufman : public SolverBase<BunchKaufman<MatrixType_, UpLo_> > {
 
   /** \internal Compute the inertia (counts of positive / negative / zero eigenvalues) from D. */
   void computeInertia();
+
+  /** \internal \returns the determinant of the diagonal block of D that starts at row \a k, advancing \a k
+   * past that block. D is Hermitian, so a block determinant is real: \f$ d_{11} \f$ for a 1x1 block and
+   * \f$ d_{11} d_{22} - |d_{21}|^2 \f$ for a 2x2 one. */
+  RealScalar blockDeterminantD(Index& k) const;
 
   MatrixType m_matrix;
   RealScalar m_l1_norm;
@@ -915,6 +974,74 @@ bool BunchKaufman<MatrixType, UpLo_>::solveInPlace(MatrixBase<Derived>& bAndX) c
   eigen_assert(m_matrix.rows() == bAndX.rows());
   bAndX = this->solve(bAndX);
   return true;
+}
+
+template <typename MatrixType, int UpLo_>
+typename BunchKaufman<MatrixType, UpLo_>::RealScalar BunchKaufman<MatrixType, UpLo_>::blockDeterminantD(
+    Index& k) const {
+  const Index n = m_matrix.rows();
+  const RealScalar d11 = numext::real(m_matrix.coeff(k, k));
+  if (k + 1 < n && !numext::is_exactly_zero(m_subdiag.coeff(k))) {
+    const RealScalar d22 = numext::real(m_matrix.coeff(k + 1, k + 1));
+    const RealScalar d21 = numext::abs(m_subdiag.coeff(k));
+    k += 2;
+    return d11 * d22 - d21 * d21;
+  }
+  k += 1;
+  return d11;
+}
+
+// A = P^T L D L^* P with L unit triangular, so det(A) = det(D) = prod over the 1x1 and 2x2 blocks of D.
+
+template <typename MatrixType, int UpLo_>
+typename BunchKaufman<MatrixType, UpLo_>::Scalar BunchKaufman<MatrixType, UpLo_>::determinant() const {
+  eigen_assert(m_isInitialized && "BunchKaufman is not initialized.");
+  const Index n = m_matrix.rows();
+  RealScalar det(1);
+  Index k = 0;
+  while (k < n) det *= blockDeterminantD(k);
+  return Scalar(det);
+}
+
+template <typename MatrixType, int UpLo_>
+typename BunchKaufman<MatrixType, UpLo_>::RealScalar BunchKaufman<MatrixType, UpLo_>::absDeterminant() const {
+  eigen_assert(m_isInitialized && "BunchKaufman is not initialized.");
+  const Index n = m_matrix.rows();
+  RealScalar det(1);
+  Index k = 0;
+  while (k < n) det *= blockDeterminantD(k);
+  return numext::abs(det);
+}
+
+template <typename MatrixType, int UpLo_>
+typename BunchKaufman<MatrixType, UpLo_>::RealScalar BunchKaufman<MatrixType, UpLo_>::logAbsDeterminant() const {
+  eigen_assert(m_isInitialized && "BunchKaufman is not initialized.");
+  const Index n = m_matrix.rows();
+  RealScalar result(0);
+  Index k = 0;
+  while (k < n) {
+    if (k + 1 < n && !numext::is_exactly_zero(m_subdiag.coeff(k))) {
+      // det = |d21|^2 * (d11 d22 / |d21|^2 - 1), so log|det| = 2 log|d21| + log|scaled|; forming
+      // d11 d22 - |d21|^2 directly would over/underflow on extreme-scaled 2x2 blocks.
+      const RealScalar d11 = numext::real(m_matrix.coeff(k, k));
+      const RealScalar d22 = numext::real(m_matrix.coeff(k + 1, k + 1));
+      const Scalar id = Scalar(1) / m_subdiag.coeff(k);
+      const RealScalar scaled = numext::real((d22 * id) * (d11 * numext::conj(id))) - RealScalar(1);
+      result += RealScalar(2) * numext::log(numext::abs(m_subdiag.coeff(k))) + numext::log(numext::abs(scaled));
+      k += 2;
+    } else {
+      result += numext::log(numext::abs(numext::real(m_matrix.coeff(k, k))));
+      k += 1;
+    }
+  }
+  return result;
+}
+
+template <typename MatrixType, int UpLo_>
+typename BunchKaufman<MatrixType, UpLo_>::Scalar BunchKaufman<MatrixType, UpLo_>::signDeterminant() const {
+  eigen_assert(m_isInitialized && "BunchKaufman is not initialized.");
+  if (m_n_zero > 0) return Scalar(0);
+  return Scalar((m_n_neg % 2 == 0) ? 1 : -1);
 }
 
 /** \returns the matrix represented by the decomposition, i.e., the product \f$ P^T L D L^* P \f$.
