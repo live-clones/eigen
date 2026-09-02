@@ -203,14 +203,11 @@ typename DPR1EigenSolver<RealScalar_>::DoubleWord DPR1EigenSolver<RealScalar_>::
 template <typename RealScalar_>
 typename DPR1EigenSolver<RealScalar_>::SpectrumRange DPR1EigenSolver<RealScalar_>::classifySpectrumRange(
     const VectorType& d, RealScalar rho, const VectorType& z) {
-  // For rho >= 0 only the largest eigenvalue can leave the finite range. With
-  // M = highest(), the matrix determinant lemma gives
-  //   lambda_max <= M  iff  rho * sum_i z_i^2 / (M - d_i) <= 1.
-  // Evaluate this endpoint test from the original data, not the normalized
-  // secular problem: the latter has already rounded rho*||z||^2. Double-word
-  // arithmetic and its O(u^2) error bounds follow Joldes, Muller, and Popescu,
-  // "Tight and rigorous error bounds for basic building blocks of double-word
-  // arithmetic", ACM TOMS 44(2), 2017.
+  // For rho >= 0 only the largest eigenvalue can leave the finite range; with M = highest(), the
+  // matrix determinant lemma gives lambda_max <= M iff rho * sum_i z_i^2 / (M - d_i) <= 1. Evaluated
+  // from the original data, not the normalized secular problem, which has already rounded rho*||z||^2.
+  // Double-word arithmetic and its O(u^2) bounds follow Joldes, Muller and Popescu, "Tight and
+  // rigorous error bounds for basic building blocks of double-word arithmetic", ACM TOMS 44(2), 2017.
   if (rho == RealScalar(0)) return SpectrumRange::Representable;
 
   EIGEN_USING_STD(frexp)
