@@ -99,9 +99,41 @@ bench:build:aarch64:neon:
   tags:
     - saas-linux-large-arm64
 
+# ---- GPU -------------------------------------------------------------------
+# benchmarks/GPU measures the kernels the Tensor module generates for GpuDevice, so the build needs a CUDA
+# compiler and the run needs a GPU. Built on a CPU runner as the GPU test jobs are, and run on the L4 at sm_89,
+# with the CPU subtree switched off so the run job executes only these.
+bench:build:gpu:cuda-12.6:
+  extends: .bench:linux:build
+  image: nvidia/cuda:12.6.3-devel-ubuntu24.04
+  # No EIGEN_CI_TARGET_ARCH, so the before_script takes its cross branch and blanks the compiler variables, which
+  # build.benchmark.sh then leaves out of both CMake configurations: the image's own toolchain is what builds. Set
+  # the arch as the x86-64 jobs do before naming a compiler here.
+  variables:
+    EIGEN_BENCH_TARGET: cuda-l4
+    EIGEN_BENCH_CMAKE_ARGS: >-
+      -DEIGEN_BENCH_CUDA=ON
+      -DEIGEN_BENCH_CPU=OFF
+      -DCMAKE_CUDA_ARCHITECTURES=89
+
 # ============================================================================
 # Run jobs (one per ISA target, each depends on its build)
 # ============================================================================
+
+bench:run:gpu:cuda-l4:
+  extends: .bench:linux:run
+  image: nvidia/cuda:12.6.3-devel-ubuntu24.04
+  needs: [bench:build:gpu:cuda-12.6]
+  variables:
+    EIGEN_BENCH_TARGET: cuda-l4
+    # Every GPU benchmark runs, since the nightly list names none of them.
+    EIGEN_BENCH_SCOPE: weekly
+  # Name the GPU and driver the job landed on before anything else, as the GPU test jobs do.
+  before_script:
+    - nvidia-smi
+    - . ci/scripts/common.linux.before_script.sh
+  tags:
+    - eigen-linux-cuda-l4
 
 bench:run:x86-64:sse:
   extends: .bench:linux:run

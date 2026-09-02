@@ -31,8 +31,8 @@ do not assume they validate `unsupported/benchmarks` changes.
 
 ### GPU kernel benchmarks
 
-`benchmarks/GPU/` times the kernels Eigen generates for `GpuDevice` (elementwise expressions, launch overhead;
-reductions and contractions follow) against hand-written kernels and vendor baselines. It is part of the supported
+`benchmarks/GPU/` times the kernels Eigen generates for `GpuDevice` (elementwise expressions, launch overhead,
+contractions and allocation) against hand-written kernels and vendor baselines. It is part of the supported
 benchmark project behind an option, so the CPU tree builds as before:
 
 ```bash
@@ -42,9 +42,17 @@ cmake --build build-bench-gpu
 ./build-bench-gpu/GPU/bench_gpu_elementwise --benchmark_repetitions=10 --benchmark_report_aggregates_only=true
 ```
 
+The subtree holds `bench_gpu_elementwise`, `bench_gpu_launch`,
+`bench_gpu_contraction` (against cuBLAS) and `bench_gpu_alloc`. The weekly scheduled pipeline builds them in a CUDA
+image on a CPU runner and runs them on the L4 through `bench:build:gpu:cuda-12.6` and `bench:run:gpu:cuda-l4`,
+under the target name `cuda-l4`; `EIGEN_BENCH_CMAKE_ARGS` is how that job passes the CUDA options to the
+configure step. The run job keeps its results as artifacts but is not yet in `bench:analyze`'s `needs`, so the GPU
+numbers are not compared against history: wiring it in has to wait until a runner carries the
+`eigen-linux-cuda-l4` tag, since `bench:analyze` would otherwise wait for a job that never starts.
+
 `CMAKE_CUDA_ARCHITECTURES=native` needs CMake 3.24; name the architecture (`89`) otherwise. Device time is measured
-with events around a batch of launches (`eigen_bench::timeLaunches`), so every registration is `UseManualTime()`
-and the reported time is per launch; `host_us_per_launch` is the host-side cost of enqueueing, `bytes_per_second` counts every
+with events around a batch of launches (`eigen_bench::timeLaunches`), using `UseManualTime()` to report time per
+launch. Allocation benchmarks use `UseRealTime()` for the host API cost; `host_us_per_launch` is the host-side cost of enqueueing, `bytes_per_second` counts every
 operand read once and the result written once. Results are checked against a reference outside the timed loop.
 Quote the `GPU:` line the binary prints (also in the JSON context) with every number, and say whether clocks were
 locked; a laptop under WSL2 cannot lock them.
