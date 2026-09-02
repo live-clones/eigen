@@ -80,11 +80,27 @@ bool areApproxAbs(const Scalar* a, const Scalar* b, int size, const typename Num
   return true;
 }
 
+// A result below the smallest normal has no relative significance left. EIGEN_FAST_MATH lets the
+// packet path flush it, and some ISAs flush unconditionally, so 0 and denorm_min are both
+// admissible answers for the same input while no relative comparison can accept both. Two values
+// that have underflowed therefore agree as far as these tests can tell.
+template <typename Scalar, std::enable_if_t<NumTraits<Scalar>::IsInteger, bool> = true>
+bool bothUnderflowed(const Scalar&, const Scalar&) {
+  return false;
+}
+
+template <typename Scalar, std::enable_if_t<!NumTraits<Scalar>::IsInteger, bool> = true>
+bool bothUnderflowed(const Scalar& a, const Scalar& b) {
+  using Real = typename NumTraits<Scalar>::Real;
+  const Real tiny = (std::numeric_limits<Real>::min)();
+  return numext::abs(a) < tiny && numext::abs(b) < tiny;
+}
+
 template <typename Scalar>
 bool areApprox(const Scalar* a, const Scalar* b, int size) {
   for (int i = 0; i < size; ++i) {
     if (numext::not_equal_strict(a[i], b[i]) && !internal::isApprox(a[i], b[i]) &&
-        !((numext::isnan)(a[i]) && (numext::isnan)(b[i]))) {
+        !((numext::isnan)(a[i]) && (numext::isnan)(b[i])) && !bothUnderflowed(a[i], b[i])) {
       print_mismatch(a, b, size);
       std::cout << std::setprecision(16) << "Values differ in position " << i << ": " << a[i] << " vs " << b[i]
                 << std::endl;
@@ -130,7 +146,7 @@ template <typename Scalar>
 bool areApprox(const Scalar* a, const Scalar* b, int size, const typename NumTraits<Scalar>::Real& precision) {
   for (int i = 0; i < size; ++i) {
     if (numext::not_equal_strict(a[i], b[i]) && !internal::isApprox(a[i], b[i], precision) &&
-        !((numext::isnan)(a[i]) && (numext::isnan)(b[i]))) {
+        !((numext::isnan)(a[i]) && (numext::isnan)(b[i])) && !bothUnderflowed(a[i], b[i])) {
       print_mismatch(a, b, size);
       std::cout << std::setprecision(16) << "Values differ in position " << i << ": " << a[i] << " vs " << b[i]
                 << std::endl;
