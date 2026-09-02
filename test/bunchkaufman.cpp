@@ -272,6 +272,54 @@ void bunchkaufman_blocking_boundary() {
   }
 }
 
+// A = Q D Q^*, with Q unitary and D real, is Hermitian with det(A) = prod(D_ii). Mixed signs make A
+// indefinite, so the factorization mixes 1x1 and 2x2 blocks of D; drawing the |D_ii| from an annulus keeps
+// A well conditioned, hence the inertia -- and with it signDeterminant() -- unambiguous.
+template <typename MatrixType>
+void bunchkaufman_determinant(Index size) {
+  typedef typename MatrixType::Scalar Scalar;
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  typedef Matrix<RealScalar, Dynamic, 1> RealVectorType;
+
+  MatrixType q = MatrixType::Random(size, size).householderQr().householderQ();
+  RealVectorType d(size);
+  for (Index i = 0; i < size; ++i) {
+    d(i) = internal::random<RealScalar>(RealScalar(1.2), RealScalar(2.8));
+    if (internal::random<bool>()) d(i) = -d(i);
+  }
+  const MatrixType a = q * d.template cast<Scalar>().asDiagonal() * q.adjoint();
+
+  const RealScalar det = d.prod();
+  const RealScalar logabsdet = d.array().abs().log().sum();
+
+  BunchKaufman<MatrixType, Lower> bklo(a);
+  VERIFY(bklo.info() == Success);
+  VERIFY_IS_APPROX(bklo.determinant(), Scalar(det));
+  VERIFY_IS_APPROX(bklo.absDeterminant(), numext::abs(det));
+  VERIFY_IS_MUCH_SMALLER_THAN(bklo.logAbsDeterminant() - logabsdet, RealScalar(1));
+  VERIFY_IS_EQUAL(bklo.signDeterminant(), Scalar(numext::sign(det)));
+
+  BunchKaufman<MatrixType, Upper> bkup(a);
+  VERIFY(bkup.info() == Success);
+  VERIFY_IS_APPROX(bkup.determinant(), Scalar(det));
+  VERIFY_IS_APPROX(bkup.absDeterminant(), numext::abs(det));
+  VERIFY_IS_MUCH_SMALLER_THAN(bkup.logAbsDeterminant() - logabsdet, RealScalar(1));
+  VERIFY_IS_EQUAL(bkup.signDeterminant(), Scalar(numext::sign(det)));
+}
+
+// The determinant of an empty matrix is the empty product, 1.
+template <typename MatrixType>
+void bunchkaufman_determinant_empty() {
+  typedef typename MatrixType::Scalar Scalar;
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+
+  BunchKaufman<MatrixType> bk{MatrixType(0, 0)};
+  VERIFY_IS_EQUAL(bk.determinant(), Scalar(1));
+  VERIFY_IS_EQUAL(bk.absDeterminant(), RealScalar(1));
+  VERIFY_IS_EQUAL(bk.logAbsDeterminant(), RealScalar(0));
+  VERIFY_IS_EQUAL(bk.signDeterminant(), Scalar(1));
+}
+
 template <typename MatrixType>
 void bunchkaufman_verify_assert() {
   MatrixType tmp;
@@ -286,6 +334,10 @@ void bunchkaufman_verify_assert() {
   VERIFY_RAISES_ASSERT(bk.matrixLDLT())
   VERIFY_RAISES_ASSERT(bk.reconstructedMatrix())
   VERIFY_RAISES_ASSERT(bk.solve(tmp))
+  VERIFY_RAISES_ASSERT(bk.determinant())
+  VERIFY_RAISES_ASSERT(bk.absDeterminant())
+  VERIFY_RAISES_ASSERT(bk.logAbsDeterminant())
+  VERIFY_RAISES_ASSERT(bk.signDeterminant())
 }
 
 // Build a random Hermitian (real symmetric) indefinite matrix of the same type/size as `m`.
@@ -397,6 +449,12 @@ EIGEN_DECLARE_TEST(bunchkaufman) {
     CALL_SUBTEST_6(bunchkaufman(MatrixXcd(s, s)));
     TEST_SET_BUT_UNUSED_VARIABLE(s);
 
+    // Bounded so that the determinant itself, not just its logarithm, stays in range.
+    s = internal::random<int>(1, 30);
+    CALL_SUBTEST_5(bunchkaufman_determinant<MatrixXd>(s));
+    CALL_SUBTEST_6(bunchkaufman_determinant<MatrixXcd>(s));
+    TEST_SET_BUT_UNUSED_VARIABLE(s);
+
     s = internal::random<int>(2, EIGEN_TEST_MAX_SIZE);
     CALL_SUBTEST_5(bunchkaufman_inertia_and_conditioning<MatrixXd>(s));
     s = internal::random<int>(2, EIGEN_TEST_MAX_SIZE / 2);
@@ -417,6 +475,7 @@ EIGEN_DECLARE_TEST(bunchkaufman) {
 
   // Empty-matrix edge case.
   CALL_SUBTEST_5(bunchkaufman(MatrixXd(0, 0)));
+  CALL_SUBTEST_5(bunchkaufman_determinant_empty<MatrixXd>());
 
   // Problem-size constructors.
   CALL_SUBTEST_8(BunchKaufman<MatrixXf>(10));
