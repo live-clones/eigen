@@ -1023,6 +1023,20 @@ struct direct_selfadjoint_eigensolver_dispatch<SolverType, Size, IsComplex, true
   using Scalar = typename SolverType::Scalar;
 
  private:
+  template <typename ValueType>
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void unscale(ValueType& value,
+                                                            const safe_scaling_factors<Scalar>& factors, false_type) {
+    safe_scaling<Scalar>::unscale_in_place(value, factors);
+  }
+
+  template <typename ValueType>
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void unscale(ValueType& value,
+                                                            const safe_scaling_factors<Scalar>& factors, true_type) {
+    for (Index i = 0; i < value.size(); ++i) {
+      value(i) = scale_binary_by_power_of_two(value(i), factors.scale);
+    }
+  }
+
   EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE static void run_prescaled(SolverType& solver, const MatrixType& matrix,
                                                                 int options, const Scalar& maxCoeff,
                                                                 bool useIterativeSolver) {
@@ -1034,9 +1048,8 @@ struct direct_selfadjoint_eigensolver_dispatch<SolverType, Size, IsComplex, true
       const Scalar shift = scaledMatrix.trace() / Scalar(Size);
       direct_selfadjoint_eigenvalues<SolverType, Size, IsComplex>::run(solver, scaledMatrix, options, shift);
     }
-    for (Index i = 0; i < Size; ++i) {
-      solver.m_eivalues(i) = scale_binary_by_power_of_two(solver.m_eivalues(i), factors.scale);
-    }
+    using PreserveSubnormalOutputs = bool_constant<use_subnormal_preserving_scaling<Scalar, Scalar>::value>;
+    unscale(solver.m_eivalues, factors, PreserveSubnormalOutputs());
   }
 
  public:
