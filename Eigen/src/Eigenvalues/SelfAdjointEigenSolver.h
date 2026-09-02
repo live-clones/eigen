@@ -877,9 +877,16 @@ struct direct_selfadjoint_eigenvalues<SolverType, 3, false> {
       }
     }
 
-    // Rescale back to the original size.
-    eivals *= factors.scale;
-    eivals.array() += shift;
+    // Add the shift before restoring the scale: a centered eigenvalue can exceed the finite range even when the
+    // corresponding uncentered eigenvalue is representable.
+    if (factors.scale == Scalar(1)) {
+      eivals.array() += shift;
+    } else {
+      Scalar scaledShift;
+      safe_scaling<Scalar>::scale_to(scaledShift, shift, maxCoeff, factors);
+      eivals.array() += scaledShift;
+      safe_scaling<Scalar>::unscale_in_place(eivals, factors);
+    }
 
     solver.m_info = Success;
     solver.m_isInitialized = true;

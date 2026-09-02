@@ -895,6 +895,31 @@ void direct_3x3_centering_overflow() {
   VERIFY_IS_EQUAL(solver.eigenvalues(), VectorType(-highest, highest, highest));
 }
 
+template <typename Scalar>
+void direct_3x3_restore_overflow() {
+  EIGEN_USING_STD(sqrt)
+  using MatrixType = Matrix<Scalar, 3, 3>;
+  using VectorType = Matrix<Scalar, 3, 1>;
+  const Scalar sqrt2 = sqrt(Scalar(2));
+  const Scalar sqrt3 = sqrt(Scalar(3));
+  const Scalar sqrt6 = sqrt(Scalar(6));
+  MatrixType eigenvectors;
+  eigenvectors << Scalar(1) / sqrt2, Scalar(1) / sqrt6, Scalar(1) / sqrt3, -Scalar(1) / sqrt2, Scalar(1) / sqrt6,
+      Scalar(1) / sqrt3, Scalar(0), -Scalar(2) / sqrt6, Scalar(1) / sqrt3;
+  const VectorType relativeEigenvalues(Scalar(0.982), Scalar(-0.724), Scalar(0.689));
+  const Scalar highest = NumTraits<Scalar>::highest();
+  const MatrixType matrix = (eigenvectors * relativeEigenvalues.asDiagonal() * eigenvectors.transpose()) * highest;
+
+  SelfAdjointEigenSolver<MatrixType> reference(matrix);
+  SelfAdjointEigenSolver<MatrixType> direct;
+  direct.computeDirect(matrix);
+  VERIFY_IS_EQUAL(reference.info(), Success);
+  VERIFY_IS_EQUAL(direct.info(), Success);
+  VERIFY(direct.eigenvalues().array().isFinite().all());
+  VERIFY((direct.eigenvalues() / highest)
+             .isApprox(reference.eigenvalues() / highest, Scalar(64) * NumTraits<Scalar>::epsilon()));
+}
+
 void direct_long_double_scaling() {
   Matrix<long double, 2, 2> matrix2;
   matrix2 << 2.0L, 1.0L, 1.0L, 3.0L;
@@ -1237,9 +1262,11 @@ EIGEN_DECLARE_TEST(eigensolver_selfadjoint) {
   CALL_SUBTEST_17(direct_3x3_ftz_rescaling<double>());
   CALL_SUBTEST_17((direct_trace_overflow<double, 3>()));
   CALL_SUBTEST_17(direct_3x3_centering_overflow<double>());
+  CALL_SUBTEST_17(direct_3x3_restore_overflow<double>());
   CALL_SUBTEST_13(direct_3x3_ftz_rescaling<float>());
   CALL_SUBTEST_13((direct_trace_overflow<float, 3>()));
   CALL_SUBTEST_13(direct_3x3_centering_overflow<float>());
+  CALL_SUBTEST_13(direct_3x3_restore_overflow<float>());
   CALL_SUBTEST_15(direct_2x2_stress<0>());
   CALL_SUBTEST_15(direct_2x2_ftz_rescaling<double>());
   CALL_SUBTEST_15((direct_trace_overflow<double, 2>()));
