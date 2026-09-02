@@ -107,6 +107,31 @@ void triangular_inverse_on_block(Index n) {
   VERIFY_IS_CWISE_EQUAL(host, expected);
 }
 
+// An operand whose inner stride is a run-time value, which is what a Map or Ref with a dynamic inner
+// stride hands the blocked kernels: their TRSM and TRMM steps must reach each panel through that
+// value, since the compile-time InnerStrideAtCompileTime they also carry is Dynamic.
+template <typename MatrixType>
+void triangular_inverse_on_strided_map(Index n) {
+  using Scalar = typename MatrixType::Scalar;
+  using VectorType = Matrix<Scalar, Dynamic, 1>;
+  using StrideType = Stride<Dynamic, Dynamic>;
+  const Index inner = 2, outer = 2 * n + 3;
+  const Index buffer_size = numext::maxi(Index(1), (n - 1) * (outer + inner) + 1);
+  VectorType buffer = VectorType::Random(buffer_size);
+  const VectorType before = buffer;
+  Map<MatrixType, 0, StrideType> x(buffer.data(), n, n, StrideType(outer, inner));
+
+  check_triangular_inverse<Lower>(well_conditioned_triangular<MatrixType>(n), x, /*well_conditioned=*/true);
+  check_triangular_inverse<Upper>(well_conditioned_triangular<MatrixType>(n), x, /*well_conditioned=*/true);
+
+  // Nothing in the gaps between the mapped coefficients moved.
+  std::vector<bool> mapped(buffer_size, false);
+  for (Index j = 0; j < n; ++j)
+    for (Index i = 0; i < n; ++i) mapped[static_cast<std::size_t>(&x.coeffRef(i, j) - buffer.data())] = true;
+  for (Index k = 0; k < buffer_size; ++k)
+    if (!mapped[k]) VERIFY_IS_EQUAL(buffer[k], before[k]);
+}
+
 // internal::triangular_adjoint_square_in_place() is what LLT::inverse() uses to turn L^-1 into
 // L^-* L^-1. It is not public API, but it needs coverage of its own: a Cholesky factor always has a
 // real diagonal, so the conjugations in the kernel are unobservable through LLT.
@@ -152,6 +177,7 @@ EIGEN_DECLARE_TEST(triangular_in_place) {
       CALL_SUBTEST_3(triangular_inverse_all_modes<MatrixXf>(n));
       CALL_SUBTEST_4((triangular_inverse_all_modes<Matrix<double, Dynamic, Dynamic, RowMajor>>(n)));
       CALL_SUBTEST_5(triangular_inverse_on_block<MatrixXd>(n));
+      CALL_SUBTEST_5(triangular_inverse_on_strided_map<MatrixXd>(n));
       CALL_SUBTEST_7(adjoint_square_both_triangles<MatrixXd>(n));
       CALL_SUBTEST_8(adjoint_square_both_triangles<MatrixXcd>(n));
       CALL_SUBTEST_9(adjoint_square_both_triangles<MatrixXf>(n));

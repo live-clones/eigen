@@ -59,6 +59,7 @@ void check_llt_inverse(const MatrixType& symm) {
   using Scalar = typename MatrixType::Scalar;
   using RealScalar = typename NumTraits<Scalar>::Real;
   using DynMatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using DynVectorType = Matrix<Scalar, Dynamic, 1>;
   const Index n = symm.rows();
 
   const MatrixType tri = symm.template triangularView<UpLo>();
@@ -89,6 +90,24 @@ void check_llt_inverse(const MatrixType& symm) {
   DynMatrixType host = DynMatrixType::Random(n + 2, n + 2);
   host.bottomRightCorner(n, n) = llt.inverse();
   VERIFY((symm * host.bottomRightCorner(n, n) - MatrixType::Identity(n, n)).norm() <= residual_bound);
+
+  // Nor need its inner stride be known at compile time. extract_data() is null for such a destination,
+  // which leaves the alias with the factor unknown rather than excluded, so this takes POTRI at every
+  // size, and the gaps between the mapped coefficients hold the kernels to the storage they were given.
+  using StrideType = Stride<Dynamic, Dynamic>;
+  const Index inner = 2, outer = 2 * n + 3;
+  const Index buffer_size = numext::maxi(Index(1), (n - 1) * (outer + inner) + 1);
+  DynVectorType buffer = DynVectorType::Random(buffer_size);
+  const DynVectorType before = buffer;
+  Map<MatrixType, 0, StrideType> strided(buffer.data(), n, n, StrideType(outer, inner));
+  strided = llt.inverse();
+  VERIFY_IS_CWISE_EQUAL(strided, strided.adjoint());
+  VERIFY((symm * strided - MatrixType::Identity(n, n)).norm() <= residual_bound);
+  std::vector<bool> mapped(buffer_size, false);
+  for (Index j = 0; j < n; ++j)
+    for (Index i = 0; i < n; ++i) mapped[static_cast<std::size_t>(&strided.coeffRef(i, j) - buffer.data())] = true;
+  for (Index k = 0; k < buffer_size; ++k)
+    if (!mapped[k]) VERIFY_IS_EQUAL(buffer[k], before[k]);
 
   // An in-place decomposition may overwrite its own factor, whichever arm the size selects: the solve
   // fallback would read the factor after setIdentity() had destroyed it, so the alias takes POTRI.
