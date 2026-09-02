@@ -89,6 +89,15 @@ void check_llt_inverse(const MatrixType& symm) {
   DynMatrixType host = DynMatrixType::Random(n + 2, n + 2);
   host.bottomRightCorner(n, n) = llt.inverse();
   VERIFY((symm * host.bottomRightCorner(n, n) - MatrixType::Identity(n, n)).norm() <= residual_bound);
+
+  // An in-place decomposition may overwrite its own factor, whichever arm the size selects: the solve
+  // fallback would read the factor after setIdentity() had destroyed it, so the alias takes POTRI.
+  MatrixType storage = tri;
+  LLT<Ref<MatrixType>, UpLo> inplace(storage);
+  VERIFY(inplace.info() == Success);
+  storage = inplace.inverse();
+  VERIFY_IS_CWISE_EQUAL(storage, storage.adjoint());
+  VERIFY((symm * storage - MatrixType::Identity(n, n)).norm() <= residual_bound);
 }
 
 // LLT::inverse() dispatches on EIGEN_LLT_INVERSE_POTRI_THRESHOLD, so straddle it deterministically:

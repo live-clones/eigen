@@ -195,6 +195,10 @@ class LLT : public SolverBase<LLT<MatrixType_, UpLo_> > {
    * is what this method does there. Complex scalars always take the POTRI path. The result is exactly
    * self-adjoint either way: one triangle is computed and mirrored onto the other.
    *
+   * An in-place decomposition (see the class documentation) may overwrite its own factor with the result,
+   * as in <tt>storage = llt.inverse()</tt>; like any other write to the referenced matrix, that leaves the
+   * decomposition unusable afterwards.
+   *
    * The matrix must be positive definite, that is, info() must be \c Success.
    *
    * \sa solve(), MatrixBase::inverse()
@@ -530,7 +534,13 @@ struct Assignment<DstXprType, Inverse<LLT<MatrixType, UpLo_> >,
     // Complex is never thresholded; see EIGEN_LLT_INVERSE_POTRI_THRESHOLD.
     constexpr Index kPotriThreshold =
         NumTraits<typename LltType::Scalar>::IsComplex ? Index(0) : Index(EIGEN_LLT_INVERSE_POTRI_THRESHOLD);
-    if (size >= kPotriThreshold) {
+    // An in-place LLT<Ref<...>> may be asked to overwrite its own factor. The POTRI sequence does exactly
+    // that, so it takes the alias at every size; the solve fallback would read a factor that setIdentity()
+    // had already destroyed. extract_data() is null for a destination whose inner stride is not known to
+    // be 1 at compile time, which leaves the alias unknown rather than excluded, so that goes the same way.
+    const typename DstXprType::Scalar* dst_data = extract_data(dst);
+    const bool overwrites_factor = dst_data == nullptr || dst_data == llt.matrixLLT().data();
+    if (overwrites_factor || size >= kPotriThreshold) {
       // A = L L^*, hence A^-1 = L^-* L^-1: invert the factor (xTRTRI), then square it (xLAUUM).
       dst.template triangularView<UpLo_>() = llt.matrixLLT().template triangularView<UpLo_>();
       dst.template triangularView<UpLo_>().inverseInPlace();
