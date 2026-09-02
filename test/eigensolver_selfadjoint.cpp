@@ -791,9 +791,11 @@ void verify_direct_ftz_rescaling(const MatrixType& matrix) {
   VERIFY(scaledEigenvalues.isApprox(scaledReference, tolerance));
   MatrixType scaledMatrix;
   internal::safe_scaling<Scalar>::scale_to(scaledMatrix, matrix, scale, factors);
-  const MatrixType residual =
-      scaledMatrix * direct.eigenvectors() - direct.eigenvectors() * scaledEigenvalues.asDiagonal();
-  VERIFY(residual.norm() <= tolerance);
+  const MatrixType orthogonality = direct.eigenvectors().transpose() * direct.eigenvectors() - MatrixType::Identity();
+  VERIFY(orthogonality.norm() <= tolerance);
+  MatrixType diagonalized = direct.eigenvectors().transpose() * scaledMatrix * direct.eigenvectors();
+  diagonalized.diagonal().setZero();
+  VERIFY(diagonalized.norm() <= tolerance * scaledMatrix.norm());
 }
 
 template <typename Scalar>
