@@ -65,14 +65,11 @@ struct evaluator_traits<DiagonalPlusLowRank<Scalar_, Size_, Rank_>> {
   using Shape = StructuredShape;
 };
 
-// Entrywise multiplication by the exact power of two 2^e [4], for the factor
-// normalization of the Woodbury products [5]. Built on the shared scalar
-// structured_balance_impl::apply_exponent (an ldexp per component) rather than
-// on a multiplication by 2^e (or by two half powers 2^(e/2)): ldexp is exact
-// and saturates entry by entry for every exponent, whereas the scale factor
-// itself can leave the representable range -- 2^-eu overflows for a subnormal
-// factor bound, and a saturated half power would turn zero entries into NaN
-// through 0 * Inf.
+// Entrywise multiplication by the exact power of two 2^e [4], for the factor normalization of the
+// Woodbury products [5]. Uses structured_balance_impl::apply_exponent (an ldexp per component) rather
+// than a multiplication by 2^e or by two half powers 2^(e/2): ldexp is exact and saturates entrywise
+// for every exponent, whereas 2^-eu itself overflows for a subnormal factor bound and a saturated
+// half power turns zero entries into NaN through 0 * Inf.
 template <typename Scalar>
 struct dplr_ldexp_op {
   int e;
@@ -84,12 +81,10 @@ struct dplr_ldexp_op {
 // below 2^(a + b + e)).
 inline int dplr_index_exponent(Index n) { return log2_ceil(static_cast<std::make_unsigned_t<Index>>(n)); }
 
-// True when a product whose operands have entry-magnitude exponent bounds ea
-// and eb over an inner dimension of length \a inner provably cannot overflow
-// (with one bit of headroom for a trailing addition). The Woodbury kernels
-// form their products from exactly rescaled factors [4][5] when this test
-// fails; when it holds they keep the plain association, whose result is then
-// bit-identical to the unnormalized evaluation.
+// True when a product of operands with entry-magnitude exponent bounds ea and eb over an inner
+// dimension of length \a inner provably cannot overflow, with one bit of headroom for a trailing
+// addition. Where it fails the Woodbury kernels rescale their factors exactly [4][5]; where it holds
+// they keep the plain association.
 template <typename RealScalar>
 bool dplr_product_fits(int ea, int eb, Index inner) {
   return ea + eb + dplr_index_exponent(inner) + 1 < NumTraits<RealScalar>::max_exponent();
@@ -327,12 +322,11 @@ class DiagonalPlusLowRank : public EigenBase<DiagonalPlusLowRank<Scalar_, Size_,
                         YOU_MIXED_MATRICES_OF_DIFFERENT_SIZES)
     eigen_assert(b.rows() == rows() && "right-hand side has the wrong number of rows");
     const DiagonalVector dinv = m_d.cwiseInverse();
-    // D^{-1} b can overflow even when the solution is representable: with d = 1e-200 and
-    // b = 1e200 the operator is essentially the identity and x is 1e200, yet this term is 1e400.
-    // The solve is linear in b, so the right-hand side is rescaled by an exact power of two [4]
-    // on the same conservative exponent test the other kernels use, and the exponent is folded
-    // back into the result [5]. When the plain form provably cannot overflow it is kept, so
-    // moderate data stays bit-identical to the unnormalized evaluation.
+    // D^{-1} b can overflow while the solution is representable: at d = 1e-200, b = 1e200 the operator
+    // is essentially the identity and x is 1e200, yet this term is 1e400. The solve is linear in b, so
+    // b is rescaled by an exact power of two [4] on the same exponent test the other kernels use and
+    // the exponent is folded back into the result [5]; the plain form is kept where it provably
+    // cannot overflow.
     const int eb = internal::structured_exponent_bound(b.derived());
     const int ed = internal::structured_exponent_bound(dinv);
     const bool rescale = !internal::dplr_product_fits<RealScalar>(ed, eb, 1);

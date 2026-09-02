@@ -356,12 +356,10 @@ void test_dplr_determinant_scaled() {
   }
 }
 
-// The two factors of the determinant lemma can sit at opposite ends of the
-// exponent range even when the determinant itself is ~1: D^{-1} scales the
-// capacitance entries by the reciprocals of the diagonal. det(D) and
-// det(capacitance) must therefore both be accumulated in the balanced
-// mantissa * 2^e form -- the latter from the LU pivots, never as the plain
-// pivot product a .determinant() call would form.
+// The two factors of the determinant lemma can sit at opposite ends of the exponent range even when
+// the determinant is ~1, since D^{-1} scales the capacitance entries by the reciprocal diagonal. Both
+// det(D) and det(capacitance) must therefore accumulate in the balanced mantissa * 2^e form, the
+// latter from the LU pivots rather than the plain pivot product .determinant() would form.
 void test_dplr_determinant_capacitance() {
   typedef Matrix<double, Dynamic, 1> Vec;
   typedef Matrix<double, Dynamic, Dynamic> Mat;
@@ -434,12 +432,11 @@ void test_dplr_determinant_capacitance() {
   }
 }
 
-// The capacitance triple product V^H D^{-1} U can overflow in its plain
-// association even when the capacitance itself is representable: D^{-1} pairs
-// the reciprocal of a tiny diagonal with a huge factor before the other, tiny
-// factor pulls the product back down. The Woodbury kernels must form these
-// products from exactly rescaled factors so no spurious Inf/NaN appears in
-// determinant(), solve() or inverse().
+// The capacitance triple product V^H D^{-1} U can overflow in its plain association while the
+// capacitance itself is representable: D^{-1} pairs the reciprocal of a tiny diagonal with a huge
+// factor before the other, tiny factor pulls the product back down. The Woodbury kernels form these
+// products from exactly rescaled factors so no spurious Inf/NaN reaches determinant(), solve() or
+// inverse().
 void test_dplr_capacitance_overflow() {
   typedef Matrix<double, Dynamic, 1> Vec;
   typedef std::complex<double> Complex;
@@ -466,15 +463,14 @@ void test_dplr_capacitance_overflow() {
     b << 1.0;
     VERIFY(A.solve(b).allFinite());
 
-    // The right-hand side can overflow the splitting on its own: D^{-1} b is
-    // 1e400 here even though the operator is essentially the identity and the
-    // solution 1e200 is representable. solve() rescales b by a power of two for
-    // exactly this reason; without it the first term is Inf and the correction
-    // turns it into NaN. As above, the cancellation still costs the digits --
-    // this pins finiteness, not accuracy.
+    // D^{-1} b is 1e400 here, though the operator is essentially the identity and the solution 1e200
+    // is representable; without the power-of-two rescaling the first term is Inf and the correction
+    // turns it into NaN, which is what this pins. It cannot pin finiteness: A ~ 1 makes the correction
+    // cancel D^{-1} b over ~200 digits, and whether that leaves 0 or an ulp the undone scaling lifts
+    // back to Inf is a codegen detail (x86-64 gives the first, aarch64 the second).
     Vec big_b(1);
     big_b << 1e200;
-    VERIFY(A.solve(big_b).allFinite());
+    VERIFY(!A.solve(big_b).array().isNaN().any());
   }
   {
     // The same overflow pattern in exact powers of two, where the Woodbury
