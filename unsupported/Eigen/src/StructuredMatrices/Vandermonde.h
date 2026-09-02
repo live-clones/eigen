@@ -298,8 +298,10 @@ class Vandermonde : public EigenBase<Vandermonde<Scalar_, Rows_, Cols_>> {
    * representable (e.g. coefficients near the overflow threshold evaluated at a
    * node of magnitude 1/2). Each (node, column) pair is therefore screened with
    * a conservative exponent bound: when no intermediate can overflow -- every
-   * input of moderate magnitude -- the plain Horner loop runs, bit-identical to
-   * the naive evaluation; otherwise scaledHorner() keeps the running value in
+   * input of moderate magnitude -- the plain Horner loop runs, matching the naive
+   * evaluation step for step, though not necessarily bit for bit: the compiler
+   * may contract one loop's multiply-add into an FMA and not the other's.
+   * Otherwise scaledHorner() keeps the running value in
    * the balanced form m * 2^e of determinant(). Non-finite nodes or coefficients
    * also take the plain loop, which propagates Inf/NaN entrywise like a dense
    * product; and a unit alpha must not multiply -- even the identity complex
@@ -539,7 +541,7 @@ class BjorckPereyra : public SolverBase<BjorckPereyra<Scalar_>> {
           break;
         }
       }
-    if (m_info == Success) initializeNodeOrder(m_x, std::integral_constant<bool, NumTraits<Scalar>::IsComplex>());
+    if (m_info == Success) initializeNodeOrder(m_x, internal::bool_constant<NumTraits<Scalar>::IsComplex>());
     m_isInitialized = true;
     return *this;
   }
