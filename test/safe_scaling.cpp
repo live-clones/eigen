@@ -173,6 +173,71 @@ void check_arithmetic_safe_scaling_fallback() {
                                                                       normalReciprocalFactors));
 }
 
+template <typename Scalar, typename Wide>
+void check_wider_scaling_reference(const Scalar& value, const Scalar& factor, const Scalar& expected,
+                                   internal::true_type) {
+  const volatile Wide wideValue = static_cast<Wide>(value);
+  const volatile Wide wideFactor = static_cast<Wide>(factor);
+  const Scalar reference = static_cast<Scalar>(wideValue * wideFactor);
+  VERIFY_IS_EQUAL(numext::bit_cast<typename internal::binary_floating_point_traits<Scalar>::Bits>(reference),
+                  numext::bit_cast<typename internal::binary_floating_point_traits<Scalar>::Bits>(expected));
+}
+
+template <typename Scalar, typename Wide>
+void check_wider_scaling_reference(const Scalar&, const Scalar&, const Scalar&, internal::false_type) {}
+
+template <typename Scalar>
+void check_scale_binary_by_power_of_two() {
+  using Binary = internal::binary_floating_point_traits<Scalar>;
+  using Bits = typename Binary::Bits;
+  using Wide = std::conditional_t<std::is_same<Scalar, float>::value, double, long double>;
+
+  struct TestCase {
+    Bits value;
+    Bits factor;
+    Bits expected;
+    bool checkWiderReference;
+  };
+
+  const Bits half = Binary::bits(Scalar(0.5));
+  const Bits two = Binary::bits(Scalar(2));
+  const Bits negative = Binary::kSignBit;
+  const Bits maximum = Binary::kExponentMask - Bits(1);
+  const Bits shiftByDigits = Bits(Binary::kExponentBias - std::numeric_limits<Scalar>::digits) << Binary::kFractionBits;
+  const TestCase cases[] = {
+      {Bits(0), two, Bits(0), false},
+      {negative, two, negative, false},
+      {Binary::kExponentMask, two, Binary::kExponentMask, false},
+      {negative | Binary::kExponentMask, two, negative | Binary::kExponentMask, false},
+      {Binary::kExponentMask | Bits(1), two, Binary::kExponentMask | Bits(1), false},
+      {negative | Binary::bits(Scalar(1.5)), two, negative | Binary::bits(Scalar(3)), true},
+      // Round subnormal halfway cases to an even low bit.
+      {Bits(3), half, Bits(2), true},
+      {Bits(5), half, Bits(2), true},
+      {negative | Bits(3), half, negative | Bits(2), true},
+      // Rounding just below the normal range carries into the minimum normal value.
+      {Binary::kExponentUnit | Binary::kFractionMask, half, Binary::kExponentUnit, true},
+      // Exercise a right shift equal to the significand width, on either side of the halfway point.
+      {Binary::kExponentUnit, shiftByDigits, Bits(0), true},
+      {Binary::kExponentUnit | Bits(1), shiftByDigits, Bits(1), true},
+      {maximum, two, Binary::kExponentMask, false},
+      {negative | maximum, two, negative | Binary::kExponentMask, false},
+  };
+
+  for (const TestCase& test : cases) {
+    const Scalar value = numext::bit_cast<Scalar>(test.value);
+    const Scalar factor = numext::bit_cast<Scalar>(test.factor);
+    const Scalar expected = numext::bit_cast<Scalar>(test.expected);
+    const Scalar actual = internal::scale_binary_by_power_of_two(value, factor);
+    VERIFY_IS_EQUAL(Binary::bits(actual), test.expected);
+    if (test.checkWiderReference) {
+      using HasWiderReference =
+          internal::bool_constant<(std::numeric_limits<Wide>::digits > std::numeric_limits<Scalar>::digits)>;
+      check_wider_scaling_reference<Scalar, Wide>(value, factor, expected, HasWiderReference());
+    }
+  }
+}
+
 template <typename Scalar>
 struct scaling_test_value {
   using RealScalar = typename NumTraits<Scalar>::Real;
@@ -235,6 +300,8 @@ EIGEN_DECLARE_TEST(safe_scaling) {
   CALL_SUBTEST(check_safe_scaling_special_values<double>());
   CALL_SUBTEST(check_safe_scaling_special_value_frontends());
   CALL_SUBTEST(check_arithmetic_safe_scaling_fallback());
+  CALL_SUBTEST(check_scale_binary_by_power_of_two<float>());
+  CALL_SUBTEST(check_scale_binary_by_power_of_two<double>());
   CALL_SUBTEST(check_subnormal_preserving_scaling<float>());
   CALL_SUBTEST(check_subnormal_preserving_scaling<std::complex<float>>());
   CALL_SUBTEST(check_subnormal_preserving_scaling<double>());
