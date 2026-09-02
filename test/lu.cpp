@@ -10,6 +10,7 @@
 
 #include "main.h"
 #include <Eigen/LU>
+#include <Eigen/QR>
 #include "solverbase.h"
 using namespace std;
 
@@ -167,16 +168,20 @@ void lu_partial_piv(Index size = MatrixType::ColsAtCompileTime) {
 
 // Regression test: FullPivLU took the maximum of an empty column-sum vector when computing its l1 norm,
 // so it could not be constructed at all from a matrix with zero columns. PartialPivLU already guarded the
-// same reduction.
+// same reduction. The determinant of an empty matrix is the empty product, 1.
 template <typename MatrixType>
 void lu_empty() {
   typedef typename MatrixType::Scalar Scalar;
+  typedef typename NumTraits<Scalar>::Real RealScalar;
   const Index n = 5;
 
   FullPivLU<MatrixType> lu{MatrixType(0, 0)};
   VERIFY_IS_EQUAL(lu.rank(), Index(0));
   VERIFY(lu.isInvertible());
   VERIFY_IS_EQUAL(lu.determinant(), Scalar(1));
+  VERIFY_IS_EQUAL(lu.absDeterminant(), RealScalar(1));
+  VERIFY_IS_EQUAL(lu.logAbsDeterminant(), RealScalar(0));
+  VERIFY_IS_EQUAL(lu.signDeterminant(), Scalar(1));
 
   lu.compute(MatrixType(0, n));
   VERIFY_IS_EQUAL(lu.rank(), Index(0));
@@ -190,6 +195,66 @@ void lu_empty() {
 
   PartialPivLU<MatrixType> plu{MatrixType(0, 0)};
   VERIFY_IS_EQUAL(plu.determinant(), Scalar(1));
+  VERIFY_IS_EQUAL(plu.absDeterminant(), RealScalar(1));
+  VERIFY_IS_EQUAL(plu.logAbsDeterminant(), RealScalar(0));
+  VERIFY_IS_EQUAL(plu.signDeterminant(), Scalar(1));
+}
+
+// A = Q D Q^*, with Q unitary, has det(A) = det(D) because det(Q) det(Q^*) = |det(Q)|^2 = 1.
+// Drawing the D_ii from an annulus keeps A well conditioned and log|det(A)| away from zero.
+template <typename MatrixType>
+void lu_determinant(Index size) {
+  typedef typename MatrixType::Scalar Scalar;
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+
+  MatrixType d = MatrixType::Zero(size, size);
+  for (Index i = 0; i < size; ++i) {
+    Scalar u = internal::random<Scalar>();
+    while (numext::abs(u) < RealScalar(0.1)) u = internal::random<Scalar>();
+    d(i, i) = numext::sign(u) * Scalar(internal::random<RealScalar>(RealScalar(1.2), RealScalar(2.8)));
+  }
+  MatrixType q = MatrixType::Random(size, size).householderQr().householderQ();
+  MatrixType a = q * d * q.adjoint();
+
+  const Scalar det = d.diagonal().prod();
+  const RealScalar absdet = numext::abs(det);
+  const RealScalar logabsdet = d.diagonal().cwiseAbs().array().log().sum();
+
+  FullPivLU<MatrixType> lu(a);
+  VERIFY_IS_APPROX(lu.determinant(), det);
+  VERIFY_IS_APPROX(lu.absDeterminant(), absdet);
+  VERIFY_IS_MUCH_SMALLER_THAN(lu.logAbsDeterminant() - logabsdet, RealScalar(1));
+  VERIFY_IS_APPROX(lu.signDeterminant(), numext::sign(det));
+
+  PartialPivLU<MatrixType> plu(a);
+  VERIFY_IS_APPROX(plu.determinant(), det);
+  VERIFY_IS_APPROX(plu.absDeterminant(), absdet);
+  VERIFY_IS_MUCH_SMALLER_THAN(plu.logAbsDeterminant() - logabsdet, RealScalar(1));
+  VERIFY_IS_APPROX(plu.signDeterminant(), numext::sign(det));
+}
+
+// logAbsDeterminant() exists to survive the range where the determinant itself does not: with n = 200 and
+// a diagonal of 10^4, det = 10^800 overflows every supported float type while log|det| = 800 log 10 does not.
+template <typename MatrixType>
+void lu_determinant_overflow() {
+  typedef typename MatrixType::Scalar Scalar;
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+
+  const Index size = 200;
+  for (RealScalar scale : {RealScalar(1e4), RealScalar(1e-4)}) {
+    const MatrixType a = MatrixType::Identity(size, size) * Scalar(scale);
+    const RealScalar logabsdet = RealScalar(size) * numext::log(scale);
+
+    PartialPivLU<MatrixType> plu(a);
+    VERIFY(!(numext::isfinite)(plu.absDeterminant()) || numext::is_exactly_zero(plu.absDeterminant()));
+    VERIFY_IS_APPROX(plu.logAbsDeterminant(), logabsdet);
+    VERIFY_IS_EQUAL(plu.signDeterminant(), Scalar(1));
+
+    FullPivLU<MatrixType> lu(a);
+    VERIFY(!(numext::isfinite)(lu.absDeterminant()) || numext::is_exactly_zero(lu.absDeterminant()));
+    VERIFY_IS_APPROX(lu.logAbsDeterminant(), logabsdet);
+    VERIFY_IS_EQUAL(lu.signDeterminant(), Scalar(1));
+  }
 }
 
 template <typename MatrixType>
@@ -206,6 +271,9 @@ void lu_verify_assert() {
   VERIFY_RAISES_ASSERT(lu.transpose().solve(tmp))
   VERIFY_RAISES_ASSERT(lu.adjoint().solve(tmp))
   VERIFY_RAISES_ASSERT(lu.determinant())
+  VERIFY_RAISES_ASSERT(lu.absDeterminant())
+  VERIFY_RAISES_ASSERT(lu.logAbsDeterminant())
+  VERIFY_RAISES_ASSERT(lu.signDeterminant())
   VERIFY_RAISES_ASSERT(lu.rank())
   VERIFY_RAISES_ASSERT(lu.dimensionOfKernel())
   VERIFY_RAISES_ASSERT(lu.isInjective())
@@ -220,6 +288,9 @@ void lu_verify_assert() {
   VERIFY_RAISES_ASSERT(plu.transpose().solve(tmp))
   VERIFY_RAISES_ASSERT(plu.adjoint().solve(tmp))
   VERIFY_RAISES_ASSERT(plu.determinant())
+  VERIFY_RAISES_ASSERT(plu.absDeterminant())
+  VERIFY_RAISES_ASSERT(plu.logAbsDeterminant())
+  VERIFY_RAISES_ASSERT(plu.signDeterminant())
   VERIFY_RAISES_ASSERT(plu.inverse())
 }
 
@@ -324,22 +395,27 @@ EIGEN_DECLARE_TEST(lu) {
     CALL_SUBTEST_3(lu_non_invertible<MatrixXf>());
     CALL_SUBTEST_3(lu_invertible<MatrixXf>());
     CALL_SUBTEST_3(lu_verify_assert<MatrixXf>());
+    CALL_SUBTEST_3(lu_determinant<MatrixXf>(internal::random<int>(1, 30)));
 
     CALL_SUBTEST_4(lu_non_invertible<MatrixXd>());
     CALL_SUBTEST_4(lu_invertible<MatrixXd>());
     CALL_SUBTEST_4(lu_partial_piv<MatrixXd>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
     CALL_SUBTEST_4(lu_verify_assert<MatrixXd>());
     CALL_SUBTEST_4(lu_empty<MatrixXd>());
+    CALL_SUBTEST_4(lu_determinant<MatrixXd>(internal::random<int>(1, 30)));
+    CALL_SUBTEST_3(lu_determinant_overflow<MatrixXf>());
 
     CALL_SUBTEST_5(lu_non_invertible<MatrixXcf>());
     CALL_SUBTEST_5(lu_invertible<MatrixXcf>());
     CALL_SUBTEST_5(lu_verify_assert<MatrixXcf>());
+    CALL_SUBTEST_5(lu_determinant<MatrixXcf>(internal::random<int>(1, 30)));
 
     CALL_SUBTEST_6(lu_non_invertible<MatrixXcd>());
     CALL_SUBTEST_6(lu_invertible<MatrixXcd>());
     CALL_SUBTEST_6(lu_partial_piv<MatrixXcd>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
     CALL_SUBTEST_6(lu_verify_assert<MatrixXcd>());
     CALL_SUBTEST_6(lu_empty<MatrixXcd>());
+    CALL_SUBTEST_6(lu_determinant<MatrixXcd>(internal::random<int>(1, 30)));
 
     CALL_SUBTEST_7((lu_non_invertible<Matrix<float, Dynamic, 16> >()));
 
