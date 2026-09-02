@@ -294,16 +294,16 @@ void bunchkaufman_determinant(Index size) {
 
   BunchKaufman<MatrixType, Lower> bklo(a);
   VERIFY(bklo.info() == Success);
-  VERIFY_IS_APPROX(bklo.determinant(), Scalar(det));
-  VERIFY_IS_APPROX(bklo.absDeterminant(), numext::abs(det));
-  VERIFY_IS_MUCH_SMALLER_THAN(bklo.logAbsDeterminant() - logabsdet, RealScalar(1));
+  check_determinant(bklo, Scalar(det), logabsdet);
+  // Unlike the other decompositions, this sign is read off the inertia rather than accumulated from a
+  // product of signs, so it is exact.
   VERIFY_IS_EQUAL(bklo.signDeterminant(), Scalar(numext::sign(det)));
 
   BunchKaufman<MatrixType, Upper> bkup(a);
   VERIFY(bkup.info() == Success);
-  VERIFY_IS_APPROX(bkup.determinant(), Scalar(det));
-  VERIFY_IS_APPROX(bkup.absDeterminant(), numext::abs(det));
-  VERIFY_IS_MUCH_SMALLER_THAN(bkup.logAbsDeterminant() - logabsdet, RealScalar(1));
+  check_determinant(bkup, Scalar(det), logabsdet);
+  // Unlike the other decompositions, this sign is read off the inertia rather than accumulated from a
+  // product of signs, so it is exact.
   VERIFY_IS_EQUAL(bkup.signDeterminant(), Scalar(numext::sign(det)));
 }
 

@@ -39,4 +39,23 @@ void check_solverbase(const MatrixType& matrix, const SolverType& solver, Index 
   VERIFY_IS_APPROX(matrix * m2, matrix * solver_solution);
 }
 
+// Checks the four determinant accessors of a decomposition against a reference determinant \a det and a
+// reference \a logabsdet = log|det| formed independently of it. Callers must keep \a det itself in range.
+template <typename SolverType, typename Scalar>
+void check_determinant(const SolverType& solver, const Scalar& det, const typename NumTraits<Scalar>::Real& logabsdet) {
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  VERIFY_IS_APPROX(solver.determinant(), det);
+  VERIFY_IS_APPROX(solver.absDeterminant(), numext::abs(det));
+  // log|det| passes through zero, where a relative comparison says nothing; bound the error absolutely.
+  VERIFY_IS_MUCH_SMALLER_THAN(solver.logAbsDeterminant() - logabsdet, RealScalar(1));
+  VERIFY_IS_APPROX(solver.signDeterminant(), numext::sign(det));
+}
+
+// True when |det| has left the representable range, overflowing to infinity or underflowing to zero.
+// logAbsDeterminant() is still meaningful there; determinant() and absDeterminant() are not.
+template <typename RealScalar>
+bool determinant_out_of_range(const RealScalar& absdet) {
+  return numext::is_exactly_zero(absdet) || !(numext::isfinite)(absdet);
+}
+
 #endif  // TEST_SOLVERBASE_H

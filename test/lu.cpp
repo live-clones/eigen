@@ -201,36 +201,21 @@ void lu_empty() {
 }
 
 // A = Q D Q^*, with Q unitary, has det(A) = det(D) because det(Q) det(Q^*) = |det(Q)|^2 = 1.
-// Drawing the D_ii from an annulus keeps A well conditioned and log|det(A)| away from zero.
 template <typename MatrixType>
 void lu_determinant(Index size) {
   typedef typename MatrixType::Scalar Scalar;
   typedef typename NumTraits<Scalar>::Real RealScalar;
 
   MatrixType d = MatrixType::Zero(size, size);
-  for (Index i = 0; i < size; ++i) {
-    Scalar u = internal::random<Scalar>();
-    while (numext::abs(u) < RealScalar(0.1)) u = internal::random<Scalar>();
-    d(i, i) = numext::sign(u) * Scalar(internal::random<RealScalar>(RealScalar(1.2), RealScalar(2.8)));
-  }
-  MatrixType q = MatrixType::Random(size, size).householderQr().householderQ();
-  MatrixType a = q * d * q.adjoint();
+  setRandomWellConditionedDiagonal(d);
+  const MatrixType q = MatrixType::Random(size, size).householderQr().householderQ();
+  const MatrixType a = q * d * q.adjoint();
 
   const Scalar det = d.diagonal().prod();
-  const RealScalar absdet = numext::abs(det);
   const RealScalar logabsdet = d.diagonal().cwiseAbs().array().log().sum();
 
-  FullPivLU<MatrixType> lu(a);
-  VERIFY_IS_APPROX(lu.determinant(), det);
-  VERIFY_IS_APPROX(lu.absDeterminant(), absdet);
-  VERIFY_IS_MUCH_SMALLER_THAN(lu.logAbsDeterminant() - logabsdet, RealScalar(1));
-  VERIFY_IS_APPROX(lu.signDeterminant(), numext::sign(det));
-
-  PartialPivLU<MatrixType> plu(a);
-  VERIFY_IS_APPROX(plu.determinant(), det);
-  VERIFY_IS_APPROX(plu.absDeterminant(), absdet);
-  VERIFY_IS_MUCH_SMALLER_THAN(plu.logAbsDeterminant() - logabsdet, RealScalar(1));
-  VERIFY_IS_APPROX(plu.signDeterminant(), numext::sign(det));
+  check_determinant(FullPivLU<MatrixType>(a), det, logabsdet);
+  check_determinant(PartialPivLU<MatrixType>(a), det, logabsdet);
 }
 
 // logAbsDeterminant() exists to survive the range where the determinant itself does not: with n = 200 and
@@ -246,12 +231,12 @@ void lu_determinant_overflow() {
     const RealScalar logabsdet = RealScalar(size) * numext::log(scale);
 
     PartialPivLU<MatrixType> plu(a);
-    VERIFY(!(numext::isfinite)(plu.absDeterminant()) || numext::is_exactly_zero(plu.absDeterminant()));
+    VERIFY(determinant_out_of_range(plu.absDeterminant()));
     VERIFY_IS_APPROX(plu.logAbsDeterminant(), logabsdet);
     VERIFY_IS_EQUAL(plu.signDeterminant(), Scalar(1));
 
     FullPivLU<MatrixType> lu(a);
-    VERIFY(!(numext::isfinite)(lu.absDeterminant()) || numext::is_exactly_zero(lu.absDeterminant()));
+    VERIFY(determinant_out_of_range(lu.absDeterminant()));
     VERIFY_IS_APPROX(lu.logAbsDeterminant(), logabsdet);
     VERIFY_IS_EQUAL(lu.signDeterminant(), Scalar(1));
   }
