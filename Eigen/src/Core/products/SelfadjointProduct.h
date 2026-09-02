@@ -24,7 +24,7 @@ namespace Eigen {
 
 template <typename Scalar, typename Index, int UpLo, bool ConjLhs, bool ConjRhs>
 struct selfadjoint_rank1_update<Scalar, Index, ColMajor, UpLo, ConjLhs, ConjRhs> {
-  static void run(Index size, Scalar* mat, Index stride, const Scalar* vecX, const Scalar* vecY, const Scalar& alpha) {
+  EIGEN_DEVICE_FUNC static void run(Index size, Scalar* mat, Index stride, const Scalar* vecX, const Scalar* vecY, const Scalar& alpha) {
     using Packet = typename internal::packet_traits<Scalar>::type;
     const Index PacketSize = internal::unpacket_traits<Packet>::size;
 
@@ -129,7 +129,7 @@ struct selfadjoint_rank1_update<Scalar, Index, ColMajor, UpLo, ConjLhs, ConjRhs>
 
 template <typename Scalar, typename Index, int UpLo, bool ConjLhs, bool ConjRhs>
 struct selfadjoint_rank1_update<Scalar, Index, RowMajor, UpLo, ConjLhs, ConjRhs> {
-  static void run(Index size, Scalar* mat, Index stride, const Scalar* vecX, const Scalar* vecY, const Scalar& alpha) {
+  EIGEN_DEVICE_FUNC static void run(Index size, Scalar* mat, Index stride, const Scalar* vecX, const Scalar* vecY, const Scalar& alpha) {
     selfadjoint_rank1_update<Scalar, Index, ColMajor, UpLo == Lower ? Upper : Lower, ConjRhs, ConjLhs>::run(
         size, mat, stride, vecY, vecX, alpha);
   }
@@ -140,7 +140,7 @@ struct selfadjoint_product_selector;
 
 template <typename MatrixType, typename OtherType, int UpLo>
 struct selfadjoint_product_selector<MatrixType, OtherType, UpLo, true> {
-  static void run(MatrixType& mat, const OtherType& other, const typename MatrixType::Scalar& alpha) {
+  EIGEN_DEVICE_FUNC static void run(MatrixType& mat, const OtherType& other, const typename MatrixType::Scalar& alpha) {
     using Scalar = typename MatrixType::Scalar;
     using OtherBlasTraits = internal::blas_traits<OtherType>;
     using ActualOtherType = typename OtherBlasTraits::DirectLinearAccessType;
@@ -175,7 +175,7 @@ struct selfadjoint_product_selector<MatrixType, OtherType, UpLo, true> {
 
 template <typename MatrixType, typename OtherType, int UpLo>
 struct selfadjoint_product_selector<MatrixType, OtherType, UpLo, false> {
-  static void run(MatrixType& mat, const OtherType& other, const typename MatrixType::Scalar& alpha) {
+  EIGEN_DEVICE_FUNC static void run(MatrixType& mat, const OtherType& other, const typename MatrixType::Scalar& alpha) {
     using Scalar = typename MatrixType::Scalar;
     using OtherBlasTraits = internal::blas_traits<OtherType>;
     using ActualOtherType = typename OtherBlasTraits::DirectLinearAccessType;
