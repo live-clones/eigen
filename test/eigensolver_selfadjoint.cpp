@@ -798,6 +798,7 @@ void verify_direct_ftz_rescaling(const MatrixType& matrix) {
 
 template <typename Scalar>
 void direct_3x3_ftz_rescaling() {
+  EIGEN_USING_STD(ldexp)
   Matrix<Scalar, 3, 3> eigenvectors;
   eigenvectors << Scalar(-0.6848395082687857), Scalar(-0.24329346407253183), Scalar(0.68687927487569134),
       Scalar(0.71945209189636927), Scalar(-0.37540118169054804), Scalar(0.58434804718701527),
@@ -813,10 +814,19 @@ void direct_3x3_ftz_rescaling() {
     zeroTrace << subnormal, subnormal, Scalar(0), subnormal, -subnormal, subnormal, Scalar(0), subnormal, Scalar(0);
     verify_direct_ftz_rescaling(zeroTrace);
   }
+
+  constexpr int kFormerMinSafeExponent = (std::numeric_limits<Scalar>::min_exponent - 1) / 6;
+  const Scalar magnitude = ldexp(Scalar(1), kFormerMinSafeExponent);
+  const Scalar delta = magnitude / Scalar(4);
+  Matrix<Scalar, 3, 3> significantSubdominant;
+  significantSubdominant << magnitude, delta, Scalar(0), delta, magnitude, delta, Scalar(0), delta,
+      Scalar(-2) * magnitude;
+  verify_direct_ftz_rescaling(significantSubdominant);
 }
 
 template <typename Scalar>
 void direct_2x2_ftz_rescaling() {
+  EIGEN_USING_STD(ldexp)
   const Scalar cosine = numext::cos(Scalar(0.34));
   const Scalar sine = numext::sin(Scalar(0.34));
   Matrix<Scalar, 2, 2> eigenvectors;
@@ -832,6 +842,13 @@ void direct_2x2_ftz_rescaling() {
     zeroTrace << subnormal, subnormal, subnormal, -subnormal;
     verify_direct_ftz_rescaling(zeroTrace);
   }
+
+  constexpr int kFormerMinSafeExponent = (std::numeric_limits<Scalar>::min_exponent - 1) / 2;
+  const Scalar magnitude = ldexp(Scalar(1), kFormerMinSafeExponent + 1);
+  const Scalar delta = magnitude / Scalar(4);
+  Matrix<Scalar, 2, 2> significantSubdominant;
+  significantSubdominant << delta / Scalar(2), magnitude, magnitude, -delta / Scalar(2);
+  verify_direct_ftz_rescaling(significantSubdominant);
 }
 
 template <typename Scalar, int Size>

@@ -679,16 +679,17 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool direct_selfadjoint_eigensolver_safe_r
   using Bits = typename Binary::Bits;
   const Bits maxCoeffMagnitude = Binary::magnitude(maxCoeff);
   EIGEN_IF_CONSTEXPR (Size == 2) {
-    // computeRoots uses at most 8*M^2 and eigenvector normalization less than 16*M^2.
-    constexpr int kMinSafeExponent = (std::numeric_limits<Scalar>::min_exponent - 1) / 2;
+    // Keep epsilon*M^2 normal so a significant sub-dominant term cannot be flushed to zero.
+    constexpr int kMinSafeExponent =
+        (std::numeric_limits<Scalar>::min_exponent + std::numeric_limits<Scalar>::digits - 2) / 2;
     constexpr int kMaxSafeExponent = (std::numeric_limits<Scalar>::max_exponent - 4) / 2;
     constexpr Bits kMinSafeBits = Bits(kMinSafeExponent + Binary::kExponentBias) << Binary::kFractionBits;
     constexpr Bits kMaxSafeBits = (Bits(kMaxSafeExponent + Binary::kExponentBias) << Binary::kFractionBits) - Bits(1);
     return maxCoeffMagnitude > kMinSafeBits && maxCoeffMagnitude < kMaxSafeBits;
   } else {
-    // For |m(i,j)| <= M, the largest degree-six intermediate in computeRoots is bounded by 64*M^6. The eigenvector
-    // cross products have degree four and fit within the same range.
-    constexpr int kMinSafeExponent = (std::numeric_limits<Scalar>::min_exponent - 1) / 6;
+    // Keep epsilon*M^6 normal. This also covers the degree-four eigenvector cross products.
+    constexpr int kMinSafeExponent =
+        (std::numeric_limits<Scalar>::min_exponent + std::numeric_limits<Scalar>::digits - 2) / 6;
     constexpr int kMaxSafeExponent = (std::numeric_limits<Scalar>::max_exponent - 6) / 6;
     constexpr Bits kMinSafeBits = Bits(kMinSafeExponent + Binary::kExponentBias) << Binary::kFractionBits;
     constexpr Bits kMaxSafeBits = Bits(kMaxSafeExponent + Binary::kExponentBias) << Binary::kFractionBits;
