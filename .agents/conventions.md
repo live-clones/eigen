@@ -43,9 +43,10 @@ Supported headers compile as C++14, which rules out forms that review suggestion
 
 ## Hot paths
 
-Code added to a hot inner loop grows the enclosing function and displaces it from the instruction cache even when an
-`EIGEN_PREDICT_FALSE` guard keeps it from executing. Move the cold path — error reporting, the fallback for an
-exceptional shape — into an `EIGEN_DONT_INLINE` helper so the loop body keeps only the branch.
+Code added to a hot inner loop grows the enclosing function and can displace it from the instruction cache even when
+an `EIGEN_PREDICT_FALSE` guard keeps it from executing. Watch for that when adding a check or a fallback to such a
+loop; where a benchmark shows the cost, moving the cold path into an `EIGEN_DONT_INLINE` helper is one way to
+recover it.
 
 ## Comments
 
