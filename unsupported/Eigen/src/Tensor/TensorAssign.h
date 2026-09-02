@@ -79,8 +79,6 @@ template <typename LeftArgType, typename RightArgType, typename Device>
 struct TensorEvaluator<const TensorAssignOp<LeftArgType, RightArgType>, Device> {
   typedef TensorAssignOp<LeftArgType, RightArgType> XprType;
   typedef typename XprType::Index Index;
-  // Index is the promotion of the operands' index types; each operand is addressed in its own,
-  // which its dimensions fit by construction.
   using LeftIndex = typename TensorEvaluator<LeftArgType, Device>::Index;
   using RightIndex = typename TensorEvaluator<RightArgType, Device>::Index;
   typedef typename XprType::Scalar Scalar;
