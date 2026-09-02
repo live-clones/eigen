@@ -786,30 +786,13 @@ struct direct_selfadjoint_eigenvalues<SolverType, 3, false> {
     return true;
   }
 
-  EIGEN_DEVICE_FUNC static inline void run(SolverType& solver, const MatrixType& mat, int options) {
-    run(solver, mat, options, mat.trace() / Scalar(3));
-  }
-
-  EIGEN_DEVICE_FUNC static inline void run(SolverType& solver, const MatrixType& mat, int options, Scalar shift) {
-    eigen_assert(mat.cols() == 3 && mat.cols() == mat.rows());
-    eigen_assert((options & ~(EigVecMask | GenEigMask)) == 0 && (options & EigVecMask) != EigVecMask &&
-                 "invalid option parameter");
-    bool computeEigenvectors = (options & ComputeEigenvectors) == ComputeEigenvectors;
-
+  EIGEN_DEVICE_FUNC static inline void run_centered(SolverType& solver, MatrixType& centeredMat, int options) {
+    const bool computeEigenvectors = (options & ComputeEigenvectors) == ComputeEigenvectors;
     EigenvectorsType& eivecs = solver.m_eivec;
     VectorType& eivals = solver.m_eivalues;
 
-    // TODO: avoid this copy. Currently necessary to suppress bogus values when determining maxCoeff and for
-    // computing the eigenvectors later.
-    MatrixType scaledMat = mat.template selfadjointView<Lower>();
-    scaledMat.diagonal().array() -= shift;
-    const Scalar maxCoeff = scaledMat.cwiseAbs().maxCoeff();
-    safe_scaling_factors<Scalar> factors;
-    if (EIGEN_PREDICT_FALSE(!direct_selfadjoint_eigensolver_safe_range<3>(maxCoeff)))
-      factors = safe_scaling<Scalar>::scale_in_place(scaledMat, maxCoeff);
-
     // compute the eigenvalues
-    computeRoots(scaledMat, eivals);
+    computeRoots(centeredMat, eivals);
 
     // computeRoots produces theoretically sorted roots, but floating-point
     // rounding in the trigonometric formulas can break the ordering.
@@ -840,7 +823,7 @@ struct direct_selfadjoint_eigenvalues<SolverType, 3, false> {
         eivecs.setIdentity();
       } else {
         MatrixType tmp;
-        tmp = scaledMat;
+        tmp = centeredMat;
 
         // Compute the eigenvector of the most distinct eigenvalue
         Scalar d0 = eivals(2) - eivals(1);
@@ -865,7 +848,7 @@ struct direct_selfadjoint_eigenvalues<SolverType, 3, false> {
           eivecs.col(l) -= eivecs.col(k).dot(eivecs.col(l)) * eivecs.col(k);
           eivecs.col(l).normalize();
         } else {
-          tmp = scaledMat;
+          tmp = centeredMat;
           tmp.diagonal().array() -= eivals(l);
 
           VectorType dummy;
@@ -877,20 +860,51 @@ struct direct_selfadjoint_eigenvalues<SolverType, 3, false> {
       }
     }
 
-    // Add the shift before restoring the scale: a centered eigenvalue can exceed the finite range even when the
-    // corresponding uncentered eigenvalue is representable.
-    if (factors.scale == Scalar(1)) {
-      eivals.array() += shift;
-    } else {
-      Scalar scaledShift;
-      safe_scaling<Scalar>::scale_to(scaledShift, shift, maxCoeff, factors);
-      eivals.array() += scaledShift;
-      safe_scaling<Scalar>::unscale_in_place(eivals, factors);
-    }
-
     solver.m_info = Success;
     solver.m_isInitialized = true;
     solver.m_eigenvectorsOk = computeEigenvectors;
+  }
+
+  EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE static void run_scaled(SolverType& solver, const MatrixType& mat, int options,
+                                                             Scalar shift, const Scalar& maxCoeff) {
+    MatrixType scaledMat = mat.template selfadjointView<Lower>();
+    scaledMat.diagonal().array() -= shift;
+    const safe_scaling_factors<Scalar> factors = safe_scaling<Scalar>::scale_in_place(scaledMat, maxCoeff);
+    run_centered(solver, scaledMat, options);
+
+    // Add the shift before restoring the scale: a centered eigenvalue can exceed the finite range even when the
+    // corresponding uncentered eigenvalue is representable.
+    if (factors.scale == Scalar(1)) {
+      solver.m_eivalues.array() += shift;
+    } else {
+      Scalar scaledShift;
+      safe_scaling<Scalar>::scale_to(scaledShift, shift, maxCoeff, factors);
+      solver.m_eivalues.array() += scaledShift;
+      safe_scaling<Scalar>::unscale_in_place(solver.m_eivalues, factors);
+    }
+  }
+
+  EIGEN_DEVICE_FUNC static inline void run(SolverType& solver, const MatrixType& mat, int options) {
+    run(solver, mat, options, mat.trace() / Scalar(3));
+  }
+
+  EIGEN_DEVICE_FUNC static inline void run(SolverType& solver, const MatrixType& mat, int options, Scalar shift) {
+    eigen_assert(mat.cols() == 3 && mat.cols() == mat.rows());
+    eigen_assert((options & ~(EigVecMask | GenEigMask)) == 0 && (options & EigVecMask) != EigVecMask &&
+                 "invalid option parameter");
+
+    // This copy suppresses bogus upper-triangular values when determining maxCoeff and computing the eigenvectors.
+    MatrixType centeredMat = mat.template selfadjointView<Lower>();
+    centeredMat.diagonal().array() -= shift;
+    const Scalar maxCoeff = centeredMat.cwiseAbs().maxCoeff();
+    if (EIGEN_PREDICT_FALSE(!direct_selfadjoint_eigensolver_safe_range<3>(maxCoeff))) {
+      // Keep exceptional scaling out of the ordinary path.
+      run_scaled(solver, mat, options, shift, maxCoeff);
+      return;
+    }
+
+    run_centered(solver, centeredMat, options);
+    solver.m_eivalues.array() += shift;
   }
 };
 
@@ -910,47 +924,32 @@ struct direct_selfadjoint_eigenvalues<SolverType, 2, false> {
     roots(1) = t1 + t0;
   }
 
-  EIGEN_DEVICE_FUNC static inline void run(SolverType& solver, const MatrixType& mat, int options) {
-    run(solver, mat, options, mat.trace() / Scalar(2));
-  }
-
-  EIGEN_DEVICE_FUNC static inline void run(SolverType& solver, const MatrixType& mat, int options, Scalar shift) {
+  EIGEN_DEVICE_FUNC static EIGEN_ALWAYS_INLINE void run_centered(SolverType& solver, MatrixType& centeredMat,
+                                                                 int options) {
     EIGEN_USING_STD(sqrt);
     EIGEN_USING_STD(abs);
 
-    eigen_assert(mat.cols() == 2 && mat.cols() == mat.rows());
-    eigen_assert((options & ~(EigVecMask | GenEigMask)) == 0 && (options & EigVecMask) != EigVecMask &&
-                 "invalid option parameter");
-    bool computeEigenvectors = (options & ComputeEigenvectors) == ComputeEigenvectors;
-
+    const bool computeEigenvectors = (options & ComputeEigenvectors) == ComputeEigenvectors;
     EigenvectorsType& eivecs = solver.m_eivec;
     VectorType& eivals = solver.m_eivalues;
 
-    MatrixType scaledMat = mat;
-    scaledMat.coeffRef(0, 1) = mat.coeff(1, 0);
-    scaledMat.diagonal().array() -= shift;
-    const Scalar maxCoeff = scaledMat.cwiseAbs().maxCoeff();
-    safe_scaling_factors<Scalar> factors;
-    if (EIGEN_PREDICT_FALSE(!direct_selfadjoint_eigensolver_safe_range<2>(maxCoeff)))
-      factors = safe_scaling<Scalar>::scale_in_place(scaledMat, maxCoeff);
-
     // Compute the eigenvalues
-    computeRoots(scaledMat, eivals);
+    computeRoots(centeredMat, eivals);
 
     // compute the eigen vectors
     if (computeEigenvectors) {
       if ((eivals(1) - eivals(0)) <= abs(eivals(1)) * Eigen::NumTraits<Scalar>::epsilon()) {
         eivecs.setIdentity();
       } else {
-        scaledMat.diagonal().array() -= eivals(1);
-        Scalar a2 = numext::abs2(scaledMat(0, 0));
-        Scalar c2 = numext::abs2(scaledMat(1, 1));
-        Scalar b2 = numext::abs2(scaledMat(1, 0));
+        centeredMat.diagonal().array() -= eivals(1);
+        Scalar a2 = numext::abs2(centeredMat(0, 0));
+        Scalar c2 = numext::abs2(centeredMat(1, 1));
+        Scalar b2 = numext::abs2(centeredMat(1, 0));
         if (a2 > c2) {
-          eivecs.col(1) << -scaledMat(1, 0), scaledMat(0, 0);
+          eivecs.col(1) << -centeredMat(1, 0), centeredMat(0, 0);
           eivecs.col(1) /= sqrt(a2 + b2);
         } else {
-          eivecs.col(1) << -scaledMat(1, 1), scaledMat(1, 0);
+          eivecs.col(1) << -centeredMat(1, 1), centeredMat(1, 0);
           eivecs.col(1) /= sqrt(c2 + b2);
         }
 
@@ -960,13 +959,43 @@ struct direct_selfadjoint_eigenvalues<SolverType, 2, false> {
       }
     }
 
-    // Rescale back to the original size.
-    safe_scaling<Scalar>::unscale_in_place(eivals, factors);
-    eivals.array() += shift;
-
     solver.m_info = Success;
     solver.m_isInitialized = true;
     solver.m_eigenvectorsOk = computeEigenvectors;
+  }
+
+  EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE static void run_scaled(SolverType& solver, const MatrixType& mat, int options,
+                                                             Scalar shift, const Scalar& maxCoeff) {
+    MatrixType scaledMat = mat;
+    scaledMat.coeffRef(0, 1) = mat.coeff(1, 0);
+    scaledMat.diagonal().array() -= shift;
+    const safe_scaling_factors<Scalar> factors = safe_scaling<Scalar>::scale_in_place(scaledMat, maxCoeff);
+    run_centered(solver, scaledMat, options);
+    safe_scaling<Scalar>::unscale_in_place(solver.m_eivalues, factors);
+    solver.m_eivalues.array() += shift;
+  }
+
+  EIGEN_DEVICE_FUNC static inline void run(SolverType& solver, const MatrixType& mat, int options) {
+    run(solver, mat, options, mat.trace() / Scalar(2));
+  }
+
+  EIGEN_DEVICE_FUNC static inline void run(SolverType& solver, const MatrixType& mat, int options, Scalar shift) {
+    eigen_assert(mat.cols() == 2 && mat.cols() == mat.rows());
+    eigen_assert((options & ~(EigVecMask | GenEigMask)) == 0 && (options & EigVecMask) != EigVecMask &&
+                 "invalid option parameter");
+
+    MatrixType centeredMat = mat;
+    centeredMat.coeffRef(0, 1) = mat.coeff(1, 0);
+    centeredMat.diagonal().array() -= shift;
+    const Scalar maxCoeff = centeredMat.cwiseAbs().maxCoeff();
+    if (EIGEN_PREDICT_FALSE(!direct_selfadjoint_eigensolver_safe_range<2>(maxCoeff))) {
+      // Keep exceptional scaling from forcing the ordinary path's centered matrix into memory.
+      run_scaled(solver, mat, options, shift, maxCoeff);
+      return;
+    }
+
+    run_centered(solver, centeredMat, options);
+    solver.m_eivalues.array() += shift;
   }
 };
 
