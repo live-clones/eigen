@@ -391,13 +391,11 @@ void test_vandermonde_determinant(Index n) {
   VERIFY_IS_APPROX(V.determinant(), dense.determinant());
 }
 
-// Reference for the wide-dynamic-range determinant tests: the same factor
-// sequence accumulated with explicit exponent tracking, including the halving of
-// factors whose node difference overflows (halving finite nodes is exact there:
-// a difference only overflows for huge, normal operands). The power-of-two
-// rescaling is exact, so this reproduces the exact product of the computed
-// factors up to one rounding per multiplication -- representable even when
-// naive partial products leave the double range. Finite nodes only.
+// Reference for the wide-dynamic-range determinant tests: the same factor sequence with explicit
+// exponent tracking, halving any factor whose node difference overflows (exact, since a difference
+// only overflows for huge normal operands). Power-of-two rescaling is exact, so this reproduces the
+// exact product up to one rounding per multiplication, representable where naive partial products
+// leave the double range. Finite nodes only.
 double reference_vandermonde_det(const Matrix<double, Dynamic, 1>& x) {
   double mantissa = 1.0;
   Index exponent = 0;
@@ -507,12 +505,11 @@ void test_vandermonde_determinant_scaled() {
   }
 }
 
-// Reviewer reproducer on MR 2691: a node difference can overflow even though the
-// determinant is representable. For nodes [-DBL_MAX, DBL_MAX, d, 2d, ..., 5d]
-// (d the smallest subnormal) the factor DBL_MAX - (-DBL_MAX) is 2^1025, yet
-// det = -576 * DBL_MAX^11 * d^10 ~ -3.1633e160. The implementation must halve
-// the overflowing difference (exact for the huge, normal operands involved) and
-// carry the factor of two in the running exponent.
+// Reviewer reproducer on MR 2691: a node difference can overflow while the determinant stays
+// representable. For nodes [-DBL_MAX, DBL_MAX, d, 2d, ..., 5d] with d the smallest subnormal,
+// DBL_MAX - (-DBL_MAX) = 2^1025 overflows, yet det = -576 DBL_MAX^11 d^10 ~ -3.1633e160. The
+// overflowing difference must be halved (exact for these huge normal operands) and the factor of
+// two carried in the running exponent.
 void test_vandermonde_determinant_overflowing_differences() {
   typedef Matrix<double, Dynamic, 1> Vec;
   typedef std::complex<double> Complex;
@@ -557,12 +554,11 @@ void test_vandermonde_determinant_overflowing_differences() {
   VERIFY(numext::abs(detc - refc) <= kBalancedTol * numext::abs(refc));
 }
 
-// Reviewer reproducer on MR 2691: Horner intermediates can overflow even though
-// the polynomial value is representable. At the node 1/2 with coefficients
-// [0, DBL_MAX, DBL_MAX] the intermediate is 1.5 * DBL_MAX -> Inf, but the value
-// is exactly fl(0.75 * DBL_MAX). The scaled Horner path must return that value
-// bit-exactly, the plain path must remain bit-identical for moderate data, and
-// genuinely unrepresentable values must still saturate.
+// Reviewer reproducer on MR 2691: Horner intermediates can overflow while the value stays
+// representable. At node 1/2 with coefficients [0, DBL_MAX, DBL_MAX] the intermediate 1.5 DBL_MAX
+// is Inf, but the value is exactly fl(0.75 DBL_MAX). The scaled path must return it bit-exactly,
+// the plain path must match the naive loop for moderate data, and genuinely unrepresentable values
+// must still saturate.
 void test_vandermonde_scaled_horner() {
   typedef Matrix<double, Dynamic, 1> Vec;
   typedef std::complex<double> Complex;
@@ -664,15 +660,19 @@ void test_vandermonde_scaled_horner() {
     VERIFY_IS_EQUAL(y[0], big);
   }
   {
-    // Moderate data keeps the plain path: bit-identical to a naive Horner loop.
+    // Moderate data keeps the plain path, so this matches a naive Horner loop to Horner's own forward
+    // error bound (Higham, ASNA 2nd ed., section 5.1): |p(x) - fl(p(x))| <= gamma_{2n} sum_j |a_j| |x|^j
+    // <= 2n eps sum_j |a_j| for |x| <= 1. Not bit-identical, since the compiler may contract
+    // acc * x[i] + a[j] into an FMA in one of the two loops and not the other.
     const Index m = 7, n = 6;
     Vec x = Vec::Random(m), a = Vec::Random(n);
     Vandermonde<double> V(x, n);
     Vec y = V * a;
+    const double bound = double(2 * n) * NumTraits<double>::epsilon() * a.cwiseAbs().sum();
     for (Index i = 0; i < m; ++i) {
       double acc = a[n - 1];
       for (Index j = n - 2; j >= 0; --j) acc = acc * x[i] + a[j];
-      VERIFY_IS_EQUAL(y[i], acc);
+      VERIFY(numext::abs(y[i] - acc) <= bound);
     }
   }
 }
