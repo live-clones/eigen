@@ -1462,7 +1462,7 @@ void modulus_test_impl() {
   Array<Scalar, 3, 1> ten_mod_b(Scalar(0), Scalar(1), Scalar(2));
   VERIFY_IS_CWISE_EQUAL(Scalar(10) % b, ten_mod_b);
 
-  // Compound expression: the result must be an expression, not a temporary.
+  // Modulus of a compound expression.
   // (7,8,9) + (2,3,4) = (9,11,13); mod 4 -> (1,3,1)
   Array<Scalar, 3, 1> compound(Scalar(1), Scalar(3), Scalar(1));
   VERIFY_IS_CWISE_EQUAL((a + b) % Scalar(4), compound);
@@ -1501,7 +1501,9 @@ void modulus_tests() {
   modulus_test_impl<int>();
   modulus_test_impl<int64_t>();
   modulus_test_impl<uint8_t>();
+  modulus_test_impl<uint16_t>();
   modulus_test_impl<uint32_t>();
+  modulus_test_impl<uint64_t>();
 }
 
 EIGEN_DECLARE_TEST(array_cwise) {
