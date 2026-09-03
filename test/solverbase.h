@@ -51,11 +51,13 @@ void check_determinant(const SolverType& solver, const Scalar& det, const typena
   VERIFY_IS_APPROX(solver.signDeterminant(), numext::sign(det));
 }
 
-// True when |det| has left the representable range, overflowing to infinity or underflowing to zero.
-// logAbsDeterminant() is still meaningful there; determinant() and absDeterminant() are not.
+// True when |det| has left the representable range in the direction it was expected to: exactly infinity
+// where the determinant overflowed, exactly zero where it underflowed. logAbsDeterminant() is still
+// meaningful there; determinant() and absDeterminant() are not. A NaN is neither, and testing !isfinite()
+// would accept one -- with it any inf - inf or 0 * inf artifact.
 template <typename RealScalar>
-bool determinant_out_of_range(const RealScalar& absdet) {
-  return numext::is_exactly_zero(absdet) || !(numext::isfinite)(absdet);
+bool determinant_out_of_range(const RealScalar& absdet, bool overflow) {
+  return overflow ? numext::equal_strict(absdet, NumTraits<RealScalar>::infinity()) : numext::is_exactly_zero(absdet);
 }
 
 #endif  // TEST_SOLVERBASE_H

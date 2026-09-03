@@ -673,19 +673,20 @@ void cholesky_determinant_overflow() {
   typedef typename NumTraits<Scalar>::Real RealScalar;
 
   const Index size = 200;
-  for (RealScalar scale : {RealScalar(1e4), RealScalar(1e-4)}) {
+  for (bool overflow : {true, false}) {
+    const RealScalar scale = overflow ? RealScalar(1e4) : RealScalar(1e-4);
     const MatrixType a = MatrixType::Identity(size, size) * Scalar(scale);
     const RealScalar logabsdet = RealScalar(size) * numext::log(scale);
 
     LLT<MatrixType> llt(a);
     VERIFY(llt.info() == Success);
-    VERIFY(determinant_out_of_range(llt.absDeterminant()));
+    VERIFY(determinant_out_of_range(llt.absDeterminant(), overflow));
     VERIFY_IS_APPROX(llt.logAbsDeterminant(), logabsdet);
     VERIFY_IS_EQUAL(llt.signDeterminant(), Scalar(1));
 
     LDLT<MatrixType> ldlt(a);
     VERIFY(ldlt.info() == Success);
-    VERIFY(determinant_out_of_range(ldlt.absDeterminant()));
+    VERIFY(determinant_out_of_range(ldlt.absDeterminant(), overflow));
     VERIFY_IS_APPROX(ldlt.logAbsDeterminant(), logabsdet);
     VERIFY_IS_EQUAL(ldlt.signDeterminant(), Scalar(1));
   }

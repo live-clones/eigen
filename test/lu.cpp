@@ -226,17 +226,18 @@ void lu_determinant_overflow() {
   typedef typename NumTraits<Scalar>::Real RealScalar;
 
   const Index size = 200;
-  for (RealScalar scale : {RealScalar(1e4), RealScalar(1e-4)}) {
+  for (bool overflow : {true, false}) {
+    const RealScalar scale = overflow ? RealScalar(1e4) : RealScalar(1e-4);
     const MatrixType a = MatrixType::Identity(size, size) * Scalar(scale);
     const RealScalar logabsdet = RealScalar(size) * numext::log(scale);
 
     PartialPivLU<MatrixType> plu(a);
-    VERIFY(determinant_out_of_range(plu.absDeterminant()));
+    VERIFY(determinant_out_of_range(plu.absDeterminant(), overflow));
     VERIFY_IS_APPROX(plu.logAbsDeterminant(), logabsdet);
     VERIFY_IS_EQUAL(plu.signDeterminant(), Scalar(1));
 
     FullPivLU<MatrixType> lu(a);
-    VERIFY(determinant_out_of_range(lu.absDeterminant()));
+    VERIFY(determinant_out_of_range(lu.absDeterminant(), overflow));
     VERIFY_IS_APPROX(lu.logAbsDeterminant(), logabsdet);
     VERIFY_IS_EQUAL(lu.signDeterminant(), Scalar(1));
   }
