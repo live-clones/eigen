@@ -321,6 +321,29 @@ void bunchkaufman_determinant_empty() {
   VERIFY_IS_EQUAL(bk.signDeterminant(), Scalar(1));
 }
 
+// det(D) can be representable while the block determinants it is built from are not. The blocks below are
+// [[s/2, s], [s, s/2]] with det = -3s^2/4 at s = 2^600 and s = 2^-600, one overflowing and one
+// underflowing, whose product is exactly 9/16. Multiplying the blocks directly gives inf * 0 = NaN.
+void bunchkaufman_determinant_mixed_scale() {
+  MatrixXd a = MatrixXd::Zero(4, 4);
+  for (int b = 0; b < 2; ++b) {
+    const double s = numext::ldexp(1.0, b == 0 ? 600 : -600);
+    a(2 * b, 2 * b) = a(2 * b + 1, 2 * b + 1) = 0.5 * s;
+    a(2 * b + 1, 2 * b) = a(2 * b, 2 * b + 1) = s;
+  }
+
+  // (-3/4)^2 (2^600 2^-600)^2 = 9/16, exactly, both factors being powers of two.
+  const double det = 0.5625;
+
+  BunchKaufman<MatrixXd, Lower> bklo(a);
+  VERIFY(bklo.info() == Success);
+  check_determinant(bklo, det, numext::log(det));
+
+  BunchKaufman<MatrixXd, Upper> bkup(a);
+  VERIFY(bkup.info() == Success);
+  check_determinant(bkup, det, numext::log(det));
+}
+
 // Bunch-Kaufman selects a 2x2 block only where |d11 d22| <= alpha^2 |d21|^2, alpha = (1+sqrt(17))/8 < 1, so
 // det D_k = d11 d22 - |d21|^2 < 0 always. Subnormal |d21| underflows that determinant to zero, leaving the
 // log and the sign as the only accessors that can report it; both need det D_k / |d21|^2 = O(1), which
@@ -579,6 +602,9 @@ EIGEN_DECLARE_TEST(bunchkaufman) {
   CALL_SUBTEST_6(bunchkaufman_determinant_subnormal_block_complex());
   CALL_SUBTEST_8(bunchkaufman_determinant_subnormal_block<MatrixXf>());
   CALL_SUBTEST_5(bunchkaufman_inertia_wide_2x2_block());
+
+  // Mixed-scale 2x2 blocks: the block determinants leave the representable range, their product does not.
+  CALL_SUBTEST_5(bunchkaufman_determinant_mixed_scale());
 
   // Problem-size constructors.
   CALL_SUBTEST_8(BunchKaufman<MatrixXf>(10));
