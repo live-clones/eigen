@@ -9,8 +9,9 @@
 // SPDX-License-Identifier: MPL-2.0
 
 // Solver expression types for gpu::DeviceMatrix. Each maps 1:1 onto a pair of
-// cuSOLVER calls and factors afresh on every assignment; use the gpu::LLT /
-// gpu::LU classes when a factorization should be cached across solves.
+// cuSOLVER calls and factors afresh on every assignment; use the gpu::LLT,
+// gpu::LDLT, or gpu::LU classes when a factorization should be cached across
+// solves.
 
 #ifndef EIGEN_GPU_DEVICE_SOLVER_EXPR_H
 #define EIGEN_GPU_DEVICE_SOLVER_EXPR_H
@@ -33,6 +34,23 @@ class LltSolveExpr {
   static constexpr int UpLo = UpLo_;
 
   LltSolveExpr(const DeviceMatrix<Scalar>& A, const DeviceMatrix<Scalar>& B) : A_(A), B_(B) {}
+  const DeviceMatrix<Scalar>& matrix() const { return A_; }
+  const DeviceMatrix<Scalar>& rhs() const { return B_; }
+
+ private:
+  std::reference_wrapper<const DeviceMatrix<Scalar>> A_;
+  std::reference_wrapper<const DeviceMatrix<Scalar>> B_;
+};
+
+/** d_A.ldlt().solve(d_B), dispatched to cusolverDn<t>sytrf + cusolverDnXsytrs
+ * (Bunch-Kaufman, symmetric indefinite; complex A is complex-symmetric, A = A^T). */
+template <typename Scalar_, int UpLo_ = Lower>
+class LdltSolveExpr {
+ public:
+  using Scalar = Scalar_;
+  static constexpr int UpLo = UpLo_;
+
+  LdltSolveExpr(const DeviceMatrix<Scalar>& A, const DeviceMatrix<Scalar>& B) : A_(A), B_(B) {}
   const DeviceMatrix<Scalar>& matrix() const { return A_; }
   const DeviceMatrix<Scalar>& rhs() const { return B_; }
 
@@ -66,6 +84,21 @@ class LLTView {
 
   /** The expression is evaluated on assignment to a gpu::DeviceMatrix. */
   LltSolveExpr<Scalar, UpLo_> solve(const DeviceMatrix<Scalar>& rhs) const { return {mat_, rhs}; }
+
+ private:
+  std::reference_wrapper<const DeviceMatrix<Scalar>> mat_;
+};
+
+/** d_A.ldlt(), whose solve() builds an LdltSolveExpr. */
+template <typename Scalar_, int UpLo_ = Lower>
+class LDLTView {
+ public:
+  using Scalar = Scalar_;
+
+  explicit LDLTView(const DeviceMatrix<Scalar>& m) : mat_(m) {}
+
+  /** The expression is evaluated on assignment to a gpu::DeviceMatrix. */
+  LdltSolveExpr<Scalar, UpLo_> solve(const DeviceMatrix<Scalar>& rhs) const { return {mat_, rhs}; }
 
  private:
   std::reference_wrapper<const DeviceMatrix<Scalar>> mat_;

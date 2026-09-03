@@ -30,8 +30,10 @@ using TraitConstSelfAdjointView = gpu::ConstSelfAdjointView<double, Lower>;
 using TraitSymmExpr = gpu::SymmExpr<double, Lower>;
 using TraitSyrkExpr = gpu::SyrkExpr<double, Lower>;
 using TraitLltSolveExpr = gpu::LltSolveExpr<double, Lower>;
+using TraitLdltSolveExpr = gpu::LdltSolveExpr<double, Lower>;
 using TraitLuSolveExpr = gpu::LuSolveExpr<double>;
 using TraitLltView = gpu::LLTView<double, Lower>;
+using TraitLdltView = gpu::LDLTView<double, Lower>;
 using TraitLuView = gpu::LUView<double>;
 using TraitDeviceAddExpr = gpu::DeviceAddExpr<double>;
 using TraitDeviceScaledDevice = gpu::DeviceScaledDevice<double>;
@@ -64,9 +66,12 @@ EIGEN_GPU_STATIC_ASSERT_TRAIT(is_symm_expr, require_symm_expr, require_all_symm_
 EIGEN_GPU_STATIC_ASSERT_TRAIT(is_syrk_expr, require_syrk_expr, require_all_syrk_expr, TraitSyrkExpr, TraitDeviceMatrix);
 EIGEN_GPU_STATIC_ASSERT_TRAIT(is_llt_solve_expr, require_llt_solve_expr, require_all_llt_solve_expr, TraitLltSolveExpr,
                               TraitDeviceMatrix);
+EIGEN_GPU_STATIC_ASSERT_TRAIT(is_ldlt_solve_expr, require_ldlt_solve_expr, require_all_ldlt_solve_expr,
+                              TraitLdltSolveExpr, TraitLltSolveExpr);
 EIGEN_GPU_STATIC_ASSERT_TRAIT(is_lu_solve_expr, require_lu_solve_expr, require_all_lu_solve_expr, TraitLuSolveExpr,
                               TraitDeviceMatrix);
 EIGEN_GPU_STATIC_ASSERT_TRAIT(is_llt_view, require_llt_view, require_all_llt_view, TraitLltView, TraitDeviceMatrix);
+EIGEN_GPU_STATIC_ASSERT_TRAIT(is_ldlt_view, require_ldlt_view, require_all_ldlt_view, TraitLdltView, TraitLltView);
 EIGEN_GPU_STATIC_ASSERT_TRAIT(is_lu_view, require_lu_view, require_all_lu_view, TraitLuView, TraitDeviceMatrix);
 EIGEN_GPU_STATIC_ASSERT_TRAIT(is_device_add_expr, require_device_add_expr, require_all_device_add_expr,
                               TraitDeviceAddExpr, TraitDeviceMatrix);
@@ -123,6 +128,7 @@ static_assert(!gpu::is_gemm_like_v<TraitDeviceAddExpr>, "a sum is not gemm-like"
 // A factorization handle of either kind satisfies the combined operator gate.
 static_assert(gpu::is_factor_expr_v<TraitLuView>, "LUView is a factorization handle");
 static_assert(gpu::is_factor_expr_v<TraitLltView>, "LLTView is a factorization handle");
+static_assert(gpu::is_factor_expr_v<TraitLdltView>, "LDLTView is a factorization handle");
 static_assert(!gpu::is_factor_expr_v<TraitDeviceMatrix>, "a leaf is not a factorization handle");
 
 // Query aliases over device_expr_traits (specializations from DeviceExpr.h).

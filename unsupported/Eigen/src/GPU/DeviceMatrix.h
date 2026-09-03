@@ -152,6 +152,8 @@ class DeviceMatrix {
   DeviceMatrix(const DeviceAddExpr<Scalar>& expr);
   template <int UpLo>
   DeviceMatrix(const LltSolveExpr<Scalar, UpLo>& expr);
+  template <int UpLo>
+  DeviceMatrix(const LdltSolveExpr<Scalar, UpLo>& expr);
   DeviceMatrix(const LuSolveExpr<Scalar>& expr);
   template <int UpLo>
   DeviceMatrix(const TrsmExpr<Scalar, UpLo>& expr);
@@ -390,11 +392,25 @@ class DeviceMatrix {
     return LLTView<Scalar, UpLo>(*this);
   }
 
+  /** Bunch-Kaufman view for symmetric indefinite A: d_A.ldlt().solve(d_B) → LdltSolveExpr.
+   * Real Scalar only; complex A is complex-symmetric (A = A^T), not Hermitian, and
+   * must say so: d_A.ldlt<Lower | Symmetric>(). */
+  LDLTView<Scalar, Lower> ldlt() const { return LDLTView<Scalar, Lower>(*this); }
+
+  /** Bunch-Kaufman view with explicit triangle: d_A.ldlt<Upper>().solve(d_B). */
+  template <int UpLo>
+  LDLTView<Scalar, UpLo> ldlt() const {
+    return LDLTView<Scalar, UpLo>(*this);
+  }
+
   /** LU view: d_A.lu().solve(d_B) → LuSolveExpr. */
   LUView<Scalar> lu() const { return LUView<Scalar>(*this); }
 
   template <int UpLo>
   DeviceMatrix& operator=(const LltSolveExpr<Scalar, UpLo>& expr);
+
+  template <int UpLo>
+  DeviceMatrix& operator=(const LdltSolveExpr<Scalar, UpLo>& expr);
 
   DeviceMatrix& operator=(const LuSolveExpr<Scalar>& expr);
 

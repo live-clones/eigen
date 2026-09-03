@@ -54,6 +54,7 @@
 #include "src/GPU/DeviceDispatch.h"
 #include "src/GPU/GpuSolverContext.h"
 #include "src/GPU/GpuLLT.h"
+#include "src/GPU/GpuLDLT.h"
 #include "src/GPU/GpuLU.h"
 #include "src/GPU/GpuQR.h"
 #include "src/GPU/GpuSVD.h"

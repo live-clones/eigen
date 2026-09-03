@@ -41,6 +41,8 @@ class DeviceScalar;
 
 template <typename Scalar_, int UpLo_>
 class LLT;
+template <typename Scalar_, int UpLo_>
+class LDLT;
 template <typename Scalar_>
 class LU;
 template <typename Scalar_>
@@ -63,10 +65,14 @@ class DeviceScaledDevice;
 
 template <typename Scalar_, int UpLo_>
 class LltSolveExpr;
+template <typename Scalar_, int UpLo_>
+class LdltSolveExpr;
 template <typename Scalar_>
 class LuSolveExpr;
 template <typename Scalar_, int UpLo_>
 class LLTView;
+template <typename Scalar_, int UpLo_>
+class LDLTView;
 template <typename Scalar_>
 class LUView;
 

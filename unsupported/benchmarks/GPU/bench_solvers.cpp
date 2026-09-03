@@ -1,4 +1,4 @@
-// GPU solver benchmarks: gpu::LLT and gpu::LU compute + solve throughput.
+// GPU solver benchmarks: gpu::LLT, gpu::LDLT and gpu::LU compute + solve throughput.
 //
 // Measures factorization and solve performance for the host-matrix and
 // DeviceMatrix code paths across a range of matrix sizes.
@@ -166,6 +166,73 @@ static void BM_GpuLLT_Solve_DeviceOnly(benchmark::State& state) {
 }
 
 // --------------------------------------------------------------------------
+// GpuLDLT benchmarks (Bunch-Kaufman, symmetric indefinite)
+// --------------------------------------------------------------------------
+
+// Symmetric with eigenvalues near +n and -n: well conditioned and indefinite.
+static Mat make_symmetric_indefinite(Index n) {
+  Mat M = Mat::Random(n, n);
+  Mat A = M + M.transpose();
+  for (Index i = 0; i < n; ++i) A(i, i) += (i % 2 == 0) ? Scalar(n) : Scalar(-n);
+  return A;
+}
+
+static void BM_GpuLDLT_Compute_Host(benchmark::State& state) {
+  cuda_warmup();
+  const Index n = state.range(0);
+  Mat A = make_symmetric_indefinite(n);
+  gpu::LDLT<Scalar> ldlt;
+
+  for (auto _ : state) {
+    ldlt.compute(A);
+    if (ldlt.info() != Success) state.SkipWithError("factorization failed");
+  }
+
+  double flops = static_cast<double>(n) * static_cast<double>(n) * static_cast<double>(n) / 3.0;
+  state.counters["GFLOPS"] =
+      benchmark::Counter(flops, benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
+  state.counters["n"] = n;
+}
+
+static void BM_GpuLDLT_Compute_Device(benchmark::State& state) {
+  cuda_warmup();
+  const Index n = state.range(0);
+  Mat A = make_symmetric_indefinite(n);
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A);
+  gpu::LDLT<Scalar> ldlt;
+
+  for (auto _ : state) {
+    ldlt.compute(d_A);
+    if (ldlt.info() != Success) state.SkipWithError("factorization failed");
+  }
+
+  double flops = static_cast<double>(n) * static_cast<double>(n) * static_cast<double>(n) / 3.0;
+  state.counters["GFLOPS"] =
+      benchmark::Counter(flops, benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
+  state.counters["n"] = n;
+}
+
+// Solve staying entirely on device (no toHost — measures sytrs alone).
+static void BM_GpuLDLT_Solve_DeviceOnly(benchmark::State& state) {
+  cuda_warmup();
+  const Index n = state.range(0);
+  const Index nrhs = state.range(1);
+  Mat A = make_symmetric_indefinite(n);
+  Mat B = Mat::Random(n, nrhs);
+  gpu::LDLT<Scalar> ldlt(A);
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B);
+
+  for (auto _ : state) {
+    gpu::DeviceMatrix<Scalar> d_X = ldlt.solve(d_B);
+    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(ldlt.stream()));
+    benchmark::DoNotOptimize(d_X.data());
+  }
+
+  state.counters["n"] = n;
+  state.counters["nrhs"] = nrhs;
+}
+
+// --------------------------------------------------------------------------
 // GpuLU benchmarks
 // --------------------------------------------------------------------------
 
@@ -287,6 +354,10 @@ BENCHMARK(BM_GpuLLT_Compute_DeviceMove)->ArgsProduct({{64, 128, 256, 512, 1024, 
 BENCHMARK(BM_GpuLLT_Solve_Host)->ArgsProduct({{64, 256, 1024, 4096}, {1, 16}})->Unit(benchmark::kMicrosecond)->UseRealTime()->MinWarmUpTime(0.5);
 BENCHMARK(BM_GpuLLT_Solve_Device)->ArgsProduct({{64, 256, 1024, 4096}, {1, 16}})->Unit(benchmark::kMicrosecond)->UseRealTime()->MinWarmUpTime(0.5);
 BENCHMARK(BM_GpuLLT_Solve_DeviceOnly)->ArgsProduct({{64, 256, 1024, 4096}, {1, 16}})->Unit(benchmark::kMicrosecond)->UseRealTime()->MinWarmUpTime(0.5);
+
+BENCHMARK(BM_GpuLDLT_Compute_Host)->ArgsProduct({{64, 128, 256, 512, 1024, 2048, 4096}})->Unit(benchmark::kMicrosecond)->UseRealTime()->MinWarmUpTime(0.5);
+BENCHMARK(BM_GpuLDLT_Compute_Device)->ArgsProduct({{64, 128, 256, 512, 1024, 2048, 4096}})->Unit(benchmark::kMicrosecond)->UseRealTime()->MinWarmUpTime(0.5);
+BENCHMARK(BM_GpuLDLT_Solve_DeviceOnly)->ArgsProduct({{64, 256, 1024, 4096}, {1, 16}})->Unit(benchmark::kMicrosecond)->UseRealTime()->MinWarmUpTime(0.5);
 
 BENCHMARK(BM_GpuLU_Compute_Host)->ArgsProduct({{64, 128, 256, 512, 1024, 2048, 4096}})->Unit(benchmark::kMicrosecond)->UseRealTime()->MinWarmUpTime(0.5);
 BENCHMARK(BM_GpuLU_Compute_Device)->ArgsProduct({{64, 128, 256, 512, 1024, 2048, 4096}})->Unit(benchmark::kMicrosecond)->UseRealTime()->MinWarmUpTime(0.5);

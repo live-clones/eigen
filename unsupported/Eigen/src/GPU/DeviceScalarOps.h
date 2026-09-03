@@ -17,6 +17,9 @@
 
 #include <cuda_runtime.h>
 #include <npps_arithmetic_and_logical_operations.h>
+#include <npps_conversion_functions.h>
+
+#include <cstdint>
 
 #include "./GpuSupport.h"
 
@@ -55,6 +58,18 @@ inline NppStreamContext make_npp_stream_ctx(cudaStream_t stream) {
   ctx.nSharedMemPerBlock = static_cast<size_t>(shared_mem_per_block);
   EIGEN_CUDA_RUNTIME_CHECK(cudaStreamGetFlags(stream, &ctx.nStreamFlags));
   return ctx;
+}
+
+// cusolverDn<t>sytrf writes 32-bit pivot indices and cusolverDnXsytrs reads
+// 64-bit ones. NPP has no integer widening, so the conversion goes through
+// double, which represents every int32 exactly; `tmp` holds n doubles.
+inline void widen_pivots(const int* src, int64_t* dst, double* tmp, size_t n, cudaStream_t stream) {
+  NppStreamContext npp_ctx = make_npp_stream_ctx(stream);
+  NppStatus status = nppsConvert_32s64f_Ctx(reinterpret_cast<const Npp32s*>(src), tmp, n, npp_ctx);
+  eigen_assert(status == NPP_SUCCESS && "nppsConvert_32s64f failed");
+  status = nppsConvert_64f64s_Sfs_Ctx(tmp, reinterpret_cast<Npp64s*>(dst), n, NPP_RND_NEAR, 0, npp_ctx);
+  eigen_assert(status == NPP_SUCCESS && "nppsConvert_64f64s failed");
+  EIGEN_UNUSED_VARIABLE(status);
 }
 
 // c = a / b. The operands are swapped because NPP computes

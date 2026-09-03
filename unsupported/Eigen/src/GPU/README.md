@@ -13,7 +13,7 @@ does not state:
 |---------|----------|---------------|
 | CUDA Toolkit | streams, memory, error codes | <https://docs.nvidia.com/cuda/> |
 | cuBLAS (incl. cuBLASLt) | `DeviceMatrix` products, BLAS-1 | <https://docs.nvidia.com/cuda/cublas/> |
-| cuSOLVER | dense LLT / LU / QR / SVD / EVD | <https://docs.nvidia.com/cuda/cusolver/> |
+| cuSOLVER | dense LLT / LDLT / LU / QR / SVD / EVD | <https://docs.nvidia.com/cuda/cusolver/> |
 | cuSPARSE | SpMV / SpMM | <https://docs.nvidia.com/cuda/cusparse/> |
 | cuFFT | `gpu::FFT` | <https://docs.nvidia.com/cuda/cufft/> |
 | NPP | device-side scalar and coefficient-wise arithmetic | <https://docs.nvidia.com/cuda/npp/> |
@@ -129,7 +129,7 @@ MatrixXd C = transfer.get();
 
 `DeviceMatrix` supports expression methods that mirror Eigen's API:
 `adjoint()`, `transpose()`, `triangularView<UpLo>()`,
-`selfadjointView<UpLo>()`, `llt()`, `lu()`. These return lightweight
+`selfadjointView<UpLo>()`, `llt()`, `ldlt()`, `lu()`. These return lightweight
 expression objects that are evaluated when assigned.
 
 For BLAS Level-1 operations, `DeviceMatrix` also provides `dot()`, `norm()`,
@@ -211,6 +211,7 @@ to link the others:
 |-----------------------------------------|---------------------------|
 | `DeviceMatrix`, GEMM, TRSM, SYMM, SYRK  | `-lcublas -lcublasLt`     |
 | Dense solvers (LLT, LU, QR, SVD, EVD)   | `-lcusolver -lcublas`     |
+| Dense LDLT (Bunch-Kaufman)              | `-lcusolver -lcublas -lnpps -lnppc` |
 | FFT (`gpu::FFT`)                        | `-lcufft -lcublas`        |
 | SpMV / SpMM (`gpu::SparseContext`)      | `-lcusparse -lcublas`     |
 | Sparse direct solvers (cuDSS)           | `-lcudss -lcublas`        |
@@ -301,6 +302,9 @@ gpu::DeviceMatrix<double> d_X = d_A.llt().solve(d_B);
 
 // LU solve (getrf + getrs)
 d_Y = d_A.lu().solve(d_B);
+
+// Symmetric indefinite solve (Bunch-Kaufman: sytrf + sytrs)
+d_Z = d_A.ldlt().solve(d_B);
 ```
 
 Scratch for the one-shot form (factor copy, cuSOLVER workspace, info words)
@@ -308,7 +312,8 @@ lives in the `gpu::Context` and grows monotonically — repeated one-shot solves
 perform no per-call allocations. In debug builds each call verifies the
 factorization status (one stream synchronization); release builds
 (`EIGEN_NO_DEBUG`/`NDEBUG`) skip the check *and* the sync, making the
-expression fully asynchronous — use the cached `gpu::LLT` / `gpu::LU` classes
+expression fully asynchronous — use the cached `gpu::LLT` / `gpu::LDLT` /
+`gpu::LU` classes
 and `info()` when numerical failure must be detected.
 
 **Cached factorization** -- Factor once, solve many times:
@@ -324,7 +329,7 @@ MatrixXd X2 = d_X2.toHost();
 
 // Bind a solver to an existing Context: work runs on ctx's stream with its
 // handles, so it chains with GEMM/SpMV on the same Context without
-// cross-stream event waits. All five dense solvers (LLT, LU, QR, SVD,
+// cross-stream event waits. All six dense solvers (LLT, LDLT, LU, QR, SVD,
 // SelfAdjointEigenSolver) support this.
 gpu::Context ctx;
 gpu::LLT<double> llt_ctx(ctx, d_A);
@@ -363,9 +368,9 @@ auto d_V = es.d_eigenvectors();           // DeviceMatrix view of eigenvectors
 ```
 
 The cached API keeps the factored matrix on device, avoiding redundant
-host-device transfers and re-factorizations. All five solvers accept
+host-device transfers and re-factorizations. All six solvers accept
 `compute(DeviceMatrix&&)` to adopt the input and factor it in place with no
-copy (for QR/SVD with m < n the internal transpose still copies), and all five
+copy (for QR/SVD with m < n the internal transpose still copies), and all six
 can bind to a `gpu::Context` to share its stream and handles. All solvers also
 accept host dense expressions directly as a convenience (e.g.,
 `gpu::LLT<double> llt(A)` or `qr.solve(B)`), which handles upload/download
@@ -668,6 +673,7 @@ noted otherwise).
 | `C -= A * B` | `cublasLtMatmul` | alpha=-1, beta=1 |
 | `X = A.llt().solve(B)` | `cusolverDnXpotrf` + `Xpotrs` | uplo, n, nrhs |
 | `X = A.llt<Upper>().solve(B)` | same | uplo=Upper |
+| `X = A.ldlt().solve(B)` | `cusolverDn<t>sytrf` + `cusolverDnXsytrs` | uplo, n, nrhs |
 | `X = A.lu().solve(B)` | `cusolverDnXgetrf` + `Xgetrs` | n, nrhs |
 | `X = A.triangularView<L>().solve(B)` | `cublasXtrsm` | side=L, uplo, diag=NonUnit |
 | `C = A.selfadjointView<L>() * B` | `cublasXsymm` / `cublasXhemm` | side=L, uplo |
@@ -725,6 +731,7 @@ void    resize(Index rows, Index cols)                   // Discard contents; ke
 AdjointView       adjoint()                              // GEMM with ConjTrans
 TransposeView     transpose()                            // GEMM with Trans
 LltExpr            llt() / llt<UpLo>()                   // -> .solve(d_B) -> DeviceMatrix
+LdltExpr           ldlt() / ldlt<UpLo>()                 // -> .solve(d_B) -> DeviceMatrix (Bunch-Kaufman)
 LuExpr             lu()                                  // -> .solve(d_B) -> DeviceMatrix
 TriangularView     triangularView<UpLo>()                // -> .solve(d_B) -> DeviceMatrix (TRSM)
 SelfAdjointView    selfadjointView<UpLo>()               // -> * d_B (SYMM), .rankUpdate(d_A) (SYRK)
@@ -797,7 +804,7 @@ cusparseHandle_t   cusparseHandle()                        // Lazy-initialized
 
 internal::DeviceBuffer&          gemmWorkspace()            // cublasLtMatmul scratch (lazy-grown per context)
 internal::CublasLtPlanCache&     gemmPlanCache()            // shape-keyed plan cache (per context, ~8-entry LRU)
-internal::OneShotSolverScratch&  oneshotSolverScratch()     // LLT/LU expression scratch (lazy-grown per context)
+internal::OneShotSolverScratch&  oneshotSolverScratch()     // LLT/LDLT/LU expression scratch (lazy-grown per context)
 ```
 
 Non-copyable, non-movable (owns library handles). Translation units that
@@ -828,6 +835,27 @@ ComputationInfo    info()                                // Lazy sync on first c
 Index              rows() / cols()
 cudaStream_t       stream()
 ```
+
+### `gpu::LDLT<Scalar, UpLo>` -- Dense Bunch-Kaufman LDL^T (cuSOLVER)
+
+Symmetric indefinite systems: `P^T A P = L D L^T` with Bunch-Kaufman diagonal
+pivoting (`cusolverDn<t>sytrf`), solves through `cusolverDnXsytrs`, and the
+explicit inverse through `cusolverDn<t>sytri`. Construction, `compute()`,
+`solve()`, and `Context` binding follow `gpu::LLT`. Complex matrices are
+complex-symmetric (`A = A^T`), as for LAPACK's `zsytrf`; cuSOLVER has no
+Hermitian `hetrf`. Since `Eigen::LDLT` and `gpu::SparseLDLT` mean Hermitian at
+the same position, a complex scalar only compiles with the `Symmetric` mode bit
+(`gpu::LDLT<std::complex<double>, Lower | Symmetric>`,
+`d_A.ldlt<Lower | Symmetric>()`); a Hermitian indefinite matrix goes through
+`gpu::LU`.
+
+```cpp
+DeviceMatrix       inverse()                             // -> inv(A) in the UpLo triangle only (async)
+```
+
+`cusolverDn<t>sytrf` writes 32-bit pivot indices while `cusolverDnXsytrs`
+reads 64-bit ones; the module widens them on device with two NPP conversions,
+which is why this solver links `-lnpps -lnppc` in addition to cuSOLVER.
 
 ### `gpu::LU<Scalar>` -- Dense LU (cuSOLVER)
 
@@ -1116,15 +1144,16 @@ template compatibility.
 | `DeviceMatrix.h` | `GpuSupport.h` | `gpu::DeviceMatrix<>`, `gpu::HostTransfer<>` |
 | `DeviceExpr.h` | `DeviceMatrix.h` | GEMM, geam, and device-scalar expression wrappers |
 | `DeviceBlasExpr.h` | `DeviceMatrix.h` | TRSM, SYMM, SYRK expression wrappers |
-| `DeviceSolverExpr.h` | `DeviceMatrix.h` | Solver expression wrappers (LLT, LU) |
+| `DeviceSolverExpr.h` | `DeviceMatrix.h` | Solver expression wrappers (LLT, LDLT, LU) |
 | `DeviceScalar.h` | `GpuSupport.h`, `DeviceScalarOps.h` | `gpu::DeviceScalar<>` (device-resident scalar) |
-| `DeviceScalarOps.h` | `<npps_*.h>` | Scalar div/neg/cwiseProduct via NPP |
+| `DeviceScalarOps.h` | `<npps_*.h>` | Scalar div/neg/cwiseProduct and int32 -> int64 pivot widening via NPP |
 | `DeviceDispatch.h` | all above | All dispatch functions, BLAS-1 out-of-line defs, `gpu::Assignment` |
 | `GpuContext.h` | `CuBlasSupport.h`, `CuSolverSupport.h` | `gpu::Context` |
 | `CuBlasSupport.h` | `GpuSupport.h`, `<cublas_v2.h>`, `<cublasLt.h>` | cuBLAS error macro, type-specific wrappers |
 | `CuSolverSupport.h` | `GpuSupport.h`, `<cusolverDn.h>` | cuSOLVER params, fill-mode mapping |
 | `GpuSolverContext.h` | `CuSolverSupport.h`, `CuBlasSupport.h` | Shared solver context (stream, handles, scratch) |
 | `GpuLLT.h` | `GpuSolverContext.h` | `gpu::LLT<>` -- Cached dense Cholesky factorization |
+| `GpuLDLT.h` | `GpuSolverContext.h`, `DeviceScalarOps.h` | `gpu::LDLT<>` -- Cached dense Bunch-Kaufman factorization |
 | `GpuLU.h` | `GpuSolverContext.h` | `gpu::LU<>` -- Cached dense LU factorization |
 | `GpuQR.h` | `GpuSolverContext.h` | `gpu::QR<>` -- Dense QR decomposition |
 | `GpuSVD.h` | `GpuSolverContext.h` | `gpu::SVD<>` -- Dense SVD decomposition |

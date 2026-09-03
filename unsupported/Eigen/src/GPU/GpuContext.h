@@ -38,13 +38,15 @@ constexpr size_t kOneShotHostInfoBytes = 0;
 constexpr size_t kOneShotHostInfoBytes = kOneShotInfoBytes;
 #endif
 // Grow-only scratch shared by the one-shot solver expressions
-// (d_A.llt().solve(d_B), d_A.lu().solve(d_B)), so repeated one-shot solves on
-// a Context perform no per-call device or pinned-host allocations. Holds only
-// CUDA-runtime types (no cuSOLVER types) to keep the lazy-linking property of
-// Context. Used by the one-shot solve dispatches in DeviceDispatch.h.
+// (d_A.llt().solve(d_B), d_A.ldlt().solve(d_B), d_A.lu().solve(d_B)), so
+// repeated one-shot solves on a Context perform no per-call device or
+// pinned-host allocations. Holds only CUDA-runtime types (no cuSOLVER types)
+// to keep the lazy-linking property of Context. Used by the one-shot solve
+// dispatches in DeviceDispatch.h.
 struct OneShotSolverScratch {
   DeviceBuffer d_factor;
   DeviceBuffer d_ipiv;
+  DeviceBuffer d_ipiv32;  // cusolverDn<t>sytrf's 32-bit pivots; widened into d_ipiv for cusolverDnXsytrs
   DeviceBuffer d_workspace;
   DeviceBuffer d_info{kOneShotInfoBytes};          // 2 ints: {factorization, solve}
   PinnedHostBuffer h_info{kOneShotHostInfoBytes};  // debug-build info check only
@@ -159,8 +161,9 @@ class Context {
   internal::CublasLtPlanCache& gemmPlanCache() { return gemm_plan_cache_; }
 
   /** Grow-only scratch for the one-shot solver expressions
-   * (d_A.llt().solve(d_B), d_A.lu().solve(d_B)). Same thread-safety rules as
-   * the GEMM workspace: all uses must be on this context's stream. */
+   * (d_A.llt().solve(d_B), d_A.ldlt().solve(d_B), d_A.lu().solve(d_B)). Same
+   * thread-safety rules as the GEMM workspace: all uses must be on this
+   * context's stream. */
   internal::OneShotSolverScratch& oneshotSolverScratch() { return oneshot_solver_scratch_; }
 
   /** Workspace ceiling passed to the cublasLtMatmul heuristic at plan-creation time.
