@@ -615,9 +615,9 @@ DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const Vector
     m_eivalues.setConstant(NumTraits<RealScalar>::quiet_NaN());
     m_info = InvalidInput;
   } else {
-    if (spectrumRange == SpectrumRange::ExactBoundary) {
-      m_eivalues[extreme] = negated ? -highest : highest;
-    } else if (!(numext::isfinite)(m_eivalues[extreme])) {
+    // A proven boundary root and a root the rescaling saturated to infinity both belong at the
+    // largest finite value: the first is exactly it, the second rounded across it.
+    if (spectrumRange == SpectrumRange::ExactBoundary || !(numext::isfinite)(m_eivalues[extreme])) {
       m_eivalues[extreme] = negated ? -highest : highest;
     }
     if (spectrumRange == SpectrumRange::Uncertain && m_info == Success) m_info = NoConvergence;
