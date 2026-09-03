@@ -78,8 +78,9 @@ variables:
   EIGEN_CI_BUILD_TARGET_FILE: ""
   EIGEN_CI_CTEST_REGEX_FILE: ""
   # ccache pool suffix, set per pipeline by the workflow rules above and empty
-  # on the default branch.  Overriding it in a job would defeat that, since a
-  # job variable outranks one from a workflow rule.
+  # on the default branch.  A job variable outranks one from a workflow rule,
+  # so a job opts out of scoping by setting this back to "" -- which is what
+  # .smoketest:build does, and the only reason to set it in a job.
   EIGEN_CI_CCACHE_SCOPE: ""
 
 include:
