@@ -62,6 +62,8 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
 
   /** \brief The type of coefficients in this matrix */
   using Scalar = typename internal::traits<SelfAdjointView>::Scalar;
+  /** Real part of #Scalar */
+  using RealScalar = typename NumTraits<Scalar>::Real;
   using StorageIndex = typename MatrixType::StorageIndex;
 
   enum {
@@ -213,12 +215,11 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
    * (complex) scalars the unstored entries are conjugates of stored ones, and
    * since |conj(x)| = |x| the result matches the L1 norm of the full matrix.
    */
-  EIGEN_DEVICE_FUNC typename NumTraits<Scalar>::Real l1Norm() const {
+  EIGEN_DEVICE_FUNC RealScalar l1Norm() const {
     // For a self-adjoint matrix |a_ij| = |a_ji|, so the stored triangle of a row-major matrix is
     // the transposed, column-major, complementary one and yields the same norm read the fast way.
-    constexpr int kTransposedMode = (UpLo == Lower) ? Upper : Lower;
     EIGEN_IF_CONSTEXPR (bool(MatrixType::IsRowMajor)) {
-      return l1NormColumnwise<kTransposedMode>(m_matrix.transpose());
+      return l1NormColumnwise<TransposeMode>(m_matrix.transpose());
     } else {
       return l1NormColumnwise<UpLo>(m_matrix);
     }
@@ -231,12 +232,11 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
   // column. Only the panel's diagonal block keeps the row traversal, where it is cache resident,
   // and a panel-sized accumulator stays a stack object.
   template <int Mode, typename Mat>
-  EIGEN_DEVICE_FUNC static typename NumTraits<Scalar>::Real l1NormColumnwise(const Mat& m) {
-    using RealScalar_ = typename NumTraits<Scalar>::Real;
+  EIGEN_DEVICE_FUNC static RealScalar l1NormColumnwise(const Mat& m) {
     static constexpr int kPanelSize = 64;
-    RealScalar_ norm = RealScalar_(0);
+    RealScalar norm = RealScalar(0);
     const Index n = m.rows();
-    Matrix<RealScalar_, kPanelSize, 1> sums;
+    Matrix<RealScalar, kPanelSize, 1> sums;
     for (Index p = 0; p < n; p += kPanelSize) {
       const Index len = numext::mini(Index(kPanelSize), n - p);
       EIGEN_IF_CONSTEXPR (Mode == Lower) {
@@ -264,8 +264,6 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
 
   /////////// Eigenvalue module ///////////
 
-  /** Real part of #Scalar */
-  using RealScalar = typename NumTraits<Scalar>::Real;
   /** Return type of eigenvalues() */
   using EigenvaluesReturnType = Matrix<RealScalar, internal::traits<MatrixType>::ColsAtCompileTime, 1>;
 
