@@ -45,9 +45,10 @@ function(eigen_add_gpu_benchmark name source)
   endif()
 endfunction()
 
-# Solver benchmarks: LLT/LU compute + solve, host vs device paths, CPU baselines.
-eigen_add_gpu_benchmark(bench_solvers bench_solvers.cpp)
-eigen_add_gpu_benchmark(bench_solvers_float bench_solvers.cpp DEFINITIONS SCALAR=float)
+# Solver benchmarks: LLT/LDLT/LU compute + solve, host vs device paths, CPU
+# baselines. NPP widens LDLT's pivots on device.
+eigen_add_gpu_benchmark(bench_solvers bench_solvers.cpp LIBRARIES CUDA::npps CUDA::nppc)
+eigen_add_gpu_benchmark(bench_solvers_float bench_solvers.cpp LIBRARIES CUDA::npps CUDA::nppc DEFINITIONS SCALAR=float)
 
 # GEMM benchmarks: cublasLtMatmul (with plan cache) vs raw cublasGemmEx across sizes.
 eigen_add_gpu_benchmark(bench_gemm bench_gemm.cpp LIBRARIES CUDA::cublasLt)

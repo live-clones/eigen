@@ -89,7 +89,7 @@ if(EIGEN_TEST_CUBLAS AND TARGET CUDA::cublas)
   ei_add_gpu_test(cublas EXTRA_LIBS CUDA::cublas CUDA::cusolver)
 endif()
 
-# cuSOLVER dense factorizations (LLT, LU, QR, SVD, self-adjoint eigensolver).
+# cuSOLVER dense factorizations (LLT, LDLT, LU, QR, SVD, self-adjoint eigensolver).
 option(EIGEN_TEST_CUSOLVER "Test cuSOLVER integration" OFF)
 if(EIGEN_TEST_CUSOLVER AND TARGET CUDA::cusolver)
   find_package(Threads REQUIRED)
@@ -97,6 +97,8 @@ if(EIGEN_TEST_CUSOLVER AND TARGET CUDA::cusolver)
   foreach(_cusolver_test IN ITEMS cusolver_lu cusolver_qr cusolver_svd cusolver_eigen)
     ei_add_gpu_test(${_cusolver_test} EXTRA_LIBS CUDA::cusolver CUDA::cublas)
   endforeach()
+  # LDLT widens sytrf's 32-bit pivots for Xsytrs through NPP.
+  ei_add_gpu_test(cusolver_ldlt EXTRA_LIBS CUDA::cusolver CUDA::cublas CUDA::npps CUDA::nppc)
 endif()
 
 # cuFFT (part of the CUDA toolkit, no separate option needed).

@@ -135,6 +135,11 @@ template <typename Scalar, int UpLo>
 struct is_llt_solve_expr<LltSolveExpr<Scalar, UpLo>> : Eigen::internal::bool_constant<true> {};
 
 template <typename T>
+struct is_ldlt_solve_expr : Eigen::internal::bool_constant<false> {};
+template <typename Scalar, int UpLo>
+struct is_ldlt_solve_expr<LdltSolveExpr<Scalar, UpLo>> : Eigen::internal::bool_constant<true> {};
+
+template <typename T>
 struct is_lu_solve_expr : Eigen::internal::bool_constant<false> {};
 template <typename Scalar>
 struct is_lu_solve_expr<LuSolveExpr<Scalar>> : Eigen::internal::bool_constant<true> {};
@@ -143,6 +148,11 @@ template <typename T>
 struct is_llt_view : Eigen::internal::bool_constant<false> {};
 template <typename Scalar, int UpLo>
 struct is_llt_view<LLTView<Scalar, UpLo>> : Eigen::internal::bool_constant<true> {};
+
+template <typename T>
+struct is_ldlt_view : Eigen::internal::bool_constant<false> {};
+template <typename Scalar, int UpLo>
+struct is_ldlt_view<LDLTView<Scalar, UpLo>> : Eigen::internal::bool_constant<true> {};
 
 template <typename T>
 struct is_lu_view : Eigen::internal::bool_constant<false> {};
@@ -651,6 +661,38 @@ template <typename... Types>
 using require_all_llt_solve_expr = internal::require_all_t<is_llt_solve_expr_v<Types>...>;
 
 /**
+ * Detect if a type is an @ref Eigen::gpu::LdltSolveExpr
+ * @tparam T The type to test.
+ * @ingroup gpu_type_traits
+ */
+template <typename T>
+struct is_ldlt_solve_expr : internal::is_ldlt_solve_expr<std::decay_t<T>> {};
+
+/**
+ * True iff a type is an @ref Eigen::gpu::LdltSolveExpr
+ * @tparam T The type to test.
+ * @ingroup gpu_type_traits
+ */
+template <typename T>
+constexpr bool is_ldlt_solve_expr_v = is_ldlt_solve_expr<T>::value;
+
+/**
+ * Require a type is an @ref Eigen::gpu::LdltSolveExpr
+ * @tparam T The type to test.
+ * @ingroup gpu_type_traits
+ */
+template <typename T>
+using require_ldlt_solve_expr = internal::require_t<is_ldlt_solve_expr<T>>;
+
+/**
+ * Require all types are @ref Eigen::gpu::LdltSolveExpr types.
+ * @tparam Types The types to test.
+ * @ingroup gpu_type_traits
+ */
+template <typename... Types>
+using require_all_ldlt_solve_expr = internal::require_all_t<is_ldlt_solve_expr_v<Types>...>;
+
+/**
  * Detect if a type is a @ref Eigen::gpu::LuSolveExpr
  * @tparam T The type to test.
  * @ingroup gpu_type_traits
@@ -715,6 +757,38 @@ template <typename... Types>
 using require_all_llt_view = internal::require_all_t<is_llt_view_v<Types>...>;
 
 /**
+ * Detect if a type is an @ref Eigen::gpu::LDLTView
+ * @tparam T The type to test.
+ * @ingroup gpu_type_traits
+ */
+template <typename T>
+struct is_ldlt_view : internal::is_ldlt_view<std::decay_t<T>> {};
+
+/**
+ * True iff a type is an @ref Eigen::gpu::LDLTView
+ * @tparam T The type to test.
+ * @ingroup gpu_type_traits
+ */
+template <typename T>
+constexpr bool is_ldlt_view_v = is_ldlt_view<T>::value;
+
+/**
+ * Require a type is an @ref Eigen::gpu::LDLTView
+ * @tparam T The type to test.
+ * @ingroup gpu_type_traits
+ */
+template <typename T>
+using require_ldlt_view = internal::require_t<is_ldlt_view<T>>;
+
+/**
+ * Require all types are @ref Eigen::gpu::LDLTView types.
+ * @tparam Types The types to test.
+ * @ingroup gpu_type_traits
+ */
+template <typename... Types>
+using require_all_ldlt_view = internal::require_all_t<is_ldlt_view_v<Types>...>;
+
+/**
  * Detect if a type is an @ref Eigen::gpu::LUView
  * @tparam T The type to test.
  * @ingroup gpu_type_traits
@@ -747,13 +821,13 @@ template <typename... Types>
 using require_all_lu_view = internal::require_all_t<is_lu_view_v<Types>...>;
 
 /**
- * True iff a type is an @ref Eigen::gpu::LLTView or an @ref Eigen::gpu::LUView
+ * True iff a type is an @ref Eigen::gpu::LLTView, an @ref Eigen::gpu::LDLTView, or an @ref Eigen::gpu::LUView
  * @tparam T The type to test.
  * @note Arithmetic operators exclude factorization handles so they cannot be lowered as matrix operands.
  * @ingroup gpu_type_traits
  */
 template <typename T>
-constexpr bool is_factor_expr_v = is_lu_view_v<T> || is_llt_view_v<T>;
+constexpr bool is_factor_expr_v = is_lu_view_v<T> || is_llt_view_v<T> || is_ldlt_view_v<T>;
 
 /**
  * Detect if a type is a @ref Eigen::gpu::DeviceAddExpr

@@ -119,6 +119,23 @@ struct cusolver_fill_mode<Upper> {
   static constexpr cublasFillMode_t value = CUBLAS_FILL_MODE_UPPER;
 };
 
+// The Bunch-Kaufman routines factor real symmetric or complex-symmetric (A = A^T)
+// matrices; cuSOLVER has no Hermitian hetrf. A complex Scalar therefore has to
+// name that choice with Eigen's Symmetric mode bit (Lower | Symmetric), so a
+// Hermitian matrix cannot be handed over by mistake.
+template <typename Scalar, int UpLo>
+struct ldlt_fill_mode {
+  static constexpr int triangle = UpLo & (Lower | Upper);
+  static_assert(triangle == Lower || triangle == Upper,
+                "gpu::LDLT: the mode must contain exactly one of Lower or Upper");
+  static_assert((UpLo & ~(Lower | Upper | Symmetric)) == 0,
+                "gpu::LDLT: only the Lower, Upper and Symmetric mode bits apply");
+  static_assert(!NumTraits<Scalar>::IsComplex || (UpLo & Symmetric) != 0,
+                "gpu::LDLT factors complex-symmetric (A = A^T) matrices, not Hermitian ones: opt in with "
+                "Lower | Symmetric or Upper | Symmetric, or use gpu::LU for a Hermitian indefinite matrix");
+  static constexpr cublasFillMode_t value = cusolver_fill_mode<triangle>::value;
+};
+
 // cuSOLVER ships no generic X variant for ormqr/unmqr, so these overloads supply
 // one: real → ormqr (orthogonal Q), complex → unmqr (unitary Q).
 inline cusolverStatus_t cusolverDnXormqr(cusolverDnHandle_t h, cublasSideMode_t side, cublasOperation_t trans, int m,
@@ -175,6 +192,80 @@ inline cusolverStatus_t cusolverDnXormqr_bufferSize(cusolverDnHandle_t h, cublas
   return cusolverDnZunmqr_bufferSize(h, side, trans, m, n, k, reinterpret_cast<const cuDoubleComplex*>(A), lda,
                                      reinterpret_cast<const cuDoubleComplex*>(tau),
                                      reinterpret_cast<const cuDoubleComplex*>(C), ldc, lwork);
+}
+
+// The Bunch-Kaufman routines exist only in cuSOLVER's legacy 32-bit API, so these
+// overloads supply generic entry points the same way. The complex variants factor
+// complex-symmetric matrices (A = A^T), like LAPACK's csytrf/zsytrf; cuSOLVER has
+// no Hermitian hetrf.
+inline cusolverStatus_t cusolverDnXsytrf_bufferSize(cusolverDnHandle_t h, int n, float* A, int lda, int* lwork) {
+  return cusolverDnSsytrf_bufferSize(h, n, A, lda, lwork);
+}
+inline cusolverStatus_t cusolverDnXsytrf_bufferSize(cusolverDnHandle_t h, int n, double* A, int lda, int* lwork) {
+  return cusolverDnDsytrf_bufferSize(h, n, A, lda, lwork);
+}
+inline cusolverStatus_t cusolverDnXsytrf_bufferSize(cusolverDnHandle_t h, int n, std::complex<float>* A, int lda,
+                                                    int* lwork) {
+  return cusolverDnCsytrf_bufferSize(h, n, reinterpret_cast<cuComplex*>(A), lda, lwork);
+}
+inline cusolverStatus_t cusolverDnXsytrf_bufferSize(cusolverDnHandle_t h, int n, std::complex<double>* A, int lda,
+                                                    int* lwork) {
+  return cusolverDnZsytrf_bufferSize(h, n, reinterpret_cast<cuDoubleComplex*>(A), lda, lwork);
+}
+
+inline cusolverStatus_t cusolverDnXsytrf(cusolverDnHandle_t h, cublasFillMode_t uplo, int n, float* A, int lda,
+                                         int* ipiv, float* work, int lwork, int* info) {
+  return cusolverDnSsytrf(h, uplo, n, A, lda, ipiv, work, lwork, info);
+}
+inline cusolverStatus_t cusolverDnXsytrf(cusolverDnHandle_t h, cublasFillMode_t uplo, int n, double* A, int lda,
+                                         int* ipiv, double* work, int lwork, int* info) {
+  return cusolverDnDsytrf(h, uplo, n, A, lda, ipiv, work, lwork, info);
+}
+inline cusolverStatus_t cusolverDnXsytrf(cusolverDnHandle_t h, cublasFillMode_t uplo, int n, std::complex<float>* A,
+                                         int lda, int* ipiv, std::complex<float>* work, int lwork, int* info) {
+  return cusolverDnCsytrf(h, uplo, n, reinterpret_cast<cuComplex*>(A), lda, ipiv, reinterpret_cast<cuComplex*>(work),
+                          lwork, info);
+}
+inline cusolverStatus_t cusolverDnXsytrf(cusolverDnHandle_t h, cublasFillMode_t uplo, int n, std::complex<double>* A,
+                                         int lda, int* ipiv, std::complex<double>* work, int lwork, int* info) {
+  return cusolverDnZsytrf(h, uplo, n, reinterpret_cast<cuDoubleComplex*>(A), lda, ipiv,
+                          reinterpret_cast<cuDoubleComplex*>(work), lwork, info);
+}
+
+inline cusolverStatus_t cusolverDnXsytri_bufferSize(cusolverDnHandle_t h, cublasFillMode_t uplo, int n, float* A,
+                                                    int lda, const int* ipiv, int* lwork) {
+  return cusolverDnSsytri_bufferSize(h, uplo, n, A, lda, ipiv, lwork);
+}
+inline cusolverStatus_t cusolverDnXsytri_bufferSize(cusolverDnHandle_t h, cublasFillMode_t uplo, int n, double* A,
+                                                    int lda, const int* ipiv, int* lwork) {
+  return cusolverDnDsytri_bufferSize(h, uplo, n, A, lda, ipiv, lwork);
+}
+inline cusolverStatus_t cusolverDnXsytri_bufferSize(cusolverDnHandle_t h, cublasFillMode_t uplo, int n,
+                                                    std::complex<float>* A, int lda, const int* ipiv, int* lwork) {
+  return cusolverDnCsytri_bufferSize(h, uplo, n, reinterpret_cast<cuComplex*>(A), lda, ipiv, lwork);
+}
+inline cusolverStatus_t cusolverDnXsytri_bufferSize(cusolverDnHandle_t h, cublasFillMode_t uplo, int n,
+                                                    std::complex<double>* A, int lda, const int* ipiv, int* lwork) {
+  return cusolverDnZsytri_bufferSize(h, uplo, n, reinterpret_cast<cuDoubleComplex*>(A), lda, ipiv, lwork);
+}
+
+inline cusolverStatus_t cusolverDnXsytri(cusolverDnHandle_t h, cublasFillMode_t uplo, int n, float* A, int lda,
+                                         const int* ipiv, float* work, int lwork, int* info) {
+  return cusolverDnSsytri(h, uplo, n, A, lda, ipiv, work, lwork, info);
+}
+inline cusolverStatus_t cusolverDnXsytri(cusolverDnHandle_t h, cublasFillMode_t uplo, int n, double* A, int lda,
+                                         const int* ipiv, double* work, int lwork, int* info) {
+  return cusolverDnDsytri(h, uplo, n, A, lda, ipiv, work, lwork, info);
+}
+inline cusolverStatus_t cusolverDnXsytri(cusolverDnHandle_t h, cublasFillMode_t uplo, int n, std::complex<float>* A,
+                                         int lda, const int* ipiv, std::complex<float>* work, int lwork, int* info) {
+  return cusolverDnCsytri(h, uplo, n, reinterpret_cast<cuComplex*>(A), lda, ipiv, reinterpret_cast<cuComplex*>(work),
+                          lwork, info);
+}
+inline cusolverStatus_t cusolverDnXsytri(cusolverDnHandle_t h, cublasFillMode_t uplo, int n, std::complex<double>* A,
+                                         int lda, const int* ipiv, std::complex<double>* work, int lwork, int* info) {
+  return cusolverDnZsytri(h, uplo, n, reinterpret_cast<cuDoubleComplex*>(A), lda, ipiv,
+                          reinterpret_cast<cuDoubleComplex*>(work), lwork, info);
 }
 
 }  // namespace internal

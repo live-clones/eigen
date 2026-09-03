@@ -18,11 +18,13 @@
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
 
+#include <algorithm>
 #include <cstdint>
 
 #include "./DeviceExpr.h"
 #include "./DeviceBlasExpr.h"
 #include "./DeviceSolverExpr.h"
+#include "./DeviceScalarOps.h"
 #include "./GpuContext.h"
 #include "./CuSolverSupport.h"
 
@@ -168,6 +170,72 @@ void dispatch(Context& ctx, DeviceMatrix<Scalar>& dst, const LltSolveExpr<Scalar
   EIGEN_CUSOLVER_CHECK(cusolverDnXpotrs(ctx.cusolverHandle(), params.p, uplo, n, nrhs, dtype, scratch.d_factor.get(),
                                         lda, dtype, dst.data(), static_cast<int64_t>(dst.rows()), d_info_potrs));
   oneshot_check_info(ctx, scratch, "llt");
+  dst.recordReady(ctx.stream());
+}
+
+template <typename Scalar, int UpLo>
+void dispatch(Context& ctx, DeviceMatrix<Scalar>& dst, const LdltSolveExpr<Scalar, UpLo>& expr) {
+  const DeviceMatrix<Scalar>& A = expr.matrix();
+  const DeviceMatrix<Scalar>& B = expr.rhs();
+
+  eigen_assert(A.rows() == A.cols() && "LDLT requires a square matrix");
+  eigen_assert(B.rows() == A.rows() && "LDLT solve: RHS rows must match matrix size");
+
+  if (A.rows() == 0 || B.cols() == 0) {
+    if (!dst.empty()) dst.waitReady(ctx.stream());
+    dst.resize(A.rows(), B.cols());
+    return;
+  }
+
+  A.waitReady(ctx.stream());
+  B.waitReady(ctx.stream());
+  if (!dst.empty()) dst.waitReady(ctx.stream());
+
+  constexpr cublasFillMode_t uplo = ldlt_fill_mode<Scalar, UpLo>::value;
+  constexpr cudaDataType_t dtype = cuda_data_type<Scalar>::value;
+  const int n = to_blas_int(A.rows());
+  const int64_t nrhs = static_cast<int64_t>(B.cols());
+  OneShotSolverScratch& scratch = ctx.oneshotSolverScratch();
+  {
+    const size_t mat_bytes = A.sizeInBytes();
+    // Context-owned grow-only scratch: no per-call allocation, no end-of-call sync.
+    ensure_sized(scratch.d_factor, mat_bytes);
+    EIGEN_CUDA_RUNTIME_CHECK(
+        cudaMemcpyAsync(scratch.d_factor.get(), A.data(), mat_bytes, cudaMemcpyDeviceToDevice, ctx.stream()));
+  }
+  Scalar* d_factor = static_cast<Scalar*>(scratch.d_factor.get());
+  ensure_sized(scratch.d_ipiv32, static_cast<size_t>(n) * sizeof(int));
+  ensure_sized(scratch.d_ipiv, static_cast<size_t>(n) * sizeof(int64_t));
+  int* d_ipiv32 = static_cast<int*>(scratch.d_ipiv32.get());
+  int64_t* d_ipiv64 = static_cast<int64_t*>(scratch.d_ipiv.get());
+
+  dst.resize(n, B.cols());
+  EIGEN_CUDA_RUNTIME_CHECK(
+      cudaMemcpyAsync(dst.data(), B.data(), B.sizeInBytes(), cudaMemcpyDeviceToDevice, ctx.stream()));
+  const int64_t ldb = static_cast<int64_t>(dst.rows());
+
+  // One device workspace serves sytrf (lwork Scalars), widen_pivots (n doubles)
+  // and Xsytrs, which run back-to-back on the stream.
+  int lwork = 0;
+  EIGEN_CUSOLVER_CHECK(cusolverDnXsytrf_bufferSize(ctx.cusolverHandle(), n, d_factor, n, &lwork));
+  size_t dev_ws = 0;
+  size_t host_ws = 0;
+  EIGEN_CUSOLVER_CHECK(cusolverDnXsytrs_bufferSize(ctx.cusolverHandle(), uplo, n, nrhs, dtype, d_factor, n, d_ipiv64,
+                                                   dtype, dst.data(), ldb, &dev_ws, &host_ws));
+  ensure_sized(scratch.d_workspace, std::max({static_cast<size_t>(lwork) * sizeof(Scalar),
+                                              static_cast<size_t>(n) * sizeof(double), dev_ws}));
+  if (scratch.h_workspace.size() < host_ws) scratch.h_workspace.resize(host_ws);
+
+  int* d_info_sytrf = static_cast<int*>(scratch.d_info.get());
+  int* d_info_sytrs = d_info_sytrf + 1;
+  EIGEN_CUSOLVER_CHECK(cusolverDnXsytrf(ctx.cusolverHandle(), uplo, n, d_factor, n, d_ipiv32,
+                                        static_cast<Scalar*>(scratch.d_workspace.get()), lwork, d_info_sytrf));
+  widen_pivots(d_ipiv32, d_ipiv64, static_cast<double*>(scratch.d_workspace.get()), static_cast<size_t>(n),
+               ctx.stream());
+  EIGEN_CUSOLVER_CHECK(cusolverDnXsytrs(ctx.cusolverHandle(), uplo, n, nrhs, dtype, d_factor, n, d_ipiv64, dtype,
+                                        dst.data(), ldb, scratch.d_workspace.get(), dev_ws,
+                                        host_ws > 0 ? scratch.h_workspace.data() : nullptr, host_ws, d_info_sytrs));
+  oneshot_check_info(ctx, scratch, "ldlt");
   dst.recordReady(ctx.stream());
 }
 
@@ -392,6 +460,12 @@ class Assignment {
     return dst_;
   }
 
+  template <int UpLo>
+  DeviceMatrix<Scalar>& operator=(const LdltSolveExpr<Scalar, UpLo>& expr) {
+    internal::dispatch(ctx_, dst_, expr);
+    return dst_;
+  }
+
   DeviceMatrix<Scalar>& operator=(const LuSolveExpr<Scalar>& expr) {
     internal::dispatch(ctx_, dst_, expr);
     return dst_;
@@ -426,7 +500,7 @@ class Assignment {
                   "DeviceMatrix expression not supported: no cuBLAS/cuSOLVER mapping. "
                   "Supported: GEMM (A*B), geam (A + alpha*B, alpha*A), "
                   "TRSM (.triangularView().solve()), SYMM (.selfadjointView()*B), "
-                  "LLT (.llt().solve()), LU (.lu().solve()).");
+                  "LLT (.llt().solve()), LDLT (.ldlt().solve()), LU (.lu().solve()).");
     return dst_;
   }
 
@@ -462,6 +536,13 @@ DeviceMatrix<Scalar_>& DeviceMatrix<Scalar_>::operator-=(const GemmExpr<Lhs, Rhs
 template <typename Scalar_>
 template <int UpLo>
 DeviceMatrix<Scalar_>& DeviceMatrix<Scalar_>::operator=(const LltSolveExpr<Scalar_, UpLo>& expr) {
+  device(Context::threadLocal()) = expr;
+  return *this;
+}
+
+template <typename Scalar_>
+template <int UpLo>
+DeviceMatrix<Scalar_>& DeviceMatrix<Scalar_>::operator=(const LdltSolveExpr<Scalar_, UpLo>& expr) {
   device(Context::threadLocal()) = expr;
   return *this;
 }
@@ -515,6 +596,12 @@ DeviceMatrix<Scalar_>::DeviceMatrix(const DeviceAddExpr<Scalar_>& expr) : Device
 template <typename Scalar_>
 template <int UpLo>
 DeviceMatrix<Scalar_>::DeviceMatrix(const LltSolveExpr<Scalar_, UpLo>& expr) : DeviceMatrix() {
+  *this = expr;
+}
+
+template <typename Scalar_>
+template <int UpLo>
+DeviceMatrix<Scalar_>::DeviceMatrix(const LdltSolveExpr<Scalar_, UpLo>& expr) : DeviceMatrix() {
   *this = expr;
 }
 
