@@ -48,14 +48,24 @@
   # a fresh clone whose checkout mtimes are newer than any restored build
   # output, so ninja rebuilt every target despite a successfully restored
   # cache. ccache keys on file content and compiler, which survives the
-  # re-clone. No ${CI_COMMIT_REF_SLUG} in the key: pipelines share one cache
-  # pool per EIGEN_CI_CCACHE_POOL. GitLab still splits each pool by a suffix:
-  # `-protected` for a pipeline on a protected ref or started by a Maintainer
-  # or Owner, `-non_protected` otherwise. A Developer-started merge request
-  # pipeline therefore has a pool the scheduled master builds never fill; a
-  # maintainer starting that pipeline puts it on the shared one.
+  # re-clone.
+  #
+  # Restoring a cache replaces .ccache/ rather than merging into it, so an
+  # unscoped pool is last-writer-wins: merge requests on different bases
+  # overwrote each other's objects, and a full 4 GB restore still missed 1435
+  # of 1440 compiles (job 16272723432). EIGEN_CI_CCACHE_SCOPE gives each merge
+  # request its own pool; the fallback key is the shared pool the
+  # default-branch builds fill, which is what a first build draws on.
+  #
+  # GitLab splits every pool by a suffix -- `-protected` for a pipeline on a
+  # protected ref or started by a Maintainer or Owner, `-non_protected`
+  # otherwise -- and appends the same suffix to the fallback key. A
+  # Developer-started merge request pipeline therefore cannot read the pool the
+  # scheduled builds fill; a maintainer starting that pipeline can.
   cache:
-    key: "$EIGEN_CI_CCACHE_POOL-ccache"
+    key: "$EIGEN_CI_CCACHE_POOL$EIGEN_CI_CCACHE_SCOPE-ccache"
+    fallback_keys:
+      - "$EIGEN_CI_CCACHE_POOL-ccache"
     paths:
       - .ccache/
     # Push the cache even when the build fails: the retry pipeline after a
