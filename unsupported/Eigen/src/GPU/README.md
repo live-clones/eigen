@@ -155,12 +155,12 @@ device via NPP, avoiding extra synchronizations. Small device allocations
 (including `DeviceScalar`) are recycled through a thread-local
 `DeviceBufferPool` to avoid `cudaMalloc`/`cudaFree` overhead in tight loops.
 Pool contract: a released block is recycled only after the device has retired
-every operation enqueued before the release on any blocking stream (the
-release is tracked by an event on the legacy default stream, the ordering the
-stream-ordered allocator relies on as well), so pooled buffers may move
-between the streams of one thread. The pool is thread-local, so sharing a
-pooled buffer across threads needs external synchronization, and
-`cudaStreamNonBlocking` streams are outside the guarantee.
+every operation enqueued before the release on any blocking stream, so pooled
+buffers may move between the streams of one thread. The release is tracked by
+an event on the legacy default stream, the same ordering the stream-ordered
+allocator relies on. The pool is thread-local, so sharing a pooled buffer
+across threads needs external synchronization, and `cudaStreamNonBlocking`
+streams are outside the guarantee.
 
 ### `gpu::Context`
 

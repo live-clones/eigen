@@ -151,7 +151,7 @@ struct DeviceBufferPool {
   struct Entry {
     void* ptr;
     size_t bytes;
-    cudaEvent_t released;  // recorded on the legacy default stream in deallocate()
+    cudaEvent_t release_event;
   };
 
   // Lifetime marker for the thread-local pool. thread_local destruction runs
@@ -171,22 +171,18 @@ struct DeviceBufferPool {
   DeviceBufferPool() { threadState() = State::kAlive; }
 
   ~DeviceBufferPool() {
-    for (auto& e : free_list_) {
-      (void)cudaEventDestroy(e.released);
-      device_free(e.ptr);
-    }
-    for (cudaEvent_t ev : spare_events_) (void)cudaEventDestroy(ev);
+    for (const Entry& entry : free_list_) freeBlock(entry.ptr, entry.release_event);
+    for (cudaEvent_t event : spare_events_) (void)cudaEventDestroy(event);
     threadState() = State::kDestroyed;
   }
 
   // First fit among the blocks whose release the device has already retired.
   void* allocate(size_t bytes) {
-    for (size_t i = 0; i < free_list_.size(); ++i) {
-      Entry& e = free_list_[i];
-      if (e.bytes >= bytes && cudaEventQuery(e.released) == cudaSuccess) {
-        void* p = e.ptr;
-        spare_events_.push_back(e.released);
-        e = free_list_.back();
+    for (Entry& entry : free_list_) {
+      if (entry.bytes >= bytes && cudaEventQuery(entry.release_event) == cudaSuccess) {
+        void* p = entry.ptr;
+        spare_events_.push_back(entry.release_event);
+        entry = free_list_.back();
         free_list_.pop_back();
         return p;
       }
@@ -200,20 +196,16 @@ struct DeviceBufferPool {
       device_free(p);
       return;
     }
-    cudaEvent_t ev = nullptr;
-    if (!spare_events_.empty()) {
-      ev = spare_events_.back();
-      spare_events_.pop_back();
-    } else if (cudaEventCreateWithFlags(&ev, cudaEventDisableTiming) != cudaSuccess) {
+    cudaEvent_t release_event = acquireEvent();
+    if (release_event == nullptr) {
       device_free(p);
       return;
     }
-    if (cudaEventRecord(ev, /*legacy default stream*/ nullptr) != cudaSuccess) {
-      (void)cudaEventDestroy(ev);
-      device_free(p);
+    if (cudaEventRecord(release_event, /*legacy default stream*/ nullptr) != cudaSuccess) {
+      freeBlock(p, release_event);
       return;
     }
-    free_list_.push_back({p, bytes, ev});
+    free_list_.push_back({p, bytes, release_event});
   }
 
   static DeviceBufferPool& threadLocal() {
@@ -222,8 +214,28 @@ struct DeviceBufferPool {
   }
 
  private:
+  // Returns a spare event, or a newly created one; nullptr if creation fails.
+  cudaEvent_t acquireEvent() noexcept {
+    if (!spare_events_.empty()) {
+      cudaEvent_t event = spare_events_.back();
+      spare_events_.pop_back();
+      return event;
+    }
+    cudaEvent_t event = nullptr;
+    if (cudaEventCreateWithFlags(&event, cudaEventDisableTiming) != cudaSuccess) return nullptr;
+    return event;
+  }
+
+  // Gives up a block and the event tracking its release. Destroying a pending
+  // event is non-blocking; the runtime defers it until the event completes.
+  static void freeBlock(void* p, cudaEvent_t release_event) noexcept {
+    (void)cudaEventDestroy(release_event);
+    device_free(p);
+  }
+
   std::vector<Entry> free_list_;
-  std::vector<cudaEvent_t> spare_events_;  // events of recycled entries, reused by deallocate()
+  // Events of recycled entries; free_list_.size() + spare_events_.size() <= kMaxPoolSize.
+  std::vector<cudaEvent_t> spare_events_;
 };
 
 // Stateful deleter that returns small buffers to the thread-local pool and

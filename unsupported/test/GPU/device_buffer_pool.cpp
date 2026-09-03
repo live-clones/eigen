@@ -25,7 +25,12 @@ using namespace Eigen;
 namespace {
 
 using Pool = gpu::internal::DeviceBufferPool<>;
+using Buffer = gpu::internal::DeviceBuffer;
 constexpr size_t kBytes = Pool::kSmallBufferThreshold / 4;
+
+void spin_until(const std::atomic<bool>& flag) {
+  while (!flag.load(std::memory_order_acquire)) std::this_thread::yield();
+}
 
 // A host function parked on a blocking stream keeps everything ordered after
 // it, including the pool's release events on the legacy default stream,
@@ -38,19 +43,19 @@ struct StreamGate {
 void CUDART_CB wait_for_gate(void* data) {
   StreamGate* gate = static_cast<StreamGate*>(data);
   gate->entered.store(true, std::memory_order_release);
-  while (!gate->release.load(std::memory_order_acquire)) std::this_thread::yield();
+  spin_until(gate->release);
 }
 
 // An idle device recycles a pooled block on the next same-size allocation.
 void test_idle_reuse() {
   void* p = nullptr;
   {
-    gpu::internal::DeviceBuffer b(kBytes);
+    Buffer b(kBytes);
     p = b.get();
     VERIFY(p != nullptr);
   }
   EIGEN_CUDA_RUNTIME_CHECK(cudaDeviceSynchronize());
-  gpu::internal::DeviceBuffer c(kBytes);
+  Buffer c(kBytes);
   VERIFY_IS_EQUAL(c.get(), p);
 }
 
@@ -60,28 +65,28 @@ void test_reuse_waits_for_in_flight_work() {
   cudaStream_t stream = nullptr;
   EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&stream));
 
-  gpu::internal::DeviceBuffer b(kBytes);
+  Buffer b(kBytes);
   void* const p = b.get();
 
   StreamGate gate;
   EIGEN_CUDA_RUNTIME_CHECK(cudaLaunchHostFunc(stream, wait_for_gate, &gate));
   std::thread release_thread([&gate]() {
-    while (!gate.entered.load(std::memory_order_acquire)) std::this_thread::yield();
+    spin_until(gate.entered);
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
     gate.release.store(true, std::memory_order_release);
   });
 
   // Released while `stream` is parked: the release event cannot have completed.
-  b = gpu::internal::DeviceBuffer();
-  gpu::internal::DeviceBuffer c(kBytes);
+  b = Buffer();
+  Buffer c(kBytes);
   VERIFY(c.get() != p);
 
   release_thread.join();
   EIGEN_CUDA_RUNTIME_CHECK(cudaDeviceSynchronize());
 
   // Both blocks are free and retired; first fit returns the older one.
-  c = gpu::internal::DeviceBuffer();
-  gpu::internal::DeviceBuffer d(kBytes);
+  c = Buffer();
+  Buffer d(kBytes);
   VERIFY_IS_EQUAL(d.get(), p);
 
   EIGEN_CUDA_RUNTIME_CHECK(cudaStreamDestroy(stream));
