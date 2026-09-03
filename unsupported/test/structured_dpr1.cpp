@@ -92,7 +92,10 @@ template <typename Scalar>
 void test_dpr1_clustered(Index n) {
   typedef Matrix<Scalar, Dynamic, 1> Vec;
   Vec d(n), z = Vec::Random(n);
-  for (Index i = 0; i < n; ++i) d[i] = Scalar(1) + Scalar(i / 3) + Scalar(1e-15) * Scalar(i % 3);
+  for (Index i = 0; i < n; ++i) {
+    const Index cluster = i / 3, offsetInCluster = i % 3;
+    d[i] = Scalar(1) + Scalar(cluster) + Scalar(1e-15) * Scalar(offsetInCluster);
+  }
   check_dpr1<Scalar>(d, Scalar(2), z);
 
   // All diagonal entries exactly equal: A = c*I + rho*z*z^T has closed-form
