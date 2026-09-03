@@ -52,10 +52,11 @@
   #
   # Restoring a cache replaces .ccache/ rather than merging into it, so an
   # unscoped pool is last-writer-wins: merge requests on different bases
-  # overwrote each other's objects, and a full 4 GB restore still missed 1435
-  # of 1440 compiles (job 16272723432). EIGEN_CI_CCACHE_SCOPE gives each merge
-  # request its own pool; the fallback key is the shared pool the
-  # default-branch builds fill, which is what a first build draws on.
+  # overwrite each other's objects. Job 16273375875 restored a full 4 GB pool
+  # and still missed 1431 of 1436 compiles, with no direct-mode hits at all.
+  # EIGEN_CI_CCACHE_SCOPE gives each merge request its own pool; the fallback
+  # key is the shared pool the default-branch builds fill, which is what a
+  # first build draws on.
   #
   # GitLab splits every pool by a suffix -- `-protected` for a pipeline on a
   # protected ref or started by a Maintainer or Owner, `-non_protected`

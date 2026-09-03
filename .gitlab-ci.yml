@@ -19,6 +19,14 @@ workflow:
     on_new_commit: interruptible
     on_job_failure: none
   rules:
+    # A scheduled pipeline off the default branch keeps `auto_cancel: none`,
+    # but is scoped like any other non-default ref: only default-branch builds
+    # write the shared pool.
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_COMMIT_REF_NAME != $CI_DEFAULT_BRANCH
+      auto_cancel:
+        on_new_commit: none
+      variables:
+        EIGEN_CI_CCACHE_SCOPE: "-$CI_COMMIT_REF_SLUG"
     - if: $CI_PIPELINE_SOURCE == "schedule"
       auto_cancel:
         on_new_commit: none
