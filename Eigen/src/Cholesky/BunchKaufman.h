@@ -871,11 +871,11 @@ void BunchKaufman<MatrixType, UpLo_>::computeInertia() {
     if (k + 1 < n && !numext::is_exactly_zero(m_subdiag.coeff(k))) {
       const RealScalar d11 = numext::real(m_matrix.coeff(k, k));
       const RealScalar d22 = numext::real(m_matrix.coeff(k + 1, k + 1));
-      const Scalar d21 = m_subdiag.coeff(k);
-      // Scaled determinant denom = det/|d21|^2 (|d21|^2 > 0 for a 2x2 block), so sign(denom) == sign(det);
+      const RealScalar d21 = numext::abs(m_subdiag.coeff(k));
+      // Scaled determinant denom = det/|d21|^2 (|d21| > 0 for a 2x2 block), so sign(denom) == sign(det);
       // avoids forming det = d11*d22 - |d21|^2, which over/underflows on extreme-scaled 2x2 blocks.
-      const Scalar id = Scalar(1) / d21;
-      const RealScalar denom = numext::real((d22 * id) * (d11 * numext::conj(id))) - RealScalar(1);
+      // Divide by |d21| rather than multiply by its reciprocal, which overflows once |d21| is subnormal.
+      const RealScalar denom = (d11 / d21) * (d22 / d21) - RealScalar(1);
       if (denom < RealScalar(0)) {
         // Indefinite 2x2 block: one positive and one negative eigenvalue.
         ++m_n_pos;

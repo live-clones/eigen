@@ -17,6 +17,7 @@
 #include <Eigen/Cholesky>
 #include <Eigen/QR>
 #include <Eigen/Eigenvalues>
+#include "fp_control.h"
 #include "solverbase.h"
 
 template <typename MatrixType, int UpLo>
@@ -320,6 +321,52 @@ void bunchkaufman_determinant_empty() {
   VERIFY_IS_EQUAL(bk.signDeterminant(), Scalar(1));
 }
 
+// Bunch-Kaufman selects a 2x2 block only where |d11 d22| <= alpha^2 |d21|^2, alpha = (1+sqrt(17))/8 < 1, so
+// det D_k = d11 d22 - |d21|^2 < 0 always. Subnormal |d21| underflows that determinant to zero, leaving the
+// log and the sign as the only accessors that can report it; both need det D_k / |d21|^2 = O(1), which
+// 1/|d21| overflows on, and the resulting infinity flips the block's inertia.
+template <typename MatrixType>
+void bunchkaufman_determinant_subnormal_block() {
+  typedef typename MatrixType::Scalar Scalar;
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+
+  if (!subnormalDivisionIsExact<RealScalar>()) {
+    const char* reason = ScopedFlushToZero::hardwareFlushesSubnormalInputs() ? "the hardware flushes subnormal inputs"
+                                                                             : "the compiler relaxed the division";
+    std::cout << "SKIP: bunchkaufman_determinant_subnormal_block needs an environment that divides by subnormals "
+                 "per IEEE 754 ("
+              << reason << ")." << std::endl;
+    return;
+  }
+
+  // Entries are exact integer multiples of the smallest subnormal u, so det A = (k11 k22 - k21^2) u^2 and
+  // log|det A| = 2 log(k21 u) + log|k11 k22 / k21^2 - 1| in closed form. The off-diagonal stays real to keep
+  // that exact; the complex instantiation still reaches numext::abs() on a subnormal.
+  const RealScalar u = (std::numeric_limits<RealScalar>::denorm_min)();
+  const int k11[] = {0, 1, 2, 100};
+  const int k22[] = {0, 1, 2, 100};
+  const int k21[] = {1, 4, 8, 300};
+
+  for (int c = 0; c < 4; ++c) {
+    const RealScalar r11(k11[c]), r22(k22[c]), r21(k21[c]);
+    const RealScalar scaled = (r11 / r21) * (r22 / r21) - RealScalar(1);
+    VERIFY(scaled < RealScalar(0));
+    const RealScalar logabsdet = RealScalar(2) * numext::log(r21 * u) + numext::log(numext::abs(scaled));
+
+    MatrixType a(2, 2);
+    a << Scalar(r11 * u), Scalar(r21 * u), Scalar(r21 * u), Scalar(r22 * u);
+    BunchKaufman<MatrixType, Lower> bk(a);
+
+    VERIFY_IS_EQUAL(bk.signDeterminant(), Scalar(-1));
+    VERIFY_IS_APPROX(bk.logAbsDeterminant(), logabsdet);
+    // det A is of order u^2, so zero is all these two can report.
+    VERIFY_IS_EQUAL(bk.absDeterminant(), RealScalar(0));
+    VERIFY_IS_EQUAL(bk.determinant(), Scalar(0));
+    VERIFY(!bk.isPositive());
+    VERIFY(!bk.isNegative());
+  }
+}
+
 template <typename MatrixType>
 void bunchkaufman_verify_assert() {
   MatrixType tmp;
@@ -476,6 +523,10 @@ EIGEN_DECLARE_TEST(bunchkaufman) {
   // Empty-matrix edge case.
   CALL_SUBTEST_5(bunchkaufman(MatrixXd(0, 0)));
   CALL_SUBTEST_5(bunchkaufman_determinant_empty<MatrixXd>());
+
+  // Subnormal 2x2 block: the determinant underflows, its log and sign do not.
+  CALL_SUBTEST_5(bunchkaufman_determinant_subnormal_block<MatrixXd>());
+  CALL_SUBTEST_6(bunchkaufman_determinant_subnormal_block<MatrixXcd>());
 
   // Problem-size constructors.
   CALL_SUBTEST_8(BunchKaufman<MatrixXf>(10));
