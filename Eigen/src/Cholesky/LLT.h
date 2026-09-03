@@ -203,6 +203,8 @@ class LLT : public SolverBase<LLT<MatrixType_, UpLo_> > {
    * of large enough dimension, there is a risk of overflow/underflow.
    * One way to work around that is to use logAbsDeterminant() instead.
    *
+   * \pre info() returns \c Success. A failed factorization does not represent the input matrix.
+   *
    * \sa absDeterminant(), logAbsDeterminant(), signDeterminant(), MatrixBase::determinant()
    */
   Scalar determinant() const;
@@ -218,6 +220,8 @@ class LLT : public SolverBase<LLT<MatrixType_, UpLo_> > {
    * of large enough dimension, there is a risk of overflow/underflow.
    * One way to work around that is to use logAbsDeterminant() instead.
    *
+   * \pre info() returns \c Success. A failed factorization does not represent the input matrix.
+   *
    * \sa determinant(), logAbsDeterminant(), signDeterminant(), MatrixBase::determinant()
    */
   RealScalar absDeterminant() const;
@@ -231,6 +235,8 @@ class LLT : public SolverBase<LLT<MatrixType_, UpLo_> > {
    * \note This method is useful to work around the risk of overflow/underflow that's inherent
    * to determinant computation.
    *
+   * \pre info() returns \c Success. A failed factorization does not represent the input matrix.
+   *
    * \sa determinant(), absDeterminant(), signDeterminant(), MatrixBase::determinant()
    */
   RealScalar logAbsDeterminant() const;
@@ -239,6 +245,8 @@ class LLT : public SolverBase<LLT<MatrixType_, UpLo_> > {
    * which is \c 1 since that matrix is positive definite.
    *
    * This method is provided for compatibility with the other decompositions, thus enabling generic code.
+   *
+   * \pre info() returns \c Success. A failed factorization does not represent the input matrix.
    *
    * \sa determinant(), absDeterminant(), logAbsDeterminant(), MatrixBase::determinant()
    */

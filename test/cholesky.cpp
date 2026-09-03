@@ -691,6 +691,40 @@ void cholesky_determinant_overflow() {
   }
 }
 
+// A failed factorization does not represent the input, so the four accessors assert rather than answer from
+// it: for [[0,1],[1,0]] LDLT reports NumericalIssue with D = 0, where det = -1. m_isInitialized alone does
+// not catch that, since compute() sets it either way.
+template <typename MatrixType>
+void cholesky_determinant_failed_factorization(Index size) {
+  eigen_assert(size >= 2);
+
+  // A zero diagonal with non-zero off-diagonal entries makes the first pivot invalid while the matrix is
+  // not; both factorizations give up on it.
+  const MatrixType indefinite = MatrixType::Ones(size, size) - MatrixType::Identity(size, size);
+
+  LDLT<MatrixType, Lower> ldltlo(indefinite);
+  VERIFY(ldltlo.info() == NumericalIssue);
+  VERIFY(!ldltlo.reconstructedMatrix().isApprox(indefinite));
+  VERIFY_RAISES_ASSERT(ldltlo.determinant())
+  VERIFY_RAISES_ASSERT(ldltlo.absDeterminant())
+  VERIFY_RAISES_ASSERT(ldltlo.logAbsDeterminant())
+  VERIFY_RAISES_ASSERT(ldltlo.signDeterminant())
+
+  LDLT<MatrixType, Upper> ldltup(indefinite);
+  VERIFY(ldltup.info() == NumericalIssue);
+  VERIFY_RAISES_ASSERT(ldltup.determinant())
+  VERIFY_RAISES_ASSERT(ldltup.absDeterminant())
+  VERIFY_RAISES_ASSERT(ldltup.logAbsDeterminant())
+  VERIFY_RAISES_ASSERT(ldltup.signDeterminant())
+
+  LLT<MatrixType, Lower> lltlo(indefinite);
+  VERIFY(lltlo.info() == NumericalIssue);
+  VERIFY_RAISES_ASSERT(lltlo.determinant())
+  VERIFY_RAISES_ASSERT(lltlo.absDeterminant())
+  VERIFY_RAISES_ASSERT(lltlo.logAbsDeterminant())
+  VERIFY_RAISES_ASSERT(lltlo.signDeterminant())
+}
+
 template <typename MatrixType>
 void cholesky_verify_assert() {
   MatrixType tmp;
@@ -838,6 +872,9 @@ EIGEN_DECLARE_TEST(cholesky) {
   CALL_SUBTEST_2(cholesky(MatrixXd(0, 0)));
   CALL_SUBTEST_2(cholesky_determinant_empty<MatrixXd>());
   CALL_SUBTEST_8(cholesky_determinant_overflow<MatrixXf>());
+  CALL_SUBTEST_3(cholesky_determinant_failed_factorization<Matrix2d>(2));
+  CALL_SUBTEST_2(cholesky_determinant_failed_factorization<MatrixXd>(internal::random<int>(2, 20)));
+  CALL_SUBTEST_6(cholesky_determinant_failed_factorization<MatrixXcd>(internal::random<int>(2, 20)));
 
   // This does not work yet:
   // CALL_SUBTEST_2( cholesky(Matrix<double,0,0>()) );
