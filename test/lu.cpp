@@ -242,6 +242,39 @@ void lu_determinant_overflow() {
   }
 }
 
+// A rank-deficient decomposition has no determinant worth reporting, and FullPivLU is the one LU that
+// knows it. The three accessors that can express that gate on rank, so they agree with the rank-revealing
+// QR decompositions; determinant() keeps its documented behaviour of returning the pivot product.
+template <typename MatrixType>
+void lu_determinant_rank_deficient(Index size) {
+  typedef typename MatrixType::Scalar Scalar;
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+
+  const Index rank = internal::random<Index>(1, size - 1);
+  MatrixType a(size, size);
+  createRandomPIMatrixOfRank(rank, size, size, a);
+
+  // The generated singular values are 0 or 1, so any threshold well inside that gap recovers the rank.
+  const RealScalar threshold(0.01);
+
+  FullPivLU<MatrixType> lu;
+  lu.setThreshold(threshold);
+  lu.compute(a);
+  VERIFY_IS_EQUAL(lu.rank(), rank);
+  VERIFY(!lu.isInvertible());
+  VERIFY_IS_EQUAL(lu.absDeterminant(), RealScalar(0));
+  VERIFY_IS_EQUAL(lu.logAbsDeterminant(), -NumTraits<RealScalar>::infinity());
+  VERIFY_IS_EQUAL(lu.signDeterminant(), Scalar(0));
+
+  ColPivHouseholderQR<MatrixType> qr;
+  qr.setThreshold(threshold);
+  qr.compute(a);
+  VERIFY_IS_EQUAL(qr.rank(), rank);
+  VERIFY_IS_EQUAL(qr.absDeterminant(), lu.absDeterminant());
+  VERIFY_IS_EQUAL(qr.logAbsDeterminant(), lu.logAbsDeterminant());
+  VERIFY_IS_EQUAL(qr.signDeterminant(), lu.signDeterminant());
+}
+
 template <typename MatrixType>
 void lu_verify_assert() {
   MatrixType tmp;
@@ -388,6 +421,7 @@ EIGEN_DECLARE_TEST(lu) {
     CALL_SUBTEST_4(lu_verify_assert<MatrixXd>());
     CALL_SUBTEST_4(lu_empty<MatrixXd>());
     CALL_SUBTEST_4(lu_determinant<MatrixXd>(internal::random<int>(1, 30)));
+    CALL_SUBTEST_4(lu_determinant_rank_deficient<MatrixXd>(internal::random<int>(2, 30)));
     CALL_SUBTEST_3(lu_determinant_overflow<MatrixXf>());
 
     CALL_SUBTEST_5(lu_non_invertible<MatrixXcf>());
@@ -401,6 +435,7 @@ EIGEN_DECLARE_TEST(lu) {
     CALL_SUBTEST_6(lu_verify_assert<MatrixXcd>());
     CALL_SUBTEST_6(lu_empty<MatrixXcd>());
     CALL_SUBTEST_6(lu_determinant<MatrixXcd>(internal::random<int>(1, 30)));
+    CALL_SUBTEST_6(lu_determinant_rank_deficient<MatrixXcd>(internal::random<int>(2, 30)));
 
     CALL_SUBTEST_7((lu_non_invertible<Matrix<float, Dynamic, 16> >()));
 
