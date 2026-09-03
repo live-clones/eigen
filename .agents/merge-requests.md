@@ -39,7 +39,10 @@ shape:
    long because the change is too large to review needs a split, not a fold.
 
 When numbers appear, name what was measured — the exact expression, operand types and sizes, compiler and flags —
-and name the CPU as `/proc/cpuinfo` or `sysctl` reports it, noting a virtualized environment such as WSL2. Credit
+and name the CPU as the OS reports it: the `Model name:` line of `lscpu` on Linux, which decodes the Arm
+implementer/part codes that `/proc/cpuinfo` leaves raw (fall back to those codes when an old util-linux prints
+none), or `sysctl -n machdep.cpu.brand_string` on macOS. Note a virtualized environment such as WSL2, which reports
+whatever the hypervisor exposes. Credit
 reporters and contributors by name or handle and link the issue with `Closes #NNNN`. GitLab's closing pattern has
 no negation handling, so "does not fix #NNNN" still closes the issue on merge; reference without closing as
 "Related to #NNNN". After a review round, append an `Update:` paragraph crediting the reviewer instead of silently
