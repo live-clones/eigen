@@ -965,6 +965,8 @@ class SimplicialCholesky : public SimplicialCholeskyBase<SimplicialCholesky<Matr
   }
 
   Scalar determinant() const {
+    eigen_assert(Base::m_factorizationIsOk && Base::m_info == Success &&
+                 "Simplicial Cholesky is not factorized, or its factorization failed");
     if (m_LDLT) {
       return Base::m_diag.prod();
     } else {

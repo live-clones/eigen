@@ -273,6 +273,19 @@ void lu_determinant_rank_deficient(Index size) {
   VERIFY_IS_EQUAL(qr.absDeterminant(), lu.absDeterminant());
   VERIFY_IS_EQUAL(qr.logAbsDeterminant(), lu.logAbsDeterminant());
   VERIFY_IS_EQUAL(qr.signDeterminant(), lu.signDeterminant());
+
+  // determinant() is deliberately not gated. Pin that on a matrix whose smallest pivot is below the
+  // threshold but nonzero, where the two answers are visibly different rather than both roundoff.
+  MatrixType b = MatrixType::Identity(size, size);
+  b(size - 1, size - 1) = Scalar(RealScalar(1e-30));
+  FullPivLU<MatrixType> blu;
+  blu.setThreshold(RealScalar(1e-3));
+  blu.compute(b);
+  VERIFY_IS_EQUAL(blu.rank(), size - 1);
+  VERIFY_IS_EQUAL(blu.absDeterminant(), RealScalar(0));
+  VERIFY_IS_EQUAL(blu.logAbsDeterminant(), -NumTraits<RealScalar>::infinity());
+  VERIFY_IS_EQUAL(blu.signDeterminant(), Scalar(0));
+  VERIFY_IS_APPROX(numext::abs(blu.determinant()), RealScalar(1e-30));
 }
 
 template <typename MatrixType>

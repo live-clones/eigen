@@ -55,6 +55,11 @@ void test_simplicial_cholesky_determinant_asserts() {
   VERIFY(nhldlt.info() == NumericalIssue);
   verify_determinant_asserts(nhldlt);
 
+  // The deprecated SimplicialCholesky exposes determinant() alone, and reads the same tail.
+  SimplicialCholesky<SparseMatrixType> deprecated(zero_pivot);
+  VERIFY(deprecated.info() == NumericalIssue);
+  VERIFY_RAISES_ASSERT(deprecated.determinant());
+
   // info() alone would not reject an unfactorized decomposition: it is constructed Success.
   SimplicialLDLT<SparseMatrixType> unfactorized;
   verify_determinant_asserts(unfactorized);

@@ -339,29 +339,58 @@ void bunchkaufman_determinant_subnormal_block() {
     return;
   }
 
-  // Entries are exact integer multiples of the smallest subnormal u, so det A = (k11 k22 - k21^2) u^2 and
-  // log|det A| = 2 log(k21 u) + log|k11 k22 / k21^2 - 1| in closed form. The off-diagonal stays real to keep
-  // that exact; the complex instantiation still reaches numext::abs() on a subnormal.
+  // Entries are exact integer multiples of the smallest subnormal u, so det A = (k11 k22 - k21^2) u^2 with
+  // the bracket an exact int, and log|det A| = log|k11 k22 - k21^2| + 2 log u -- a reference that shares no
+  // expression with the code under test. The off-diagonal stays real to keep the entries exact; the complex
+  // instantiation still reaches numext::abs() on a subnormal.
   const RealScalar u = (std::numeric_limits<RealScalar>::denorm_min)();
   const int k11[] = {0, 1, 2, 100};
   const int k22[] = {0, 1, 2, 100};
   const int k21[] = {1, 4, 8, 300};
 
   for (int c = 0; c < 4; ++c) {
-    const RealScalar r11(k11[c]), r22(k22[c]), r21(k21[c]);
-    const RealScalar scaled = (r11 / r21) * (r22 / r21) - RealScalar(1);
-    VERIFY(scaled < RealScalar(0));
-    const RealScalar logabsdet = RealScalar(2) * numext::log(r21 * u) + numext::log(numext::abs(scaled));
+    const int idet = k11[c] * k22[c] - k21[c] * k21[c];
+    VERIFY(idet < 0);
+    const RealScalar logabsdet = numext::log(RealScalar(-idet)) + RealScalar(2) * numext::log(u);
 
     MatrixType a(2, 2);
-    a << Scalar(r11 * u), Scalar(r21 * u), Scalar(r21 * u), Scalar(r22 * u);
+    a << Scalar(RealScalar(k11[c]) * u), Scalar(RealScalar(k21[c]) * u), Scalar(RealScalar(k21[c]) * u),
+        Scalar(RealScalar(k22[c]) * u);
+    // Flushing subnormal results to zero empties the matrix even where the division probe passed.
+    if (numext::is_exactly_zero(numext::abs(a.coeff(1, 0)))) return;
+
     BunchKaufman<MatrixType, Lower> bk(a);
+    // c == 0 has d11 = d22 = 0, where unblocked()'s own scaled determinant is 0*inf and it reports
+    // NumericalIssue; the accessors below are exact either way.
+    if (k11[c] != 0) VERIFY(bk.info() == Success);
 
     VERIFY_IS_EQUAL(bk.signDeterminant(), Scalar(-1));
     VERIFY_IS_APPROX(bk.logAbsDeterminant(), logabsdet);
     // det A is of order u^2, so zero is all these two can report.
     VERIFY_IS_EQUAL(bk.absDeterminant(), RealScalar(0));
     VERIFY_IS_EQUAL(bk.determinant(), Scalar(0));
+    VERIFY(!bk.isPositive());
+    VERIFY(!bk.isNegative());
+  }
+}
+
+// The criterion bounds |d11| against alpha|d21| but bounds |d22| only against the largest entry of its own
+// row, which can dwarf |d21|. So d22/d21 can overflow, and the scaled determinant comes out +inf, or 0*inf
+// = NaN where d11 is zero; either one counts the block as definite with the sign of its trace, and the
+// trace is positive here. The criterion puts the true value below 1, which is what rejects both.
+void bunchkaufman_inertia_wide_2x2_block() {
+  // The 2x2 block is (d11, d21, d22) = (a00, 1e-10, 1e299), determinant a00*1e299 - 1e-20 < 0 in both
+  // rows below, so it contributes one eigenvalue of each sign. info() is NumericalIssue: unblocked()
+  // forms the same product through 1/d21 and NaNs the trailing update, so the inertia is the only part
+  // of the factorization that is meaningful for these.
+  for (double a00 : {0.0, 1e-320}) {
+    MatrixXd a = MatrixXd::Zero(4, 4);
+    a(0, 0) = a00;
+    a(1, 0) = a(0, 1) = 1e-10;
+    a(1, 1) = 1e299;
+    a(3, 1) = a(1, 3) = 2e299;
+
+    BunchKaufman<MatrixXd> bk(a);
     VERIFY(!bk.isPositive());
     VERIFY(!bk.isNegative());
   }
@@ -548,6 +577,8 @@ EIGEN_DECLARE_TEST(bunchkaufman) {
   CALL_SUBTEST_5(bunchkaufman_determinant_subnormal_block<MatrixXd>());
   CALL_SUBTEST_6(bunchkaufman_determinant_subnormal_block<MatrixXcd>());
   CALL_SUBTEST_6(bunchkaufman_determinant_subnormal_block_complex());
+  CALL_SUBTEST_8(bunchkaufman_determinant_subnormal_block<MatrixXf>());
+  CALL_SUBTEST_5(bunchkaufman_inertia_wide_2x2_block());
 
   // Problem-size constructors.
   CALL_SUBTEST_8(BunchKaufman<MatrixXf>(10));
