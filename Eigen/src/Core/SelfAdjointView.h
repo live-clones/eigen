@@ -216,6 +216,11 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
    * since |conj(x)| = |x| the result matches the L1 norm of the full matrix.
    */
   EIGEN_DEVICE_FUNC RealScalar l1Norm() const {
+#ifdef EIGEN_GPU_COMPILE_PHASE
+    // The panel accumulator below is per-thread local storage on a device, so it would cost every
+    // kernel instantiating this kPanelSize scalars of stack and the registers to address them.
+    return l1NormPerColumn();
+#else
     // For a self-adjoint matrix |a_ij| = |a_ji|, so the stored triangle of a row-major matrix is
     // the transposed, column-major, complementary one and yields the same norm read the fast way.
     EIGEN_IF_CONSTEXPR (bool(MatrixType::IsRowMajor)) {
@@ -223,6 +228,7 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
     } else {
       return l1NormColumnwise<UpLo>(m_matrix);
     }
+#endif
   }
 
  private:
@@ -251,6 +257,24 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
         for (Index j = p + len; j < n; ++j) sums.head(len) += m.col(j).segment(p, len).cwiseAbs();
       }
       norm = numext::maxi(norm, sums.head(len).maxCoeff());
+    }
+    return norm;
+  }
+
+  // Workspace-free form, one column sum at a time; the mirrored term is read as a row.
+  EIGEN_DEVICE_FUNC RealScalar l1NormPerColumn() const {
+    RealScalar norm = RealScalar(0);
+    const Index n = m_matrix.rows();
+    for (Index col = 0; col < n; ++col) {
+      RealScalar abs_col_sum;
+      EIGEN_IF_CONSTEXPR (UpLo == Lower) {
+        abs_col_sum =
+            m_matrix.col(col).tail(n - col).template lpNorm<1>() + m_matrix.row(col).head(col).template lpNorm<1>();
+      } else {
+        abs_col_sum =
+            m_matrix.col(col).head(col).template lpNorm<1>() + m_matrix.row(col).tail(n - col).template lpNorm<1>();
+      }
+      norm = numext::maxi(norm, abs_col_sum);
     }
     return norm;
   }
