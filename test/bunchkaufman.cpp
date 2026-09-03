@@ -367,6 +367,26 @@ void bunchkaufman_determinant_subnormal_block() {
   }
 }
 
+// The scaling above divides by numext::abs(d21), so it relies on that magnitude not underflowing: for
+// |3u + 4iu| Eigen's hypot scales by the larger component instead of summing squares, giving 5u exactly
+// where u^2 would be zero. Not template code, because building the off-diagonal needs a complex literal.
+void bunchkaufman_determinant_subnormal_block_complex() {
+  typedef std::complex<double> Scalar;
+
+  if (!subnormalDivisionIsExact<double>()) return;
+
+  const double u = (std::numeric_limits<double>::denorm_min)();
+  MatrixXcd a(2, 2);
+  a << Scalar(u, 0), Scalar(3 * u, 4 * u), Scalar(3 * u, -4 * u), Scalar(u, 0);
+  BunchKaufman<MatrixXcd, Lower> bk(a);
+
+  // det = u^2 - |3u + 4iu|^2 = -24 u^2.
+  VERIFY_IS_EQUAL(bk.signDeterminant(), Scalar(-1));
+  VERIFY_IS_APPROX(bk.logAbsDeterminant(), numext::log(24.0) + 2.0 * numext::log(u));
+  VERIFY(!bk.isPositive());
+  VERIFY(!bk.isNegative());
+}
+
 template <typename MatrixType>
 void bunchkaufman_verify_assert() {
   MatrixType tmp;
@@ -527,6 +547,7 @@ EIGEN_DECLARE_TEST(bunchkaufman) {
   // Subnormal 2x2 block: the determinant underflows, its log and sign do not.
   CALL_SUBTEST_5(bunchkaufman_determinant_subnormal_block<MatrixXd>());
   CALL_SUBTEST_6(bunchkaufman_determinant_subnormal_block<MatrixXcd>());
+  CALL_SUBTEST_6(bunchkaufman_determinant_subnormal_block_complex());
 
   // Problem-size constructors.
   CALL_SUBTEST_8(BunchKaufman<MatrixXf>(10));
