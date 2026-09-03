@@ -313,8 +313,7 @@ perform no per-call allocations. In debug builds each call verifies the
 factorization status (one stream synchronization); release builds
 (`EIGEN_NO_DEBUG`/`NDEBUG`) skip the check *and* the sync, making the
 expression fully asynchronous — use the cached `gpu::LLT` / `gpu::LDLT` /
-`gpu::LU` classes
-and `info()` when numerical failure must be detected.
+`gpu::LU` classes and `info()` when numerical failure must be detected.
 
 **Cached factorization** -- Factor once, solve many times:
 

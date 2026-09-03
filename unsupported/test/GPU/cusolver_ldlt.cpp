@@ -70,6 +70,10 @@ MatrixType make_antidiagonal_indefinite(Index n) {
   return A;
 }
 
+// Either generator above, for the tests that run against both.
+template <typename Scalar>
+using MatrixGenerator = TestMatrix<Scalar> (*)(Index);
+
 // Normalized by ||A|| ||X|| rather than ||B|| to be condition-number agnostic.
 template <typename MatrixType>
 typename NumTraits<typename MatrixType::Scalar>::Real backward_error(const MatrixType& A, const MatrixType& X,
@@ -102,7 +106,7 @@ void test_matrices_are_indefinite() {
 // ---- Factorization + solve (host path) --------------------------------------
 
 template <typename Scalar, int UpLo>
-void test_sytrf_sytrs(Index n, Index nrhs, TestMatrix<Scalar> (*make)(Index)) {
+void test_sytrf_sytrs(Index n, Index nrhs, MatrixGenerator<Scalar> make) {
   using MatrixType = TestMatrix<Scalar>;
   using RealScalar = typename NumTraits<Scalar>::Real;
 
@@ -368,7 +372,7 @@ void test_non_plain_input(Index n) {
 // ---- One-shot expression: d_X = d_A.ldlt().solve(d_B) ------------------------
 
 template <typename Scalar, int UpLo>
-void test_solve_expr(Index n, Index nrhs, TestMatrix<Scalar> (*make)(Index)) {
+void test_solve_expr(Index n, Index nrhs, MatrixGenerator<Scalar> make) {
   using MatrixType = TestMatrix<Scalar>;
   using RealScalar = typename NumTraits<Scalar>::Real;
 
@@ -414,7 +418,7 @@ void test_solve_expr_default_triangle(Index n) {
 // ---- Inverse (sytri) -----------------------------------------------------------
 
 template <typename Scalar, int UpLo>
-void test_sytri(Index n, TestMatrix<Scalar> (*make)(Index)) {
+void test_sytri(Index n, MatrixGenerator<Scalar> make) {
   using MatrixType = TestMatrix<Scalar>;
   using RealScalar = typename NumTraits<Scalar>::Real;
 
@@ -441,8 +445,8 @@ void test_scalar() {
   using MatrixType = TestMatrix<Scalar>;
   constexpr int L = Lower | kSymmetricBit<Scalar>;
   constexpr int U = Upper | kSymmetricBit<Scalar>;
-  MatrixType (*const shifted)(Index) = make_symmetric_indefinite<MatrixType>;
-  MatrixType (*const antidiagonal)(Index) = make_antidiagonal_indefinite<MatrixType>;
+  const MatrixGenerator<Scalar> shifted = make_symmetric_indefinite<MatrixType>;
+  const MatrixGenerator<Scalar> antidiagonal = make_antidiagonal_indefinite<MatrixType>;
 
   CALL_SUBTEST((test_context_bound_solver<Scalar, L>(64, 4)));
   CALL_SUBTEST((test_sytrf_sytrs<Scalar, L>(1, 1, shifted)));

@@ -236,9 +236,8 @@ class LDLT {
    * Only the UpLo triangle of the result holds inv(A), as in cuSOLVER; the
    * other triangle is unspecified. Asynchronous under the same workspace-growth
    * caveat as solve(DeviceMatrix); the factorization is left intact for further
-   * solves. sytri's own status
-   * word is not surfaced: the zero pivot it would report is already visible
-   * through info(). */
+   * solves. sytri's own status word is not surfaced: the zero pivot it would
+   * report is already visible through info(). */
   DeviceMatrix<Scalar> inverse() const {
     eigen_assert(solver_ctx_.info() == Success && "LDLT::inverse called on a failed or uninitialized factorization");
     constexpr cublasFillMode_t uplo = internal::ldlt_fill_mode<Scalar, UpLo_>::value;
@@ -274,7 +273,7 @@ class LDLT {
   int64_t lda_ = 0;
 
   int* pivots32() const { return static_cast<int*>(d_ipiv32_.get()); }
-  const int64_t* pivots64() const { return static_cast<const int64_t*>(d_ipiv64_.get()); }
+  int64_t* pivots64() const { return static_cast<int64_t*>(d_ipiv64_.get()); }
 
   bool begin_compute(Index rows) {
     n_ = rows;
@@ -335,9 +334,8 @@ class LDLT {
     EIGEN_CUSOLVER_CHECK(internal::cusolverDnXsytrf(solver_ctx_.cusolverHandle(), uplo, n, d_factor, lda, pivots32(),
                                                     static_cast<Scalar*>(solver_ctx_.scratch_workspace()), lwork,
                                                     solver_ctx_.scratch_info()));
-    internal::widen_pivots(pivots32(), static_cast<int64_t*>(d_ipiv64_.get()),
-                           static_cast<double*>(solver_ctx_.scratch_workspace()), static_cast<size_t>(n),
-                           solver_ctx_.stream());
+    internal::widen_pivots(pivots32(), pivots64(), static_cast<double*>(solver_ctx_.scratch_workspace()),
+                           static_cast<size_t>(n), solver_ctx_.stream());
 
     solver_ctx_.enqueue_info_copy();
   }

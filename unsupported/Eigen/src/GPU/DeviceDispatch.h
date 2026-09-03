@@ -207,7 +207,7 @@ void dispatch(Context& ctx, DeviceMatrix<Scalar>& dst, const LdltSolveExpr<Scala
   ensure_sized(scratch.d_ipiv32, static_cast<size_t>(n) * sizeof(int));
   ensure_sized(scratch.d_ipiv, static_cast<size_t>(n) * sizeof(int64_t));
   int* d_ipiv32 = static_cast<int*>(scratch.d_ipiv32.get());
-  int64_t* d_ipiv = static_cast<int64_t*>(scratch.d_ipiv.get());
+  int64_t* d_ipiv64 = static_cast<int64_t*>(scratch.d_ipiv.get());
 
   dst.resize(n, B.cols());
   EIGEN_CUDA_RUNTIME_CHECK(
@@ -220,7 +220,7 @@ void dispatch(Context& ctx, DeviceMatrix<Scalar>& dst, const LdltSolveExpr<Scala
   EIGEN_CUSOLVER_CHECK(cusolverDnXsytrf_bufferSize(ctx.cusolverHandle(), n, d_factor, n, &lwork));
   size_t dev_ws = 0;
   size_t host_ws = 0;
-  EIGEN_CUSOLVER_CHECK(cusolverDnXsytrs_bufferSize(ctx.cusolverHandle(), uplo, n, nrhs, dtype, d_factor, n, d_ipiv,
+  EIGEN_CUSOLVER_CHECK(cusolverDnXsytrs_bufferSize(ctx.cusolverHandle(), uplo, n, nrhs, dtype, d_factor, n, d_ipiv64,
                                                    dtype, dst.data(), ldb, &dev_ws, &host_ws));
   ensure_sized(scratch.d_workspace, std::max({static_cast<size_t>(lwork) * sizeof(Scalar),
                                               static_cast<size_t>(n) * sizeof(double), dev_ws}));
@@ -230,8 +230,9 @@ void dispatch(Context& ctx, DeviceMatrix<Scalar>& dst, const LdltSolveExpr<Scala
   int* d_info_sytrs = d_info_sytrf + 1;
   EIGEN_CUSOLVER_CHECK(cusolverDnXsytrf(ctx.cusolverHandle(), uplo, n, d_factor, n, d_ipiv32,
                                         static_cast<Scalar*>(scratch.d_workspace.get()), lwork, d_info_sytrf));
-  widen_pivots(d_ipiv32, d_ipiv, static_cast<double*>(scratch.d_workspace.get()), static_cast<size_t>(n), ctx.stream());
-  EIGEN_CUSOLVER_CHECK(cusolverDnXsytrs(ctx.cusolverHandle(), uplo, n, nrhs, dtype, d_factor, n, d_ipiv, dtype,
+  widen_pivots(d_ipiv32, d_ipiv64, static_cast<double*>(scratch.d_workspace.get()), static_cast<size_t>(n),
+               ctx.stream());
+  EIGEN_CUSOLVER_CHECK(cusolverDnXsytrs(ctx.cusolverHandle(), uplo, n, nrhs, dtype, d_factor, n, d_ipiv64, dtype,
                                         dst.data(), ldb, scratch.d_workspace.get(), dev_ws,
                                         host_ws > 0 ? scratch.h_workspace.data() : nullptr, host_ws, d_info_sytrs));
   oneshot_check_info(ctx, scratch, "ldlt");
