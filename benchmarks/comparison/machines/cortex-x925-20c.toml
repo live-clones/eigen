@@ -1,0 +1,106 @@
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
+
+# Machine profile for the comparison harness. See CONTRACTS.md section 7.
+
+schema_version = "1.0.0"
+
+id = "cortex-x925-20c"
+display_name = "Arm Cortex-X925 + Cortex-A725 (10+10 cores), Ubuntu 24.04"
+# NOT PROBED: aarch64 Linux /proc/cpuinfo carries no "model name" line, so
+# run.py falls back to this string with no provenance_gaps entry. Read off
+# `lscpu` by hand. This part reports TWO model names, one per cluster; the
+# profile can only carry one, and the pinning below makes it the true one.
+cpu_model = "Cortex-X925"
+arch = "aarch64"
+
+locally_verified = true
+
+isa_targets = ["aarch64-neon", "aarch64-sve"]
+default_isa_target = "aarch64-neon"
+
+sockets = 1
+cores_per_socket = 20
+threads_per_core = 1
+smt_enabled = false
+numa_nodes = 1
+
+max_load_avg = 0.5
+
+microarchitecture = "Arm Cortex-X925 (ARMv9.2-A) + Cortex-A725"
+
+[memory]
+benchmark_budget_bytes = 34359738368
+
+notes = """
+Heterogeneous big.LITTLE part: 10 Cortex-X925 performance cores and 10
+Cortex-A725 efficiency cores, all single-threaded, sharing 24 MiB of L3 in three
+8 MiB slices. `lscpu` reports two "Model name" values for this reason.
+
+Unlike the other heterogeneous machine in this directory (apple-m4), this one
+runs Linux and therefore *can* be confined to the performance cores:
+[pinning].cpu_list below is the X925 cluster, so a measurement here is a
+performance-core measurement rather than "whatever core the scheduler chose".
+That makes it the better of the two for a published single-threaded number.
+
+SVE2 at a 128-bit vector length (/proc/sys/abi/sve_default_vector_length is 16
+bytes), plus i8mm and bf16.
+
+NVPL is the reference arm that matches this hardware; OpenBLAS is carried
+alongside it so a number from here can be compared with the x86 hosts, which have
+no NVPL. Both were installed by the machine's owner -- this account has no sudo,
+so a missing package here is a request, not a command.
+"""
+
+[frequency]
+governor = "performance"
+pinned = true
+
+[pinning]
+# The X925 performance cluster. Verified against the per-CPU capacity: the big
+# cores are 5-9 and 15-19, not a contiguous leading range, so "0-9" would pin to
+# a mix of both clusters and produce a bimodal measurement.
+tool = "taskset"
+cpu_list = "5-9,15-19"
+omp_proc_bind = "close"
+omp_places = "cores"
+
+[build]
+generator = "Ninja"
+build_type = "Release"
+cxx_standard = 17
+
+[isa."aarch64-neon"]
+flags = []
+cmake_options = ["-DEIGEN_BENCH_ISA_TARGET=aarch64-neon"]
+
+[isa."aarch64-sve"]
+flags = ["-march=armv9-a+sve2", "-msve-vector-bits=128", "-DEIGEN_ARM64_USE_SVE"]
+cmake_options = ["-DEIGEN_BENCH_ISA_TARGET=aarch64-sve"]
+
+# --------------------------------------------------------------------------
+# Reference arms
+# --------------------------------------------------------------------------
+
+[arms.nvpl]
+library_name = "NVPL BLAS"
+cmake_options = ["-DEIGEN_BENCH_REFERENCE=nvpl"]
+# vendors.cmake tries the shipped nvpl_blas CMake config package before
+# BLA_VENDOR NVPL, which FindBLAS only learned in CMake 4.1; this host has 3.28,
+# so the config package is the path that resolves. NVPL answers
+# nvpl_blas_get_version() at runtime, so this fallback should not reach a result
+# file.
+version_fallback = "NVPL BLAS 0.6.0"
+threading_model = "sequential"
+interface = "lp64"
+provides = ["blas", "cblas", "lapack"]
+thread_env = { NVPL_BLAS_NUM_THREADS = "{threads}" }
+
+[arms.openblas]
+library_name = "OpenBLAS"
+cmake_options = ["-DEIGEN_BENCH_REFERENCE=openblas"]
+version_fallback = "OpenBLAS 0.3.26"
+threading_model = "pthreads"
+interface = "lp64"
+provides = ["blas", "cblas", "lapack"]
+thread_env = { OPENBLAS_NUM_THREADS = "{threads}" }

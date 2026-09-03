@@ -1,0 +1,375 @@
+{
+  "arms": {
+    "accelerate": {
+      "kind": "reference",
+      "library_name": "Apple Accelerate",
+      "library_version": "macOS 15.6"
+    },
+    "eigen": {
+      "kind": "eigen",
+      "library_name": "Eigen",
+      "library_version": "5.0.1-master"
+    }
+  },
+  "baseline": "accelerate",
+  "cells": [
+    {
+      "arms": {
+        "accelerate": {
+          "cv": 0.14826,
+          "gflops": 5.0,
+          "gflops_mad": 0.5,
+          "reps": 10,
+          "run_id": "run-a",
+          "state": "measured",
+          "time_mad_s": 5.5296e-07,
+          "time_s": 5.5296e-06
+        },
+        "eigen": {
+          "cv": 0.0926625,
+          "gflops": 8.0,
+          "gflops_mad": 0.5,
+          "reps": 10,
+          "run_id": "run-a",
+          "state": "measured",
+          "time_mad_s": 2.16e-07,
+          "time_s": 3.456e-06
+        }
+      },
+      "config_id": "m4pro__aarch64-neon__appleclang17__e2a2fda17__t1",
+      "flops_nominal": false,
+      "flops_per_iteration": 27648.0,
+      "op": "GEMM",
+      "op_family": "blas3",
+      "ratio": 1.6,
+      "ratio_state": "ok",
+      "scalar": "f64",
+      "shape": {
+        "k": 24,
+        "m": 24,
+        "n": 24
+      },
+      "shape_dims": [
+        "m",
+        "n",
+        "k"
+      ],
+      "shape_group": "small",
+      "size_key": 24
+    },
+    {
+      "arms": {
+        "accelerate": {
+          "cv": 0.07413,
+          "gflops": 10.0,
+          "gflops_mad": 0.5,
+          "reps": 10,
+          "run_id": "run-a",
+          "state": "measured",
+          "time_mad_s": 3.2768e-07,
+          "time_s": 6.5536e-06
+        },
+        "eigen": {
+          "cv": 0.05295,
+          "gflops": 14.0,
+          "gflops_mad": 0.5,
+          "reps": 10,
+          "run_id": "run-a",
+          "state": "measured",
+          "time_mad_s": 1.6718367346938776e-07,
+          "time_s": 4.681142857142857e-06
+        }
+      },
+      "config_id": "m4pro__aarch64-neon__appleclang17__e2a2fda17__t1",
+      "flops_nominal": false,
+      "flops_per_iteration": 65536.0,
+      "op": "GEMM",
+      "op_family": "blas3",
+      "ratio": 1.4,
+      "ratio_state": "ok",
+      "scalar": "f64",
+      "shape": {
+        "k": 32,
+        "m": 32,
+        "n": 32
+      },
+      "shape_dims": [
+        "m",
+        "n",
+        "k"
+      ],
+      "shape_group": "small",
+      "size_key": 32
+    },
+    {
+      "arms": {
+        "accelerate": {
+          "cv": 0.02471,
+          "gflops": 30.0,
+          "gflops_mad": 0.5,
+          "reps": 10,
+          "run_id": "run-a",
+          "state": "measured",
+          "time_mad_s": 1.2288e-07,
+          "time_s": 7.3728e-06
+        },
+        "eigen": {
+          "cv": 0.026475,
+          "gflops": 28.0,
+          "gflops_mad": 0.5,
+          "reps": 10,
+          "run_id": "run-a",
+          "state": "measured",
+          "time_mad_s": 1.4106122448979592e-07,
+          "time_s": 7.899428571428571e-06
+        }
+      },
+      "config_id": "m4pro__aarch64-neon__appleclang17__e2a2fda17__t1",
+      "flops_nominal": false,
+      "flops_per_iteration": 221184.0,
+      "op": "GEMM",
+      "op_family": "blas3",
+      "ratio": 0.9333333333333333,
+      "ratio_state": "ok",
+      "scalar": "f64",
+      "shape": {
+        "k": 48,
+        "m": 48,
+        "n": 48
+      },
+      "shape_dims": [
+        "m",
+        "n",
+        "k"
+      ],
+      "shape_group": "small",
+      "size_key": 48
+    },
+    {
+      "arms": {
+        "accelerate": {
+          "cv": 0.012355,
+          "gflops": 60.0,
+          "gflops_mad": 0.5,
+          "reps": 10,
+          "run_id": "run-a",
+          "state": "measured",
+          "time_mad_s": 7.281777777777778e-08,
+          "time_s": 8.738133333333334e-06
+        },
+        "eigen": {
+          "cv": 0.016473333333333333,
+          "gflops": 45.0,
+          "gflops_mad": 0.5,
+          "reps": 10,
+          "run_id": "run-a",
+          "state": "measured",
+          "time_mad_s": 1.2945382716049381e-07,
+          "time_s": 1.1650844444444444e-05
+        }
+      },
+      "config_id": "m4pro__aarch64-neon__appleclang17__e2a2fda17__t1",
+      "flops_nominal": false,
+      "flops_per_iteration": 524288.0,
+      "op": "GEMM",
+      "op_family": "blas3",
+      "ratio": 0.75,
+      "ratio_state": "ok",
+      "scalar": "f64",
+      "shape": {
+        "k": 64,
+        "m": 64,
+        "n": 64
+      },
+      "shape_dims": [
+        "m",
+        "n",
+        "k"
+      ],
+      "shape_group": "small",
+      "size_key": 64
+    },
+    {
+      "arms": {
+        "accelerate": {
+          "cv": 0.09884,
+          "gflops": 90.0,
+          "gflops_mad": 6.0,
+          "reps": 10,
+          "run_id": "run-a",
+          "state": "measured",
+          "time_mad_s": 1.31072e-06,
+          "time_s": 1.96608e-05
+        },
+        "eigen": {
+          "cv": 0.11404615384615384,
+          "gflops": 78.0,
+          "gflops_mad": 6.0,
+          "reps": 10,
+          "run_id": "run-a",
+          "state": "measured",
+          "time_mad_s": 1.7450414201183431e-06,
+          "time_s": 2.268553846153846e-05
+        }
+      },
+      "config_id": "m4pro__aarch64-neon__appleclang17__e2a2fda17__t1",
+      "flops_nominal": false,
+      "flops_per_iteration": 1769472.0,
+      "op": "GEMM",
+      "op_family": "blas3",
+      "ratio": 0.8666666666666667,
+      "ratio_state": "inconclusive",
+      "scalar": "f64",
+      "shape": {
+        "k": 96,
+        "m": 96,
+        "n": 96
+      },
+      "shape_dims": [
+        "m",
+        "n",
+        "k"
+      ],
+      "shape_group": "small",
+      "size_key": 96
+    },
+    {
+      "arms": {
+        "accelerate": {
+          "detail": "The reference build in this contribution did not register m=n=k=128",
+          "reason": "reference_routine_absent",
+          "state": "not_measured"
+        },
+        "eigen": {
+          "cv": 0.01544375,
+          "gflops": 96.0,
+          "gflops_mad": 1.0,
+          "reps": 10,
+          "run_id": "run-a",
+          "state": "measured",
+          "time_mad_s": 4.551111111111111e-07,
+          "time_s": 4.3690666666666665e-05
+        }
+      },
+      "config_id": "m4pro__aarch64-neon__appleclang17__e2a2fda17__t1",
+      "flops_nominal": false,
+      "flops_per_iteration": 4194304.0,
+      "op": "GEMM",
+      "op_family": "blas3",
+      "ratio": null,
+      "ratio_state": "not_measured",
+      "scalar": "f64",
+      "shape": {
+        "k": 128,
+        "m": 128,
+        "n": 128
+      },
+      "shape_dims": [
+        "m",
+        "n",
+        "k"
+      ],
+      "shape_group": "small",
+      "size_key": 128
+    },
+    {
+      "arms": {
+        "accelerate": {
+          "detail": "No LAPACK driver: complete-pivoting LU (the deprecated ?gefa family aside) has no supported netlib equivalent.",
+          "reason": "no_reference_equivalent",
+          "state": "not_measured"
+        },
+        "eigen": {
+          "cv": 0.01882666666666667,
+          "gflops": 31.5,
+          "gflops_mad": 0.4,
+          "reps": 10,
+          "run_id": "run-a",
+          "state": "measured",
+          "time_mad_s": 7.21418878978752e-05,
+          "time_s": 0.005681173671957673
+        }
+      },
+      "config_id": "m4pro__aarch64-neon__appleclang17__e2a2fda17__t1",
+      "flops_nominal": true,
+      "flops_per_iteration": 178956970.6666667,
+      "op": "FULLPIVLU",
+      "op_family": "eigen-only",
+      "ratio": null,
+      "ratio_state": "no_reference_equivalent",
+      "scalar": "f64",
+      "shape": {
+        "m": 512,
+        "n": 512
+      },
+      "shape_dims": [
+        "m",
+        "n"
+      ],
+      "shape_group": "medium",
+      "size_key": 512
+    }
+  ],
+  "configs": {
+    "m4pro__aarch64-neon__appleclang17__e2a2fda17__t1": {
+      "compiler": "AppleClang 17.0.0",
+      "cpu_model": "Apple M4 Pro",
+      "cxx_flags": [
+        "-O3",
+        "-DNDEBUG"
+      ],
+      "eigen_commit": "e2a2fda17c0b1d3e4f5a6b7c8d9e0f1a2b3c4d5e",
+      "eigen_commit_short": "e2a2fda17",
+      "eigen_dirty": false,
+      "isa_target": "aarch64-neon",
+      "machine_config_id": "m4pro",
+      "provenance_refs": [
+        "m4pro-neon-accelerate-e2a2fda17-20260801T120000Z"
+      ],
+      "threads": 1
+    }
+  },
+  "conflicts": [],
+  "coverage": {
+    "configs": [
+      "m4pro__aarch64-neon__appleclang17__e2a2fda17__t1"
+    ],
+    "missing_configs": [],
+    "ops": {
+      "FULLPIVLU": {
+        "arms": [
+          "accelerate",
+          "eigen"
+        ],
+        "measured": 1,
+        "not_measured": 1,
+        "unaccounted": 0
+      },
+      "GEMM": {
+        "arms": [
+          "accelerate",
+          "eigen"
+        ],
+        "measured": 11,
+        "not_measured": 1,
+        "unaccounted": 0
+      }
+    },
+    "scalars": {
+      "f64": {
+        "measured": 12,
+        "not_measured": 2
+      }
+    },
+    "totals": {
+      "measured": 12,
+      "not_measured": 2,
+      "unaccounted": 0
+    }
+  },
+  "generated_utc": "2026-08-20T00:00:00Z",
+  "kind": "eigen-benchmark-comparison-merged",
+  "ops_toml_sha256": "d1c18c382f89d82e657ce5e8c47a718bdfd874a165783c0ce28b262615cf5051",
+  "reducer_version": "1.0.0",
+  "schema_version": "1.0.0"
+}

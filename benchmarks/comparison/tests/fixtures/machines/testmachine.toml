@@ -1,0 +1,29 @@
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
+
+# A machine config for the tests only.  It is deliberately NOT in
+# benchmarks/comparison/machines/: the test suite must not depend on which real
+# hosts happen to be registered, and must not write into a directory it does not
+# own.  CONTRACTS.md section 7 fixes every key below.
+schema_version = "1.0.0"
+id = "testmachine"
+display_name = "Synthetic test machine"
+cpu_model = "Synthetic CPU"
+arch = "arm64"
+isa_targets = ["aarch64-neon"]
+default_isa_target = "aarch64-neon"
+sockets = 1
+cores_per_socket = 4
+threads_per_core = 1
+smt_enabled = false
+numa_nodes = 1
+max_load_avg = 1000.0
+
+[frequency]
+governor = ""
+pinned = false
+
+[arms.accelerate]
+cmake_options = ["-DEIGEN_BENCH_REFERENCE=accelerate"]
+version_fallback = "macOS 15.6 (Accelerate)"
+thread_env = { VECLIB_MAXIMUM_THREADS = "1" }

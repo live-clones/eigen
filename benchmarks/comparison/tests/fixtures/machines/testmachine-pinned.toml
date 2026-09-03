@@ -1,0 +1,36 @@
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
+
+# A machine that ASKS to be pinned. On a platform with no affinity API the
+# harness must record that the request could not be honoured; silently running
+# unpinned is how a hybrid performance/efficiency-core part produces numbers
+# that depend on which core the scheduler picked.
+schema_version = "1.0.0"
+id = "testmachine-pinned"
+display_name = "Synthetic pinned test machine"
+cpu_model = "Synthetic CPU"
+arch = "x86_64"
+isa_targets = ["x86-64-avx2"]
+default_isa_target = "x86-64-avx2"
+sockets = 2
+cores_per_socket = 8
+threads_per_core = 2
+smt_enabled = true
+numa_nodes = 2
+max_load_avg = 1000.0
+
+[frequency]
+governor = "performance"
+pinned = true
+
+[pinning]
+tool = "taskset"
+cpu_list = "0-7"
+omp_proc_bind = "close"
+omp_places = "cores"
+
+[arms.openblas]
+library_name = "OpenBLAS"
+cmake_options = ["-DEIGEN_BENCH_REFERENCE=openblas"]
+version_fallback = "0.3.99"
+thread_env = { OPENBLAS_NUM_THREADS = "{threads}" }
