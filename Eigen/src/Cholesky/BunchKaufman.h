@@ -361,9 +361,14 @@ class BunchKaufman : public SolverBase<BunchKaufman<MatrixType_, UpLo_> > {
   /** \internal Compute the inertia (counts of positive / negative / zero eigenvalues) from D. */
   void computeInertia();
 
+  /** \internal \returns \f$ \det(D_k)/|d_{21}|^2 \f$ for a 2x2 block of D, which is real and shares the
+   * sign of \f$ \det(D_k) \f$ since \f$ |d_{21}| > 0 \f$ there. */
+  static RealScalar scaledBlockDeterminant(const RealScalar& d11, const RealScalar& d22, const RealScalar& d21);
+
   /** \internal \returns \f$ \det(D) \f$, the product over the 1x1 and 2x2 diagonal blocks of D. D is
    * Hermitian, so a block determinant is real: \f$ d_{11} \f$ for a 1x1 block and
-   * \f$ d_{11} d_{22} - |d_{21}|^2 \f$ for a 2x2 one. */
+   * \f$ d_{11} d_{22} - |d_{21}|^2 \f$ for a 2x2 one. Accumulated as a mantissa and a power of two,
+   * so that only the result has to be representable. */
   RealScalar determinantD() const;
 
   MatrixType m_matrix;
@@ -862,6 +867,18 @@ void BunchKaufman<MatrixType, UpLo_>::solveInPlaceD(MatrixBase<Derived>& x) cons
   }
 }
 
+// det(D_k) itself over- or underflows on an extreme-scaled 2x2 block, so it is only ever formed scaled by
+// |d21|^2. Divide by |d21| twice rather than multiply by its reciprocal, which overflows once |d21| is
+// subnormal. The pivot criterion bounds |q| by a^2 < 1 with a = (1+sqrt(17))/8, so q >= 1 or NaN is an
+// artifact of d22/d21 overflowing -- the criterion bounds |d22| only against its own row -- and
+// det(D_k) = -|d21|^2 to within that same bound there.
+template <typename MatrixType, int UpLo_>
+typename BunchKaufman<MatrixType, UpLo_>::RealScalar BunchKaufman<MatrixType, UpLo_>::scaledBlockDeterminant(
+    const RealScalar& d11, const RealScalar& d22, const RealScalar& d21) {
+  const RealScalar q = (d11 / d21) * (d22 / d21);
+  return q < RealScalar(1) ? q - RealScalar(1) : RealScalar(-1);
+}
+
 template <typename MatrixType, int UpLo_>
 void BunchKaufman<MatrixType, UpLo_>::computeInertia() {
   const Index n = m_matrix.rows();
@@ -872,13 +889,7 @@ void BunchKaufman<MatrixType, UpLo_>::computeInertia() {
       const RealScalar d11 = numext::real(m_matrix.coeff(k, k));
       const RealScalar d22 = numext::real(m_matrix.coeff(k + 1, k + 1));
       const RealScalar d21 = numext::abs(m_subdiag.coeff(k));
-      // denom = det(D_k)/|d21|^2, and |d21| > 0 for a 2x2 block, so sign(denom) == sign(det); det itself
-      // over/underflows on an extreme-scaled block. Divide by |d21| twice rather than multiply by its
-      // reciprocal, which overflows once |d21| is subnormal. The pivot criterion bounds |q| by a^2 < 1
-      // with a = (1+sqrt(17))/8, so q >= 1 or NaN is an artifact of d22/d21 overflowing -- the criterion
-      // bounds |d22| only against its own row -- and det = -|d21|^2 to within that same bound there.
-      const RealScalar q = (d11 / d21) * (d22 / d21);
-      const RealScalar denom = q < RealScalar(1) ? q - RealScalar(1) : RealScalar(-1);
+      const RealScalar denom = scaledBlockDeterminant(d11, d22, d21);
       if (denom < RealScalar(0)) {
         // Indefinite 2x2 block: one positive and one negative eigenvalue.
         ++m_n_pos;
@@ -983,21 +994,38 @@ bool BunchKaufman<MatrixType, UpLo_>::solveInPlace(MatrixBase<Derived>& bAndX) c
 template <typename MatrixType, int UpLo_>
 typename BunchKaufman<MatrixType, UpLo_>::RealScalar BunchKaufman<MatrixType, UpLo_>::determinantD() const {
   const Index n = m_matrix.rows();
-  RealScalar det(1);
+  // det(D) is accumulated as mantissa * 2^exponent, the mantissa renormalized to [1/2, 1) after each
+  // block. Both a single 2x2 block determinant and the running product can leave the representable range
+  // while det(D) itself stays in it, and an overflowed block meeting an underflowed one gives NaN.
+  RealScalar mantissa(1);
+  Index exponent = 0;
   Index k = 0;
   while (k < n) {
-    const RealScalar d11 = numext::real(m_matrix.coeff(k, k));
+    RealScalar blockM, blockE;
     if (k + 1 < n && !numext::is_exactly_zero(m_subdiag.coeff(k))) {
+      const RealScalar d11 = numext::real(m_matrix.coeff(k, k));
       const RealScalar d22 = numext::real(m_matrix.coeff(k + 1, k + 1));
       const RealScalar d21 = numext::abs(m_subdiag.coeff(k));
-      det *= d11 * d22 - d21 * d21;
+      RealScalar e21;
+      const RealScalar m21 = internal::pfrexp<RealScalar>(d21, e21);
+      blockM = m21 * m21 * scaledBlockDeterminant(d11, d22, d21);
+      blockE = RealScalar(2) * e21;
       k += 2;
     } else {
-      det *= d11;
+      blockM = internal::pfrexp<RealScalar>(numext::real(m_matrix.coeff(k, k)), blockE);
       k += 1;
     }
+    // |blockM| < 2 and, unless the block is singular, above 1/16, so the product below stays normal and
+    // its rounding is the only error this step adds.
+    RealScalar renorm;
+    mantissa = internal::pfrexp<RealScalar>(mantissa * blockM, renorm);
+    exponent += Index(blockE) + Index(renorm);
   }
-  return det;
+  // ldexp() saturates to zero or infinity but takes an int exponent; past this magnitude it has already
+  // saturated, so clamping first cannot change the result.
+  const Index limit = Index(NumTraits<RealScalar>::max_exponent()) - Index(NumTraits<RealScalar>::min_exponent()) +
+                      Index(NumTraits<RealScalar>::digits());
+  return numext::ldexp(mantissa, int(numext::mini(numext::maxi(exponent, -limit), limit)));
 }
 
 // A = P^T L D L^* P with L unit triangular, so det(A) = det(D) = prod over the 1x1 and 2x2 blocks of D.
@@ -1022,14 +1050,11 @@ typename BunchKaufman<MatrixType, UpLo_>::RealScalar BunchKaufman<MatrixType, Up
   Index k = 0;
   while (k < n) {
     if (k + 1 < n && !numext::is_exactly_zero(m_subdiag.coeff(k))) {
-      // det = |d21|^2 * ((d11/|d21|) (d22/|d21|) - 1), so log|det| = 2 log|d21| + log|scaled|; forming
-      // d11 d22 - |d21|^2 directly would over/underflow on extreme-scaled 2x2 blocks. Scale exactly as
-      // computeInertia() does, including its bound test on the scaled product.
+      // log|det(D_k)| = 2 log|d21| + log|det(D_k)/|d21|^2|.
       const RealScalar d11 = numext::real(m_matrix.coeff(k, k));
       const RealScalar d22 = numext::real(m_matrix.coeff(k + 1, k + 1));
       const RealScalar d21 = numext::abs(m_subdiag.coeff(k));
-      const RealScalar q = (d11 / d21) * (d22 / d21);
-      const RealScalar scaled = q < RealScalar(1) ? q - RealScalar(1) : RealScalar(-1);
+      const RealScalar scaled = scaledBlockDeterminant(d11, d22, d21);
       result += RealScalar(2) * numext::log(d21) + numext::log(numext::abs(scaled));
       k += 2;
     } else {
