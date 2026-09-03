@@ -872,10 +872,13 @@ void BunchKaufman<MatrixType, UpLo_>::computeInertia() {
       const RealScalar d11 = numext::real(m_matrix.coeff(k, k));
       const RealScalar d22 = numext::real(m_matrix.coeff(k + 1, k + 1));
       const RealScalar d21 = numext::abs(m_subdiag.coeff(k));
-      // Scaled determinant denom = det/|d21|^2 (|d21| > 0 for a 2x2 block), so sign(denom) == sign(det);
-      // avoids forming det = d11*d22 - |d21|^2, which over/underflows on extreme-scaled 2x2 blocks.
-      // Divide by |d21| rather than multiply by its reciprocal, which overflows once |d21| is subnormal.
-      const RealScalar denom = (d11 / d21) * (d22 / d21) - RealScalar(1);
+      // denom = det(D_k)/|d21|^2, and |d21| > 0 for a 2x2 block, so sign(denom) == sign(det); det itself
+      // over/underflows on an extreme-scaled block. Divide by |d21| twice rather than multiply by its
+      // reciprocal, which overflows once |d21| is subnormal. The pivot criterion bounds |q| by a^2 < 1
+      // with a = (1+sqrt(17))/8, so q >= 1 or NaN is an artifact of d22/d21 overflowing -- the criterion
+      // bounds |d22| only against its own row -- and det = -|d21|^2 to within that same bound there.
+      const RealScalar q = (d11 / d21) * (d22 / d21);
+      const RealScalar denom = q < RealScalar(1) ? q - RealScalar(1) : RealScalar(-1);
       if (denom < RealScalar(0)) {
         // Indefinite 2x2 block: one positive and one negative eigenvalue.
         ++m_n_pos;
@@ -1020,12 +1023,13 @@ typename BunchKaufman<MatrixType, UpLo_>::RealScalar BunchKaufman<MatrixType, Up
   while (k < n) {
     if (k + 1 < n && !numext::is_exactly_zero(m_subdiag.coeff(k))) {
       // det = |d21|^2 * ((d11/|d21|) (d22/|d21|) - 1), so log|det| = 2 log|d21| + log|scaled|; forming
-      // d11 d22 - |d21|^2 directly would over/underflow on extreme-scaled 2x2 blocks. Divide by |d21|
-      // rather than multiply by its reciprocal, which overflows once |d21| is subnormal.
+      // d11 d22 - |d21|^2 directly would over/underflow on extreme-scaled 2x2 blocks. Scale exactly as
+      // computeInertia() does, including its bound test on the scaled product.
       const RealScalar d11 = numext::real(m_matrix.coeff(k, k));
       const RealScalar d22 = numext::real(m_matrix.coeff(k + 1, k + 1));
       const RealScalar d21 = numext::abs(m_subdiag.coeff(k));
-      const RealScalar scaled = (d11 / d21) * (d22 / d21) - RealScalar(1);
+      const RealScalar q = (d11 / d21) * (d22 / d21);
+      const RealScalar scaled = q < RealScalar(1) ? q - RealScalar(1) : RealScalar(-1);
       result += RealScalar(2) * numext::log(d21) + numext::log(numext::abs(scaled));
       k += 2;
     } else {
