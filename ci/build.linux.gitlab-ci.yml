@@ -782,7 +782,7 @@ build:linux:riscv64:clang-21:default:
 # riscv64 smoke tests, which need a self-hosted runner no fork has.  See
 # test.linux.gitlab-ci.yml.
 build:linux:riscv64:gcc-15:default:smoketest:
-  extends: build:linux:riscv64:gcc-15:default
+  extends: [ build:linux:riscv64:gcc-15:default, .smoketest:build ]
   variables:
     EIGEN_CI_BUILD_TARGET: buildsmoketests
   rules: !reference [.rules:libeigen:smoketest:upstream-runner, rules]
@@ -790,7 +790,7 @@ build:linux:riscv64:gcc-15:default:smoketest:
     - saas-linux-large-amd64
 
 build:linux:riscv64:clang-21:default:smoketest:
-  extends: build:linux:riscv64:clang-21:default
+  extends: [ build:linux:riscv64:clang-21:default, .smoketest:build ]
   variables:
     EIGEN_CI_BUILD_TARGET: buildsmoketests
   rules: !reference [.rules:libeigen:smoketest:upstream-runner, rules]
@@ -802,7 +802,7 @@ build:linux:riscv64:clang-21:default:smoketest:
 # Tests run on their respective native runners (see test.linux.gitlab-ci.yml).
 
 build:linux:cross:x86-64:gcc-10:default:smoketest:
-  extends: build:linux:cross:x86-64:gcc-10:default
+  extends: [ build:linux:cross:x86-64:gcc-10:default, .smoketest:build ]
   image: ${EIGEN_CI_IMAGE_LINUX_AMD64_SMOKETEST_BUILD}
   variables:
     EIGEN_CI_SKIP_APT: "true"
@@ -812,7 +812,7 @@ build:linux:cross:x86-64:gcc-10:default:smoketest:
     - saas-linux-large-amd64
 
 build:linux:cross:x86-64:clang-14:default:smoketest:
-  extends: build:linux:cross:x86-64:clang-14:default
+  extends: [ build:linux:cross:x86-64:clang-14:default, .smoketest:build ]
   image: ${EIGEN_CI_IMAGE_LINUX_AMD64_SMOKETEST_BUILD}
   variables:
     EIGEN_CI_SKIP_APT: "true"
@@ -822,7 +822,7 @@ build:linux:cross:x86-64:clang-14:default:smoketest:
     - saas-linux-large-amd64
 
 build:linux:aarch64:gcc-10:default:smoketest:
-  extends: build:linux:cross:aarch64:gcc-10:default
+  extends: [ build:linux:cross:aarch64:gcc-10:default, .smoketest:build ]
   image: ${EIGEN_CI_IMAGE_LINUX_AMD64_SMOKETEST_BUILD}
   variables:
     EIGEN_CI_SKIP_APT: "true"
@@ -832,7 +832,7 @@ build:linux:aarch64:gcc-10:default:smoketest:
     - saas-linux-large-amd64
 
 build:linux:aarch64:clang-14:default:smoketest:
-  extends: build:linux:cross:aarch64:clang-14:default
+  extends: [ build:linux:cross:aarch64:clang-14:default, .smoketest:build ]
   image: ${EIGEN_CI_IMAGE_LINUX_AMD64_SMOKETEST_BUILD}
   variables:
     EIGEN_CI_SKIP_APT: "true"
