@@ -657,7 +657,7 @@ if (EIGEN_TEST_HIP)
   if (HIP_FOUND)
     execute_process(COMMAND ${HIP_PATH}/bin/hipconfig --platform OUTPUT_VARIABLE HIP_PLATFORM)
 
-    if ((${HIP_PLATFORM} STREQUAL "hcc") OR (${HIP_PLATFORM} STREQUAL "amd"))
+    if (HIP_PLATFORM STREQUAL "amd")
 
       include_directories(${HIP_PATH}/include)
 

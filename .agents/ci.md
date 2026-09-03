@@ -198,7 +198,7 @@ reads as green having compiled and run nothing. Those paths therefore add the ex
 of the affected subset. `gpu-tests` is the platform label for this row and already triggers those jobs on its own,
 so it composes with `affected-tests` without a second rule entry.
 
-`arch/ZVector`, `arch/MSA`, `arch/HVX` and the `arch/HIP` and `arch/SYCL` backends have no matching test
+`arch/ZVector`, `arch/MSA`, `arch/HVX` and the `arch/SYCL` backend have no matching test
 configuration, so a change there gets only the four unconditional jobs and the same hollow result; `gpu-tests` is no
 help either, since the GPU jobs it gates are all CUDA. When adding a runner for one of these, add the trigger here
 too.
