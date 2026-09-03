@@ -39,10 +39,11 @@
   # Cache the ccache directory, not ${EIGEN_CI_BUILDDIR}, mirroring
   # build.linux.gitlab-ci.yml: ccache keys on file content and compiler, so
   # hits survive a re-checkout that re-stamps every source mtime (which made
-  # the old build-directory cache rebuild everything anyway). No
-  # ${CI_COMMIT_REF_SLUG} in the keys: pipelines share one cache pool per
-  # EIGEN_CI_CCACHE_POOL, split by GitLab's protection suffix as described in
-  # the Linux template. Both entries push even when the build fails
+  # the old build-directory cache rebuild everything anyway). Scoping and
+  # fallback follow the Linux template: EIGEN_CI_CCACHE_SCOPE gives each merge
+  # request its own pool, falling back to the shared one the default-branch
+  # builds fill, both split by GitLab's protection suffix. The pinned-binary
+  # key stays shared. Both entries push even when the build fails
   # (when: always): the retry pipeline after a compile error is exactly where
   # hits matter most.
   cache:
@@ -54,7 +55,9 @@
       paths:
         - .ccache-bin/
       when: always
-    - key: "$EIGEN_CI_CCACHE_POOL-ccache"
+    - key: "$EIGEN_CI_CCACHE_POOL$EIGEN_CI_CCACHE_SCOPE-ccache"
+      fallback_keys:
+        - "$EIGEN_CI_CCACHE_POOL-ccache"
       paths:
         - .ccache/
       when: always
