@@ -27,20 +27,30 @@ EIGEN_DONT_INLINE bool mask_any(const Scalar* mask) {
 }
 
 template <typename Scalar, typename Packet>
+EIGEN_DONT_INLINE bool mask_all(const Scalar* mask) {
+  return Eigen::internal::predux_all(Eigen::internal::ploadu<Packet>(mask));
+}
+
+template <typename Scalar, typename Packet>
 void verify_mask_reduction() {
   constexpr int packet_size = Eigen::internal::unpacket_traits<Packet>::size;
   Scalar mask[packet_size];
 
   std::memset(static_cast<void*>(mask), 0, sizeof(mask));
   VERIFY(!(mask_any<Scalar, Packet>(mask)));
+  VERIFY(!(mask_all<Scalar, Packet>(mask)));
   VERIFY_IS_EQUAL(Eigen::internal::predux_count(Eigen::internal::ploadu<Packet>(mask)), 0);
 
   for (int lane = 0; lane < packet_size; ++lane) {
     std::memset(static_cast<void*>(mask), 0, sizeof(mask));
     std::memset(static_cast<void*>(mask + lane), 0xff, sizeof(Scalar));
     VERIFY((mask_any<Scalar, Packet>(mask)));
+    VERIFY_IS_EQUAL((mask_all<Scalar, Packet>(mask)), packet_size == 1);
     VERIFY_IS_EQUAL(Eigen::internal::predux_count(Eigen::internal::ploadu<Packet>(mask)), 1);
   }
+
+  std::memset(static_cast<void*>(mask), 0xff, sizeof(mask));
+  VERIFY((mask_all<Scalar, Packet>(mask)));
 }
 
 // Keep the finite inputs opaque while compiling the reduction itself with fast-math optimizations.
