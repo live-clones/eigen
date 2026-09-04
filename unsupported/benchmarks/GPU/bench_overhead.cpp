@@ -19,6 +19,7 @@
 //   DotDeviceScalar / DotRaw    — DeviceScalar wrapper cost per reduction
 //   OneShotLltExpr / CachedLlt / RawPotrs — expression-solve sync + allocs
 //   CudaMalloc / CudaMallocAsync — stream-ordered allocation as a remedy
+//   PooledBuffer*               — small-buffer pool round trip, idle and behind in-flight work
 //
 // Build (standalone project, see CMakeLists.txt in this directory):
 //   cmake -G Ninja -B build-bench-gpu -S unsupported/benchmarks/GPU \
@@ -302,3 +303,38 @@ static void BM_CudaMallocAsyncFree(benchmark::State& state) {
   syncStream(ctx.stream());
 }
 BENCHMARK(BM_CudaMallocAsyncFree)->Arg(1 << 10)->Arg(1 << 20)->Arg(1 << 26)->UseRealTime()->MinWarmUpTime(0.5);
+
+// ---------------------------------------------------------------------------
+// 6. Small-buffer pool: a DeviceBuffer below DeviceBufferPool's threshold is
+//    recycled through the thread-local free list. Each release records an
+//    event and each reuse queries one, so the idle round trip is the pool's
+//    own cost; with a kernel in flight on the Context's stream the release
+//    event trails that kernel, and a reuse either finds it retired or falls
+//    through to the stream-ordered allocator (compare CudaMallocAsyncFree).
+// ---------------------------------------------------------------------------
+
+static void BM_PooledBufferAllocFree(benchmark::State& state) {
+  const size_t bytes = static_cast<size_t>(state.range(0));
+  for (auto _ : state) {
+    gpu::internal::DeviceBuffer b(bytes);
+    benchmark::DoNotOptimize(b.get());
+  }
+}
+BENCHMARK(BM_PooledBufferAllocFree)->Arg(8)->Arg(64)->Arg(256)->UseRealTime()->MinWarmUpTime(0.5);
+
+static void BM_PooledBufferAllocFreeBusyStream(benchmark::State& state) {
+  const size_t bytes = static_cast<size_t>(state.range(0));
+  gpu::Context& ctx = gpu::Context::threadLocal();
+  const Index n = Index(1) << 22;
+  DeviceMatrix d_x = DeviceMatrix::fromHost(HostMatrix::Random(n, 1));
+  DeviceMatrix d_y = DeviceMatrix::fromHost(HostMatrix::Random(n, 1));
+  for (auto _ : state) {
+    // ~1 ms of work ahead of each release, as in an iterative solver loop.
+    gpu::DeviceScalar<Scalar> r = d_x.dot(ctx, d_y);
+    gpu::internal::DeviceBuffer b(bytes);
+    benchmark::DoNotOptimize(b.get());
+    benchmark::DoNotOptimize(r.devicePtr());
+  }
+  syncStream(ctx.stream());
+}
+BENCHMARK(BM_PooledBufferAllocFreeBusyStream)->Arg(8)->Arg(64)->UseRealTime()->MinWarmUpTime(0.5);

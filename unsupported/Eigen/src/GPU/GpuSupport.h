@@ -141,8 +141,10 @@ using UniqueStream = std::unique_ptr<std::remove_pointer_t<cudaStream_t>, CudaSt
 // Invariant: a block is recycled only after the device has retired every
 // operation enqueued before its release, on any blocking stream. deallocate()
 // records that point as an event on the legacy default stream (the ordering
-// device_free relies on) and allocate() skips entries whose event is pending.
-// Non-blocking streams sit outside the guarantee, as for the allocator.
+// device_free relies on); the free list stays in release order, and since
+// events on one stream retire in record order, allocate() scans until the
+// first pending entry. Non-blocking streams sit outside the guarantee, as for
+// the allocator.
 template <size_t SmallBufferThreshold = 256, size_t MaxPoolSize = 64>
 struct DeviceBufferPool {
   static constexpr size_t kSmallBufferThreshold = SmallBufferThreshold;
@@ -176,14 +178,15 @@ struct DeviceBufferPool {
     threadState() = State::kDestroyed;
   }
 
-  // First fit among the blocks whose release the device has already retired.
+  // First fit among the retired blocks, oldest release first; the first pending
+  // entry ends the scan because every later one is pending too.
   void* allocate(size_t bytes) {
-    for (Entry& entry : free_list_) {
-      if (entry.bytes >= bytes && cudaEventQuery(entry.release_event) == cudaSuccess) {
-        void* p = entry.ptr;
-        spare_events_.push_back(entry.release_event);
-        entry = free_list_.back();
-        free_list_.pop_back();
+    for (auto it = free_list_.begin(); it != free_list_.end(); ++it) {
+      if (cudaEventQuery(it->release_event) != cudaSuccess) break;
+      if (it->bytes >= bytes) {
+        void* p = it->ptr;
+        spare_events_.push_back(it->release_event);
+        free_list_.erase(it);
         return p;
       }
     }
