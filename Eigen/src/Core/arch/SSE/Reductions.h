@@ -219,16 +219,15 @@ struct sse_predux_common<Packet4f, Op> {
 
 template <>
 EIGEN_STRONG_INLINE float predux(const Packet4f& a) {
-#ifdef EIGEN_VECTORIZE_AVX
-  return sse_predux_impl<Packet4f>::run(a);
-#else
-  // See predux(const Packet2d&): on legacy SSE the final 2->1 step is scalar.
-  Packet4f tmp = _mm_add_ps(a, _mm_movehl_ps(a, a));
+  // See predux(const Packet2d&). Only the sum wants the unpacked 2->1 step here;
+  // predux_mul, predux_min and predux_max are slower with it and stay packed. This
+  // step reads an already-reduced temporary rather than the live packet, so it needs
+  // no encoding split: the low-lane _mm_add_ss gives the whole gain back on gcc/SSE.
+  Packet4f tmp = padd(a, _mm_movehl_ps(a, a));
 #ifdef EIGEN_VECTORIZE_SSE3
-  return _mm_cvtss_f32(_mm_add_ss(tmp, _mm_movehdup_ps(tmp)));
+  return pfirst(tmp) + pfirst(_mm_movehdup_ps(tmp));
 #else
-  return _mm_cvtss_f32(_mm_add_ss(tmp, _mm_shuffle_ps(tmp, tmp, 1)));
-#endif
+  return pfirst(tmp) + pfirst(_mm_shuffle_ps(tmp, tmp, 1));
 #endif
 }
 
@@ -283,29 +282,40 @@ struct sse_predux_common<Packet2d, Op> {
   }
 };
 
+// The 2->1 step is not packed: a packed step pins the result in a vector register, so
+// neighbouring reductions -- one per coefficient of a small coeff-based product -- are
+// not re-packed into one store (~16% on clang/AVX2). Take the high lane first: pfirst(a)
+// is a's register, so reading it first keeps a live across the shuffle and gcc copies it
+// out. Without VEX the low-lane form wins when a is an accumulator rather than the data.
 template <>
 EIGEN_STRONG_INLINE double predux(const Packet2d& a) {
 #ifdef EIGEN_VECTORIZE_AVX
-  // With VEX (3-operand) encoding the packed reduction is fine.
-  return sse_predux_impl<Packet2d>::run(a);
+  const double hi = pfirst(preverse(a));
+  return pfirst(a) + hi;
 #else
-  // Legacy SSE (two-operand) encoding: a packed final reduction step writes a
-  // live, unused high lane that couples into the dependency graph and
-  // pessimizes fused kernels with many small reductions (e.g. chained
-  // fixed-size matrix products) by ~25%. A scalar add produces the same low
-  // lane without that false coupling.
-  return _mm_cvtsd_f64(_mm_add_sd(a, _mm_unpackhi_pd(a, a)));
+  return _mm_cvtsd_f64(_mm_add_sd(a, preverse(a)));
 #endif
 }
 
 template <>
 EIGEN_STRONG_INLINE double predux_mul(const Packet2d& a) {
-  return sse_predux_mul_impl<Packet2d>::run(a);
+#ifdef EIGEN_VECTORIZE_AVX
+  const double hi = pfirst(preverse(a));
+  return pfirst(a) * hi;
+#else
+  return _mm_cvtsd_f64(_mm_mul_sd(a, preverse(a)));
+#endif
 }
 
 template <>
 EIGEN_STRONG_INLINE double predux_min(const Packet2d& a) {
-  return sse_predux_min_impl<Packet2d>::run(a);
+#ifdef EIGEN_VECTORIZE_AVX
+  const double hi = pfirst(preverse(a));
+  return pmin<double>(pfirst(a), hi);
+#else
+  // pmin(a, b) is _mm_min_pd(b, a) here, so the low-lane form flips too.
+  return _mm_cvtsd_f64(_mm_min_sd(preverse(a), a));
+#endif
 }
 
 template <>
@@ -320,7 +330,12 @@ EIGEN_STRONG_INLINE double predux_min<PropagateNaN>(const Packet2d& a) {
 
 template <>
 EIGEN_STRONG_INLINE double predux_max(const Packet2d& a) {
-  return sse_predux_max_impl<Packet2d>::run(a);
+#ifdef EIGEN_VECTORIZE_AVX
+  const double hi = pfirst(preverse(a));
+  return pmax<double>(pfirst(a), hi);
+#else
+  return _mm_cvtsd_f64(_mm_max_sd(preverse(a), a));
+#endif
 }
 
 template <>
