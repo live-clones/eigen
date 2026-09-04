@@ -403,6 +403,12 @@ EIGEN_STRONG_INLINE bool predux_any(const Packet1Xbf& a) {
 }
 
 template <>
+EIGEN_STRONG_INLINE bool predux_all(const Packet1Xbf& a) {
+  const PacketMask16 mask = __riscv_vmfeq_vf_f32m2_b16(Bf16ToF32(a), 0.0f, unpacket_traits<Packet1Xbf>::size);
+  return __riscv_vcpop_m_b16(mask, unpacket_traits<Packet1Xbf>::size) == 0;
+}
+
+template <>
 EIGEN_STRONG_INLINE bfloat16 predux_mul<Packet1Xbf>(const Packet1Xbf& a) {
   return static_cast<bfloat16>(predux_mul<Packet2Xf>(Bf16ToF32(a)));
 }
@@ -755,6 +761,12 @@ EIGEN_STRONG_INLINE bool predux_any(const Packet2Xbf& a) {
   const PacketMask8 mask =
       __riscv_vmsne_vx_u16m2_b8(__riscv_vreinterpret_v_bf16m2_u16m2(a), 0, unpacket_traits<Packet2Xbf>::size);
   return __riscv_vcpop_m_b8(mask, unpacket_traits<Packet2Xbf>::size) != 0;
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_all(const Packet2Xbf& a) {
+  const PacketMask8 mask = __riscv_vmfeq_vf_f32m4_b8(Bf16ToF32(a), 0.0f, unpacket_traits<Packet2Xbf>::size);
+  return __riscv_vcpop_m_b8(mask, unpacket_traits<Packet2Xbf>::size) == 0;
 }
 
 template <>

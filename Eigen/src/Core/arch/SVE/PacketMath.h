@@ -930,6 +930,12 @@ EIGEN_STRONG_INLINE bool predux_any(const PacketXf& a) {
 }
 
 template <>
+EIGEN_STRONG_INLINE bool predux_all(const PacketXf& a) {
+  const svbool_t all = svptrue_b32();
+  return !svptest_any(all, svcmpeq_n_f32(all, a, 0.0f));
+}
+
+template <>
 EIGEN_STRONG_INLINE Index predux_count(const PacketXf& a) {
   const svbool_t all = svptrue_b32();
   return static_cast<Index>(svcntp_b32(all, svcmpne_n_f32(all, a, 0.0f)));
@@ -1291,6 +1297,12 @@ template <>
 EIGEN_STRONG_INLINE bool predux_any(const PacketXd& a) {
   const svuint64_t bits = svreinterpret_u64_f64(a);
   return svptest_any(svptrue_b64(), svcmpne_n_u64(svptrue_b64(), bits, 0));
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_all(const PacketXd& a) {
+  const svbool_t all = svptrue_b64();
+  return !svptest_any(all, svcmpeq_n_f64(all, a, 0.0));
 }
 
 template <>
