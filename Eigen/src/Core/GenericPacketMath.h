@@ -1602,11 +1602,6 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index predux_count(const Packet& a) {
   return predux_count_impl<Packet>::run(a);
 }
 
-/** \internal \returns true if all coeffs of \a a means "true"
- * It is supposed to be called on values returned by pcmp_*.
- */
-// TODO: implement predux_all when needed.
-
 /** \internal \returns true if any coeffs of \a a means "true"
  * It is supposed to be called on values returned by pcmp_*.
  */
@@ -1621,6 +1616,22 @@ EIGEN_DEVICE_FUNC inline bool predux_any(const Packet& a) {
   // patterns must specialize this with an integer-bit reduction because fast-math or FTZ can discard those values.
   using Scalar = typename unpacket_traits<Packet>::type;
   return numext::not_equal_strict(predux(a), Scalar(0));
+}
+
+template <typename Packet, bool IsBoolean = std::is_same<typename unpacket_traits<Packet>::type, bool>::value>
+struct predux_all_impl {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE bool run(const Packet& a) { return !predux_any(pcmp_eq(a, pzero(a))); }
+};
+
+template <typename Packet>
+struct predux_all_impl<Packet, true> {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE bool run(const Packet& a) { return predux_mul(a); }
+};
+
+/** \internal \returns true if every coefficient in \a a is nonzero. */
+template <typename Packet>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool predux_all(const Packet& a) {
+  return predux_all_impl<Packet>::run(a);
 }
 
 /***************************************************************************
