@@ -11,6 +11,7 @@
 #define EIGEN_RUNTIME_NO_MALLOC
 
 #include "main.h"
+#include "fp_control.h"
 
 template <typename T>
 EIGEN_DONT_INLINE T copy(const T& x) {
@@ -261,12 +262,7 @@ void stable_normalize_extremes() {
     VERIFY_IS_APPROX(input, expected);
   }
 
-  // For 32-bit ARM, the vectorized reductions flush single-precision subnormals to zero
-  // (FTZ), so stableNormalize cannot distinguish this input from zero and, per its
-  // contract for zero vectors, returns it unchanged.
-  constexpr bool subnormals_flushed = EIGEN_ARCH_ARM != 0 && sizeof(RealScalar) == 4;
-  if (std::numeric_limits<RealScalar>::has_denorm == std::denorm_present && denorm > RealScalar(0) &&
-      !subnormals_flushed) {
+  if (std::numeric_limits<RealScalar>::has_denorm == std::denorm_present) {
     const Vector2 input = Vector2::Constant(denorm);
     const Vector2 expected = Vector2::Constant(inv_sqrt_two);
     VERIFY_IS_APPROX(input.stableNormalized(), expected);
@@ -366,7 +362,7 @@ void stable_normalize_complex_extremes() {
     VERIFY_IS_APPROX(input.norm(), RealScalar(1));
   }
 
-  if (std::numeric_limits<RealScalar>::has_denorm == std::denorm_present && denorm > RealScalar(0)) {
+  if (std::numeric_limits<RealScalar>::has_denorm == std::denorm_present) {
     VectorX input(1);
     input(0) = Complex(denorm, -denorm);
     const Complex expected(inv_sqrt_two, -inv_sqrt_two);
@@ -451,6 +447,47 @@ void stable_norm_denormal_rounding() {
   VERIFY_IS_EQUAL(input.hypotNorm(), denorm);
 }
 
+void stable_norm_power_of_two_scaling() {
+  // Reciprocal scaling rounds these norms two ULPs away from their correctly rounded values. Allow the fused and
+  // non-fused reduction paths to differ by one ULP while still rejecting the previous results.
+  Vector2f input_float;
+  input_float << numext::bit_cast<float>(numext::uint32_t(0x8d6e3421u)),
+      numext::bit_cast<float>(numext::uint32_t(0x0e36c209u));
+  const numext::uint32_t expected_float = 0x0e403728u;
+  const numext::uint32_t actual_float = numext::bit_cast<numext::uint32_t>(input_float.stableNorm());
+  VERIFY(actual_float >= expected_float - 1 && actual_float <= expected_float + 1);
+
+  Vector2d input_double;
+  input_double << numext::bit_cast<double>(numext::uint64_t(0x360514835c78c940ull)),
+      numext::bit_cast<double>(numext::uint64_t(0x3614674ff894db20ull));
+  const numext::uint64_t expected_double = 0x3616f714760d1964ull;
+  const numext::uint64_t actual_double = numext::bit_cast<numext::uint64_t>(input_double.stableNorm());
+  VERIFY(actual_double >= expected_double - 1 && actual_double <= expected_double + 1);
+
+  // Arbitrary reciprocal scaling rounds both normalized coefficients two ULPs away from their reference values.
+  Vector2f normalize_input;
+  normalize_input << numext::bit_cast<float>(numext::uint32_t(0x0971a50d)),
+      numext::bit_cast<float>(numext::uint32_t(0x07536745));
+  Vector2f expected_normalized;
+  expected_normalized << numext::bit_cast<float>(numext::uint32_t(0x3f7f9e41)),
+      numext::bit_cast<float>(numext::uint32_t(0x3d5fa0cb));
+  VERIFY_IS_EQUAL(normalize_input.stableNormalized(), expected_normalized);
+  normalize_input.stableNormalize();
+  VERIFY_IS_EQUAL(normalize_input, expected_normalized);
+}
+
+template <typename RealScalar>
+void stable_norm_power_of_two_ftz() {
+  typedef Matrix<RealScalar, 2, 1> Vector2;
+  Vector2 input;
+  input << (std::numeric_limits<RealScalar>::max)(), RealScalar(0);
+
+  ScopedFlushToZero flush_to_zero;
+  if (flush_to_zero.isSupported()) {
+    VERIFY_IS_EQUAL(input.stableNorm(), (std::numeric_limits<RealScalar>::max)());
+  }
+}
+
 template <typename Scalar>
 void stable_norm_low_precision() {
   typedef Matrix<Scalar, Dynamic, 1> VectorX;
@@ -488,6 +525,7 @@ void stable_norm_complex_low_precision() {
   Vector1 input;
   input(0) = Complex(RealScalar(3), RealScalar(4));
   const float tolerance = 8.0f * static_cast<float>(NumTraits<RealScalar>::epsilon());
+  VERIFY(abs(static_cast<float>(input.stableNorm()) - 5.0f) <= tolerance);
   const Complex normalized = input.stableNormalized()(0);
   VERIFY(abs(static_cast<float>(normalized.real()) - 0.6f) <= tolerance);
   VERIFY(abs(static_cast<float>(normalized.imag()) - 0.8f) <= tolerance);
@@ -742,18 +780,26 @@ EIGEN_DECLARE_TEST(stable_norm) {
   // Block boundary and scale transition tests (deterministic, outside g_repeat).
   CALL_SUBTEST_7(stable_norm_block_boundary<float>());
   CALL_SUBTEST_7(stable_norm_block_boundary<double>());
+  CALL_SUBTEST_7(stable_norm_block_boundary<long double>());
   CALL_SUBTEST_8(stable_norm_complex_infinity<std::complex<float> >());
   CALL_SUBTEST_8(stable_norm_complex_infinity<std::complex<double> >());
+  CALL_SUBTEST_8(stable_norm_complex_infinity<std::complex<long double> >());
   CALL_SUBTEST_9(stable_normalize_extremes<float>());
   CALL_SUBTEST_9(stable_normalize_extremes<double>());
+  CALL_SUBTEST_9(stable_normalize_extremes<long double>());
   CALL_SUBTEST_10(stable_normalize_complex_extremes<float>());
   CALL_SUBTEST_10(stable_normalize_complex_extremes<double>());
+  CALL_SUBTEST_10(stable_normalize_complex_extremes<long double>());
   CALL_SUBTEST_11(stable_norm_extreme_cross_product<float>());
   CALL_SUBTEST_11(stable_norm_extreme_cross_product<double>());
+  CALL_SUBTEST_11(stable_norm_extreme_cross_product<long double>());
   CALL_SUBTEST_11(stable_norm_mixed_underflow<float>());
   CALL_SUBTEST_11(stable_norm_mixed_underflow<double>());
   CALL_SUBTEST_11(stable_norm_denormal_rounding<float>());
   CALL_SUBTEST_11(stable_norm_denormal_rounding<double>());
+  CALL_SUBTEST_11(stable_norm_power_of_two_scaling());
+  CALL_SUBTEST_11(stable_norm_power_of_two_ftz<float>());
+  CALL_SUBTEST_11(stable_norm_power_of_two_ftz<double>());
   CALL_SUBTEST_12(stable_norm_low_precision<half>());
   CALL_SUBTEST_12(stable_norm_low_precision<bfloat16>());
   CALL_SUBTEST_12(stable_norm_complex_low_precision<half>());

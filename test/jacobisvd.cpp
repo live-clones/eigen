@@ -130,11 +130,74 @@ void jacobisvd_mixed_option_enum_regression() {
   STATIC_CHECK(((int(ReversedMixedSVD::Options) & ComputeThinV) == 0));
 }
 
+void jacobisvd_power_of_two_scaling() {
+  // Reciprocal scaling rounds the smaller singular value up by one ULP.
+  Matrix2f matrix = Matrix2f::Zero();
+  matrix(0, 0) = numext::bit_cast<float>(numext::uint32_t(0x58f6aaed));
+  matrix(1, 1) = numext::bit_cast<float>(numext::uint32_t(0x537dcf0e));
+
+  const JacobiSVD<Matrix2f> svd(matrix);
+  VERIFY_IS_EQUAL(svd.singularValues()(0), matrix(0, 0));
+  VERIFY_IS_EQUAL(svd.singularValues()(1), matrix(1, 1));
+
+  Matrix<float, 3, 2> rectangular = Matrix<float, 3, 2>::Zero();
+  rectangular.template topRows<2>() = matrix;
+  const JacobiSVD<Matrix<float, 3, 2>> rectangularSvd(rectangular);
+  VERIFY_IS_EQUAL(rectangularSvd.singularValues(), matrix.diagonal());
+
+  volatile float normalMinInput = (std::numeric_limits<float>::min)();
+  const double inputScale = 256.0 * double(normalMinInput);
+  Matrix2cf normalized = Matrix2cf::Identity();
+  normalized(1, 0) = std::complex<float>(1.0f / 512.0f, -1.0f / 1024.0f);
+  Matrix2cf tiny;
+  for (Index i = 0; i < tiny.size(); ++i) {
+    tiny(i) = std::complex<float>(float(double(normalized(i).real()) * inputScale),
+                                  float(double(normalized(i).imag()) * inputScale));
+  }
+  const JacobiSVD<Matrix2cf> normalizedSvd(normalized);
+  const JacobiSVD<Matrix2cf> tinySvd(tiny);
+  VERIFY_IS_APPROX(tinySvd.singularValues() / float(inputScale), normalizedSvd.singularValues());
+
+  Matrix<std::complex<float>, 3, 2> normalizedTall = Matrix<std::complex<float>, 3, 2>::Zero();
+  normalizedTall.template topRows<2>() = normalized;
+  Matrix<std::complex<float>, 3, 2> tinyTall;
+  for (Index i = 0; i < tinyTall.size(); ++i) {
+    tinyTall(i) = std::complex<float>(float(double(normalizedTall(i).real()) * inputScale),
+                                      float(double(normalizedTall(i).imag()) * inputScale));
+  }
+  const JacobiSVD<Matrix<std::complex<float>, 3, 2>> normalizedTallSvd(normalizedTall);
+  const JacobiSVD<Matrix<std::complex<float>, 3, 2>> tinyTallSvd(tinyTall);
+  VERIFY_IS_APPROX(tinyTallSvd.singularValues() / float(inputScale), normalizedTallSvd.singularValues());
+
+  const Matrix<std::complex<float>, 2, 3> normalizedWide = normalizedTall.adjoint();
+  const Matrix<std::complex<float>, 2, 3> tinyWide = tinyTall.adjoint();
+  const JacobiSVD<Matrix<std::complex<float>, 2, 3>> normalizedWideSvd(normalizedWide);
+  const JacobiSVD<Matrix<std::complex<float>, 2, 3>> tinyWideSvd(tinyWide);
+  VERIFY_IS_APPROX(tinyWideSvd.singularValues() / float(inputScale), normalizedWideSvd.singularValues());
+
+  volatile float denormMinInput = std::numeric_limits<float>::denorm_min();
+  const float denormMin = denormMinInput;
+  if (!(denormMin > 0.0f)) return;
+  matrix.diagonal() << 1.5f, denormMin;
+  const JacobiSVD<Matrix2f> tailSvd(matrix);
+  VERIFY_IS_EQUAL(tailSvd.singularValues()(1), denormMin);
+}
+
+void jacobisvd_large_tau_regression() {
+  Matrix3f m;
+  m << 3.7855173218304116745e-07f, 0.0f, 500.0f, -4.9999995231628417969f, -0.0f, -1.9106853686029490191e-12f,
+      -8.6602544784545898438f, 0.0f, 2.1855694285477511585f;
+
+  JacobiSVD<Matrix3f> svd(m, ComputeFullU | ComputeFullV);
+  svd_check_full(m, svd);
+}
+
 EIGEN_DECLARE_TEST(jacobisvd) {
   CALL_SUBTEST_1((jacobisvd_verify_inputs<Matrix4d>()));
   CALL_SUBTEST_2((jacobisvd_verify_inputs(Matrix<float, 5, Dynamic>(5, 6))));
   CALL_SUBTEST_3((jacobisvd_verify_inputs<Matrix<std::complex<double>, 7, 5>>()));
   CALL_SUBTEST_4((jacobisvd_mixed_option_enum_regression()));
+  CALL_SUBTEST_4((jacobisvd_large_tau_regression()));
 
   CALL_SUBTEST_11((jacobisvd_thin_full_options<Matrix2cd>()));
   CALL_SUBTEST_12((jacobisvd_thin_full_options<Matrix2d>()));
@@ -202,6 +265,7 @@ EIGEN_DECLARE_TEST(jacobisvd) {
   CALL_SUBTEST_55(svd_preallocate<void>());
 
   CALL_SUBTEST_56(svd_underoverflow<void>());
+  CALL_SUBTEST_56(jacobisvd_power_of_two_scaling());
 
   // Check that the TriangularBase constructor works
   CALL_SUBTEST_57((svd_triangular_matrix<Matrix3d>()));

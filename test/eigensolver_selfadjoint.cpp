@@ -14,6 +14,7 @@
 #define EIGEN_RUNTIME_NO_MALLOC
 
 #include "main.h"
+#include "fp_control.h"
 #include "svd_fill.h"
 #include "tridiag_test_matrices.h"
 #include <limits>
@@ -441,6 +442,38 @@ void selfadjointeigensolver_subnormal_coefficients() {
   }
 }
 
+void selfadjointeigensolver_power_of_two_scaling() {
+  // Reciprocal scaling perturbs one eigenvalue by one ULP in each solver path below.
+  Matrix2f directMatrix = Matrix2f::Zero();
+  directMatrix(0, 0) = numext::bit_cast<float>(numext::uint32_t(0x072319ed));
+  directMatrix(1, 1) = numext::bit_cast<float>(numext::uint32_t(0x06aceabe));
+  const SelfAdjointEigenSolver<Matrix2f> directSolver(directMatrix);
+  VERIFY_IS_EQUAL(directSolver.eigenvalues()(0), directMatrix(1, 1));
+  VERIFY_IS_EQUAL(directSolver.eigenvalues()(1), directMatrix(0, 0));
+
+  Matrix4f matrix = Matrix4f::Zero();
+  matrix.diagonal() << numext::bit_cast<float>(numext::uint32_t(0x44123456)),
+      numext::bit_cast<float>(numext::uint32_t(0x4f123456)), numext::bit_cast<float>(numext::uint32_t(0x537dcf0e)),
+      numext::bit_cast<float>(numext::uint32_t(0x58f6aaed));
+  const SelfAdjointEigenSolver<Matrix4f> solver(matrix);
+  VERIFY_IS_EQUAL(solver.eigenvalues(), matrix.diagonal());
+
+  Vector2f tridiagonal = Vector2f::Zero();
+  Matrix<float, 1, 1> subdiagonal;
+  subdiagonal(0) = numext::bit_cast<float>(numext::uint32_t(0x54fca0e4));
+  SelfAdjointEigenSolver<Matrix2f> tridiagonalSolver;
+  tridiagonalSolver.computeFromTridiagonal(tridiagonal, subdiagonal, EigenvaluesOnly);
+  VERIFY_IS_EQUAL(tridiagonalSolver.eigenvalues()(0), -subdiagonal(0));
+  VERIFY_IS_EQUAL(tridiagonalSolver.eigenvalues()(1), subdiagonal(0));
+
+  volatile float denormMinInput = std::numeric_limits<float>::denorm_min();
+  const float denormMin = denormMinInput;
+  if (!(denormMin > 0.0f)) return;
+  directMatrix.diagonal() << 1.5f, denormMin;
+  const SelfAdjointEigenSolver<Matrix2f> tailSolver(directMatrix);
+  VERIFY_IS_EQUAL(tailSolver.eigenvalues()(0), denormMin);
+}
+
 // Test computeFromTridiagonal with scaled inputs (regression for missing scaling).
 template <typename MatrixType>
 void selfadjointeigensolver_tridiagonal_scaled(const MatrixType& m) {
@@ -484,6 +517,22 @@ void selfadjointeigensolver_tridiagonal_scaled(const MatrixType& m) {
   eig2v.computeFromTridiagonal(diag, subdiag, EigenvaluesOnly);
   VERIFY_IS_EQUAL(eig2v.info(), Success);
   VERIFY_IS_APPROX(eig2.eigenvalues(), eig2v.eigenvalues());
+}
+
+void selfadjointeigensolver_dense_deflation_scale_invariance() {
+  const double epsilon = NumTraits<double>::epsilon();
+  const double scales[] = {1.0, 2.0};
+  for (double scale : scales) {
+    Vector2d diag = Vector2d::Constant(scale);
+    VectorXd subdiag(1);
+    subdiag[0] = 1.25 * epsilon * scale;
+    MatrixXcd eigenvectors = MatrixXcd::Identity(2, 2);
+
+    const ComputationInfo info = internal::computeFromTridiagonal_impl<false>(diag, subdiag, 30, true, eigenvectors);
+    VERIFY_IS_EQUAL(info, Success);
+    VERIFY(diag[0] < scale);
+    VERIFY(diag[1] > scale);
+  }
 }
 
 // Test computeFromTridiagonal with wide dynamic range across decoupled blocks.
@@ -737,6 +786,183 @@ void selfadjointeigensolver_rowmajor() {
   }
 }
 
+template <typename MatrixType>
+void verify_direct_ftz_rescaling(const MatrixType& matrix) {
+  using Scalar = typename MatrixType::Scalar;
+  SelfAdjointEigenSolver<MatrixType> reference(matrix);
+  VERIFY_IS_EQUAL(reference.info(), Success);
+  const Scalar scale = matrix.cwiseAbs().maxCoeff();
+  const auto factors = internal::safe_scaling<Scalar>::compute_floor_factors(scale);
+  typename SelfAdjointEigenSolver<MatrixType>::RealVectorType scaledReference;
+  internal::safe_scaling<Scalar>::scale_to(scaledReference, reference.eigenvalues(), scale, factors);
+  ScopedFlushToZero flushToZero;
+  if (!flushToZero.isSupported()) return;
+
+  SelfAdjointEigenSolver<MatrixType> direct;
+  direct.computeDirect(matrix);
+  VERIFY_IS_EQUAL(direct.info(), Success);
+  const Scalar tolerance = Scalar(32) * NumTraits<Scalar>::epsilon();
+  typename SelfAdjointEigenSolver<MatrixType>::RealVectorType scaledEigenvalues;
+  internal::safe_scaling<Scalar>::scale_to(scaledEigenvalues, direct.eigenvalues(), scale, factors);
+  VERIFY(scaledEigenvalues.isApprox(scaledReference, tolerance));
+  MatrixType scaledMatrix;
+  internal::safe_scaling<Scalar>::scale_to(scaledMatrix, matrix, scale, factors);
+  const MatrixType orthogonality = direct.eigenvectors().transpose() * direct.eigenvectors() - MatrixType::Identity();
+  VERIFY(orthogonality.norm() <= tolerance);
+  MatrixType diagonalized = direct.eigenvectors().transpose() * scaledMatrix * direct.eigenvectors();
+  diagonalized.diagonal().setZero();
+  VERIFY(diagonalized.norm() <= tolerance * scaledMatrix.norm());
+}
+
+template <typename Scalar>
+void direct_3x3_ftz_rescaling() {
+  EIGEN_USING_STD(ldexp)
+  Matrix<Scalar, 3, 3> eigenvectors;
+  eigenvectors << Scalar(-0.6848395082687857), Scalar(-0.24329346407253183), Scalar(0.68687927487569134),
+      Scalar(0.71945209189636927), Scalar(-0.37540118169054804), Scalar(0.58434804718701527),
+      Scalar(0.11568723084293309), Scalar(0.89436136048295811), Scalar(0.43212755234417322);
+  const Scalar tiny = Scalar(100) * (std::numeric_limits<Scalar>::min)();
+  const Matrix<Scalar, 3, 1> eigenvalues(tiny, Scalar(2) * tiny, Scalar(3) * tiny);
+  verify_direct_ftz_rescaling((eigenvectors * eigenvalues.asDiagonal() * eigenvectors.transpose()).eval());
+
+  volatile Scalar denormMinInput = std::numeric_limits<Scalar>::denorm_min();
+  const Scalar subnormal = Scalar(64) * denormMinInput;
+  if (subnormal > Scalar(0)) {
+    Matrix<Scalar, 3, 3> zeroTrace;
+    zeroTrace << subnormal, subnormal, Scalar(0), subnormal, -subnormal, subnormal, Scalar(0), subnormal, Scalar(0);
+    verify_direct_ftz_rescaling(zeroTrace);
+  }
+
+  constexpr int kFormerMinSafeExponent = (std::numeric_limits<Scalar>::min_exponent - 1) / 6;
+  const Scalar magnitude = ldexp(Scalar(1), kFormerMinSafeExponent);
+  const Scalar delta = magnitude / Scalar(4);
+  Matrix<Scalar, 3, 3> significantSubdominant;
+  significantSubdominant << magnitude, delta, Scalar(0), delta, magnitude, delta, Scalar(0), delta,
+      Scalar(-2) * magnitude;
+  verify_direct_ftz_rescaling(significantSubdominant);
+}
+
+template <typename Scalar>
+void direct_2x2_ftz_rescaling() {
+  EIGEN_USING_STD(ldexp)
+  const Scalar cosine = numext::cos(Scalar(0.34));
+  const Scalar sine = numext::sin(Scalar(0.34));
+  Matrix<Scalar, 2, 2> eigenvectors;
+  eigenvectors << cosine, sine, -sine, cosine;
+  const Scalar tiny = Scalar(256) * (std::numeric_limits<Scalar>::min)();
+  const Matrix<Scalar, 2, 1> eigenvalues(tiny, Scalar(1.01) * tiny);
+  verify_direct_ftz_rescaling((eigenvectors * eigenvalues.asDiagonal() * eigenvectors.transpose()).eval());
+
+  volatile Scalar denormMinInput = std::numeric_limits<Scalar>::denorm_min();
+  const Scalar subnormal = Scalar(64) * denormMinInput;
+  if (subnormal > Scalar(0)) {
+    Matrix<Scalar, 2, 2> zeroTrace;
+    zeroTrace << subnormal, subnormal, subnormal, -subnormal;
+    verify_direct_ftz_rescaling(zeroTrace);
+  }
+
+  constexpr int kFormerMinSafeExponent = (std::numeric_limits<Scalar>::min_exponent - 1) / 2;
+  const Scalar magnitude = ldexp(Scalar(1), kFormerMinSafeExponent + 1);
+  const Scalar delta = magnitude / Scalar(4);
+  Matrix<Scalar, 2, 2> significantSubdominant;
+  significantSubdominant << delta / Scalar(2), magnitude, magnitude, -delta / Scalar(2);
+  verify_direct_ftz_rescaling(significantSubdominant);
+}
+
+template <typename Scalar, int Size>
+void direct_trace_overflow() {
+  using MatrixType = Matrix<Scalar, Size, Size>;
+  using VectorType = Matrix<Scalar, Size, 1>;
+  for (int test = 0; test < 2; ++test) {
+    const Scalar eigenvalue = (test == 0 ? Scalar(0.75) : Scalar(1)) * NumTraits<Scalar>::highest();
+    const MatrixType matrix = eigenvalue * MatrixType::Identity();
+    SelfAdjointEigenSolver<MatrixType> solver;
+    solver.computeDirect(matrix);
+    VERIFY_IS_EQUAL(solver.info(), Success);
+    VERIFY(solver.eigenvalues().array().isFinite().all());
+    VERIFY_IS_EQUAL(solver.eigenvalues(), VectorType::Constant(eigenvalue));
+  }
+}
+
+template <typename Scalar>
+void direct_2x2_partial_overflow() {
+  using MatrixType = Matrix<Scalar, 2, 2>;
+  const Scalar highest = NumTraits<Scalar>::highest();
+  MatrixType matrix;
+  matrix << highest, highest, highest, Scalar(0);
+  SelfAdjointEigenSolver<MatrixType> solver;
+  solver.computeDirect(matrix, EigenvaluesOnly);
+
+  EIGEN_USING_STD(sqrt)
+  const Scalar expected = (Scalar(1) - sqrt(Scalar(5))) / Scalar(2);
+  VERIFY_IS_EQUAL(solver.info(), Success);
+  VERIFY((numext::isfinite)(solver.eigenvalues()(0)));
+  VERIFY(numext::abs(solver.eigenvalues()(0) / highest - expected) <= Scalar(8) * NumTraits<Scalar>::epsilon());
+  VERIFY((numext::isinf)(solver.eigenvalues()(1)));
+  VERIFY(solver.eigenvalues()(1) > Scalar(0));
+}
+
+template <typename Scalar, int Size>
+void direct_low_precision_max_diagonal() {
+  using MatrixType = Matrix<Scalar, Size, Size>;
+  const Scalar highest = NumTraits<Scalar>::highest();
+  MatrixType matrix = MatrixType::Zero();
+  matrix.diagonal().setConstant(highest);
+  SelfAdjointEigenSolver<MatrixType> solver;
+  solver.computeDirect(matrix, EigenvaluesOnly);
+  VERIFY_IS_EQUAL(solver.info(), Success);
+  const Matrix<Scalar, Size, 1> expected = Matrix<Scalar, Size, 1>::Constant(highest);
+  VERIFY_IS_EQUAL(solver.eigenvalues(), expected);
+}
+
+template <typename Scalar>
+void direct_3x3_centering_overflow() {
+  using MatrixType = Matrix<Scalar, 3, 3>;
+  using VectorType = Matrix<Scalar, 3, 1>;
+  const Scalar highest = NumTraits<Scalar>::highest();
+  const MatrixType matrix = MatrixType(VectorType(highest, -highest, highest).asDiagonal());
+  SelfAdjointEigenSolver<MatrixType> solver;
+  solver.computeDirect(matrix);
+  VERIFY_IS_EQUAL(solver.info(), Success);
+  VERIFY(solver.eigenvalues().array().isFinite().all());
+  VERIFY_IS_EQUAL(solver.eigenvalues(), VectorType(-highest, highest, highest));
+}
+
+template <typename Scalar>
+void direct_3x3_restore_overflow() {
+  EIGEN_USING_STD(sqrt)
+  using MatrixType = Matrix<Scalar, 3, 3>;
+  using VectorType = Matrix<Scalar, 3, 1>;
+  const Scalar sqrt2 = sqrt(Scalar(2));
+  const Scalar sqrt3 = sqrt(Scalar(3));
+  const Scalar sqrt6 = sqrt(Scalar(6));
+  MatrixType eigenvectors;
+  eigenvectors << Scalar(1) / sqrt2, Scalar(1) / sqrt6, Scalar(1) / sqrt3, -Scalar(1) / sqrt2, Scalar(1) / sqrt6,
+      Scalar(1) / sqrt3, Scalar(0), -Scalar(2) / sqrt6, Scalar(1) / sqrt3;
+  const VectorType relativeEigenvalues(Scalar(0.982), Scalar(-0.724), Scalar(0.689));
+  const Scalar highest = NumTraits<Scalar>::highest();
+  const MatrixType matrix = (eigenvectors * relativeEigenvalues.asDiagonal() * eigenvectors.transpose()) * highest;
+
+  SelfAdjointEigenSolver<MatrixType> reference(matrix);
+  SelfAdjointEigenSolver<MatrixType> direct;
+  direct.computeDirect(matrix);
+  VERIFY_IS_EQUAL(reference.info(), Success);
+  VERIFY_IS_EQUAL(direct.info(), Success);
+  VERIFY(direct.eigenvalues().array().isFinite().all());
+  VERIFY((direct.eigenvalues() / highest)
+             .isApprox(reference.eigenvalues() / highest, Scalar(64) * NumTraits<Scalar>::epsilon()));
+}
+
+void direct_long_double_scaling() {
+  Matrix<long double, 2, 2> matrix2;
+  matrix2 << 2.0L, 1.0L, 1.0L, 3.0L;
+  selfadjointeigensolver_essential_check(matrix2);
+
+  Matrix<long double, 3, 3> matrix3;
+  matrix3 << 3.0L, 0.5L, -0.25L, 0.5L, 2.0L, 0.75L, -0.25L, 0.75L, 4.0L;
+  selfadjointeigensolver_essential_check(matrix3);
+}
+
 // Test matrix with Inf entries returns NoConvergence (similar to NaN test).
 template <int>
 void selfadjointeigensolver_inf() {
@@ -967,7 +1193,9 @@ EIGEN_DECLARE_TEST(eigensolver_selfadjoint) {
   int s = 0;
   CALL_SUBTEST_4(generalizedselfadjointeigensolver_no_malloc<MatrixXd>());
   CALL_SUBTEST_5(generalizedselfadjointeigensolver_no_malloc<MatrixXcd>());
+  CALL_SUBTEST_5(selfadjointeigensolver_dense_deflation_scale_invariance());
   CALL_SUBTEST_13(selfadjointeigensolver_subnormal_coefficients());
+  CALL_SUBTEST_13(selfadjointeigensolver_power_of_two_scaling());
 
   for (int i = 0; i < g_repeat; i++) {
     // trivial test for 1x1 matrices:
@@ -1064,7 +1292,26 @@ EIGEN_DECLARE_TEST(eigensolver_selfadjoint) {
 
   // Stress tests for direct 3x3 and 2x2 solvers.
   CALL_SUBTEST_17(direct_3x3_stress<0>());
+  CALL_SUBTEST_17(direct_3x3_ftz_rescaling<double>());
+  CALL_SUBTEST_17((direct_trace_overflow<double, 3>()));
+  CALL_SUBTEST_17(direct_3x3_centering_overflow<double>());
+  CALL_SUBTEST_17(direct_3x3_restore_overflow<double>());
+  CALL_SUBTEST_13(direct_3x3_ftz_rescaling<float>());
+  CALL_SUBTEST_13((direct_trace_overflow<float, 3>()));
+  CALL_SUBTEST_13(direct_3x3_centering_overflow<float>());
+  CALL_SUBTEST_13(direct_3x3_restore_overflow<float>());
   CALL_SUBTEST_15(direct_2x2_stress<0>());
+  CALL_SUBTEST_15(direct_2x2_ftz_rescaling<double>());
+  CALL_SUBTEST_15((direct_trace_overflow<double, 2>()));
+  CALL_SUBTEST_15(direct_2x2_partial_overflow<double>());
+  CALL_SUBTEST_12(direct_2x2_ftz_rescaling<float>());
+  CALL_SUBTEST_12((direct_trace_overflow<float, 2>()));
+  CALL_SUBTEST_12(direct_2x2_partial_overflow<float>());
+  CALL_SUBTEST_12((direct_low_precision_max_diagonal<half, 2>()));
+  CALL_SUBTEST_12((direct_low_precision_max_diagonal<bfloat16, 2>()));
+  CALL_SUBTEST_13((direct_low_precision_max_diagonal<half, 3>()));
+  CALL_SUBTEST_13((direct_low_precision_max_diagonal<bfloat16, 3>()));
+  CALL_SUBTEST_17(direct_long_double_scaling());
 
   // Test Inf input handling.
   CALL_SUBTEST_17(selfadjointeigensolver_inf<0>());

@@ -377,16 +377,14 @@ Index tridiagonal_bisection(const DiagType& diag, const SubdiagType& subdiag, co
   // off-diagonal and during the Sturm recurrence; eigenvalues scale linearly, so the
   // scaling is undone at the very end. (The caller has already verified the input is
   // finite.) This mirrors the uniform scaling done in SelfAdjointEigenSolver::compute().
-  // Divide each entry directly by the scale rather than multiplying by its reciprocal: when the scale
-  // is subnormal, 1/scale overflows to infinity, the normalization silently disables itself, and the
-  // Sturm recurrence underflows and returns wrong eigenvalues.
-  RealScalar scale = diag.cwiseAbs().maxCoeff();
-  if (n >= 2) scale = numext::maxi(scale, subdiag.cwiseAbs().maxCoeff());
-  if (numext::is_exactly_zero(scale)) scale = RealScalar(1);
+  const RealScalar maxCoeff =
+      n >= 2 ? numext::maxi(diag.cwiseAbs().maxCoeff(), subdiag.cwiseAbs().maxCoeff()) : diag.cwiseAbs().maxCoeff();
 
   // Local contiguous copies of the scaled matrix data, |off-diagonal|, and its square.
-  const ArrayType alpha = diag.array() / scale;
-  const ArrayType beta_abs = (n >= 2) ? ArrayType(subdiag.array().abs() / scale) : ArrayType(0);
+  ArrayType alpha(n);
+  const auto factors = internal::safe_scaling<RealScalar>::scale_to(alpha, diag.array(), maxCoeff);
+  ArrayType beta_abs(n >= 2 ? n - 1 : 0);
+  if (n >= 2) internal::safe_scaling<RealScalar>::scale_to(beta_abs, subdiag.array().abs(), maxCoeff, factors);
   const ArrayType beta_sq = (n >= 2) ? ArrayType(beta_abs.square()) : ArrayType(0);
 
   // Smallest pivot allowed during the Sturm recurrence (positive, floored so
@@ -444,8 +442,8 @@ Index tridiagonal_bisection(const DiagType& diag, const SubdiagType& subdiag, co
     t_hi = range.iu;
   } else if (range.kind == EigenvalueRange::ByValue) {
     eigen_assert(range.vl <= range.vu && "invalid eigenvalue value range");
-    vl_n = RealScalar(range.vl) / scale;
-    vu_n = RealScalar(range.vu) / scale;
+    internal::safe_scaling<RealScalar>::scale_to(vl_n, RealScalar(range.vl), maxCoeff, factors);
+    internal::safe_scaling<RealScalar>::scale_to(vu_n, RealScalar(range.vu), maxCoeff, factors);
     // A Sturm count taken exactly at an endpoint is unreliable when an eigenvalue sits there: the
     // rounded terminal pivot's sign is arbitrary, so an eigenvalue equal to vl could be silently
     // dropped, or one equal to vu kept, breaking the documented half-open [vl, vu) semantics.
@@ -550,7 +548,7 @@ Index tridiagonal_bisection(const DiagType& diag, const SubdiagType& subdiag, co
   }
 
   // Undo the normalization.
-  eivalues = (mid_all.head(m_out) * scale).matrix();
+  internal::safe_scaling<RealScalar>::unscale_to(eivalues, mid_all.head(m_out).matrix(), factors);
   return m_out;
 }
 

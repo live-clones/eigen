@@ -54,18 +54,15 @@ inline void stable_norm_kernel(const ExpressionType& block, Accumulator& ssq, Ac
   Accumulator maxCoeff = block.realView().template cast<Accumulator>().cwiseAbs().template maxCoeff<PropagateNaN>();
 
   if (maxCoeff > scale) {
-    ssq = ssq * numext::abs2(scale / maxCoeff);
-    Accumulator tmp = Accumulator(1) / maxCoeff;
-    if (tmp > NumTraits<Accumulator>::highest()) {
-      invScale = NumTraits<Accumulator>::highest();
-      scale = Accumulator(1) / invScale;
-    } else if (maxCoeff > NumTraits<Accumulator>::highest())  // we got an INF
+    if (maxCoeff > NumTraits<Accumulator>::highest())  // we got an INF
     {
       invScale = Accumulator(1);
       scale = maxCoeff;
     } else {
-      scale = maxCoeff;
-      invScale = tmp;
+      const auto factors = safe_scaling<Accumulator>::compute_ceiling_factors_with_normal_reciprocal(maxCoeff);
+      if (scale > Accumulator(0)) ssq = ssq * numext::abs2(scale * factors.invScale);
+      scale = factors.scale;
+      invScale = factors.invScale;
     }
   } else if (maxCoeff != maxCoeff)  // we got a NaN
   {
@@ -292,8 +289,9 @@ inline typename NumTraits<typename traits<Derived>::Scalar>::Real blueNorm_impl(
 }  // end namespace internal
 
 /** \returns the \em l2 norm of \c *this avoiding underflow and overflow.
- * This version use a blockwise two passes algorithm:
- *  1 - find the absolute largest coefficient \c s
+ * This version uses a blockwise two-pass algorithm:
+ *  1 - find the absolute largest coefficient and choose a scale \c s (a nearby normal power of two for supported
+ *      binary floating-point accumulators)
  *  2 - compute \f$ s \Vert \frac{*this}{s} \Vert \f$ in a standard way
  *
  * For architecture/scalar types supporting vectorization, this version
