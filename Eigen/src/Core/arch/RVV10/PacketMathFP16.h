@@ -388,6 +388,12 @@ EIGEN_STRONG_INLINE bool predux_any(const Packet1Xh& a) {
 }
 
 template <>
+EIGEN_STRONG_INLINE bool predux_all(const Packet1Xh& a) {
+  const PacketMask16 mask = __riscv_vmfeq_vf_f16m1_b16(a, static_cast<_Float16>(0.0), unpacket_traits<Packet1Xh>::size);
+  return __riscv_vcpop_m_b16(mask, unpacket_traits<Packet1Xh>::size) == 0;
+}
+
+template <>
 EIGEN_STRONG_INLINE Eigen::half predux_mul<Packet1Xh>(const Packet1Xh& a) {
   // Multiply the vector by its reverse
   Packet1Xh prod = __riscv_vfmul_vv_f16m1(preverse(a), a, unpacket_traits<Packet1Xh>::size);
@@ -762,6 +768,12 @@ EIGEN_STRONG_INLINE bool predux_any(const Packet2Xh& a) {
   const PacketMask8 mask =
       __riscv_vmsne_vx_u16m2_b8(__riscv_vreinterpret_v_f16m2_u16m2(a), 0, unpacket_traits<Packet2Xh>::size);
   return __riscv_vcpop_m_b8(mask, unpacket_traits<Packet2Xh>::size) != 0;
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_all(const Packet2Xh& a) {
+  const PacketMask8 mask = __riscv_vmfeq_vf_f16m2_b8(a, static_cast<_Float16>(0.0), unpacket_traits<Packet2Xh>::size);
+  return __riscv_vcpop_m_b8(mask, unpacket_traits<Packet2Xh>::size) == 0;
 }
 
 template <>
