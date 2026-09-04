@@ -27,8 +27,8 @@ template <typename SolverType, int Size, bool IsComplex>
 struct direct_selfadjoint_eigenvalues;
 
 template <typename SolverType, int Size, bool IsComplex,
-          bool EnablePrescaling =
-              !IsComplex && (Size == 2 || Size == 3) && std::is_floating_point<typename SolverType::Scalar>::value>
+          bool EnablePrescaling = !IsComplex && (Size == 2 || Size == 3) &&
+                                  supports_power_of_two_scaling<typename SolverType::Scalar>::value>
 struct direct_selfadjoint_eigensolver_dispatch;
 
 template <bool PerBlockScaling, typename MatrixType, typename DiagType, typename SubDiagType>
@@ -707,10 +707,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool direct_selfadjoint_eigensolver_safe_r
 template <int Size, typename Scalar>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool direct_selfadjoint_eigensolver_safe_range(const Scalar& maxCoeff) {
   static_assert(Size == 2 || Size == 3, "direct eigensolver safe ranges are defined only for sizes 2 and 3");
-  using HasBinaryRepresentation =
-      bool_constant<supports_power_of_two_scaling<Scalar>::value && std::numeric_limits<Scalar>::is_iec559 &&
-                    (sizeof(Scalar) == sizeof(numext::uint16_t) || sizeof(Scalar) == sizeof(numext::uint32_t) ||
-                     sizeof(Scalar) == sizeof(numext::uint64_t))>;
+  using HasBinaryRepresentation = has_binary_floating_point_representation<Scalar>;
   return direct_selfadjoint_eigensolver_safe_range<Size>(maxCoeff, HasBinaryRepresentation());
 }
 

@@ -902,6 +902,19 @@ void direct_2x2_partial_overflow() {
   VERIFY(solver.eigenvalues()(1) > Scalar(0));
 }
 
+template <typename Scalar, int Size>
+void direct_low_precision_max_diagonal() {
+  using MatrixType = Matrix<Scalar, Size, Size>;
+  const Scalar highest = NumTraits<Scalar>::highest();
+  MatrixType matrix = MatrixType::Zero();
+  matrix.diagonal().setConstant(highest);
+  SelfAdjointEigenSolver<MatrixType> solver;
+  solver.computeDirect(matrix, EigenvaluesOnly);
+  VERIFY_IS_EQUAL(solver.info(), Success);
+  const Matrix<Scalar, Size, 1> expected = Matrix<Scalar, Size, 1>::Constant(highest);
+  VERIFY_IS_EQUAL(solver.eigenvalues(), expected);
+}
+
 template <typename Scalar>
 void direct_3x3_centering_overflow() {
   using MatrixType = Matrix<Scalar, 3, 3>;
@@ -1294,6 +1307,10 @@ EIGEN_DECLARE_TEST(eigensolver_selfadjoint) {
   CALL_SUBTEST_12(direct_2x2_ftz_rescaling<float>());
   CALL_SUBTEST_12((direct_trace_overflow<float, 2>()));
   CALL_SUBTEST_12(direct_2x2_partial_overflow<float>());
+  CALL_SUBTEST_12((direct_low_precision_max_diagonal<half, 2>()));
+  CALL_SUBTEST_12((direct_low_precision_max_diagonal<bfloat16, 2>()));
+  CALL_SUBTEST_13((direct_low_precision_max_diagonal<half, 3>()));
+  CALL_SUBTEST_13((direct_low_precision_max_diagonal<bfloat16, 3>()));
   CALL_SUBTEST_17(direct_long_double_scaling());
 
   // Test Inf input handling.
