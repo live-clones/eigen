@@ -885,6 +885,24 @@ void direct_trace_overflow() {
 }
 
 template <typename Scalar>
+void direct_2x2_partial_overflow() {
+  using MatrixType = Matrix<Scalar, 2, 2>;
+  const Scalar highest = NumTraits<Scalar>::highest();
+  MatrixType matrix;
+  matrix << highest, highest, highest, Scalar(0);
+  SelfAdjointEigenSolver<MatrixType> solver;
+  solver.computeDirect(matrix, EigenvaluesOnly);
+
+  EIGEN_USING_STD(sqrt)
+  const Scalar expected = (Scalar(1) - sqrt(Scalar(5))) / Scalar(2);
+  VERIFY_IS_EQUAL(solver.info(), Success);
+  VERIFY((numext::isfinite)(solver.eigenvalues()(0)));
+  VERIFY(numext::abs(solver.eigenvalues()(0) / highest - expected) <= Scalar(8) * NumTraits<Scalar>::epsilon());
+  VERIFY((numext::isinf)(solver.eigenvalues()(1)));
+  VERIFY(solver.eigenvalues()(1) > Scalar(0));
+}
+
+template <typename Scalar>
 void direct_3x3_centering_overflow() {
   using MatrixType = Matrix<Scalar, 3, 3>;
   using VectorType = Matrix<Scalar, 3, 1>;
@@ -1272,8 +1290,10 @@ EIGEN_DECLARE_TEST(eigensolver_selfadjoint) {
   CALL_SUBTEST_15(direct_2x2_stress<0>());
   CALL_SUBTEST_15(direct_2x2_ftz_rescaling<double>());
   CALL_SUBTEST_15((direct_trace_overflow<double, 2>()));
+  CALL_SUBTEST_15(direct_2x2_partial_overflow<double>());
   CALL_SUBTEST_12(direct_2x2_ftz_rescaling<float>());
   CALL_SUBTEST_12((direct_trace_overflow<float, 2>()));
+  CALL_SUBTEST_12(direct_2x2_partial_overflow<float>());
   CALL_SUBTEST_17(direct_long_double_scaling());
 
   // Test Inf input handling.

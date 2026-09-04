@@ -971,8 +971,14 @@ struct direct_selfadjoint_eigenvalues<SolverType, 2, false> {
     scaledMat.diagonal().array() -= shift;
     const safe_scaling_factors<Scalar> factors = safe_scaling<Scalar>::scale_in_place(scaledMat, maxCoeff);
     run_centered(solver, scaledMat, options);
-    safe_scaling<Scalar>::unscale_in_place(solver.m_eivalues, factors);
-    solver.m_eivalues.array() += shift;
+    if (factors.scale == Scalar(1)) {
+      solver.m_eivalues.array() += shift;
+    } else {
+      Scalar scaledShift;
+      safe_scaling<Scalar>::scale_to(scaledShift, shift, maxCoeff, factors);
+      solver.m_eivalues.array() += scaledShift;
+      safe_scaling<Scalar>::unscale_in_place(solver.m_eivalues, factors);
+    }
   }
 
   EIGEN_DEVICE_FUNC static inline void run(SolverType& solver, const MatrixType& mat, int options) {
