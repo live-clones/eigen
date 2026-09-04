@@ -44,20 +44,16 @@ struct safe_scaling_factors {
 template <typename Derived, typename FactorScalar>
 class safe_scaled_expression;
 
-// Multiply by a positive normal power of two through the IEEE representation so FTZ/DAZ cannot consume a subnormal
-// input or result.
 template <typename Scalar>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar scale_binary_by_power_of_two(const Scalar& value, const Scalar& factor) {
+EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE typename binary_floating_point_traits<Scalar>::Bits
+scale_binary_bits_by_power_of_two(const typename binary_floating_point_traits<Scalar>::Bits valueBits,
+                                  const typename binary_floating_point_traits<Scalar>::Bits factorExponentBits) {
   using Binary = binary_floating_point_traits<Scalar>;
   using Bits = typename Binary::Bits;
 
-  const Bits valueBits = Binary::bits(value);
   const Bits valueExponentBits = valueBits & Binary::kExponentMask;
   const Bits fraction = valueBits & Binary::kFractionMask;
-  if (valueExponentBits == Binary::kExponentMask || (valueExponentBits == 0 && fraction == 0)) return value;
-
-  const Bits factorExponentBits = Binary::bits(factor) & Binary::kExponentMask;
-  if (factorExponentBits == 0 || factorExponentBits == Binary::kExponentMask) return value * factor;
+  if (valueExponentBits == Binary::kExponentMask || (valueExponentBits == 0 && fraction == 0)) return valueBits;
 
   Bits significand = fraction;
   int exponent = std::numeric_limits<Scalar>::min_exponent - std::numeric_limits<Scalar>::digits;
@@ -71,11 +67,11 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar scale_binary_by_power_of_two(const 
   for (Bits bits = significand; bits > Bits(1); bits >>= 1) ++highestBit;
   const int resultExponent = exponent + highestBit;
   const Bits sign = valueBits & Binary::kSignBit;
-  if (resultExponent > Binary::kMaxExponent) return numext::bit_cast<Scalar>(sign | Binary::kExponentMask);
+  if (resultExponent > Binary::kMaxExponent) return sign | Binary::kExponentMask;
   if (resultExponent >= Binary::kMinExponent) {
     const Bits normalized = significand << (Binary::kFractionBits - highestBit);
     const Bits resultExponentBits = Bits(resultExponent + Binary::kExponentBias) << Binary::kFractionBits;
-    return numext::bit_cast<Scalar>(sign | resultExponentBits | (normalized & Binary::kFractionMask));
+    return sign | resultExponentBits | (normalized & Binary::kFractionMask);
   }
 
   const int subnormalExponent = std::numeric_limits<Scalar>::min_exponent - std::numeric_limits<Scalar>::digits;
@@ -93,7 +89,19 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar scale_binary_by_power_of_two(const 
       if (remainder > halfway || (remainder == halfway && (rounded & Bits(1)) != 0)) ++rounded;
     }
   }
-  return numext::bit_cast<Scalar>(sign | rounded);
+  return sign | rounded;
+}
+
+// Multiply by a positive normal power of two through the IEEE representation so FTZ/DAZ cannot consume a subnormal
+// input or result. Keep the reconstruction behind an integer-only ABI: some compilers otherwise recognize the bit
+// manipulation as floating-point scaling and reintroduce an FTZ-sensitive instruction.
+template <typename Scalar>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar scale_binary_by_power_of_two(const Scalar& value, const Scalar& factor) {
+  using Binary = binary_floating_point_traits<Scalar>;
+  using Bits = typename Binary::Bits;
+  const Bits factorExponentBits = Binary::bits(factor) & Binary::kExponentMask;
+  if (factorExponentBits == 0 || factorExponentBits == Binary::kExponentMask) return value * factor;
+  return numext::bit_cast<Scalar>(scale_binary_bits_by_power_of_two<Scalar>(Binary::bits(value), factorExponentBits));
 }
 
 template <typename Scalar>
