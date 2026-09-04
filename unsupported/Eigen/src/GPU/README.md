@@ -152,8 +152,10 @@ d_x += alpha * d_p;                    // host scalar * DeviceMatrix (axpy)
 
 Division between `DeviceScalar` values (real types only) is performed on
 device via NPP, avoiding extra synchronizations. Small device allocations
-(including `DeviceScalar`) are recycled through a thread-local
-`DeviceBufferPool` to avoid `cudaMalloc`/`cudaFree` overhead in tight loops.
+(including `DeviceScalar`) go through the stream-ordered allocator like every
+other block when the device has memory pools; on the `cudaMalloc` fallback
+path they are recycled through a thread-local `DeviceBufferPool` instead, to
+avoid `cudaMalloc`/`cudaFree` overhead in tight loops.
 Pool contract: a released block is recycled only after the device has retired
 every operation enqueued before the release on any blocking stream, so pooled
 buffers may move between the streams of one thread. The release is tracked by

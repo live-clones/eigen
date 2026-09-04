@@ -19,7 +19,7 @@
 //   DotDeviceScalar / DotRaw    — DeviceScalar wrapper cost per reduction
 //   OneShotLltExpr / CachedLlt / RawPotrs — expression-solve sync + allocs
 //   CudaMalloc / CudaMallocAsync — stream-ordered allocation as a remedy
-//   PooledBuffer*               — small-buffer pool round trip, idle and behind in-flight work
+//   SmallBuffer* / PoolAllocFree — small DeviceBuffer round trip (idle, behind in-flight work) and the pool itself
 //
 // Build (standalone project, see CMakeLists.txt in this directory):
 //   cmake -G Ninja -B build-bench-gpu -S unsupported/benchmarks/GPU \
@@ -305,23 +305,35 @@ static void BM_CudaMallocAsyncFree(benchmark::State& state) {
 BENCHMARK(BM_CudaMallocAsyncFree)->Arg(1 << 10)->Arg(1 << 20)->Arg(1 << 26)->UseRealTime()->MinWarmUpTime(0.5);
 
 // ---------------------------------------------------------------------------
-// 6. Small-buffer pool: a DeviceBuffer below DeviceBufferPool's threshold is
-//    recycled through the thread-local free list, at the cost of one event
-//    record per release and one query per reuse. Behind an in-flight kernel
-//    the release event trails that kernel, so a reuse finds it retired or
-//    falls through to the stream-ordered allocator (see CudaMallocAsyncFree).
+// 6. Small buffers: a DeviceBuffer below DeviceBufferPool's threshold takes
+//    the stream-ordered allocator where memory pools exist and the thread-local
+//    pool otherwise; PoolAllocFree drives the pool directly, paying one event
+//    record per release and one query per reuse. Behind an in-flight kernel a
+//    release trails that kernel, so a reuse finds it retired or falls through
+//    to the allocator (see CudaMallocAsyncFree).
 // ---------------------------------------------------------------------------
 
-static void BM_PooledBufferAllocFree(benchmark::State& state) {
+static void BM_SmallBufferAllocFree(benchmark::State& state) {
   const size_t bytes = static_cast<size_t>(state.range(0));
   for (auto _ : state) {
     gpu::internal::DeviceBuffer b(bytes);
     benchmark::DoNotOptimize(b.get());
   }
 }
-BENCHMARK(BM_PooledBufferAllocFree)->Arg(8)->Arg(64)->Arg(256)->UseRealTime()->MinWarmUpTime(0.5);
+BENCHMARK(BM_SmallBufferAllocFree)->Arg(8)->Arg(64)->Arg(256)->UseRealTime()->MinWarmUpTime(0.5);
 
-static void BM_PooledBufferAllocFreeBusyStream(benchmark::State& state) {
+static void BM_PoolAllocFree(benchmark::State& state) {
+  const size_t bytes = static_cast<size_t>(state.range(0));
+  auto& pool = gpu::internal::DeviceBufferPool<>::threadLocal();
+  for (auto _ : state) {
+    void* p = pool.allocate(bytes);
+    benchmark::DoNotOptimize(p);
+    pool.deallocate(p, bytes);
+  }
+}
+BENCHMARK(BM_PoolAllocFree)->Arg(8)->Arg(256)->UseRealTime()->MinWarmUpTime(0.5);
+
+static void BM_SmallBufferAllocFreeBusyStream(benchmark::State& state) {
   const size_t bytes = static_cast<size_t>(state.range(0));
   gpu::Context& ctx = gpu::Context::threadLocal();
   const Index n = Index(1) << 22;
@@ -336,4 +348,4 @@ static void BM_PooledBufferAllocFreeBusyStream(benchmark::State& state) {
   }
   syncStream(ctx.stream());
 }
-BENCHMARK(BM_PooledBufferAllocFreeBusyStream)->Arg(8)->Arg(64)->UseRealTime()->MinWarmUpTime(0.5);
+BENCHMARK(BM_SmallBufferAllocFreeBusyStream)->Arg(8)->Arg(64)->UseRealTime()->MinWarmUpTime(0.5);

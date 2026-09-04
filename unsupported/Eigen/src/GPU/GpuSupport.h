@@ -137,7 +137,10 @@ struct CudaStreamDeleter {
 using UniqueStream = std::unique_ptr<std::remove_pointer_t<cudaStream_t>, CudaStreamDeleter>;
 
 // Recycles allocations up to kSmallBufferThreshold bytes (e.g. DeviceScalar) to
-// avoid cudaMalloc/cudaFree overhead. Larger allocations bypass the pool.
+// avoid cudaMalloc/cudaFree overhead on devices without memory pools; where
+// cudaMallocAsync exists it is both stream-ordered and cheaper than this pool's
+// release event, so DeviceBuffer bypasses the pool there (bench_overhead:
+// CudaMallocAsyncFree vs PoolAllocFree). Larger allocations always bypass it.
 // Invariant: a block is recycled only after the device has retired every
 // operation enqueued before its release on any blocking stream: deallocate()
 // records an event on the legacy default stream (the ordering device_free
@@ -239,8 +242,9 @@ struct DeviceBufferPool {
   std::vector<cudaEvent_t> spare_events_;
 };
 
-// Stateful deleter that returns small buffers to the thread-local pool and
-// device_free's larger ones. size==0 means "always device_free" (adopted ptrs).
+// Stateful deleter that returns pooled buffers to the thread-local pool and
+// device_free's the rest. size==0 means "always device_free" (adopted pointers
+// and allocations that went straight to device_malloc).
 struct PooledCudaFreeDeleter {
   size_t size = 0;
 
@@ -262,17 +266,14 @@ class DeviceBuffer {
 
   explicit DeviceBuffer(size_t bytes) : bytes_(bytes) {
     if (bytes > 0) {
-      void* p = nullptr;
-      // Bypass the pool once its thread_local has been destroyed (allocation
-      // from a static/TLS destructor); the matching deleter then also takes
-      // the direct device_free path.
-      if (bytes <= DeviceBufferPool<>::kSmallBufferThreshold &&
-          DeviceBufferPool<>::threadState() != DeviceBufferPool<>::State::kDestroyed) {
-        p = DeviceBufferPool<>::threadLocal().allocate(bytes);
-      } else {
-        p = device_malloc(bytes);
-      }
-      ptr_ = std::unique_ptr<void, PooledCudaFreeDeleter>(p, PooledCudaFreeDeleter{bytes});
+      // The pool serves small blocks only on the cudaMalloc fallback path, and
+      // not once its thread_local has been destroyed (allocation from a
+      // static/TLS destructor). A deleter size of 0 keeps the other
+      // allocations on the direct device_free path.
+      const bool pooled = bytes <= DeviceBufferPool<>::kSmallBufferThreshold && !device_supports_memory_pools() &&
+                          DeviceBufferPool<>::threadState() != DeviceBufferPool<>::State::kDestroyed;
+      void* p = pooled ? DeviceBufferPool<>::threadLocal().allocate(bytes) : device_malloc(bytes);
+      ptr_ = std::unique_ptr<void, PooledCudaFreeDeleter>(p, PooledCudaFreeDeleter{pooled ? bytes : 0});
     }
   }
 

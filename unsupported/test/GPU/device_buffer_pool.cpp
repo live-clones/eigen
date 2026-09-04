@@ -9,7 +9,9 @@
 // SPDX-License-Identifier: MPL-2.0
 
 // Tests for internal::DeviceBufferPool: a released block is recycled only once
-// the device has retired the work enqueued before the release.
+// the device has retired the work enqueued before the release. The pool is
+// driven directly, since DeviceBuffer only routes through it on devices without
+// memory pools.
 
 #define EIGEN_USE_GPU
 #include "main.h"
@@ -25,7 +27,6 @@ using namespace Eigen;
 namespace {
 
 using Pool = gpu::internal::DeviceBufferPool<>;
-using Buffer = gpu::internal::DeviceBuffer;
 constexpr size_t kBytes = Pool::kSmallBufferThreshold / 4;
 
 void spin_until(const std::atomic<bool>& flag) {
@@ -46,27 +47,27 @@ void CUDART_CB wait_for_gate(void* data) {
   spin_until(gate->release);
 }
 
-// An idle device recycles a pooled block on the next same-size allocation.
+// An idle device recycles a released block on the next allocation that fits.
 void test_idle_reuse() {
-  void* p = nullptr;
-  {
-    Buffer b(kBytes);
-    p = b.get();
-    VERIFY(p != nullptr);
-  }
+  Pool& pool = Pool::threadLocal();
+  void* const p = pool.allocate(kBytes);
+  VERIFY(p != nullptr);
+  pool.deallocate(p, kBytes);
   EIGEN_CUDA_RUNTIME_CHECK(cudaDeviceSynchronize());
-  Buffer c(kBytes);
-  VERIFY_IS_EQUAL(c.get(), p);
+  void* const q = pool.allocate(kBytes);
+  VERIFY_IS_EQUAL(q, p);
+  pool.deallocate(q, kBytes);
 }
 
 // A block released while a blocking stream is still busy stays out of
 // circulation until that stream drains; afterwards it is recycled again.
 void test_reuse_waits_for_in_flight_work() {
+  Pool& pool = Pool::threadLocal();
+  EIGEN_CUDA_RUNTIME_CHECK(cudaDeviceSynchronize());
   cudaStream_t stream = nullptr;
   EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&stream));
 
-  Buffer b(kBytes);
-  void* const p = b.get();
+  void* const p = pool.allocate(kBytes);
 
   StreamGate gate;
   EIGEN_CUDA_RUNTIME_CHECK(cudaLaunchHostFunc(stream, wait_for_gate, &gate));
@@ -77,17 +78,18 @@ void test_reuse_waits_for_in_flight_work() {
   });
 
   // Released while `stream` is parked: the release event cannot have completed.
-  b = Buffer();
-  Buffer c(kBytes);
-  VERIFY(c.get() != p);
+  pool.deallocate(p, kBytes);
+  void* const q = pool.allocate(kBytes);
+  VERIFY(q != p);
 
   release_thread.join();
   EIGEN_CUDA_RUNTIME_CHECK(cudaDeviceSynchronize());
 
-  // Both blocks are free and retired; first fit returns the older one.
-  c = Buffer();
-  Buffer d(kBytes);
-  VERIFY_IS_EQUAL(d.get(), p);
+  // Both blocks are free and retired; the older release is recycled first.
+  pool.deallocate(q, kBytes);
+  void* const r = pool.allocate(kBytes);
+  VERIFY_IS_EQUAL(r, p);
+  pool.deallocate(r, kBytes);
 
   EIGEN_CUDA_RUNTIME_CHECK(cudaStreamDestroy(stream));
 }
