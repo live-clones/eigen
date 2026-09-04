@@ -1717,9 +1717,13 @@ void packetmath_redux_infinities() {
 }
 
 #if defined(EIGEN_VECTORIZE_SSE2)
-void packetmath_packet16b_predux_count() {
+void packetmath_packet16b_reductions() {
   const internal::Packet16b packet(_mm_setr_epi8(0, 1, -1, 2, 0, -128, 127, 0, 0, 0, 3, -2, 0, 42, 0, -1));
   VERIFY_IS_EQUAL(internal::predux_count(packet), 9);
+  VERIFY(!internal::predux_all(packet));
+
+  const internal::Packet16b all_nonzero(_mm_set1_epi8(-1));
+  VERIFY(internal::predux_all(all_nonzero));
 
   EIGEN_ALIGN16 bool values[16];
   for (int i = 0; i < 16; ++i) values[i] = i % 3 != 0;
@@ -1797,15 +1801,13 @@ void packetmath_notcomplex() {
 
   {
     unsigned char* data1_bits = reinterpret_cast<unsigned char*>(data1);
-    // predux_all - not needed yet
-    // for (unsigned int i=0; i<PacketSize*sizeof(Scalar); ++i) data1_bits[i] = 0xff;
-    // VERIFY(internal::predux_all(internal::pload<Packet>(data1)) && "internal::predux_all(1111)");
-    // for(int k=0; k<PacketSize; ++k)
-    // {
-    //   for (unsigned int i=0; i<sizeof(Scalar); ++i) data1_bits[k*sizeof(Scalar)+i] = 0x0;
-    //   VERIFY( (!internal::predux_all(internal::pload<Packet>(data1))) && "internal::predux_all(0101)");
-    //   for (unsigned int i=0; i<sizeof(Scalar); ++i) data1_bits[k*sizeof(Scalar)+i] = 0xff;
-    // }
+    for (unsigned int i = 0; i < PacketSize * sizeof(Scalar); ++i) data1_bits[i] = 0xff;
+    VERIFY(internal::predux_all(internal::pload<Packet>(data1)) && "internal::predux_all(1111)");
+    for (int k = 0; k < PacketSize; ++k) {
+      for (unsigned int i = 0; i < sizeof(Scalar); ++i) data1_bits[k * sizeof(Scalar) + i] = 0x0;
+      VERIFY((!internal::predux_all(internal::pload<Packet>(data1))) && "internal::predux_all(0101)");
+      for (unsigned int i = 0; i < sizeof(Scalar); ++i) data1_bits[k * sizeof(Scalar) + i] = 0xff;
+    }
 
     // predux_any
     for (unsigned int i = 0; i < PacketSize * sizeof(Scalar); ++i) data1_bits[i] = 0x0;
@@ -2338,7 +2340,7 @@ EIGEN_DECLARE_TEST(packetmath) {
     CALL_SUBTEST_14((packetmath<bool, internal::packet_traits<bool>::type>()));
     CALL_SUBTEST_14((packetmath_scatter_gather<bool, internal::packet_traits<bool>::type>()));
 #if defined(EIGEN_VECTORIZE_SSE2)
-    CALL_SUBTEST_14(packetmath_packet16b_predux_count());
+    CALL_SUBTEST_14(packetmath_packet16b_reductions());
     CALL_SUBTEST_14(packetmath_packet16b_select());
 #endif
     CALL_SUBTEST_15(test::runner<bfloat16>::run());

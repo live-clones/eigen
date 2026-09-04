@@ -423,7 +423,7 @@ struct all_visitor {
   using Packet = typename packet_traits<Scalar>::type;
   EIGEN_DEVICE_FUNC inline void init(const Scalar& value, Index, Index) { res = (value != Scalar(0)); }
   EIGEN_DEVICE_FUNC inline void init(const Scalar& value, Index) { res = (value != Scalar(0)); }
-  EIGEN_DEVICE_FUNC inline bool all_predux(const Packet& p) const { return !predux_any(pcmp_eq(p, pzero(p))); }
+  EIGEN_DEVICE_FUNC inline bool all_predux(const Packet& p) const { return predux_all(p); }
   EIGEN_DEVICE_FUNC inline void initpacket(const Packet& p, Index, Index) { res = all_predux(p); }
   EIGEN_DEVICE_FUNC inline void initpacket(const Packet& p, Index) { res = all_predux(p); }
   EIGEN_DEVICE_FUNC inline void operator()(const Scalar& value, Index, Index) { res = res && (value != Scalar(0)); }
@@ -433,12 +433,6 @@ struct all_visitor {
   EIGEN_DEVICE_FUNC inline bool done() const { return !res; }
   bool res = true;
 };
-// Bool packets already contain the truth values that all()/any() need, so avoid constructing an equivalent comparison
-// mask before reducing them.
-template <>
-EIGEN_DEVICE_FUNC inline bool all_visitor<bool>::all_predux(const Packet& p) const {
-  return predux_mul(p);
-}
 template <typename Scalar>
 struct functor_traits<all_visitor<Scalar>> {
   enum { Cost = NumTraits<Scalar>::ReadCost, LinearAccess = true, PacketAccess = packet_traits<Scalar>::HasCmp };
