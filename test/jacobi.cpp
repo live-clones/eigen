@@ -10,6 +10,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
+#include "fp_control.h"
 #include <Eigen/SVD>
 
 template <typename MatrixType, typename JacobiScalar>
@@ -126,6 +127,24 @@ void jacobi_makegivens_safe_scaling() {
 }
 
 template <typename Scalar>
+void jacobi_makegivens_ftz_subnormal() {
+  using Binary = internal::binary_floating_point_traits<Scalar>;
+  const Scalar p = numext::bit_cast<Scalar>(Binary::kExponentUnit);
+  const Scalar q = numext::bit_cast<Scalar>(Binary::kExponentUnit >> 1);
+  ScopedFlushToZero flushToZero;
+  if (!flushToZero.isSupported()) return;
+
+  JacobiRotation<Scalar> rotation;
+  Scalar r;
+  rotation.makeGivens(p, q, &r);
+  const Scalar sqrt5 = numext::sqrt(Scalar(5));
+  const Scalar tolerance = Scalar(8) * NumTraits<Scalar>::epsilon();
+  VERIFY(numext::abs(rotation.c() - Scalar(2) / sqrt5) <= tolerance);
+  VERIFY(numext::abs(rotation.s() + Scalar(1) / sqrt5) <= tolerance);
+  VERIFY(numext::abs(r / p - sqrt5 / Scalar(2)) <= tolerance);
+}
+
+template <typename Scalar>
 void jacobi_makejacobi_large_tau() {
   using std::abs;
   using std::sqrt;
@@ -152,6 +171,8 @@ EIGEN_DECLARE_TEST(jacobi) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_7((jacobi_makegivens_safe_scaling<float>()));
     CALL_SUBTEST_7((jacobi_makegivens_safe_scaling<double>()));
+    CALL_SUBTEST_7((jacobi_makegivens_ftz_subnormal<float>()));
+    CALL_SUBTEST_7((jacobi_makegivens_ftz_subnormal<double>()));
     CALL_SUBTEST_7((jacobi_makejacobi_large_tau<float>()));
     CALL_SUBTEST_7((jacobi_makejacobi_large_tau<double>()));
 

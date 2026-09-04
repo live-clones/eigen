@@ -250,13 +250,13 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void JacobiRotation<Scalar>::makeGivens(co
                                                                               Scalar* r, std::false_type) {
   using std::abs;
   using std::sqrt;
-  if (numext::is_exactly_zero(q)) {
+  if (internal::safe_scaling<Scalar>::is_exactly_zero(q)) {
     m_c = p < Scalar(0) ? Scalar(-1) : Scalar(1);
     m_s = Scalar(0);
     if (r) *r = abs(p);
     return;
   }
-  if (numext::is_exactly_zero(p)) {
+  if (internal::safe_scaling<Scalar>::is_exactly_zero(p)) {
     m_c = Scalar(0);
     m_s = q < Scalar(0) ? Scalar(1) : Scalar(-1);
     if (r) *r = abs(q);
