@@ -237,6 +237,12 @@ EIGEN_STRONG_INLINE numext::int32_t predux<Packet2Xi>(const Packet2Xi& a) {
 }
 
 template <>
+EIGEN_STRONG_INLINE bool predux_all(const Packet2Xi& a) {
+  const PacketMask16 mask = __riscv_vmseq_vx_i32m2_b16(a, 0, unpacket_traits<Packet2Xi>::size);
+  return __riscv_vcpop_m_b16(mask, unpacket_traits<Packet2Xi>::size) == 0;
+}
+
+template <>
 EIGEN_STRONG_INLINE numext::int32_t predux_mul<Packet2Xi>(const Packet2Xi& a) {
   return predux_mul<Packet1Xi>(__riscv_vmul_vv_i32m1(__riscv_vget_v_i32m2_i32m1(a, 0), __riscv_vget_v_i32m2_i32m1(a, 1),
                                                      unpacket_traits<Packet1Xi>::size));
@@ -601,6 +607,12 @@ EIGEN_STRONG_INLINE bool predux_any(const Packet2Xf& a) {
 }
 
 template <>
+EIGEN_STRONG_INLINE bool predux_all(const Packet2Xf& a) {
+  const PacketMask16 mask = __riscv_vmfeq_vf_f32m2_b16(a, 0.0f, unpacket_traits<Packet2Xf>::size);
+  return __riscv_vcpop_m_b16(mask, unpacket_traits<Packet2Xf>::size) == 0;
+}
+
+template <>
 EIGEN_STRONG_INLINE Index predux_count(const Packet2Xf& a) {
   const PacketMask16 mask = __riscv_vmfne_vf_f32m2_b16(a, 0.0f, unpacket_traits<Packet2Xf>::size);
   return static_cast<Index>(__riscv_vcpop_m_b16(mask, unpacket_traits<Packet2Xf>::size));
@@ -871,6 +883,12 @@ template <>
 EIGEN_STRONG_INLINE numext::int64_t predux<Packet2Xl>(const Packet2Xl& a) {
   return __riscv_vmv_x(__riscv_vredsum_vs_i64m2_i64m1(a, __riscv_vmv_v_x_i64m1(0, unpacket_traits<Packet2Xl>::size / 2),
                                                       unpacket_traits<Packet2Xl>::size));
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_all(const Packet2Xl& a) {
+  const PacketMask32 mask = __riscv_vmseq_vx_i64m2_b32(a, 0, unpacket_traits<Packet2Xl>::size);
+  return __riscv_vcpop_m_b32(mask, unpacket_traits<Packet2Xl>::size) == 0;
 }
 
 template <>
@@ -1241,6 +1259,12 @@ EIGEN_STRONG_INLINE bool predux_any(const Packet2Xd& a) {
 }
 
 template <>
+EIGEN_STRONG_INLINE bool predux_all(const Packet2Xd& a) {
+  const PacketMask32 mask = __riscv_vmfeq_vf_f64m2_b32(a, 0.0, unpacket_traits<Packet2Xd>::size);
+  return __riscv_vcpop_m_b32(mask, unpacket_traits<Packet2Xd>::size) == 0;
+}
+
+template <>
 EIGEN_STRONG_INLINE Index predux_count(const Packet2Xd& a) {
   const PacketMask32 mask = __riscv_vmfne_vf_f64m2_b32(a, 0.0, unpacket_traits<Packet2Xd>::size);
   return static_cast<Index>(__riscv_vcpop_m_b32(mask, unpacket_traits<Packet2Xd>::size));
@@ -1516,6 +1540,12 @@ template <>
 EIGEN_STRONG_INLINE numext::int16_t predux<Packet2Xs>(const Packet2Xs& a) {
   return __riscv_vmv_x(__riscv_vredsum_vs_i16m2_i16m1(a, __riscv_vmv_v_x_i16m1(0, unpacket_traits<Packet2Xs>::size / 2),
                                                       unpacket_traits<Packet2Xs>::size));
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_all(const Packet2Xs& a) {
+  const PacketMask8 mask = __riscv_vmseq_vx_i16m2_b8(a, 0, unpacket_traits<Packet2Xs>::size);
+  return __riscv_vcpop_m_b8(mask, unpacket_traits<Packet2Xs>::size) == 0;
 }
 
 template <>
