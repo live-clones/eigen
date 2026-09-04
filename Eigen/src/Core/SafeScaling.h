@@ -32,6 +32,12 @@ struct supports_power_of_two_scaling<half> : true_type {};
 template <>
 struct supports_power_of_two_scaling<bfloat16> : true_type {};
 
+template <typename Scalar>
+struct has_binary_floating_point_representation
+    : bool_constant<supports_power_of_two_scaling<Scalar>::value && std::numeric_limits<Scalar>::is_iec559 &&
+                    (sizeof(Scalar) == sizeof(numext::uint16_t) || sizeof(Scalar) == sizeof(numext::uint32_t) ||
+                     sizeof(Scalar) == sizeof(numext::uint64_t))> {};
+
 template <typename Scalar, bool = supports_power_of_two_scaling<Scalar>::value>
 struct safe_scaling;
 
@@ -186,6 +192,15 @@ struct safe_scaling_operations {
     return factors.scale == Scalar(1) && factors.invScale == Scalar(1);
   }
 
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE bool is_exactly_zero(const Scalar& value, false_type) {
+    return numext::is_exactly_zero(value);
+  }
+
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE bool is_exactly_zero(const Scalar& value, true_type) {
+    using Binary = binary_floating_point_traits<Scalar>;
+    return Binary::magnitude(value) == 0;
+  }
+
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE bool has_normal_reciprocal(const Scalar&, const Scalar&, false_type) {
     return false;
   }
@@ -319,6 +334,10 @@ struct safe_scaling_operations {
   }
 
  public:
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE bool is_exactly_zero(const Scalar& value) {
+    return is_exactly_zero(value, has_binary_floating_point_representation<Scalar>());
+  }
+
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Factors
   compute_ceiling_factors_with_normal_reciprocal(const Scalar& value) {
     Factors factors = safe_scaling<Scalar, IsPowerOfTwo_>::compute_ceiling_factors(value);
