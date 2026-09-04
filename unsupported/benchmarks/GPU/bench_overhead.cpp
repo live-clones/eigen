@@ -306,11 +306,10 @@ BENCHMARK(BM_CudaMallocAsyncFree)->Arg(1 << 10)->Arg(1 << 20)->Arg(1 << 26)->Use
 
 // ---------------------------------------------------------------------------
 // 6. Small-buffer pool: a DeviceBuffer below DeviceBufferPool's threshold is
-//    recycled through the thread-local free list. Each release records an
-//    event and each reuse queries one, so the idle round trip is the pool's
-//    own cost; with a kernel in flight on the Context's stream the release
-//    event trails that kernel, and a reuse either finds it retired or falls
-//    through to the stream-ordered allocator (compare CudaMallocAsyncFree).
+//    recycled through the thread-local free list, at the cost of one event
+//    record per release and one query per reuse. Behind an in-flight kernel
+//    the release event trails that kernel, so a reuse finds it retired or
+//    falls through to the stream-ordered allocator (see CudaMallocAsyncFree).
 // ---------------------------------------------------------------------------
 
 static void BM_PooledBufferAllocFree(benchmark::State& state) {

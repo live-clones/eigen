@@ -139,12 +139,10 @@ using UniqueStream = std::unique_ptr<std::remove_pointer_t<cudaStream_t>, CudaSt
 // Recycles allocations up to kSmallBufferThreshold bytes (e.g. DeviceScalar) to
 // avoid cudaMalloc/cudaFree overhead. Larger allocations bypass the pool.
 // Invariant: a block is recycled only after the device has retired every
-// operation enqueued before its release, on any blocking stream. deallocate()
-// records that point as an event on the legacy default stream (the ordering
-// device_free relies on); the free list stays in release order, and since
-// events on one stream retire in record order, allocate() scans until the
-// first pending entry. Non-blocking streams sit outside the guarantee, as for
-// the allocator.
+// operation enqueued before its release on any blocking stream: deallocate()
+// records an event on the legacy default stream (the ordering device_free
+// relies on), the free list stays in release order, and events on one stream
+// retire in order, so allocate() scans until the first pending entry.
 template <size_t SmallBufferThreshold = 256, size_t MaxPoolSize = 64>
 struct DeviceBufferPool {
   static constexpr size_t kSmallBufferThreshold = SmallBufferThreshold;
