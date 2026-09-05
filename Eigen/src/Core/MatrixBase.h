@@ -163,13 +163,13 @@ class MatrixBase : public DenseBase<Derived> {
       const MatrixBase<OtherDerived>& other) const;
 
   template <typename OtherDerived>
-  Derived& operator*=(const EigenBase<OtherDerived>& other);
+  EIGEN_DEVICE_FUNC Derived& operator*=(const EigenBase<OtherDerived>& other);
 
   template <typename OtherDerived>
-  void applyOnTheLeft(const EigenBase<OtherDerived>& other);
+  EIGEN_DEVICE_FUNC void applyOnTheLeft(const EigenBase<OtherDerived>& other);
 
   template <typename OtherDerived>
-  void applyOnTheRight(const EigenBase<OtherDerived>& other);
+  EIGEN_DEVICE_FUNC void applyOnTheRight(const EigenBase<OtherDerived>& other);
 
   template <typename DiagonalDerived>
   EIGEN_DEVICE_FUNC const Product<Derived, DiagonalDerived, LazyProduct> operator*(
@@ -253,7 +253,7 @@ class MatrixBase : public DenseBase<Derived> {
   EIGEN_DEVICE_FUNC static const BasisReturnType UnitW();
 
   EIGEN_DEVICE_FUNC constexpr const DiagonalWrapper<const Derived> asDiagonal() const;
-  const PermutationWrapper<const Derived> asPermutation() const;
+  EIGEN_DEVICE_FUNC const PermutationWrapper<const Derived> asPermutation() const;
   EIGEN_DEVICE_FUNC constexpr const SkewSymmetricWrapper<const Derived> asSkewSymmetric() const;
 
   EIGEN_DEVICE_FUNC Derived& setIdentity();
@@ -262,7 +262,7 @@ class MatrixBase : public DenseBase<Derived> {
   EIGEN_DEVICE_FUNC Derived& setUnit(Index newSize, Index i);
 
   bool isIdentity(const RealScalar& prec = NumTraits<Scalar>::dummy_precision()) const;
-  bool isDiagonal(const RealScalar& prec = NumTraits<Scalar>::dummy_precision()) const;
+  EIGEN_DEVICE_FUNC bool isDiagonal(const RealScalar& prec = NumTraits<Scalar>::dummy_precision()) const;
 
   bool isUpperTriangular(const RealScalar& prec = NumTraits<Scalar>::dummy_precision()) const;
   bool isLowerTriangular(const RealScalar& prec = NumTraits<Scalar>::dummy_precision()) const;
@@ -340,12 +340,12 @@ class MatrixBase : public DenseBase<Derived> {
   /////////// LU module ///////////
 
   template <typename PermutationIndex = DefaultPermutationIndex>
-  inline FullPivLU<PlainObject, PermutationIndex> fullPivLu() const;
+  EIGEN_DEVICE_FUNC inline FullPivLU<PlainObject, PermutationIndex> fullPivLu() const;
   template <typename PermutationIndex = DefaultPermutationIndex>
-  inline PartialPivLU<PlainObject, PermutationIndex> partialPivLu() const;
+  EIGEN_DEVICE_FUNC inline PartialPivLU<PlainObject, PermutationIndex> partialPivLu() const;
 
   template <typename PermutationIndex = DefaultPermutationIndex>
-  inline PartialPivLU<PlainObject, PermutationIndex> lu() const;
+  EIGEN_DEVICE_FUNC inline PartialPivLU<PlainObject, PermutationIndex> lu() const;
 
   EIGEN_DEVICE_FUNC inline Inverse<Derived> inverse() const;
 
@@ -363,15 +363,15 @@ class MatrixBase : public DenseBase<Derived> {
 
   /////////// Cholesky module ///////////
 
-  inline LLT<PlainObject> llt() const;
-  inline LDLT<PlainObject> ldlt() const;
-  inline BunchKaufman<PlainObject> bunchKaufman() const;
+  EIGEN_DEVICE_FUNC inline LLT<PlainObject> llt() const;
+  EIGEN_DEVICE_FUNC inline LDLT<PlainObject> ldlt() const;
+  EIGEN_DEVICE_FUNC inline BunchKaufman<PlainObject> bunchKaufman() const;
 
   /////////// QR module ///////////
 
   inline HouseholderQR<PlainObject> householderQr() const;
   template <typename PermutationIndex = DefaultPermutationIndex>
-  inline ColPivHouseholderQR<PlainObject, PermutationIndex> colPivHouseholderQr() const;
+  EIGEN_DEVICE_FUNC inline ColPivHouseholderQR<PlainObject, PermutationIndex> colPivHouseholderQr() const;
   template <typename PermutationIndex = DefaultPermutationIndex>
   inline FullPivHouseholderQR<PlainObject, PermutationIndex> fullPivHouseholderQr() const;
   template <typename PermutationIndex = DefaultPermutationIndex>
@@ -530,7 +530,7 @@ class MatrixBase : public DenseBase<Derived> {
  */
 template <typename Derived>
 template <typename OtherDerived>
-inline Derived& MatrixBase<Derived>::operator*=(const EigenBase<OtherDerived>& other) {
+EIGEN_DEVICE_FUNC inline Derived& MatrixBase<Derived>::operator*=(const EigenBase<OtherDerived>& other) {
   other.derived().applyThisOnTheRight(derived());
   return derived();
 }
@@ -543,7 +543,7 @@ inline Derived& MatrixBase<Derived>::operator*=(const EigenBase<OtherDerived>& o
  */
 template <typename Derived>
 template <typename OtherDerived>
-inline void MatrixBase<Derived>::applyOnTheRight(const EigenBase<OtherDerived>& other) {
+EIGEN_DEVICE_FUNC inline void MatrixBase<Derived>::applyOnTheRight(const EigenBase<OtherDerived>& other) {
   other.derived().applyThisOnTheRight(derived());
 }
 
@@ -554,7 +554,7 @@ inline void MatrixBase<Derived>::applyOnTheRight(const EigenBase<OtherDerived>& 
  */
 template <typename Derived>
 template <typename OtherDerived>
-inline void MatrixBase<Derived>::applyOnTheLeft(const EigenBase<OtherDerived>& other) {
+EIGEN_DEVICE_FUNC inline void MatrixBase<Derived>::applyOnTheLeft(const EigenBase<OtherDerived>& other) {
   other.derived().applyThisOnTheLeft(derived());
 }
 

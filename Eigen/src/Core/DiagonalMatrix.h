@@ -362,7 +362,7 @@ EIGEN_DEVICE_FUNC constexpr const DiagonalWrapper<const Derived> MatrixBase<Deri
  * \sa asDiagonal()
  */
 template <typename Derived>
-bool MatrixBase<Derived>::isDiagonal(const RealScalar& prec) const {
+EIGEN_DEVICE_FUNC bool MatrixBase<Derived>::isDiagonal(const RealScalar& prec) const {
   if (cols() != rows()) return false;
   RealScalar maxAbsOnDiagonal = static_cast<RealScalar>(-1);
   for (Index j = 0; j < cols(); ++j) {
