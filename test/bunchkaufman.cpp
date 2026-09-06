@@ -645,15 +645,16 @@ void verify_near_max_scale(const BKType& bk, const VectorType& b, const VectorTy
   typedef typename VectorType::RealScalar RealScalar;
   VERIFY(bk.info() == Success);
   VERIFY(bk.matrixLDLT().allFinite());
-  // x_true = e_2 comes back through the cancellations 6/5 - 6/5 and -3/5 + 3/5 of values that each carry a
-  // few roundings.
+  // x_true = e_2 comes back through cancellations (6/5 - 6/5 and -3/5 + 3/5, or 18/25 - 18/25 and
+  // -9/25 + 9/25) of values that each carry a few roundings.
   VERIFY((bk.solve(b) - x_true).cwiseAbs().maxCoeff() <= RealScalar(16) * NumTraits<RealScalar>::epsilon());
 }
 
-// A 2x2 pivot block at the top of the representable range: A = M [[1/2, 1, 0], [1, 1/2, 9/10], [0, 9/10, 0]]
-// with M = max, so d21 = M, ak = akm1 = 1/2, t = -4/3, and the factor row below the block is (6/5, -3/5).
-// Scaling the numerator ak*u0 - u1 = -9M/10 by t before dividing by d21 overflows although the factor entry
-// is 6/5, in unblocked() and, with the block heading an identity wider than the panel, in partial_factor().
+// A 2x2 pivot block at the top of the representable range: A = M [[1/2, 1, 0], [1, s/2, 9/10], [0, 9/10, 0]]
+// with M = max and s = +-1: d21 = M, ak = s/2, akm1 = 1/2, denom = s/4 - 1, and the factor row below the
+// block is (6/5, -3/5) for s = 1 and (18/25, -9/25) for s = -1. Scaling ak*u0 - u1 = -9M/10 by t before
+// dividing by d21 overflows although the entries are finite; for s = -1 so does denom*d21, which would zero
+// the row with info() == Success. n = 3 runs unblocked(), the identity wider than the panel partial_factor().
 // L D L^* is not checked: (L D)(2, 1) = 6M/5 - 3M/10 overflows in the middle of its own evaluation.
 template <typename MatrixType>
 void bunchkaufman_near_max_scale() {
@@ -662,16 +663,19 @@ void bunchkaufman_near_max_scale() {
   typedef Matrix<Scalar, Dynamic, 1> VectorType;
   const RealScalar M = (std::numeric_limits<RealScalar>::max)();
   for (Index n : {Index(3), 2 * internal::bunch_kaufman_blocksize<Scalar>() + 2}) {
-    MatrixType A = MatrixType::Identity(n, n);
-    A(0, 0) = A(1, 1) = Scalar(M / RealScalar(2));
-    A(1, 0) = A(0, 1) = Scalar(M);
-    A(2, 1) = A(1, 2) = Scalar(RealScalar(0.9) * M);
-    A(2, 2) = Scalar(0);
-    const VectorType b = A.col(2);
-    VectorType e2 = VectorType::Zero(n);
-    e2(2) = Scalar(1);
-    verify_near_max_scale(BunchKaufman<MatrixType, Lower>(A), b, e2);
-    verify_near_max_scale(BunchKaufman<MatrixType, Upper>(A), b, e2);
+    for (RealScalar s : {RealScalar(1), RealScalar(-1)}) {
+      MatrixType A = MatrixType::Identity(n, n);
+      A(0, 0) = Scalar(M / RealScalar(2));
+      A(1, 1) = Scalar(s * M / RealScalar(2));
+      A(1, 0) = A(0, 1) = Scalar(M);
+      A(2, 1) = A(1, 2) = Scalar(RealScalar(0.9) * M);
+      A(2, 2) = Scalar(0);
+      const VectorType b = A.col(2);
+      VectorType e2 = VectorType::Zero(n);
+      e2(2) = Scalar(1);
+      verify_near_max_scale(BunchKaufman<MatrixType, Lower>(A), b, e2);
+      verify_near_max_scale(BunchKaufman<MatrixType, Upper>(A), b, e2);
+    }
   }
 }
 
