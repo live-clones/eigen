@@ -81,7 +81,7 @@ template <>
 EIGEN_STRONG_INLINE Index predux_count(const Packet16b& a) {
   const __m128i normalized = _mm_min_epu8(a, _mm_set1_epi8(1));
   const __m128i sums = _mm_sad_epu8(normalized, _mm_setzero_si128());
-  return static_cast<Index>(_mm_cvtsi128_si32(sums) + _mm_cvtsi128_si32(_mm_unpackhi_epi64(sums, sums)));
+  return _mm_cvtsi128_si32(sums) + _mm_cvtsi128_si32(_mm_unpackhi_epi64(sums, sums));
 }
 
 template <>
