@@ -20,6 +20,32 @@
 
 namespace Eigen {
 
+// Forward declarations satisfy host pass symbol lookup during template parsing
+template <typename Scalar, typename Index, typename LhsMapper, typename RhsMapper, typename OutputMapper,
+          bool needs_edge_check>
+__device__ EIGEN_STRONG_INLINE void EigenContractionKernelInternal(const LhsMapper lhs, const RhsMapper rhs,
+                                                                   const OutputMapper output, Scalar* lhs_shmem,
+                                                                   Scalar* rhs_shmem, const Index m_size,
+                                                                   const Index n_size, const Index k_size);
+
+template <typename Index, typename LhsMapper, typename RhsMapper, typename OutputMapper, bool CHECK_LHS_BOUNDARY,
+          bool CHECK_RHS_BOUNDARY>
+__device__ __forceinline__ void EigenFloatContractionKernelInternal(const LhsMapper lhs, const RhsMapper rhs,
+                                                                    const OutputMapper output, float2 lhs_shmem2[][32],
+                                                                    float2 rhs_shmem2[][8], const Index m_size,
+                                                                    const Index n_size, const Index k_size,
+                                                                    const Index base_m, const Index base_n);
+
+template <typename Index, typename LhsMapper, typename RhsMapper, typename OutputMapper, bool CHECK_LHS_BOUNDARY,
+          bool CHECK_RHS_BOUNDARY>
+__device__ __forceinline__ void EigenFloatContractionKernelInternal16x16(const LhsMapper lhs, const RhsMapper rhs,
+                                                                         const OutputMapper output,
+                                                                         float2 lhs_shmem2[][16],
+                                                                         float2 rhs_shmem2[][8], const Index m_size,
+                                                                         const Index n_size, const Index k_size,
+                                                                         const Index base_m, const Index base_n);
+
+#if defined(EIGEN_GPU_COMPILE_PHASE)
 template <typename Scalar, typename Index, typename LhsMapper, typename RhsMapper, typename OutputMapper,
           bool needs_edge_check>
 __device__ EIGEN_STRONG_INLINE void EigenContractionKernelInternal(const LhsMapper lhs, const RhsMapper rhs,
@@ -504,6 +530,7 @@ __device__ EIGEN_STRONG_INLINE void EigenContractionKernelInternal(const LhsMapp
   }
 #undef res
 }
+#endif  // EIGEN_GPU_COMPILE_PHASE
 
 template <typename Scalar, typename Index, typename LhsMapper, typename RhsMapper, typename OutputMapper>
 __global__ void
@@ -556,6 +583,7 @@ __launch_bounds__(256)
   output(row, col) = result;
 }
 
+#if defined(EIGEN_GPU_COMPILE_PHASE)
 template <typename Index, typename LhsMapper, typename RhsMapper, typename OutputMapper, bool CHECK_LHS_BOUNDARY,
           bool CHECK_RHS_BOUNDARY>
 __device__ __forceinline__ void EigenFloatContractionKernelInternal16x16(const LhsMapper lhs, const RhsMapper rhs,
@@ -1141,6 +1169,7 @@ __device__ __forceinline__ void EigenFloatContractionKernelInternal(const LhsMap
     }
   }
 }
+#endif  // EIGEN_GPU_COMPILE_PHASE
 
 template <typename Index, typename LhsMapper, typename RhsMapper, typename OutputMapper>
 __global__ void
