@@ -626,6 +626,8 @@ EIGEN_DECLARE_TEST(numext) {
     CALL_SUBTEST(check_twoprod<float>());
     CALL_SUBTEST(check_twoprod<double>());
     CALL_SUBTEST(check_twoprod<long double>());
+    CALL_SUBTEST(check_twoprod<half>());
+    CALL_SUBTEST(check_twoprod<bfloat16>());
 
     CALL_SUBTEST(check_arg<std::complex<float>>());
     CALL_SUBTEST(check_arg<std::complex<double>>());

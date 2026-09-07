@@ -36,12 +36,12 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void fast_twosum(const Packet& x, const Pa
 
 #ifdef EIGEN_VECTORIZE_FMA
 // Given x, y, and xy = fl(x*y), return the residual such that x*y = xy + residual exactly.
-template <typename Packet, std::enable_if_t<!std::is_floating_point<Packet>::value, int> = 0>
+template <typename Packet, std::enable_if_t<!is_scalar<Packet>::value, int> = 0>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet twoprod_low(const Packet& x, const Packet& y, const Packet& xy) {
   return pmsub(x, y, xy);
 }
 
-template <typename Scalar, std::enable_if_t<std::is_floating_point<Scalar>::value, int> = 0>
+template <typename Scalar, std::enable_if_t<is_scalar<Scalar>::value, int> = 0>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar twoprod_low(const Scalar& x, const Scalar& y, const Scalar& xy) {
   // Error-free products require FMA even when EIGEN_SCALAR_MADD_USE_FMA disables fusion in scalar madd.
   return numext::fma(x, y, -xy);
