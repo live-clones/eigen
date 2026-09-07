@@ -784,7 +784,8 @@ struct direct_selfadjoint_eigenvalues<SolverType, 3, false> {
     return true;
   }
 
-  EIGEN_DEVICE_FUNC static inline void run_centered(SolverType& solver, MatrixType& centeredMat, int options) {
+  EIGEN_DEVICE_FUNC static inline void run_centered(SolverType& solver, MatrixType& centeredMat,
+                                                    const Scalar& centeredMaxCoeff, int options) {
     const bool computeEigenvectors = (options & ComputeEigenvectors) == ComputeEigenvectors;
     EigenvectorsType& eivecs = solver.m_eivec;
     VectorType& eivals = solver.m_eivalues;
@@ -816,7 +817,7 @@ struct direct_selfadjoint_eigenvalues<SolverType, 3, false> {
 
     // compute the eigenvectors
     if (computeEigenvectors) {
-      if ((eivals(2) - eivals(0)) <= Eigen::NumTraits<Scalar>::epsilon()) {
+      if ((eivals(2) - eivals(0)) <= Eigen::NumTraits<Scalar>::epsilon() * centeredMaxCoeff) {
         // All three eigenvalues are numerically the same
         eivecs.setIdentity();
       } else {
@@ -868,7 +869,9 @@ struct direct_selfadjoint_eigenvalues<SolverType, 3, false> {
     MatrixType scaledMat = mat.template selfadjointView<Lower>();
     scaledMat.diagonal().array() -= shift;
     const safe_scaling_factors<Scalar> factors = safe_scaling<Scalar>::scale_in_place(scaledMat, maxCoeff);
-    run_centered(solver, scaledMat, options);
+    Scalar scaledMaxCoeff;
+    safe_scaling<Scalar>::scale_to(scaledMaxCoeff, maxCoeff, maxCoeff, factors);
+    run_centered(solver, scaledMat, scaledMaxCoeff, options);
 
     // Add the shift before restoring the scale: a centered eigenvalue can exceed the finite range even when the
     // corresponding uncentered eigenvalue is representable.
@@ -901,7 +904,7 @@ struct direct_selfadjoint_eigenvalues<SolverType, 3, false> {
       return;
     }
 
-    run_centered(solver, centeredMat, options);
+    run_centered(solver, centeredMat, maxCoeff, options);
     solver.m_eivalues.array() += shift;
   }
 };
