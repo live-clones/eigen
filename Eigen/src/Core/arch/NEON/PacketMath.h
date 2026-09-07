@@ -3885,11 +3885,14 @@ EIGEN_STRONG_INLINE bool predux_any(const Packet4f& x) {
 #else
   uint32x2_t tmp = vorr_u32(vget_low_u32(u), vget_high_u32(u));
   uint32_t a, b;
-  // GCC and Clang refuse to emit this instruction.
-  asm("vmov %0, %1, %P2" : "=r"(a), "=r"(b) : "w"(tmp));
-  return a | b;
+   // GCC and Clang refuse to emit this instruction.
+   asm("vmov %0, %1, %P2" : "=r"(a), "=r"(b) : "w"(tmp));
+   return a | b;
 #endif
 }
+
+// Packet2d and Packet4bf specializations of predux_any/predux_all
+// Must be defined after the packet types are fully defined (after line 4996).
 
 // Helpers for ptranspose.
 namespace detail {
@@ -4940,6 +4943,48 @@ template <>
 struct unpacket_traits<Packet2d> : neon_unpacket_default<Packet2d, double> {
   using integer_packet = Packet2l;
 };
+
+#if EIGEN_ARCH_ARM64
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet2d& x) {
+  uint64x2_t u = vreinterpretq_u64_f64(x);
+  return vgetq_lane_u64(u, 0) | vgetq_lane_u64(u, 1);
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_all(const Packet2d& x) {
+  uint64x2_t u = vreinterpretq_u64_f64(x);
+  return (vgetq_lane_u64(u, 0) & vgetq_lane_u64(u, 1)) != 0;
+}
+#endif
+
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet4bf& x) {
+#if EIGEN_ARCH_ARM64
+  const uint32x2_t u = vreinterpret_u32_u16(x);
+  return vget_lane_u32(u, 0) | vget_lane_u32(u, 1);
+#else
+  uint16_t a = vget_lane_u16(x, 0);
+  uint16_t b = vget_lane_u16(x, 1);
+  uint16_t c = vget_lane_u16(x, 2);
+  uint16_t d = vget_lane_u16(x, 3);
+  return a | b | c | d;
+#endif
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_all(const Packet4bf& x) {
+#if EIGEN_ARCH_ARM64
+  const uint32x2_t u = vreinterpret_u32_u16(x);
+  return (vget_lane_u32(u, 0) & vget_lane_u32(u, 1)) != 0;
+#else
+  uint16_t a = vget_lane_u16(x, 0);
+  uint16_t b = vget_lane_u16(x, 1);
+  uint16_t c = vget_lane_u16(x, 2);
+  uint16_t d = vget_lane_u16(x, 3);
+  return (a & b & c & d) != 0;
+#endif
+}
 
 template <>
 EIGEN_STRONG_INLINE Packet2d pzero<Packet2d>(const Packet2d& /*a*/) {
