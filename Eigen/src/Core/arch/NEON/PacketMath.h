@@ -3891,6 +3891,60 @@ EIGEN_STRONG_INLINE bool predux_any(const Packet4f& x) {
 #endif
 }
 
+#if EIGEN_ARCH_ARM64
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet2d& x) {
+  uint64x2_t u = vreinterpretq_u64_f64(x);
+  return vgetq_lane_u64(u, 0) | vgetq_lane_u64(u, 1);
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_all(const Packet2d& x) {
+  uint64x2_t u = vreinterpretq_u64_f64(x);
+  return (vgetq_lane_u64(u, 0) & vgetq_lane_u64(u, 1)) != 0;
+}
+#endif
+
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet2f& x) {
+  uint32x2_t u = vreinterpret_u32_f32(x);
+  return vget_lane_u32(u, 0) | vget_lane_u32(u, 1);
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_all(const Packet2f& x) {
+  uint32x2_t u = vreinterpret_u32_f32(x);
+  return (vget_lane_u32(u, 0) & vget_lane_u32(u, 1)) != 0;
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet4bf& x) {
+#if EIGEN_ARCH_ARM64
+  const uint32x2_t u = vreinterpret_u32_u16(x);
+  return vget_lane_u32(u, 0) | vget_lane_u32(u, 1);
+#else
+  uint16_t a = vget_lane_u16(x, 0);
+  uint16_t b = vget_lane_u16(x, 1);
+  uint16_t c = vget_lane_u16(x, 2);
+  uint16_t d = vget_lane_u16(x, 3);
+  return a | b | c | d;
+#endif
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_all(const Packet4bf& x) {
+#if EIGEN_ARCH_ARM64
+  const uint32x2_t u = vreinterpret_u32_u16(x);
+  return (vget_lane_u32(u, 0) & vget_lane_u32(u, 1)) != 0;
+#else
+  uint16_t a = vget_lane_u16(x, 0);
+  uint16_t b = vget_lane_u16(x, 1);
+  uint16_t c = vget_lane_u16(x, 2);
+  uint16_t d = vget_lane_u16(x, 3);
+  return (a & b & c & d) != 0;
+#endif
+}
+
 // Helpers for ptranspose.
 namespace detail {
 
