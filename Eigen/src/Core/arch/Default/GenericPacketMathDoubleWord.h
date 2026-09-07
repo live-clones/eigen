@@ -44,7 +44,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet twoprod_low(const Packet& x, const 
 template <typename Scalar, std::enable_if_t<is_scalar<Scalar>::value, int> = 0>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar twoprod_low(const Scalar& x, const Scalar& y, const Scalar& xy) {
   // Error-free products require FMA even when EIGEN_SCALAR_MADD_USE_FMA disables fusion in scalar madd.
-  return numext::fma(x, y, -xy);
+  return numext::fma(x, y, Scalar(-xy));
 }
 
 // This function implements the extended precision product of
