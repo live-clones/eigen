@@ -843,6 +843,25 @@ void direct_3x3_ftz_rescaling() {
   verify_direct_ftz_rescaling(significantSubdominant);
 }
 
+void direct_3x3_small_normal_scale() {
+  constexpr double scale = 1e-20;
+  Matrix3d matrix;
+  matrix << 1.5, 0.5, 0.0, 0.5, 1.5, 0.0, 0.0, 0.0, 3.0;
+  matrix *= scale;
+
+  SelfAdjointEigenSolver<Matrix3d> solver;
+  solver.computeDirect(matrix);
+  VERIFY_IS_EQUAL(solver.info(), Success);
+
+  const Matrix3d scaledMatrix = matrix / scale;
+  const Vector3d scaledEigenvalues = solver.eigenvalues() / scale;
+  const Matrix3d residual =
+      scaledMatrix * solver.eigenvectors() - solver.eigenvectors() * scaledEigenvalues.asDiagonal();
+  const double tolerance = 32.0 * NumTraits<double>::epsilon();
+  VERIFY(residual.norm() <= tolerance * scaledMatrix.norm());
+  VERIFY((solver.eigenvectors().transpose() * solver.eigenvectors() - Matrix3d::Identity()).norm() <= tolerance);
+}
+
 template <typename Scalar>
 void direct_2x2_ftz_rescaling() {
   EIGEN_USING_STD(ldexp)
@@ -1295,6 +1314,7 @@ EIGEN_DECLARE_TEST(eigensolver_selfadjoint) {
   // Stress tests for direct 3x3 and 2x2 solvers.
   CALL_SUBTEST_17(direct_3x3_stress<0>());
   CALL_SUBTEST_17(direct_3x3_ftz_rescaling<double>());
+  CALL_SUBTEST_17(direct_3x3_small_normal_scale());
   CALL_SUBTEST_17((direct_trace_overflow<double, 3>()));
   CALL_SUBTEST_17(direct_3x3_centering_overflow<double>());
   CALL_SUBTEST_17(direct_3x3_restore_overflow<double>());
