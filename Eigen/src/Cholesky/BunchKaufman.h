@@ -365,7 +365,7 @@ class BunchKaufman : public SolverBase<BunchKaufman<MatrixType_, UpLo_> > {
 
   /** \internal \returns \f$ \det(D_k)/|d_{21}|^2 \f$ for a 2x2 block of D, which is real and shares the
    * sign of \f$ \det(D_k) \f$ since \f$ |d_{21}| > 0 \f$ there. */
-  static RealScalar scaledBlockDeterminant(const RealScalar& d11, const RealScalar& d22, const RealScalar& d21);
+  EIGEN_DEVICE_FUNC static RealScalar scaledBlockDeterminant(const RealScalar& d11, const RealScalar& d22, const RealScalar& d21);
 
   /** \internal \returns \f$ \det(D) \f$, the product over the 1x1 and 2x2 diagonal blocks of D. D is
    * Hermitian, so a block determinant is real: \f$ d_{11} \f$ for a 1x1 block and
@@ -875,7 +875,7 @@ EIGEN_DEVICE_FUNC void BunchKaufman<MatrixType, UpLo_>::solveInPlaceD(MatrixBase
 // artifact of d22/d21 overflowing -- the criterion bounds |d22| only against its own row -- and
 // det(D_k) = -|d21|^2 to within that same bound there.
 template <typename MatrixType, int UpLo_>
-typename BunchKaufman<MatrixType, UpLo_>::RealScalar BunchKaufman<MatrixType, UpLo_>::scaledBlockDeterminant(
+EIGEN_DEVICE_FUNC typename BunchKaufman<MatrixType, UpLo_>::RealScalar BunchKaufman<MatrixType, UpLo_>::scaledBlockDeterminant(
     const RealScalar& d11, const RealScalar& d22, const RealScalar& d21) {
   const RealScalar q = (d11 / d21) * (d22 / d21);
   return (q > RealScalar(-1) && q < RealScalar(1)) ? q - RealScalar(1) : RealScalar(-1);

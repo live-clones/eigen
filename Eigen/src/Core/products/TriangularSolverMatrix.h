@@ -39,7 +39,7 @@ template <typename Scalar, typename Index, int Mode, bool Conjugate, int TriStor
 struct trsmKernelR {
   // Generic Implementation of triangular solve for triangular matrix on right and multiple lhs.
   // Handles non-packed matrices.
-  static void kernel(Index size, Index otherSize, const Scalar* _tri, Index triStride, Scalar* _other, Index otherIncr,
+  EIGEN_DEVICE_FUNC static void kernel(Index size, Index otherSize, const Scalar* _tri, Index triStride, Scalar* _other, Index otherIncr,
                      Index otherStride);
 };
 
@@ -87,7 +87,7 @@ trsmKernelL<Scalar, Index, Mode, Conjugate, TriStorageOrder, OtherInnerStride, S
 
 template <typename Scalar, typename Index, int Mode, bool Conjugate, int TriStorageOrder, int OtherInnerStride,
           bool Specialized>
-EIGEN_STRONG_INLINE void trsmKernelR<Scalar, Index, Mode, Conjugate, TriStorageOrder, OtherInnerStride,
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void trsmKernelR<Scalar, Index, Mode, Conjugate, TriStorageOrder, OtherInnerStride,
                                      Specialized>::kernel(Index size, Index otherSize, const Scalar* _tri,
                                                           Index triStride, Scalar* _other, Index otherIncr,
                                                           Index otherStride) {

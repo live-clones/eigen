@@ -1006,7 +1006,7 @@ namespace internal {
 template <bool UseTriangularAssignmentLoop>
 struct triangular_product_assignment_dispatcher {
   template <typename DstXprType, typename SrcXprType, typename Functor, typename Scalar>
-  static void run(DstXprType& dst, const SrcXprType& src, const Functor&, const Scalar& alpha, bool beta) {
+  static EIGEN_DEVICE_FUNC void run(DstXprType& dst, const SrcXprType& src, const Functor&, const Scalar& alpha, bool beta) {
     if (!beta) {
       Index dstRows = src.rows();
       Index dstCols = src.cols();
