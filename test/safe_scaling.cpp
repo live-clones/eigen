@@ -45,14 +45,19 @@ void check_power_of_two_scaling_factor() {
   VERIFY_IS_EQUAL(normalReciprocalFactors.scale, denormFactors.scale);
   VERIFY_IS_EQUAL(normalReciprocalFactors.invScale, denormFactors.invScale);
 
-  const T denormMin = std::numeric_limits<T>::denorm_min();
-  T scaledDenorm;
-  internal::safe_scaling<T>::scale_to(scaledDenorm, denormMin, denormMin);
-  Matrix<T, 1, 1> scaledDenormInPlace;
-  scaledDenormInPlace(0) = denormMin;
-  internal::safe_scaling<T>::scale_in_place(scaledDenormInPlace, denormMin);
-  VERIFY_IS_EQUAL(scaledDenormInPlace(0), scaledDenorm);
-  VERIFY(scaledDenorm > T(0));
+  // bfloat16 arithmetic widens to float, whose subnormal inputs may be flushed before scaling can recover them.
+  if (!std::is_same<T, bfloat16>::value || !ScopedFlushToZero::hardwareFlushesSubnormalInputs()) {
+    using InputScalar = std::conditional_t<std::is_floating_point<T>::value, T, float>;
+    volatile InputScalar denormInput = static_cast<InputScalar>(std::numeric_limits<T>::denorm_min());
+    const T denormMin = static_cast<T>(denormInput);
+    T scaledDenorm;
+    internal::safe_scaling<T>::scale_to(scaledDenorm, denormMin, denormMin);
+    Matrix<T, 1, 1> scaledDenormInPlace;
+    scaledDenormInPlace(0) = denormMin;
+    internal::safe_scaling<T>::scale_in_place(scaledDenormInPlace, denormMin);
+    VERIFY_IS_EQUAL(scaledDenormInPlace(0), scaledDenorm);
+    VERIFY(scaledDenorm > T(0));
+  }
 
   check_round_trip((std::numeric_limits<T>::min)());
   check_round_trip(T(0.75));
@@ -176,6 +181,11 @@ void check_arithmetic_safe_scaling_fallback() {
 template <typename Scalar, typename Wide>
 void check_wider_scaling_reference(const Scalar& value, const Scalar& factor, const Scalar& expected,
                                    internal::true_type) {
+  // The independent arithmetic reference requires conversions that preserve subnormals in both directions.
+  using Binary = internal::binary_floating_point_traits<Scalar>;
+  volatile Scalar denormInput = std::numeric_limits<Scalar>::denorm_min();
+  volatile Wide widenedDenorm = static_cast<Wide>(denormInput);
+  if (Binary::bits(static_cast<Scalar>(widenedDenorm)) == 0) return;
   const volatile Wide wideValue = static_cast<Wide>(value);
   const volatile Wide wideFactor = static_cast<Wide>(factor);
   const Scalar reference = static_cast<Scalar>(wideValue * wideFactor);
@@ -252,16 +262,17 @@ struct scaling_test_value<std::complex<RealScalar>> {
 template <typename Scalar>
 void check_subnormal_preserving_scaling() {
   using RealScalar = typename NumTraits<Scalar>::Real;
-  volatile RealScalar normalMinInput = (std::numeric_limits<RealScalar>::min)();
-  volatile RealScalar denormMinInput = std::numeric_limits<RealScalar>::denorm_min();
-  const long double inputScale = 256.0L * static_cast<long double>(normalMinInput);
-  const RealScalar maxCoeff = RealScalar(inputScale);
-  const RealScalar subnormalMaxCoeff = RealScalar(64.0L * static_cast<long double>(denormMinInput));
+  using Binary = internal::binary_floating_point_traits<RealScalar>;
+  using Bits = typename Binary::Bits;
+  const RealScalar maxCoeff = numext::ldexp((std::numeric_limits<RealScalar>::min)(), 8);
+  // Arithmetic or narrowing conversions could flush these inputs before they reach the scaling helper.
+  const RealScalar subnormalMaxCoeff = numext::bit_cast<RealScalar>(Bits(64));
   const auto factors = internal::safe_scaling<RealScalar>::compute_floor_factors(maxCoeff);
 
   Matrix<Scalar, 2, 1> input;
-  input(0) = scaling_test_value<Scalar>::run(RealScalar(inputScale), RealScalar(-inputScale));
-  input(1) = scaling_test_value<Scalar>::run(RealScalar(inputScale / 512.0L), RealScalar(inputScale / 1024.0L));
+  input(0) = scaling_test_value<Scalar>::run(maxCoeff, -maxCoeff);
+  input(1) = scaling_test_value<Scalar>::run(numext::bit_cast<RealScalar>(Binary::kExponentUnit >> 1),
+                                             numext::bit_cast<RealScalar>(Binary::kExponentUnit >> 2));
   Matrix<Scalar, 1, 1> subnormalInput;
   subnormalInput(0) = scaling_test_value<Scalar>::run(subnormalMaxCoeff, RealScalar(0));
   ScopedFlushToZero flushToZero;

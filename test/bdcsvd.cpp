@@ -293,7 +293,7 @@ void bdcsvd_power_of_two_scaling() {
   VectorXf superdiagonal = VectorXf::Zero(size - 1);
   superdiagonal(0) = coupling;
   const float expectedRatio = numext::sqrt(1.0f + 1.0f / (512.0f * 512.0f));
-  for (Index switchSize : {Index(8), Index(32)}) {
+  for (int switchSize : {8, 32}) {
     bidiagonalSvd.setSwitchSize(switchSize);
     bidiagonalSvd.compute(diagonal, superdiagonal);
     VERIFY(numext::abs(bidiagonalSvd.singularValues()(0) / largest - expectedRatio) <=

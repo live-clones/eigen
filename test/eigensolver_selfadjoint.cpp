@@ -790,12 +790,17 @@ void selfadjointeigensolver_rowmajor() {
 template <typename MatrixType>
 void verify_direct_ftz_rescaling(const MatrixType& matrix) {
   using Scalar = typename MatrixType::Scalar;
-  SelfAdjointEigenSolver<MatrixType> reference(matrix);
-  VERIFY_IS_EQUAL(reference.info(), Success);
   const Scalar scale = matrix.cwiseAbs().maxCoeff();
   const auto factors = internal::safe_scaling<Scalar>::compute_floor_factors(scale);
-  typename SelfAdjointEigenSolver<MatrixType>::RealVectorType scaledReference;
-  internal::safe_scaling<Scalar>::scale_to(scaledReference, reference.eigenvalues(), scale, factors);
+  // The iterative reference cannot consume subnormal inputs on ARMv7 NEON, even before enabling runtime FTZ.
+  MatrixType scaledMatrix;
+  internal::safe_scaling<Scalar>::scale_to(scaledMatrix, matrix, scale, factors);
+  SelfAdjointEigenSolver<MatrixType> reference(scaledMatrix);
+  VERIFY_IS_EQUAL(reference.info(), Success);
+  // Restoring a subnormal eigenvalue quantizes it in units of denorm_min.
+  Scalar scaledQuantum;
+  const Scalar denormMin = std::numeric_limits<Scalar>::denorm_min();
+  internal::safe_scaling<Scalar>::scale_to(scaledQuantum, denormMin, denormMin, factors);
   ScopedFlushToZero flushToZero;
   if (!flushToZero.isSupported()) return;
 
@@ -805,9 +810,8 @@ void verify_direct_ftz_rescaling(const MatrixType& matrix) {
   const Scalar tolerance = Scalar(32) * NumTraits<Scalar>::epsilon();
   typename SelfAdjointEigenSolver<MatrixType>::RealVectorType scaledEigenvalues;
   internal::safe_scaling<Scalar>::scale_to(scaledEigenvalues, direct.eigenvalues(), scale, factors);
-  VERIFY(scaledEigenvalues.isApprox(scaledReference, tolerance));
-  MatrixType scaledMatrix;
-  internal::safe_scaling<Scalar>::scale_to(scaledMatrix, matrix, scale, factors);
+  const Scalar eigenvalueBound = tolerance * scaledMatrix.norm() + Scalar(0.5) * scaledQuantum;
+  VERIFY((scaledEigenvalues - reference.eigenvalues()).cwiseAbs().maxCoeff() <= eigenvalueBound);
   const MatrixType orthogonality = direct.eigenvectors().transpose() * direct.eigenvectors() - MatrixType::Identity();
   VERIFY(orthogonality.norm() <= tolerance);
   MatrixType diagonalized = direct.eigenvectors().transpose() * scaledMatrix * direct.eigenvectors();

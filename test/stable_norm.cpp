@@ -236,7 +236,8 @@ void stable_normalize_extremes() {
   using std::sqrt;
 
   const RealScalar highest = (std::numeric_limits<RealScalar>::max)();
-  const RealScalar denorm = std::numeric_limits<RealScalar>::denorm_min();
+  volatile RealScalar denormInput = std::numeric_limits<RealScalar>::denorm_min();
+  const RealScalar denorm = denormInput;
   const RealScalar infinity = std::numeric_limits<RealScalar>::infinity();
   const RealScalar nan = std::numeric_limits<RealScalar>::quiet_NaN();
   const RealScalar inv_sqrt_two = RealScalar(1) / sqrt(RealScalar(2));
@@ -436,7 +437,8 @@ void stable_norm_mixed_underflow() {
 template <typename RealScalar>
 void stable_norm_denormal_rounding() {
   typedef Matrix<RealScalar, 2, 1> Vector2;
-  const RealScalar denorm = std::numeric_limits<RealScalar>::denorm_min();
+  volatile RealScalar denormInput = std::numeric_limits<RealScalar>::denorm_min();
+  const RealScalar denorm = denormInput;
   if (std::numeric_limits<RealScalar>::has_denorm != std::denorm_present || !(denorm > RealScalar(0))) return;
 
   // sqrt(2) * denorm_min rounds back to denorm_min.  An approximate check at

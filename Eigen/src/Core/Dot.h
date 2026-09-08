@@ -396,7 +396,10 @@ MatrixBase<Derived>::stableNormalized() const {
       }
       return normalized;
     }
-    return vec;
+    // Packet arithmetic may flush subnormal inputs even when the maximum reduction preserves them (ARMv7 NEON).
+    PlainObject normalized(vec);
+    internal::stable_normalization_subnormal_recovery<PlainObject, Accumulator>::run(normalized);
+    return normalized;
   }
 
   // Two normal divisors avoid an exceptional reciprocal and fast-math
@@ -453,6 +456,8 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void MatrixBase<Derived>::stableNormalize(
         internal::stable_normalization_scale_in_place(derived(), invScale);
         internal::stable_normalization_divide_in_place(derived(), static_cast<RealScalar>(sqrt_z));
       }
+    } else {
+      internal::stable_normalization_subnormal_recovery<Derived, Accumulator>::run(derived());
     }
     return;
   }
