@@ -74,7 +74,7 @@ function(ei_add_gpu_test test_name)
 endfunction()
 
 # Compile-time GPU type-trait surface (static_assert only; links like device_matrix
-# because it pulls the full <unsupported/Eigen/GPU> umbrella).
+# because it pulls the full <contrib/Eigen/GPU> umbrella).
 ei_add_gpu_test(device_traits
   EXTRA_LIBS CUDA::cublas CUDA::cusolver CUDA::npps CUDA::nppc)
 

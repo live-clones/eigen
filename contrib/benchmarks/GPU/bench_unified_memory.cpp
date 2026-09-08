@@ -35,7 +35,7 @@
 //   Registered     cudaHostRegister over the host matrix's own storage
 //
 // Build (standalone project, see CMakeLists.txt in this directory):
-//   cmake -G Ninja -B build-bench-gpu -S unsupported/benchmarks/GPU \
+//   cmake -G Ninja -B build-bench-gpu -S contrib/benchmarks/GPU \
 //         -DCMAKE_CUDA_ARCHITECTURES=87
 //   cmake --build build-bench-gpu --target bench_unified_memory
 //   ./build-bench-gpu/bench_unified_memory
@@ -44,7 +44,7 @@
 #define EIGEN_USE_GPU
 #endif
 #include <Eigen/Core>
-#include <unsupported/Eigen/GPU>
+#include <contrib/Eigen/GPU>
 
 #include <benchmark/benchmark.h>
 #include <cublas_v2.h>

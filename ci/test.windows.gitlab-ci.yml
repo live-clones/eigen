@@ -93,7 +93,7 @@ test:windows:x86-64:cuda-13.0:msvc-14.29:
 ##### MR Affected Tests ########################################################
 # Paired with the affected Windows build job.  No CTest label is set: the regex
 # from select:tests is the only filter, so a selection spanning Official and
-# Unsupported tests runs in one job rather than the two the labelled jobs above
+# Contrib tests runs in one job rather than the two the labelled jobs above
 # need.
 #
 # Dropping the label filter is what makes the exclusion below necessary.  The

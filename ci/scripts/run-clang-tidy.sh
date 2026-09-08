@@ -184,7 +184,7 @@ third_party_include_missing_from() {
   # quoted third-party include in the tree is reachable without an
   # EIGEN_USE_* macro this job does not define.
   case "${spelling}" in
-    Eigen/*|unsupported/*|./*|../*) return 0 ;;
+    Eigen/*|contrib/*|unsupported/*|./*|../*) return 0 ;;
   esac
   directive=$(sed -n "${location##*:}p" "${location%:*}" 2>/dev/null)
   if [[ "${directive}" =~ ^[[:space:]]*#[[:space:]]*include[[:space:]]*\" ]]; then

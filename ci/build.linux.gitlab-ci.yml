@@ -621,7 +621,7 @@ build:linux:cross:aarch64:clang-14:default:
     # with SVE2 enabled, GCC 13 through 15 emit `whilewr p0.b, wzr, wzr` for the
     # autovectorizer's alias checks, using 32-bit W registers where the
     # instruction takes X registers, and the assembler rejects it. It reproduces
-    # at every vector length from 256 up (unsupported/test/tensor_block_eval.cpp
+    # at every vector length from 256 up (contrib/test/tensor_block_eval.cpp
     # is one trigger) and is a GCC bug, not an Eigen one; clang is unaffected.
     EIGEN_CI_ADDITIONAL_ARGS: >-
       -DEIGEN_TEST_SVE=ON
