@@ -334,12 +334,13 @@ void product(const MatrixType& m) {
   {
     // Triple products of rows x rows matrices, each side chaining two or three
     // products. As above, the error scales with the magnitude of the
-    // intermediates, |square|^3, which the transposes and conjugations below
-    // leave unchanged.
+    // intermediates. Conjugation leaves that magnitude at |square|^3;
+    // transposition keeps every entry's magnitude but reorders the chain, so
+    // square * (square * square)^T is bounded by |square| * (|square|^2)^T.
     const RealRowSquareMatrixType abs_sq = square.cwiseAbs();
     const RealRowSquareMatrixType abs_sq2 = abs_sq * abs_sq;
     VERIFY(verifyProduct(square * (square * square).transpose(), square * square.transpose() * square.transpose(),
-                         abs_sq2, abs_sq, 4));
+                         abs_sq, abs_sq2.transpose(), 4));
     VERIFY(verifyProduct(square * (-(square * square)), -square * square * square, abs_sq2, abs_sq, 4));
     VERIFY(verifyProduct(square * (s1 * (square * square)), s1 * square * square * square, abs_sq2,
                          (numext::abs(s1) * abs_sq).eval(), 4));
