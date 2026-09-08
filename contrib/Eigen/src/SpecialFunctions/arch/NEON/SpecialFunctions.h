@@ -7,6 +7,48 @@
 namespace Eigen {
 namespace internal {
 
+#if EIGEN_ARCH_ARM
+// For x = n * 2^-149, n < 2^23, erf(x) = (2/sqrt(pi))*x to float precision.
+// round((2/sqrt(pi))*2^31) = 2423175810; the coefficient error contributes < 0.000319 ULP.
+// Integer rounding avoids ARMv7 NEON's input/output flushing. The result bits also cover the first normal binade.
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet2i perf_subnormal_significands(const Packet2i& n) {
+  return vreinterpret_s32_u32(vrshrn_n_u64(vmull_u32(vreinterpret_u32_s32(n), vdup_n_u32(2423175810u)), 31));
+}
+
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4i perf_subnormal_significands(const Packet4i& n) {
+  return vcombine_s32(perf_subnormal_significands(Packet2i(vget_low_s32(n))),
+                      perf_subnormal_significands(Packet2i(vget_high_s32(n))));
+}
+
+template <typename Packet>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet perf_neon(const Packet& x) {
+  using PacketI = typename unpacket_traits<Packet>::integer_packet;
+  const Packet result = generic_fast_erf<float>::run(x);
+  const PacketI bits = preinterpret<PacketI>(x);
+  // NEON VABS clears the sign bit without flushing subnormal inputs.
+  const PacketI magnitude = preinterpret<PacketI>(pabs(x));
+  const PacketI subnormal =
+      pandnot(pcmp_lt(magnitude, pset1<PacketI>(0x00800000)), pcmp_eq(magnitude, pzero(magnitude)));
+  // The mask contains only 0/-1. Integer min avoids scalarizing the two-lane mask.
+  const bool hasSubnormal =
+      unpacket_traits<Packet>::size == 2 ? predux_min(subnormal) != 0 : predux_any(preinterpret<Packet>(subnormal));
+  if (!hasSubnormal) return result;
+  const PacketI significands = pand(magnitude, pset1<PacketI>(0x007fffff));
+  const PacketI recovered = por(perf_subnormal_significands(significands), pxor(bits, magnitude));
+  return pselect(preinterpret<Packet>(subnormal), preinterpret<Packet>(recovered), result);
+}
+
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet2f perf<Packet2f>(const Packet2f& x) {
+  return perf_neon(x);
+}
+
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4f perf<Packet4f>(const Packet4f& x) {
+  return perf_neon(x);
+}
+#endif
+
 #if EIGEN_ARCH_ARM64 && EIGEN_HAS_ARM64_FP16
 
 #define NEON_HALF_TO_FLOAT_FUNCTIONS(METHOD)                                              \
