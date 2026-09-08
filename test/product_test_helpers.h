@@ -22,32 +22,17 @@ namespace Eigen {
 //       gamma_tilde_k ~ lambda * sqrt(k) * epsilon,
 //     holding with probability >= 1 - 2*exp(-lambda^2/2) per inner product.
 //
-// Two overloads are provided:
+// The bound is absolute rather than relative on purpose: || |A|*|B| ||_F /
+// ||A*B||_F is unbounded, so no multiple of epsilon bounds the relative error
+// of a product whose result cancels. Random operands do reach that regime — for
+// A = m1*m1^T, B = m2, the result vanishes as m1^T*m2 does.
 //
-// 1. product_tolerance<Scalar>(inner_dim, ...) — RELATIVE tolerance for use
-//    with isApprox(). Assumes random matrices in [-1,1], where sign
-//    cancellation gives || |A|*|B| ||_F / ||A*B||_F ~ (3/4)*sqrt(k).
-//    Combined: tol ~ lambda * num_products * k * epsilon.
-//
-// 2. product_error_bound(A, B, ...) — ABSOLUTE error bound for arbitrary
-//    matrices. Computes || |A|*|B| ||_F directly.
-//    Bound: lambda * sqrt(k) * epsilon * num_products * || |A|*|B| ||_F.
-//
-// Parameters common to both:
+// Parameters:
 //   num_products: number of independent products contributing error (default 1).
 //                 Use 2 when comparing two different evaluations of A*B.
 //   lambda:       probability parameter; P(lambda) = 1 - 2*exp(-lambda^2/2).
 //                 lambda=5 gives P > 0.9999 per inner product.
 
-// Overload 1: Relative tolerance for random [-1,1] matrices.
-template <typename Scalar>
-typename NumTraits<Scalar>::Real product_tolerance(Index inner_dim, int num_products = 1, double lambda = 5) {
-  using Real = typename NumTraits<Scalar>::Real;
-  const Real lambda_real(lambda);
-  return lambda_real * Real(num_products) * Real(inner_dim) * NumTraits<Scalar>::epsilon();
-}
-
-// Overload 2: Absolute error bound for arbitrary matrices.
 // Returns lambda * sqrt(k) * epsilon * num_products * || |A|*|B| ||_F.
 //
 // || |A|*|B| ||_F is accumulated in double with an explicit loop rather than formed as
