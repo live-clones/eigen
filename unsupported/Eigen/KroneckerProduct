@@ -32,6 +32,10 @@ namespace Eigen {
 
 // IWYU pragma: begin_exports
 #include "src/KroneckerProduct/KroneckerTensorProduct.h"
+#include "src/KroneckerProduct/DoubleKronecker.h"
+#include "src/KroneckerProduct/LeftKronecker.h"
+#include "src/KroneckerProduct/RightKronecker.h"
+
 // IWYU pragma: end_exports
 
 #include "../../Eigen/src/Core/util/ReenableStupidWarnings.h"
