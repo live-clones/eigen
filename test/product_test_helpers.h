@@ -82,7 +82,7 @@ inline bool verifyProduct(const MatrixBase<D1>& actual, const MatrixBase<D2>& ex
   Real bound = product_error_bound(A, B, num_products, lambda);
   Real error = (actual - expected).norm();
   // Negated so that a NaN error fails rather than slipping through the comparison.
-  if (!(error <= bound)) {
+  if (!(numext::isfinite)(bound) || !(error <= bound)) {
     std::cerr << "Product verification failed: error " << error << " exceeds bound " << bound << std::endl;
     return false;
   }
