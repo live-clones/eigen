@@ -57,17 +57,16 @@ void product(const MatrixType& m) {
   /* this test covers the following files:
      Identity.h Product.h
   */
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, 1> RowVectorType;
-  typedef Matrix<Scalar, MatrixType::ColsAtCompileTime, 1> ColVectorType;
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime> RowSquareMatrixType;
-  typedef Matrix<Scalar, MatrixType::ColsAtCompileTime, MatrixType::ColsAtCompileTime> ColSquareMatrixType;
-  typedef Matrix<RealScalar, MatrixType::RowsAtCompileTime, MatrixType::ColsAtCompileTime> RealMatrixType;
-  typedef Matrix<RealScalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime> RealRowSquareMatrixType;
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::ColsAtCompileTime,
-                 MatrixType::Flags & RowMajorBit ? ColMajor : RowMajor>
-      OtherMajorMatrixType;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using RowVectorType = Matrix<Scalar, MatrixType::RowsAtCompileTime, 1>;
+  using ColVectorType = Matrix<Scalar, MatrixType::ColsAtCompileTime, 1>;
+  using RowSquareMatrixType = Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime>;
+  using ColSquareMatrixType = Matrix<Scalar, MatrixType::ColsAtCompileTime, MatrixType::ColsAtCompileTime>;
+  using RealMatrixType = Matrix<RealScalar, MatrixType::RowsAtCompileTime, MatrixType::ColsAtCompileTime>;
+  using RealRowSquareMatrixType = Matrix<RealScalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime>;
+  using OtherMajorMatrixType = Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::ColsAtCompileTime,
+                                      MatrixType::Flags & RowMajorBit ? ColMajor : RowMajor>;
 
   // We want a tighter epsilon for not-approx tests.  Otherwise, for certain
   // low-precision types (e.g. bfloat16), the bound ends up being relatively large
@@ -351,7 +350,7 @@ void product(const MatrixType& m) {
   // destination with a non-default inner-stride
   // see bug 1741
   if (!MatrixType::IsRowMajor) {
-    typedef Matrix<Scalar, Dynamic, Dynamic> MatrixX;
+    using MatrixX = Matrix<Scalar, Dynamic, Dynamic>;
     MatrixX buffer(2 * rows, 2 * rows);
     Map<RowSquareMatrixType, 0, Stride<Dynamic, 2> > map1(buffer.data(), rows, rows, Stride<Dynamic, 2>(2 * rows, 2));
     buffer.setZero();
