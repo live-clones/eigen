@@ -7,7 +7,7 @@
 #define EIGEN_DEFAULT_DENSE_INDEX_TYPE int
 #include "main.h"
 
-#include <unsupported/Eigen/StructuredMatrices>
+#include <contrib/Eigen/StructuredMatrices>
 
 using namespace Eigen;
 

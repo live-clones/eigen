@@ -12,7 +12,7 @@
 #include <benchmark/benchmark.h>
 #include <Eigen/Core>
 #include <Eigen/LU>
-#include <unsupported/Eigen/StructuredMatrices>
+#include <contrib/Eigen/StructuredMatrices>
 
 using namespace Eigen;
 
