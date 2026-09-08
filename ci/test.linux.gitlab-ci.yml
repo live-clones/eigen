@@ -939,6 +939,7 @@ test:linux:buildsystem:
         - Eigen/Version
         - blas/CMakeLists.txt
         - lapack/CMakeLists.txt
+        - contrib/**/CMakeLists.txt
         - unsupported/**/CMakeLists.txt
         - doc/CMakeLists.txt
         - doc/TopicCMakeGuide.dox
@@ -957,7 +958,7 @@ test:linux:buildsystem:
 ##### MR Affected Tests ########################################################
 # Paired with the affected build jobs.  No CTest label is set: the regex from
 # select:tests is the only filter, so a selection spanning Official and
-# Unsupported tests runs in one job.
+# Contrib tests runs in one job.
 #
 # Each job shares its trigger rule with the build job it needs; see
 # .rules:libeigen:affected-tests:* in ci/common.gitlab-ci.yml.
