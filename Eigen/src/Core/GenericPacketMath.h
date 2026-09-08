@@ -371,6 +371,11 @@ EIGEN_DEVICE_FUNC inline Packet pmul(const Packet& a, const Packet& b) {
   return a * b;
 }
 template <>
+EIGEN_DEVICE_FUNC inline unsigned short pmul(const unsigned short& a, const unsigned short& b) {
+  // Multiplication after promotion to signed int can overflow before narrowing.
+  return static_cast<unsigned short>(static_cast<unsigned int>(a) * static_cast<unsigned int>(b));
+}
+template <>
 EIGEN_DEVICE_FUNC inline bool pmul(const bool& a, const bool& b) {
   return a & b;
 }

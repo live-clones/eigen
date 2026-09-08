@@ -2321,7 +2321,23 @@ struct runall<Scalar, PacketType, true, false> {  // i.e. complex
 }  // namespace test
 }  // namespace Eigen
 
+void packetmath_unsigned_short() {
+  // Volatile inputs keep sanitizer builds from folding away integer promotions.
+  volatile unsigned short values[] = {0, 1, 32768, 40232, 58075, 65535};
+  for (unsigned short a : values) {
+    for (unsigned short b : values) {
+      const unsigned short c = 65535;
+      VERIFY_IS_EQUAL(internal::pmul(a, b), REF_MUL(a, b));
+      VERIFY_IS_EQUAL(internal::pmadd(a, b, c), REF_MADD(a, b, c));
+      VERIFY_IS_EQUAL(internal::pmsub(a, b, c), REF_MSUB(a, b, c));
+      VERIFY_IS_EQUAL(internal::pnmadd(a, b, c), REF_NMADD(a, b, c));
+      VERIFY_IS_EQUAL(internal::pnmsub(a, b, c), REF_NMSUB(a, b, c));
+    }
+  }
+}
+
 EIGEN_DECLARE_TEST(packetmath) {
+  CALL_SUBTEST_6(packetmath_unsigned_short());
   g_first_pass = true;
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(test::runner<float>::run());
