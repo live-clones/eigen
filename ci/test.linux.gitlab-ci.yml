@@ -586,10 +586,10 @@ test:linux:sme512:gcc-14:full:contrib:
     # Threaded tests are meaningless under single-threaded TCG, and FFT overruns
     # even the raised timeout at EIGEN_REPEAT=2 -- it is kissfft-based scalar and
     # complex code with no SVE-specific path, and every native job covers it.
-    # On the anchor rather than the :unsupported jobs so the affected-tier jobs,
+    # On the anchor rather than the :contrib jobs so the affected-tier jobs,
     # which apply no label filter and so run both labels in one pass, inherit it
     # too; the :official jobs are unaffected either way, as both names are
-    # Unsupported tests.
+    # Contrib tests.
     EIGEN_CI_CTEST_EXCLUDE: tensor_thread_pool|FFT
     # Name the compiler the artifacts were built with, not the default-version
     # cross g++. The test stage does compile: the failtest targets are
@@ -598,7 +598,7 @@ test:linux:sme512:gcc-14:full:contrib:
     # without that exact binary fails all 62 failtests at once -- and the _ko
     # halves then pass vacuously, WILL_FAIL being unable to tell the asserted
     # compile error from a missing compiler. Only the affected tier sees this:
-    # the :official and :unsupported jobs filter by label, and failtests carry
+    # the :official and :contrib jobs filter by label, and failtests carry
     # neither label. (The buildsystem scenarios, which bake in the same path,
     # no longer register here: test/buildsystem/CMakeLists.txt skips emulator
     # builds, whose consumer binaries cannot run on the host.)
@@ -642,30 +642,30 @@ test:linux:sve128:gcc-13:official:
   variables:
     EIGEN_CI_CTEST_LABEL: Official
 
-test:linux:sve128:gcc-13:unsupported:
+test:linux:sve128:gcc-13:contrib:
   extends: .test:linux:sve:vl128
   variables:
-    EIGEN_CI_CTEST_LABEL: Unsupported
+    EIGEN_CI_CTEST_LABEL: Contrib
 
 test:linux:sve256:gcc-13:official:
   extends: .test:linux:sve:vl256
   variables:
     EIGEN_CI_CTEST_LABEL: Official
 
-test:linux:sve256:gcc-13:unsupported:
+test:linux:sve256:gcc-13:contrib:
   extends: .test:linux:sve:vl256
   variables:
-    EIGEN_CI_CTEST_LABEL: Unsupported
+    EIGEN_CI_CTEST_LABEL: Contrib
 
 test:linux:sve512:gcc-13:official:
   extends: .test:linux:sve:vl512
   variables:
     EIGEN_CI_CTEST_LABEL: Official
 
-test:linux:sve512:gcc-13:unsupported:
+test:linux:sve512:gcc-13:contrib:
   extends: .test:linux:sve:vl512
   variables:
-    EIGEN_CI_CTEST_LABEL: Unsupported
+    EIGEN_CI_CTEST_LABEL: Contrib
 
 ##### aarch64 ##################################################################
 

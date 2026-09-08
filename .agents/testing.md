@@ -179,7 +179,7 @@ model as appropriate. Check NaN, infinity, and signed zero explicitly when their
 
 Write such a bound as `factor * NumTraits<RealScalar>::epsilon()` at the site, and explain `factor` by its error
 model. Do not introduce tolerance wrapper helpers: the raw form is the established idiom across `test/` and
-`unsupported/test/`, and it *is* the computation, so a bound like `10 * n * eps * A.norm()` stays readable as one.
+`contrib/test/`, and it *is* the computation, so a bound like `10 * n * eps * A.norm()` stays readable as one.
 A bare decimal literal is worse than opaque — `1e-9` demands impossible accuracy from a `float` instantiation.
 
 Two ways a comparison silently accepts everything, both of which have shipped here: a tolerance computed by the

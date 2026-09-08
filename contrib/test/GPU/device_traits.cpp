@@ -7,13 +7,13 @@
 // SPDX-FileCopyrightText: The Eigen Authors
 // SPDX-License-Identifier: MPL-2.0
 
-// Compile-time tests for the unsupported GPU type-trait surface: name-keyed
+// Compile-time tests for the contrib GPU type-trait surface: name-keyed
 // predicates plus the device_expr_traits query aliases (scalar_type_t, is_device_expr_v, trans_op).
 
 #define EIGEN_USE_GPU
 #include "main.h"
 #include <type_traits>
-#include <unsupported/Eigen/GPU>
+#include <contrib/Eigen/GPU>
 
 using namespace Eigen;
 
