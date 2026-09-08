@@ -466,7 +466,7 @@ branch at compile time.
 Plans and data layouts are [cuFFT](https://docs.nvidia.com/cuda/cufft/)'s. The
 scaling convention is not: cuFFT leaves its transforms unnormalized, and
 `gpu::FFT` applies the 1/n on the inverse so that `inv(fwd(x)) == x`, matching
-`unsupported/Eigen/FFT`.
+`contrib/Eigen/FFT`.
 
 ```cpp
 gpu::FFT<float> fft;                // shares stream + cuBLAS with the
