@@ -126,6 +126,49 @@ void check_begin_end_for_loop(Xpr xpr) {
   }
 }
 
+template <typename Iterator, typename OtherIterator>
+void check_iterator_order(Iterator first, OtherIterator otherFirst, Index size) {
+  for (Index i = 0; i <= size; ++i) {
+    for (Index j = 0; j <= size; ++j) {
+      const auto a = first + i;
+      const auto b = otherFirst + j;
+      VERIFY_IS_EQUAL(a - b, i - j);
+      VERIFY_IS_EQUAL(a == b, i == j);
+      VERIFY_IS_EQUAL(a != b, i != j);
+      VERIFY_IS_EQUAL(a < b, i < j);
+      VERIFY_IS_EQUAL(a <= b, i <= j);
+      VERIFY_IS_EQUAL(a > b, i > j);
+      VERIFY_IS_EQUAL(a >= b, i >= j);
+    }
+  }
+}
+
+template <int Stride, int Options>
+void test_strided_iterator_order(Index stride) {
+  using VectorType = Matrix<int, Dynamic, 1>;
+  using MappedVector = Matrix<int, Options == RowMajor ? 1 : Dynamic, Options == RowMajor ? Dynamic : 1, Options>;
+  VectorType storage = VectorType::Random(20);
+  // Keep both forward and reverse end pointers within the allocation, including with negative strides.
+  Map<MappedVector, Unaligned, InnerStride<Stride>> map(storage.data() + 9, 4, InnerStride<Stride>(stride));
+  const auto& constMap = map;
+  check_begin_end_for_loop(map);
+  check_iterator_order(map.begin(), map.begin(), map.size());
+  check_iterator_order(map.begin(), constMap.begin(), map.size());
+  check_iterator_order(constMap.begin(), map.begin(), map.size());
+  check_iterator_order(constMap.begin(), constMap.begin(), map.size());
+  const auto reverseBegin = make_reverse_iterator(map.end());
+  const auto constReverseBegin = make_reverse_iterator(constMap.end());
+  check_iterator_order(reverseBegin, reverseBegin, map.size());
+  check_iterator_order(reverseBegin, constReverseBegin, map.size());
+  check_iterator_order(constReverseBegin, reverseBegin, map.size());
+  check_iterator_order(constReverseBegin, constReverseBegin, map.size());
+  Map<const MappedVector, Unaligned, InnerStride<Stride>> readOnly(map.data(), map.size(), InnerStride<Stride>(stride));
+  check_iterator_order(readOnly.begin(), readOnly.end() - readOnly.size(), readOnly.size());
+
+  std::sort(map.begin(), map.end());
+  for (Index i = 1; i < map.size(); ++i) VERIFY(map[i - 1] <= map[i]);
+}
+
 template <typename Scalar, int Rows, int Cols>
 void test_stl_iterators(int rows = Rows, int cols = Cols) {
   typedef Matrix<Scalar, Rows, 1> VectorType;
@@ -656,6 +699,13 @@ void test_cxx20_ranges(int rows = Rows, int cols = Cols) {
 #endif
 
 EIGEN_DECLARE_TEST(stl_iterators) {
+  for (Index stride : {-2, -1, 1, 2}) {
+    CALL_SUBTEST_1((test_strided_iterator_order<Dynamic, ColMajor>(stride)));
+    CALL_SUBTEST_1((test_strided_iterator_order<Dynamic, RowMajor>(stride)));
+  }
+  CALL_SUBTEST_1((test_strided_iterator_order<-2, ColMajor>(-2)));
+  CALL_SUBTEST_1((test_strided_iterator_order<2, ColMajor>(2)));
+  CALL_SUBTEST_1((test_strided_iterator_order<1, ColMajor>(1)));
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1((test_stl_iterators<double, 2, 3>()));
     CALL_SUBTEST_1((test_stl_iterators<float, 7, 5>()));

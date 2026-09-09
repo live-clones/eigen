@@ -409,17 +409,22 @@ class pointer_based_stl_iterator {
 
   bool operator==(const pointer_based_stl_iterator& other) const { return m_ptr == other.m_ptr; }
   bool operator!=(const pointer_based_stl_iterator& other) const { return m_ptr != other.m_ptr; }
-  bool operator<(const pointer_based_stl_iterator& other) const { return m_ptr < other.m_ptr; }
-  bool operator<=(const pointer_based_stl_iterator& other) const { return m_ptr <= other.m_ptr; }
-  bool operator>(const pointer_based_stl_iterator& other) const { return m_ptr > other.m_ptr; }
-  bool operator>=(const pointer_based_stl_iterator& other) const { return m_ptr >= other.m_ptr; }
+  bool operator<(const pointer_based_stl_iterator& other) const {
+    // Iterator order follows the stride, not necessarily increasing addresses.
+    return m_incr.value() < 0 ? m_ptr > other.m_ptr : m_ptr < other.m_ptr;
+  }
+  bool operator<=(const pointer_based_stl_iterator& other) const { return !(other < *this); }
+  bool operator>(const pointer_based_stl_iterator& other) const { return other < *this; }
+  bool operator>=(const pointer_based_stl_iterator& other) const { return !(*this < other); }
 
   bool operator==(const other_iterator& other) const { return m_ptr == other.m_ptr; }
   bool operator!=(const other_iterator& other) const { return m_ptr != other.m_ptr; }
-  bool operator<(const other_iterator& other) const { return m_ptr < other.m_ptr; }
-  bool operator<=(const other_iterator& other) const { return m_ptr <= other.m_ptr; }
-  bool operator>(const other_iterator& other) const { return m_ptr > other.m_ptr; }
-  bool operator>=(const other_iterator& other) const { return m_ptr >= other.m_ptr; }
+  bool operator<(const other_iterator& other) const {
+    return m_incr.value() < 0 ? m_ptr > other.m_ptr : m_ptr < other.m_ptr;
+  }
+  bool operator<=(const other_iterator& other) const { return !(other < *this); }
+  bool operator>(const other_iterator& other) const { return other < *this; }
+  bool operator>=(const other_iterator& other) const { return !(*this < other); }
 
  protected:
   pointer m_ptr = nullptr;
