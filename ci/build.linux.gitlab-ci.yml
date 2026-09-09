@@ -547,6 +547,8 @@ build:linux:riscv64:gcc-15:default:smoketest:
   extends: build:linux:riscv64:gcc-15:default
   variables:
     EIGEN_CI_BUILD_TARGET: buildsmoketests
+    # The GoogleTest suites combine scalar variants in larger translation units.
+    EIGEN_CI_BUILD_JOBS: "2"
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   tags:
