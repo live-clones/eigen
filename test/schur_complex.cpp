@@ -122,7 +122,7 @@ void schur_subnormal_scale(Index size) {
 
 #if EIGEN_ARCH_ARM && defined(EIGEN_VECTORIZE_NEON)
   // ARMv7 NEON flushes float subnormals when scaling T back to the input range.
-  if (std::is_same<RealScalar, float>::value) return;
+  EIGEN_IF_CONSTEXPR (std::is_same<RealScalar, float>::value) return;
 #endif
 
   const RealScalar denormalMin = std::numeric_limits<RealScalar>::denorm_min();

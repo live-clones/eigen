@@ -74,14 +74,10 @@ void packetmath_real() {
       VERIFY_IS_EQUAL(data2[4], Scalar(-1));
       VERIFY_IS_EQUAL(data2[5], Scalar(1));
       VERIFY_IS_EQUAL(data2[6], Scalar(-1));
-#if EIGEN_ARCH_ARM && defined(EIGEN_VECTORIZE_NEON)
-      // ARMv7 NEON flushes float subnormals, including widened bfloat16 inputs.
-      constexpr bool kFlushesSubnormals =
-          PacketSize > 1 && (std::is_same<Scalar, float>::value || std::is_same<Scalar, bfloat16>::value);
-#else
-      constexpr bool kFlushesSubnormals = false;
-#endif
-      if (kFlushesSubnormals) {
+      // ARMv7 NEON flushes float subnormals, and a bfloat16 packet widens to float, so the packet erf returns +0.
+      constexpr bool kFlushesSubnormals = EIGEN_ARCH_ARM != 0 && PacketSize > 1 &&
+                                          (std::is_same<Scalar, float>::value || std::is_same<Scalar, bfloat16>::value);
+      EIGEN_IF_CONSTEXPR (kFlushesSubnormals) {
         VERIFY_IS_EQUAL(data2[7], Scalar(0));
         VERIFY(!numext::signbit(data2[7]));
       } else if (data1[7] > Scalar(0)) {

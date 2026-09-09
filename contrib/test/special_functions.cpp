@@ -591,13 +591,11 @@ void test_special_functions_edge_cases() {
       Scalar(std::erfc(-2.0)), Scalar(0.0), Scalar(2.0), Scalar(0.0), Scalar(2.0), Scalar(0.0), Scalar(2.0),
       Scalar(0.0), Scalar(2.0);
 
-#if EIGEN_ARCH_ARM && defined(EIGEN_VECTORIZE_NEON)
-  // ARMv7 NEON flushes subnormal float inputs independently of the scalar FP mode.
-  if (std::is_same<Scalar, float>::value && internal::packet_traits<Scalar>::size > 1 &&
-      internal::packet_traits<Scalar>::HasErf) {
+  // ARMv7 NEON flushes the subnormal input to +0, so the packet erf returns +0 where the scalar reference does not.
+  EIGEN_IF_CONSTEXPR (EIGEN_ARCH_ARM != 0 && std::is_same<Scalar, float>::value &&
+                      internal::packet_traits<Scalar>::HasErf) {
     erf_ref(2) = Scalar(0);
   }
-#endif
 
   ArrayType erf_res = x.erf();
   verify_component_wise(erf_res, erf_ref);
