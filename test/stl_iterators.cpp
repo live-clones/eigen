@@ -31,6 +31,17 @@ std::reverse_iterator<Iterator> make_reverse_iterator(Iterator i) {
 
 using std::is_sorted;
 
+template <typename VectorwiseType>
+void check_reverse_subscript(VectorwiseType xpr) {
+  const Index size = xpr.end() - xpr.begin();
+  for (Index i = 0; i < size; ++i) {
+    VERIFY_IS_EQUAL(xpr.rbegin()[i], xpr.begin()[size - 1 - i]);
+    VERIFY_IS_EQUAL(xpr.crbegin()[i], xpr.cbegin()[size - 1 - i]);
+    VERIFY_IS_EQUAL((xpr.rend() - 1)[-i], xpr.begin()[i]);
+    VERIFY_IS_EQUAL((xpr.crend() - 1)[-i], xpr.cbegin()[i]);
+  }
+}
+
 template <typename XprType>
 bool is_pointer_based_stl_iterator(const internal::pointer_based_stl_iterator<XprType>&) {
   return true;
@@ -472,6 +483,17 @@ void test_stl_iterators(int rows = Rows, int cols = Cols) {
       ++i;
     }
   }
+
+  check_reverse_subscript(A.rowwise());
+  check_reverse_subscript(A.colwise());
+  check_reverse_subscript(B.rowwise());
+  check_reverse_subscript(B.colwise());
+  const ColMatrixType& constA = A;
+  const RowMatrixType& constB = B;
+  check_reverse_subscript(constA.rowwise());
+  check_reverse_subscript(constA.colwise());
+  check_reverse_subscript(constB.rowwise());
+  check_reverse_subscript(constB.colwise());
 
   // check rows/cols iterators with STL algorithms
   {

@@ -555,7 +555,7 @@ class subvector_stl_reverse_iterator
   subvector_stl_reverse_iterator(XprType& xpr, Index index) : Base(xpr, index) {}
 
   reference operator*() const { return (*mp_xpr).template subVector<Direction>(m_index); }
-  reference operator[](Index i) const { return (*mp_xpr).template subVector<Direction>(m_index + i); }
+  reference operator[](Index i) const { return (*mp_xpr).template subVector<Direction>(m_index - i); }
   pointer operator->() const { return (*mp_xpr).template subVector<Direction>(m_index); }
 };
 
