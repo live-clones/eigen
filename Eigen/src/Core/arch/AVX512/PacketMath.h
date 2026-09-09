@@ -2670,6 +2670,13 @@ EIGEN_STRONG_INLINE Packet16bf F32ToBf16(const Packet16f& a) {
   return r;
 }
 
+// Discard the low 16 bits of each float. Only valid when every lane already holds an exact
+// bfloat16 value, in which case this agrees with F32ToBf16 but skips its rounding and NaN
+// canonicalization. pmin/pmax qualify: they return one of their operands bit for bit.
+EIGEN_STRONG_INLINE Packet16bf F32ToBf16Truncate(const Packet16f& a) {
+  return _mm512_cvtepi32_epi16(_mm512_srli_epi32(_mm512_castps_si512(a), 16));
+}
+
 template <>
 EIGEN_STRONG_INLINE Packet16bf ptrue(const Packet16bf& a) {
   return Packet16bf(ptrue<Packet8i>(Packet8i(a)));
@@ -2801,12 +2808,12 @@ EIGEN_STRONG_INLINE Packet16bf pdiv<Packet16bf>(const Packet16bf& a, const Packe
 
 template <>
 EIGEN_STRONG_INLINE Packet16bf pmin<Packet16bf>(const Packet16bf& a, const Packet16bf& b) {
-  return F32ToBf16(pmin<Packet16f>(Bf16ToF32(a), Bf16ToF32(b)));
+  return F32ToBf16Truncate(pmin<Packet16f>(Bf16ToF32(a), Bf16ToF32(b)));
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet16bf pmax<Packet16bf>(const Packet16bf& a, const Packet16bf& b) {
-  return F32ToBf16(pmax<Packet16f>(Bf16ToF32(a), Bf16ToF32(b)));
+  return F32ToBf16Truncate(pmax<Packet16f>(Bf16ToF32(a), Bf16ToF32(b)));
 }
 
 template <>
