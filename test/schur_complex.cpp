@@ -120,6 +120,11 @@ void schur_subnormal_scale(Index size) {
   typedef typename ComplexSchur<MatrixType>::ComplexScalar ComplexScalar;
   typedef typename ComplexSchur<MatrixType>::ComplexMatrixType ComplexMatrixType;
 
+#if EIGEN_ARCH_ARM && defined(EIGEN_VECTORIZE_NEON)
+  // ARMv7 NEON flushes float subnormals when scaling T back to the input range.
+  EIGEN_IF_CONSTEXPR (std::is_same<RealScalar, float>::value) return;
+#endif
+
   const RealScalar denormalMin = std::numeric_limits<RealScalar>::denorm_min();
   const RealScalar normalMin = (std::numeric_limits<RealScalar>::min)();
   if (!(denormalMin < normalMin)) return;  // Target has no subnormals, or flushes them to zero.
