@@ -169,6 +169,38 @@ void test_strided_iterator_order(Index stride) {
   for (Index i = 1; i < map.size(); ++i) VERIFY(map[i - 1] <= map[i]);
 }
 
+template <typename Iterator, typename ConstIterator>
+void check_iterator_const_conversion(Iterator first, Iterator last, ConstIterator constFirst) {
+  STATIC_CHECK((std::is_convertible<Iterator, ConstIterator>::value));
+  STATIC_CHECK((std::is_assignable<ConstIterator&, Iterator>::value));
+  STATIC_CHECK((
+      std::is_same<decltype(std::declval<ConstIterator&>() = std::declval<const Iterator&>()), ConstIterator&>::value));
+  STATIC_CHECK((!std::is_convertible<ConstIterator, Iterator>::value));
+  STATIC_CHECK((!std::is_assignable<Iterator&, ConstIterator>::value));
+  const Index size = last - first;
+  for (Index i = 0; i <= size; ++i) {
+    const Iterator it = first + i;
+    ConstIterator converted = it;
+    ConstIterator assigned;
+    VERIFY(&(assigned = it) == &assigned);
+    VERIFY(converted == constFirst + i);
+    VERIFY(assigned == converted);
+    VERIFY(converted == it && it == converted);
+    VERIFY_IS_EQUAL(converted - first, i);
+    VERIFY_IS_EQUAL(last - converted, size - i);
+    if (i < size) {
+      VERIFY_IS_EQUAL(*converted, *it);
+      VERIFY_IS_EQUAL(*(assigned = it), *it);
+    }
+  }
+}
+
+template <typename VectorwiseType>
+void check_subvector_const_conversion(VectorwiseType xpr) {
+  check_iterator_const_conversion(xpr.begin(), xpr.end(), xpr.cbegin());
+  check_iterator_const_conversion(xpr.rbegin(), xpr.rend(), xpr.crbegin());
+}
+
 template <typename Scalar, int Rows, int Cols>
 void test_stl_iterators(int rows = Rows, int cols = Cols) {
   typedef Matrix<Scalar, Rows, 1> VectorType;
@@ -526,6 +558,11 @@ void test_stl_iterators(int rows = Rows, int cols = Cols) {
       ++i;
     }
   }
+
+  check_subvector_const_conversion(A.rowwise());
+  check_subvector_const_conversion(A.colwise());
+  check_subvector_const_conversion(B.rowwise());
+  check_subvector_const_conversion(B.colwise());
 
   check_reverse_subscript(A.rowwise());
   check_reverse_subscript(A.colwise());

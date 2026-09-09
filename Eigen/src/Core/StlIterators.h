@@ -512,6 +512,7 @@ class subvector_stl_iterator : public indexed_based_stl_iterator_base<subvector_
 
   subvector_stl_iterator() = default;
   subvector_stl_iterator(XprType& xpr, Index index) : Base(xpr, index) {}
+  subvector_stl_iterator(const typename Base::non_const_iterator& other) : Base(other) {}
 
   reference operator*() const { return (*mp_xpr).template subVector<Direction>(m_index); }
   reference operator[](Index i) const { return (*mp_xpr).template subVector<Direction>(m_index + i); }
@@ -558,6 +559,7 @@ class subvector_stl_reverse_iterator
 
   subvector_stl_reverse_iterator() = default;
   subvector_stl_reverse_iterator(XprType& xpr, Index index) : Base(xpr, index) {}
+  subvector_stl_reverse_iterator(const typename Base::non_const_iterator& other) : Base(other) {}
 
   reference operator*() const { return (*mp_xpr).template subVector<Direction>(m_index); }
   reference operator[](Index i) const { return (*mp_xpr).template subVector<Direction>(m_index - i); }
