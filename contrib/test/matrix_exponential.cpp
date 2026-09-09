@@ -142,16 +142,17 @@ void testCustomComplexScalingPath() {
 template <typename Scalar>
 void testAtomicTaylorConvergence() {
   using MatrixType = Matrix<Scalar, 2, 2>;
+  // The eigenvalues +-a are 1/16 apart, within matrix_function_separation, so A is a single atomic block.
   const Scalar a = Scalar(1) / Scalar(32);
   MatrixType A;
-  A << a, Scalar(1), Scalar(0), -a;
+  A << a, 1, 0, -a;
   // A^2 = a^2 I, hence exp(A) = cosh(a) I + sinh(a)/a A. Reference: MPFR, 256 bits.
   MatrixType expected;
   expected << Scalar(1.031743407499102670938747815281507144194498326641816096008L),
       Scalar(1.000162768364137425450217952562469769436361163924174806184L), Scalar(0),
       Scalar(0.969233234476344081848109193246352783604725753896555170622L);
   const MatrixType actual = A.matrixFunction(expfn);
-  const Scalar bound = Scalar(8) * NumTraits<Scalar>::epsilon() * expected.cwiseAbs().maxCoeff();
+  const Scalar bound = 8 * NumTraits<Scalar>::epsilon() * expected.cwiseAbs().maxCoeff();
   VERIFY(actual.allFinite());
   VERIFY((actual - expected).cwiseAbs().maxCoeff() <= bound);
 }
