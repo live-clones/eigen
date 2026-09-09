@@ -470,9 +470,9 @@ bool ieee_entrywise_match(const D1& a, const D2& b) {
   for (Index j = 0; j < a.cols(); ++j)
     for (Index i = 0; i < a.rows(); ++i) {
       const typename D1::Scalar x = a(i, j), y = b(i, j);
-      if (x == y) continue;                    // finite match or same-signed infinities
+      if (x == y) continue;                                    // finite match or same-signed infinities
       if ((numext::isnan)(x) && (numext::isnan)(y)) continue;  // both NaN
-      if (!test_isApprox(x, y)) return false;  // finite roundoff
+      if (!test_isApprox(x, y)) return false;                  // finite roundoff
     }
   return true;
 }
