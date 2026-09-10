@@ -57,6 +57,8 @@ set(EIGEN_BENCH_VENDOR_FIELDS
     PLATFORM            # CMake variable that must be true for this vendor
     MIN_CMAKE           # minimum CMake version whose FindBLAS knows this vendor
     AUTO_PRIORITY       # rank in the auto-detection order; lower is tried first
+    ARM_SOURCES         # extra sources compiled into every binary linking this arm
+    ARM_LINK_OPTIONS    # extra link options for those binaries
     NOTES)
 
 function(eigen_bench_declare_vendor key)
@@ -253,6 +255,38 @@ eigen_bench_declare_vendor(mkl
   VERSION_TEMPLATE "Intel oneMKL @VERSION@"
   VERSION_RUNTIME "mkl_get_version_string()"
   VERSION_RUNTIME_SYMBOL mkl_get_version_string)
+
+# The same oneMKL with its CPUID vendor check answered "Intel" from inside the
+# binary (mkl_vendor_bypass.cpp). On a non-Intel CPU the library otherwise
+# takes a conservative code path -- half of Eigen's dgemm rate on Zen 5,
+# measured 2026-09 -- so the as-shipped `mkl` row says what a user gets and
+# this row says what the kernels can do. Intel does not support the
+# configuration; a page carries it under this name, never as "Intel oneMKL".
+# Never selected by `auto`.
+eigen_bench_declare_vendor(mkl_bypass
+  AUTO_PRIORITY 900
+  DISPLAY_NAME "Intel oneMKL, vendor check bypassed"
+  ALIASES mkl_unlocked onemkl_bypass
+  BLA_VENDOR Intel10_64lp_seq Intel10_64lp Intel10_64_dyn
+  CBLAS_HEADER mkl_cblas.h
+  CBLAS_HINTS $ENV{MKLROOT} $ENV{ONEAPI_ROOT}/mkl/latest /opt/intel/oneapi/mkl/latest
+  CBLAS_PATH_SUFFIXES include
+  INTERFACE_WIDTH lp64
+  THREADING sequential
+  THREAD_ENV MKL_NUM_THREADS
+  PROVIDES blas cblas lapack lapacke
+  VERSION_PKGCONFIG mkl-dynamic-lp64-seq
+  VERSION_HEADER mkl_version.h
+  VERSION_HEADER_REGEX "__INTEL_MKL_BUILD_DATE[ \t]+([0-9]+)"
+  VERSION_TEMPLATE "Intel oneMKL @VERSION@"
+  VERSION_RUNTIME "mkl_get_version_string()"
+  VERSION_RUNTIME_SYMBOL mkl_get_version_string
+  ARM_SOURCES ${CMAKE_CURRENT_LIST_DIR}/mkl_vendor_bypass.cpp
+  # The executable's definition must reach the dynamic symbol table to interpose
+  # on the library's own; ld exports it on its own only when a shared library
+  # leaves the symbol undefined, and libmkl_core defines it.
+  ARM_LINK_OPTIONS -Wl,--export-dynamic-symbol=mkl_serv_get_cpu_true
+  NOTES "oneMKL's CPUID vendor check is answered 'Intel' from inside the binary; unsupported by Intel, published only under this name.")
 
 eigen_bench_declare_vendor(aocl
   AUTO_PRIORITY 50

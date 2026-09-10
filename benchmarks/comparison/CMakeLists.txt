@@ -476,6 +476,21 @@ foreach(_source IN LISTS _comparison_sources)
     if(EIGEN_BENCH_BLAS_COMPILE_OPTIONS)
       target_compile_options(${_target} PRIVATE ${EIGEN_BENCH_BLAS_COMPILE_OPTIONS})
     endif()
+    # An arm that changes how the library behaves from inside the binary -- the
+    # vendor-check bypass for oneMKL -- carries that code as a source of its own,
+    # so the binary is the record of what was measured and nothing has to be
+    # preloaded at run time.
+    eigen_bench_vendor_get(${EIGEN_BENCH_BLAS_ARM} ARM_SOURCES _arm_sources)
+    if(_arm_sources)
+      target_sources(${_target} PRIVATE ${_arm_sources})
+    endif()
+    eigen_bench_vendor_get(${EIGEN_BENCH_BLAS_ARM} ARM_LINK_OPTIONS _arm_link_options)
+    if(_arm_link_options)
+      # Through target_link_libraries rather than target_link_options, which
+      # needs CMake 3.13 where benchmarks/CMakeLists.txt promises 3.10; an item
+      # starting with "-" is passed to the linker as a flag either way.
+      target_link_libraries(${_target} PRIVATE ${_arm_link_options})
+    endif()
   endif()
   set(_target_${_target}_has_reference ${_target_has_reference})
   add_dependencies(bench_comparison_all ${_target})
