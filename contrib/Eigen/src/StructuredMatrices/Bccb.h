@@ -614,7 +614,8 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
       }
       int ex = 0;  // stays 0 for an all-zero column: no scaling
       if (m > RealScalar(0)) {
-        std::frexp(m, &ex);
+        EIGEN_USING_STD(frexp);
+        frexp(m, &ex);
         EIGEN_IF_CONSTEXPR (NumTraits<ProductScalar>::IsComplex) ++ex;
       }
       // reshaped() defaults to column-major traversal, the flattening the
@@ -734,10 +735,14 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
    * inverted (their reciprocals are finite). */
   static void scaledModuli(const ComplexArray& s, RealArray& mods, RealScalar& tol) {
     const int e = numext::maxi(internal::structured_exponent_bound(s), 0);
-    const RealScalar down = std::ldexp(RealScalar(1), -e);
-    mods = (s * down).cwiseAbs();
+    // Two exact factors, as in Circulant::scaledModuli(): a single 2^-e is itself
+    // subnormal once the frame exceeds the exponent range, and reads as zero under
+    // flush-to-zero -- collapsing every scaled modulus, and the threshold with
+    // them. Neither factor exceeds one, so no intermediate underflows on its own.
+    const RealScalar down1 = numext::ldexp(RealScalar(1), -(e / 2)), down2 = numext::ldexp(RealScalar(1), -(e - e / 2));
+    mods = ((s * down1) * down2).cwiseAbs();
     tol = numext::maxi(RealScalar(s.size()) * NumTraits<RealScalar>::epsilon() * mods.maxCoeff(),
-                       (std::numeric_limits<RealScalar>::min)() * down);
+                       ((std::numeric_limits<RealScalar>::min)() * down1) * down2);
   }
 
   /** \internal Writes the unit-norm 2-D Fourier eigenvector of frequencies
