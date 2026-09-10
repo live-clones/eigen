@@ -17,7 +17,17 @@
 namespace Eigen {
 namespace internal {
 
-#if defined(EIGEN_USE_GPU) && defined(EIGEN_GPUCC)
+// Forward declarations satisfy host pass symbol lookup during template parsing
+template <typename Type>
+__device__ Type atomicExchCustom(Type* address, Type val);
+
+template <typename Type>
+__device__ Type reduction_shuffle_down(Type value, int offset);
+
+template <typename T, typename R>
+__device__ void atomicReduce(T* output, T accum, R& reducer);
+
+#if defined(EIGEN_GPU_COMPILE_PHASE)
 // Full reducers for GPU, don't vectorize for now
 
 // Reducer function that enables multiple gpu threads to safely accumulate at the same
@@ -68,7 +78,9 @@ template <typename Type>
 __device__ inline Type atomicExchCustom(Type* address, Type val) {
   return atomicExch(address, val);
 }
+#endif  // EIGEN_GPU_COMPILE_PHASE
 
+#if defined(EIGEN_USE_GPU) && defined(EIGEN_GPUCC)
 template <typename T>
 EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR auto reduction_shuffle_mask() {
 #if defined(EIGEN_HIP_DEVICE_COMPILE)
@@ -77,7 +89,9 @@ EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR auto reduction_shuffle_mask() {
   return 0xFFFFFFFFu;
 #endif
 }
+#endif  // defined(EIGEN_USE_GPU) && defined(EIGEN_GPUCC)
 
+#ifdef EIGEN_GPU_COMPILE_PHASE
 template <typename T>
 __device__ EIGEN_ALWAYS_INLINE T reduction_shuffle_down(T value, int offset) {
 #if defined(EIGEN_HIPCC)
@@ -139,7 +153,7 @@ __device__ inline void atomicReduce(half2* output, half2 accum, R& reducer) {
     }
   }
 }
-#ifdef EIGEN_GPU_COMPILE_PHASE
+
 // reduction should be associative since reduction is not atomic in wide vector but atomic in half2 operations
 template <typename R>
 __device__ inline void atomicReduce(Packet4h2* output, Packet4h2 accum, R& reducer) {
@@ -149,13 +163,14 @@ __device__ inline void atomicReduce(Packet4h2* output, Packet4h2 accum, R& reduc
     atomicReduce(houtput + i, *(haccum + i), reducer);
   }
 }
-#endif  // EIGEN_GPU_COMPILE_PHASE
 
 template <>
 __device__ inline void atomicReduce(float* output, float accum, SumReducer<float>&) {
   atomicAdd(output, accum);
 }
+#endif  // EIGEN_GPU_COMPILE_PHASE
 
+#if defined(EIGEN_USE_GPU) && defined(EIGEN_GPUCC)
 template <typename CoeffType, typename Index>
 __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void ReductionInitKernel(const CoeffType val, Index num_preserved_coeffs,
                                                                  CoeffType* output) {

@@ -629,6 +629,9 @@ if(CUDA_FOUND AND EIGEN_TEST_CUDA)
 
   ei_add_test(gpu_example)
   ei_add_test(gpu_basic)
+  ei_add_test(gpu_matrix)
+  ei_add_test(gpu_cholesky)
+  ei_add_test(gpu_lu)
 
   unset(EIGEN_ADD_TEST_FILENAME_EXTENSION)
 
@@ -666,6 +669,9 @@ if (EIGEN_TEST_HIP)
       set(EIGEN_ADD_TEST_FILENAME_EXTENSION  "cu")
       ei_add_test(gpu_basic)
       ei_add_test(gpu_example)
+      ei_add_test(gpu_matrix)
+      ei_add_test(gpu_cholesky)
+      ei_add_test(gpu_lu)
       unset(EIGEN_ADD_TEST_FILENAME_EXTENSION)
 
     elseif (HIP_PLATFORM STREQUAL "nvcc" OR HIP_PLATFORM STREQUAL "nvidia")

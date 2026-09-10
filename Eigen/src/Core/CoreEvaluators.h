@@ -124,8 +124,8 @@ struct evaluator_base {
   // an extra base can kill EBO and make complex evaluators larger than they should be.
   EIGEN_DEVICE_FUNC constexpr evaluator_base() = default;
 
-  evaluator_base(const evaluator_base&) = delete;
-  evaluator_base& operator=(const evaluator_base&) = delete;
+  EIGEN_DEVICE_FUNC evaluator_base(const evaluator_base&) = delete;
+  EIGEN_DEVICE_FUNC evaluator_base& operator=(const evaluator_base&) = delete;
 };
 
 // -------------------- Matrix and Array --------------------

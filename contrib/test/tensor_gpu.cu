@@ -238,8 +238,9 @@ void test_gpu_props() {
 // device. Calling them here is what keeps them device-callable.
 template <typename ReadEvaluator, typename WriteEvaluator>
 __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void striding_packet_kernel(ReadEvaluator read_eval, WriteEvaluator write_eval,
-                                                                    int num_packets) {
+                                                                    int total_size) {
   const int packet_size = Eigen::internal::unpacket_traits<typename ReadEvaluator::PacketReturnType>::size;
+  const int num_packets = total_size / packet_size;
   for (int p = blockIdx.x * blockDim.x + threadIdx.x; p < num_packets; p += blockDim.x * gridDim.x) {
     const Eigen::DenseIndex index = static_cast<Eigen::DenseIndex>(p) * packet_size;
     write_eval.template writePacket<Eigen::Unaligned>(index, read_eval.template packet<Eigen::Unaligned>(index));
@@ -309,15 +310,14 @@ void test_gpu_striding() {
   WriteEval write_eval(write_expr, gpu_device);
   read_eval.evalSubExprsIfNeeded(NULL);
 
-  const int packet_size = Eigen::internal::unpacket_traits<typename ReadEval::PacketReturnType>::size;
-  const int num_packets = static_cast<int>(read_eval.dimensions().TotalSize()) / packet_size;
+  const int total_size = static_cast<int>(read_eval.dimensions().TotalSize());
 #ifdef EIGEN_USE_HIP
   hipLaunchKernelGGL(HIP_KERNEL_NAME(striding_packet_kernel<ReadEval, WriteEval>), dim3(1), dim3(64), 0,
-                     gpu_device.stream(), read_eval, write_eval, num_packets);
+                     gpu_device.stream(), read_eval, write_eval, total_size);
 #else
   // Various versions of clang-format incorrectly add spaces to the kernel launch brackets.
   // clang-format off
-  striding_packet_kernel<ReadEval, WriteEval><<<1, 64, 0, gpu_device.stream()>>>(read_eval, write_eval, num_packets);
+  striding_packet_kernel<ReadEval, WriteEval><<<1, 64, 0, gpu_device.stream()>>>(read_eval, write_eval, total_size);
   // clang-format on
 #endif
   assert(gpuMemcpyAsync(packet_out.data(), d_write_out, write_out_bytes, gpuMemcpyDeviceToHost, gpu_device.stream()) ==
@@ -326,7 +326,7 @@ void test_gpu_striding() {
   read_eval.cleanup();
 
   // Only whole packets are stored; the tail stays zero.
-  for (int k = 0; k < num_packets * packet_size; ++k) {
+  for (int k = 0; k < total_size; ++k) {
     const int i = (static_cast<int>(DataLayout) == static_cast<int>(ColMajor)) ? k % 16 : k / 13;
     const int j = (static_cast<int>(DataLayout) == static_cast<int>(ColMajor)) ? k / 16 : k % 13;
     VERIFY_IS_EQUAL(packet_out(2 * i, 2 * j), in(2 * i, 2 * j));
