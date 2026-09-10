@@ -4,10 +4,10 @@
 // Cross-library comparison benchmarks for POTRF, the Cholesky factorization of a
 // symmetric/Hermitian positive definite matrix.
 //
-// The reference here is a LAPACK routine rather than a BLAS one, so whether
-// ?potrf resolves at all depends on find_package(LAPACK) and the vendor table's
-// PROVIDES declaration; a build that cannot call it registers no reference arm
-// and run.py reports `reference_routine_absent`.
+// The reference here is a LAPACK routine rather than a BLAS one; CMakeLists.txt
+// reads the marker below and builds this source Eigen-only when the reference
+// library supplies no LAPACK.
+// EIGEN_BENCH_REFERENCE_FAMILY: lapack
 //
 // The operation is destructive, so the timed body must present fresh data on
 // every iteration. Both arms copy the operand and factorize the copy, with the
