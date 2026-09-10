@@ -1283,11 +1283,10 @@ struct CpuCacheTopology {
  * \a value. The directory is /sys/devices/system/cpu in production; tests substitute a fixture tree. */
 template <int Size>
 inline bool readSysfsLine(const char* root, const char* relative, char (&value)[Size]) {
-  static_assert(Size > 0, "Buffer size must be positive");
   char path[512];
   const int length = std::snprintf(path, sizeof(path), "%s/%s", root, relative);
   if (length <= 0 || length >= static_cast<int>(sizeof(path))) return false;
-  const int fd = ::open(path, O_RDONLY);
+  const int fd = ::open(path, O_RDONLY | O_CLOEXEC);
   if (fd < 0) return false;
   const ssize_t bytes_read = ::read(fd, value, Size - 1);
   ::close(fd);
@@ -1295,7 +1294,7 @@ inline bool readSysfsLine(const char* root, const char* relative, char (&value)[
   value[bytes_read] = '\0';
   char* newline = std::strchr(value, '\n');
   if (newline != nullptr) {
-    *(newline + 1) = '\0';
+    newline[1] = '\0';
   }
   return true;
 }
