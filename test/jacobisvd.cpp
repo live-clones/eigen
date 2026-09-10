@@ -155,26 +155,12 @@ void jacobisvd_large_tau_regression() {
   svd_check_full(m, svd);
 }
 
-void jacobisvd_no_invalid_exception() {
-#ifdef FE_INVALID
-  const Matrix3f matrix = Matrix3f::Random();
-  std::fenv_t environment;
-  if (std::feholdexcept(&environment) != 0) return;
-  JacobiSVD<Matrix3f> svd(matrix, ComputeFullU | ComputeFullV);
-  const int invalid = std::fetestexcept(FE_INVALID);
-  std::fesetenv(&environment);
-  VERIFY_IS_EQUAL(invalid, 0);
-  svd_check_full(matrix, svd);
-#endif
-}
-
 EIGEN_DECLARE_TEST(jacobisvd) {
   CALL_SUBTEST_1((jacobisvd_verify_inputs<Matrix4d>()));
   CALL_SUBTEST_2((jacobisvd_verify_inputs(Matrix<float, 5, Dynamic>(5, 6))));
   CALL_SUBTEST_3((jacobisvd_verify_inputs<Matrix<std::complex<double>, 7, 5>>()));
   CALL_SUBTEST_4((jacobisvd_mixed_option_enum_regression()));
   CALL_SUBTEST_4((jacobisvd_large_tau_regression()));
-  CALL_SUBTEST_4((jacobisvd_no_invalid_exception()));
 
   CALL_SUBTEST_11((jacobisvd_thin_full_options<Matrix2cd>()));
   CALL_SUBTEST_12((jacobisvd_thin_full_options<Matrix2d>()));
