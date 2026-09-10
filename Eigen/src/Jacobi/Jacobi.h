@@ -104,9 +104,10 @@ EIGEN_DEVICE_FUNC bool JacobiRotation<Scalar>::makeJacobi(const RealScalar& x, c
   } else {
     const RealScalar delta = x - z;
     const RealScalar abs_delta = abs(delta);
-    // Form a ratio no greater than one before squaring it.
-    // abs(t) = numerator / denominator. Normalize the pair directly to save that division.
-    // numerator <= 1 and denominator <= 1 + sqrt(2).
+    // |t| = 1 / (|tau| + sqrt(1 + tau^2)), where tau = (x - z) / (2 * |y|).
+    // Scale this numerator/denominator pair by min(1, 1/|tau|), taking scale = 1 at tau = 0.
+    // Then numerator <= 1 and denominator <= 1 + sqrt(2); only a ratio <= 1 is squared.
+    // Normalize the pair directly to save the division forming |t|.
     RealScalar numerator;
     RealScalar denominator;
     if (abs_delta > deno) {
@@ -124,7 +125,7 @@ EIGEN_DEVICE_FUNC bool JacobiRotation<Scalar>::makeJacobi(const RealScalar& x, c
     EIGEN_IF_CONSTEXPR (NumTraits<Scalar>::IsComplex) {
       m_s = -sign_t * (numext::conj(y) / abs_y) * sine;
     } else {
-      // A real phase needs no division. Independent divisions can become a SIMD divide with unused 0/0 lanes.
+      // For real y, conj(y) / abs(y) is just its sign.
       const RealScalar signed_sine = -sign_t * sine;
       m_s = numext::real(y) < RealScalar(0) ? -signed_sine : signed_sine;
     }
