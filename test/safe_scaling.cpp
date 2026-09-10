@@ -127,8 +127,9 @@ void check_safe_scaling_special_value_frontends() {
     VERIFY_IS_EQUAL(scaleToFactors.scale, 1.0f);
     VERIFY_IS_EQUAL(scaleToFactors.invScale, 1.0f);
 
-    Factors expressionFactors;
-    const Vector2f scaledExpression = Scaling::scaled_expression(input, special, expressionFactors);
+    Vector2f scaledExpression;
+    const Factors expressionFactors =
+        Scaling::with_scaled(input, special, [&](const auto& expression) { scaledExpression = expression; });
     VERIFY_IS_EQUAL(expressionFactors.scale, 1.0f);
     VERIFY_IS_EQUAL(expressionFactors.invScale, 1.0f);
     VERIFY_IS_EQUAL(scaledTo(1), 2.0f);
@@ -264,10 +265,12 @@ void check_arithmetic_scaling_expression() {
     expected << Value::run(RealScalar(1), RealScalar(0)), Value::run(RealScalar(0.5), RealScalar(-0.25));
     Vector2 materialized;
     const auto factors = Scaling::scale_to(materialized, input, maxCoeff);
-    internal::safe_scaling_factors<RealScalar> expressionFactors;
-    const auto expression = Scaling::scaled_expression(input, maxCoeff, expressionFactors);
-    const Vector2 lazy = expression;
-    const Matrix<Scalar, 1, 2> adjoint = expression.adjoint();
+    Vector2 lazy;
+    Matrix<Scalar, 1, 2> adjoint;
+    const auto expressionFactors = Scaling::with_scaled(input, maxCoeff, [&](const auto& expression) {
+      lazy = expression;
+      adjoint = expression.adjoint();
+    });
     VERIFY_IS_EQUAL(materialized, expected);
     VERIFY_IS_EQUAL(lazy, expected);
     VERIFY_IS_EQUAL(adjoint, expected.adjoint());
@@ -296,9 +299,9 @@ void check_subnormal_preserving_scaling() {
   Matrix<Scalar, 2, 1> scaled;
   internal::safe_scaling<RealScalar>::scale_to(scaled, input, maxCoeff, factors);
 
-  internal::safe_scaling_factors<RealScalar> expressionFactors;
-  const Matrix<Scalar, 2, 1> scaledExpression =
-      internal::safe_scaling<RealScalar>::scaled_expression(input, maxCoeff, expressionFactors);
+  Matrix<Scalar, 2, 1> scaledExpression;
+  const auto expressionFactors = internal::safe_scaling<RealScalar>::with_scaled(
+      input, maxCoeff, [&](const auto& expression) { scaledExpression = expression; });
 
   VERIFY_IS_EQUAL(scaled(0), scaling_test_value<Scalar>::run(RealScalar(1), RealScalar(-1)));
   VERIFY_IS_EQUAL(scaled(1),

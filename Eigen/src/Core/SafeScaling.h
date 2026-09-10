@@ -42,9 +42,6 @@ struct safe_scaling_factors {
   Scalar invScale = Scalar(1);
 };
 
-template <typename Derived, typename FactorScalar, bool IsPowerOfTwo>
-class safe_scaled_expression;
-
 template <typename Scalar>
 EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE typename binary_floating_point_traits<Scalar>::Bits
 scale_binary_bits_by_power_of_two(const typename binary_floating_point_traits<Scalar>::Bits valueBits,
@@ -90,6 +87,26 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::complex<Scalar> scale_binary_by_power
   return std::complex<Scalar>(scale_binary_by_power_of_two(value.real(), factor),
                               scale_binary_by_power_of_two(value.imag(), factor));
 }
+
+template <typename FactorScalar>
+struct scale_by_power_of_two_op {
+  EIGEN_DEVICE_FUNC explicit scale_by_power_of_two_op(const FactorScalar& factor) : m_factor(factor) {}
+
+  template <typename CoeffScalar>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffScalar operator()(const CoeffScalar& value) const {
+    return scale_binary_by_power_of_two(value, m_factor);
+  }
+
+  FactorScalar m_factor;
+};
+
+template <typename FactorScalar>
+struct functor_traits<scale_by_power_of_two_op<FactorScalar>> {
+  // Integer significand recovery is scalar and calls an out-of-line helper.
+  static constexpr int Cost = 10 * NumTraits<FactorScalar>::MulCost;
+  static constexpr bool PacketAccess = false;
+  static constexpr bool IsRepeatable = true;
+};
 
 template <typename FactorScalar, typename CoeffScalar>
 struct use_subnormal_preserving_scaling
@@ -141,57 +158,26 @@ struct safe_scaling_operations {
     return safe_scaling<Scalar, IsPowerOfTwo_>::compute_floor_factors(maxCoeff);
   }
 
-  template <typename MatrixType>
-  EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE static void scale_matrix_in_place_preserving_subnormal_inputs(
-      MatrixType& matrix, const Scalar& factor) {
-    for (Index col = 0; col < matrix.cols(); ++col) {
-      for (Index row = 0; row < matrix.rows(); ++row) {
-        matrix.coeffRef(row, col) = scale_binary_by_power_of_two(matrix.coeff(row, col), factor);
-      }
-    }
-  }
-
-  template <typename MatrixType>
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void scale_matrix_in_place_impl(MatrixType& matrix, const Scalar&,
-                                                                               const Factors& factors,
-                                                                               bool_constant<false>) {
-    EIGEN_IF_CONSTEXPR (IsPowerOfTwo_)
-      matrix *= factors.invScale;
+  template <typename Src, typename Func>
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void with_scaled_impl(const Src& src, const Scalar&,
+                                                                     const Factors& factors, const Func& func,
+                                                                     false_type) {
+    if (is_identity(factors))
+      func(src);
+    else EIGEN_IF_CONSTEXPR (IsPowerOfTwo_)
+      func(src * factors.invScale);
     else
-      matrix /= factors.scale;
+      func(src / factors.scale);
   }
 
-  template <typename MatrixType>
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void scale_matrix_in_place_impl(MatrixType& matrix,
-                                                                               const Scalar& maxCoeff,
-                                                                               const Factors& factors,
-                                                                               bool_constant<true>) {
-    // Recover subnormal inputs through their integer significands before FTZ/DAZ modes can flush them.
-    if (!needs_subnormal_recovery(maxCoeff)) {
-      matrix *= factors.invScale;
-      return;
-    }
-    scale_matrix_in_place_preserving_subnormal_inputs(matrix, factors.invScale);
-  }
-
-  template <typename Dest, typename Src>
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void scale_to_impl(Dest& dest, const Src& src, const Scalar&,
-                                                                  const Factors& factors, bool_constant<false>) {
-    EIGEN_IF_CONSTEXPR (IsPowerOfTwo_)
-      dest = src * factors.invScale;
+  template <typename Src, typename Func>
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void with_scaled_impl(const Src& src, const Scalar& maxCoeff,
+                                                                     const Factors& factors, const Func& func,
+                                                                     true_type) {
+    if (!is_identity(factors) && needs_subnormal_recovery(maxCoeff))
+      func(src.unaryExpr(scale_by_power_of_two_op<Scalar>(factors.invScale)));
     else
-      dest = src / factors.scale;
-  }
-
-  template <typename Dest, typename Src>
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void scale_to_impl(Dest& dest, const Src& src, const Scalar& maxCoeff,
-                                                                  const Factors& factors, bool_constant<true>) {
-    if (!needs_subnormal_recovery(maxCoeff)) {
-      dest = src * factors.invScale;
-      return;
-    }
-    dest = src;
-    scale_matrix_in_place_preserving_subnormal_inputs(dest, factors.invScale);
+      with_scaled_impl(src, maxCoeff, factors, func, false_type());
   }
 
  public:
@@ -216,9 +202,17 @@ struct safe_scaling_operations {
     return true;
   }
 
-  template <typename Derived>
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE safe_scaled_expression<Derived, Scalar, IsPowerOfTwo_> scaled_expression(
-      const Derived& value, const Scalar& maxCoeff, Factors& factors);
+  // Dispatch once per expression; ordinary scaling retains packet access. The callback consumes the lazy
+  // expression before its operands expire, without requiring a common C++ type for the different paths.
+  template <typename Src, typename Func>
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Factors with_scaled(const Src& src, const Scalar& maxCoeff,
+                                                                   const Func& func) {
+    const Factors factors = select_factors(maxCoeff);
+    constexpr bool kPreserveSubnormalInputs =
+        IsPowerOfTwo_ && use_subnormal_preserving_scaling<Scalar, typename Src::Scalar>::value;
+    with_scaled_impl(src, maxCoeff, factors, func, bool_constant<kPreserveSubnormalInputs>());
+    return factors;
+  }
 
   template <typename Dest, typename Src>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void unscale_to(Dest&& dest, const Src& src, const Factors& factors) {
@@ -238,24 +232,16 @@ struct safe_scaling_operations {
   template <typename MatrixType>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void scale_in_place(MatrixType& matrix, const Scalar& maxCoeff,
                                                                    const Factors& factors) {
-    if (is_identity(factors)) return;
-    using CoeffScalar = typename MatrixType::Scalar;
-    constexpr bool kPreserveSubnormalInputs =
-        IsPowerOfTwo_ && use_subnormal_preserving_scaling<Scalar, CoeffScalar>::value;
-    scale_matrix_in_place_impl(matrix, maxCoeff, factors, bool_constant<kPreserveSubnormalInputs>());
+    if (!is_identity(factors)) scale_to(matrix, matrix, maxCoeff, factors);
   }
 
   template <typename Dest, typename Src>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void scale_to(Dest& dest, const Src& src, const Scalar& maxCoeff,
                                                              const Factors& factors) {
-    if (is_identity(factors)) {
-      dest = src;
-      return;
-    }
-    using CoeffScalar = typename Dest::Scalar;
     constexpr bool kPreserveSubnormalInputs =
-        IsPowerOfTwo_ && use_subnormal_preserving_scaling<Scalar, CoeffScalar>::value;
-    scale_to_impl(dest, src, maxCoeff, factors, bool_constant<kPreserveSubnormalInputs>());
+        IsPowerOfTwo_ && use_subnormal_preserving_scaling<Scalar, typename Src::Scalar>::value;
+    with_scaled_impl(
+        src, maxCoeff, factors, [&](const auto& scaled) { dest = scaled; }, bool_constant<kPreserveSubnormalInputs>());
   }
 
   template <typename Dest, typename Src>
@@ -342,49 +328,6 @@ struct safe_scaling<long double, true> : safe_scaling_operations<long double, tr
   }
 };
 #endif
-
-template <typename Derived, typename FactorScalar, bool IsPowerOfTwo>
-struct traits<safe_scaled_expression<Derived, FactorScalar, IsPowerOfTwo>> {
-  using ReturnType = typename plain_matrix_type<Derived>::type;
-};
-
-template <typename Derived, typename FactorScalar, bool IsPowerOfTwo>
-class safe_scaled_expression : public ReturnByValue<safe_scaled_expression<Derived, FactorScalar, IsPowerOfTwo>> {
- public:
-  EIGEN_DEVICE_FUNC safe_scaled_expression(const Derived& value, const FactorScalar& maxCoeff,
-                                           const safe_scaling_factors<FactorScalar>& factors)
-      : m_value(value), m_maxCoeff(maxCoeff), m_factors(factors) {}
-
-  EIGEN_DEVICE_FUNC constexpr Index rows() const noexcept { return m_value.rows(); }
-  EIGEN_DEVICE_FUNC constexpr Index cols() const noexcept { return m_value.cols(); }
-
-  template <typename Dest>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void evalTo(Dest& dest) const {
-    safe_scaling<FactorScalar, IsPowerOfTwo>::scale_to(dest, m_value, m_maxCoeff, m_factors);
-  }
-
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-      safe_scaled_expression<typename Derived::AdjointReturnType, FactorScalar, IsPowerOfTwo>
-      adjoint() const {
-    return safe_scaled_expression<typename Derived::AdjointReturnType, FactorScalar, IsPowerOfTwo>(
-        m_value.adjoint(), m_maxCoeff, m_factors);
-  }
-
- private:
-  using Nested = typename ref_selector<Derived>::type;
-  Nested m_value;
-  FactorScalar m_maxCoeff;
-  safe_scaling_factors<FactorScalar> m_factors;
-};
-
-template <typename Scalar, bool IsPowerOfTwo_>
-template <typename Derived>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE safe_scaled_expression<Derived, Scalar, IsPowerOfTwo_>
-safe_scaling_operations<Scalar, IsPowerOfTwo_>::scaled_expression(const Derived& value, const Scalar& maxCoeff,
-                                                                  Factors& factors) {
-  factors = select_factors(maxCoeff);
-  return safe_scaled_expression<Derived, Scalar, IsPowerOfTwo_>(value, maxCoeff, factors);
-}
 
 }  // namespace internal
 }  // namespace Eigen

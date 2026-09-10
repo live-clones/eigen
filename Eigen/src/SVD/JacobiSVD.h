@@ -840,10 +840,11 @@ JacobiSVD<MatrixType, Options>& JacobiSVD<MatrixType, Options>::compute_impl(con
   /*** step 1. The R-SVD step: we use a QR decomposition to reduce to the case of a square matrix */
 
   if (rows() != cols()) {
-    const auto scaledMatrix =
-        internal::safe_scaling<RealScalar>::scaled_expression(matrix.derived(), maxCoeff, factors);
-    m_qr_precond_morecols.run(*this, scaledMatrix);
-    m_qr_precond_morerows.run(*this, scaledMatrix);
+    factors =
+        internal::safe_scaling<RealScalar>::with_scaled(matrix.derived(), maxCoeff, [&](const auto& scaledMatrix) {
+          m_qr_precond_morecols.run(*this, scaledMatrix);
+          m_qr_precond_morerows.run(*this, scaledMatrix);
+        });
   } else {
     factors = internal::safe_scaling<RealScalar>::scale_to(
         m_workMatrix,
