@@ -117,7 +117,7 @@ def eigen_version() -> str:
 # --------------------------------------------------------------------------
 
 
-def configure_and_build(build_dir: Path, profile: dict, isa: str, arm: dict, jobs: int, build: bool) -> None:
+def configure_and_build(build_dir: Path, profile: dict, isa: str, arm: dict, jobs: int) -> None:
     generator = profile.get("build", {}).get("generator") or ("Ninja" if shutil.which("ninja") else "Unix Makefiles")
     command = [
         "cmake", "-S", str(REPO / "benchmarks"), "-B", str(build_dir), "-G", generator,
@@ -128,7 +128,7 @@ def configure_and_build(build_dir: Path, profile: dict, isa: str, arm: dict, job
     ]
     if subprocess.run(command).returncode != 0:
         fail("configure failed", 5)
-    if build and subprocess.run(
+    if subprocess.run(
         ["cmake", "--build", str(build_dir), "--target", "bench_comparison_all", "--parallel", str(jobs)]
     ).returncode != 0:
         fail("build failed", 5)
@@ -146,8 +146,8 @@ def vendor_info(build_dir: Path) -> dict:
 # --------------------------------------------------------------------------
 
 
-def benchmark_env(threads: int, arm: dict, base: dict[str, str]) -> dict[str, str]:
-    env = dict(base)
+def benchmark_env(threads: int, arm: dict) -> dict[str, str]:
+    env = dict(os.environ)
     for var in THREAD_ENV_VARS:
         env[var] = str(threads)
     env.update(FIXED_ENV)
@@ -156,15 +156,12 @@ def benchmark_env(threads: int, arm: dict, base: dict[str, str]) -> dict[str, st
     return env
 
 
-def list_benchmarks(binary: Path, pattern: str, exclude: str | None, env: dict[str, str]) -> list[str]:
+def list_benchmarks(binary: Path, pattern: str, env: dict[str, str]) -> list[str]:
     out = subprocess.run(
         [str(binary), "--benchmark_list_tests=true", f"--benchmark_filter={pattern}"],
         capture_output=True, text=True, env=env,
     )
-    names = [line.strip() for line in out.stdout.splitlines() if NAME_RE.match(line.strip())]
-    if exclude:
-        names = [n for n in names if not re.search(exclude, n)]
-    return names
+    return [line.strip() for line in out.stdout.splitlines() if NAME_RE.match(line.strip())]
 
 
 def run_binary(binary: Path, names: list[str], args: argparse.Namespace, env: dict[str, str],
@@ -252,6 +249,7 @@ def main() -> int:
     ops = [op.upper() for op in csv(args.ops)]
 
     commit = git("rev-parse", "HEAD")
+    version = eigen_version()
     dirty = bool(git("status", "--porcelain", "--untracked-files=no"))
     if dirty and not args.allow_dirty:
         fail("the Eigen worktree has modified tracked files; commit them or pass --allow-dirty", 3)
@@ -269,12 +267,12 @@ def main() -> int:
             arm = profile["arms"][arm_key]
             build_dir = Path(args.build_dir) / f"{isa}__{arm_key}"
             if not args.no_build:
-                configure_and_build(build_dir, profile, isa, arm, args.jobs, build=True)
+                configure_and_build(build_dir, profile, isa, arm, args.jobs)
             info = vendor_info(build_dir)
             if info.get("arm") != arm_key:
                 fail(f"{build_dir} was configured for arm {info.get('arm')!r}, not {arm_key!r}", 2)
             binaries = sorted(p for p in (build_dir / "comparison").glob("bench_*_compare") if os.access(p, os.X_OK))
-            env = benchmark_env(args.threads, arm, dict(os.environ))
+            env = benchmark_env(args.threads, arm)
             started = dt.datetime.now(dt.timezone.utc)
             load_before = os.getloadavg()
             context: dict = {}
@@ -285,9 +283,11 @@ def main() -> int:
                 if ops and op not in ops:
                     continue
                 pattern = f"^{op}/(eigen|{arm_key})/({'|'.join(scalars)})/"
-                names = list_benchmarks(binary, pattern, args.exclude, env)
+                names = list_benchmarks(binary, pattern, env)
                 if args.filter:
                     names = [n for n in names if re.search(args.filter, n)]
+                if args.exclude:
+                    names = [n for n in names if not re.search(args.exclude, n)]
                 if not names:
                     continue
                 print(f"run.py: {isa}/{arm_key}: {binary.name}: {len(names)} cells", file=sys.stderr)
@@ -324,10 +324,10 @@ def main() -> int:
                     "isa_target": ctx("isa_target") or isa,
                     "compiler": f"{ctx('compiler_id')} {ctx('compiler_version')}".strip(),
                     "cxx_flags": ctx("cxx_flags"), "cxx_standard": ctx("cxx_standard"),
-                    "eigen_commit": commit, "eigen_dirty": dirty, "eigen_version": eigen_version(),
+                    "eigen_commit": commit, "eigen_dirty": dirty, "eigen_version": version,
                 },
                 "arms": [
-                    {"key": "eigen", "library_name": "Eigen", "library_version": f"{eigen_version()} ({commit[:9]})"},
+                    {"key": "eigen", "library_name": "Eigen", "library_version": f"{version} ({commit[:9]})"},
                     {
                         "key": arm_key,
                         "library_name": ctx("reference_library_name") or info.get("library_name") or arm_key,

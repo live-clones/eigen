@@ -8,9 +8,8 @@
 // unguarded <cblas.h>). Both remain in the tree for now.
 
 #include <Eigen/Core>
+#include <array>
 #include <complex>
-#include <mutex>
-#include <set>
 #include <string>
 
 #include "benchmarks/bench_common.h"
@@ -42,18 +41,13 @@ void zgemm_(const char* transa, const char* transb, const eigen_bench::BlasInt* 
 
 using Eigen::Index;
 using eigen_bench::BlasInt;
-using eigen_bench::fitsBlasInt;
+using eigen_bench::ColMatrix;
+using eigen_bench::ColVector;
 
-template <typename Scalar>
-using GemmMatrix = eigen_bench::ColMatrix<Scalar>;
-
-template <typename Scalar>
-using GemmVector = eigen_bench::ColVector<Scalar>;
-
-// C := C + A*B, the operation ops.toml records as GEMM with alpha = beta = 1.
+// C := C + A*B, i.e. GEMM with alpha = beta = 1.
 struct EigenGemmKernel {
   template <typename Scalar>
-  void operator()(const GemmMatrix<Scalar>& a, const GemmMatrix<Scalar>& b, GemmMatrix<Scalar>& c) const {
+  void operator()(const ColMatrix<Scalar>& a, const ColMatrix<Scalar>& b, ColMatrix<Scalar>& c) const {
     c.noalias() += a * b;
   }
 };
@@ -87,7 +81,7 @@ static void referenceGemm(BlasInt m, BlasInt n, BlasInt k, const std::complex<do
 
 struct ReferenceGemmKernel {
   template <typename Scalar>
-  void operator()(const GemmMatrix<Scalar>& a, const GemmMatrix<Scalar>& b, GemmMatrix<Scalar>& c) const {
+  void operator()(const ColMatrix<Scalar>& a, const ColMatrix<Scalar>& b, ColMatrix<Scalar>& c) const {
     // Column-major and contiguous, so the leading dimensions are the extents.
     referenceGemm(static_cast<BlasInt>(a.rows()), static_cast<BlasInt>(b.cols()), static_cast<BlasInt>(a.cols()),
                   a.data(), b.data(), c.data());
@@ -99,8 +93,6 @@ struct ReferenceGemmKernel {
 // the timed region and the counter cannot drift apart between them.
 template <typename Scalar, typename Kernel>
 static void runGemm(benchmark::State& state, Kernel kernel) {
-  using RealScalar = typename Eigen::NumTraits<Scalar>::Real;
-
   const Index m = static_cast<Index>(state.range(0));
   const Index n = static_cast<Index>(state.range(1));
   const Index k = static_cast<Index>(state.range(2));
@@ -118,9 +110,9 @@ static void runGemm(benchmark::State& state, Kernel kernel) {
   // would leave them resident and warm across entries and change what the timed
   // loop measures; c is additionally accumulated into by the timed loop and
   // never reset, so it has to be re-randomized regardless.
-  GemmMatrix<Scalar> a = GemmMatrix<Scalar>::Random(m, k);
-  GemmMatrix<Scalar> b = GemmMatrix<Scalar>::Random(k, n);
-  GemmMatrix<Scalar> c = GemmMatrix<Scalar>::Random(m, n);
+  ColMatrix<Scalar> a = ColMatrix<Scalar>::Random(m, k);
+  ColMatrix<Scalar> b = ColMatrix<Scalar>::Random(k, n);
+  ColMatrix<Scalar> c = ColMatrix<Scalar>::Random(m, n);
 
   static eigen_bench::ValidatedShapes<std::array<Index, 3>> validated;
   const std::array<Index, 3> shape = {m, n, k};
@@ -131,10 +123,10 @@ static void runGemm(benchmark::State& state, Kernel kernel) {
     // O(mn + nk + mk) work and O(m + n + k) extra memory, instead of forming a
     // second m-by-n product. A wrong kernel survives only if its error is
     // orthogonal to a random x. Outside the timed region, and before it.
-    const GemmVector<Scalar> x = GemmVector<Scalar>::Random(n);
-    const GemmVector<Scalar> expected = c * x + a * (b * x);
+    const ColVector<Scalar> x = ColVector<Scalar>::Random(n);
+    const ColVector<Scalar> expected = c * x + a * (b * x);
     kernel(a, b, c);
-    const GemmVector<Scalar> actual = c * x;
+    const ColVector<Scalar> actual = c * x;
 
     if (!eigen_bench::agreesWithEigen(expected, actual, k)) {
       state.SkipWithError("gemm result disagrees with Eigen at m:" + std::to_string(m) + " n:" + std::to_string(n) +
@@ -167,9 +159,8 @@ static void BM_GemmReference(benchmark::State& state) {
 }
 #endif
 
-// The whole square3 grid of ops.toml, in the order its default_groups lists it:
-// run.py narrows it with --benchmark_filter, so registering less would make a
-// group unreachable. A list macro rather than an arrow chain because the two
+// The whole grid: run.py narrows it with --benchmark_filter, so a shape absent
+// here is out of reach. A list macro rather than an arrow chain because the two
 // arms of a shape must be adjacent (see REGISTER_COMPARISON_POINT).
 // clang-format off
 #define GEMM_DIM_NAMES {"m", "n", "k"}

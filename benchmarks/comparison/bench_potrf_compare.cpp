@@ -17,7 +17,6 @@
 
 #include <Eigen/Cholesky>
 #include <Eigen/Core>
-#include <array>
 #include <complex>
 #include <string>
 
@@ -42,13 +41,8 @@ void zpotrf_(const char* uplo, const eigen_bench::BlasInt* n, std::complex<doubl
 
 using Eigen::Index;
 using eigen_bench::BlasInt;
-using eigen_bench::fitsBlasInt;
-
-template <typename Scalar>
-using PotrfMatrix = eigen_bench::ColMatrix<Scalar>;
-
-template <typename Scalar>
-using PotrfVector = eigen_bench::ColVector<Scalar>;
+using eigen_bench::ColMatrix;
+using eigen_bench::ColVector;
 
 // A := L*L^H, uplo = 'L'. Both kernels factorize a copy in place and leave the
 // upper triangle untouched, which is LAPACK's contract.
@@ -62,14 +56,14 @@ using PotrfVector = eigen_bench::ColVector<Scalar>;
 // available and which ?potrf does not compute; a LAPACK user wanting the same
 // calls ?lange before ?pocon. It is O(n^2) against O(n^3/3), so it matters at the
 // small end. It stays because the row is labelled with the expression a user
-// writes -- ops.toml's eigen_expr -- and that expression really does cost it.
+// writes, and that expression really does cost it.
 struct EigenPotrfKernel {
   template <typename Scalar>
-  void operator()(const PotrfMatrix<Scalar>& a, PotrfMatrix<Scalar>& out) const {
+  void operator()(const ColMatrix<Scalar>& a, ColMatrix<Scalar>& out) const {
     out = a;
     // Holds a Ref, so constructing it allocates nothing; the factorization
     // overwrites `out`.
-    Eigen::LLT<Eigen::Ref<PotrfMatrix<Scalar>>> llt(out);
+    Eigen::LLT<Eigen::Ref<ColMatrix<Scalar>>> llt(out);
     benchmark::DoNotOptimize(llt.info());
   }
 };
@@ -105,7 +99,7 @@ static BlasInt referencePotrf(BlasInt n, std::complex<double>* a) {
 
 struct ReferencePotrfKernel {
   template <typename Scalar>
-  void operator()(const PotrfMatrix<Scalar>& a, PotrfMatrix<Scalar>& out) const {
+  void operator()(const ColMatrix<Scalar>& a, ColMatrix<Scalar>& out) const {
     // Without the copy the second iteration would factorize an already-factored
     // matrix. It is the same copy the Eigen arm makes, deliberately.
     out = a;
@@ -142,9 +136,9 @@ static void runPotrf(benchmark::State& state, Kernel kernel) {
   // searches for an iteration count -- so setup would dominate the measurement
   // and grow faster than it. This is O(n^2). The generator is scoped so it is
   // freed before the timed loop, keeping the footprint above at 2n^2, not 3n^2.
-  PotrfMatrix<Scalar> a(n, n);
+  ColMatrix<Scalar> a(n, n);
   {
-    const PotrfMatrix<Scalar> noise = PotrfMatrix<Scalar>::Random(n, n);
+    const ColMatrix<Scalar> noise = ColMatrix<Scalar>::Random(n, n);
     // z + conj(z) is real, so this leaves the diagonal real with no second pass.
     a = noise + noise.adjoint();
   }
@@ -152,7 +146,7 @@ static void runPotrf(benchmark::State& state, Kernel kernel) {
   // 2(n-1); 4n on the diagonal makes the matrix strictly diagonally dominant.
   a.diagonal().array() += RealScalar(4 * n);
 
-  PotrfMatrix<Scalar> out(n, n);
+  ColMatrix<Scalar> out(n, n);
 
   static eigen_bench::ValidatedShapes<Index> validated;
   if (!validated.contains(n)) {
@@ -163,10 +157,10 @@ static void runPotrf(benchmark::State& state, Kernel kernel) {
     // original operand and Eigen leaves holding whatever LLT stored there -- is
     // correctly not part of the contract being checked.
     kernel(a, out);
-    const PotrfVector<Scalar> x = PotrfVector<Scalar>::Random(n);
+    const ColVector<Scalar> x = ColVector<Scalar>::Random(n);
     const auto lower = out.template triangularView<Eigen::Lower>();
-    const PotrfVector<Scalar> actual = lower * (lower.adjoint() * x).eval();
-    const PotrfVector<Scalar> expected = a * x;
+    const ColVector<Scalar> actual = lower * (lower.adjoint() * x).eval();
+    const ColVector<Scalar> expected = a * x;
 
     // A reference arm that reported a non-zero `info` produces a garbage or
     // untouched triangle, so it fails here too and needs no separate branch.
@@ -200,9 +194,8 @@ static void BM_PotrfReference(benchmark::State& state) {
 }
 #endif
 
-// The whole square1 grid of ops.toml, in the order its default_groups lists it.
-// run.py narrows it with --benchmark_filter; registering less here would make a
-// group unreachable.
+// The whole grid: run.py narrows it with --benchmark_filter, so a shape absent
+// here is out of reach.
 // clang-format off
 #define POTRF_DIM_NAMES {"n"}
 
