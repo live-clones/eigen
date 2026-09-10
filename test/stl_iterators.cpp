@@ -507,6 +507,7 @@ void test_stl_iterators(int rows = Rows, int cols = Cols) {
 
     i = internal::random<Index>(0, A.rows() - 1);
     A = random_for_arithmetic<ColMatrixType>(A.rows(), A.cols());
+    A.col(0).setOnes();  // every row is nonzero before row i is zeroed
     A.row(i).setZero();
     VERIFY_IS_EQUAL(
         std::find_if(A.rowwise().begin(), A.rowwise().end(),
@@ -521,6 +522,7 @@ void test_stl_iterators(int rows = Rows, int cols = Cols) {
 
     j = internal::random<Index>(0, A.cols() - 1);
     A = random_for_arithmetic<ColMatrixType>(A.rows(), A.cols());
+    A.row(0).setOnes();  // every column is nonzero before column j is zeroed
     A.col(j).setZero();
     VERIFY_IS_EQUAL(
         std::find_if(A.colwise().begin(), A.colwise().end(),
