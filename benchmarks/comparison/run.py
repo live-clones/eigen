@@ -1332,6 +1332,12 @@ class GitFacts:
 
 NULL_COMMIT = "0" * 40
 
+# Where an untracked file can change what the comparison build compiles: the
+# headers, the CMake modules the benchmark project imports, and the one
+# directory whose CMakeLists globs its sources. Every other benchmark directory
+# names its sources explicitly, so a stray .cpp there is never built.
+BUILD_INPUT_DIRS = ("Eigen", "cmake", "benchmarks/comparison")
+
 
 def output_pathspecs(repo_root: Path, *outputs: Path) -> list[str]:
     """Pathspecs excluding the directories this run writes to, if they are in the repo.
@@ -1382,11 +1388,23 @@ def probe_git(repo_root: Path, *output_dirs: Path) -> GitFacts:
     if not commit or not re.match(r"^[0-9a-f]{40}$", commit):
         return GitFacts(NULL_COMMIT, NULL_COMMIT[:9], True, None, None, available=False)
     pathspecs = output_pathspecs(repo_root, *output_dirs)
-    status = git("status", "--porcelain", "--", *pathspecs)
+    # A modified tracked file anywhere makes the commit a lie about the code
+    # measured. An untracked file only does so where the build can read it:
+    # under the headers, the CMake modules, or the globbed comparison sources.
+    # A developer checkout carries untracked build trees, worktrees and
+    # scratch files by the dozen, and none of those reach the compiler; a
+    # guard that fires on them teaches everyone to pass --allow-dirty by reflex.
+    tracked = git("status", "--porcelain", "--untracked-files=no", "--", *pathspecs)
+    input_dirs = [d for d in BUILD_INPUT_DIRS if (repo_root / d).is_dir()]
+    untracked = (
+        git("status", "--porcelain", "--untracked-files=all", "--", *input_dirs, *pathspecs[1:])
+        if input_dirs
+        else ""
+    )
     return GitFacts(
         commit=commit,
         commit_short=commit[:9],
-        dirty=bool(status),
+        dirty=bool(tracked) or bool(untracked),
         branch=git("rev-parse", "--abbrev-ref", "HEAD"),
         describe=git("describe", "--always", "--dirty"),
         available=True,
