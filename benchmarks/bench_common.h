@@ -21,20 +21,18 @@ namespace eigen_bench {
 
 using Eigen::Index;
 
-// Multiplier turning a count of real multiply-add PAIRS into scalar flops:
-// 2 for real, 8 for complex (4 real multiplies + 4 real adds per complex fma).
-template <typename Scalar>
-constexpr double flopScale() {
-  return Eigen::NumTraits<Scalar>::IsComplex ? 8.0 : 2.0;
-}
-
 // Multiplier turning a REAL-arithmetic flop count into the same count for
-// Scalar: 1 for real, 4 for complex. Invariant: flopScale<S>() == 2 * complexFactor<S>().
-// This is the bridge from ops.toml: an op's scalar flop count is
-// complexFactor<Scalar>() * <ops.OP.flops.real evaluated on the shape>.
+// Scalar: 1 for real, 4 for complex.
 template <typename Scalar>
 constexpr double complexFactor() {
   return Eigen::NumTraits<Scalar>::IsComplex ? 4.0 : 1.0;
+}
+
+// Multiplier turning a count of multiply-add PAIRS into scalar flops: 2 for
+// real, 8 for complex (4 real multiplies + 4 real adds per complex fma).
+template <typename Scalar>
+constexpr double flopScale() {
+  return 2.0 * complexFactor<Scalar>();
 }
 
 // Every helper forms its products in double before applying the scale, so a
@@ -44,11 +42,6 @@ constexpr double complexFactor() {
 
 template <typename Scalar>
 double dotFlops(Index n) {
-  return flopScale<Scalar>() * static_cast<double>(n);
-}
-
-template <typename Scalar>
-double axpyFlops(Index n) {
   return flopScale<Scalar>() * static_cast<double>(n);
 }
 
@@ -68,8 +61,7 @@ double symvFlops(Index n) {
 // The exact count for a triangular matrix-vector product is
 // flopScale * n * (n + 1) / 2; Core/bench_trmv.cpp has always reported
 // flopScale * n * n, roughly 2x that. The helper preserves the published value
-// so that adopting it moves no number. Correcting it is a separate change and
-// needs a matching ops.toml flops.real when TRMV is registered.
+// so that adopting it moves no number; correcting it is a separate change.
 template <typename Scalar>
 double trmvFlops(Index n) {
   const double dn = static_cast<double>(n);
@@ -95,15 +87,6 @@ double gemmFlops(Index m, Index n, Index k) {
   return flopScale<Scalar>() * static_cast<double>(m) * static_cast<double>(n) * static_cast<double>(k);
 }
 
-// One triangular solve with nrhs right-hand sides: n*(n+1)/2 multiply-add pairs
-// per right-hand side, conventionally reported as the round n^2*nrhs figure the
-// BLAS literature uses.
-template <typename Scalar>
-double trsmFlops(Index n, Index nrhs) {
-  const double dn = static_cast<double>(n);
-  return complexFactor<Scalar>() * dn * dn * static_cast<double>(nrhs);
-}
-
 // ---- Factorizations and decompositions -----------------------------------
 
 // Closed form of the summation loop in Cholesky/bench_cholesky.cpp and
@@ -115,9 +98,7 @@ double symmetricFactorizationFlops(Index n) {
   return complexFactor<Scalar>() * (dn * (dn - 1.0) * (dn - 2.0) / 3.0 + 2.0 * dn * (dn - 1.0));
 }
 
-// LAWN 41 (Table I, DGETRF): m*n^2 - n^3/3, i.e. 2*n^3/3 for a square LU. Not the
-// same count as geqrfFlops below, which is twice this; Householder QR really does
-// cost twice an LU of the same order.
+// LAWN 41 (Table I, DGETRF): m*n^2 - n^3/3, i.e. 2*n^3/3 for a square LU.
 template <typename Scalar>
 double getrfFlops(Index m, Index n) {
   const double dm = static_cast<double>(m);
@@ -125,45 +106,18 @@ double getrfFlops(Index m, Index n) {
   return complexFactor<Scalar>() * (dm * dn * dn - dn * dn * dn / 3.0);
 }
 
-template <typename Scalar>
-double geqrfFlops(Index m, Index n) {
-  const double dm = static_cast<double>(m);
-  const double dn = static_cast<double>(n);
-  return complexFactor<Scalar>() * (2.0 * dm * dn * dn - 2.0 * dn * dn * dn / 3.0);
-}
-
-// Nominal cost of a full singular value decomposition with both sets of
-// vectors; the algorithm-dependent constant makes this a convention for
-// comparison, not an operation count.
-template <typename Scalar>
-double gesddFlops(Index m, Index n) {
-  const double dm = static_cast<double>(m);
-  const double dn = static_cast<double>(n);
-  return complexFactor<Scalar>() * (8.0 * dm * dn * dn + 4.0 * dn * dn * dn / 3.0);
-}
-
-// Nominal cost of a symmetric/Hermitian eigendecomposition with eigenvectors.
-template <typename Scalar>
-double syevFlops(Index n) {
-  const double dn = static_cast<double>(n);
-  return complexFactor<Scalar>() * 9.0 * dn * dn * dn;
-}
-
 // ---- Counters ------------------------------------------------------------
+
+// The counter name every benchmark in this tree publishes.
+inline constexpr const char* kFlopCounterName = "GFLOPS";
 
 // `flops` is the flop count of ONE benchmark iteration. The value Google
 // Benchmark writes to JSON is flops per second, not gigaflops: kIs1000 selects
 // the base for the console's k/M/G suffix and does not scale the reported
 // number. Consumers divide by 1e9 themselves, exactly once.
-inline benchmark::Counter GflopsCounter(double flops) {
-  return benchmark::Counter(flops, benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
-}
-
-// The canonical counter name; every comparison benchmark emits it.
-inline constexpr const char* kFlopCounterName = "GFLOPS";
-
 inline void setFlopRate(benchmark::State& state, double flops) {
-  state.counters[kFlopCounterName] = GflopsCounter(flops);
+  state.counters[kFlopCounterName] =
+      benchmark::Counter(flops, benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
 }
 
 }  // namespace eigen_bench

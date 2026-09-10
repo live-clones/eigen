@@ -189,7 +189,6 @@ else()
 endif()
 list(SORT _comparison_sources)
 
-set(_comparison_targets "")
 foreach(_source IN LISTS _comparison_sources)
   get_filename_component(_target "${_source}" NAME_WE)
 
@@ -229,7 +228,6 @@ foreach(_source IN LISTS _comparison_sources)
     endif()
   endif()
   add_dependencies(bench_comparison_all ${_target})
-  list(APPEND _comparison_targets "${_target}")
 
   # Smoke tests: every registered name is well formed, and one iteration of
   # every tiny cell runs, which validates the reference arm against Eigen.

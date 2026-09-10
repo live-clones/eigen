@@ -12,10 +12,6 @@
 
 using namespace Eigen;
 
-// Flop counts come from benchmarks/bench_common.h so this file and the
-// comparison harness scale the same operation identically; a rate is only
-// comparable between two benchmarks that agree on what a flop is.
-
 // y += selfadjointView<Lower>(A) * x
 template <typename Scalar>
 static void BM_SYMV_Lower(benchmark::State& state) {
@@ -31,8 +27,7 @@ static void BM_SYMV_Lower(benchmark::State& state) {
     benchmark::DoNotOptimize(y.data());
     benchmark::ClobberMemory();
   }
-  state.counters["GFLOPS"] = benchmark::Counter(
-      eigen_bench::symvFlops<Scalar>(n), benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
+  eigen_bench::setFlopRate(state, eigen_bench::symvFlops<Scalar>(n));
 }
 
 // y += selfadjointView<Upper>(A) * x
@@ -50,8 +45,7 @@ static void BM_SYMV_Upper(benchmark::State& state) {
     benchmark::DoNotOptimize(y.data());
     benchmark::ClobberMemory();
   }
-  state.counters["GFLOPS"] = benchmark::Counter(
-      eigen_bench::symvFlops<Scalar>(n), benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
+  eigen_bench::setFlopRate(state, eigen_bench::symvFlops<Scalar>(n));
 }
 
 // clang-format off
