@@ -5,8 +5,7 @@
 //
 // GEMV is memory bound above L2, so unlike GEMM it is a bandwidth measurement
 // dressed as a flop rate. Both arms are charged the same 2*m*n, so the ratio
-// stays meaningful even where the absolute GFLOP/s is far below peak; ops.toml's
-// description carries that caveat through to the published page.
+// stays meaningful even where the absolute GFLOP/s is far below peak.
 
 #include <Eigen/Core>
 #include <array>
@@ -40,20 +39,15 @@ void zgemv_(const char* trans, const eigen_bench::BlasInt* m, const eigen_bench:
 
 using Eigen::Index;
 using eigen_bench::BlasInt;
-using eigen_bench::fitsBlasInt;
+using eigen_bench::ColMatrix;
+using eigen_bench::ColVector;
 
-template <typename Scalar>
-using GemvMatrix = eigen_bench::ColMatrix<Scalar>;
-
-template <typename Scalar>
-using GemvVector = eigen_bench::ColVector<Scalar>;
-
-// y := y + A*x, the operation ops.toml records as GEMV with alpha = beta = 1 and
-// trans = 'N'. The transposed kernel is a different reference call and would get
-// its own key (GEMV_T), not a runtime branch here.
+// y := y + A*x, i.e. GEMV with alpha = beta = 1 and trans = 'N'. The transposed
+// kernel is a different reference call and would get its own key (GEMV_T), not a
+// runtime branch here.
 struct EigenGemvKernel {
   template <typename Scalar>
-  void operator()(const GemvMatrix<Scalar>& a, const GemvVector<Scalar>& x, GemvVector<Scalar>& y) const {
+  void operator()(const ColMatrix<Scalar>& a, const ColVector<Scalar>& x, ColVector<Scalar>& y) const {
     y.noalias() += a * x;
   }
 };
@@ -91,7 +85,7 @@ static void referenceGemv(BlasInt m, BlasInt n, const std::complex<double>* a, c
 
 struct ReferenceGemvKernel {
   template <typename Scalar>
-  void operator()(const GemvMatrix<Scalar>& a, const GemvVector<Scalar>& x, GemvVector<Scalar>& y) const {
+  void operator()(const ColMatrix<Scalar>& a, const ColVector<Scalar>& x, ColVector<Scalar>& y) const {
     // Column-major and contiguous, so lda is the row count.
     referenceGemv(static_cast<BlasInt>(a.rows()), static_cast<BlasInt>(a.cols()), a.data(), x.data(), y.data());
   }
@@ -102,8 +96,6 @@ struct ReferenceGemvKernel {
 // the timed region and the counter cannot drift apart between them.
 template <typename Scalar, typename Kernel>
 static void runGemv(benchmark::State& state, Kernel kernel) {
-  using RealScalar = typename Eigen::NumTraits<Scalar>::Real;
-
   const Index m = static_cast<Index>(state.range(0));
   const Index n = static_cast<Index>(state.range(1));
 
@@ -119,9 +111,9 @@ static void runGemv(benchmark::State& state, Kernel kernel) {
   // would leave them resident and warm across entries and change what the timed
   // loop measures; y is additionally accumulated into by the timed loop and
   // never reset, so it has to be re-randomized regardless.
-  GemvMatrix<Scalar> a = GemvMatrix<Scalar>::Random(m, n);
-  GemvVector<Scalar> x = GemvVector<Scalar>::Random(n);
-  GemvVector<Scalar> y = GemvVector<Scalar>::Random(m);
+  ColMatrix<Scalar> a = ColMatrix<Scalar>::Random(m, n);
+  ColVector<Scalar> x = ColVector<Scalar>::Random(n);
+  ColVector<Scalar> y = ColVector<Scalar>::Random(m);
 
   static eigen_bench::ValidatedShapes<std::array<Index, 2>> validated;
   const std::array<Index, 2> shape = {m, n};
@@ -133,7 +125,7 @@ static void runGemv(benchmark::State& state, Kernel kernel) {
     // because a second m-by-n product would cost an extra factor of k in time
     // and a whole extra matrix in memory; paying that indirection here would
     // weaken the check (a random projection can miss an error) to save nothing.
-    GemvVector<Scalar> expected = y;
+    ColVector<Scalar> expected = y;
     // The expression under test, so the reference value is formed exactly the
     // way the Eigen arm forms its own -- and in one pass rather than the two a
     // `y + a * x` temporary would cost.
@@ -170,9 +162,8 @@ static void BM_GemvReference(benchmark::State& state) {
 }
 #endif
 
-// The whole matvec2 grid of ops.toml, in the order its default_groups lists it:
-// run.py narrows it with --benchmark_filter, so registering less would make a
-// group unreachable. A list macro rather than an arrow chain because the two
+// The whole grid: run.py narrows it with --benchmark_filter, so a shape absent
+// here is out of reach. A list macro rather than an arrow chain because the two
 // arms of a shape must be adjacent (see REGISTER_COMPARISON_POINT).
 // clang-format off
 #define GEMV_DIM_NAMES {"m", "n"}
