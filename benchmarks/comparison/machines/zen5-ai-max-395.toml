@@ -1,0 +1,174 @@
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
+
+# Machine profile for the comparison harness. See CONTRACTS.md section 7.
+#
+# Read off the machine on 2026-09-09: cpu_model is the /proc/cpuinfo string
+# verbatim, the core enumeration is from `lscpu --extended`, and every arm below
+# was configured, built and smoke-run before locally_verified was set.
+
+schema_version = "1.0.0"
+
+id = "zen5-ai-max-395"
+display_name = "AMD Ryzen AI MAX+ 395 (16C/32T, Zen 5), WSL2 on Windows"
+cpu_model = "AMD RYZEN AI MAX+ 395 w/ Radeon 8060S"
+arch = "x86_64"
+
+locally_verified = true
+
+isa_targets = ["x86-64", "x86-64-avx2", "x86-64-avx512"]
+default_isa_target = "x86-64-avx512"
+
+sockets = 1
+cores_per_socket = 16
+threads_per_core = 2
+smt_enabled = true
+numa_nodes = 1
+
+# The repository's benchmark hook refuses runs above 1.0 as well.
+max_load_avg = 1.0
+
+microarchitecture = "AMD Zen 5 (Strix Halo)"
+
+notes = """
+Linux runs under WSL2 (Hyper-V), which hides most of what a benchmark
+provenance block normally records. The CPU reports a static 2994 MHz and no
+cpufreq interface; real silicon boosts to about 5 GHz and throttles under
+sustained AVX-512 load, so per-cycle figures derived from the reported clock
+are a lower bound. The two-CCD topology (2 x 8 cores, each with its own L3) is
+flattened to one L3 instance, thread affinity is advisory because Hyper-V
+remaps virtual to physical CPUs at will, and load on the Windows host is
+invisible to /proc/loadavg. Treat every number from this profile as a lower
+bound on bare-metal Linux and compare arms measured in the same session only.
+
+Single-threaded: the benchmark project does not enable OpenMP, so the Eigen arm
+is sequential and every reference arm is capped to one thread by its own
+environment variable.
+"""
+
+[memory]
+# 76 GiB visible to WSL2; the xlarge GEMM group needs 12.9 GiB for
+# complex<double> at 16384, so this leaves room without letting a runaway
+# shape take the host down.
+benchmark_budget_bytes = 34359738368
+
+[frequency]
+# WSL2 exposes no cpufreq interface at all; run.py records a provenance gap.
+governor = ""
+pinned = false
+
+[pinning]
+# lscpu --extended enumerates SMT siblings interleaved: logical CPUs 2k and
+# 2k+1 are the two threads of core k. One thread per physical core, then. The
+# pin is advisory under Hyper-V but it still keeps the scheduler from
+# migrating the process between siblings within one VM time slice.
+tool = "taskset"
+cpu_list = "0,2,4,6,8,10,12,14,16,18,20,22,24,26,28,30"
+omp_proc_bind = "close"
+omp_places = "cores"
+
+[build]
+generator = "Ninja"
+build_type = "Release"
+cxx_standard = 17
+
+# --------------------------------------------------------------------------
+# ISA targets
+# --------------------------------------------------------------------------
+# EIGEN_BENCH_ISA_TARGET is pinned beside the flags because
+# comparison/CMakeLists.txt otherwise infers the key from the flag string, and
+# an inferred key that disagreed with this profile would split the merge config
+# in reduce.py. Zen 5 has full-width 512-bit datapaths, so the avx512 target is
+# the one that shows what the part can do; avx2 and plain x86-64 are there to
+# measure what the ISA ladder buys.
+
+[isa."x86-64"]
+flags = []
+cmake_options = ["-DEIGEN_BENCH_ISA_TARGET=x86-64"]
+
+[isa."x86-64-avx2"]
+flags = ["-mavx2", "-mfma"]
+cmake_options = ["-DEIGEN_BENCH_ISA_TARGET=x86-64-avx2"]
+
+[isa."x86-64-avx512"]
+flags = ["-mavx512dq", "-mfma"]
+cmake_options = ["-DEIGEN_BENCH_ISA_TARGET=x86-64-avx512"]
+
+# --------------------------------------------------------------------------
+# Reference arms
+# --------------------------------------------------------------------------
+# One binary carries at most one reference arm (CONTRACTS.md section 3.2), so
+# each entry is its own build tree and its own result file, merged on the arm
+# key. Paths are spelled out where the install layout defeats FindBLAS:
+# AOCL keeps its libraries in lib_LP64/, which no CMake search prefix covers.
+
+[arms.openblas]
+library_name = "OpenBLAS"
+# Ubuntu 24.04 libopenblas-dev 0.3.26. Two update-alternatives symlinks are
+# in play and they disagree: the link-time libopenblas.so points at the
+# pthread build, the run-time libopenblas.so.0 at the OpenMP build, and the
+# binary loads the latter. openblas_get_config() reports USE_OPENMP, which is
+# what the result file records; the path CMake records is the link-time one.
+cmake_options = ["-DEIGEN_BENCH_REFERENCE=openblas"]
+version_fallback = "OpenBLAS 0.3.26"
+threading_model = "openmp"
+interface = "lp64"
+provides = ["blas", "cblas", "lapack", "lapacke"]
+thread_env = { OPENBLAS_NUM_THREADS = "{threads}" }
+
+[arms.mkl]
+library_name = "Intel oneMKL"
+# oneAPI 2025.3 under /opt/intel/oneapi. FindBLAS locates it through the
+# MKLROOT environment variable; CMAKE_LIBRARY_PATH is passed as well so the
+# configure does not depend on setvars.sh having been sourced.
+cmake_options = [
+    "-DEIGEN_BENCH_REFERENCE=mkl",
+    "-DCMAKE_LIBRARY_PATH=/opt/intel/oneapi/mkl/latest/lib",
+]
+version_fallback = "Intel oneMKL 2025.3"
+threading_model = "sequential"
+interface = "lp64"
+provides = ["blas", "cblas", "lapack", "lapacke"]
+# oneMKL dispatches on the CPUID vendor string and takes a conservative path
+# on AMD parts. That is a property of running oneMKL on this host and is stated
+# beside its numbers rather than worked around: MKL_DEBUG_CPU_TYPE and
+# MKL_ENABLE_INSTRUCTIONS would measure a configuration Intel does not support.
+thread_env = { MKL_NUM_THREADS = "{threads}", MKL_DYNAMIC = "FALSE" }
+
+[arms.aocl]
+library_name = "AOCL-BLIS"
+# AOCL 5.2.0 (the AOCC-built flavour) under /opt/AMD/aocl. LAPACK is
+# AOCL-libFLAME, a separate libflame.so that depends on the multithreaded
+# libblis-mt.so, libaoclutils.so and LLVM's libomp; the BLAS arm is therefore
+# libblis-mt.so too, so that one BLIS is loaded rather than two, and the thread
+# cap does the sequencing. libomp carries no versioned soname in AOCL's link
+# references, hence the rpath.
+cmake_options = [
+    "-DEIGEN_BENCH_REFERENCE=aocl",
+    "-DCMAKE_LIBRARY_PATH=/opt/AMD/aocl/aocl-linux-aocc-5.2.0/aocc/lib_LP64",
+    "-DBLAS_LIBRARIES=/opt/AMD/aocl/aocl-linux-aocc-5.2.0/aocc/lib_LP64/libblis-mt.so",
+    "-DLAPACK_LIBRARIES=/opt/AMD/aocl/aocl-linux-aocc-5.2.0/aocc/lib_LP64/libflame.so;/opt/AMD/aocl/aocl-linux-aocc-5.2.0/aocc/lib_LP64/libaoclutils.so;/usr/lib/llvm-18/lib/libomp.so",
+    "-DCMAKE_EXE_LINKER_FLAGS=-Wl,-rpath,/usr/lib/llvm-18/lib",
+]
+version_fallback = "AOCL 5.2.0 (BLIS + libFLAME)"
+threading_model = "openmp"
+interface = "lp64"
+provides = ["blas", "cblas", "lapack"]
+thread_env = { BLIS_NUM_THREADS = "{threads}", OMP_NUM_THREADS = "{threads}" }
+
+[arms.netlib]
+library_name = "Netlib reference BLAS/LAPACK"
+# Ubuntu's libblas3 / liblapack3 3.12.0. The unqualified libblas.so is an
+# update-alternatives symlink that OpenBLAS has captured on this host, so the
+# reference build is named by path. A floor and a correctness oracle, not a
+# competitor: expect hours, not minutes, on the large groups.
+cmake_options = [
+    "-DEIGEN_BENCH_REFERENCE=netlib",
+    "-DBLAS_LIBRARIES=/usr/lib/x86_64-linux-gnu/blas/libblas.so.3",
+    "-DLAPACK_LIBRARIES=/usr/lib/x86_64-linux-gnu/lapack/liblapack.so.3",
+]
+version_fallback = "Netlib LAPACK 3.12.0 (reference BLAS)"
+threading_model = "sequential"
+interface = "lp64"
+provides = ["blas", "lapack"]
+thread_env = { }
