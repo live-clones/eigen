@@ -47,13 +47,6 @@ BENCHMARK(BM_GemvBfloat16Strided)
     ->ArgNames({"rows", "cols", "stride"})
     ->ArgsProduct({{4, 5, 31, 32, 33, 128}, {65, 128}, {1, 2, 17}});
 
-// ---------- Benchmark helpers ----------
-
-// GEMV flop count: 2*m*n for real, 8*m*n for complex.
-// Flop counts come from benchmarks/bench_common.h so this file and the
-// comparison harness scale the same operation identically; a rate is only
-// comparable between two benchmarks that agree on what a flop is.
-
 // ---------- y += A * x  (ColMajor GEMV kernel, no conjugation) ----------
 
 template <typename Scalar>
@@ -70,8 +63,7 @@ static void BM_Gemv(benchmark::State& state) {
     benchmark::DoNotOptimize(y.data());
     benchmark::ClobberMemory();
   }
-  state.counters["GFLOPS"] = benchmark::Counter(
-      eigen_bench::gemvFlops<Scalar>(m, n), benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
+  eigen_bench::setFlopRate(state, eigen_bench::gemvFlops<Scalar>(m, n));
 }
 
 // ---------- y += A^T * x  (RowMajor GEMV kernel, no conjugation) ----------
@@ -90,8 +82,7 @@ static void BM_GemvTrans(benchmark::State& state) {
     benchmark::DoNotOptimize(y.data());
     benchmark::ClobberMemory();
   }
-  state.counters["GFLOPS"] = benchmark::Counter(
-      eigen_bench::gemvFlops<Scalar>(m, n), benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
+  eigen_bench::setFlopRate(state, eigen_bench::gemvFlops<Scalar>(m, n));
 }
 
 // ---------- y += conj(A) * x  (ColMajor kernel, ConjugateLhs=true) ----------
@@ -110,8 +101,7 @@ static void BM_GemvConj(benchmark::State& state) {
     benchmark::DoNotOptimize(y.data());
     benchmark::ClobberMemory();
   }
-  state.counters["GFLOPS"] = benchmark::Counter(
-      eigen_bench::gemvFlops<Scalar>(m, n), benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
+  eigen_bench::setFlopRate(state, eigen_bench::gemvFlops<Scalar>(m, n));
 }
 
 // ---------- y += A^H * x  (RowMajor kernel, ConjugateLhs=true) ----------
@@ -130,8 +120,7 @@ static void BM_GemvAdj(benchmark::State& state) {
     benchmark::DoNotOptimize(y.data());
     benchmark::ClobberMemory();
   }
-  state.counters["GFLOPS"] = benchmark::Counter(
-      eigen_bench::gemvFlops<Scalar>(m, n), benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
+  eigen_bench::setFlopRate(state, eigen_bench::gemvFlops<Scalar>(m, n));
 }
 
 // ---------- Size configurations ----------

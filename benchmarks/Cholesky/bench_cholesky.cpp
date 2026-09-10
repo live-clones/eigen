@@ -46,8 +46,6 @@ static void BM_LLT(benchmark::State& state) {
     acc += chol.matrixL().coeff(r, c);
     benchmark::DoNotOptimize(acc);
   }
-  const double cost = eigen_bench::symmetricFactorizationFlops<Scalar>(n);
-  state.counters["GFLOPS"] =
-      benchmark::Counter(cost, benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
+  eigen_bench::setFlopRate(state, eigen_bench::symmetricFactorizationFlops<Scalar>(n));
 }
 BENCHMARK(BM_LLT)->RangeMultiplier(2)->Range(4, 1500);
