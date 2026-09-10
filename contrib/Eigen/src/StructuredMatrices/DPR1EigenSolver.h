@@ -139,10 +139,39 @@ class DPR1EigenSolver {
 
   enum class SpectrumRange { Representable, ExactBoundary, Overflow, Uncertain };
 
-  static DoubleWord addDoubleWords(const DoubleWord& x, const DoubleWord& y);
-  static DoubleWord multiplyDoubleWords(const DoubleWord& x, const DoubleWord& y);
-  static DoubleWord divideDoubleWords(const DoubleWord& x, const DoubleWord& y);
-  static DoubleWord scaleDoubleWord(const DoubleWord& x, int exponent);
+  static DoubleWord addDoubleWords(const DoubleWord& x, const DoubleWord& y) {
+    DoubleWord result;
+    internal::twosum(x.hi, x.lo, y.hi, y.lo, result.hi, result.lo);
+    return result;
+  }
+
+  static DoubleWord multiplyDoubleWords(const DoubleWord& x, const DoubleWord& y) {
+    DoubleWord result;
+    internal::twoprod(x.hi, x.lo, y.hi, y.lo, result.hi, result.lo);
+    return result;
+  }
+
+  static DoubleWord divideDoubleWords(const DoubleWord& x, const DoubleWord& y) {
+    DoubleWord quotient;
+    internal::doubleword_div_fp(x.hi, x.lo, y.hi, quotient.hi, quotient.lo);
+    const DoubleWord product = multiplyDoubleWords(quotient, y);
+    const DoubleWord remainder = addDoubleWords(x, DoubleWord{-product.hi, -product.lo});
+    DoubleWord correction;
+    internal::doubleword_div_fp(remainder.hi, remainder.lo, y.hi, correction.hi, correction.lo);
+    return addDoubleWords(quotient, correction);
+  }
+
+  static DoubleWord scaleDoubleWord(const DoubleWord& x, int exponent) {
+    EIGEN_USING_STD(ldexp)
+    DoubleWord result{ldexp(x.hi, exponent), ldexp(x.lo, exponent)};
+    if ((numext::isfinite)(result.hi)) {
+      DoubleWord normalized;
+      internal::fast_twosum(result.hi, result.lo, normalized.hi, normalized.lo);
+      result = normalized;
+    }
+    return result;
+  }
+
   static SpectrumRange classifySpectrumRange(const VectorType& d, RealScalar rho, const VectorType& z);
 
   /** \internal Evaluates the shifted secular function
@@ -158,47 +187,6 @@ class DPR1EigenSolver {
   bool m_vectorsComputed = false;
   ComputationInfo m_info = InvalidInput;
 };
-
-template <typename RealScalar_>
-typename DPR1EigenSolver<RealScalar_>::DoubleWord DPR1EigenSolver<RealScalar_>::addDoubleWords(const DoubleWord& x,
-                                                                                               const DoubleWord& y) {
-  DoubleWord result;
-  internal::twosum(x.hi, x.lo, y.hi, y.lo, result.hi, result.lo);
-  return result;
-}
-
-template <typename RealScalar_>
-typename DPR1EigenSolver<RealScalar_>::DoubleWord DPR1EigenSolver<RealScalar_>::multiplyDoubleWords(
-    const DoubleWord& x, const DoubleWord& y) {
-  DoubleWord result;
-  internal::twoprod(x.hi, x.lo, y.hi, y.lo, result.hi, result.lo);
-  return result;
-}
-
-template <typename RealScalar_>
-typename DPR1EigenSolver<RealScalar_>::DoubleWord DPR1EigenSolver<RealScalar_>::divideDoubleWords(const DoubleWord& x,
-                                                                                                  const DoubleWord& y) {
-  DoubleWord quotient;
-  internal::doubleword_div_fp(x.hi, x.lo, y.hi, quotient.hi, quotient.lo);
-  const DoubleWord product = multiplyDoubleWords(quotient, y);
-  const DoubleWord remainder = addDoubleWords(x, DoubleWord{-product.hi, -product.lo});
-  DoubleWord correction;
-  internal::doubleword_div_fp(remainder.hi, remainder.lo, y.hi, correction.hi, correction.lo);
-  return addDoubleWords(quotient, correction);
-}
-
-template <typename RealScalar_>
-typename DPR1EigenSolver<RealScalar_>::DoubleWord DPR1EigenSolver<RealScalar_>::scaleDoubleWord(const DoubleWord& x,
-                                                                                                int exponent) {
-  EIGEN_USING_STD(ldexp)
-  DoubleWord result{ldexp(x.hi, exponent), ldexp(x.lo, exponent)};
-  if ((numext::isfinite)(result.hi)) {
-    DoubleWord normalized;
-    internal::fast_twosum(result.hi, result.lo, normalized.hi, normalized.lo);
-    result = normalized;
-  }
-  return result;
-}
 
 template <typename RealScalar_>
 typename DPR1EigenSolver<RealScalar_>::SpectrumRange DPR1EigenSolver<RealScalar_>::classifySpectrumRange(
@@ -464,8 +452,8 @@ DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const Vector
     for (Index a = 0; a < m; ++a) {
       delta[a] = ds[sub[static_cast<std::size_t>(a)]];
       zeta[a] = zs[sub[static_cast<std::size_t>(a)]];
-      zeta2[a] = zeta[a] * zeta[a];
     }
+    zeta2.array() = zeta.array() * zeta.array();
     const RealScalar zeta2sum = zeta2.sum();
 
     // Bisection stops when the bracket has collapsed to adjacent floating-point
