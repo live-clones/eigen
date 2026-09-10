@@ -8,6 +8,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
+#include "fp_control.h"
 
 #include <contrib/Eigen/StructuredMatrices>
 
@@ -704,6 +705,27 @@ void test_bccb_rank_complex_boundary() {
   VERIFY_IS_EQUAL(Bccb<Complex>(G2).rank(), 1);
 }
 
+// A single 2^-e frame factor is itself subnormal once the frame exceeds the
+// exponent range, and reads as zero under flush-to-zero: every scaled modulus
+// and the threshold collapse together, the rank is over-reported, and solve()
+// inverts a mode it should have truncated. Hence the two exact factors.
+void test_bccb_rank_flush_to_zero() {
+  ScopedFlushToZero flush_to_zero;
+  if (!flush_to_zero.isSupported()) return;
+
+  using Complex = std::complex<double>;
+  using CMat = Matrix<Complex, Dynamic, Dynamic>;
+  const double mx = (std::numeric_limits<double>::max)();
+
+  // Spectrum [s0, 1] with |s0| at the overflow boundary: the second mode is
+  // negligible against it, so the operator is rank one.
+  const Complex s0(0.75 * mx, 0.75 * mx);
+  CMat G(2, 1);
+  G(0, 0) = (s0 + Complex(1)) * 0.5;
+  G(1, 0) = (s0 - Complex(1)) * 0.5;
+  VERIFY_IS_EQUAL(Bccb<Complex>(G).rank(), 1);
+}
+
 template <typename Scalar>
 void test_bccb_eigen(Index n2, Index n1) {
   typedef typename NumTraits<Scalar>::Real RealScalar;
@@ -903,6 +925,7 @@ EIGEN_DECLARE_TEST(structured_bccb) {
     CALL_SUBTEST_7(test_bccb_determinant_scaled());
     CALL_SUBTEST_7(test_bccb_rank_boundaries());
     CALL_SUBTEST_7(test_bccb_rank_complex_boundary());
+    CALL_SUBTEST_7(test_bccb_rank_flush_to_zero());
 
     // Entrywise Inf/NaN propagation: FFT-sized operators must fall back to the
     // direct kernel; small ones are IEEE-exact already. A zero right-hand side
