@@ -135,6 +135,22 @@ provides = ["blas", "cblas", "lapack", "lapacke"]
 # MKL_ENABLE_INSTRUCTIONS would measure a configuration Intel does not support.
 thread_env = { MKL_NUM_THREADS = "{threads}", MKL_DYNAMIC = "FALSE" }
 
+[arms.mkl_bypass]
+library_name = "Intel oneMKL, vendor check bypassed"
+# The same library as [arms.mkl], with mkl_vendor_bypass.cpp compiled into the
+# binary so the CPUID vendor check answers "Intel". Measured 2026-09-10 at
+# n=1024 double GEMM: 64 GFLOP/s as shipped, 142-145 with the bypass, Eigen 142.
+# Unsupported by Intel; a page shows it beside the as-shipped row, never as MKL.
+cmake_options = [
+    "-DEIGEN_BENCH_REFERENCE=mkl_bypass",
+    "-DCMAKE_LIBRARY_PATH=/opt/intel/oneapi/mkl/latest/lib",
+]
+version_fallback = "Intel oneMKL 2025.3"
+threading_model = "sequential"
+interface = "lp64"
+provides = ["blas", "cblas", "lapack", "lapacke"]
+thread_env = { MKL_NUM_THREADS = "{threads}", MKL_DYNAMIC = "FALSE" }
+
 [arms.aocl]
 library_name = "AOCL-BLIS"
 # AOCL 5.2.0 (the AOCC-built flavour) under /opt/AMD/aocl. LAPACK is
