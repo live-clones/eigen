@@ -117,6 +117,8 @@ void basicStuff(const MatrixType& m) {
 
   // check == / != operators
   VERIFY(m1 == m1);
+  // Bounded integer fixtures can coincide by chance; force one coefficient apart.
+  m2(r, c) = m1(r, c) + Scalar(1);
   VERIFY(m1 != m2);
   VERIFY(!(m1 == m2));
   VERIFY(!(m1 != m1));
