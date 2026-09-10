@@ -267,7 +267,11 @@ eigen_bench_declare_vendor(aocl
   INTERFACE_WIDTH lp64
   THREADING openmp
   THREAD_ENV BLIS_NUM_THREADS
-  PROVIDES blas cblas lapack
+  # LAPACK is AOCL-libFLAME, a separate libflame.so that libblis.so does not
+  # carry; declaring it here made the build link ?potrf against BLIS alone and
+  # fail. FindLAPACK's AOCL route resolves libflame when BLA_VENDOR is AOCL, or
+  # pass -DLAPACK_LIBRARIES=<prefix>/lib_LP64/libflame.so explicitly.
+  PROVIDES blas cblas
   VERSION_PKGCONFIG blis
   VERSION_HEADER blis.h
   VERSION_HEADER_REGEX "BLIS_VERSION_STR[ \t]+\"([^\"]+)\""
