@@ -142,13 +142,15 @@ library_name = "AOCL-BLIS"
 # libblis-mt.so, libaoclutils.so and LLVM's libomp; the BLAS arm is therefore
 # libblis-mt.so too, so that one BLIS is loaded rather than two, and the thread
 # cap does the sequencing. libomp carries no versioned soname in AOCL's link
-# references, hence the rpath.
+# references, hence the rpath -- as DT_RPATH (--disable-new-dtags): the
+# default DT_RUNPATH applies only to the executable's own dependencies, and the
+# lookup that fails is libflame's and libblis-mt's transitive one.
 cmake_options = [
     "-DEIGEN_BENCH_REFERENCE=aocl",
     "-DCMAKE_LIBRARY_PATH=/opt/AMD/aocl/aocl-linux-aocc-5.2.0/aocc/lib_LP64",
     "-DBLAS_LIBRARIES=/opt/AMD/aocl/aocl-linux-aocc-5.2.0/aocc/lib_LP64/libblis-mt.so",
     "-DLAPACK_LIBRARIES=/opt/AMD/aocl/aocl-linux-aocc-5.2.0/aocc/lib_LP64/libflame.so;/opt/AMD/aocl/aocl-linux-aocc-5.2.0/aocc/lib_LP64/libaoclutils.so;/usr/lib/llvm-18/lib/libomp.so",
-    "-DCMAKE_EXE_LINKER_FLAGS=-Wl,-rpath,/usr/lib/llvm-18/lib",
+    "-DCMAKE_EXE_LINKER_FLAGS=-Wl,--disable-new-dtags,-rpath,/usr/lib/llvm-18/lib",
 ]
 version_fallback = "AOCL 5.2.0 (BLIS + libFLAME)"
 threading_model = "openmp"
