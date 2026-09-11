@@ -90,7 +90,7 @@ for o, a in opts:
 os.chdir(dir)
 execution=1
 summary="\n\t\t\t-->   LAPACK TESTING SUMMARY  <--\n";
-if with_file: summary+= "\t\tProcessing LAPACK Testing output found in the "+dir+" direcory\n";
+if with_file: summary+= "\t\tProcessing LAPACK Testing output found in the "+dir+" directory\n";
 summary+="SUMMARY             \tnb test run \tnumerical error   \tother error  \n";
 summary+="================   \t===========\t=================\t================  \n";
 nb_of_test=0
