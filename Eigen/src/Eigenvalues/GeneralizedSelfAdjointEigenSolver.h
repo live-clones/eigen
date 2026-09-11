@@ -131,6 +131,8 @@ class GeneralizedSelfAdjointEigenSolver : public SelfAdjointEigenSolver<MatrixTy
   GeneralizedSelfAdjointEigenSolver(EigenBase<InputTypeA>& matA, EigenBase<InputTypeB>& matB,
                                     int options = ComputeEigenvectors | Ax_lBx)
       : Base(matA, typename Base::BindStorageTag()), m_cholB(matB.derived()), m_matC(matA.derived()) {
+    // Complete the upper triangle from the referenced lower one.
+    m_matC = m_matC.template selfadjointView<Lower>();
     computeInPlace(options);
   }
 
@@ -203,7 +205,7 @@ GeneralizedSelfAdjointEigenSolver<MatrixType>& GeneralizedSelfAdjointEigenSolver
 }
 
 /** \internal Computes the generalized eigendecomposition from the Cholesky factor of B held by m_cholB and the
- * matrix A held by m_matC, whose lower triangle is referenced; m_matC is overwritten by the transformed matrix C. */
+ * selfadjoint matrix A held in full by m_matC, which is overwritten by the transformed matrix C. */
 template <typename MatrixType>
 GeneralizedSelfAdjointEigenSolver<MatrixType>& GeneralizedSelfAdjointEigenSolver<MatrixType>::computeInPlace(
     int options) {
@@ -217,9 +219,6 @@ GeneralizedSelfAdjointEigenSolver<MatrixType>& GeneralizedSelfAdjointEigenSolver
 
   int type = (options & GenEigMask);
   if (type == 0) type = Ax_lBx;
-
-  // Complete the upper triangle from the referenced lower one.
-  m_matC = m_matC.template selfadjointView<Lower>();
 
   // In the inplace decomposition the eigenvector storage is the matrix A itself, i.e. m_matC: the products of the
   // ABx_lx and BAx_lx forms, which cannot run in place, then go through a temporary instead.
