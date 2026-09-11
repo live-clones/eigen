@@ -1,6 +1,12 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
-
+#
+# SPDX-FileCopyrightText: 1992-2013 The University of Tennessee and The University of Tennessee Research Foundation
+# SPDX-FileCopyrightText: 2000-2013 The University of California Berkeley
+# SPDX-FileCopyrightText: 2006-2013 The University of Colorado Denver
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: BSD-3-Clause
+#
 
 ###############################################################################
 # lapack_testing.py  

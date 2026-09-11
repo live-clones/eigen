@@ -5,20 +5,29 @@ project(EigenLapack CXX)
 
 if(EIGEN_BUILD_LAPACK AND EIGEN_BUILD_BLAS)
 
-include(CheckLanguage)
-check_language(Fortran)
-if(CMAKE_Fortran_COMPILER)
-  enable_language(Fortran)
-  if("${CMAKE_Fortran_COMPILER_ID}" STREQUAL "GNU")
-    if ("${CMAKE_Fortran_COMPILER_VERSION}" VERSION_GREATER_EQUAL 10.0)
-      # We use an old version of LAPACK with argument type mismatches.
-      # Allow them to compile anyway with newer GNU versions.
-      set(CMAKE_Fortran_FLAGS  "${CMAKE_Fortran_FLAGS} -fallow-argument-mismatch")
+option(EIGEN_ENABLE_LAPACK_TESTS "Enable the Lapack unit tests" OFF)
+
+if(EIGEN_ENABLE_LAPACK_TESTS)
+  include(CheckLanguage)
+  check_language(Fortran)
+  if(CMAKE_Fortran_COMPILER)
+    enable_language(Fortran)
+    if("${CMAKE_Fortran_COMPILER_ID}" STREQUAL "GNU")
+      if ("${CMAKE_Fortran_COMPILER_VERSION}" VERSION_GREATER_EQUAL 10.0)
+        # We use an old version of LAPACK with argument type mismatches.
+        # Allow them to compile anyway with newer GNU versions.
+        set(CMAKE_Fortran_FLAGS  "${CMAKE_Fortran_FLAGS} -fallow-argument-mismatch")
+      endif()
     endif()
+    set(EIGEN_Fortran_COMPILER_WORKS ON)
+  else()
+    set(EIGEN_Fortran_COMPILER_WORKS OFF)
   endif()
-  set(EIGEN_Fortran_COMPILER_WORKS ON)
-else()
-  set(EIGEN_Fortran_COMPILER_WORKS OFF)
+
+  if(NOT EIGEN_Fortran_COMPILER_WORKS)
+    message(STATUS "A Fortran compiler was not found; LAPACK unit tests won't be enabled")
+    set(EIGEN_ENABLE_LAPACK_TESTS OFF)
+  endif()
 endif()
 
 add_custom_target(lapack)
@@ -30,10 +39,6 @@ set(EigenLapack_SRCS
 )
 
 set(EIGEN_LAPACK_DEF "eigen_lapack.def")
-
-if(EIGEN_Fortran_COMPILER_WORKS)
-
-option(EIGEN_ENABLE_LAPACK_TESTS OFF "Enable the Lapack unit tests")
 
 if(EIGEN_ENABLE_LAPACK_TESTS)
 
@@ -70,7 +75,18 @@ if(EIGEN_ENABLE_LAPACK_TESTS)
         spotrf.f  dpotrf.f  cpotrf.f  zpotrf.f
         spotrs.f  dpotrs.f  cpotrs.f  zpotrs.f
         sgetrf.f  dgetrf.f  cgetrf.f  zgetrf.f
-        sgetrs.f  dgetrs.f  cgetrs.f  zgetrs.f)
+        sgetrs.f  dgetrs.f  cgetrs.f  zgetrs.f
+        slarft.f  dlarft.f  clarft.f  zlarft.f
+        slarfb.f  dlarfb.f  clarfb.f  zlarfb.f
+        slarfg.f  dlarfg.f  clarfg.f  zlarfg.f
+        slarf.f   dlarf.f   clarf.f   zlarf.f
+        sladiv.f  dladiv.f  cladiv.f  zladiv.f
+        ilaslr.f  iladlr.f  ilaclr.f  ilazlr.f
+        ilaslc.f  iladlc.f  ilaclc.f  ilazlc.f
+        dlapy2.f  dlapy3.f  slapy2.f  slapy3.f
+        clacgv.f  zlacgv.f
+        slamch.f  dlamch.f
+        ilaver.f)
 
     file(GLOB ReferenceLapack_SRCS0 RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "reference/*.f")
     foreach(filename1 IN LISTS ReferenceLapack_SRCS0)
@@ -83,8 +99,6 @@ if(EIGEN_ENABLE_LAPACK_TESTS)
     endforeach()
   endif()
 
-
-endif()
 
 endif()
 
@@ -121,7 +135,7 @@ endforeach()
 
 
 get_filename_component(eigen_full_path_to_testing_lapack "./testing/" ABSOLUTE)
-if(EXISTS ${eigen_full_path_to_testing_lapack})
+if(EIGEN_ENABLE_LAPACK_TESTS AND EXISTS ${eigen_full_path_to_testing_lapack})
 
   # The following comes from lapack/TESTING/CMakeLists.txt
   # Get Python
