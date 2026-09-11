@@ -130,8 +130,9 @@ EIGEN_LAPACK_FUNC(larfg)(int* n, RealScalar* palpha, RealScalar* px, int* incx, 
 }
 
 // LARF applies an elementary reflector H = I - tau * v * v^* to matrix C from either left or right.
-EIGEN_LAPACK_FUNC(larf)(const char* side, int* m, int* n, RealScalar* pv, int* incv, RealScalar* ptau, RealScalar* pc,
-                        int* ldc, RealScalar* pwork) {
+EIGEN_LAPACK_FUNC(larf)
+(const char* side, int* m, int* n, RealScalar* pv, int* incv, RealScalar* ptau, RealScalar* pc, int* ldc,
+ RealScalar* pwork) {
   if (*m <= 0 || *n <= 0) return;
 
   Scalar* v = reinterpret_cast<Scalar*>(pv);
@@ -207,8 +208,9 @@ EIGEN_LAPACK_FUNC(larf)(const char* side, int* m, int* n, RealScalar* pv, int* i
 }
 
 // LARFT forms the triangular factor T of a block reflector H of order n.
-EIGEN_LAPACK_FUNC(larft)(const char* direct, const char* storev, int* n, int* k, RealScalar* pv, int* ldv,
-                         RealScalar* ptau, RealScalar* pt, int* ldt) {
+EIGEN_LAPACK_FUNC(larft)
+(const char* direct, const char* storev, int* n, int* k, RealScalar* pv, int* ldv, RealScalar* ptau, RealScalar* pt,
+ int* ldt) {
   if (*n == 0 || *k == 0) return;
 
   const Scalar* v = reinterpret_cast<const Scalar*>(pv);
@@ -443,9 +445,9 @@ void apply_triangular_right_lower_adjoint(MatrixW& W, const MatrixTri& L) {
 }  // namespace
 
 // LARFB applies a block reflector H or its transpose/adjoint to matrix C.
-EIGEN_LAPACK_FUNC(larfb)(const char* side, const char* trans, const char* direct, const char* storev, int* m, int* n,
-                         int* k, RealScalar* pv, int* ldv, RealScalar* pt, int* ldt, RealScalar* pc, int* ldc,
-                         RealScalar* pwork, int* ldwork) {
+EIGEN_LAPACK_FUNC(larfb)
+(const char* side, const char* trans, const char* direct, const char* storev, int* m, int* n, int* k, RealScalar* pv,
+ int* ldv, RealScalar* pt, int* ldt, RealScalar* pc, int* ldc, RealScalar* pwork, int* ldwork) {
   if (*m <= 0 || *n <= 0 || *k <= 0) return;
 
   const Scalar* v = reinterpret_cast<const Scalar*>(pv);
