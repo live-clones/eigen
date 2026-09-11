@@ -411,6 +411,36 @@ void lu_rowmajor_boundary() {
   }
 }
 
+template <typename Scalar, int StorageOrder>
+void lu_strided_pivots() {
+  using Mat = Matrix<Scalar, Dynamic, Dynamic, StorageOrder>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  for (Index n : {17, 32, 33, 127, 128, 129, 256, 512}) {
+    Mat a = Mat::Random(n, n);
+    // A cyclic permutation forces overlapping row swaps across panel boundaries.
+    const Index shift = n / 2 + 1;
+    a.bottomLeftCorner(n - shift, n - shift).diagonal().array() += RealScalar(2 * n);
+    a.topRightCorner(shift, shift).diagonal().array() += RealScalar(2 * n);
+    for (Index padding : {0, 7}) {
+      const Index stride = n + padding;
+      Matrix<Scalar, Dynamic, 1> storage = Matrix<Scalar, Dynamic, 1>::Constant(stride * n + 2, Scalar(7));
+      Map<Mat, 0, OuterStride<>> work(storage.data() + 1, n, n, OuterStride<>(stride));
+      work = a;
+      PartialPivLU<Ref<Mat>> lu(work);
+      VERIFY_IS_EQUAL(lu.matrixLU().data(), work.data());
+      const RealScalar bound = RealScalar(32 * n) * NumTraits<RealScalar>::epsilon() * a.norm();
+      const Mat lower = work.template triangularView<UnitLower>();
+      const Mat upper = work.template triangularView<Upper>();
+      VERIFY((lu.permutationP() * a - lower * upper).norm() <= bound);
+      VERIFY_IS_EQUAL(lu.permutationP().indices()[0], n - shift);
+      VERIFY_IS_EQUAL(storage[0], Scalar(7));
+      VERIFY_IS_EQUAL(storage[storage.size() - 1], Scalar(7));
+      for (Index j = 0; j < n; ++j)
+        for (Index i = n; i < stride; ++i) VERIFY_IS_EQUAL(storage[1 + j * stride + i], Scalar(7));
+    }
+  }
+}
+
 EIGEN_DECLARE_TEST(lu) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(lu_non_invertible<Matrix3f>());
@@ -459,6 +489,13 @@ EIGEN_DECLARE_TEST(lu) {
 
     CALL_SUBTEST_9(test_2889());
   }
+
+  CALL_SUBTEST_10((lu_strided_pivots<float, ColMajor>()));
+  CALL_SUBTEST_11((lu_strided_pivots<double, ColMajor>()));
+  CALL_SUBTEST_12((lu_strided_pivots<std::complex<float>, ColMajor>()));
+  CALL_SUBTEST_13((lu_strided_pivots<std::complex<double>, ColMajor>()));
+  CALL_SUBTEST_14((lu_strided_pivots<double, RowMajor>()));
+  CALL_SUBTEST_15((lu_strided_pivots<std::complex<double>, RowMajor>()));
 
   // Blocking and vectorization boundary tests (deterministic, outside g_repeat).
   CALL_SUBTEST_3(lu_blocking_boundary<float>());

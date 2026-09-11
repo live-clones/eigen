@@ -258,13 +258,24 @@ EIGEN_DEVICE_FUNC void MatrixBase<Derived>::applyHouseholderOnTheLeft(const Esse
   if (rows() == 1) {
     *this *= Scalar(1) - tau;
   } else if (!numext::is_exactly_zero(tau)) {
-    Map<typename internal::plain_row_type<PlainObject>::type> tmp(workspace, cols());
     Block<Derived, EssentialPart::SizeAtCompileTime, Derived::ColsAtCompileTime> bottom(derived(), 1, 0, rows() - 1,
                                                                                         cols());
-    tmp.noalias() = essential.adjoint() * bottom.unwind();
-    tmp = tau * (tmp + this->row(0));
-    this->row(0) = this->row(0) - tmp;
-    bottom.unwind().noalias() -= essential * tmp;
+    EIGEN_IF_CONSTEXPR (!Derived::IsRowMajor &&
+                        (EssentialPart::SizeAtCompileTime == 1 || EssentialPart::SizeAtCompileTime == 2)) {
+      const Scalar tauValue = tau;  // tau may reference a coefficient of *this.
+      // Finish each short column before advancing: separate row passes thrash the cache at large outer strides.
+      for (Index j = 0; j < cols(); ++j) {
+        const Scalar tmp = tauValue * (essential.dot(bottom.col(j)) + coeff(0, j));
+        coeffRef(0, j) -= tmp;
+        bottom.col(j) -= tmp * essential;
+      }
+    } else {
+      Map<typename internal::plain_row_type<PlainObject>::type> tmp(workspace, cols());
+      tmp.noalias() = essential.adjoint() * bottom.unwind();
+      tmp = tau * (tmp + this->row(0));
+      this->row(0) = this->row(0) - tmp;
+      bottom.unwind().noalias() -= essential * tmp;
+    }
   }
 }
 
