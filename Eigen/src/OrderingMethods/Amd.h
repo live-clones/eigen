@@ -30,13 +30,13 @@ namespace Eigen {
 namespace internal {
 
 template <typename T>
-inline T amd_flip(const T& i) {
+constexpr T amd_flip(const T& i) {
   return -i - 2;
 }
 
 /* clear w */
 template <typename StorageIndex>
-static StorageIndex cs_wclear(StorageIndex mark, StorageIndex lemax, StorageIndex* w, StorageIndex n) {
+static constexpr StorageIndex cs_wclear(StorageIndex mark, StorageIndex lemax, StorageIndex* w, StorageIndex n) {
   StorageIndex k;
   if (mark < 2 || (mark + lemax < 0)) {
     for (k = 0; k < n; k++)
@@ -48,8 +48,8 @@ static StorageIndex cs_wclear(StorageIndex mark, StorageIndex lemax, StorageInde
 
 /* depth-first search and postorder of a tree rooted at node j */
 template <typename StorageIndex>
-StorageIndex cs_tdfs(StorageIndex j, StorageIndex k, StorageIndex* head, const StorageIndex* next, StorageIndex* post,
-                     StorageIndex* stack) {
+constexpr StorageIndex cs_tdfs(StorageIndex j, StorageIndex k, StorageIndex* head, const StorageIndex* next,
+                               StorageIndex* post, StorageIndex* stack) {
   StorageIndex i, p, top = 0;
   if (!head || !next || !post || !stack) return (-1); /* check inputs */
   stack[0] = j;                                       /* place j on the stack */
@@ -78,8 +78,8 @@ StorageIndex cs_tdfs(StorageIndex j, StorageIndex k, StorageIndex* head, const S
  * Note that the input matrix \a C must be complete, that is both the upper and lower parts have to be stored, as well
  * as the diagonal entries. On exit the values of C are destroyed */
 template <typename Scalar, typename StorageIndex>
-void minimum_degree_ordering(SparseMatrix<Scalar, ColMajor, StorageIndex>& C,
-                             PermutationMatrix<Dynamic, Dynamic, StorageIndex>& perm) {
+constexpr void minimum_degree_ordering(SparseMatrix<Scalar, ColMajor, StorageIndex>& C,
+                                       PermutationMatrix<Dynamic, Dynamic, StorageIndex>& perm) {
   using std::sqrt;
 
   StorageIndex d, dk, dext, lemax = 0, e, elenk, eln, i, j, k, k1, k2, k3, jlast, ln, dense, nzmax, mindeg = 0, nvi,

@@ -129,7 +129,7 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
    * circulant convolution is computed here, once, and reused by every subsequent
    * product. */
   template <typename ColDerived, typename RowDerived>
-  Hankel(const MatrixBase<ColDerived>& col, const MatrixBase<RowDerived>& row)
+  constexpr Hankel(const MatrixBase<ColDerived>& col, const MatrixBase<RowDerived>& row)
       : m_rows(col.size()), m_cols(row.size()) {
     EIGEN_STATIC_ASSERT_VECTOR_ONLY(ColDerived)
     EIGEN_STATIC_ASSERT_VECTOR_ONLY(RowDerived)
@@ -143,55 +143,55 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
     m_fftUsable = computeFftUsable();
   }
 
-  EIGEN_DEVICE_FUNC Index rows() const { return m_rows.value(); }
-  EIGEN_DEVICE_FUNC Index cols() const { return m_cols.value(); }
+  EIGEN_DEVICE_FUNC constexpr Index rows() const { return m_rows.value(); }
+  EIGEN_DEVICE_FUNC constexpr Index cols() const { return m_cols.value(); }
 
   /** \returns the generating sequence \c h of length \c m+n-1; entry \c (i,j) of
    * the matrix is \c h[i+j]. */
-  const GeneratorType& generator() const { return m_h; }
+  constexpr const GeneratorType& generator() const { return m_h; }
 
   /** \returns the first column, \c h[0..m-1]. */
-  ColGeneratorType column() const { return m_h.head(rows()); }
+  constexpr ColGeneratorType column() const { return m_h.head(rows()); }
 
   /** \returns the last row, \c h[m-1..m+n-2]. */
-  RowGeneratorType lastRow() const { return m_h.segment(rows() - 1, cols()); }
+  constexpr RowGeneratorType lastRow() const { return m_h.segment(rows() - 1, cols()); }
 
   /** \returns the symbol of the underlying circulant convolution: the DFT of the
    * generating sequence, zero-padded to a 5-smooth size p >= m+n-1 and rotated so
    * the product appears in the leading \c m entries of the back-transform. Cached
    * when the operator is large enough for products to take the FFT path, computed
    * on the fly for small operators. */
-  ComplexVector symbol() const { return m_symbol.size() > 0 ? m_symbol : computeSymbol(); }
+  constexpr ComplexVector symbol() const { return m_symbol.size() > 0 ? m_symbol : computeSymbol(); }
 
   /** \returns the coefficient at row \a row and column \a col. */
-  Scalar coeff(Index row, Index col) const { return m_h.coeff(row + col); }
+  constexpr Scalar coeff(Index row, Index col) const { return m_h.coeff(row + col); }
 
   /** \returns the transpose of \c *this, itself a Hankel operator: the same
    * generating sequence with the dimensions swapped. The cached symbol, when
    * present, is reused: transposing changes the rotation of the embedding from
    * \c n-1 to \c m-1, which multiplies DFT entry \c f by \c exp(2 pi i f (m-n)/p)
    * -- a diagonal phase multiplication instead of a new FFT. */
-  Hankel<Scalar, Cols_, Rows_> transpose() const {
+  constexpr Hankel<Scalar, Cols_, Rows_> transpose() const {
     return Hankel<Scalar, Cols_, Rows_>(m_h, cols(), rows(), transposedSymbol());
   }
 
   /** \returns the complex conjugate of \c *this, itself a Hankel operator. The
    * cached symbol, when present, is reused: the symbol of the conjugate is the
    * conjugated index reversal of the symbol. */
-  Hankel conjugate() const {
+  constexpr Hankel conjugate() const {
     return Hankel(m_h.conjugate(), rows(), cols(), internal::structured_reverse_symbol(m_symbol).conjugate());
   }
 
   /** \returns the adjoint of \c *this, itself a Hankel operator (the conjugated
    * transpose); the cached symbol is reused through the composition of the
    * \ref conjugate and \ref transpose rules. */
-  Hankel<Scalar, Cols_, Rows_> adjoint() const { return conjugate().transpose(); }
+  constexpr Hankel<Scalar, Cols_, Rows_> adjoint() const { return conjugate().transpose(); }
 
   /** \returns the column-reversed \ref Toeplitz equivalent \c T = H*E (with \c E
    * the exchange matrix), i.e. \c T(i,j) = h[i + n-1 - j]. Its symbol is computed
    * afresh. Useful for solving Hankel systems with the Toeplitz machinery:
    * \c H*x = b is \c T*(E*x) = b. */
-  Toeplitz<Scalar, Rows_, Cols_> toToeplitz() const {
+  constexpr Toeplitz<Scalar, Rows_, Cols_> toToeplitz() const {
     ColGeneratorType c = m_h.segment(cols() - 1, rows());
     RowGeneratorType r = m_h.head(cols()).reverse();
     return Toeplitz<Scalar, Rows_, Cols_>(c, r);
@@ -210,7 +210,7 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
    * \c info(), use \c LookAheadLevinson on \ref toToeplitz directly and reverse
    * the solution rows. */
   template <typename Rhs>
-  Matrix<Scalar, SolveRowsAtCompileTime, Rhs::ColsAtCompileTime> solve(const MatrixBase<Rhs>& b) const {
+  constexpr Matrix<Scalar, SolveRowsAtCompileTime, Rhs::ColsAtCompileTime> solve(const MatrixBase<Rhs>& b) const {
     EIGEN_STATIC_ASSERT(RowsAtCompileTime == Dynamic || Rhs::RowsAtCompileTime == Dynamic ||
                             int(RowsAtCompileTime) == int(Rhs::RowsAtCompileTime),
                         YOU_MIXED_MATRICES_OF_DIFFERENT_SIZES)
@@ -226,19 +226,19 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
   /** \internal Writes the dense representation into \a dst; column \c j is the
    * contiguous slice \c h[j..j+m-1]. Invoked through \c dense = hankel; */
   template <typename Dest>
-  void evalTo(Dest& dst) const {
+  constexpr void evalTo(Dest& dst) const {
     for (Index j = 0; j < cols(); ++j) dst.col(j) = m_h.segment(j, rows());
   }
 
   /** \internal Computes \c dst += (*this), see evalTo(). */
   template <typename Dest>
-  void addTo(Dest& dst) const {
+  constexpr void addTo(Dest& dst) const {
     for (Index j = 0; j < cols(); ++j) dst.col(j) += m_h.segment(j, rows());
   }
 
   /** \internal Computes \c dst -= (*this), see evalTo(). */
   template <typename Dest>
-  void subTo(Dest& dst) const {
+  constexpr void subTo(Dest& dst) const {
     for (Index j = 0; j < cols(); ++j) dst.col(j) -= m_h.segment(j, rows());
   }
 
@@ -247,7 +247,7 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
    * tag, so assigning it behaves like any dense product: a temporary resolves
    * aliasing between the destination and \a x, and \c .noalias() skips it. */
   template <typename Rhs>
-  Product<Hankel, Rhs> operator*(const MatrixBase<Rhs>& x) const {
+  constexpr Product<Hankel, Rhs> operator*(const MatrixBase<Rhs>& x) const {
     EIGEN_STATIC_ASSERT(ColsAtCompileTime == Dynamic || Rhs::RowsAtCompileTime == Dynamic ||
                             int(ColsAtCompileTime) == int(Rhs::RowsAtCompileTime),
                         INVALID_MATRIX_PRODUCT)
@@ -272,7 +272,7 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
    * detected inside the FFT loop -- in the same pass that derives its scaling
    * exponent, so finite data pays no extra scan -- and falls back per column. */
   template <typename Dest, typename Rhs, typename ProductScalar>
-  void addProduct(Dest& dst, const Rhs& rhs, const ProductScalar& alpha) const {
+  constexpr void addProduct(Dest& dst, const Rhs& rhs, const ProductScalar& alpha) const {
     const Index m = rows(), n = cols();
     eigen_assert(rhs.rows() == n && "invalid product: dimensions do not match");
     const bool small = m == 1 || n == 1 ||
@@ -294,14 +294,14 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
    * already-known symbol (empty for small operators), skipping the FFT of the
    * public constructor. Used by transpose(), conjugate() and adjoint(), whose
    * symbols are cheap transformations of the existing one. */
-  Hankel(const GeneratorType& h, Index rows, Index cols, const ComplexVector& symbol)
+  constexpr Hankel(const GeneratorType& h, Index rows, Index cols, const ComplexVector& symbol)
       : m_rows(rows), m_cols(cols), m_h(h), m_symbol(symbol), m_fftUsable(computeFftUsable()) {}
 
   /** \internal Whether products may take the FFT path: the generating sequence
    * and the cached symbol must be finite. The symbol accumulates up to p addends,
    * so it can overflow to Inf even for a finite sequence; such operators fall
    * back to the direct kernels, which stay exact. */
-  bool computeFftUsable() const { return m_h.allFinite() && (m_symbol.size() == 0 || m_symbol.allFinite()); }
+  constexpr bool computeFftUsable() const { return m_h.allFinite() && (m_symbol.size() == 0 || m_symbol.allFinite()); }
 
   /** \internal Direct kernel for column \a k of the right-hand side: computes
    * \c dst.col(k) += alpha * (*this) * rhs.col(k) without transforms. Serves
@@ -310,7 +310,7 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
    * column involving non-finite data, whose entrywise IEEE semantics the
    * transforms cannot preserve. */
   template <typename Dest, typename Rhs, typename ProductScalar>
-  void directProductColumn(Dest& dst, const Rhs& rhs, Index k, const ProductScalar& alpha) const {
+  constexpr void directProductColumn(Dest& dst, const Rhs& rhs, Index k, const ProductScalar& alpha) const {
     const Index m = rows(), n = cols();
     // A unit alpha must not multiply: even the identity complex scalar (1,0)
     // pollutes an (Inf,0) value with NaN through the 0*Inf cross term.
@@ -351,14 +351,14 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
   /** \internal Direct product kernel over every column, see
    * directProductColumn(). */
   template <typename Dest, typename Rhs, typename ProductScalar>
-  void directProduct(Dest& dst, const Rhs& rhs, const ProductScalar& alpha) const {
+  constexpr void directProduct(Dest& dst, const Rhs& rhs, const ProductScalar& alpha) const {
     for (Index k = 0; k < rhs.cols(); ++k) directProductColumn(dst, rhs, k, alpha);
   }
 
   /** \internal \returns the DFT of the generating sequence, zero-padded to the
    * 5-smooth size p >= m+n-1 and rotated left by n-1 so that the convolution
    * against a reversed input lands the product in the leading m entries. */
-  ComplexVector computeSymbol() const {
+  constexpr ComplexVector computeSymbol() const {
     const Index m = rows(), n = cols();
     const Index p = internal::fft_next_good_size(m + n - 1);
     ComplexVector embedding = ComplexVector::Zero(p);
@@ -376,7 +376,7 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
    * entry f by exp(2 pi i f (m-n) / p). The frequency-shift product f*(m-n) is
    * accumulated incrementally modulo p, so the angle stays O(2 pi) at full
    * accuracy and no Index overflow can occur. An empty symbol stays empty. */
-  ComplexVector transposedSymbol() const {
+  constexpr ComplexVector transposedSymbol() const {
     ComplexVector sym = m_symbol;
     const Index p = sym.size();
     if (p > 0 && rows() != cols()) {
@@ -405,7 +405,7 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
  * \returns a \ref Hankel operator with first column \a col and last row \a row.
  * The compile-time dimensions of the operator are deduced from the generators. */
 template <typename ColDerived, typename RowDerived>
-Hankel<typename ColDerived::Scalar, ColDerived::SizeAtCompileTime, RowDerived::SizeAtCompileTime> makeHankel(
+constexpr Hankel<typename ColDerived::Scalar, ColDerived::SizeAtCompileTime, RowDerived::SizeAtCompileTime> makeHankel(
     const MatrixBase<ColDerived>& col, const MatrixBase<RowDerived>& row) {
   return Hankel<typename ColDerived::Scalar, ColDerived::SizeAtCompileTime, RowDerived::SizeAtCompileTime>(col, row);
 }
