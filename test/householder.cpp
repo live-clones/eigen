@@ -783,6 +783,69 @@ void householder_large_components() {
   }
 }
 
+template <typename Scalar, int Size, int StorageOrder>
+void householder_short_strided() {
+  using Mat = Matrix<Scalar, Dynamic, Dynamic, StorageOrder>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Vector = Matrix<Scalar, Size, 1>;
+  using Essential = Matrix<Scalar, Size - 1, 1>;
+  const Vector vector = Vector::Random();
+  Essential essential;
+  Scalar tau;
+  RealScalar beta;
+  vector.makeHouseholder(essential, tau, beta);
+  Vector v;
+  v << Scalar(1), essential;
+  const Matrix<Scalar, Size, Size> h = Matrix<Scalar, Size, Size>::Identity() - tau * v * v.adjoint();
+
+  for (Index cols : {0, 1, 2, 17, 32, 33, 500, 512}) {
+    for (Index innerStride : {1, 2}) {
+      for (Index outerStride : {2048, 2055}) {
+        Matrix<Scalar, Dynamic, 1> storage =
+            Matrix<Scalar, Dynamic, 1>::Random(outerStride * (StorageOrder == ColMajor ? cols + 2 : Size + 2));
+        Map<Mat, 0, Stride<Dynamic, Dynamic>> mapped(storage.data(), Size + 2, cols + 2,
+                                                     Stride<Dynamic, Dynamic>(outerStride, innerStride));
+        const auto originalStorage = storage.eval();
+        const Mat original = mapped;
+        auto block = mapped.block(1, 1, Size, cols);
+        const Mat expected = h * original.block(1, 1, Size, cols);
+        Matrix<Scalar, Dynamic, 1> workspace(cols + 2);
+        workspace.setConstant(Scalar(7));
+        // Fixed essential length selects the fused column-major path even with dynamic block dimensions.
+        block.applyHouseholderOnTheLeft(essential, tau, workspace.data() + 1);
+        const RealScalar bound = RealScalar(16 * Size) * NumTraits<RealScalar>::epsilon() * original.norm();
+        VERIFY((block - expected).norm() <= bound);
+        VERIFY_IS_EQUAL(workspace[0], Scalar(7));
+        VERIFY_IS_EQUAL(workspace[cols + 1], Scalar(7));
+        Mat expectedFull = original;
+        expectedFull.block(1, 1, Size, cols) = block;
+        const auto resultStorage = storage.eval();
+        storage = originalStorage;
+        mapped = expectedFull;
+        VERIFY_IS_EQUAL(storage, resultStorage);
+
+        block.applyHouseholderOnTheLeft(essential, Scalar(0), workspace.data() + 1);
+        VERIFY_IS_EQUAL(storage, resultStorage);
+
+        storage = originalStorage;
+        const Matrix<Scalar, Dynamic, 1> dynamicEssential = essential;
+        block.applyHouseholderOnTheLeft(dynamicEssential, tau, workspace.data() + 1);
+        VERIFY((block - expected).norm() <= bound);
+
+        if (cols > 0) {
+          storage = originalStorage;
+          const Scalar aliasedTau = block.coeff(0, 0);
+          const Matrix<Scalar, Size, Size> aliasedH =
+              Matrix<Scalar, Size, Size>::Identity() - aliasedTau * v * v.adjoint();
+          const Mat aliasedExpected = aliasedH * original.block(1, 1, Size, cols);
+          block.applyHouseholderOnTheLeft(essential, block.coeffRef(0, 0), workspace.data() + 1);
+          VERIFY((block - aliasedExpected).norm() <= bound);
+        }
+      }
+    }
+  }
+}
+
 EIGEN_DECLARE_TEST(householder) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(householder(Matrix<double, 2, 2>()));
@@ -807,4 +870,15 @@ EIGEN_DECLARE_TEST(householder) {
   CALL_SUBTEST_11(householder_blocked_right_regression<std::complex<double>>());
   CALL_SUBTEST_12(householder_small_tail());
   CALL_SUBTEST_13(householder_large_components());
+  CALL_SUBTEST_14((householder_short_strided<float, 2, ColMajor>()));
+  CALL_SUBTEST_14((householder_short_strided<float, 3, ColMajor>()));
+  CALL_SUBTEST_15((householder_short_strided<double, 2, ColMajor>()));
+  CALL_SUBTEST_15((householder_short_strided<double, 3, ColMajor>()));
+  CALL_SUBTEST_16((householder_short_strided<std::complex<float>, 2, ColMajor>()));
+  CALL_SUBTEST_16((householder_short_strided<std::complex<float>, 3, ColMajor>()));
+  CALL_SUBTEST_17((householder_short_strided<std::complex<double>, 2, ColMajor>()));
+  CALL_SUBTEST_17((householder_short_strided<std::complex<double>, 3, ColMajor>()));
+  CALL_SUBTEST_18((householder_short_strided<double, 2, RowMajor>()));
+  CALL_SUBTEST_18((householder_short_strided<double, 3, RowMajor>()));
+  CALL_SUBTEST_19((householder_short_strided<std::complex<double>, 3, RowMajor>()));
 }
