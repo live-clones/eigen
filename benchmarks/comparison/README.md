@@ -7,8 +7,11 @@ same nominal flop count (`benchmarks/bench_common.h`), and ratios are formed wit
 pages under <https://libeigen.gitlab.io/benchmarks/> are drawn from the result files this directory
 produces.
 
-Operations: `bench_gemm_compare.cpp` (GEMM), `bench_gemv_compare.cpp` (GEMV), `bench_potrf_compare.cpp`
-(POTRF). Benchmark names are `OP/arm/scalar/dim:value/...`, for example `GEMM/openblas/f64/m:256/n:256/k:256`.
+Operations, one `bench_<op>_compare.cpp` each, keyed by the BLAS/LAPACK routine they compare against:
+AXPY and DOT (level 1), GEMV (level 2), GEMM, TRSM and SYRK (level 3), POTRF, GETRF, GEQRF, SYEV,
+GESDD and GEEV (LAPACK; eigenvectors and the thin singular vectors included). DOT is real-only: the
+Fortran convention for returning a complex function value differs between library builds. Benchmark
+names are `OP/arm/scalar/dim:value/...`, for example `GEMM/openblas/f64/m:256/n:256/k:256`.
 
 ## Producing the data for a new machine
 
