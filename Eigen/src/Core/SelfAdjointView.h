@@ -62,6 +62,7 @@ struct selfadjoint_l1norm_real_lanes {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Real abs(const Scalar& x) { return numext::abs(x); }
   // Nothing to record: pabs is exact.
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Real component(const Scalar&) { return Real(0); }
+  static EIGEN_DEVICE_FUNC bool overflows(Real) { return false; }
   static EIGEN_DEVICE_FUNC bool inRange(Real, Index) { return true; }
 
   // The running sums of a pass over two columns.
@@ -97,12 +98,14 @@ struct selfadjoint_l1norm_complex_lanes {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Real component(const Scalar& z) {
     return numext::maxi(numext::abs(numext::real(z)), numext::abs(numext::imag(z)));
   }
-  // Components this large overflow when squared, and below the lower bound the squares lose
-  // precision the sum of n of them cannot hide.
+  // Components this large overflow when squared; the pass gives up as soon as it meets one.
+  static EIGEN_DEVICE_FUNC bool overflows(Real peak) {
+    return !(peak < numext::sqrt(NumTraits<Real>::highest()) / Real(2));
+  }
+  // Below this the squares lose precision the sum of n of them cannot hide.
   static EIGEN_DEVICE_FUNC bool inRange(Real peak, Index n) {
     const Real tiny = Real(n) * numext::sqrt((std::numeric_limits<Real>::min)()) / NumTraits<Real>::epsilon();
-    const Real huge = numext::sqrt(NumTraits<Real>::highest()) / Real(2);
-    return peak > tiny && peak < huge;
+    return peak > tiny && !overflows(peak);
   }
 
   struct Pass {
@@ -144,6 +147,7 @@ struct selfadjoint_l1norm_packet_impl : Lanes {
     m_peak = numext::maxi(m_peak, Lanes::component(x));
     return Lanes::abs(x);
   }
+  EIGEN_DEVICE_FUNC bool overflows() const { return Lanes::overflows(m_peak); }
   EIGEN_DEVICE_FUNC bool inRange(Index n) const { return Lanes::inRange(m_peak, n); }
 
   template <typename SumsDerived, typename Derived>
@@ -214,6 +218,7 @@ struct selfadjoint_l1norm_impl {
   using Real = typename NumTraits<Scalar>::Real;
   static constexpr Index PerColumnUpTo = 16;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Real abs(const Scalar& x) const { return numext::abs(x); }
+  EIGEN_DEVICE_FUNC bool overflows() const { return false; }
   EIGEN_DEVICE_FUNC bool inRange(Index) const { return true; }
   template <typename SumsDerived, typename Derived>
   EIGEN_DEVICE_FUNC void accumulate(DenseBase<SumsDerived>& sums, const DenseBase<Derived>& m, Index j0, Index j1,
@@ -483,6 +488,7 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
       const L1NormAccumulator col1 = numext::real(sums.coeff(j1)) + impl.abs(m.coeff(j1, j1)) + boundary;
       norm = numext::maxi(norm, col0);
       norm = numext::maxi(norm, col1);
+      if (impl.overflows()) return l1NormPerColumn();
     }
     if (k < n) {
       const Index j = Mode == Lower ? k : 0;
