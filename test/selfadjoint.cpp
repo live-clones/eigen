@@ -112,6 +112,20 @@ void selfadjoint_l1norm_range() {
   }
 }
 
+// half and bfloat16 accumulate the norm in float, so only the final rounding to the scalar separates
+// the result from a float reference, not the size of the matrix.
+template <typename Scalar>
+void selfadjoint_l1norm_lowprec() {
+  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
+  for (Index n : {Index(8), Index(64), Index(300)}) {
+    MatrixType m = MatrixType::Random(n, n).template selfadjointView<Lower>();
+    float ref = m.template cast<float>().cwiseAbs().colwise().sum().maxCoeff();
+    float tol = 2 * float(NumTraits<Scalar>::epsilon()) * ref;
+    VERIFY(numext::abs(float(m.template selfadjointView<Lower>().l1Norm()) - ref) <= tol);
+    VERIFY(numext::abs(float(m.template selfadjointView<Upper>().l1Norm()) - ref) <= tol);
+  }
+}
+
 void bug_159() {
   Matrix3d m = Matrix3d::Random().selfadjointView<Lower>();
   EIGEN_UNUSED_VARIABLE(m);
@@ -137,4 +151,6 @@ EIGEN_DECLARE_TEST(selfadjoint) {
   CALL_SUBTEST_6(selfadjoint_l1norm_sizes<std::complex<float> >());
   CALL_SUBTEST_4(selfadjoint_l1norm_range<std::complex<double> >());
   CALL_SUBTEST_6(selfadjoint_l1norm_range<std::complex<float> >());
+  CALL_SUBTEST_7(selfadjoint_l1norm_lowprec<half>());
+  CALL_SUBTEST_7(selfadjoint_l1norm_lowprec<bfloat16>());
 }

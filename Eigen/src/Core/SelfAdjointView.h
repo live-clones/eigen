@@ -120,13 +120,17 @@ struct selfadjoint_l1norm_packet_impl : Lanes {
 
   template <typename Derived>
   static EIGEN_DEVICE_FUNC Real accumulate(Scalar* sums, const DenseBase<Derived>& x) {
+    return accumulateCast(sums, x.derived().template cast<Scalar>());
+  }
+
+ private:
+  template <typename Derived>
+  static EIGEN_DEVICE_FUNC Real accumulateCast(Scalar* sums, const DenseBase<Derived>& x) {
     using XprEvaluator = evaluator<Derived>;
     constexpr bool Vectorize =
         bool(XprEvaluator::Flags & PacketAccessBit) && bool(XprEvaluator::Flags & LinearAccessBit);
     return accumulate(sums, XprEvaluator(x.derived()), x.size(), bool_constant<Vectorize>());
   }
-
- private:
   template <typename XprEvaluator>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket load(const XprEvaluator& x, Index i) {
     return Lanes::lanes(x.template packet<Unaligned, Packet>(i));
@@ -162,8 +166,9 @@ struct selfadjoint_l1norm_packet_impl : Lanes {
 
 // Scalar fallback for types without a packet path: custom complex types, or complex packets
 // without a real view.
-template <typename Scalar, typename Enable = void>
+template <typename Scalar_, typename Enable = void>
 struct selfadjoint_l1norm_impl {
+  using Scalar = Scalar_;
   using Real = typename NumTraits<Scalar>::Real;
   static constexpr Index PerColumnUpTo = 16;
   template <typename Derived>
@@ -178,9 +183,10 @@ struct selfadjoint_l1norm_impl {
   }
   static EIGEN_DEVICE_FUNC bool isReliable(Real, Index) { return true; }
 };
+// Low-precision scalars accumulate in float, as stableNorm does.
 template <typename Scalar>
 struct selfadjoint_l1norm_impl<Scalar, std::enable_if_t<!NumTraits<Scalar>::IsComplex>>
-    : selfadjoint_l1norm_packet_impl<selfadjoint_l1norm_real_lanes<Scalar>> {};
+    : selfadjoint_l1norm_packet_impl<selfadjoint_l1norm_real_lanes<typename stable_norm_accumulator<Scalar>::type>> {};
 template <typename T>
 struct selfadjoint_l1norm_impl<std::complex<T>,
                                void_t<typename unpacket_traits<typename packet_traits<std::complex<T>>::type>::as_real>>
@@ -377,18 +383,21 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
     if (n <= L1NormImpl::PerColumnUpTo) return l1NormPerColumn();
     // For a self-adjoint matrix |a_ij| = |a_ji|, so the stored triangle of a row-major matrix is
     // the transposed, column-major, complementary one and yields the same norm read the fast way.
-    RealScalar norm;
+    L1NormAccumulator norm;
     EIGEN_IF_CONSTEXPR (bool(MatrixType::IsRowMajor)) {
       norm = l1NormStreaming<TransposeMode>(m_matrix.transpose());
     } else {
       norm = l1NormStreaming<UpLo>(m_matrix);
     }
-    return L1NormImpl::isReliable(norm, n) ? norm : l1NormPerColumn();
+    return L1NormImpl::isReliable(norm, n) ? RealScalar(norm) : l1NormPerColumn();
 #endif
   }
 
  private:
   using L1NormImpl = internal::selfadjoint_l1norm_impl<Scalar>;
+  // The scalar the norm is accumulated in: float for half and bfloat16, Scalar otherwise.
+  using L1NormScalar = typename L1NormImpl::Scalar;
+  using L1NormAccumulator = typename L1NormImpl::Real;
 
   // Reading the mirrored term of column j as a row of the stored triangle costs a stride-n
   // traversal of a column-major matrix. Instead every column is read once, top to bottom, and
@@ -396,14 +405,14 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
   // complete once every column holding one of its mirrored terms has been read: the earlier
   // ones for Lower, the later ones for Upper, hence the direction of the walk.
   template <int Mode, typename Mat>
-  static RealScalar l1NormStreaming(const Mat& m) {
+  static L1NormAccumulator l1NormStreaming(const Mat& m) {
     const Index n = m.rows();
-    ei_declare_aligned_stack_constructed_variable(Scalar, sums, n, 0);
-    Map<Matrix<Scalar, Dynamic, 1>>(sums, n).setZero();
-    RealScalar norm = RealScalar(0);
+    ei_declare_aligned_stack_constructed_variable(L1NormScalar, sums, n, 0);
+    Map<Matrix<L1NormScalar, Dynamic, 1>>(sums, n).setZero();
+    L1NormAccumulator norm = L1NormAccumulator(0);
     for (Index k = 0; k < n; ++k) {
       const Index j = Mode == Lower ? k : n - 1 - k;
-      RealScalar colsum = numext::abs(m.coeff(j, j));
+      L1NormAccumulator colsum = L1NormAccumulator(numext::abs(m.coeff(j, j)));
       EIGEN_IF_CONSTEXPR (Mode == Lower) {
         colsum += L1NormImpl::accumulate(sums + j + 1, m.col(j).tail(n - j - 1));
       } else {
@@ -416,20 +425,20 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
 
   // Workspace-free form, one column sum at a time; the mirrored term is read as a row.
   EIGEN_DEVICE_FUNC RealScalar l1NormPerColumn() const {
-    RealScalar norm = RealScalar(0);
+    L1NormAccumulator norm = L1NormAccumulator(0);
     const Index n = m_matrix.rows();
     for (Index col = 0; col < n; ++col) {
-      RealScalar abs_col_sum;
+      L1NormAccumulator abs_col_sum;
       EIGEN_IF_CONSTEXPR (UpLo == Lower) {
-        abs_col_sum =
-            m_matrix.col(col).tail(n - col).template lpNorm<1>() + m_matrix.row(col).head(col).template lpNorm<1>();
+        abs_col_sum = m_matrix.col(col).tail(n - col).template cast<L1NormScalar>().template lpNorm<1>() +
+                      m_matrix.row(col).head(col).template cast<L1NormScalar>().template lpNorm<1>();
       } else {
-        abs_col_sum =
-            m_matrix.col(col).head(col).template lpNorm<1>() + m_matrix.row(col).tail(n - col).template lpNorm<1>();
+        abs_col_sum = m_matrix.col(col).head(col).template cast<L1NormScalar>().template lpNorm<1>() +
+                      m_matrix.row(col).tail(n - col).template cast<L1NormScalar>().template lpNorm<1>();
       }
       norm = numext::maxi(norm, abs_col_sum);
     }
-    return norm;
+    return RealScalar(norm);
   }
 
  public:
