@@ -128,11 +128,12 @@ struct selfadjoint_l1norm_packet_impl : Lanes {
   using typename Lanes::Scalar;
   using Sums = std::pair<Real, Real>;
 
-  // sums[begin + i] += |x0_i| + |x1_i|.
-  template <typename SumsDerived, typename Derived0, typename Derived1>
-  static EIGEN_DEVICE_FUNC Sums accumulate(DenseBase<SumsDerived>& sums, Index begin, const DenseBase<Derived0>& x0,
-                                           const DenseBase<Derived1>& x1) {
-    return accumulateCast(sums, begin, x0.derived().template cast<Scalar>(), x1.derived().template cast<Scalar>());
+  // sums[i] += |m(i, j0)| + |m(i, j1)| for the rows [begin, end).
+  template <typename SumsDerived, typename Derived>
+  static EIGEN_DEVICE_FUNC Sums accumulate(DenseBase<SumsDerived>& sums, const DenseBase<Derived>& m, Index j0,
+                                           Index j1, Index begin, Index end) {
+    return accumulateCast(sums, begin, m.col(j0).segment(begin, end - begin).template cast<Scalar>(),
+                          m.col(j1).segment(begin, end - begin).template cast<Scalar>());
   }
 
  private:
@@ -191,14 +192,14 @@ struct selfadjoint_l1norm_impl {
   using Sums = std::pair<Real, Real>;
   static constexpr Index PerColumnUpTo = 16;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Real abs(const Scalar& x) { return numext::abs(x); }
-  template <typename SumsDerived, typename Derived0, typename Derived1>
-  static EIGEN_DEVICE_FUNC Sums accumulate(DenseBase<SumsDerived>& sums, Index begin, const DenseBase<Derived0>& x0,
-                                           const DenseBase<Derived1>& x1) {
+  template <typename SumsDerived, typename Derived>
+  static EIGEN_DEVICE_FUNC Sums accumulate(DenseBase<SumsDerived>& sums, const DenseBase<Derived>& m, Index j0,
+                                           Index j1, Index begin, Index end) {
     Sums r(Real(0), Real(0));
-    for (Index i = 0; i < x0.size(); ++i) {
-      Real a = numext::abs(x0.coeff(i));
-      Real b = numext::abs(x1.coeff(i));
-      sums.coeffRef(begin + i) += Scalar(a + b);
+    for (Index i = begin; i < end; ++i) {
+      Real a = numext::abs(m.coeff(i, j0));
+      Real b = numext::abs(m.coeff(i, j1));
+      sums.coeffRef(i) += Scalar(a + b);
       r.first += a;
       r.second += b;
     }
@@ -437,12 +438,9 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
       const Index j0 = Mode == Lower ? k : n - 1 - k;
       const Index j1 = Mode == Lower ? j0 + 1 : j0 - 1;
       const L1NormAccumulator boundary = L1NormImpl::abs(m.coeff(j1, j0));
-      typename L1NormImpl::Sums shared;
-      EIGEN_IF_CONSTEXPR (Mode == Lower) {
-        shared = L1NormImpl::accumulate(sums, j1 + 1, m.col(j0).tail(n - j1 - 1), m.col(j1).tail(n - j1 - 1));
-      } else {
-        shared = L1NormImpl::accumulate(sums, 0, m.col(j0).head(j1), m.col(j1).head(j1));
-      }
+      const Index rowBegin = Mode == Lower ? j1 + 1 : 0;
+      const Index rowEnd = Mode == Lower ? n : j1;
+      const typename L1NormImpl::Sums shared = L1NormImpl::accumulate(sums, m, j0, j1, rowBegin, rowEnd);
       // Totals are materialized so that maxi compares two accumulators (an integer sum promotes,
       // an autodiff sum is an expression).
       const L1NormAccumulator col0 =
