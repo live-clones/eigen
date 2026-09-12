@@ -212,9 +212,9 @@ Index triangular_solve_panel_columns(Index size, Index cols, std::ptrdiff_t budg
  * 1/kc and outweigh that share once the operand exceeds the budget or, for a slab packed one column
  * run at a time (slabRuns), once half the triangle does. The depth then grows toward the
  * single-threaded GEMM depth, no further than size/8 and 160, where deeper diagonal blocks measured
- * slower than the sweeps they save (by up to 10% at the GEMM depth in AVX2 builds), and no further than
- * keeps buffers that fit on the stack at the blocking's depth there. A caller that preallocated the
- * buffers sized them for the blocking's depth. */
+ * slower than the sweeps they save (by up to 10% at the GEMM depth in AVX2 builds), and, when the
+ * buffers fit on the stack at the blocking's depth, no further than the depth at which they still do.
+ * A caller that preallocated the buffers sized them for the blocking's depth. */
 template <typename Scalar, typename Index>
 Index triangular_solve_kc(Index size, Index otherSize, Index extent, std::ptrdiff_t budget, bool slabRuns,
                           level3_blocking<Scalar, Scalar>& blocking) {
@@ -281,8 +281,9 @@ EIGEN_DONT_INLINE void triangular_solve_matrix<Scalar, Index, OnTheLeft, Mode, C
   const Index mc = (numext::mini)(size, blocking.mc());  // cache block size along the M direction
   // The tr solve below packs up to SmallPanelWidth x kc entries of the triangle into blockA.
   const Index blockARows = (numext::maxi)(mc, Index(SmallPanelWidth));
+  // cache block size along the K direction
   const Index kc = triangular_solve_kc<Scalar>(size, otherSize, (numext::maxi)(blockARows, nc), budget,
-                                               /*slabRuns=*/false, blocking);  // cache block size along the K direction
+                                               /*slabRuns=*/false, blocking);
 
   std::size_t sizeA = kc * blockARows;
   std::size_t sizeB = kc * nc;
@@ -431,9 +432,9 @@ EIGEN_DONT_INLINE void triangular_solve_matrix<Scalar, Index, OnTheRight, Mode, 
   // (issue #3162); a row-major triangle is packed by rows, as on the left.
   const std::ptrdiff_t budget = triangular_solve_budget<Scalar>(l2, l3);
   Index mc = (numext::mini)(rows, blocking.mc());  // cache block size along the M direction
-  const Index kc =
-      triangular_solve_kc<Scalar>(size, rows, (numext::maxi)(mc, size), budget, TriStorageOrder == ColMajor,
-                                  blocking);  // cache block size along the K direction
+  // cache block size along the K direction
+  const Index kc = triangular_solve_kc<Scalar>(size, rows, (numext::maxi)(mc, size), budget,
+                                               /*slabRuns=*/TriStorageOrder == ColMajor, blocking);
   // blockA packs kc x mc entries of the left-hand side, and rows can far exceed size. Past half the
   // budget a deeper kc takes proportionally fewer rows per pass, so blockA does not outgrow the buffer
   // the blocking chose.
