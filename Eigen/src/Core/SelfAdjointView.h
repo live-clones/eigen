@@ -90,39 +90,37 @@ struct selfadjoint_l1norm_packet_impl : Lanes {
   using typename Lanes::RPacket;
   using typename Lanes::Scalar;
 
-  template <typename Xpr>
-  using is_contiguous = bool_constant<has_direct_access<Xpr>::value && inner_stride_at_compile_time<Xpr>::value == 1>;
-
-  template <typename Xpr>
-  static EIGEN_DEVICE_FUNC Real accumulate(Scalar* sums, const Xpr& x) {
-    return accumulate(sums, x, is_contiguous<Xpr>());
+  template <typename Derived>
+  static EIGEN_DEVICE_FUNC Real accumulate(Scalar* sums, const DenseBase<Derived>& x) {
+    using XprEvaluator = evaluator<Derived>;
+    constexpr bool Vectorize =
+        bool(XprEvaluator::Flags & PacketAccessBit) && bool(XprEvaluator::Flags & LinearAccessBit);
+    return accumulate(sums, XprEvaluator(x.derived()), x.size(), bool_constant<Vectorize>());
   }
 
  private:
-  template <typename Xpr>
-  static EIGEN_DEVICE_FUNC Real accumulate(Scalar* s, const Xpr& x, std::false_type) {
+  template <typename XprEvaluator>
+  static EIGEN_DEVICE_FUNC Real accumulate(Scalar* s, const XprEvaluator& x, Index n, std::false_type) {
     Real r = Real(0);
-    for (Index i = 0; i < x.size(); ++i) {
+    for (Index i = 0; i < n; ++i) {
       Real a = numext::abs(x.coeff(i));
       s[i] += a;
       r += a;
     }
     return r;
   }
-  template <typename Xpr>
-  static EIGEN_DEVICE_FUNC Real accumulate(Scalar* s, const Xpr& x, std::true_type) {
-    const Scalar* p = x.data();
-    const Index n = x.size();
+  template <typename XprEvaluator>
+  static EIGEN_DEVICE_FUNC Real accumulate(Scalar* s, const XprEvaluator& x, Index n, std::true_type) {
     RPacket acc = pzero(RPacket());
     Index i = 0;
     for (; i + PacketSize <= n; i += PacketSize) {
-      RPacket a = Lanes::abs(Lanes::lanes(ploadu<Packet>(p + i)));
+      RPacket a = Lanes::abs(Lanes::lanes(x.template packet<Unaligned, Packet>(i)));
       acc = padd(acc, a);
       pstoreu(s + i, Lanes::pack(padd(Lanes::lanes(ploadu<Packet>(s + i)), a)));
     }
     Real r = i > 0 ? numext::real(predux(Lanes::pack(acc))) : Real(0);
     for (; i < n; ++i) {
-      Real a = numext::abs(p[i]);
+      Real a = numext::abs(x.coeff(i));
       s[i] += a;
       r += a;
     }
@@ -136,8 +134,8 @@ template <typename Scalar, typename Enable = void>
 struct selfadjoint_l1norm_impl {
   using Real = typename NumTraits<Scalar>::Real;
   static constexpr Index PerColumnUpTo = 16;
-  template <typename Xpr>
-  static EIGEN_DEVICE_FUNC Real accumulate(Scalar* sums, const Xpr& x) {
+  template <typename Derived>
+  static EIGEN_DEVICE_FUNC Real accumulate(Scalar* sums, const DenseBase<Derived>& x) {
     Real r = Real(0);
     for (Index i = 0; i < x.size(); ++i) {
       Real a = numext::abs(x.coeff(i));
