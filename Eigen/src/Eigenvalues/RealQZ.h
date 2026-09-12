@@ -108,19 +108,19 @@ class RealQZ {
    * \param[in]  B          Matrix B.
    * \param[in]  computeQZ  If false, Q and Z are not computed.
    *
-   * This constructor calls compute() to compute the QZ decomposition.
+   * This constructor computes the QZ decomposition as compute() does.
    */
   template <typename InputTypeA, typename InputTypeB>
   RealQZ(const EigenBase<InputTypeA>& A, const EigenBase<InputTypeB>& B, bool computeQZ = true)
-      : m_S(A.rows(), A.cols()),
-        m_T(A.rows(), A.cols()),
+      : m_S(A.derived()),
+        m_T(B.derived()),
         m_Q(A.rows(), A.cols()),
         m_Z(A.rows(), A.cols()),
         m_workspace(A.rows() * 2),
         m_maxIters(400),
         m_isInitialized(false),
         m_computeQZ(true) {
-    compute(A.derived(), B.derived(), computeQZ);
+    computeInPlace(computeQZ);
   }
 
   /** \brief Constructor for \link InplaceDecomposition inplace decomposition \endlink
