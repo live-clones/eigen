@@ -33,8 +33,127 @@ namespace Eigen {
  */
 
 namespace internal {
+
+// The column step of the self-adjoint 1-norm: sums[i] += |x_i| into a real accumulator, returning
+// the sum of what was added, in a single packet pass so that short columns do not pay an expression
+// setup per pass. Real scalars go through pabs. std::complex has no packet abs (the functor
+// framework cannot turn a complex packet into a real one), so its lanes take sqrt(re^2 + im^2) on
+// the real lanes of the complex packet, which leaves |z| in both lanes of its slot: the accumulator
+// keeps that duplicated layout (Stride lanes per entry) rather than compress it, which would need
+// an arch-specific shuffle.
+template <typename Scalar_>
+struct selfadjoint_l1norm_real_lanes {
+  using Scalar = Scalar_;
+  using Real = Scalar_;
+  using RPacket = typename packet_traits<Scalar>::type;
+  static constexpr Index PacketSize = unpacket_traits<RPacket>::size;
+  static constexpr Index Stride = 1;
+  // Accumulating a column into the sums of the later ones chains the shortest columns on
+  // store-to-load forwarding; up to here reading the mirrored term as a row is cheaper.
+  static constexpr Index PerColumnUpTo = 16;
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket load(const Scalar* p) { return pabs(ploadu<RPacket>(p)); }
+  static EIGEN_DEVICE_FUNC bool isReliable(Real, Index) { return true; }
+};
+
+template <typename T>
+struct selfadjoint_l1norm_complex_lanes {
+  using Scalar = std::complex<T>;
+  using Real = T;
+  using CPacket = typename packet_traits<Scalar>::type;
+  using RPacket = typename unpacket_traits<CPacket>::as_real;
+  static constexpr Index PacketSize = unpacket_traits<CPacket>::size;
+  static constexpr Index Stride = 2;
+  static constexpr Index PerColumnUpTo = 0;
+  // |z_i| in lanes 2i and 2i+1.
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket load(const Scalar* p) {
+    RPacket s = ploadu<CPacket>(p).v;
+    s = pmul(s, s);
+    s = padd(s, pcplxflip(CPacket(s)).v);
+    return psqrt(s);
+  }
+  // Squaring the parts overflows and underflows well inside the scalar range: an infinite or a
+  // tiny result (elements below sqrt(min) lose precision) is recomputed through numext::abs.
+  static EIGEN_DEVICE_FUNC bool isReliable(Real norm, Index n) {
+    const Real tiny = Real(n) * numext::sqrt((std::numeric_limits<Real>::min)()) / NumTraits<Real>::epsilon();
+    return norm > tiny && (numext::isfinite)(norm);
+  }
+};
+
+template <typename Lanes>
+struct selfadjoint_l1norm_packet_impl : Lanes {
+  using Lanes::PacketSize;
+  using Lanes::Stride;
+  using typename Lanes::Real;
+  using typename Lanes::RPacket;
+  using typename Lanes::Scalar;
+
+  template <typename Xpr>
+  using is_contiguous = bool_constant<has_direct_access<Xpr>::value && inner_stride_at_compile_time<Xpr>::value == 1>;
+
+  template <typename Xpr>
+  static EIGEN_DEVICE_FUNC Real accumulate(Real* sums, const Xpr& x) {
+    return accumulate(sums, x, is_contiguous<Xpr>());
+  }
+
+ private:
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void add(Real* s, Real a) {
+    for (Index l = 0; l < Stride; ++l) s[l] += a;
+  }
+  template <typename Xpr>
+  static EIGEN_DEVICE_FUNC Real accumulate(Real* s, const Xpr& x, std::false_type) {
+    Real r = Real(0);
+    for (Index i = 0; i < x.size(); ++i) {
+      Real a = numext::abs(x.coeff(i));
+      add(s + Stride * i, a);
+      r += a;
+    }
+    return r;
+  }
+  template <typename Xpr>
+  static EIGEN_DEVICE_FUNC Real accumulate(Real* s, const Xpr& x, std::true_type) {
+    const Scalar* p = x.data();
+    const Index n = x.size();
+    RPacket acc = pzero(RPacket());
+    Index i = 0;
+    for (; i + PacketSize <= n; i += PacketSize) {
+      RPacket a = Lanes::load(p + i);
+      acc = padd(acc, a);
+      pstoreu(s + Stride * i, padd(ploadu<RPacket>(s + Stride * i), a));
+    }
+    Real r = i > 0 ? predux(acc) / Real(Stride) : Real(0);
+    for (; i < n; ++i) {
+      Real a = numext::abs(p[i]);
+      add(s + Stride * i, a);
+      r += a;
+    }
+    return r;
+  }
+};
+
+// Expression fallback for scalars without a packet path: custom complex types, or complex packets
+// without a real view.
+template <typename Scalar, typename Enable = void>
+struct selfadjoint_l1norm_impl {
+  using Real = typename NumTraits<Scalar>::Real;
+  static constexpr Index Stride = 1;
+  static constexpr Index PerColumnUpTo = 16;
+  template <typename Xpr>
+  static EIGEN_DEVICE_FUNC Real accumulate(Real* sums, const Xpr& x) {
+    Map<Matrix<Real, Dynamic, 1>>(sums, x.size()) += x.cwiseAbs();
+    return x.template lpNorm<1>();
+  }
+  static EIGEN_DEVICE_FUNC bool isReliable(Real, Index) { return true; }
+};
+template <typename Scalar>
+struct selfadjoint_l1norm_impl<Scalar, std::enable_if_t<!NumTraits<Scalar>::IsComplex>>
+    : selfadjoint_l1norm_packet_impl<selfadjoint_l1norm_real_lanes<Scalar>> {};
+template <typename T>
+struct selfadjoint_l1norm_impl<std::complex<T>,
+                               void_t<typename unpacket_traits<typename packet_traits<std::complex<T>>::type>::as_real>>
+    : selfadjoint_l1norm_packet_impl<selfadjoint_l1norm_complex_lanes<T>> {};
+
 template <typename MatrixType, unsigned int UpLo>
-struct traits<SelfAdjointView<MatrixType, UpLo> > : traits<MatrixType> {
+struct traits<SelfAdjointView<MatrixType, UpLo>> : traits<MatrixType> {
   using MatrixTypeNested = typename ref_selector<MatrixType>::non_const_type;
   using MatrixTypeNestedCleaned = remove_all_t<MatrixTypeNested>;
   using ExpressionType = MatrixType;
@@ -50,7 +169,7 @@ struct traits<SelfAdjointView<MatrixType, UpLo> > : traits<MatrixType> {
 }  // namespace internal
 
 template <typename MatrixType_, unsigned int UpLo>
-class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo> > {
+class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>> {
  public:
   EIGEN_STATIC_ASSERT(UpLo == Lower || UpLo == Upper, SELFADJOINTVIEW_ACCEPTS_UPPER_AND_LOWER_MODE_ONLY)
 
@@ -187,9 +306,9 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
    */
   template <unsigned int TriMode>
   EIGEN_DEVICE_FUNC
-      std::conditional_t<(TriMode & (Upper | Lower)) == (UpLo & (Upper | Lower)), TriangularView<MatrixType, TriMode>,
-                         TriangularView<typename MatrixType::AdjointReturnType, TriMode> >
-      triangularView() const {
+  std::conditional_t<(TriMode & (Upper | Lower)) == (UpLo & (Upper | Lower)), TriangularView<MatrixType, TriMode>,
+                     TriangularView<typename MatrixType::AdjointReturnType, TriMode>>
+  triangularView() const {
     std::conditional_t<(TriMode & (Upper | Lower)) == (UpLo & (Upper | Lower)), MatrixType&,
                        typename MatrixType::ConstTransposeReturnType>
         tmp1(m_matrix);
@@ -198,7 +317,7 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
         tmp2(tmp1);
     return std::conditional_t<(TriMode & (Upper | Lower)) == (UpLo & (Upper | Lower)),
                               TriangularView<MatrixType, TriMode>,
-                              TriangularView<typename MatrixType::AdjointReturnType, TriMode> >(tmp2);
+                              TriangularView<typename MatrixType::AdjointReturnType, TriMode>>(tmp2);
   }
 
   /** \returns a const expression of the main diagonal of the matrix \c *this
@@ -216,47 +335,48 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
    * since |conj(x)| = |x| the result matches the L1 norm of the full matrix.
    */
   EIGEN_DEVICE_FUNC RealScalar l1Norm() const {
+    const Index n = m_matrix.rows();
 #ifdef EIGEN_GPU_COMPILE_PHASE
-    // The panel accumulator below is per-thread local storage on a device, so it would cost every
-    // kernel instantiating this kPanelSize scalars of stack and the registers to address them.
+    // The accumulator below is per-thread local storage on a device.
     return l1NormPerColumn();
 #else
+    if (n <= L1NormImpl::PerColumnUpTo) return l1NormPerColumn();
     // For a self-adjoint matrix |a_ij| = |a_ji|, so the stored triangle of a row-major matrix is
     // the transposed, column-major, complementary one and yields the same norm read the fast way.
+    RealScalar norm;
     EIGEN_IF_CONSTEXPR (bool(MatrixType::IsRowMajor)) {
-      return l1NormColumnwise<TransposeMode>(m_matrix.transpose());
+      norm = l1NormStreaming<TransposeMode>(m_matrix.transpose());
     } else {
-      return l1NormColumnwise<UpLo>(m_matrix);
+      norm = l1NormStreaming<UpLo>(m_matrix);
     }
+    return L1NormImpl::isReliable(norm, n) ? norm : l1NormPerColumn();
 #endif
   }
 
  private:
+  using L1NormImpl = internal::selfadjoint_l1norm_impl<Scalar>;
+
   // Reading the mirrored term of column j as a row of the stored triangle costs a stride-n
-  // traversal of a column-major matrix. Instead accumulate column sums a panel at a time:
-  // |a_ij| from a column left of the panel is added to the sum of column i, which walks that
-  // column. Only the panel's diagonal block keeps the row traversal, where it is cache resident,
-  // and a panel-sized accumulator stays a stack object.
+  // traversal of a column-major matrix. Instead every column is read once, top to bottom, and
+  // each |a_ij| is added both to its own column sum and to the sum of column i. Column j is
+  // complete once every column holding one of its mirrored terms has been read: the earlier
+  // ones for Lower, the later ones for Upper, hence the direction of the walk.
   template <int Mode, typename Mat>
-  EIGEN_DEVICE_FUNC static RealScalar l1NormColumnwise(const Mat& m) {
-    static constexpr int kPanelSize = 64;
-    RealScalar norm = RealScalar(0);
+  static RealScalar l1NormStreaming(const Mat& m) {
+    static constexpr Index Stride = L1NormImpl::Stride;
     const Index n = m.rows();
-    Matrix<RealScalar, kPanelSize, 1> sums;
-    for (Index p = 0; p < n; p += kPanelSize) {
-      const Index len = numext::mini(Index(kPanelSize), n - p);
+    ei_declare_aligned_stack_constructed_variable(RealScalar, sums, Stride * n, 0);
+    Map<Matrix<RealScalar, Dynamic, 1>>(sums, Stride * n).setZero();
+    RealScalar norm = RealScalar(0);
+    for (Index k = 0; k < n; ++k) {
+      const Index j = Mode == Lower ? k : n - 1 - k;
+      RealScalar colsum = numext::abs(m.coeff(j, j));
       EIGEN_IF_CONSTEXPR (Mode == Lower) {
-        for (Index j = 0; j < len; ++j)
-          sums.coeffRef(j) =
-              m.col(p + j).tail(n - p - j).template lpNorm<1>() + m.row(p + j).segment(p, j).template lpNorm<1>();
-        for (Index j = 0; j < p; ++j) sums.head(len) += m.col(j).segment(p, len).cwiseAbs();
+        colsum += L1NormImpl::accumulate(sums + Stride * (j + 1), m.col(j).tail(n - j - 1));
       } else {
-        for (Index j = 0; j < len; ++j)
-          sums.coeffRef(j) = m.col(p + j).head(p + j + 1).template lpNorm<1>() +
-                             m.row(p + j).segment(p + j + 1, len - j - 1).template lpNorm<1>();
-        for (Index j = p + len; j < n; ++j) sums.head(len) += m.col(j).segment(p, len).cwiseAbs();
+        colsum += L1NormImpl::accumulate(sums, m.col(j).head(j));
       }
-      norm = numext::maxi(norm, sums.head(len).maxCoeff());
+      norm = numext::maxi(norm, colsum + sums[Stride * j]);
     }
     return norm;
   }
@@ -307,7 +427,7 @@ namespace internal {
 //      such that Transpose<SelfAdjointView<.,.> > is valid. (currently TriangularBase::transpose() is overloaded to
 //      make it work)
 template <typename MatrixType, unsigned int Mode>
-struct evaluator_traits<SelfAdjointView<MatrixType, Mode> > {
+struct evaluator_traits<SelfAdjointView<MatrixType, Mode>> {
   using Kind = typename storage_kind_to_evaluator_kind<typename MatrixType::StorageKind>::Kind;
   using Shape = SelfAdjointShape;
 };
