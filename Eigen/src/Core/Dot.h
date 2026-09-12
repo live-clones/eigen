@@ -54,19 +54,26 @@ struct stable_normalization_normal_min<bfloat16, Accumulator> {
   }
 };
 
-template <typename RealScalar, typename Accumulator, bool = std::is_floating_point<Accumulator>::value>
-struct stable_normalization_use_reciprocal {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE bool run(const Accumulator&) { return false; }
-};
-
 template <typename RealScalar, typename Accumulator>
-struct stable_normalization_use_reciprocal<RealScalar, Accumulator, true> {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE bool run(const Accumulator& scale) {
-    const Accumulator normal_min = stable_normalization_normal_min<RealScalar, Accumulator>::run();
-    const Accumulator normal_max = Accumulator(1) / normal_min;
-    return scale >= normal_min && scale <= normal_max;
-  }
-};
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool stable_normalization_inv_scale(const Accumulator& value,
+                                                                          Accumulator& invScale) {
+  safe_scaling_factors<Accumulator> factors;
+  const Accumulator normalMin = stable_normalization_normal_min<RealScalar, Accumulator>::run();
+  if (!safe_scaling<Accumulator>::try_compute_ceiling_factors_with_normal_reciprocal(value, normalMin, factors))
+    return false;
+  invScale = factors.invScale;
+  return true;
+}
+
+template <typename Accumulator>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool stable_normalization_combined_factor(const Accumulator& invScale,
+                                                                                const Accumulator& sqrtNorm,
+                                                                                Accumulator& factor) {
+  // Check before dividing: an overflowing reciprocal can raise FE_OVERFLOW even if the two-step fallback is used.
+  if (sqrtNorm < Accumulator(1) && invScale > Accumulator(NumTraits<Accumulator>::highest()) * sqrtNorm) return false;
+  factor = invScale / sqrtNorm;
+  return factor >= stable_normalization_normal_min<Accumulator, Accumulator>::run();
+}
 
 template <typename VectorType, typename Accumulator,
           bool = bool(traits<VectorType>::Flags & DirectAccessBit) &&
@@ -185,6 +192,56 @@ template <typename VectorType, typename Divisor>
 EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void stable_normalization_divide_in_place(VectorType& vec, const Divisor& divisor) {
   vec /= divisor;
 }
+
+template <typename VectorType, typename Accumulator>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void stable_normalization_with_division(VectorType& vec,
+                                                                              const Accumulator& maxCoeff) {
+  using RealScalar = typename NumTraits<typename traits<VectorType>::Scalar>::Real;
+  // Two normal divisors avoid an exceptional reciprocal and fast-math
+  // reassociation into multiplication by 1 / maxCoeff.
+  const Accumulator sqrtMax = numext::sqrt(maxCoeff);
+  const RealScalar scale1 = static_cast<RealScalar>(sqrtMax);
+  const RealScalar scale2 = static_cast<RealScalar>(maxCoeff / sqrtMax);
+  stable_normalization_divide_in_place(vec, scale1);
+  stable_normalization_divide_in_place(vec, scale2);
+  const Accumulator z = vec.realView().template cast<Accumulator>().squaredNorm();
+  if (z > Accumulator(0)) {
+    stable_normalization_scale_in_place(vec, Accumulator(1) / numext::sqrt(z));
+  }
+}
+
+template <typename VectorType, typename Accumulator,
+          bool = use_subnormal_preserving_scaling<Accumulator, typename traits<VectorType>::Scalar>::value>
+struct stable_normalization_subnormal_recovery {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(VectorType&) {}
+};
+
+template <typename VectorType, typename Accumulator>
+struct stable_normalization_subnormal_recovery<VectorType, Accumulator, true> {
+  using RealScalar = typename NumTraits<typename traits<VectorType>::Scalar>::Real;
+
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(VectorType& vec) {
+    using Binary = binary_floating_point_traits<RealScalar>;
+    using Bits = typename Binary::Bits;
+    decltype(auto) components = vec.realView();
+    Bits maxBits = 0;
+    for (Index col = 0; col < components.cols(); ++col) {
+      for (Index row = 0; row < components.rows(); ++row) {
+        const Bits bits = Binary::magnitude(components.coeff(row, col));
+        if (bits > maxBits) maxBits = bits;
+      }
+    }
+    if (maxBits == 0 || maxBits >= Binary::kExponentUnit) return;
+
+    const Accumulator maxAbs = numext::bit_cast<RealScalar>(maxBits);
+    const auto factors = safe_scaling<Accumulator>::compute_ceiling_factors(maxAbs);
+    safe_scaling<Accumulator>::scale_in_place(vec, maxAbs, factors);
+    const Accumulator squaredNorm = components.template cast<Accumulator>().squaredNorm();
+    if (squaredNorm > Accumulator(0)) {
+      stable_normalization_divide_in_place(vec, numext::sqrt(squaredNorm));
+    }
+  }
+};
 
 // squaredNorm() reduces realView().cwiseAbs2(), a cwise expression with no direct access, so when
 // the underlying expression has an inner stride that is not statically 1 (a dynamic-inner-stride
@@ -340,42 +397,37 @@ MatrixBase<Derived>::stableNormalized() const {
   // overflowing magnitude, and avoids a hypot per coefficient.
   const Accumulator w = Dispatch::max_abs(vec);
   const Accumulator highest = static_cast<Accumulator>(NumTraits<RealScalar>::highest());
-  if (EIGEN_PREDICT_FALSE(!(w > Accumulator(0)) || !(w <= highest))) return vec;
+  if (EIGEN_PREDICT_FALSE(!(w > Accumulator(0)))) {
+    PlainObject normalized(vec);
+    internal::stable_normalization_subnormal_recovery<PlainObject, Accumulator>::run(normalized);
+    return normalized;
+  }
+  if (EIGEN_PREDICT_FALSE(!(w <= highest))) return vec;
 
-  if (EIGEN_PREDICT_TRUE((internal::stable_normalization_use_reciprocal<RealScalar, Accumulator>::run(w)))) {
-    // Here w and its reciprocal are normal, so multiplication is safe.
-    const Accumulator inv_w = Accumulator(1) / w;
-    const Accumulator z = Dispatch::scaled_squared_norm(vec, inv_w);
+  Accumulator invScale;
+  if (EIGEN_PREDICT_TRUE((internal::stable_normalization_inv_scale<RealScalar>(w, invScale)))) {
+    const Accumulator z = Dispatch::scaled_squared_norm(vec, invScale);
     if (z > Accumulator(0)) {
       const Accumulator sqrt_z = numext::sqrt(z);
-      const Accumulator factor = inv_w / sqrt_z;
+      Accumulator factor;
       PlainObject normalized(rows(), cols());
-      const Accumulator accumulator_normal_min =
-          internal::stable_normalization_normal_min<Accumulator, Accumulator>::run();
-      if (EIGEN_PREDICT_TRUE(factor >= accumulator_normal_min)) {
+      if (EIGEN_PREDICT_TRUE(internal::stable_normalization_combined_factor(invScale, sqrt_z, factor))) {
         Dispatch::assign_scaled(normalized, vec, factor);
       } else {
-        // inv_w and sqrt_z are normal even though their quotient is not.
-        Dispatch::assign_scaled(normalized, vec, inv_w);
+        // invScale and sqrt_z are normal even though their quotient is not.
+        Dispatch::assign_scaled(normalized, vec, invScale);
         internal::stable_normalization_divide_in_place(normalized, static_cast<RealScalar>(sqrt_z));
       }
       return normalized;
     }
-    return vec;
+    // Packet arithmetic may flush subnormal inputs even when the maximum reduction preserves them (ARMv7 NEON).
+    PlainObject normalized(vec);
+    internal::stable_normalization_subnormal_recovery<PlainObject, Accumulator>::run(normalized);
+    return normalized;
   }
 
-  // Two normal divisors avoid an exceptional reciprocal and fast-math
-  // reassociation into multiplication by 1 / w.
-  const Accumulator sqrt_w = numext::sqrt(w);
-  const RealScalar scale1 = static_cast<RealScalar>(sqrt_w);
-  const RealScalar scale2 = static_cast<RealScalar>(w / sqrt_w);
   PlainObject normalized = vec;
-  internal::stable_normalization_divide_in_place(normalized, scale1);
-  internal::stable_normalization_divide_in_place(normalized, scale2);
-  const Accumulator z = normalized.realView().template cast<Accumulator>().squaredNorm();
-  if (z > Accumulator(0)) {
-    internal::stable_normalization_scale_in_place(normalized, Accumulator(1) / numext::sqrt(z));
-  }
+  internal::stable_normalization_with_division(normalized, w);
   return normalized;
 }
 
@@ -398,35 +450,31 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void MatrixBase<Derived>::stableNormalize(
 
   const Accumulator w = Dispatch::max_abs(derived());
   const Accumulator highest = static_cast<Accumulator>(NumTraits<RealScalar>::highest());
-  if (EIGEN_PREDICT_FALSE(!(w > Accumulator(0)) || !(w <= highest))) return;
+  if (EIGEN_PREDICT_FALSE(!(w > Accumulator(0)))) {
+    internal::stable_normalization_subnormal_recovery<Derived, Accumulator>::run(derived());
+    return;
+  }
+  if (EIGEN_PREDICT_FALSE(!(w <= highest))) return;
 
-  if (EIGEN_PREDICT_TRUE((internal::stable_normalization_use_reciprocal<RealScalar, Accumulator>::run(w)))) {
-    const Accumulator inv_w = Accumulator(1) / w;
-    const Accumulator z = Dispatch::scaled_squared_norm(derived(), inv_w);
+  Accumulator invScale;
+  if (EIGEN_PREDICT_TRUE((internal::stable_normalization_inv_scale<RealScalar>(w, invScale)))) {
+    const Accumulator z = Dispatch::scaled_squared_norm(derived(), invScale);
     if (z > Accumulator(0)) {
       const Accumulator sqrt_z = numext::sqrt(z);
-      const Accumulator factor = inv_w / sqrt_z;
-      const Accumulator accumulator_normal_min =
-          internal::stable_normalization_normal_min<Accumulator, Accumulator>::run();
-      if (EIGEN_PREDICT_TRUE(factor >= accumulator_normal_min)) {
+      Accumulator factor;
+      if (EIGEN_PREDICT_TRUE(internal::stable_normalization_combined_factor(invScale, sqrt_z, factor))) {
         Dispatch::scale_in_place(derived(), factor);
       } else {
-        internal::stable_normalization_scale_in_place(derived(), inv_w);
+        internal::stable_normalization_scale_in_place(derived(), invScale);
         internal::stable_normalization_divide_in_place(derived(), static_cast<RealScalar>(sqrt_z));
       }
+    } else {
+      internal::stable_normalization_subnormal_recovery<Derived, Accumulator>::run(derived());
     }
     return;
   }
 
-  const Accumulator sqrt_w = numext::sqrt(w);
-  const RealScalar scale1 = static_cast<RealScalar>(sqrt_w);
-  const RealScalar scale2 = static_cast<RealScalar>(w / sqrt_w);
-  internal::stable_normalization_divide_in_place(derived(), scale1);
-  internal::stable_normalization_divide_in_place(derived(), scale2);
-  const Accumulator z = derived().realView().template cast<Accumulator>().squaredNorm();
-  if (z > Accumulator(0)) {
-    internal::stable_normalization_scale_in_place(derived(), Accumulator(1) / numext::sqrt(z));
-  }
+  internal::stable_normalization_with_division(derived(), w);
 }
 
 //---------- implementation of other norms ----------
