@@ -39,9 +39,9 @@ namespace internal {
 // The accumulator has the matrix's scalar type and the column sums are read from the real parts.
 // Real scalars go through pabs. std::complex has no packet abs (the functor framework cannot turn
 // a complex packet into a real one), so its lanes take sqrt(re^2 + im^2) on the real lanes of the
-// complex packet, which leaves |z| in both lanes of its slot: that is the layout of a complex
-// accumulator, so it is added as is rather than compressed, which would need an arch-specific
-// shuffle.
+// complex packet. Both lanes of a slot hold the same |z|^2, so the square roots of two packets
+// are taken at once on the even lanes of one and the odd lanes of the other, and the result is
+// spread back to both lanes for the accumulator, which as a complex vector has that very layout.
 template <typename Scalar_>
 struct selfadjoint_l1norm_real_lanes {
   using Scalar = Scalar_;
@@ -54,7 +54,17 @@ struct selfadjoint_l1norm_real_lanes {
   static constexpr Index PerColumnUpTo = 16;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket lanes(const Packet& p) { return p; }
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet pack(const RPacket& r) { return r; }
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket abs(const RPacket& v) { return pabs(v); }
+  // |u| into au and |v| into av, returning their contribution to the column sum.
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket abs(const RPacket& u, const RPacket& v, RPacket& au,
+                                                           RPacket& av) {
+    au = pabs(u);
+    av = pabs(v);
+    return padd(au, av);
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket abs(const RPacket& u, RPacket& au) {
+    au = pabs(u);
+    return au;
+  }
   static EIGEN_DEVICE_FUNC bool isReliable(Real, Index) { return true; }
 };
 
@@ -68,17 +78,36 @@ struct selfadjoint_l1norm_complex_lanes {
   static constexpr Index PerColumnUpTo = 0;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket lanes(const Packet& p) { return p.v; }
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet pack(const RPacket& r) { return Packet(r); }
-  // |z| in both lanes of its slot.
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket abs(const RPacket& v) {
-    RPacket s = pmul(v, v);
-    s = padd(s, lanes(pcplxflip(pack(s))));
-    return psqrt(s);
+  // |z| of u in both lanes of its slot into au, same for v, returning the |z| of both packets
+  // once each: one square root serves the two packets.
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket abs(const RPacket& u, const RPacket& v, RPacket& au,
+                                                           RPacket& av) {
+    const RPacket even = peven_mask(RPacket());
+    RPacket r = psqrt(pselect(even, abs2(u), abs2(v)));  // |u0| |v0| |u1| |v1| ...
+    RPacket f = flip(r);                                 // |v0| |u0| |v1| |u1| ...
+    au = pselect(even, r, f);
+    av = pselect(even, f, r);
+    return r;
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket abs(const RPacket& u, RPacket& au) {
+    const RPacket even = peven_mask(RPacket());
+    RPacket r = psqrt(pselect(even, abs2(u), pzero(u)));  // |u0| 0 |u1| 0 ...
+    au = pselect(even, r, flip(r));
+    return r;
   }
   // Squaring the parts overflows and underflows well inside the scalar range: an infinite or a
   // tiny result (elements below sqrt(min) lose precision) is recomputed through numext::abs.
   static EIGEN_DEVICE_FUNC bool isReliable(Real norm, Index n) {
     const Real tiny = Real(n) * numext::sqrt((std::numeric_limits<Real>::min)()) / NumTraits<Real>::epsilon();
     return norm > tiny && (numext::isfinite)(norm);
+  }
+
+ private:
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket flip(const RPacket& r) { return lanes(pcplxflip(pack(r))); }
+  // |z|^2 in both lanes of its slot.
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket abs2(const RPacket& v) {
+    RPacket s = pmul(v, v);
+    return padd(s, flip(s));
   }
 };
 
@@ -100,6 +129,13 @@ struct selfadjoint_l1norm_packet_impl : Lanes {
 
  private:
   template <typename XprEvaluator>
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket load(const XprEvaluator& x, Index i) {
+    return Lanes::lanes(x.template packet<Unaligned, Packet>(i));
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void add(Scalar* s, const RPacket& a) {
+    pstoreu(s, Lanes::pack(padd(Lanes::lanes(ploadu<Packet>(s)), a)));
+  }
+  template <typename XprEvaluator>
   static EIGEN_DEVICE_FUNC Real accumulate(Scalar* s, const XprEvaluator& x, Index begin, Index end) {
     Real r = Real(0);
     for (Index i = begin; i < end; ++i) {
@@ -117,13 +153,19 @@ struct selfadjoint_l1norm_packet_impl : Lanes {
   static EIGEN_DEVICE_FUNC Real accumulate(Scalar* s, const XprEvaluator& x, Index n, std::true_type) {
     if (n < PacketSize) return accumulate(s, x, Index(0), n);
     RPacket acc = pzero(RPacket());
+    RPacket au, av;
     Index i = 0;
-    for (; i + PacketSize <= n; i += PacketSize) {
-      RPacket a = Lanes::abs(Lanes::lanes(x.template packet<Unaligned, Packet>(i)));
-      acc = padd(acc, a);
-      pstoreu(s + i, Lanes::pack(padd(Lanes::lanes(ploadu<Packet>(s + i)), a)));
+    for (; i + 2 * PacketSize <= n; i += 2 * PacketSize) {
+      acc = padd(acc, Lanes::abs(load(x, i), load(x, i + PacketSize), au, av));
+      add(s + i, au);
+      add(s + i + PacketSize, av);
     }
-    return numext::real(predux(Lanes::pack(acc))) + accumulate(s, x, i, n);
+    if (i + PacketSize <= n) {
+      acc = padd(acc, Lanes::abs(load(x, i), au));
+      add(s + i, au);
+      i += PacketSize;
+    }
+    return predux(acc) + accumulate(s, x, i, n);
   }
 };
 
