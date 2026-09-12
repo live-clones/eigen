@@ -265,6 +265,6 @@ BENCHMARK(BM_Batch_MultiStream_AsyncDownload)->ArgsProduct({{16, 32, 64, 128, 25
 BENCHMARK(BM_Batch_CPU)->ArgsProduct({{16, 32, 64, 128, 256, 512}, {1, 4, 16, 64}})->Unit(benchmark::kMicrosecond)->UseRealTime()->MinWarmUpTime(0.5);
 
 // Also run larger sizes with moderate batching.
-BENCHMARK(BM_Batch_MultiStream)->ArgsProduct({{512, 1024, 2048}, {1, 4, 8}})->Unit(benchmark::kMicrosecond)->UseRealTime()->MinWarmUpTime(0.5);
-BENCHMARK(BM_Batch_MultiStream_AsyncDownload)->ArgsProduct({{512, 1024, 2048}, {1, 4, 8}})->Unit(benchmark::kMicrosecond)->UseRealTime()->MinWarmUpTime(0.5);
+BENCHMARK(BM_Batch_MultiStream)->ArgsProduct({{1024, 2048}, {1, 4, 8}})->Args({512, 8})->Unit(benchmark::kMicrosecond)->UseRealTime()->MinWarmUpTime(0.5);
+BENCHMARK(BM_Batch_MultiStream_AsyncDownload)->ArgsProduct({{1024, 2048}, {1, 4, 8}})->Args({512, 8})->Unit(benchmark::kMicrosecond)->UseRealTime()->MinWarmUpTime(0.5);
 // clang-format on

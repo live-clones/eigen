@@ -111,22 +111,6 @@ static void BM_FullReduction_ThreadPool(benchmark::State& state) {
   state.counters["threads"] = threads;
 }
 
-// --- Maximum reduction (rank-2) ---
-static void BM_MaxReduction(benchmark::State& state) {
-  const int M = state.range(0);
-  const int N = state.range(1);
-
-  Tensor<Scalar, 2> A(M, N);
-  A.setRandom();
-
-  for (auto _ : state) {
-    Tensor<Scalar, 0> result = A.maximum();
-    benchmark::DoNotOptimize(result.data());
-    benchmark::ClobberMemory();
-  }
-  state.SetBytesProcessed(state.iterations() * M * N * sizeof(Scalar));
-}
-
 // clang-format off
 #define REDUCTION_SIZES \
   ->Args({64, 64})->Args({256, 256})->Args({1024, 1024})
@@ -141,7 +125,6 @@ static void BM_MaxReduction(benchmark::State& state) {
 
 BENCHMARK(BM_FullReduction<internal::SumReducer<Scalar>>) REDUCTION_SIZES->Name("SumReduction");
 BENCHMARK(BM_FullReduction<internal::MaxReducer<Scalar>>) REDUCTION_SIZES->Name("MaxReduction_Full");
-BENCHMARK(BM_MaxReduction) REDUCTION_SIZES;
 BENCHMARK(BM_ReduceInner) REDUCTION_SIZES;
 BENCHMARK(BM_ReduceOuter) REDUCTION_SIZES;
 BENCHMARK(BM_ReduceSpatial) SPATIAL_SIZES;

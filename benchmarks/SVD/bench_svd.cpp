@@ -83,6 +83,9 @@ static void BM_BDCSVDBidiagonal(benchmark::State& state) {
 // Direct bidiagonal input isolates the divide-and-conquer phase.
 #define BDC_BIDIAG_SIZES ->Arg(16)->Arg(32)->Arg(64)->Arg(128)->Arg(256)->Arg(512)->Arg(1024)
 
+// Complex JacobiSVD above the shapes bench_jacobisvd_rotations covers.
+#define JACOBI_COMPLEX_SIZES ->Args({128, 128})->Args({256, 256})->Args({512, 512})
+
 // JacobiSVD — float
 BENCHMARK(BM_JacobiSVD<float, ComputeThinU | ComputeThinV>) JACOBI_SIZES ->Name("JacobiSVD_float_ThinUV");
 BENCHMARK(BM_JacobiSVD<float, 0>) JACOBI_SIZES ->Name("JacobiSVD_float_ValuesOnly");
@@ -90,6 +93,12 @@ BENCHMARK(BM_JacobiSVD<float, 0>) JACOBI_SIZES ->Name("JacobiSVD_float_ValuesOnl
 // JacobiSVD — double
 BENCHMARK(BM_JacobiSVD<double, ComputeThinU | ComputeThinV>) JACOBI_SIZES ->Name("JacobiSVD_double_ThinUV");
 BENCHMARK(BM_JacobiSVD<double, 0>) JACOBI_SIZES ->Name("JacobiSVD_double_ValuesOnly");
+
+// JacobiSVD — complex
+BENCHMARK(BM_JacobiSVD<std::complex<float>, ComputeThinU | ComputeThinV>) JACOBI_COMPLEX_SIZES ->Name("JacobiSVD_cfloat_ThinUV");
+BENCHMARK(BM_JacobiSVD<std::complex<float>, 0>) JACOBI_COMPLEX_SIZES ->Name("JacobiSVD_cfloat_ValuesOnly");
+BENCHMARK(BM_JacobiSVD<std::complex<double>, ComputeThinU | ComputeThinV>) JACOBI_COMPLEX_SIZES ->Name("JacobiSVD_cdouble_ThinUV");
+BENCHMARK(BM_JacobiSVD<std::complex<double>, 0>) JACOBI_COMPLEX_SIZES ->Name("JacobiSVD_cdouble_ValuesOnly");
 
 // BDCSVD — float
 BENCHMARK(BM_BDCSVD<float, ComputeThinU | ComputeThinV>) BDC_SIZES ->Name("BDCSVD_float_ThinUV");
@@ -106,6 +115,7 @@ BENCHMARK(BM_BDCSVDBidiagonal<double, 0>) BDC_BIDIAG_SIZES ->Name("BDCSVD_Bidiag
 #undef JACOBI_SIZES
 #undef BDC_SIZES
 #undef BDC_BIDIAG_SIZES
+#undef JACOBI_COMPLEX_SIZES
 // clang-format on
 
 // JacobiSVD — QR preconditioner comparison (double, 64x64, ThinUV)

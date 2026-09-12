@@ -465,41 +465,10 @@ static void BM_BA_GPU_CG(benchmark::State& state) {
 }
 
 // ============================================================================
-// CPU CG with Jacobi preconditioner (apples-to-apples comparison)
-// ============================================================================
-
-static void BM_BA_CPU_CG_Jacobi(benchmark::State& state) {
-  ensure_loaded();
-  const auto& H = g_neq.H;
-  const auto& g = g_neq.g;
-
-  // Eigen's DiagonalPreconditioner is effectively Jacobi.
-  ConjugateGradient<SparseMatrix<double, ColMajor, int>, Lower | Upper> cg;
-  cg.setMaxIterations(10000);
-  cg.setTolerance(1e-8);
-  cg.compute(H);
-
-  int last_iters = 0;
-  double last_error = 0;
-  for (auto _ : state) {
-    VectorXd dx = cg.solve(g);
-    benchmark::DoNotOptimize(dx.data());
-    last_iters = cg.iterations();
-    last_error = cg.error();
-  }
-
-  state.counters["n"] = H.rows();
-  state.counters["nnz"] = H.nonZeros();
-  state.counters["iters"] = last_iters;
-  state.counters["error"] = last_error;
-}
-
-// ============================================================================
 // Register benchmarks
 // ============================================================================
 
 BENCHMARK(BM_BA_CPU_CG)->Unit(benchmark::kMillisecond)->UseRealTime()->MinWarmUpTime(0.5);
-BENCHMARK(BM_BA_CPU_CG_Jacobi)->Unit(benchmark::kMillisecond)->UseRealTime()->MinWarmUpTime(0.5);
 BENCHMARK(BM_BA_GPU_CG)->Unit(benchmark::kMillisecond)->UseRealTime()->MinWarmUpTime(0.5);
 
 // ============================================================================
