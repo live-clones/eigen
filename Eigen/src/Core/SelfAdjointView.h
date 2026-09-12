@@ -34,15 +34,15 @@ namespace Eigen {
 
 namespace internal {
 
-// The column step of the self-adjoint 1-norm: sums[i] += |x_i|, returning the sum of what was
-// added, in a single packet pass so that short columns do not pay an expression setup per pass.
-// The accumulator has the matrix's scalar type and the column sums are read from the real parts.
-// Real scalars go through pabs. std::complex has no packet abs (the functor framework cannot turn
-// a complex packet into a real one), so its lanes take sqrt(re^2 + im^2) on the real lanes of the
-// complex packet. Both lanes of a slot hold the same |z|^2, so one square root serves two packets:
-// the even lanes of one and the odd lanes of the other, giving |u0| |v0| |u1| |v1| ..., which is
-// added to u's slots as is and to v's slots flipped. The other packet's values land in the
-// imaginary lanes, which are never read.
+// Column step of the self-adjoint 1-norm: sums[i] += |x_i| for a column x, returning sum |x_i|.
+// One packet pass does both, so short columns pay no per-expression setup.
+//
+// Real scalars use pabs. Complex ones have no packet abs, so |z| = sqrt(re^2 + im^2) is computed
+// on the real lanes of the complex packet. That leaves |z|^2 in both lanes of each slot, so one
+// square root serves two packets: even lanes from u and odd lanes from v give |u0| |v0| |u1| |v1|
+// ..., which added to u's slots as is and to v's slots flipped puts every |z| in the real lane of
+// its own slot. The accumulator has the matrix's scalar type and only its real parts are read, so
+// the stray values in the imaginary lanes are harmless.
 template <typename Scalar_>
 struct selfadjoint_l1norm_real_lanes {
   using Scalar = Scalar_;
@@ -50,12 +50,12 @@ struct selfadjoint_l1norm_real_lanes {
   using Packet = typename packet_traits<Scalar>::type;
   using RPacket = Packet;
   static constexpr Index PacketSize = unpacket_traits<Packet>::size;
-  // Accumulating a column into the sums of the later ones chains the shortest columns on
-  // store-to-load forwarding; up to here reading the mirrored term as a row is cheaper.
+  // Up to this size the per-column form (mirrored term read as a row) beats the column pass, which
+  // chains short columns on store-to-load forwarding through sums.
   static constexpr Index PerColumnUpTo = 16;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket lanes(const Packet& p) { return p; }
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet pack(const RPacket& r) { return r; }
-  // sums += |u| (and |v|), returning the contribution to the column sum.
+  // sums += |u| (and |v|); returns the column sum contribution.
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket accumulate(const RPacket& u, Scalar* su) {
     RPacket a = pabs(u);
     pstoreu(su, padd(ploadu<Packet>(su), a));
@@ -79,7 +79,7 @@ struct selfadjoint_l1norm_complex_lanes {
   static constexpr Index PerColumnUpTo = 0;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket lanes(const Packet& p) { return p.v; }
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet pack(const RPacket& r) { return Packet(r); }
-  // sums += |u| (and |v|) on the real lanes, returning the contribution to the column sum.
+  // sums += |u| (and |v|) on the real lanes; returns the column sum contribution.
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket accumulate(const RPacket& u, Scalar* su) {
     RPacket r = psqrt(pselect(peven_mask(u), abs2(u), pzero(u)));  // |u0| 0 |u1| 0 ...
     add(su, r);
@@ -92,11 +92,11 @@ struct selfadjoint_l1norm_complex_lanes {
     add(sv, flip(r));
     return r;
   }
-  // Squaring the parts overflows and underflows well inside the scalar range: an infinite or a
-  // tiny result (elements below sqrt(min) lose precision) is recomputed through numext::abs.
-  // The scalar tail of a column takes the packet's formula as well: hypot would cost it more than
-  // the packets cost the rest of the column.
+  // Same formula as the packets, for the diagonal and the tail: hypot costs more than the packets
+  // spend on the rest of a short column.
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Real abs(const Scalar& z) { return numext::sqrt(numext::abs2(z)); }
+  // Squaring overflows above sqrt(max) and loses precision below sqrt(min): an infinite or tiny
+  // result is recomputed with numext::abs.
   static EIGEN_DEVICE_FUNC bool isReliable(Real norm, Index n) {
     const Real tiny = Real(n) * numext::sqrt((std::numeric_limits<Real>::min)()) / NumTraits<Real>::epsilon();
     return norm > tiny && (numext::isfinite)(norm);
@@ -114,6 +114,7 @@ struct selfadjoint_l1norm_complex_lanes {
   }
 };
 
+// The pass over a column: two packets per step, one for the odd one out, coefficients for the rest.
 template <typename Lanes>
 struct selfadjoint_l1norm_packet_impl : Lanes {
   using Lanes::PacketSize;
@@ -168,8 +169,7 @@ struct selfadjoint_l1norm_packet_impl : Lanes {
   }
 };
 
-// Scalar fallback for types without a packet path: custom complex types, or complex packets
-// without a real view.
+// Coefficient fallback: custom complex types, or complex packets without a real view.
 template <typename Scalar_, typename Enable = void>
 struct selfadjoint_l1norm_impl {
   using Scalar = Scalar_;
@@ -188,7 +188,7 @@ struct selfadjoint_l1norm_impl {
   }
   static EIGEN_DEVICE_FUNC bool isReliable(Real, Index) { return true; }
 };
-// Low-precision scalars accumulate in float, as stableNorm does.
+// half and bfloat16 accumulate in float, as stableNorm does.
 template <typename Scalar>
 struct selfadjoint_l1norm_impl<Scalar, std::enable_if_t<!NumTraits<Scalar>::IsComplex>>
     : selfadjoint_l1norm_packet_impl<selfadjoint_l1norm_real_lanes<typename stable_norm_accumulator<Scalar>::type>> {};
@@ -382,12 +382,12 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
   EIGEN_DEVICE_FUNC RealScalar l1Norm() const {
     const Index n = m_matrix.rows();
 #ifdef EIGEN_GPU_COMPILE_PHASE
-    // The accumulator below is per-thread local storage on a device.
+    // No per-thread accumulator on a device.
     return l1NormPerColumn();
 #else
     if (n <= L1NormImpl::PerColumnUpTo) return l1NormPerColumn();
-    // For a self-adjoint matrix |a_ij| = |a_ji|, so the stored triangle of a row-major matrix is
-    // the transposed, column-major, complementary one and yields the same norm read the fast way.
+    // The stored triangle of a row-major matrix is the complementary triangle of its column-major
+    // transpose, which has the same norm.
     L1NormAccumulator norm;
     EIGEN_IF_CONSTEXPR (bool(MatrixType::IsRowMajor)) {
       norm = l1NormStreaming<TransposeMode>(m_matrix.transpose());
@@ -400,15 +400,13 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
 
  private:
   using L1NormImpl = internal::selfadjoint_l1norm_impl<Scalar>;
-  // The scalar the norm is accumulated in: float for half and bfloat16, Scalar otherwise.
+  // float for half and bfloat16, Scalar otherwise.
   using L1NormScalar = typename L1NormImpl::Scalar;
   using L1NormAccumulator = typename L1NormImpl::Real;
 
-  // Reading the mirrored term of column j as a row of the stored triangle costs a stride-n
-  // traversal of a column-major matrix. Instead every column is read once, top to bottom, and
-  // each |a_ij| is added both to its own column sum and to the sum of column i. Column j is
-  // complete once every column holding one of its mirrored terms has been read: the earlier
-  // ones for Lower, the later ones for Upper, hence the direction of the walk.
+  // Each column is read once, top to bottom: |a_ij| goes to column j's sum and, as the mirrored
+  // a_ji, to sums[i]. Lower walks the columns forward and Upper backward so that sums[j] is
+  // complete when column j is reached.
   template <int Mode, typename Mat>
   static L1NormAccumulator l1NormStreaming(const Mat& m) {
     const Index n = m.rows();
@@ -428,7 +426,7 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
     return norm;
   }
 
-  // Workspace-free form, one column sum at a time; the mirrored term is read as a row.
+  // One column at a time, the mirrored term read as a row; no workspace.
   EIGEN_DEVICE_FUNC RealScalar l1NormPerColumn() const {
     L1NormAccumulator norm = L1NormAccumulator(0);
     const Index n = m_matrix.rows();
