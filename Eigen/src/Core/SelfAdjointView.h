@@ -128,12 +128,10 @@ struct selfadjoint_l1norm_packet_impl : Lanes {
   using typename Lanes::Scalar;
   using Sums = std::pair<Real, Real>;
 
-  // sums, a block of the accumulator, is a temporary: written through const_cast_derived().
   template <typename SumsDerived, typename Derived0, typename Derived1>
-  static EIGEN_DEVICE_FUNC Sums accumulate(const DenseBase<SumsDerived>& sums, const DenseBase<Derived0>& x0,
+  static EIGEN_DEVICE_FUNC Sums accumulate(DenseBase<SumsDerived>& sums, const DenseBase<Derived0>& x0,
                                            const DenseBase<Derived1>& x1) {
-    return accumulateCast(sums.const_cast_derived(), x0.derived().template cast<Scalar>(),
-                          x1.derived().template cast<Scalar>());
+    return accumulateCast(sums, x0.derived().template cast<Scalar>(), x1.derived().template cast<Scalar>());
   }
 
  private:
@@ -192,13 +190,13 @@ struct selfadjoint_l1norm_impl {
   static constexpr Index PerColumnUpTo = 16;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Real abs(const Scalar& x) { return numext::abs(x); }
   template <typename SumsDerived, typename Derived0, typename Derived1>
-  static EIGEN_DEVICE_FUNC Sums accumulate(const DenseBase<SumsDerived>& sums, const DenseBase<Derived0>& x0,
+  static EIGEN_DEVICE_FUNC Sums accumulate(DenseBase<SumsDerived>& sums, const DenseBase<Derived0>& x0,
                                            const DenseBase<Derived1>& x1) {
     Sums r(Real(0), Real(0));
     for (Index i = 0; i < x0.size(); ++i) {
       Real a = numext::abs(x0.coeff(i));
       Real b = numext::abs(x1.coeff(i));
-      sums.const_cast_derived().coeffRef(i) += Scalar(a + b);
+      sums.coeffRef(i) += Scalar(a + b);
       r.first += a;
       r.second += b;
     }
@@ -439,9 +437,11 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
       const L1NormAccumulator boundary = L1NormImpl::abs(m.coeff(j1, j0));
       typename L1NormImpl::Sums shared;
       EIGEN_IF_CONSTEXPR (Mode == Lower) {
-        shared = L1NormImpl::accumulate(sums.tail(n - j1 - 1), m.col(j0).tail(n - j1 - 1), m.col(j1).tail(n - j1 - 1));
+        auto below = sums.tail(n - j1 - 1);
+        shared = L1NormImpl::accumulate(below, m.col(j0).tail(n - j1 - 1), m.col(j1).tail(n - j1 - 1));
       } else {
-        shared = L1NormImpl::accumulate(sums.head(j1), m.col(j0).head(j1), m.col(j1).head(j1));
+        auto above = sums.head(j1);
+        shared = L1NormImpl::accumulate(above, m.col(j0).head(j1), m.col(j1).head(j1));
       }
       // Totals are materialized so that maxi compares two accumulators (an integer sum promotes,
       // an autodiff sum is an expression).
