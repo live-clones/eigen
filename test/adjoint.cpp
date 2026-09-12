@@ -243,7 +243,8 @@ void inner_product_boundary_sizes() {
 // adjoint() nests a non-const Transpose, so the rewrap must produce the const-nested type unaryExpr() returns.
 template <typename Scalar>
 void inner_product_adjoint_rewrap() {
-  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  // Column-major so that row(r) has a compile-time non-unit stride and the raw maps below walk a row and a column.
+  using Mat = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
   using Vec = Matrix<Scalar, Dynamic, 1>;
   using StridedMap = Map<const Vec, Unaligned, InnerStride<Dynamic>>;
   const Index n = internal::random<Index>(1, EIGEN_TEST_MAX_SIZE);
