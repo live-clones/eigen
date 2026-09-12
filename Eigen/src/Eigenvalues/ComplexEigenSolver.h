@@ -111,16 +111,16 @@ class ComplexEigenSolver {
    *    eigenvalues are computed; if false, only the eigenvalues are
    *    computed.
    *
-   * This constructor calls compute() to compute the eigendecomposition.
+   * This constructor computes the eigendecomposition as compute() does.
    */
   template <typename InputType>
   explicit ComplexEigenSolver(const EigenBase<InputType>& matrix, bool computeEigenvectors = true)
       : m_eivec(matrix.rows(), matrix.cols()),
         m_eivalues(matrix.cols()),
-        m_schur(matrix.rows()),
+        m_schur(matrix.derived(), computeEigenvectors),
         m_isInitialized(false),
         m_eigenvectorsOk(false) {
-    compute(matrix.derived(), computeEigenvectors);
+    computeFromSchur(computeEigenvectors);
   }
 
   /** \brief Constructor for \link InplaceDecomposition inplace decomposition \endlink
@@ -305,7 +305,7 @@ void ComplexEigenSolver<MatrixType>::doComputeEigenvectors(RealScalar matrixnorm
         numext::real_ref(z) = numext::maxi(std::numeric_limits<RealScalar>::epsilon() * matrixnorm,
                                            (std::numeric_limits<RealScalar>::min)());
       }
-      matX.coeffRef(i, k) = matX.coeff(i, k) / z;
+      matX.coeffRef(i, k) /= z;
     }
     matX.coeffRef(k, k) = ComplexScalar(1.0, 0.0);
   }
