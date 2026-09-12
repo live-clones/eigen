@@ -128,11 +128,11 @@ void inplace_reductions(Index size) {
   }
 }
 
-template <typename MatrixType>
-void inplace_real_schur(Index size) {
+template <template <typename> class Schur, typename MatrixType>
+void inplace_schur(Index size) {
   MatrixType A = MatrixType::Random(size, size), A0 = A;
-  RealSchur<Ref<MatrixType> > schur(A);
-  RealSchur<MatrixType> schur0(A0);
+  Schur<Ref<MatrixType> > schur(A);
+  Schur<MatrixType> schur0(A0);
   VERIFY_IS_EQUAL(schur.info(), Success);
   VERIFY(internal::is_same_dense(schur.matrixT(), A));
   verify_same_result<MatrixType>(schur.matrixT(), schur0.matrixT());
@@ -142,24 +142,7 @@ void inplace_real_schur(Index size) {
   MatrixType A1 = MatrixType::Random(size, size), A1c = A1;
   schur.compute(A1, false);
   VERIFY_IS_EQUAL(A1, A1c);
-  verify_same_result<MatrixType>(A, RealSchur<MatrixType>(A1, false).matrixT());
-}
-
-template <typename MatrixType>
-void inplace_complex_schur(Index size) {
-  MatrixType A = MatrixType::Random(size, size), A0 = A;
-  ComplexSchur<Ref<MatrixType> > schur(A);
-  ComplexSchur<MatrixType> schur0(A0);
-  VERIFY_IS_EQUAL(schur.info(), Success);
-  VERIFY(internal::is_same_dense(schur.matrixT(), A));
-  verify_same_result<MatrixType>(schur.matrixT(), schur0.matrixT());
-  verify_same_result<MatrixType>(schur.matrixU(), schur0.matrixU());
-  VERIFY_IS_APPROX(A0, schur.matrixU() * A * schur.matrixU().adjoint());
-
-  MatrixType A1 = MatrixType::Random(size, size), A1c = A1;
-  schur.compute(A1, false);
-  VERIFY_IS_EQUAL(A1, A1c);
-  verify_same_result<MatrixType>(A, ComplexSchur<MatrixType>(A1, false).matrixT());
+  verify_same_result<MatrixType>(A, Schur<MatrixType>(A1, false).matrixT());
 }
 
 template <typename MatrixType>
@@ -388,12 +371,12 @@ EIGEN_DECLARE_TEST(inplace_decomposition) {
     CALL_SUBTEST_9((inplace_reductions<MatrixXd>(1)));
     CALL_SUBTEST_9((inplace_reductions<Matrix4f>(4)));
 
-    CALL_SUBTEST_10((inplace_real_schur<MatrixXd>(size)));
-    CALL_SUBTEST_10((inplace_real_schur<MatrixXd>(1)));
-    CALL_SUBTEST_10((inplace_real_schur<Matrix4f>(4)));
-    CALL_SUBTEST_10((inplace_complex_schur<MatrixXcd>(size)));
-    CALL_SUBTEST_10((inplace_complex_schur<MatrixXcd>(1)));
-    CALL_SUBTEST_10((inplace_complex_schur<Matrix4cf>(4)));
+    CALL_SUBTEST_10((inplace_schur<RealSchur, MatrixXd>(size)));
+    CALL_SUBTEST_10((inplace_schur<RealSchur, MatrixXd>(1)));
+    CALL_SUBTEST_10((inplace_schur<RealSchur, Matrix4f>(4)));
+    CALL_SUBTEST_10((inplace_schur<ComplexSchur, MatrixXcd>(size)));
+    CALL_SUBTEST_10((inplace_schur<ComplexSchur, MatrixXcd>(1)));
+    CALL_SUBTEST_10((inplace_schur<ComplexSchur, Matrix4cf>(4)));
     CALL_SUBTEST_10((inplace_special_values<MatrixXd>(size)));
     CALL_SUBTEST_10((inplace_special_values<Matrix4f>(4)));
 

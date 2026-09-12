@@ -360,8 +360,9 @@ class BunchKaufman : public SolverBase<BunchKaufman<MatrixType_, UpLo_> > {
   template <bool Conjugate, typename Derived>
   void solveInPlaceD(MatrixBase<Derived>& x) const;
 
-  /** \internal Compute the inertia (counts of positive / negative / zero eigenvalues) from D. */
   BunchKaufman& computeInPlace();
+
+  /** \internal Compute the inertia (counts of positive / negative / zero eigenvalues) from D. */
   void computeInertia();
 
   /** \internal \returns \f$ \det(D_k)/|d_{21}|^2 \f$ for a 2x2 block of D, which is real and shares the

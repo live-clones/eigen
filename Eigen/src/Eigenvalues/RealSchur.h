@@ -19,6 +19,9 @@
 
 namespace Eigen {
 
+template <typename MatrixType_>
+class EigenSolver;
+
 /** \eigenvalues_module \ingroup Eigenvalues_Module
  *
  *
@@ -55,9 +58,6 @@ namespace Eigen {
  *
  * \sa class ComplexSchur, class EigenSolver, class ComplexEigenSolver
  */
-template <typename MatrixType_>
-class EigenSolver;
-
 template <typename MatrixType_>
 class RealSchur {
  public:
@@ -252,8 +252,6 @@ class RealSchur {
   using CoeffVectorType =
       Matrix<Scalar, RowsAtCompileTime == Dynamic ? Dynamic : RowsAtCompileTime - 1, 1, Options & ~RowMajor,
              MaxRowsAtCompileTime == Dynamic ? Dynamic : MaxRowsAtCompileTime - 1, 1>;
-  using HouseholderSequenceType =
-      HouseholderSequence<MatrixType, internal::remove_all_t<typename CoeffVectorType::ConjugateReturnType>>;
 
   MatrixType m_matT;
   MatrixUType m_matU;
@@ -302,18 +300,8 @@ RealSchur<MatrixType>& RealSchur<MatrixType>::computeInPlace(bool computeU) {
   }
   m_matT /= scale;
 
-  // Step 1. Reduce to Hessenberg form in place: H ends up in the upper Hessenberg part of m_matT and the
-  // Householder vectors below it, where U is formed from them before they are cleared.
-  m_workspaceVector.resize(n);
-  m_hCoeffs.resize(n - 1);
-  internal::hessenberg_decomposition_inplace(m_matT, m_hCoeffs, m_workspaceVector);
-  if (computeU) {
-    HouseholderSequenceType(m_matT, m_hCoeffs.conjugate())
-        .setLength(n - 1)
-        .setShift(1)
-        .evalTo(m_matU, m_workspaceVector);
-  }
-  if (n > 2) m_matT.bottomLeftCorner(n - 2, n - 2).template triangularView<Lower>().setZero();
+  // Step 1. Reduce to Hessenberg form
+  internal::hessenberg_decomposition_inplace(m_matT, m_hCoeffs, m_workspaceVector, m_matU, computeU);
 
   // Step 2. Reduce to real Schur form
   computeFromHessenberg(m_matT, m_matU, computeU);
