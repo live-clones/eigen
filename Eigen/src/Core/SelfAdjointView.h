@@ -128,15 +128,16 @@ struct selfadjoint_l1norm_packet_impl : Lanes {
   using typename Lanes::Scalar;
   using Sums = std::pair<Real, Real>;
 
+  // sums[begin + i] += |x0_i| + |x1_i|.
   template <typename SumsDerived, typename Derived0, typename Derived1>
-  static EIGEN_DEVICE_FUNC Sums accumulate(DenseBase<SumsDerived>& sums, const DenseBase<Derived0>& x0,
+  static EIGEN_DEVICE_FUNC Sums accumulate(DenseBase<SumsDerived>& sums, Index begin, const DenseBase<Derived0>& x0,
                                            const DenseBase<Derived1>& x1) {
-    return accumulateCast(sums, x0.derived().template cast<Scalar>(), x1.derived().template cast<Scalar>());
+    return accumulateCast(sums, begin, x0.derived().template cast<Scalar>(), x1.derived().template cast<Scalar>());
   }
 
  private:
   template <typename SumsDerived, typename Derived0, typename Derived1>
-  static EIGEN_DEVICE_FUNC Sums accumulateCast(DenseBase<SumsDerived>& sums, const DenseBase<Derived0>& x0,
+  static EIGEN_DEVICE_FUNC Sums accumulateCast(DenseBase<SumsDerived>& sums, Index begin, const DenseBase<Derived0>& x0,
                                                const DenseBase<Derived1>& x1) {
     using SumsEvaluator = evaluator<SumsDerived>;
     using Evaluator0 = evaluator<Derived0>;
@@ -145,38 +146,39 @@ struct selfadjoint_l1norm_packet_impl : Lanes {
     constexpr bool Vectorize = (SumsEvaluator::Flags & Needed) == Needed && (Evaluator0::Flags & Needed) == Needed &&
                                (Evaluator1::Flags & Needed) == Needed;
     SumsEvaluator s(sums.derived());
-    return accumulate(s, Evaluator0(x0.derived()), Evaluator1(x1.derived()), x0.size(), bool_constant<Vectorize>());
+    return accumulate(s, begin, Evaluator0(x0.derived()), Evaluator1(x1.derived()), x0.size(),
+                      bool_constant<Vectorize>());
   }
   template <typename Evaluator>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket load(const Evaluator& x, Index i) {
     return Lanes::lanes(x.template packet<Unaligned, Packet>(i));
   }
   template <typename SumsEvaluator, typename Evaluator0, typename Evaluator1>
-  static EIGEN_DEVICE_FUNC Sums accumulate(SumsEvaluator& s, const Evaluator0& x0, const Evaluator1& x1, Index begin,
-                                           Index end) {
+  static EIGEN_DEVICE_FUNC Sums accumulate(SumsEvaluator& s, Index begin, const Evaluator0& x0, const Evaluator1& x1,
+                                           Index from, Index to) {
     Sums r(Real(0), Real(0));
-    for (Index i = begin; i < end; ++i) {
+    for (Index i = from; i < to; ++i) {
       Real a = Lanes::abs(x0.coeff(i));
       Real b = Lanes::abs(x1.coeff(i));
-      s.coeffRef(i) += a + b;
+      s.coeffRef(begin + i) += a + b;
       r.first += a;
       r.second += b;
     }
     return r;
   }
   template <typename SumsEvaluator, typename Evaluator0, typename Evaluator1>
-  static EIGEN_DEVICE_FUNC Sums accumulate(SumsEvaluator& s, const Evaluator0& x0, const Evaluator1& x1, Index n,
-                                           std::false_type) {
-    return accumulate(s, x0, x1, Index(0), n);
+  static EIGEN_DEVICE_FUNC Sums accumulate(SumsEvaluator& s, Index begin, const Evaluator0& x0, const Evaluator1& x1,
+                                           Index n, std::false_type) {
+    return accumulate(s, begin, x0, x1, Index(0), n);
   }
   template <typename SumsEvaluator, typename Evaluator0, typename Evaluator1>
-  static EIGEN_DEVICE_FUNC Sums accumulate(SumsEvaluator& s, const Evaluator0& x0, const Evaluator1& x1, Index n,
-                                           std::true_type) {
-    if (n < PacketSize) return accumulate(s, x0, x1, Index(0), n);
+  static EIGEN_DEVICE_FUNC Sums accumulate(SumsEvaluator& s, Index begin, const Evaluator0& x0, const Evaluator1& x1,
+                                           Index n, std::true_type) {
+    if (n < PacketSize) return accumulate(s, begin, x0, x1, Index(0), n);
     typename Lanes::Pass pass;
     Index i = 0;
-    for (; i + PacketSize <= n; i += PacketSize) pass.step(load(x0, i), load(x1, i), s, i);
-    Sums tail = accumulate(s, x0, x1, i, n);
+    for (; i + PacketSize <= n; i += PacketSize) pass.step(load(x0, i), load(x1, i), s, begin + i);
+    Sums tail = accumulate(s, begin, x0, x1, i, n);
     return Sums(pass.sum0() + tail.first, pass.sum1() + tail.second);
   }
 };
@@ -190,13 +192,13 @@ struct selfadjoint_l1norm_impl {
   static constexpr Index PerColumnUpTo = 16;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Real abs(const Scalar& x) { return numext::abs(x); }
   template <typename SumsDerived, typename Derived0, typename Derived1>
-  static EIGEN_DEVICE_FUNC Sums accumulate(DenseBase<SumsDerived>& sums, const DenseBase<Derived0>& x0,
+  static EIGEN_DEVICE_FUNC Sums accumulate(DenseBase<SumsDerived>& sums, Index begin, const DenseBase<Derived0>& x0,
                                            const DenseBase<Derived1>& x1) {
     Sums r(Real(0), Real(0));
     for (Index i = 0; i < x0.size(); ++i) {
       Real a = numext::abs(x0.coeff(i));
       Real b = numext::abs(x1.coeff(i));
-      sums.coeffRef(i) += Scalar(a + b);
+      sums.coeffRef(begin + i) += Scalar(a + b);
       r.first += a;
       r.second += b;
     }
@@ -437,11 +439,9 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
       const L1NormAccumulator boundary = L1NormImpl::abs(m.coeff(j1, j0));
       typename L1NormImpl::Sums shared;
       EIGEN_IF_CONSTEXPR (Mode == Lower) {
-        auto below = sums.tail(n - j1 - 1);
-        shared = L1NormImpl::accumulate(below, m.col(j0).tail(n - j1 - 1), m.col(j1).tail(n - j1 - 1));
+        shared = L1NormImpl::accumulate(sums, j1 + 1, m.col(j0).tail(n - j1 - 1), m.col(j1).tail(n - j1 - 1));
       } else {
-        auto above = sums.head(j1);
-        shared = L1NormImpl::accumulate(above, m.col(j0).head(j1), m.col(j1).head(j1));
+        shared = L1NormImpl::accumulate(sums, 0, m.col(j0).head(j1), m.col(j1).head(j1));
       }
       // Totals are materialized so that maxi compares two accumulators (an integer sum promotes,
       // an autodiff sum is an expression).
