@@ -247,7 +247,8 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
     // Keep the reciprocal behind a scalar branch: select() evaluates both arms,
     // so it would divide by thresholded zeros and potentially raise floating-point
     // exceptions even though those coefficients are discarded.
-    for (Index k = 0; k < s.size(); ++k) sinv(k) = mods(k) < tol ? Complex(0) : Complex(1) / s(k);
+    for (Index k = 0; k < s.size(); ++k)
+      sinv(k) = mods(k) < tol ? Complex(0) : internal::structured_scaled_reciprocal(s(k));
     Matrix<Scalar, RowsAtCompileTime, Rhs::ColsAtCompileTime> x(N, b.cols());
     if (!b.allFinite()) {
       // A non-finite right-hand side cannot go through the transforms (see
