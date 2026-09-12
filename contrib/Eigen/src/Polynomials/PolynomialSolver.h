@@ -289,13 +289,12 @@ class PolynomialSolverBase {
  * WARNING: this polynomial solver is experimental, part of the contrib Eigen modules.
  *
  *
- * Currently a QR algorithm is used to compute the eigenvalues of the companion matrix of
- * the polynomial to compute its roots.
- * This supposes that the complex moduli of the roots are all distinct: e.g. there should
- * be no multiple roots or conjugate roots for instance.
- * With 32bit (float) floating types this problem shows up frequently.
- * However, almost always, correct accuracy is reached even in these cases for 64bit
- * (double) floating types and small polynomial degree (<20).
+ * The eigenvalues of the balanced companion matrix of the polynomial give first approximations of
+ * the roots, which Ehrlich-Aberth iterations on the polynomial itself then refine until each root is
+ * an exact root of a polynomial whose coefficients differ from the given ones by about the rounding
+ * error of evaluating it. The roots of a real polynomial are returned as real numbers or exact
+ * conjugate pairs. A root of multiplicity \f$ m \f$ can only be located to about
+ * \f$ \varepsilon^{1/m} \f$.
  */
 template <typename Scalar_, int Deg_>
 class PolynomialSolver : public PolynomialSolverBase<Scalar_, Deg_> {
@@ -323,20 +322,8 @@ class PolynomialSolver : public PolynomialSolverBase<Scalar_, Deg_> {
       m_eigenSolver.compute(companion.denseMatrix());
       eigen_assert(m_eigenSolver.info() == Eigen::Success);
       m_roots = m_eigenSolver.eigenvalues();
-      // cleanup noise in imaginary part of real roots:
-      // if the imaginary part is rather small compared to the real part
-      // and that cancelling the imaginary part yields a smaller evaluation,
-      // then it's safe to keep the real part only.
-      RealScalar coarse_prec = RealScalar(std::pow(4, poly.size() + 1)) * NumTraits<RealScalar>::epsilon();
-      for (Index i = 0; i < m_roots.size(); ++i) {
-        if (internal::isMuchSmallerThan(numext::abs(numext::imag(m_roots[i])), numext::abs(numext::real(m_roots[i])),
-                                        coarse_prec)) {
-          ComplexScalar as_real_root = ComplexScalar(numext::real(m_roots[i]));
-          if (numext::abs(poly_eval(poly, as_real_root)) <= numext::abs(poly_eval(poly, m_roots[i]))) {
-            m_roots[i] = as_real_root;
-          }
-        }
-      }
+      refineRoots(poly);
+      cleanUpRoots(poly);
     } else if (poly.size() == 2) {
       m_roots.resize(1);
       m_roots[0] = -poly[0] / poly[1];
@@ -352,6 +339,128 @@ class PolynomialSolver : public PolynomialSolverBase<Scalar_, Deg_> {
   inline PolynomialSolver() {}
 
  protected:
+  // Evaluates p(z) and p'(z) by Horner's rule. With withBound, returns Higham's running bound on the rounding error
+  // of the value (Higham 2002, Algorithm 5.1), otherwise zero: the moduli it needs cost more than the recurrence.
+  // The real bound is u (2 mu - |p(z)|), u = eps / 2; a complex product rounds by at most 2 sqrt(2) u |z| |y| and a
+  // complex sum by u |y|, so the complex bound is sqrt(2) eps (2 mu - |p(z)|).
+  template <typename OtherPolynomial>
+  static RealScalar evaluate(const OtherPolynomial& poly, const RootType& z, RootType& value, RootType& derivative,
+                             bool withBound) {
+    const Index degree = poly.size() - 1;
+    value = RootType(poly[degree]);
+    derivative = RootType(0);
+    if (!withBound) {
+      for (Index k = degree - 1; k >= 0; --k) {
+        derivative = derivative * z + value;
+        value = value * z + RootType(poly[k]);
+      }
+      return RealScalar(0);
+    }
+    const RealScalar absz = numext::abs(z);
+    RealScalar mu = numext::abs(value) / RealScalar(2);
+    for (Index k = degree - 1; k >= 0; --k) {
+      derivative = derivative * z + value;
+      value = value * z + RootType(poly[k]);
+      mu = mu * absz + numext::abs(value);
+    }
+    return numext::sqrt(RealScalar(2)) * NumTraits<RealScalar>::epsilon() * (RealScalar(2) * mu - numext::abs(value));
+  }
+
+  /** Refines the eigenvalue estimates in m_roots by Ehrlich-Aberth iterations (Ehrlich 1967; Aberth 1973),
+   * \f$ z_i \leftarrow z_i - w_i / (1 - w_i \sum_{j \ne i} (z_i - z_j)^{-1}) \f$ with \f$ w_i = p(z_i) / p'(z_i) \f$.
+   * The iteration is cubic for simple roots, and the sum keeps the iterates apart, so every root is refined at
+   * once without deflation. Updates are applied in place: iterates that stayed exactly symmetric about the real
+   * axis could never turn a complex pair into two real roots or back. A root is final once \f$ |p(z_i)| \f$ is
+   * within the rounding bound of its evaluation, so that \f$ z_i \f$ is an exact root of a polynomial that close to
+   * \f$ p \f$ (the stopping rule of Bini 1996), or once its Newton correction is below one ulp. */
+  template <typename OtherPolynomial>
+  void refineRoots(const OtherPolynomial& poly) {
+    const Index n = m_roots.size();
+    const RealScalar eps = NumTraits<RealScalar>::epsilon();
+    // Clustered iterates converge linearly, gaining at least a bit per sweep.
+    const int maxSweeps = NumTraits<RealScalar>::digits();
+    Array<bool, Deg_, 1> active = Array<bool, Deg_, 1>::Constant(n, true);
+    RootType value, derivative;
+    for (int sweep = 0; sweep < maxSweeps; ++sweep) {
+      bool moving = false;
+      for (Index i = 0; i < n; ++i) {
+        if (!active[i]) continue;
+        const RootType z = m_roots[i];
+        // The eigenvalues can pass the rounding test with a backward error of ~10 eps, while one step from them
+        // lands near eps, so the test applies from the second sweep on.
+        const bool testResidual = sweep > 0;
+        const RealScalar bound = evaluate(poly, z, value, derivative, testResidual);
+        if ((testResidual && !(numext::abs(value) > bound)) || !(numext::isfinite)(bound) ||
+            derivative == RootType(0)) {
+          active[i] = false;
+          continue;
+        }
+        const RootType newton = value / derivative;
+        if (!(numext::abs(newton) > eps * numext::abs(z))) {
+          active[i] = false;
+          continue;
+        }
+        RootType repulsion(0);
+        for (Index j = 0; j < n; ++j) {
+          const RootType gap = z - m_roots[j];
+          if (j != i && gap != RootType(0)) repulsion += RootType(1) / gap;
+        }
+        const RootType denominator = RootType(1) - newton * repulsion;
+        const RootType refined = z - (denominator == RootType(0) ? newton : RootType(newton / denominator));
+        if ((numext::isfinite)(numext::abs(refined))) {
+          m_roots[i] = refined;
+          moving = true;
+        } else {
+          active[i] = false;
+        }
+      }
+      if (!moving) break;
+    }
+  }
+
+  /** Restores the structure the in-place iteration keeps only to within rounding. The roots of a real polynomial
+   * are real or conjugate pairs: two iterates closer to each other's conjugate than to the real axis become exactly
+   * conjugate, and an iterate left without a partner, being nearer the real axis than any partner, becomes real.
+   * A root whose real part is itself a root to within rounding is reported as real. */
+  template <typename OtherPolynomial>
+  void cleanUpRoots(const OtherPolynomial& poly) {
+    const Index n = m_roots.size();
+    const bool realPolynomial = !NumTraits<Scalar>::IsComplex;
+    Array<bool, Deg_, 1> paired = Array<bool, Deg_, 1>::Constant(n, false);
+    if (realPolynomial) {
+      for (Index i = 0; i < n; ++i) {
+        if (!(numext::imag(m_roots[i]) > RealScalar(0))) continue;
+        Index partner = n;
+        RealScalar distance = numext::imag(m_roots[i]);
+        for (Index j = 0; j < n; ++j) {
+          if (paired[j] || !(numext::imag(m_roots[j]) < RealScalar(0))) continue;
+          const RealScalar d = numext::abs(m_roots[j] - numext::conj(m_roots[i]));
+          if (d < distance) {
+            distance = d;
+            partner = j;
+          }
+        }
+        if (partner < n) {
+          paired[i] = paired[partner] = true;
+          const RootType mean = (m_roots[i] + numext::conj(m_roots[partner])) / RealScalar(2);
+          m_roots[i] = mean;
+          m_roots[partner] = numext::conj(mean);
+        }
+      }
+    }
+    RootType value, derivative;
+    for (Index i = 0; i < n; ++i) {
+      if (numext::imag(m_roots[i]) == RealScalar(0)) continue;
+      const RootType realPart(numext::real(m_roots[i]));
+      if (realPolynomial && !paired[i]) {
+        m_roots[i] = realPart;
+        continue;
+      }
+      const RealScalar bound = evaluate(poly, realPart, value, derivative, true);
+      if (numext::abs(value) <= bound) m_roots[i] = realPart;
+    }
+  }
+
   using PS_Base::m_roots;
   EigenSolverType m_eigenSolver;
 };
