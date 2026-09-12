@@ -122,6 +122,70 @@ Scalar structured_scaled_reciprocal(const Scalar& z) {
   return structured_ldexp_clamped(Scalar(1) / zs, -e);
 }
 
+template <typename RealScalar>
+struct structured_reciprocal_packet_traits {
+  // These backends provide interleaved complex packets, ploaddup and mask reductions.
+#if defined(EIGEN_VECTORIZE_SSE2)
+  static constexpr bool Vectorizable =
+      std::is_same<RealScalar, float>::value || std::is_same<RealScalar, double>::value;
+#else
+  static constexpr bool Vectorizable = false;
+#endif
+};
+
+template <typename RealScalar, bool Vectorize = structured_reciprocal_packet_traits<RealScalar>::Vectorizable>
+struct structured_symbol_reciprocal_impl {
+  using Complex = std::complex<RealScalar>;
+  static void run(const Complex* symbol, const RealScalar* moduli, RealScalar tol, Complex* inverse, Index size) {
+    for (Index k = 0; k < size; ++k)
+      inverse[k] = moduli[k] < tol ? Complex(0) : structured_scaled_reciprocal(symbol[k]);
+  }
+};
+
+template <typename RealScalar>
+struct structured_symbol_reciprocal_impl<RealScalar, true> {
+  using Complex = std::complex<RealScalar>;
+  using Packet = typename packet_traits<Complex>::type;
+  using RealPacket = typename unpacket_traits<Packet>::as_real;
+
+  EIGEN_DONT_INLINE static void run(const Complex* symbol, const RealScalar* moduli, RealScalar tol, Complex* inverse,
+                                    Index size) {
+    constexpr Index kPacketSize = unpacket_traits<Packet>::size;
+    const Packet zero = pset1<Packet>(Complex(0));
+    const Packet safe_value = pset1<Packet>(Complex(1, 1));
+    const RealPacket threshold = pset1<RealPacket>(tol);
+    // min_normal <= mag^2 and 2*mag^2 <= 2^(max_exponent-1) < max_finite.
+    const RealPacket lower =
+        pset1<RealPacket>(numext::ldexp(RealScalar(1), std::numeric_limits<RealScalar>::min_exponent / 2));
+    const RealPacket upper =
+        pset1<RealPacket>(numext::ldexp(RealScalar(1), std::numeric_limits<RealScalar>::max_exponent / 2 - 1));
+    const Index packet_end = size - size % kPacketSize;
+    Index k = 0;
+    for (; k < packet_end; k += kPacketSize) {
+      const RealPacket discard = pcmp_lt(ploaddup<RealPacket>(moduli + k), threshold);
+      // Sanitize before arithmetic: selecting the output alone still divides discarded zeros.
+      const Packet z = pselect(Packet(discard), safe_value, ploadu<Packet>(symbol + k));
+      const RealPacket a = pabs(z.v);
+      const RealPacket mag = pmax(a, pcplxflip(Packet(a)).v);
+      // Zero components use the scalar path to preserve std::complex's signed-zero choices.
+      const RealPacket safe = pand(pand(pcmp_le(lower, mag), pcmp_le(mag, upper)), pcmp_lt(zero.v, a));
+      if (!predux_any(pandnot(ptrue(safe), safe))) {
+        const RealPacket square = pmul(z.v, z.v);
+        const RealPacket denom = padd(square, pcplxflip(Packet(square)).v);
+        const Packet reciprocal(pdiv(pconj(z).v, denom));
+        // Underflowed components also retain the scalar signed-zero convention.
+        if (!predux_any(pcmp_eq(reciprocal.v, zero.v))) {
+          pstoreu(inverse + k, pselect(Packet(discard), zero, reciprocal));
+          continue;
+        }
+      }
+      structured_symbol_reciprocal_impl<RealScalar, false>::run(symbol + k, moduli + k, tol, inverse + k, kPacketSize);
+    }
+    if (k < size)
+      structured_symbol_reciprocal_impl<RealScalar, false>::run(symbol + k, moduli + k, tol, inverse + k, size - k);
+  }
+};
+
 /** \internal \returns \c a - b guarded against spurious overflow: when the
  * plain difference of two finite values overflows to infinity, it is
  * recomputed from the halved operands with \a e set to 1 so the caller can

@@ -844,7 +844,152 @@ void test_bccb_fixed() {
   VERIFY_IS_APPROX(y, (dense * x).eval());
 }
 
+template <typename RealScalar>
+void test_bccb_symbol_reciprocals() {
+  using Complex = std::complex<RealScalar>;
+  using CVector = Matrix<Complex, Dynamic, 1>;
+  using RVector = Matrix<RealScalar, Dynamic, 1>;
+  using Kernel = internal::structured_symbol_reciprocal_impl<RealScalar>;
+  constexpr Index kPacketSize = internal::packet_traits<Complex>::size;
+  const Index count = 3 * kPacketSize + 1;
+  const RealScalar epsilon = NumTraits<RealScalar>::epsilon();
+  const RealScalar lower = numext::ldexp(RealScalar(1), std::numeric_limits<RealScalar>::min_exponent / 2);
+  const RealScalar upper = numext::ldexp(RealScalar(1), std::numeric_limits<RealScalar>::max_exponent / 2 - 1);
+  const RealScalar minimum = (std::numeric_limits<RealScalar>::min)();
+  const RealScalar maximum = (std::numeric_limits<RealScalar>::max)();
+  const RealScalar infinity = NumTraits<RealScalar>::infinity();
+  const RealScalar nan = NumTraits<RealScalar>::quiet_NaN();
+  const RealScalar values[] = {RealScalar(0),
+                               -RealScalar(0),
+                               RealScalar(1),
+                               RealScalar(-1),
+                               lower / 2,
+                               lower,
+                               upper,
+                               upper * 2,
+                               minimum,
+                               minimum / 2,
+                               std::numeric_limits<RealScalar>::denorm_min(),
+                               RealScalar(0.75) * maximum,
+                               infinity,
+                               nan};
+  CVector symbol(count + 2), inverse(count + 2);
+  RVector moduli(count + 2);
+  // Slide each special value through every lane, with unaligned inputs and a scalar tail.
+  for (Index offset = 0; offset <= 1; ++offset) {
+    for (Index lane = 0; lane < kPacketSize; ++lane) {
+      for (RealScalar real : values) {
+        for (RealScalar imag : values) {
+          symbol.setConstant(Complex(3, 4));
+          moduli.setOnes();
+          symbol(offset + lane) = Complex(real, imag);
+          symbol(offset + count - 1) = Complex(real, imag);
+          inverse.setConstant(Complex(9));
+          Kernel::run(symbol.data() + offset, moduli.data() + offset, RealScalar(1), inverse.data() + offset, count);
+          VERIFY_IS_EQUAL(inverse(offset + count), Complex(9));
+          if (offset) VERIFY_IS_EQUAL(inverse(0), Complex(9));
+          for (Index k = offset; k < offset + count; ++k) {
+            const Complex expected = internal::structured_scaled_reciprocal(symbol(k));
+            for (Index component = 0; component < 2; ++component) {
+              const RealScalar actual = component ? inverse(k).imag() : inverse(k).real();
+              const RealScalar reference = component ? expected.imag() : expected.real();
+              if ((numext::isnan)(reference)) {
+                VERIFY((numext::isnan)(actual));
+              } else if ((numext::isinf)(reference) || reference == RealScalar(0)) {
+                VERIFY_IS_EQUAL(actual, reference);
+                VERIFY_IS_EQUAL(std::signbit(actual), std::signbit(reference));
+              } else {
+                VERIFY((numext::isfinite)(actual));
+                VERIFY(numext::abs(actual / reference - RealScalar(1)) <= RealScalar(8) * epsilon);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Positive denominator: two squares, their sum and a division, plus reference rounding.
+  for (Index trial = 0; trial < 100; ++trial) {
+    for (Index k = 0; k < count; ++k) {
+      const int exponent = internal::random<int>(std::numeric_limits<RealScalar>::min_exponent / 2,
+                                                 std::numeric_limits<RealScalar>::max_exponent / 2 - 1);
+      const RealScalar re = numext::ldexp(internal::random<RealScalar>(RealScalar(0.5), RealScalar(1)), exponent);
+      const RealScalar im = numext::ldexp(internal::random<RealScalar>(RealScalar(-1), RealScalar(-0.5)), exponent);
+      symbol(k) = Complex(re, im);
+    }
+    moduli.setOnes();
+    Kernel::run(symbol.data(), moduli.data(), RealScalar(1), inverse.data(), count);
+    for (Index k = 0; k < count; ++k) {
+      const long double re = static_cast<long double>(symbol(k).real());
+      const long double im = static_cast<long double>(symbol(k).imag());
+      const long double scale = (std::max)(std::abs(re), std::abs(im));
+      const long double a = re / scale, b = im / scale;
+      const long double denom = a * a + b * b;
+      const long double expected[] = {(a / denom) / scale, (-b / denom) / scale};
+      for (Index component = 0; component < 2; ++component) {
+        const long double actual = static_cast<long double>(component ? inverse(k).imag() : inverse(k).real());
+        VERIFY(std::abs(actual / expected[component] - 1) <= 8 * static_cast<long double>(epsilon));
+      }
+    }
+  }
+
+  symbol.setConstant(Complex(3, 4));
+  moduli.setOnes();
+  for (Index k = 0; k < count; k += 2) {
+    symbol(k) = Complex(0);
+    moduli(k) = RealScalar(0);
+  }
+  std::fenv_t saved_environment;
+  const bool environment_saved = std::feholdexcept(&saved_environment) == 0;
+  Kernel::run(symbol.data(), moduli.data(), RealScalar(1), inverse.data(), count);
+  if (environment_saved) {
+    const int exceptions = std::fetestexcept(FE_INVALID | FE_DIVBYZERO | FE_OVERFLOW);
+    std::fesetenv(&saved_environment);
+    VERIFY_IS_EQUAL(exceptions, 0);
+  }
+  for (Index k = 0; k < count; ++k) {
+    if (k % 2 == 0) {
+      VERIFY_IS_EQUAL(inverse(k), Complex(0));
+      VERIFY(!std::signbit(inverse(k).real()));
+      VERIFY(!std::signbit(inverse(k).imag()));
+    } else {
+      const Complex expected(RealScalar(3) / RealScalar(25), -RealScalar(4) / RealScalar(25));
+      VERIFY(numext::abs(inverse(k) - expected) <= RealScalar(8) * epsilon);
+    }
+  }
+  // NaN moduli, like exact equality above, must remain in the inverted set.
+  symbol.setConstant(Complex(3, 4));
+  moduli.setConstant(nan);
+  Kernel::run(symbol.data(), moduli.data(), RealScalar(1), inverse.data(), count);
+  VERIFY((inverse.head(count).array().abs() > RealScalar(0)).all());
+  Kernel::run(nullptr, nullptr, RealScalar(1), nullptr, 0);
+}
+
+template <typename RealScalar>
+void test_bccb_packet_solve() {
+  using Complex = std::complex<RealScalar>;
+  using CMatrix = Matrix<Complex, Dynamic, Dynamic>;
+  CMatrix generator = CMatrix::Zero(3, 5);
+  generator(0, 0) = Complex(3, 4);  // Constant non-real symbol exercises packets and the tail.
+  const Bccb<Complex> op(generator);
+  const CMatrix expected = CMatrix::Random(15, 2);
+  const CMatrix rhs = generator(0, 0) * expected;
+  const CMatrix actual = op.solve(rhs);
+  VERIFY(actual.allFinite());
+  // Forward/inverse 3-by-5 transforms and one reciprocal contribute rounding.
+  VERIFY((actual - expected).norm() <= RealScalar(64) * NumTraits<RealScalar>::epsilon() * expected.norm());
+}
+
 EIGEN_DECLARE_TEST(structured_bccb) {
+  STATIC_CHECK((!internal::structured_reciprocal_packet_traits<long double>::Vectorizable));
+#ifdef EIGEN_VECTORIZE_SSE2
+  STATIC_CHECK((internal::structured_reciprocal_packet_traits<float>::Vectorizable));
+  STATIC_CHECK((internal::structured_reciprocal_packet_traits<double>::Vectorizable));
+#else
+  STATIC_CHECK((!internal::structured_reciprocal_packet_traits<float>::Vectorizable));
+  STATIC_CHECK((!internal::structured_reciprocal_packet_traits<double>::Vectorizable));
+#endif
   for (int i = 0; i < g_repeat; ++i) {
     // Products, dense assignment, coefficient access: scalar tier (N <= 32) and
     // 2-D FFT tier, including single-row/column-of-blocks degenerate shapes.
@@ -934,5 +1079,11 @@ EIGEN_DECLARE_TEST(structured_bccb) {
     CALL_SUBTEST_7((test_bccb_nonfinite_product<double>(3, 4)));
     CALL_SUBTEST_7((test_bccb_nonfinite_product<std::complex<double>>(6, 8)));
     CALL_SUBTEST_7(test_bccb_nonfinite_zero_rhs(6, 8));
+
+    CALL_SUBTEST_8(test_bccb_symbol_reciprocals<float>());
+    CALL_SUBTEST_8(test_bccb_symbol_reciprocals<double>());
+    CALL_SUBTEST_8(test_bccb_symbol_reciprocals<long double>());
+    CALL_SUBTEST_8(test_bccb_packet_solve<float>());
+    CALL_SUBTEST_8(test_bccb_packet_solve<double>());
   }
 }

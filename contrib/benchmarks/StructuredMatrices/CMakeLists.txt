@@ -12,3 +12,4 @@ eigen_add_benchmark(bench_structured_vandermonde bench_structured_vandermonde.cp
 eigen_add_benchmark(bench_structured_cauchy bench_structured_cauchy.cpp)
 eigen_add_benchmark(bench_structured_dpr1 bench_structured_dpr1.cpp)
 eigen_add_benchmark(bench_structured_bccb bench_structured_bccb.cpp)
+eigen_add_benchmark(bench_structured_bccb_solve bench_structured_bccb_solve.cpp)
