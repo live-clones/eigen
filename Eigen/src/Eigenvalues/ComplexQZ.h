@@ -139,7 +139,7 @@ class ComplexQZ {
    * \param[in] B         input matrix B
    * \param[in] computeQZ If false, the matrices Q and Z are not computed
    *
-   * This constructor calls the compute() method to compute the QZ decomposition.
+   * This constructor computes the QZ decomposition as the compute() method does.
    * If input matrices are sparse, call the constructor that uses only the
    * size as input the computeSparse(...) method.
    */
@@ -149,14 +149,14 @@ class ComplexQZ {
       : m_n(A.rows()),
         m_maxIters(maxIters),
         m_computeQZ(computeQZ),
-        m_S(A.rows(), A.cols()),
-        m_T(A.rows(), A.cols()),
+        m_S(A.derived()),
+        m_T(B.derived()),
         m_Q(computeQZ ? m_n : (MatrixType::RowsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::RowsAtCompileTime),
             computeQZ ? m_n : (MatrixType::ColsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::ColsAtCompileTime)),
         m_Z(computeQZ ? m_n : (MatrixType::RowsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::RowsAtCompileTime),
             computeQZ ? m_n : (MatrixType::ColsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::ColsAtCompileTime)),
         m_ws(2 * m_n) {
-    compute(A.derived(), B.derived(), computeQZ);
+    computeInPlace(computeQZ);
   }
 
   /** \brief Constructor for \link InplaceDecomposition inplace decomposition \endlink

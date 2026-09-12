@@ -137,8 +137,8 @@ class EigenSolver {
    *    eigenvalues are computed; if false, only the eigenvalues are
    *    computed.
    *
-   * This constructor calls compute() to compute the eigenvalues
-   * and eigenvectors.
+   * This constructor computes the eigenvalues and eigenvectors as compute()
+   * does.
    *
    * Example: \include EigenSolver_EigenSolver_MatrixType.cpp
    * Output: \verbinclude EigenSolver_EigenSolver_MatrixType.out
@@ -150,9 +150,10 @@ class EigenSolver {
       : m_eivalues(matrix.cols()),
         m_isInitialized(false),
         m_eigenvectorsOk(false),
-        m_realSchur(matrix.cols()),
+        m_realSchur(matrix.derived(), computeEigenvectors),
         m_tmp(matrix.cols()) {
-    compute(matrix.derived(), computeEigenvectors);
+    check_template_parameters();
+    computeFromSchur(computeEigenvectors);
   }
 
   /** \brief Constructor for \link InplaceDecomposition inplace decomposition \endlink
@@ -405,8 +406,6 @@ EigenSolver<MatrixType>& EigenSolver<MatrixType>::compute(const EigenBase<InputT
 template <typename MatrixType>
 EigenSolver<MatrixType>& EigenSolver<MatrixType>::computeFromSchur(bool computeEigenvectors) {
   using numext::isfinite;
-  using std::abs;
-  using std::sqrt;
 
   m_info = m_realSchur.info();
 
@@ -435,11 +434,11 @@ EigenSolver<MatrixType>& EigenSolver<MatrixType>::computeFromSchur(bool computeE
         {
           Scalar t0 = matT.coeff(i + 1, i);
           Scalar t1 = matT.coeff(i, i + 1);
-          Scalar maxval = numext::maxi<Scalar>(abs(p), numext::maxi<Scalar>(abs(t0), abs(t1)));
+          Scalar maxval = numext::maxi<Scalar>(numext::abs(p), numext::maxi<Scalar>(numext::abs(t0), numext::abs(t1)));
           t0 /= maxval;
           t1 /= maxval;
           Scalar p0 = p / maxval;
-          z = maxval * sqrt(abs(p0 * p0 + t0 * t1));
+          z = maxval * numext::sqrt(numext::abs(p0 * p0 + t0 * t1));
         }
 
         m_eivalues.coeffRef(i) = ComplexScalar(matT.coeff(i + 1, i + 1) + p, z);
@@ -466,7 +465,6 @@ EigenSolver<MatrixType>& EigenSolver<MatrixType>::computeFromSchur(bool computeE
 
 template <typename MatrixType>
 void EigenSolver<MatrixType>::doComputeEigenvectors() {
-  using std::abs;
   // Back-substitution stores the eigenvectors of T over T itself; the back-transformation then turns U into the
   // pseudo-eigenvectors in place, column by column from the last one.
   MatrixType& matT = m_realSchur.m_matT;
@@ -477,7 +475,7 @@ void EigenSolver<MatrixType>::doComputeEigenvectors() {
   // inefficient! this is already computed in RealSchur
   Scalar norm(0);
   for (Index j = 0; j < size; ++j) {
-    norm += matT.row(j).segment((std::max)(j - 1, Index(0)), size - (std::max)(j - 1, Index(0))).cwiseAbs().sum();
+    norm += matT.row(j).segment(numext::maxi(j - 1, Index(0)), size - numext::maxi(j - 1, Index(0))).cwiseAbs().sum();
   }
 
   // Backsubstitute to find vectors of upper triangular form
@@ -517,14 +515,14 @@ void EigenSolver<MatrixType>::doComputeEigenvectors() {
                            m_eivalues.coeff(i).imag() * m_eivalues.coeff(i).imag();
             Scalar t = (x * lastr - lastw * r) / denom;
             matT.coeffRef(i, n) = t;
-            if (abs(x) > abs(lastw))
+            if (numext::abs(x) > numext::abs(lastw))
               matT.coeffRef(i + 1, n) = (-r - w * t) / x;
             else
               matT.coeffRef(i + 1, n) = (-lastr - y * t) / lastw;
           }
 
           // Overflow control
-          Scalar t = abs(matT.coeff(i, n));
+          Scalar t = numext::abs(matT.coeff(i, n));
           if ((eps * t) * t > Scalar(1)) matT.col(n).tail(size - i) /= t;
         }
       }
@@ -534,7 +532,7 @@ void EigenSolver<MatrixType>::doComputeEigenvectors() {
       Index l = n - 1;
 
       // Last vector component imaginary so matrix is triangular
-      if (abs(matT.coeff(n, n - 1)) > abs(matT.coeff(n - 1, n))) {
+      if (numext::abs(matT.coeff(n, n - 1)) > numext::abs(matT.coeff(n - 1, n))) {
         matT.coeffRef(n - 1, n - 1) = q / matT.coeff(n, n - 1);
         matT.coeffRef(n - 1, n) = -(matT.coeff(n, n) - p) / matT.coeff(n, n - 1);
       } else {
@@ -568,13 +566,14 @@ void EigenSolver<MatrixType>::doComputeEigenvectors() {
                         m_eivalues.coeff(i).imag() * m_eivalues.coeff(i).imag() - q * q;
             Scalar vi = (m_eivalues.coeff(i).real() - p) * Scalar(2) * q;
             if ((vr == Scalar(0)) && (vi == Scalar(0)))
-              vr = eps * norm * (abs(w) + abs(q) + abs(x) + abs(y) + abs(lastw));
+              vr =
+                  eps * norm * (numext::abs(w) + numext::abs(q) + numext::abs(x) + numext::abs(y) + numext::abs(lastw));
 
             ComplexScalar cc = ComplexScalar(x * lastra - lastw * ra + q * sa, x * lastsa - lastw * sa - q * ra) /
                                ComplexScalar(vr, vi);
             matT.coeffRef(i, n - 1) = numext::real(cc);
             matT.coeffRef(i, n) = numext::imag(cc);
-            if (abs(x) > (abs(lastw) + abs(q))) {
+            if (numext::abs(x) > (numext::abs(lastw) + numext::abs(q))) {
               matT.coeffRef(i + 1, n - 1) = (-ra - w * matT.coeff(i, n - 1) + q * matT.coeff(i, n)) / x;
               matT.coeffRef(i + 1, n) = (-sa - w * matT.coeff(i, n) - q * matT.coeff(i, n - 1)) / x;
             } else {
@@ -586,7 +585,7 @@ void EigenSolver<MatrixType>::doComputeEigenvectors() {
           }
 
           // Overflow control
-          Scalar t = numext::maxi<Scalar>(abs(matT.coeff(i, n - 1)), abs(matT.coeff(i, n)));
+          Scalar t = numext::maxi<Scalar>(numext::abs(matT.coeff(i, n - 1)), numext::abs(matT.coeff(i, n)));
           if ((eps * t) * t > Scalar(1)) matT.block(i, n - 1, size - i, 2) /= t;
         }
       }
