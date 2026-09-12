@@ -100,9 +100,9 @@ struct selfadjoint_l1norm_packet_impl : Lanes {
 
  private:
   template <typename XprEvaluator>
-  static EIGEN_DEVICE_FUNC Real accumulate(Scalar* s, const XprEvaluator& x, Index n, std::false_type) {
+  static EIGEN_DEVICE_FUNC Real accumulate(Scalar* s, const XprEvaluator& x, Index begin, Index end) {
     Real r = Real(0);
-    for (Index i = 0; i < n; ++i) {
+    for (Index i = begin; i < end; ++i) {
       Real a = numext::abs(x.coeff(i));
       s[i] += a;
       r += a;
@@ -110,7 +110,12 @@ struct selfadjoint_l1norm_packet_impl : Lanes {
     return r;
   }
   template <typename XprEvaluator>
+  static EIGEN_DEVICE_FUNC Real accumulate(Scalar* s, const XprEvaluator& x, Index n, std::false_type) {
+    return accumulate(s, x, Index(0), n);
+  }
+  template <typename XprEvaluator>
   static EIGEN_DEVICE_FUNC Real accumulate(Scalar* s, const XprEvaluator& x, Index n, std::true_type) {
+    if (n < PacketSize) return accumulate(s, x, Index(0), n);
     RPacket acc = pzero(RPacket());
     Index i = 0;
     for (; i + PacketSize <= n; i += PacketSize) {
@@ -118,13 +123,7 @@ struct selfadjoint_l1norm_packet_impl : Lanes {
       acc = padd(acc, a);
       pstoreu(s + i, Lanes::pack(padd(Lanes::lanes(ploadu<Packet>(s + i)), a)));
     }
-    Real r = i > 0 ? numext::real(predux(Lanes::pack(acc))) : Real(0);
-    for (; i < n; ++i) {
-      Real a = numext::abs(x.coeff(i));
-      s[i] += a;
-      r += a;
-    }
-    return r;
+    return numext::real(predux(Lanes::pack(acc))) + accumulate(s, x, i, n);
   }
 };
 
