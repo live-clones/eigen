@@ -363,6 +363,17 @@ struct generic_partial_lu_impl {
   using BlockType = Ref<Matrix<Scalar, Dynamic, Dynamic, StorageOrder>>;
   using RealScalar = typename MatrixType::RealScalar;
 
+  static void apply_row_transpositions(BlockType& matrix, Index first, Index count, const PivIndex* transpositions) {
+    EIGEN_IF_CONSTEXPR (StorageOrder == ColMajor) {
+      // Keep the pivot rows of one column in cache, even when the outer stride maps every column to the same set.
+      for (Index j = 0; j < matrix.cols(); ++j)
+        for (Index i = first; i < first + count; ++i)
+          numext::swap(matrix.coeffRef(i, j), matrix.coeffRef(transpositions[i], j));
+    } else {
+      for (Index i = first; i < first + count; ++i) matrix.row(i).swap(matrix.row(transpositions[i]));
+    }
+  }
+
   /** \internal performs the LU decomposition in-place of the matrix \a lu
    * using an unblocked algorithm.
    *
@@ -489,15 +500,13 @@ struct generic_partial_lu_impl {
       // update permutations and apply them to A_0
       if (k > 0) {
         BlockType A_0 = lu.block(0, 0, rows, k);
-        for (Index i = k; i < k + bs; ++i) {
-          Index piv = (row_transpositions[i] += internal::convert_index<PivIndex>(k));
-          A_0.row(i).swap(A_0.row(piv));
-        }
+        for (Index i = k; i < k + bs; ++i) row_transpositions[i] += internal::convert_index<PivIndex>(k);
+        apply_row_transpositions(A_0, k, bs, row_transpositions);
       }
 
       if (trows) {
         // apply permutations to A_2
-        for (Index i = k; i < k + bs; ++i) A_2.row(i).swap(A_2.row(row_transpositions[i]));
+        apply_row_transpositions(A_2, k, bs, row_transpositions);
 
         // A12 = A11^-1 A12
         A11.template triangularView<UnitLower>().solveInPlace(A12);

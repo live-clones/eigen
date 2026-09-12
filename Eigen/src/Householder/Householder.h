@@ -236,6 +236,47 @@ EIGEN_DEVICE_FUNC void MatrixBase<Derived>::makeHouseholder(EssentialPart& essen
   tau = conj((beta - c0) / beta);
 }
 
+namespace internal {
+
+template <typename Derived, typename EssentialPart,
+          bool Fused = !Derived::IsRowMajor && EssentialPart::ColsAtCompileTime == 1 &&
+                       (EssentialPart::RowsAtCompileTime == 1 || EssentialPart::RowsAtCompileTime == 2)>
+struct householder_apply_left_impl {
+  using Scalar = typename Derived::Scalar;
+  static EIGEN_DEVICE_FUNC void run(MatrixBase<Derived>& mat, const EssentialPart& essential, const Scalar& tau,
+                                    Scalar* workspace) {
+    Map<typename plain_row_type<typename Derived::PlainObject>::type> tmp(workspace, mat.cols());
+    Block<Derived, EssentialPart::SizeAtCompileTime, Derived::ColsAtCompileTime> bottom(mat.derived(), 1, 0,
+                                                                                        mat.rows() - 1, mat.cols());
+    tmp.noalias() = essential.adjoint() * bottom.unwind();
+    tmp = tau * (tmp + mat.row(0));
+    mat.row(0) -= tmp;
+    bottom.unwind().noalias() -= essential * tmp;
+  }
+};
+
+// Two- and three-element reflectors on column-major storage: finishing each column before advancing replaces
+// four strided row passes, which thrash the cache at large outer strides (issue #3160).
+template <typename Derived, typename EssentialPart>
+struct householder_apply_left_impl<Derived, EssentialPart, true> {
+  using Scalar = typename Derived::Scalar;
+  static EIGEN_DEVICE_FUNC void run(MatrixBase<Derived>& mat, const EssentialPart& essential, const Scalar& tau,
+                                    Scalar*) {
+    // Evaluated once so that the column loop reads plain coefficients; tau may reference a coefficient of mat.
+    const Matrix<Scalar, EssentialPart::RowsAtCompileTime, 1> v = essential;
+    const Scalar tauValue = tau;
+    Block<Derived, EssentialPart::RowsAtCompileTime, Derived::ColsAtCompileTime> bottom(mat.derived(), 1, 0,
+                                                                                        mat.rows() - 1, mat.cols());
+    for (Index j = 0; j < mat.cols(); ++j) {
+      const Scalar tmp = tauValue * (v.dot(bottom.col(j)) + mat.coeff(0, j));
+      mat.coeffRef(0, j) -= tmp;
+      bottom.col(j) -= v * tmp;
+    }
+  }
+};
+
+}  // namespace internal
+
 /** Apply the elementary reflector H given by
  * \f$ H = I - tau v v^*\f$
  * with
@@ -258,13 +299,7 @@ EIGEN_DEVICE_FUNC void MatrixBase<Derived>::applyHouseholderOnTheLeft(const Esse
   if (rows() == 1) {
     *this *= Scalar(1) - tau;
   } else if (!numext::is_exactly_zero(tau)) {
-    Map<typename internal::plain_row_type<PlainObject>::type> tmp(workspace, cols());
-    Block<Derived, EssentialPart::SizeAtCompileTime, Derived::ColsAtCompileTime> bottom(derived(), 1, 0, rows() - 1,
-                                                                                        cols());
-    tmp.noalias() = essential.adjoint() * bottom.unwind();
-    tmp = tau * (tmp + this->row(0));
-    this->row(0) = this->row(0) - tmp;
-    bottom.unwind().noalias() -= essential * tmp;
+    internal::householder_apply_left_impl<Derived, EssentialPart>::run(*this, essential, tau, workspace);
   }
 }
 

@@ -783,6 +783,222 @@ void householder_large_components() {
   }
 }
 
+template <typename Scalar, int Size, int StorageOrder>
+void householder_short_strided() {
+  using Mat = Matrix<Scalar, Dynamic, Dynamic, StorageOrder>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Vector = Matrix<Scalar, Size, 1>;
+  using Essential = Matrix<Scalar, Size - 1, 1>;
+  const Vector vector = Vector::Random();
+  Essential essential;
+  Scalar tau;
+  RealScalar beta;
+  vector.makeHouseholder(essential, tau, beta);
+  Vector v;
+  v << Scalar(1), essential;
+  const Matrix<Scalar, Size, Size> h = Matrix<Scalar, Size, Size>::Identity() - tau * v * v.adjoint();
+
+  for (Index cols : {0, 1, 2, 17, 32, 33, 500, 512}) {
+    for (Index innerStride : {1, 2}) {
+      for (Index outerStride : {2048, 2055}) {
+        Matrix<Scalar, Dynamic, 1> storage =
+            Matrix<Scalar, Dynamic, 1>::Random(outerStride * (StorageOrder == ColMajor ? cols + 2 : Size + 2));
+        Map<Mat, 0, Stride<Dynamic, Dynamic>> mapped(storage.data(), Size + 2, cols + 2,
+                                                     Stride<Dynamic, Dynamic>(outerStride, innerStride));
+        const auto originalStorage = storage.eval();
+        const Mat original = mapped;
+        auto block = mapped.block(1, 1, Size, cols);
+        const Mat expected = h * original.block(1, 1, Size, cols);
+        Matrix<Scalar, Dynamic, 1> workspace(cols + 2);
+        workspace.setConstant(Scalar(7));
+        // Fixed essential length selects the fused column-major path even with dynamic block dimensions.
+        block.applyHouseholderOnTheLeft(essential, tau, workspace.data() + 1);
+        const RealScalar bound = RealScalar(16 * Size) * NumTraits<RealScalar>::epsilon() * original.norm();
+        VERIFY((block - expected).norm() <= bound);
+        VERIFY_IS_EQUAL(workspace[0], Scalar(7));
+        VERIFY_IS_EQUAL(workspace[cols + 1], Scalar(7));
+        Mat expectedFull = original;
+        expectedFull.block(1, 1, Size, cols) = block;
+        const auto resultStorage = storage.eval();
+        storage = originalStorage;
+        mapped = expectedFull;
+        VERIFY_IS_EQUAL(storage, resultStorage);
+
+        block.applyHouseholderOnTheLeft(essential, Scalar(0), workspace.data() + 1);
+        VERIFY_IS_EQUAL(storage, resultStorage);
+
+        storage = originalStorage;
+        const Matrix<Scalar, Dynamic, 1> dynamicEssential = essential;
+        block.applyHouseholderOnTheLeft(dynamicEssential, tau, workspace.data() + 1);
+        VERIFY((block - expected).norm() <= bound);
+
+        if (cols > 0) {
+          storage = originalStorage;
+          const Scalar aliasedTau = block.coeff(0, 0);
+          const Matrix<Scalar, Size, Size> aliasedH =
+              Matrix<Scalar, Size, Size>::Identity() - aliasedTau * v * v.adjoint();
+          const Mat aliasedExpected = aliasedH * original.block(1, 1, Size, cols);
+          block.applyHouseholderOnTheLeft(essential, block.coeffRef(0, 0), workspace.data() + 1);
+          VERIFY((block - aliasedExpected).norm() <= bound);
+        }
+      }
+    }
+  }
+}
+
+// Reference for H * a with v = [1; essential] and the operation order of applyHouseholderOnTheLeft, which a
+// noncommutative scalar distinguishes: w_j = tau * (a_0j + sum_i conj(e_i) a_(i+1)j), a_0j -= w_j, a_(i+1)j -= e_i w_j.
+template <typename MatrixType, typename EssentialType>
+MatrixType householder_left_reference(const MatrixType& a, const EssentialType& essential,
+                                      const typename MatrixType::Scalar& tau) {
+  using Scalar = typename MatrixType::Scalar;
+  MatrixType result = a;
+  for (Index j = 0; j < a.cols(); ++j) {
+    Scalar dot = a(0, j);
+    for (Index i = 0; i < essential.size(); ++i) dot += numext::conj(essential(i)) * a(i + 1, j);
+    const Scalar w = tau * dot;
+    result(0, j) -= w;
+    for (Index i = 0; i < essential.size(); ++i) result(i + 1, j) -= essential(i) * w;
+  }
+  return result;
+}
+
+// Whether applyHouseholderOnTheLeft on Derived with this essential type selects the fused column loop.
+template <typename Derived, typename EssentialPart>
+constexpr bool householder_fused() {
+  return std::is_same<internal::householder_apply_left_impl<Derived, EssentialPart>,
+                      internal::householder_apply_left_impl<Derived, EssentialPart, true>>::value;
+}
+
+template <bool ExpectFused, typename MatrixType, typename EssentialType>
+void verify_householder_left(MatrixType a, const EssentialType& essential, const typename MatrixType::Scalar& tau) {
+  using RealScalar = typename NumTraits<typename MatrixType::Scalar>::Real;
+  STATIC_CHECK((householder_fused<MatrixType, EssentialType>() == ExpectFused));
+  const MatrixType expected = householder_left_reference(a, essential.eval(), tau);
+  // Applying a reflector is backward stable; both evaluations carry O(rows * eps * |a|) rounding.
+  const RealScalar bound = RealScalar(16 * a.rows()) * NumTraits<RealScalar>::epsilon() * a.norm();
+  Matrix<typename MatrixType::Scalar, Dynamic, 1> workspace(a.cols());
+  a.applyHouseholderOnTheLeft(essential, tau, workspace.data());
+  VERIFY((a - expected).norm() <= bound);
+}
+
+// The essential part may be any column-vector expression, not only a plain vector: a runtime one-column block
+// (no compile-time vector shape), the adjoint of a row tail as CompleteOrthogonalDecomposition passes, or a
+// fixed-size segment of either. Each must compile in C++14, where no branch of the dispatch is discarded, and
+// only the fixed-size ones on column-major storage select the fused loop.
+template <typename Scalar, int StorageOrder>
+void householder_essential_expressions() {
+  using Mat = Matrix<Scalar, Dynamic, Dynamic, StorageOrder>;
+  using RowMajorMat = Matrix<Scalar, Dynamic, Dynamic, RowMajor>;
+  using VectorType = Matrix<Scalar, Dynamic, 1>;
+  constexpr bool kFusedIfFixed = StorageOrder == ColMajor;
+  const Index cols = internal::random<Index>(1, 20);
+  for (Index rows : {Index(2), Index(3), internal::random<Index>(4, 20)}) {
+    const Mat a = Mat::Random(rows, cols);
+    Scalar tau;
+    typename NumTraits<Scalar>::Real beta;
+    VectorType essential(rows - 1);
+    VectorType::Random(rows).makeHouseholder(essential, tau, beta);
+
+    Mat column(rows + 1, 3);
+    column.col(1).tail(rows - 1) = essential;
+    verify_householder_left<false>(a, column.block(2, 1, rows - 1, 1), tau);
+
+    Mat row(3, rows + 1);
+    row.row(1).tail(rows - 1) = essential.adjoint();
+    verify_householder_left<false>(a, row.row(1).tail(rows - 1).adjoint(), tau);
+
+    RowMajorMat rowMajorColumn(rows + 1, 3);
+    rowMajorColumn.col(1).tail(rows - 1) = essential;
+    verify_householder_left<false>(a, rowMajorColumn.col(1).tail(rows - 1), tau);
+
+    if (rows == 2) {
+      verify_householder_left<kFusedIfFixed>(a, row.row(1).template segment<1>(2).adjoint(), tau);
+      verify_householder_left<kFusedIfFixed>(a, rowMajorColumn.col(1).template tail<1>(), tau);
+    }
+    if (rows == 3) {
+      verify_householder_left<kFusedIfFixed>(a, row.row(1).template segment<2>(2).adjoint(), tau);
+      verify_householder_left<kFusedIfFixed>(a, rowMajorColumn.col(1).template tail<2>(), tau);
+    }
+  }
+}
+
+namespace noncommutative_scalar {
+
+// Quaternions: multiplication is associative and conjugation reverses products, but ab != ba in general.
+struct Quaternion {
+  double r, i, j, k;
+  Quaternion(double real = 0, double x = 0, double y = 0, double z = 0) : r(real), i(x), j(y), k(z) {}
+  Quaternion operator+(const Quaternion& b) const { return Quaternion(r + b.r, i + b.i, j + b.j, k + b.k); }
+  Quaternion operator-(const Quaternion& b) const { return Quaternion(r - b.r, i - b.i, j - b.j, k - b.k); }
+  Quaternion operator-() const { return Quaternion(-r, -i, -j, -k); }
+  Quaternion operator*(const Quaternion& b) const {
+    return Quaternion(r * b.r - i * b.i - j * b.j - k * b.k, r * b.i + i * b.r + j * b.k - k * b.j,
+                      r * b.j - i * b.k + j * b.r + k * b.i, r * b.k + i * b.j - j * b.i + k * b.r);
+  }
+  Quaternion& operator+=(const Quaternion& b) { return *this = *this + b; }
+  Quaternion& operator-=(const Quaternion& b) { return *this = *this - b; }
+  Quaternion& operator*=(const Quaternion& b) { return *this = *this * b; }
+  bool operator==(const Quaternion& b) const { return r == b.r && i == b.i && j == b.j && k == b.k; }
+  bool operator!=(const Quaternion& b) const { return !(*this == b); }
+};
+
+inline Quaternion conj(const Quaternion& a) { return Quaternion(a.r, -a.i, -a.j, -a.k); }
+inline double real(const Quaternion& a) { return a.r; }
+inline double imag(const Quaternion& a) { return a.i; }
+
+}  // namespace noncommutative_scalar
+
+namespace Eigen {
+template <>
+struct NumTraits<noncommutative_scalar::Quaternion> : GenericNumTraits<noncommutative_scalar::Quaternion> {
+  using Real = double;
+  using Literal = double;
+  static constexpr bool IsComplex = true;
+  static constexpr bool RequireInitialization = true;
+};
+}  // namespace Eigen
+
+// The fused loop must multiply in the order the general update's expressions spell out, essential * tmp with
+// tmp = tau * (essential.adjoint() * column + top), which only a noncommutative scalar observes. Small integer
+// components keep every operation exact. The general path is not a reference here: its product kernels reorder
+// operands (the gemv selector transposes essential.adjoint() * bottom, the column-major outer-product selector
+// forms tmp_j * essential).
+template <int Size>
+void householder_noncommutative_scalar() {
+  using Scalar = noncommutative_scalar::Quaternion;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using EssentialType = Matrix<Scalar, Size - 1, 1>;
+  STATIC_CHECK((householder_fused<Mat, EssentialType>()));
+  const Scalar i(0, 1), j(0, 0, 1), k(0, 0, 0, 1);
+  {
+    // With essential = [i, 0...]^T, tau = 1 and input [j, 0...]^T, the second entry becomes -i * j = -k.
+    Mat a = Mat::Constant(Size, 1, Scalar(0));
+    a(0, 0) = j;
+    EssentialType essential = EssentialType::Constant(Scalar(0));
+    essential(0) = i;
+    Scalar workspace[1];
+    a.applyHouseholderOnTheLeft(essential, Scalar(1), workspace);
+    VERIFY(a(0, 0) == Scalar(0));
+    VERIFY(a(1, 0) == -k);
+  }
+  const Index cols = internal::random<Index>(1, 7);
+  Mat a(Size, cols);
+  for (Index c = 0; c < cols; ++c)
+    for (Index r = 0; r < Size; ++r)
+      a(r, c) = Scalar(internal::random<int>(-2, 2), internal::random<int>(-2, 2), internal::random<int>(-2, 2),
+                       internal::random<int>(-2, 2));
+  EssentialType essential;
+  for (Index r = 0; r + 1 < Size; ++r)
+    essential(r) = Scalar(internal::random<int>(-2, 2), internal::random<int>(-2, 2), internal::random<int>(-2, 2),
+                          internal::random<int>(-2, 2));
+  const Scalar tau(internal::random<int>(-2, 2), internal::random<int>(-2, 2), internal::random<int>(-2, 2), 1);
+  const Mat expected = householder_left_reference(a, essential, tau);
+  Matrix<Scalar, Dynamic, 1> workspace(cols);
+  a.applyHouseholderOnTheLeft(essential, tau, workspace.data());
+  VERIFY(a == expected);
+}
+
 EIGEN_DECLARE_TEST(householder) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(householder(Matrix<double, 2, 2>()));
@@ -807,4 +1023,23 @@ EIGEN_DECLARE_TEST(householder) {
   CALL_SUBTEST_11(householder_blocked_right_regression<std::complex<double>>());
   CALL_SUBTEST_12(householder_small_tail());
   CALL_SUBTEST_13(householder_large_components());
+  CALL_SUBTEST_14((householder_short_strided<float, 2, ColMajor>()));
+  CALL_SUBTEST_14((householder_short_strided<float, 3, ColMajor>()));
+  CALL_SUBTEST_15((householder_short_strided<double, 2, ColMajor>()));
+  CALL_SUBTEST_15((householder_short_strided<double, 3, ColMajor>()));
+  CALL_SUBTEST_16((householder_short_strided<std::complex<float>, 2, ColMajor>()));
+  CALL_SUBTEST_16((householder_short_strided<std::complex<float>, 3, ColMajor>()));
+  CALL_SUBTEST_17((householder_short_strided<std::complex<double>, 2, ColMajor>()));
+  CALL_SUBTEST_17((householder_short_strided<std::complex<double>, 3, ColMajor>()));
+  CALL_SUBTEST_18((householder_short_strided<double, 2, RowMajor>()));
+  CALL_SUBTEST_18((householder_short_strided<double, 3, RowMajor>()));
+  CALL_SUBTEST_19((householder_short_strided<std::complex<double>, 3, RowMajor>()));
+  for (int i = 0; i < g_repeat; i++) {
+    CALL_SUBTEST_20((householder_essential_expressions<double, ColMajor>()));
+    CALL_SUBTEST_20((householder_essential_expressions<double, RowMajor>()));
+    CALL_SUBTEST_21((householder_essential_expressions<std::complex<double>, ColMajor>()));
+    CALL_SUBTEST_21((householder_essential_expressions<std::complex<double>, RowMajor>()));
+    CALL_SUBTEST_22(householder_noncommutative_scalar<2>());
+    CALL_SUBTEST_22(householder_noncommutative_scalar<3>());
+  }
 }
