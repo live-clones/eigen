@@ -222,7 +222,7 @@ struct traits<SelfAdjointView<MatrixType, UpLo>> : traits<MatrixType> {
 }  // namespace internal
 
 template <typename MatrixType_, unsigned int UpLo>
-class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>> {
+class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo> > {
  public:
   EIGEN_STATIC_ASSERT(UpLo == Lower || UpLo == Upper, SELFADJOINTVIEW_ACCEPTS_UPPER_AND_LOWER_MODE_ONLY)
 
@@ -359,9 +359,9 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
    */
   template <unsigned int TriMode>
   EIGEN_DEVICE_FUNC
-  std::conditional_t<(TriMode & (Upper | Lower)) == (UpLo & (Upper | Lower)), TriangularView<MatrixType, TriMode>,
-                     TriangularView<typename MatrixType::AdjointReturnType, TriMode>>
-  triangularView() const {
+      std::conditional_t<(TriMode & (Upper | Lower)) == (UpLo & (Upper | Lower)), TriangularView<MatrixType, TriMode>,
+                         TriangularView<typename MatrixType::AdjointReturnType, TriMode> >
+      triangularView() const {
     std::conditional_t<(TriMode & (Upper | Lower)) == (UpLo & (Upper | Lower)), MatrixType&,
                        typename MatrixType::ConstTransposeReturnType>
         tmp1(m_matrix);
@@ -370,7 +370,7 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
         tmp2(tmp1);
     return std::conditional_t<(TriMode & (Upper | Lower)) == (UpLo & (Upper | Lower)),
                               TriangularView<MatrixType, TriMode>,
-                              TriangularView<typename MatrixType::AdjointReturnType, TriMode>>(tmp2);
+                              TriangularView<typename MatrixType::AdjointReturnType, TriMode> >(tmp2);
   }
 
   /** \returns a const expression of the main diagonal of the matrix \c *this
@@ -420,8 +420,7 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
   static L1NormAccumulator l1NormStreaming(const Mat& m) {
     const Index n = m.rows();
     // Bounded sizes keep the accumulator in the object, so fixed-size Cholesky stays allocation-free.
-    internal::gemv_static_vector_if<L1NormScalar, Mat::RowsAtCompileTime, Mat::MaxRowsAtCompileTime, true>
-        static_sums;
+    internal::gemv_static_vector_if<L1NormScalar, Mat::RowsAtCompileTime, Mat::MaxRowsAtCompileTime, true> static_sums;
     ei_declare_aligned_stack_constructed_variable(L1NormScalar, sums, n, static_sums.data());
     Map<Matrix<L1NormScalar, Dynamic, 1>>(sums, n).setZero();
     L1NormAccumulator norm = L1NormAccumulator(0);
@@ -499,7 +498,7 @@ namespace internal {
 //      such that Transpose<SelfAdjointView<.,.> > is valid. (currently TriangularBase::transpose() is overloaded to
 //      make it work)
 template <typename MatrixType, unsigned int Mode>
-struct evaluator_traits<SelfAdjointView<MatrixType, Mode>> {
+struct evaluator_traits<SelfAdjointView<MatrixType, Mode> > {
   using Kind = typename storage_kind_to_evaluator_kind<typename MatrixType::StorageKind>::Kind;
   using Shape = SelfAdjointShape;
 };
