@@ -34,15 +34,17 @@ namespace Eigen {
 
 namespace internal {
 
-// Column step of the self-adjoint 1-norm: sums[i] += |x_i| for a column x, returning sum |x_i|.
-// One packet pass does both, so short columns pay no per-expression setup.
+// Column step of the self-adjoint 1-norm, on two columns x0 and x1 sharing the rows [0, n):
+// sums[i] += |x0_i| + |x1_i|, returning sum |x0_i| and sum |x1_i|. Walking two columns at once
+// halves the traffic on sums, and one packet pass does everything, so short columns pay no
+// per-expression setup.
 //
 // Real scalars use pabs. Complex ones have no packet abs, so |z| = sqrt(re^2 + im^2) is computed
 // on the real lanes of the complex packet. That leaves |z|^2 in both lanes of each slot, so one
-// square root serves two packets: even lanes from u and odd lanes from v give |u0| |v0| |u1| |v1|
-// ..., which added to u's slots as is and to v's slots flipped puts every |z| in the real lane of
-// its own slot. The accumulator has the matrix's scalar type and only its real parts are read, so
-// the stray values in the imaginary lanes are harmless.
+// square root serves both columns: even lanes from x0 and odd lanes from x1 give |u0| |v0| |u1|
+// |v1| ..., whose sum with its flip is the update of sums, and whose reduction as a complex packet
+// is (sum |u|, sum |v|). The accumulator has the matrix's scalar type and only its real parts are
+// read, so what lands in the imaginary lanes is harmless.
 template <typename Scalar_>
 struct selfadjoint_l1norm_real_lanes {
   using Scalar = Scalar_;
@@ -50,23 +52,27 @@ struct selfadjoint_l1norm_real_lanes {
   using Packet = typename packet_traits<Scalar>::type;
   using RPacket = Packet;
   static constexpr Index PacketSize = unpacket_traits<Packet>::size;
-  // Up to this size the per-column form (mirrored term read as a row) beats the column pass, which
-  // chains short columns on store-to-load forwarding through sums.
-  static constexpr Index PerColumnUpTo = 16;
+  // Up to this size the per-column form (mirrored term read as a row) beats the column pass, whose
+  // accumulator costs more to set up than these columns cost to read.
+  static constexpr Index PerColumnUpTo = 4;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket lanes(const Packet& p) { return p; }
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet pack(const RPacket& r) { return r; }
-  // sums += |u| (and |v|); returns the column sum contribution.
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket accumulate(const RPacket& u, Scalar* su) {
-    RPacket a = pabs(u);
-    pstoreu(su, padd(ploadu<Packet>(su), a));
-    return a;
-  }
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket accumulate(const RPacket& u, const RPacket& v, Scalar* su,
-                                                                  Scalar* sv) {
-    return padd(accumulate(u, su), accumulate(v, sv));
-  }
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Real abs(const Scalar& x) { return numext::abs(x); }
   static EIGEN_DEVICE_FUNC bool isReliable(Real, Index) { return true; }
+
+  // The running sums of a pass over two columns.
+  struct Pass {
+    RPacket acc0 = pzero(RPacket());
+    RPacket acc1 = pzero(RPacket());
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void step(const RPacket& u, const RPacket& v, Scalar* s) {
+      RPacket a = pabs(u);
+      RPacket b = pabs(v);
+      acc0 = padd(acc0, a);
+      acc1 = padd(acc1, b);
+      pstoreu(s, padd(ploadu<Packet>(s), padd(a, b)));
+    }
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Real sum0() const { return predux(acc0); }
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Real sum1() const { return predux(acc1); }
+  };
 };
 
 template <typename T>
@@ -78,21 +84,7 @@ struct selfadjoint_l1norm_complex_lanes {
   static constexpr Index PacketSize = unpacket_traits<Packet>::size;
   static constexpr Index PerColumnUpTo = 0;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket lanes(const Packet& p) { return p.v; }
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet pack(const RPacket& r) { return Packet(r); }
-  // sums += |u| (and |v|) on the real lanes; returns the column sum contribution.
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket accumulate(const RPacket& u, Scalar* su) {
-    RPacket r = psqrt(pselect(peven_mask(u), abs2(u), pzero(u)));  // |u0| 0 |u1| 0 ...
-    add(su, r);
-    return r;
-  }
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket accumulate(const RPacket& u, const RPacket& v, Scalar* su,
-                                                                  Scalar* sv) {
-    RPacket r = psqrt(pselect(peven_mask(u), abs2(u), abs2(v)));  // |u0| |v0| |u1| |v1| ...
-    add(su, r);
-    add(sv, flip(r));
-    return r;
-  }
-  // Same formula as the packets, for the diagonal and the tail: hypot costs more than the packets
+  // Same formula as the packets, for the diagonal and the tails: hypot costs more than the packets
   // spend on the rest of a short column.
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Real abs(const Scalar& z) { return numext::sqrt(numext::abs2(z)); }
   // Squaring overflows above sqrt(max) and loses precision below sqrt(min): an infinite or tiny
@@ -102,19 +94,26 @@ struct selfadjoint_l1norm_complex_lanes {
     return norm > tiny && (numext::isfinite)(norm);
   }
 
+  struct Pass {
+    RPacket acc = pzero(RPacket());  // |u| in the even lanes, |v| in the odd ones
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void step(const RPacket& u, const RPacket& v, Scalar* s) {
+      RPacket r = psqrt(pselect(peven_mask(u), abs2(u), abs2(v)));  // |u0| |v0| |u1| |v1| ...
+      acc = padd(acc, r);
+      pstoreu(s, Packet(padd(lanes(ploadu<Packet>(s)), padd(r, flip(r)))));
+    }
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Real sum0() const { return numext::real(predux(Packet(acc))); }
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Real sum1() const { return numext::imag(predux(Packet(acc))); }
+  };
+
  private:
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket flip(const RPacket& r) { return lanes(pcplxflip(pack(r))); }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket flip(const RPacket& r) { return pcplxflip(Packet(r)).v; }
   // |z|^2 in both lanes of its slot.
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket abs2(const RPacket& v) {
     RPacket s = pmul(v, v);
     return padd(s, flip(s));
   }
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void add(Scalar* s, const RPacket& a) {
-    pstoreu(s, pack(padd(lanes(ploadu<Packet>(s)), a)));
-  }
 };
 
-// The pass over a column: two packets per step, one for the odd one out, coefficients for the rest.
 template <typename Lanes>
 struct selfadjoint_l1norm_packet_impl : Lanes {
   using Lanes::PacketSize;
@@ -122,50 +121,54 @@ struct selfadjoint_l1norm_packet_impl : Lanes {
   using typename Lanes::Real;
   using typename Lanes::RPacket;
   using typename Lanes::Scalar;
+  using Sums = std::pair<Real, Real>;
 
-  template <typename Derived>
-  static EIGEN_DEVICE_FUNC Real accumulate(Scalar* sums, const DenseBase<Derived>& x) {
-    return accumulateCast(sums, x.derived().template cast<Scalar>());
+  template <typename Derived0, typename Derived1>
+  static EIGEN_DEVICE_FUNC Sums accumulate(Scalar* sums, const DenseBase<Derived0>& x0, const DenseBase<Derived1>& x1) {
+    return accumulateCast(sums, x0.derived().template cast<Scalar>(), x1.derived().template cast<Scalar>());
   }
 
  private:
-  template <typename Derived>
-  static EIGEN_DEVICE_FUNC Real accumulateCast(Scalar* sums, const DenseBase<Derived>& x) {
-    using XprEvaluator = evaluator<Derived>;
-    constexpr bool Vectorize =
-        bool(XprEvaluator::Flags & PacketAccessBit) && bool(XprEvaluator::Flags & LinearAccessBit);
-    return accumulate(sums, XprEvaluator(x.derived()), x.size(), bool_constant<Vectorize>());
+  template <typename Derived0, typename Derived1>
+  static EIGEN_DEVICE_FUNC Sums accumulateCast(Scalar* sums, const DenseBase<Derived0>& x0,
+                                               const DenseBase<Derived1>& x1) {
+    using Evaluator0 = evaluator<Derived0>;
+    using Evaluator1 = evaluator<Derived1>;
+    constexpr int Needed = PacketAccessBit | LinearAccessBit;
+    constexpr bool Vectorize = (Evaluator0::Flags & Needed) == Needed && (Evaluator1::Flags & Needed) == Needed;
+    return accumulate(sums, Evaluator0(x0.derived()), Evaluator1(x1.derived()), x0.size(), bool_constant<Vectorize>());
   }
-  template <typename XprEvaluator>
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket load(const XprEvaluator& x, Index i) {
+  template <typename Evaluator>
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket load(const Evaluator& x, Index i) {
     return Lanes::lanes(x.template packet<Unaligned, Packet>(i));
   }
-  template <typename XprEvaluator>
-  static EIGEN_DEVICE_FUNC Real accumulate(Scalar* s, const XprEvaluator& x, Index begin, Index end) {
-    Real r = Real(0);
+  template <typename Evaluator0, typename Evaluator1>
+  static EIGEN_DEVICE_FUNC Sums accumulate(Scalar* s, const Evaluator0& x0, const Evaluator1& x1, Index begin,
+                                           Index end) {
+    Sums r(Real(0), Real(0));
     for (Index i = begin; i < end; ++i) {
-      Real a = Lanes::abs(x.coeff(i));
-      s[i] += a;
-      r += a;
+      Real a = Lanes::abs(x0.coeff(i));
+      Real b = Lanes::abs(x1.coeff(i));
+      s[i] += a + b;
+      r.first += a;
+      r.second += b;
     }
     return r;
   }
-  template <typename XprEvaluator>
-  static EIGEN_DEVICE_FUNC Real accumulate(Scalar* s, const XprEvaluator& x, Index n, std::false_type) {
-    return accumulate(s, x, Index(0), n);
+  template <typename Evaluator0, typename Evaluator1>
+  static EIGEN_DEVICE_FUNC Sums accumulate(Scalar* s, const Evaluator0& x0, const Evaluator1& x1, Index n,
+                                           std::false_type) {
+    return accumulate(s, x0, x1, Index(0), n);
   }
-  template <typename XprEvaluator>
-  static EIGEN_DEVICE_FUNC Real accumulate(Scalar* s, const XprEvaluator& x, Index n, std::true_type) {
-    if (n < PacketSize) return accumulate(s, x, Index(0), n);
-    RPacket acc = pzero(RPacket());
+  template <typename Evaluator0, typename Evaluator1>
+  static EIGEN_DEVICE_FUNC Sums accumulate(Scalar* s, const Evaluator0& x0, const Evaluator1& x1, Index n,
+                                           std::true_type) {
+    if (n < PacketSize) return accumulate(s, x0, x1, Index(0), n);
+    typename Lanes::Pass pass;
     Index i = 0;
-    for (; i + 2 * PacketSize <= n; i += 2 * PacketSize)
-      acc = padd(acc, Lanes::accumulate(load(x, i), load(x, i + PacketSize), s + i, s + i + PacketSize));
-    if (i + PacketSize <= n) {
-      acc = padd(acc, Lanes::accumulate(load(x, i), s + i));
-      i += PacketSize;
-    }
-    return predux(acc) + accumulate(s, x, i, n);
+    for (; i + PacketSize <= n; i += PacketSize) pass.step(load(x0, i), load(x1, i), s + i);
+    Sums tail = accumulate(s, x0, x1, i, n);
+    return Sums(pass.sum0() + tail.first, pass.sum1() + tail.second);
   }
 };
 
@@ -174,15 +177,18 @@ template <typename Scalar_, typename Enable = void>
 struct selfadjoint_l1norm_impl {
   using Scalar = Scalar_;
   using Real = typename NumTraits<Scalar>::Real;
+  using Sums = std::pair<Real, Real>;
   static constexpr Index PerColumnUpTo = 16;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Real abs(const Scalar& x) { return numext::abs(x); }
-  template <typename Derived>
-  static EIGEN_DEVICE_FUNC Real accumulate(Scalar* sums, const DenseBase<Derived>& x) {
-    Real r = Real(0);
-    for (Index i = 0; i < x.size(); ++i) {
-      Real a = numext::abs(x.coeff(i));
-      sums[i] += Scalar(a);
-      r += a;
+  template <typename Derived0, typename Derived1>
+  static EIGEN_DEVICE_FUNC Sums accumulate(Scalar* sums, const DenseBase<Derived0>& x0, const DenseBase<Derived1>& x1) {
+    Sums r(Real(0), Real(0));
+    for (Index i = 0; i < x0.size(); ++i) {
+      Real a = numext::abs(x0.coeff(i));
+      Real b = numext::abs(x1.coeff(i));
+      sums[i] += Scalar(a + b);
+      r.first += a;
+      r.second += b;
     }
     return r;
   }
@@ -404,24 +410,35 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
   using L1NormScalar = typename L1NormImpl::Scalar;
   using L1NormAccumulator = typename L1NormImpl::Real;
 
-  // Each column is read once, top to bottom: |a_ij| goes to column j's sum and, as the mirrored
-  // a_ji, to sums[i]. Lower walks the columns forward and Upper backward so that sums[j] is
-  // complete when column j is reached.
+  // Each column is read once, top to bottom, two at a time: |a_ij| goes to column j's sum and, as
+  // the mirrored a_ji, to sums[i]. Lower walks the columns forward and Upper backward so that
+  // sums[j] is complete when column j is reached. Of a pair (j0, j1) only j0's element in row j1
+  // lies outside the rows the two share.
   template <int Mode, typename Mat>
   static L1NormAccumulator l1NormStreaming(const Mat& m) {
     const Index n = m.rows();
     ei_declare_aligned_stack_constructed_variable(L1NormScalar, sums, n, 0);
     Map<Matrix<L1NormScalar, Dynamic, 1>>(sums, n).setZero();
     L1NormAccumulator norm = L1NormAccumulator(0);
-    for (Index k = 0; k < n; ++k) {
-      const Index j = Mode == Lower ? k : n - 1 - k;
-      L1NormAccumulator colsum = L1NormAccumulator(L1NormImpl::abs(m.coeff(j, j)));
+    Index k = 0;
+    for (; k + 1 < n; k += 2) {
+      const Index j0 = Mode == Lower ? k : n - 1 - k;
+      const Index j1 = Mode == Lower ? j0 + 1 : j0 - 1;
+      const L1NormAccumulator boundary = L1NormImpl::abs(m.coeff(j1, j0));
+      typename L1NormImpl::Sums shared;
       EIGEN_IF_CONSTEXPR (Mode == Lower) {
-        colsum += L1NormImpl::accumulate(sums + j + 1, m.col(j).tail(n - j - 1));
+        shared = L1NormImpl::accumulate(sums + j1 + 1, m.col(j0).tail(n - j1 - 1), m.col(j1).tail(n - j1 - 1));
       } else {
-        colsum += L1NormImpl::accumulate(sums, m.col(j).head(j));
+        shared = L1NormImpl::accumulate(sums, m.col(j0).head(j1), m.col(j1).head(j1));
       }
-      norm = numext::maxi(norm, colsum + numext::real(sums[j]));
+      const L1NormAccumulator col0 = L1NormImpl::abs(m.coeff(j0, j0)) + boundary + shared.first;
+      const L1NormAccumulator col1 = L1NormImpl::abs(m.coeff(j1, j1)) + shared.second;
+      norm = numext::maxi(norm, col0 + numext::real(sums[j0]));
+      norm = numext::maxi(norm, col1 + numext::real(sums[j1]) + boundary);
+    }
+    if (k < n) {
+      const Index j = Mode == Lower ? k : 0;
+      norm = numext::maxi(norm, L1NormImpl::abs(m.coeff(j, j)) + numext::real(sums[j]));
     }
     return norm;
   }
