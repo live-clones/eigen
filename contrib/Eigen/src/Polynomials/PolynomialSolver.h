@@ -322,8 +322,11 @@ class PolynomialSolver : public PolynomialSolverBase<Scalar_, Deg_> {
       m_eigenSolver.compute(companion.denseMatrix());
       eigen_assert(m_eigenSolver.info() == Eigen::Success);
       m_roots = m_eigenSolver.eigenvalues();
-      refineRoots(poly);
-      cleanUpRoots(poly);
+      // Uniform coefficient scaling must not overflow or underflow the refinement's Horner recurrences.
+      const RealScalar scale = numext::maxi(poly.real().cwiseAbs().maxCoeff(), poly.imag().cwiseAbs().maxCoeff());
+      const auto scaledPoly = (poly / scale).eval();
+      refineRoots(scaledPoly);
+      cleanUpRoots(scaledPoly);
     } else if (poly.size() == 2) {
       m_roots.resize(1);
       m_roots[0] = -poly[0] / poly[1];
@@ -363,7 +366,8 @@ class PolynomialSolver : public PolynomialSolverBase<Scalar_, Deg_> {
       value = value * z + RootType(poly[k]);
       mu = mu * absz + numext::abs(value);
     }
-    return numext::sqrt(RealScalar(2)) * NumTraits<RealScalar>::epsilon() * (RealScalar(2) * mu - numext::abs(value));
+    const RealScalar errorScale = numext::sqrt(RealScalar(2)) * NumTraits<RealScalar>::epsilon();
+    return (RealScalar(2) * errorScale) * mu - errorScale * numext::abs(value);
   }
 
   /** Refines the eigenvalue estimates in m_roots by Ehrlich-Aberth iterations (Ehrlich 1967; Aberth 1973),
@@ -420,8 +424,8 @@ class PolynomialSolver : public PolynomialSolverBase<Scalar_, Deg_> {
 
   /** Restores the structure the in-place iteration keeps only to within rounding. The roots of a real polynomial
    * are real or conjugate pairs: two iterates closer to each other's conjugate than to the real axis become exactly
-   * conjugate, and an iterate left without a partner, being nearer the real axis than any partner, becomes real.
-   * A root whose real part is itself a root to within rounding is reported as real. */
+   * conjugate, and an iterate left without a partner becomes real. Residual-based snapping of the remaining
+   * roots requires an imaginary part at most sqrt(eps) times the real part and a finite rounding bound. */
   template <typename OtherPolynomial>
   void cleanUpRoots(const OtherPolynomial& poly) {
     const Index n = m_roots.size();
@@ -456,8 +460,12 @@ class PolynomialSolver : public PolynomialSolverBase<Scalar_, Deg_> {
         m_roots[i] = realPart;
         continue;
       }
+      // A small residual at realPart can belong to a different root.
+      if (!(numext::abs(numext::imag(m_roots[i])) <=
+            numext::sqrt(NumTraits<RealScalar>::epsilon()) * numext::abs(realPart)))
+        continue;
       const RealScalar bound = evaluate(poly, realPart, value, derivative, true);
-      if (numext::abs(value) <= bound) m_roots[i] = realPart;
+      if ((numext::isfinite)(bound) && numext::abs(value) <= bound) m_roots[i] = realPart;
     }
   }
 
