@@ -1,0 +1,47 @@
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
+
+# AMD Ryzen 7 7800X3D (Zen 4, 3D V-Cache), Linux. Written from a hardware and
+# software description, not yet run: confirm cpu_model and cpu_list
+# (`lscpu --extended`) on first use and set the governor to "performance".
+
+id = "zen4-7800x3d"
+display_name = "AMD Ryzen 7 7800X3D (8C/16T, Zen 4), Ubuntu 26.04"
+cpu_model = "AMD Ryzen 7 7800X3D 8-Core Processor"
+max_load_avg = 0.5
+default_isa = "x86-64-avx512"
+
+notes = """
+Single CCD with 96 MiB of L3 (64 MiB 3D V-Cache stacked on 32 MiB), large
+enough to hold operands that fall out of cache on most other x86 parts; keep the
+large and non-power-of-two sizes in any comparison made here so the fall-off is
+visible. Zen 4 implements AVX-512 on 256-bit datapaths.
+"""
+
+[pinning]
+# One thread per physical core, assuming logical CPUs 0-7 are one thread of each
+# core and 8-15 their siblings; confirm with lscpu --extended.
+cpu_list = "0-7"
+
+[isa."x86-64"]
+flags = []
+
+[isa."x86-64-avx2"]
+flags = ["-mavx2", "-mfma"]
+
+[isa."x86-64-avx512"]
+flags = ["-mavx512dq", "-mfma"]
+
+[arms.openblas]
+cmake_options = ["-DEIGEN_BENCH_REFERENCE=openblas"]
+thread_env = { OPENBLAS_NUM_THREADS = "{threads}" }
+
+# oneMKL dispatches on the CPUID vendor string and takes a conservative path on
+# AMD parts; see the mkl_bypass row of vendors.cmake for the other arm.
+[arms.mkl]
+cmake_options = ["-DEIGEN_BENCH_REFERENCE=mkl"]
+thread_env = { MKL_NUM_THREADS = "{threads}", MKL_DYNAMIC = "FALSE" }
+
+[arms.netlib]
+cmake_options = ["-DEIGEN_BENCH_REFERENCE=netlib", "-DEIGEN_BENCH_REFERENCE_VERSION=Netlib LAPACK 3.12.1 (reference BLAS)"]
+thread_env = { }

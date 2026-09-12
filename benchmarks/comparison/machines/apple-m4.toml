@@ -1,0 +1,31 @@
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
+
+# Apple M4 (4 performance + 6 efficiency cores), MacBook Pro, macOS 26.
+
+id = "apple-m4"
+display_name = "Apple M4 (10-core, 4P+6E), MacBook Pro"
+cpu_model = "Apple M4"
+max_load_avg = 1.0
+default_isa = "aarch64-neon"
+
+notes = """
+Heterogeneous part: 4 P-cores (128 KiB L1d, 16 MiB shared L2) and 6 E-cores
+(64 KiB L1d, 4 MiB shared L2). macOS has no thread-to-core affinity API, so a
+run cannot be confined to the P-cores; a single-threaded number from here is
+"whatever core the scheduler chose". 24 GiB unified memory, 128-byte cache line.
+Eigen has an SME kernel for GEMM only; every other operation under the
+aarch64-sme target runs the NEON code and should agree with that target to
+within run-to-run noise.
+"""
+
+[isa."aarch64-neon"]
+flags = []
+
+[isa."aarch64-sme"]
+flags = ["-mcpu=apple-m4", "-DEIGEN_ARM64_USE_SME"]
+
+# Accelerate exposes no version query; the macOS build is the identifier.
+[arms.accelerate]
+cmake_options = ["-DEIGEN_BENCH_REFERENCE=accelerate", "-DEIGEN_BENCH_REFERENCE_VERSION=Apple Accelerate, macOS 26.6.2 (build 25G83)"]
+thread_env = { VECLIB_MAXIMUM_THREADS = "{threads}" }

@@ -1,0 +1,36 @@
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
+
+# Arm Cortex-X925 + Cortex-A725 (10 + 10 cores), Ubuntu 24.04.
+
+id = "cortex-x925-20c"
+display_name = "Arm Cortex-X925 + Cortex-A725 (10+10 cores), Ubuntu 24.04"
+cpu_model = "Cortex-X925"
+max_load_avg = 0.5
+default_isa = "aarch64-neon"
+
+notes = """
+big.LITTLE part: 10 Cortex-X925 performance cores and 10 Cortex-A725 efficiency
+cores, all single-threaded, sharing 24 MiB of L3 in three 8 MiB slices; lscpu
+reports two model names. The run is pinned to the X925 cluster, so a number
+from here is a performance-core number. SVE2 at a 128-bit vector length. NVPL
+is the reference that matches this hardware; OpenBLAS is carried alongside so a
+number can be compared with the x86 hosts.
+"""
+
+[pinning]
+cpu_list = "5-9,15-19"
+
+[isa."aarch64-neon"]
+flags = []
+
+[isa."aarch64-sve"]
+flags = ["-march=armv9-a+sve2", "-msve-vector-bits=128", "-DEIGEN_ARM64_USE_SVE"]
+
+[arms.nvpl]
+cmake_options = ["-DEIGEN_BENCH_REFERENCE=nvpl"]
+thread_env = { NVPL_BLAS_NUM_THREADS = "{threads}" }
+
+[arms.openblas]
+cmake_options = ["-DEIGEN_BENCH_REFERENCE=openblas"]
+thread_env = { OPENBLAS_NUM_THREADS = "{threads}" }

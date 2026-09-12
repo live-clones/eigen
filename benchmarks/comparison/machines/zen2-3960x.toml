@@ -1,0 +1,31 @@
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
+
+# AMD Ryzen Threadripper 3960X (Zen 2, Castle Peak), Ubuntu 24.04.
+
+id = "zen2-3960x"
+display_name = "AMD Ryzen Threadripper 3960X (24C/48T, Zen 2), Ubuntu 24.04"
+cpu_model = "AMD Ryzen Threadripper 3960X 24-Core Processor"
+max_load_avg = 0.5
+default_isa = "x86-64-avx2"
+
+notes = """
+Four CCDs of six cores, 16 MiB of L3 per CCX and 128 MiB per package: L3 is
+not shared across the part, so a shape that fits 128 MiB in aggregate does not
+fit any single core's 16 MiB, and the level-3 fall-off happens at a quarter of
+the size the package figure suggests. Governor set to "performance".
+"""
+
+[pinning]
+# lscpu -e: logical CPUs 0-23 are one thread of each core, 24-47 their siblings.
+cpu_list = "0-23"
+
+[isa."x86-64"]
+flags = []
+
+[isa."x86-64-avx2"]
+flags = ["-mavx2", "-mfma"]
+
+[arms.openblas]
+cmake_options = ["-DEIGEN_BENCH_REFERENCE=openblas"]
+thread_env = { OPENBLAS_NUM_THREADS = "{threads}" }

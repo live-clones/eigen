@@ -7,12 +7,9 @@
 #include <benchmark/benchmark.h>
 #include <Eigen/Core>
 
-using namespace Eigen;
+#include "../bench_common.h"
 
-template <typename Scalar>
-double dotFlops(Index n) {
-  return (NumTraits<Scalar>::IsComplex ? 8.0 : 2.0) * n;
-}
+using namespace Eigen;
 
 template <typename Scalar>
 static void BM_Dot(benchmark::State& state) {
@@ -24,8 +21,7 @@ static void BM_Dot(benchmark::State& state) {
     Scalar d = a.dot(b);
     benchmark::DoNotOptimize(d);
   }
-  state.counters["GFLOPS"] = benchmark::Counter(dotFlops<Scalar>(n), benchmark::Counter::kIsIterationInvariantRate,
-                                                benchmark::Counter::kIs1000);
+  eigen_bench::setFlopRate(state, eigen_bench::dotFlops<Scalar>(n));
 }
 
 template <typename Scalar>
@@ -37,8 +33,7 @@ static void BM_SquaredNorm(benchmark::State& state) {
     auto d = a.squaredNorm();
     benchmark::DoNotOptimize(d);
   }
-  state.counters["GFLOPS"] = benchmark::Counter(dotFlops<Scalar>(n), benchmark::Counter::kIsIterationInvariantRate,
-                                                benchmark::Counter::kIs1000);
+  eigen_bench::setFlopRate(state, eigen_bench::dotFlops<Scalar>(n));
 }
 
 // clang-format off
