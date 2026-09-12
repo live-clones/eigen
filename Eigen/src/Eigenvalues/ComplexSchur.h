@@ -25,6 +25,9 @@ template <typename MatrixType, bool IsComplex>
 struct complex_schur_reduce_to_hessenberg;
 }
 
+template <typename MatrixType_>
+class ComplexEigenSolver;
+
 /** \eigenvalues_module \ingroup Eigenvalues_Module
  *
  *
@@ -60,7 +63,7 @@ class ComplexSchur {
   enum {
     RowsAtCompileTime = MatrixType::RowsAtCompileTime,
     ColsAtCompileTime = MatrixType::ColsAtCompileTime,
-    Options = internal::traits<MatrixType>::Options,
+    Options = internal::plain_object_options<MatrixType>::value,
     MaxRowsAtCompileTime = MatrixType::MaxRowsAtCompileTime,
     MaxColsAtCompileTime = MatrixType::MaxColsAtCompileTime
   };
@@ -85,6 +88,12 @@ class ComplexSchur {
    */
   using ComplexMatrixType =
       Matrix<ComplexScalar, RowsAtCompileTime, ColsAtCompileTime, Options, MaxRowsAtCompileTime, MaxColsAtCompileTime>;
+
+  /** \brief Type of the matrix returned by matrixT().
+   *
+   * This is #ComplexMatrixType, or \p MatrixType_ itself when that is a Ref<>: the \link InplaceDecomposition
+   * inplace decomposition \endlink then stores T in the referenced matrix. */
+  using MatrixTType = std::conditional_t<internal::is_ref<MatrixType>::value, MatrixType, ComplexMatrixType>;
 
   /** \brief Default constructor.
    *
@@ -125,6 +134,27 @@ class ComplexSchur {
     compute(matrix.derived(), computeU);
   }
 
+  /** \brief Constructor for \link InplaceDecomposition inplace decomposition \endlink
+   *
+   * \param[in,out]  matrix    Square complex matrix whose Schur decomposition is to be computed.
+   * \param[in]      computeU  If true, both T and U are computed; if false, only T is computed.
+   *
+   * When \p MatrixType is a Ref<>, the decomposition is computed within the memory of \p matrix, which then holds
+   * the triangular matrix T returned by matrixT(); U is stored in the decomposition object. Otherwise this
+   * constructor behaves like ComplexSchur(const EigenBase<InputType>&, bool). It is only available for a complex
+   * \p MatrixType: a real matrix is reduced to Hessenberg form in real arithmetic, and T and U are complex.
+   */
+  template <typename InputType, bool IsComplex = NumTraits<Scalar>::IsComplex, std::enable_if_t<IsComplex, int> = 0>
+  explicit ComplexSchur(EigenBase<InputType>& matrix, bool computeU = true)
+      : m_matT(matrix.derived()),
+        m_matU(matrix.rows(), matrix.cols()),
+        m_hess(matrix.rows()),
+        m_isInitialized(false),
+        m_matUisUptodate(false),
+        m_maxIters(-1) {
+    computeInPlace(computeU);
+  }
+
   /** \brief Returns the unitary matrix in the Schur decomposition.
    *
    * \returns A const reference to the matrix U.
@@ -162,7 +192,7 @@ class ComplexSchur {
    * Example: \include ComplexSchur_matrixT.cpp
    * Output: \verbinclude ComplexSchur_matrixT.out
    */
-  const ComplexMatrixType& matrixT() const {
+  const MatrixTType& matrixT() const {
     eigen_assert(m_isInitialized && "ComplexSchur is not initialized.");
     return m_matT;
   }
@@ -242,14 +272,23 @@ class ComplexSchur {
   static const int m_maxIterationsPerRow = 30;
 
  protected:
-  ComplexMatrixType m_matT, m_matU;
-  HessenbergDecomposition<MatrixType> m_hess;
+  EIGEN_STATIC_ASSERT(NumTraits<Scalar>::IsComplex || !internal::is_ref<MatrixType>::value,
+                      INPLACE_COMPLEXSCHUR_REQUIRES_A_COMPLEX_MATRIX_TYPE)
+
+  MatrixTType m_matT;
+  ComplexMatrixType m_matU;
+  internal::complex_schur_reduce_to_hessenberg<MatrixType, NumTraits<Scalar>::IsComplex> m_hess;
   ComputationInfo m_info;
   bool m_isInitialized;
   bool m_matUisUptodate;
   Index m_maxIters;
 
  private:
+  // ComplexEigenSolver computes the eigenvectors of T within this storage.
+  friend class ComplexEigenSolver<MatrixType>;
+
+  ComplexSchur& computeInPlace(bool computeU);
+  static RealScalar hessenbergScale(const RealScalar& maxCoeff);
   bool subdiagonalEntryIsNeglegible(Index i);
   ComplexScalar computeShift(Index iu, Index iter);
   void reduceToTriangularForm(bool computeU);
@@ -324,27 +363,55 @@ ComplexSchur<MatrixType>& ComplexSchur<MatrixType>::compute(const EigenBase<Inpu
     return *this;
   }
 
-  // Reduce to Hessenberg form at unit scale, as RealSchur does: HessenbergDecomposition treats a subdiagonal tail
-  // whose squared norm underflows as already zero, so an unscaled matrix near the bottom of the exponent range loses
-  // its whole subdiagonal. The scale is the power of two just below the largest coefficient, floored at the smallest
-  // normal, so the divisor is never subnormal and every coefficient that stays representable divides and multiplies
-  // back exactly. A scale above one underflows coefficients more than the exponent range below the largest one, a
-  // perturbation bounded by the smallest subnormal relative to that largest coefficient. maxCoeff propagates NaN; a
-  // zero or non-finite maxCoeff carries no usable exponent and is left unscaled.
-  const RealScalar maxCoeff = matrix.derived().cwiseAbs().template maxCoeff<PropagateNaN>();
+  const RealScalar scale = hessenbergScale(matrix.derived().cwiseAbs().template maxCoeff<PropagateNaN>());
+  m_hess.run(*this, matrix.derived() / scale, computeU);
+  computeFromHessenberg(m_matT, m_matU, computeU);
+  // m_matU is unitary either way; only the triangular factor carries the scale.
+  m_matT *= scale;
+  return *this;
+}
+
+/** \internal Computes the Schur decomposition of the complex matrix held in m_matT, which is overwritten by T. */
+template <typename MatrixType>
+ComplexSchur<MatrixType>& ComplexSchur<MatrixType>::computeInPlace(bool computeU) {
+  m_matUisUptodate = false;
+  eigen_assert(m_matT.cols() == m_matT.rows());
+
+  if (m_matT.cols() == 1) {
+    if (computeU) m_matU = ComplexMatrixType::Identity(1, 1);
+    m_info = Success;
+    m_isInitialized = true;
+    m_matUisUptodate = computeU;
+    return *this;
+  }
+
+  const RealScalar scale = hessenbergScale(m_matT.cwiseAbs().template maxCoeff<PropagateNaN>());
+  m_matT /= scale;
+  m_hess.runInPlace(*this, computeU);
+  computeFromHessenberg(m_matT, m_matU, computeU);
+  m_matT *= scale;
+  return *this;
+}
+
+/** \internal Scale at which the matrix is reduced to Hessenberg form, given the magnitude of its largest coefficient.
+ *
+ * Reduce to Hessenberg form at unit scale, as RealSchur does: HessenbergDecomposition treats a subdiagonal tail
+ * whose squared norm underflows as already zero, so an unscaled matrix near the bottom of the exponent range loses
+ * its whole subdiagonal. The scale is the power of two just below the largest coefficient, floored at the smallest
+ * normal, so the divisor is never subnormal and every coefficient that stays representable divides and multiplies
+ * back exactly. A scale above one underflows coefficients more than the exponent range below the largest one, a
+ * perturbation bounded by the smallest subnormal relative to that largest coefficient. maxCoeff propagates NaN; a
+ * zero or non-finite maxCoeff carries no usable exponent and is left unscaled.
+ */
+template <typename MatrixType>
+typename ComplexSchur<MatrixType>::RealScalar ComplexSchur<MatrixType>::hessenbergScale(const RealScalar& maxCoeff) {
   RealScalar scale = RealScalar(1);
   if ((numext::isfinite)(maxCoeff) && !numext::is_exactly_zero(maxCoeff)) {
     RealScalar exponent;
     internal::pfrexp<RealScalar>(maxCoeff, exponent);
     scale = numext::maxi(numext::ldexp(RealScalar(1), int(exponent) - 1), (std::numeric_limits<RealScalar>::min)());
   }
-
-  internal::complex_schur_reduce_to_hessenberg<MatrixType, NumTraits<Scalar>::IsComplex>::run(
-      *this, matrix.derived() / scale, computeU);
-  computeFromHessenberg(m_matT, m_matU, computeU);
-  // m_matU is unitary either way; only the triangular factor carries the scale.
-  m_matT *= scale;
-  return *this;
+  return scale;
 }
 
 template <typename MatrixType>
@@ -352,40 +419,64 @@ template <typename HessMatrixType, typename OrthMatrixType>
 ComplexSchur<MatrixType>& ComplexSchur<MatrixType>::computeFromHessenberg(const HessMatrixType& matrixH,
                                                                           const OrthMatrixType& matrixQ,
                                                                           bool computeU) {
-  m_matT = matrixH;
-  if (computeU) m_matU = matrixQ;
+  if (!internal::is_same_dense(m_matT, matrixH)) m_matT = matrixH;
+  if (computeU && !internal::is_same_dense(m_matU, matrixQ)) m_matU = matrixQ;
   reduceToTriangularForm(computeU);
   return *this;
 }
 namespace internal {
 
-/* Reduce given matrix to Hessenberg form */
+/* Reduce given matrix to Hessenberg form, and hold the workspace this takes. */
 template <typename MatrixType, bool IsComplex>
 struct complex_schur_reduce_to_hessenberg {
-  // this is the implementation for the case IsComplex = true
-  template <typename InputType>
-  static void run(ComplexSchur<MatrixType>& _this, const InputType& matrix, bool computeU) {
-    _this.m_hess.compute(matrix);
-    _this.m_matT = _this.m_hess.matrixH();
-    if (computeU) _this.m_matU = _this.m_hess.matrixQ();
+  // this is the implementation for the case IsComplex = true: the reduction runs in place in m_matT.
+  using Schur = ComplexSchur<MatrixType>;
+  using Scalar = typename Schur::ComplexScalar;
+  using CoeffVectorType = Matrix<Scalar, Schur::RowsAtCompileTime == Dynamic ? Dynamic : Schur::RowsAtCompileTime - 1,
+                                 1, Schur::Options & ~RowMajor,
+                                 Schur::MaxRowsAtCompileTime == Dynamic ? Dynamic : Schur::MaxRowsAtCompileTime - 1, 1>;
+  using WorkspaceType =
+      Matrix<Scalar, Schur::ColsAtCompileTime, 1, Schur::Options & ~RowMajor, Schur::MaxColsAtCompileTime, 1>;
+
+  explicit complex_schur_reduce_to_hessenberg(Index size) : m_workspace(size) {
+    if (size > 1) m_hCoeffs.resize(size - 1);
   }
+
+  template <typename InputType>
+  void run(Schur& _this, const InputType& matrix, bool computeU) {
+    _this.m_matT = matrix;
+    runInPlace(_this, computeU);
+  }
+
+  void runInPlace(Schur& _this, bool computeU) {
+    hessenberg_decomposition_inplace(_this.m_matT, m_hCoeffs, m_workspace, _this.m_matU, computeU);
+  }
+
+  CoeffVectorType m_hCoeffs;
+  WorkspaceType m_workspace;
 };
 
 template <typename MatrixType>
 struct complex_schur_reduce_to_hessenberg<MatrixType, false> {
+  using Schur = ComplexSchur<MatrixType>;
+
+  explicit complex_schur_reduce_to_hessenberg(Index size) : m_hess(size) {}
+
   template <typename InputType>
-  static void run(ComplexSchur<MatrixType>& _this, const InputType& matrix, bool computeU) {
-    using ComplexScalar = typename ComplexSchur<MatrixType>::ComplexScalar;
+  void run(Schur& _this, const InputType& matrix, bool computeU) {
+    using ComplexScalar = typename Schur::ComplexScalar;
 
     // Note: m_hess is over RealScalar; m_matT and m_matU is over ComplexScalar
-    _this.m_hess.compute(matrix);
-    _this.m_matT = _this.m_hess.matrixH().template cast<ComplexScalar>();
+    m_hess.compute(matrix);
+    _this.m_matT = m_hess.matrixH().template cast<ComplexScalar>();
     if (computeU) {
       // TODO: this temporary allocation could potentially be avoided.
-      MatrixType Q = _this.m_hess.matrixQ();
+      MatrixType Q = m_hess.matrixQ();
       _this.m_matU = Q.template cast<ComplexScalar>();
     }
   }
+
+  HessenbergDecomposition<MatrixType> m_hess;
 };
 
 }  // end namespace internal
