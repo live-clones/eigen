@@ -63,12 +63,13 @@ struct selfadjoint_l1norm_real_lanes {
   struct Pass {
     RPacket acc0 = pzero(RPacket());
     RPacket acc1 = pzero(RPacket());
-    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void step(const RPacket& u, const RPacket& v, Scalar* s) {
+    template <typename SumsEvaluator>
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void step(const RPacket& u, const RPacket& v, SumsEvaluator& s, Index i) {
       RPacket a = pabs(u);
       RPacket b = pabs(v);
       acc0 = padd(acc0, a);
       acc1 = padd(acc1, b);
-      pstoreu(s, padd(ploadu<Packet>(s), padd(a, b)));
+      s.template writePacket<Unaligned>(i, padd(s.template packet<Unaligned, Packet>(i), padd(a, b)));
     }
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Real sum0() const { return predux(acc0); }
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Real sum1() const { return predux(acc1); }
@@ -98,10 +99,12 @@ struct selfadjoint_l1norm_complex_lanes {
 
   struct Pass {
     RPacket acc = pzero(RPacket());  // |u| in the even lanes, |v| in the odd ones
-    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void step(const RPacket& u, const RPacket& v, Scalar* s) {
+    template <typename SumsEvaluator>
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void step(const RPacket& u, const RPacket& v, SumsEvaluator& s, Index i) {
       RPacket r = psqrt(pselect(peven_mask(u), abs2(u), abs2(v)));  // |u0| |v0| |u1| |v1| ...
       acc = padd(acc, r);
-      pstoreu(s, Packet(padd(lanes(ploadu<Packet>(s)), padd(r, flip(r)))));
+      s.template writePacket<Unaligned>(i,
+                                        Packet(padd(lanes(s.template packet<Unaligned, Packet>(i)), padd(r, flip(r)))));
     }
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Real sum0() const { return numext::real(predux(Packet(acc))); }
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Real sum1() const { return numext::imag(predux(Packet(acc))); }
@@ -125,50 +128,56 @@ struct selfadjoint_l1norm_packet_impl : Lanes {
   using typename Lanes::Scalar;
   using Sums = std::pair<Real, Real>;
 
-  template <typename Derived0, typename Derived1>
-  static EIGEN_DEVICE_FUNC Sums accumulate(Scalar* sums, const DenseBase<Derived0>& x0, const DenseBase<Derived1>& x1) {
-    return accumulateCast(sums, x0.derived().template cast<Scalar>(), x1.derived().template cast<Scalar>());
+  // sums, a block of the accumulator, is a temporary: written through const_cast_derived().
+  template <typename SumsDerived, typename Derived0, typename Derived1>
+  static EIGEN_DEVICE_FUNC Sums accumulate(const DenseBase<SumsDerived>& sums, const DenseBase<Derived0>& x0,
+                                           const DenseBase<Derived1>& x1) {
+    return accumulateCast(sums.const_cast_derived(), x0.derived().template cast<Scalar>(),
+                          x1.derived().template cast<Scalar>());
   }
 
  private:
-  template <typename Derived0, typename Derived1>
-  static EIGEN_DEVICE_FUNC Sums accumulateCast(Scalar* sums, const DenseBase<Derived0>& x0,
+  template <typename SumsDerived, typename Derived0, typename Derived1>
+  static EIGEN_DEVICE_FUNC Sums accumulateCast(DenseBase<SumsDerived>& sums, const DenseBase<Derived0>& x0,
                                                const DenseBase<Derived1>& x1) {
+    using SumsEvaluator = evaluator<SumsDerived>;
     using Evaluator0 = evaluator<Derived0>;
     using Evaluator1 = evaluator<Derived1>;
     constexpr int Needed = PacketAccessBit | LinearAccessBit;
-    constexpr bool Vectorize = (Evaluator0::Flags & Needed) == Needed && (Evaluator1::Flags & Needed) == Needed;
-    return accumulate(sums, Evaluator0(x0.derived()), Evaluator1(x1.derived()), x0.size(), bool_constant<Vectorize>());
+    constexpr bool Vectorize = (SumsEvaluator::Flags & Needed) == Needed && (Evaluator0::Flags & Needed) == Needed &&
+                               (Evaluator1::Flags & Needed) == Needed;
+    SumsEvaluator s(sums.derived());
+    return accumulate(s, Evaluator0(x0.derived()), Evaluator1(x1.derived()), x0.size(), bool_constant<Vectorize>());
   }
   template <typename Evaluator>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket load(const Evaluator& x, Index i) {
     return Lanes::lanes(x.template packet<Unaligned, Packet>(i));
   }
-  template <typename Evaluator0, typename Evaluator1>
-  static EIGEN_DEVICE_FUNC Sums accumulate(Scalar* s, const Evaluator0& x0, const Evaluator1& x1, Index begin,
+  template <typename SumsEvaluator, typename Evaluator0, typename Evaluator1>
+  static EIGEN_DEVICE_FUNC Sums accumulate(SumsEvaluator& s, const Evaluator0& x0, const Evaluator1& x1, Index begin,
                                            Index end) {
     Sums r(Real(0), Real(0));
     for (Index i = begin; i < end; ++i) {
       Real a = Lanes::abs(x0.coeff(i));
       Real b = Lanes::abs(x1.coeff(i));
-      s[i] += a + b;
+      s.coeffRef(i) += a + b;
       r.first += a;
       r.second += b;
     }
     return r;
   }
-  template <typename Evaluator0, typename Evaluator1>
-  static EIGEN_DEVICE_FUNC Sums accumulate(Scalar* s, const Evaluator0& x0, const Evaluator1& x1, Index n,
+  template <typename SumsEvaluator, typename Evaluator0, typename Evaluator1>
+  static EIGEN_DEVICE_FUNC Sums accumulate(SumsEvaluator& s, const Evaluator0& x0, const Evaluator1& x1, Index n,
                                            std::false_type) {
     return accumulate(s, x0, x1, Index(0), n);
   }
-  template <typename Evaluator0, typename Evaluator1>
-  static EIGEN_DEVICE_FUNC Sums accumulate(Scalar* s, const Evaluator0& x0, const Evaluator1& x1, Index n,
+  template <typename SumsEvaluator, typename Evaluator0, typename Evaluator1>
+  static EIGEN_DEVICE_FUNC Sums accumulate(SumsEvaluator& s, const Evaluator0& x0, const Evaluator1& x1, Index n,
                                            std::true_type) {
     if (n < PacketSize) return accumulate(s, x0, x1, Index(0), n);
     typename Lanes::Pass pass;
     Index i = 0;
-    for (; i + PacketSize <= n; i += PacketSize) pass.step(load(x0, i), load(x1, i), s + i);
+    for (; i + PacketSize <= n; i += PacketSize) pass.step(load(x0, i), load(x1, i), s, i);
     Sums tail = accumulate(s, x0, x1, i, n);
     return Sums(pass.sum0() + tail.first, pass.sum1() + tail.second);
   }
@@ -182,13 +191,14 @@ struct selfadjoint_l1norm_impl {
   using Sums = std::pair<Real, Real>;
   static constexpr Index PerColumnUpTo = 16;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Real abs(const Scalar& x) { return numext::abs(x); }
-  template <typename Derived0, typename Derived1>
-  static EIGEN_DEVICE_FUNC Sums accumulate(Scalar* sums, const DenseBase<Derived0>& x0, const DenseBase<Derived1>& x1) {
+  template <typename SumsDerived, typename Derived0, typename Derived1>
+  static EIGEN_DEVICE_FUNC Sums accumulate(const DenseBase<SumsDerived>& sums, const DenseBase<Derived0>& x0,
+                                           const DenseBase<Derived1>& x1) {
     Sums r(Real(0), Real(0));
     for (Index i = 0; i < x0.size(); ++i) {
       Real a = numext::abs(x0.coeff(i));
       Real b = numext::abs(x1.coeff(i));
-      sums[i] += Scalar(a + b);
+      sums.const_cast_derived().coeffRef(i) += Scalar(a + b);
       r.first += a;
       r.second += b;
     }
@@ -429,9 +439,9 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
       const L1NormAccumulator boundary = L1NormImpl::abs(m.coeff(j1, j0));
       typename L1NormImpl::Sums shared;
       EIGEN_IF_CONSTEXPR (Mode == Lower) {
-        shared = L1NormImpl::accumulate(sums.data() + j1 + 1, m.col(j0).tail(n - j1 - 1), m.col(j1).tail(n - j1 - 1));
+        shared = L1NormImpl::accumulate(sums.tail(n - j1 - 1), m.col(j0).tail(n - j1 - 1), m.col(j1).tail(n - j1 - 1));
       } else {
-        shared = L1NormImpl::accumulate(sums.data(), m.col(j0).head(j1), m.col(j1).head(j1));
+        shared = L1NormImpl::accumulate(sums.head(j1), m.col(j0).head(j1), m.col(j1).head(j1));
       }
       // Totals are materialized so that maxi compares two accumulators (an integer sum promotes,
       // an autodiff sum is an expression).
