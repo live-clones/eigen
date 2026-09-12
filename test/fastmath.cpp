@@ -308,13 +308,13 @@ void check_complex_householder_qr() {
 template <typename RealScalar>
 void check_complex_selfadjoint_l1norm() {
   typedef std::complex<RealScalar> Scalar;
-  const RealScalar big = numext::sqrt(NumTraits<RealScalar>::highest()) * RealScalar(1e3);
+  RealScalar big = numext::sqrt(NumTraits<RealScalar>::highest()) * RealScalar(1e3);
   Matrix<Scalar, 8, 8> m = Matrix<Scalar, 8, 8>::Identity() * big;
   VERIFY_IS_APPROX(m.template selfadjointView<Lower>().l1Norm(), big);
   VERIFY_IS_APPROX(m.template selfadjointView<Upper>().l1Norm(), big);
   m.setIdentity();
   m(2, 0) = m(0, 2) = Scalar(big, big);
-  const RealScalar expected = numext::abs(Scalar(big, big)) + RealScalar(1);
+  RealScalar expected = numext::abs(Scalar(big, big)) + RealScalar(1);
   VERIFY_IS_APPROX(m.template selfadjointView<Lower>().l1Norm(), expected);
   VERIFY_IS_APPROX(m.template selfadjointView<Upper>().l1Norm(), expected);
 }

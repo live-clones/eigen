@@ -100,8 +100,8 @@ struct selfadjoint_l1norm_complex_lanes {
   // Components this large overflow when squared, and below the lower bound the squares lose
   // precision the sum of n of them cannot hide.
   static EIGEN_DEVICE_FUNC bool inRange(Real peak, Index n) {
-    const Real tiny = Real(n) * numext::sqrt((std::numeric_limits<Real>::min)()) / NumTraits<Real>::epsilon();
-    const Real huge = numext::sqrt(NumTraits<Real>::highest()) / Real(2);
+    Real tiny = Real(n) * numext::sqrt((std::numeric_limits<Real>::min)()) / NumTraits<Real>::epsilon();
+    Real huge = numext::sqrt(NumTraits<Real>::highest()) / Real(2);
     return peak > tiny && peak < huge;
   }
 
@@ -470,23 +470,23 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
     L1NormAccumulator norm = L1NormAccumulator(0);
     Index k = 0;
     for (; k + 1 < n; k += 2) {
-      const Index j0 = Mode == Lower ? k : n - 1 - k;
-      const Index j1 = Mode == Lower ? j0 + 1 : j0 - 1;
-      const Index rowBegin = Mode == Lower ? j1 + 1 : 0;
-      const Index rowEnd = Mode == Lower ? n : j1;
+      Index j0 = Mode == Lower ? k : n - 1 - k;
+      Index j1 = Mode == Lower ? j0 + 1 : j0 - 1;
+      Index rowBegin = Mode == Lower ? j1 + 1 : 0;
+      Index rowEnd = Mode == Lower ? n : j1;
       impl.accumulate(sums, m, j0, j1, rowBegin, rowEnd);
       // The element of j0 in row j1 lies outside the shared rows: it counts for both columns.
-      const L1NormAccumulator boundary = impl.abs(m.coeff(j1, j0));
+      L1NormAccumulator boundary = impl.abs(m.coeff(j1, j0));
       // Totals are materialized so that maxi compares two accumulators (an integer sum promotes,
       // an autodiff sum is an expression).
-      const L1NormAccumulator col0 = numext::real(sums.coeff(j0)) + impl.abs(m.coeff(j0, j0)) + boundary;
-      const L1NormAccumulator col1 = numext::real(sums.coeff(j1)) + impl.abs(m.coeff(j1, j1)) + boundary;
+      L1NormAccumulator col0 = numext::real(sums.coeff(j0)) + impl.abs(m.coeff(j0, j0)) + boundary;
+      L1NormAccumulator col1 = numext::real(sums.coeff(j1)) + impl.abs(m.coeff(j1, j1)) + boundary;
       norm = numext::maxi(norm, col0);
       norm = numext::maxi(norm, col1);
     }
     if (k < n) {
-      const Index j = Mode == Lower ? k : 0;
-      const L1NormAccumulator col = numext::real(sums.coeff(j)) + impl.abs(m.coeff(j, j));
+      Index j = Mode == Lower ? k : 0;
+      L1NormAccumulator col = numext::real(sums.coeff(j)) + impl.abs(m.coeff(j, j));
       norm = numext::maxi(norm, col);
     }
     return impl.inRange(n) ? RealScalar(norm) : l1NormPerColumn();

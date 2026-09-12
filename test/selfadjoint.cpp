@@ -99,10 +99,10 @@ template <typename Scalar>
 void selfadjoint_l1norm_range() {
   typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
   typedef typename NumTraits<Scalar>::Real RealScalar;
-  const Index n = 70;
+  Index n = 70;
   MatrixType m = MatrixType::Random(n, n);
-  const RealScalar big = numext::sqrt(NumTraits<RealScalar>::highest()) * RealScalar(1e3);
-  const RealScalar small = numext::sqrt((std::numeric_limits<RealScalar>::min)()) * RealScalar(1e-3);
+  RealScalar big = numext::sqrt(NumTraits<RealScalar>::highest()) * RealScalar(1e3);
+  RealScalar small = numext::sqrt((std::numeric_limits<RealScalar>::min)()) * RealScalar(1e-3);
   for (RealScalar scale : {big, small}) {
     MatrixType ms = m * scale;
     MatrixType full = ms.template selfadjointView<Lower>();

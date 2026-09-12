@@ -710,7 +710,7 @@ void cholesky_determinant(Index size) {
 
   const RealScalar absdet = d.prod();
   const RealScalar logabsdet = d.array().log().sum();
-  const MatrixType spd = q * d.template cast<Scalar>().asDiagonal() * q.adjoint();
+  MatrixType spd = q * d.template cast<Scalar>().asDiagonal() * q.adjoint();
 
   LLT<MatrixType, Lower> lltlo(spd);
   VERIFY(lltlo.info() == Success);
@@ -917,9 +917,9 @@ void cholesky_rowmajor_boundary() {
 template <typename Scalar>
 void cholesky_dynamic_preallocated_no_malloc() {
   typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
-  const Index size = 8;
+  Index size = 8;
   MatrixType A = MatrixType::Random(size, size);
-  const MatrixType spd = A * A.adjoint() + MatrixType::Identity(size, size) * Scalar(size);
+  MatrixType spd = A * A.adjoint() + MatrixType::Identity(size, size) * Scalar(size);
   LLT<MatrixType> llt(size);
   LDLT<MatrixType> ldlt(size);
   internal::set_is_malloc_allowed(false);
