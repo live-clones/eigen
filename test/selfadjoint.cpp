@@ -126,6 +126,21 @@ void selfadjoint_l1norm_lowprec() {
   }
 }
 
+// Narrow integers promote when added: the column totals must be materialized in the scalar type
+// before they are compared (n=2 takes the per-column form, n=8 the column pass).
+template <typename Scalar>
+void selfadjoint_l1norm_integer() {
+  for (Index n : {Index(2), Index(8)}) {
+    typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
+    // Random() spans the whole range; keep the column sums representable.
+    MatrixType m = (MatrixType::Random(n, n) / Scalar(NumTraits<Scalar>::highest() / 16)).eval();
+    m = m.template selfadjointView<Lower>();
+    Scalar ref = m.template cast<int>().cwiseAbs().colwise().sum().maxCoeff();
+    VERIFY_IS_EQUAL(m.template selfadjointView<Lower>().l1Norm(), ref);
+    VERIFY_IS_EQUAL(m.template selfadjointView<Upper>().l1Norm(), ref);
+  }
+}
+
 void bug_159() {
   Matrix3d m = Matrix3d::Random().selfadjointView<Lower>();
   EIGEN_UNUSED_VARIABLE(m);
@@ -151,6 +166,8 @@ EIGEN_DECLARE_TEST(selfadjoint) {
   CALL_SUBTEST_6(selfadjoint_l1norm_sizes<std::complex<float> >());
   CALL_SUBTEST_4(selfadjoint_l1norm_range<std::complex<double> >());
   CALL_SUBTEST_6(selfadjoint_l1norm_range<std::complex<float> >());
+  CALL_SUBTEST_1(selfadjoint_l1norm_integer<short>());
+  CALL_SUBTEST_1(selfadjoint_l1norm_integer<int>());
   CALL_SUBTEST_7(selfadjoint_l1norm_lowprec<half>());
   CALL_SUBTEST_7(selfadjoint_l1norm_lowprec<bfloat16>());
 }

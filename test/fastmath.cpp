@@ -301,12 +301,24 @@ void check_complex_householder_qr() {
   VERIFY_IS_APPROX(mat, q * r);
 }
 
+// The complex self-adjoint 1-norm takes sqrt(re^2 + im^2) in packets and falls back to the scalar
+// abs when that overflows; the overflow test must not be folded away by -ffinite-math-only.
+template <typename RealScalar>
+void check_complex_selfadjoint_l1norm() {
+  typedef std::complex<RealScalar> Scalar;
+  const RealScalar big = numext::sqrt(NumTraits<RealScalar>::highest()) * RealScalar(1e3);
+  Matrix<Scalar, 8, 8> m = Matrix<Scalar, 8, 8>::Identity() * big;
+  VERIFY_IS_APPROX(m.template selfadjointView<Lower>().l1Norm(), big);
+  VERIFY_IS_APPROX(m.template selfadjointView<Upper>().l1Norm(), big);
+}
+
 template <typename RealScalar>
 void check_complex_fastmath() {
   check_complex_rowmajor_adjoint_product<RealScalar>();
   check_complex_packet_arithmetic<RealScalar>();
   check_complex_packet_math_functions<RealScalar>();
   check_complex_householder_qr<RealScalar>();
+  check_complex_selfadjoint_l1norm<RealScalar>();
 }
 
 // The packet implementations of these functions manipulate signs of non-zero values through a

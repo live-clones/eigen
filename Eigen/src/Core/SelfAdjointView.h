@@ -87,11 +87,13 @@ struct selfadjoint_l1norm_complex_lanes {
   // Same formula as the packets, for the diagonal and the tails: hypot costs more than the packets
   // spend on the rest of a short column.
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Real abs(const Scalar& z) { return numext::sqrt(numext::abs2(z)); }
-  // Squaring overflows above sqrt(max) and loses precision below sqrt(min): an infinite or tiny
-  // result is recomputed with numext::abs.
+  // Squaring overflows above sqrt(max) and loses precision below sqrt(min): an overflowed or tiny
+  // result is recomputed with numext::abs. The overflow test compares against a finite bound
+  // rather than asking isfinite, which -ffinite-math-only folds to true.
   static EIGEN_DEVICE_FUNC bool isReliable(Real norm, Index n) {
     const Real tiny = Real(n) * numext::sqrt((std::numeric_limits<Real>::min)()) / NumTraits<Real>::epsilon();
-    return norm > tiny && (numext::isfinite)(norm);
+    const Real huge = NumTraits<Real>::highest() / Real(2);
+    return norm > tiny && norm < huge;
   }
 
   struct Pass {
@@ -417,7 +419,10 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
   template <int Mode, typename Mat>
   static L1NormAccumulator l1NormStreaming(const Mat& m) {
     const Index n = m.rows();
-    ei_declare_aligned_stack_constructed_variable(L1NormScalar, sums, n, 0);
+    // Bounded sizes keep the accumulator in the object, so fixed-size Cholesky stays allocation-free.
+    internal::gemv_static_vector_if<L1NormScalar, Mat::RowsAtCompileTime, Mat::MaxRowsAtCompileTime, true>
+        static_sums;
+    ei_declare_aligned_stack_constructed_variable(L1NormScalar, sums, n, static_sums.data());
     Map<Matrix<L1NormScalar, Dynamic, 1>>(sums, n).setZero();
     L1NormAccumulator norm = L1NormAccumulator(0);
     Index k = 0;
@@ -431,14 +436,19 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
       } else {
         shared = L1NormImpl::accumulate(sums, m.col(j0).head(j1), m.col(j1).head(j1));
       }
-      const L1NormAccumulator col0 = L1NormImpl::abs(m.coeff(j0, j0)) + boundary + shared.first;
-      const L1NormAccumulator col1 = L1NormImpl::abs(m.coeff(j1, j1)) + shared.second;
-      norm = numext::maxi(norm, col0 + numext::real(sums[j0]));
-      norm = numext::maxi(norm, col1 + numext::real(sums[j1]) + boundary);
+      // Totals are materialized so that maxi compares two accumulators (an integer sum promotes,
+      // an autodiff sum is an expression).
+      const L1NormAccumulator col0 =
+          L1NormImpl::abs(m.coeff(j0, j0)) + boundary + shared.first + numext::real(sums[j0]);
+      const L1NormAccumulator col1 =
+          L1NormImpl::abs(m.coeff(j1, j1)) + boundary + shared.second + numext::real(sums[j1]);
+      norm = numext::maxi(norm, col0);
+      norm = numext::maxi(norm, col1);
     }
     if (k < n) {
       const Index j = Mode == Lower ? k : 0;
-      norm = numext::maxi(norm, L1NormImpl::abs(m.coeff(j, j)) + numext::real(sums[j]));
+      const L1NormAccumulator col = L1NormImpl::abs(m.coeff(j, j)) + numext::real(sums[j]);
+      norm = numext::maxi(norm, col);
     }
     return norm;
   }
