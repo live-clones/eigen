@@ -1,8 +1,16 @@
 # SPDX-FileCopyrightText: The Eigen Authors
 # SPDX-License-Identifier: MPL-2.0
 
-eigen_add_benchmark(bench_gemm bench_gemm.cpp)
-eigen_add_benchmark(bench_gemm_double bench_gemm.cpp DEFINITIONS SCALAR=double)
+if(BLAS_FOUND)
+  # HAVE_BLAS adds BM_BlasGemm, the reference sgemm_/dgemm_ on the same grid.
+  eigen_add_benchmark(bench_gemm bench_gemm.cpp
+      LIBRARIES ${BLAS_LIBRARIES} DEFINITIONS HAVE_BLAS)
+  eigen_add_benchmark(bench_gemm_double bench_gemm.cpp
+      LIBRARIES ${BLAS_LIBRARIES} DEFINITIONS HAVE_BLAS SCALAR=double)
+else()
+  eigen_add_benchmark(bench_gemm bench_gemm.cpp)
+  eigen_add_benchmark(bench_gemm_double bench_gemm.cpp DEFINITIONS SCALAR=double)
+endif()
 eigen_add_benchmark(bench_gemm_complex bench_gemm.cpp
     DEFINITIONS "SCALAR=std::complex<float>" EIGEN_BENCH_COMPLEX_SCALAR)
 eigen_add_benchmark(bench_gemm_complex_double bench_gemm.cpp

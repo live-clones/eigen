@@ -151,28 +151,6 @@ static void BM_ImagePatch_Batched(benchmark::State& state) {
   state.SetBytesProcessed(state.iterations() * bytes);
 }
 
-// --- ImageNet-style configurations (realistic CNN layer sizes) ---
-static void BM_ImagePatch_ImageNet(benchmark::State& state) {
-  const int C = state.range(0);
-  const int H = state.range(1);
-  const int kH = state.range(2);
-  const int stride = state.range(3);
-
-  Tensor<Scalar, 4> input(C, H, H, 1);
-  input.setRandom();
-  const int outH = (H + stride - 1) / stride;
-  Tensor<Scalar, 5> result(C, kH, kH, outH * outH, 1);
-
-  for (auto _ : state) {
-    result = input.extract_image_patches(kH, kH, stride, stride, 1, 1, PADDING_SAME);
-    benchmark::DoNotOptimize(result.data());
-    benchmark::ClobberMemory();
-  }
-
-  const double bytes = static_cast<double>(C) * outH * outH * kH * kH * sizeof(Scalar);
-  state.SetBytesProcessed(state.iterations() * bytes);
-}
-
 // --- ThreadPool variant ---
 static void BM_ImagePatch_ThreadPool(benchmark::State& state) {
   const int C = state.range(0);
@@ -243,5 +221,5 @@ BENCHMARK(BM_ImagePatch_Strided) STRIDED_SIZES;
 BENCHMARK(BM_ImagePatch_Dilated) DILATED_SIZES;
 BENCHMARK(BM_ImagePatch_ExplicitPadding) EXPLICIT_PADDING_SIZES;
 BENCHMARK(BM_ImagePatch_Batched) BATCHED_SIZES;
-BENCHMARK(BM_ImagePatch_ImageNet) IMAGENET_SIZES;
+BENCHMARK(BM_ImagePatch_Strided) IMAGENET_SIZES->Name("BM_ImagePatch_ImageNet");
 BENCHMARK(BM_ImagePatch_ThreadPool) THREAD_POOL_SIZES;
