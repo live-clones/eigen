@@ -105,9 +105,29 @@ void evalSolverSugarFunction(const POLYNOMIAL& pols, const ROOTS& roots, const R
     //  1) the roots found are correct
     //  2) the roots have distinct moduli
 
-    // Test realRoots
-    const RealScalar psPrec = sqrt(test_precision<RealScalar>());
+    // Root condition: a coefficient perturbation of size delta moves a simple root r_j of monic p by at most
+    // delta * sum_k |r_j|^k / |p'(r_j)|, p'(r_j) = prod_{k != j} (r_j - r_k). The companion-matrix eigenvalues
+    // have absolute backward error ~eps * max_k |a_k|; sampled roots stay below 10x that bound, hence 32x.
+    const RealScalar coefficientError = RealScalar(32) * NumTraits<RealScalar>::epsilon() * pols.cwiseAbs().maxCoeff();
+    Matrix<RealScalar, Dynamic, 1> tolerance(real_roots.size());
+    for (Index j = 0; j < real_roots.size(); ++j) {
+      const RealScalar root = real_roots[j];
+      RealScalar powerSum = RealScalar(0), power = RealScalar(1), derivative = RealScalar(1);
+      for (Index k = 0; k < pols.size(); ++k) {
+        powerSum += power;
+        power *= numext::abs(root);
+      }
+      for (Index k = 0; k < real_roots.size(); ++k) {
+        if (k != j) derivative *= numext::abs(root - real_roots[k]);
+      }
+      tolerance[j] = coefficientError * powerSum / derivative;
+    }
+    // Every computed root lies within rootTolerance of a true real root, which bounds both the imaginary parts
+    // and the error of the extremal-root queries.
+    const RealScalar rootTolerance = tolerance.maxCoeff();
+    const RealScalar psPrec = numext::maxi(sqrt(test_precision<RealScalar>()), rootTolerance);
 
+    // Test realRoots
     std::vector<RealScalar> calc_realRoots;
     psolve.realRoots(calc_realRoots, psPrec);
     VERIFY_IS_EQUAL(calc_realRoots.size(), (size_t)real_roots.size());
@@ -115,7 +135,7 @@ void evalSolverSugarFunction(const POLYNOMIAL& pols, const ROOTS& roots, const R
     for (size_t i = 0; i < calc_realRoots.size(); ++i) {
       bool found = false;
       for (Index j = 0; j < real_roots.size() && !found; ++j) {
-        if (internal::isApprox(calc_realRoots[i], real_roots[j], psPrec)) {
+        if (numext::abs(calc_realRoots[i] - real_roots[j]) <= tolerance[j]) {
           found = true;
         }
       }
@@ -123,38 +143,38 @@ void evalSolverSugarFunction(const POLYNOMIAL& pols, const ROOTS& roots, const R
     }
 
     // Test greatestRoot
-    VERIFY(internal::isApprox(roots.array().abs().maxCoeff(), abs(psolve.greatestRoot()), psPrec));
+    VERIFY(numext::abs(roots.array().abs().maxCoeff() - abs(psolve.greatestRoot())) <= rootTolerance);
 
     // Test smallestRoot
-    VERIFY(internal::isApprox(roots.array().abs().minCoeff(), abs(psolve.smallestRoot()), psPrec));
+    VERIFY(numext::abs(roots.array().abs().minCoeff() - abs(psolve.smallestRoot())) <= rootTolerance);
 
     bool hasRealRoot;
     // Test absGreatestRealRoot
     RealScalar r = psolve.absGreatestRealRoot(hasRealRoot, psPrec);
     VERIFY(hasRealRoot == (real_roots.size() > 0));
     if (hasRealRoot) {
-      VERIFY(internal::isApprox(real_roots.array().abs().maxCoeff(), abs(r), psPrec));
+      VERIFY(numext::abs(real_roots.array().abs().maxCoeff() - abs(r)) <= rootTolerance);
     }
 
     // Test absSmallestRealRoot
     r = psolve.absSmallestRealRoot(hasRealRoot, psPrec);
     VERIFY(hasRealRoot == (real_roots.size() > 0));
     if (hasRealRoot) {
-      VERIFY(internal::isApprox(real_roots.array().abs().minCoeff(), abs(r), psPrec));
+      VERIFY(numext::abs(real_roots.array().abs().minCoeff() - abs(r)) <= rootTolerance);
     }
 
     // Test greatestRealRoot
     r = psolve.greatestRealRoot(hasRealRoot, psPrec);
     VERIFY(hasRealRoot == (real_roots.size() > 0));
     if (hasRealRoot) {
-      VERIFY(internal::isApprox(real_roots.array().maxCoeff(), r, psPrec));
+      VERIFY(numext::abs(real_roots.array().maxCoeff() - r) <= rootTolerance);
     }
 
     // Test smallestRealRoot
     r = psolve.smallestRealRoot(hasRealRoot, psPrec);
     VERIFY(hasRealRoot == (real_roots.size() > 0));
     if (hasRealRoot) {
-      VERIFY(internal::isApprox(real_roots.array().minCoeff(), r, psPrec));
+      VERIFY(numext::abs(real_roots.array().minCoeff() - r) <= rootTolerance);
     }
   }
 }
