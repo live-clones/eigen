@@ -195,7 +195,7 @@ struct safe_scaling_operations {
   template <typename MatrixType>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void unscale_in_place_impl(MatrixType& matrix, const Scalar&,
                                                                           const Factors& factors, false_type) {
-    if (factors.scale != Scalar(1)) matrix *= factors.scale;
+    unscale_in_place(matrix, factors);
   }
 
   // Below the recovery threshold, unscaling rounds coefficients that are significant relative to maxCoeff into the
