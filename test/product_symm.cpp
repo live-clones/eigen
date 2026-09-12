@@ -274,27 +274,6 @@ void symm_pack_buffers() {
   }
 }
 
-// A physically RowMajor selfadjoint operand. The symm<> tests above always
-// build ColMajor operands, so without this the RowMajor symm_pack_lhs/rhs
-// instantiations are never reached through the public API.
-template <typename Scalar>
-void symm_rowmajor_operand(Index n, Index m) {
-  using RowMat = Matrix<Scalar, Dynamic, Dynamic, RowMajor>;
-  using ColMat = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
-  RowMat s = RowMat::Random(n, n);
-  s = (s + s.adjoint()).eval();
-  RowMat lo = s.template triangularView<Lower>();
-  RowMat up = s.template triangularView<Upper>();
-  ColMat b = ColMat::Random(n, m), c = ColMat::Random(m, n);
-
-  ColMat ref = ColMat(s) * b;
-  VERIFY_IS_APPROX(ColMat(lo.template selfadjointView<Lower>() * b), ref);
-  VERIFY_IS_APPROX(ColMat(up.template selfadjointView<Upper>() * b), ref);
-  ColMat ref2 = c * ColMat(s);
-  VERIFY_IS_APPROX(ColMat(c * lo.template selfadjointView<Lower>()), ref2);
-  VERIFY_IS_APPROX(ColMat(c * up.template selfadjointView<Upper>()), ref2);
-}
-
 template <int>
 void symm_packers_and_rowmajor_operands() {
   symm_pack_buffers<float>();
@@ -305,9 +284,9 @@ void symm_packers_and_rowmajor_operands() {
   const Index sizes[] = {1, 2, 7, 8, 9, 24, 25, 31, 32, 33, 47, 48, 49, 65};
   for (Index n : sizes) {
     for (Index m : {1, 3, 17}) {
-      symm_rowmajor_operand<float>(n, m);
-      symm_rowmajor_operand<double>(n, m);
-      symm_rowmajor_operand<std::complex<float> >(n, m);
+      symm_rowmajor_selfadjoint<float>(n, m);
+      symm_rowmajor_selfadjoint<double>(n, m);
+      symm_rowmajor_selfadjoint<std::complex<float> >(n, m);
     }
   }
 }
