@@ -188,6 +188,22 @@ accumulate it independently instead), and a comparison that admits non-finite va
 two infinities, and `if (error > bound)` never fires for a NaN error — assert the negation and reject a non-finite
 tolerance).
 
+When a numerical check fails for some seeds, find out whether the computation or the check is at fault before changing
+the tolerance. Measure the results against a reference computed in higher precision (quad or MPFR), as backward error
+and as forward error over the first-order condition bound, across enough seeds to see the tail:
+
+- A result worse than its conditioning allows is an accuracy defect. Fix the algorithm; a wider tolerance would hide
+  it.
+- A result within that accuracy that still fails means the check asks for more than the working precision can
+  deliver. Derive the tolerance from the conditioning rather than a flat factor.
+- Solving the same inputs in the next wider type proves neither: it resolves what the working precision cannot, such
+  as a tight cluster of roots that the narrower type only locates to within a wider set.
+
+Both can hold at once. The `polynomialsolver` flake had companion eigenvalues with backward errors of 1.8e4 eps, yet
+its flat 3.16% check kept failing at the same rate once every root was below one eps. Land such a computation fix and
+test fix as independent merge requests, and state in the first, with seed sweeps against the parent, whether it
+removes the failure.
+
 Run reproducible failures directly with a fixed seed and repeat count:
 
 ```bash
