@@ -419,10 +419,8 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
   template <int Mode, typename Mat>
   static L1NormAccumulator l1NormStreaming(const Mat& m) {
     const Index n = m.rows();
-    // Bounded sizes keep the accumulator in the object, so fixed-size Cholesky stays allocation-free.
-    internal::gemv_static_vector_if<L1NormScalar, Mat::RowsAtCompileTime, Mat::MaxRowsAtCompileTime, true> static_sums;
-    ei_declare_aligned_stack_constructed_variable(L1NormScalar, sums, n, static_sums.data());
-    Map<Matrix<L1NormScalar, Dynamic, 1>>(sums, n).setZero();
+    using Sums = Matrix<L1NormScalar, Mat::RowsAtCompileTime, 1, 0, Mat::MaxRowsAtCompileTime, 1>;
+    Sums sums = Sums::Zero(n);
     L1NormAccumulator norm = L1NormAccumulator(0);
     Index k = 0;
     for (; k + 1 < n; k += 2) {
@@ -431,22 +429,22 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
       const L1NormAccumulator boundary = L1NormImpl::abs(m.coeff(j1, j0));
       typename L1NormImpl::Sums shared;
       EIGEN_IF_CONSTEXPR (Mode == Lower) {
-        shared = L1NormImpl::accumulate(sums + j1 + 1, m.col(j0).tail(n - j1 - 1), m.col(j1).tail(n - j1 - 1));
+        shared = L1NormImpl::accumulate(sums.data() + j1 + 1, m.col(j0).tail(n - j1 - 1), m.col(j1).tail(n - j1 - 1));
       } else {
-        shared = L1NormImpl::accumulate(sums, m.col(j0).head(j1), m.col(j1).head(j1));
+        shared = L1NormImpl::accumulate(sums.data(), m.col(j0).head(j1), m.col(j1).head(j1));
       }
       // Totals are materialized so that maxi compares two accumulators (an integer sum promotes,
       // an autodiff sum is an expression).
       const L1NormAccumulator col0 =
-          L1NormImpl::abs(m.coeff(j0, j0)) + boundary + shared.first + numext::real(sums[j0]);
+          L1NormImpl::abs(m.coeff(j0, j0)) + boundary + shared.first + numext::real(sums.coeff(j0));
       const L1NormAccumulator col1 =
-          L1NormImpl::abs(m.coeff(j1, j1)) + boundary + shared.second + numext::real(sums[j1]);
+          L1NormImpl::abs(m.coeff(j1, j1)) + boundary + shared.second + numext::real(sums.coeff(j1));
       norm = numext::maxi(norm, col0);
       norm = numext::maxi(norm, col1);
     }
     if (k < n) {
       const Index j = Mode == Lower ? k : 0;
-      const L1NormAccumulator col = L1NormImpl::abs(m.coeff(j, j)) + numext::real(sums[j]);
+      const L1NormAccumulator col = L1NormImpl::abs(m.coeff(j, j)) + numext::real(sums.coeff(j));
       norm = numext::maxi(norm, col);
     }
     return norm;
