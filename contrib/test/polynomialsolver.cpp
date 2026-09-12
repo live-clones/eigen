@@ -91,20 +91,54 @@ void evalSolver(const POLYNOMIAL& pols) {
   aux_evalSolver<Deg, POLYNOMIAL, PolynomialSolverType>(pols, psolve);
 }
 
-template <int Deg, typename POLYNOMIAL, typename ROOTS, typename REAL_ROOTS>
-void evalSolverSugarFunction(const POLYNOMIAL& pols, const ROOTS& roots, const REAL_ROOTS& real_roots) {
-  using std::sqrt;
-  typedef typename POLYNOMIAL::Scalar Scalar;
-  typedef typename POLYNOMIAL::RealScalar RealScalar;
+template <typename Solver>
+void verify_polynomialsolver_sugar(const Solver& solver, typename Solver::RealScalar threshold) {
+  using Real = typename Solver::RealScalar;
+  const auto& computed = solver.roots();
+  Index greatest, smallest;
+  computed.cwiseAbs2().maxCoeff(&greatest);
+  computed.cwiseAbs2().minCoeff(&smallest);
+  VERIFY_IS_EQUAL(solver.greatestRoot(), computed[greatest]);
+  VERIFY_IS_EQUAL(solver.smallestRoot(), computed[smallest]);
 
-  typedef PolynomialSolver<Scalar, Deg> PolynomialSolverType;
+  std::vector<Real> expectedRealRoots, expectedRealExtrema;
+  for (Index i = 0; i < computed.size(); ++i) {
+    // realRoots uses a strict threshold; the extremal queries include its boundary.
+    if (numext::abs(computed[i].imag()) < threshold) expectedRealRoots.push_back(computed[i].real());
+    if (numext::abs(computed[i].imag()) <= threshold) expectedRealExtrema.push_back(computed[i].real());
+  }
+  std::vector<Real> actualRealRoots;
+  solver.realRoots(actualRealRoots, threshold);
+  VERIFY_IS_EQUAL(actualRealRoots.size(), expectedRealRoots.size());
+  for (size_t i = 0; i < expectedRealRoots.size(); ++i) VERIFY_IS_EQUAL(actualRealRoots[i], expectedRealRoots[i]);
+
+  const bool expectedHasRealRoot = !expectedRealExtrema.empty();
+  const auto absLess = [](Real a, Real b) { return numext::abs(a) < numext::abs(b); };
+  bool hasRealRoot;
+  Real result = solver.absGreatestRealRoot(hasRealRoot, threshold);
+  VERIFY_IS_EQUAL(hasRealRoot, expectedHasRealRoot);
+  if (hasRealRoot)
+    VERIFY_IS_EQUAL(result, *std::max_element(expectedRealExtrema.begin(), expectedRealExtrema.end(), absLess));
+  result = solver.absSmallestRealRoot(hasRealRoot, threshold);
+  VERIFY_IS_EQUAL(hasRealRoot, expectedHasRealRoot);
+  if (hasRealRoot)
+    VERIFY_IS_EQUAL(result, *std::min_element(expectedRealExtrema.begin(), expectedRealExtrema.end(), absLess));
+  result = solver.greatestRealRoot(hasRealRoot, threshold);
+  VERIFY_IS_EQUAL(hasRealRoot, expectedHasRealRoot);
+  if (hasRealRoot) VERIFY_IS_EQUAL(result, *std::max_element(expectedRealExtrema.begin(), expectedRealExtrema.end()));
+  result = solver.smallestRealRoot(hasRealRoot, threshold);
+  VERIFY_IS_EQUAL(hasRealRoot, expectedHasRealRoot);
+  if (hasRealRoot) VERIFY_IS_EQUAL(result, *std::min_element(expectedRealExtrema.begin(), expectedRealExtrema.end()));
+}
+
+template <int Deg, typename POLYNOMIAL, typename REAL_ROOTS>
+void evalSolverSugarFunction(const POLYNOMIAL& pols, const REAL_ROOTS& real_roots) {
+  using Scalar = typename POLYNOMIAL::Scalar;
+  using RealScalar = typename POLYNOMIAL::RealScalar;
+  using PolynomialSolverType = PolynomialSolver<Scalar, Deg>;
 
   PolynomialSolverType psolve;
   if (aux_evalSolver<Deg, POLYNOMIAL, PolynomialSolverType>(pols, psolve)) {
-    // It is supposed that
-    //  1) the roots found are correct
-    //  2) the roots have distinct moduli
-
     // Root condition: a coefficient perturbation of size delta moves a simple root r_j of monic p by at most
     // delta * sum_k |r_j|^k / |p'(r_j)|, p'(r_j) = prod_{k != j} (r_j - r_k). The companion-matrix eigenvalues
     // have absolute backward error ~eps * max_k |a_k|; sampled roots stay below 10x that bound, hence 32x.
@@ -122,61 +156,38 @@ void evalSolverSugarFunction(const POLYNOMIAL& pols, const ROOTS& roots, const R
       }
       tolerance[j] = coefficientError * powerSum / derivative;
     }
-    // Every computed root lies within rootTolerance of a true real root, which bounds both the imaginary parts
-    // and the error of the extremal-root queries.
-    const RealScalar rootTolerance = tolerance.maxCoeff();
-    const RealScalar psPrec = numext::maxi(sqrt(test_precision<RealScalar>()), rootTolerance);
-
-    // Test realRoots
-    std::vector<RealScalar> calc_realRoots;
-    psolve.realRoots(calc_realRoots, psPrec);
-    VERIFY_IS_EQUAL(calc_realRoots.size(), (size_t)real_roots.size());
-
-    for (size_t i = 0; i < calc_realRoots.size(); ++i) {
+    for (Index i = 0; i < psolve.roots().size(); ++i) {
       bool found = false;
       for (Index j = 0; j < real_roots.size() && !found; ++j) {
-        if (numext::abs(calc_realRoots[i] - real_roots[j]) <= tolerance[j]) {
-          found = true;
-        }
+        VERIFY((numext::isfinite)(tolerance[j]));
+        if (numext::abs(psolve.roots()[i] - real_roots[j]) <= tolerance[j]) found = true;
       }
       VERIFY(found);
     }
-
-    // Test greatestRoot
-    VERIFY(numext::abs(roots.array().abs().maxCoeff() - abs(psolve.greatestRoot())) <= rootTolerance);
-
-    // Test smallestRoot
-    VERIFY(numext::abs(roots.array().abs().minCoeff() - abs(psolve.smallestRoot())) <= rootTolerance);
-
-    bool hasRealRoot;
-    // Test absGreatestRealRoot
-    RealScalar r = psolve.absGreatestRealRoot(hasRealRoot, psPrec);
-    VERIFY(hasRealRoot == (real_roots.size() > 0));
-    if (hasRealRoot) {
-      VERIFY(numext::abs(real_roots.array().abs().maxCoeff() - abs(r)) <= rootTolerance);
-    }
-
-    // Test absSmallestRealRoot
-    r = psolve.absSmallestRealRoot(hasRealRoot, psPrec);
-    VERIFY(hasRealRoot == (real_roots.size() > 0));
-    if (hasRealRoot) {
-      VERIFY(numext::abs(real_roots.array().abs().minCoeff() - abs(r)) <= rootTolerance);
-    }
-
-    // Test greatestRealRoot
-    r = psolve.greatestRealRoot(hasRealRoot, psPrec);
-    VERIFY(hasRealRoot == (real_roots.size() > 0));
-    if (hasRealRoot) {
-      VERIFY(numext::abs(real_roots.array().maxCoeff() - r) <= rootTolerance);
-    }
-
-    // Test smallestRealRoot
-    r = psolve.smallestRealRoot(hasRealRoot, psPrec);
-    VERIFY(hasRealRoot == (real_roots.size() > 0));
-    if (hasRealRoot) {
-      VERIFY(numext::abs(real_roots.array().minCoeff() - r) <= rootTolerance);
-    }
   }
+  verify_polynomialsolver_sugar(psolve, numext::sqrt(test_precision<RealScalar>()));
+}
+
+void polynomialsolver_sugar_cluster() {
+  Matrix<float, 7, 1> roots;
+  roots << -0.8f, 0.2f, 0.2001f, 0.5f, 0.7f, 0.9f, 1.0f;
+  Matrix<float, 8, 1> poly;
+  roots_to_monicPolynomial(roots, poly);
+  evalSolverSugarFunction<7>(poly, roots);
+}
+
+void polynomialsolver_sugar_filtering() {
+  Vector4d poly;
+  poly << 0, 1, 0, 1;
+  PolynomialSolver<double, 3> solver(poly);
+  verify_polynomialsolver_sugar(solver, 0.0);
+  verify_polynomialsolver_sugar(solver, 0.5);
+  verify_polynomialsolver_sugar(solver, 1.0);
+  verify_polynomialsolver_sugar(solver, 2.0);
+  Vector3d noRealRoots;
+  noRealRoots << 1, 0, 1;
+  PolynomialSolver<double, 2> complexSolver(noRealRoots);
+  verify_polynomialsolver_sugar(complexSolver, 0.5);
 }
 
 template <typename Scalar_, int Deg_>
@@ -208,11 +219,13 @@ void polynomialsolver(int deg) {
     std::sort(realRoots.begin(), realRoots.end(),
               [](RealScalar a, RealScalar b) { return numext::abs(a) < numext::abs(b); });
     roots_to_monicPolynomial(realRoots, pols);
-    evalSolverSugarFunction<Deg_>(pols, realRoots.template cast<std::complex<RealScalar> >().eval(), realRoots);
+    evalSolverSugarFunction<Deg_>(pols, realRoots);
   }
 }
 
 EIGEN_DECLARE_TEST(polynomialsolver) {
+  CALL_SUBTEST_7(polynomialsolver_sugar_cluster());
+  CALL_SUBTEST_13(polynomialsolver_sugar_filtering());
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1((polynomialsolver<float, 1>(1)));
     CALL_SUBTEST_2((polynomialsolver<double, 2>(2)));
