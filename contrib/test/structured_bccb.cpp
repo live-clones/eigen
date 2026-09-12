@@ -845,11 +845,10 @@ void test_bccb_fixed() {
 }
 
 template <typename RealScalar>
-void test_bccb_symbol_reciprocals() {
+void test_structured_symbol_reciprocals() {
   using Complex = std::complex<RealScalar>;
   using CVector = Matrix<Complex, Dynamic, 1>;
   using RVector = Matrix<RealScalar, Dynamic, 1>;
-  using Kernel = internal::structured_symbol_reciprocal_impl<RealScalar>;
   constexpr Index kPacketSize = internal::packet_traits<Complex>::size;
   const Index count = 3 * kPacketSize + 1;
   const RealScalar epsilon = NumTraits<RealScalar>::epsilon();
@@ -873,7 +872,7 @@ void test_bccb_symbol_reciprocals() {
                                RealScalar(0.75) * maximum,
                                infinity,
                                nan};
-  CVector symbol(count + 2), inverse(count + 2);
+  CVector symbol(count + 2), inverse(count + 2), unthresholded(count + 2);
   RVector moduli(count + 2);
   // Slide each special value through every lane, with unaligned inputs and a scalar tail.
   for (Index offset = 0; offset <= 1; ++offset) {
@@ -885,22 +884,29 @@ void test_bccb_symbol_reciprocals() {
           symbol(offset + lane) = Complex(real, imag);
           symbol(offset + count - 1) = Complex(real, imag);
           inverse.setConstant(Complex(9));
-          Kernel::run(symbol.data() + offset, moduli.data() + offset, RealScalar(1), inverse.data() + offset, count);
+          internal::structured_symbol_reciprocal<RealScalar>(symbol.data() + offset, moduli.data() + offset,
+                                                             RealScalar(1), inverse.data() + offset, count);
+          unthresholded = symbol;
+          internal::structured_symbol_reciprocal(unthresholded.data() + offset, count);
+          VERIFY_IS_EQUAL(unthresholded(offset + count), symbol(offset + count));
+          if (offset) VERIFY_IS_EQUAL(unthresholded(0), symbol(0));
           VERIFY_IS_EQUAL(inverse(offset + count), Complex(9));
           if (offset) VERIFY_IS_EQUAL(inverse(0), Complex(9));
           for (Index k = offset; k < offset + count; ++k) {
             const Complex expected = internal::structured_scaled_reciprocal(symbol(k));
-            for (Index component = 0; component < 2; ++component) {
-              const RealScalar actual = component ? inverse(k).imag() : inverse(k).real();
-              const RealScalar reference = component ? expected.imag() : expected.real();
-              if ((numext::isnan)(reference)) {
-                VERIFY((numext::isnan)(actual));
-              } else if ((numext::isinf)(reference) || reference == RealScalar(0)) {
-                VERIFY_IS_EQUAL(actual, reference);
-                VERIFY_IS_EQUAL(std::signbit(actual), std::signbit(reference));
-              } else {
-                VERIFY((numext::isfinite)(actual));
-                VERIFY(numext::abs(actual / reference - RealScalar(1)) <= RealScalar(8) * epsilon);
+            for (const CVector* result : {&inverse, &unthresholded}) {
+              for (Index component = 0; component < 2; ++component) {
+                const RealScalar actual = component ? (*result)(k).imag() : (*result)(k).real();
+                const RealScalar reference = component ? expected.imag() : expected.real();
+                if ((numext::isnan)(reference)) {
+                  VERIFY((numext::isnan)(actual));
+                } else if ((numext::isinf)(reference) || reference == RealScalar(0)) {
+                  VERIFY_IS_EQUAL(actual, reference);
+                  VERIFY_IS_EQUAL(std::signbit(actual), std::signbit(reference));
+                } else {
+                  VERIFY((numext::isfinite)(actual));
+                  VERIFY(numext::abs(actual / reference - RealScalar(1)) <= RealScalar(8) * epsilon);
+                }
               }
             }
           }
@@ -919,7 +925,8 @@ void test_bccb_symbol_reciprocals() {
       symbol(k) = Complex(re, im);
     }
     moduli.setOnes();
-    Kernel::run(symbol.data(), moduli.data(), RealScalar(1), inverse.data(), count);
+    internal::structured_symbol_reciprocal<RealScalar>(symbol.data(), moduli.data(), RealScalar(1), inverse.data(),
+                                                       count);
     for (Index k = 0; k < count; ++k) {
       const long double re = static_cast<long double>(symbol(k).real());
       const long double im = static_cast<long double>(symbol(k).imag());
@@ -942,7 +949,8 @@ void test_bccb_symbol_reciprocals() {
   }
   std::fenv_t saved_environment;
   const bool environment_saved = std::feholdexcept(&saved_environment) == 0;
-  Kernel::run(symbol.data(), moduli.data(), RealScalar(1), inverse.data(), count);
+  internal::structured_symbol_reciprocal<RealScalar>(symbol.data(), moduli.data(), RealScalar(1), inverse.data(),
+                                                     count);
   if (environment_saved) {
     const int exceptions = std::fetestexcept(FE_INVALID | FE_DIVBYZERO | FE_OVERFLOW);
     std::fesetenv(&saved_environment);
@@ -961,13 +969,15 @@ void test_bccb_symbol_reciprocals() {
   // NaN moduli, like exact equality above, must remain in the inverted set.
   symbol.setConstant(Complex(3, 4));
   moduli.setConstant(nan);
-  Kernel::run(symbol.data(), moduli.data(), RealScalar(1), inverse.data(), count);
+  internal::structured_symbol_reciprocal<RealScalar>(symbol.data(), moduli.data(), RealScalar(1), inverse.data(),
+                                                     count);
   VERIFY((inverse.head(count).array().abs() > RealScalar(0)).all());
-  Kernel::run(nullptr, nullptr, RealScalar(1), nullptr, 0);
+  internal::structured_symbol_reciprocal<RealScalar>(nullptr, nullptr, RealScalar(1), nullptr, 0);
+  internal::structured_symbol_reciprocal<RealScalar>(nullptr, 0);
 }
 
 template <typename RealScalar>
-void test_bccb_packet_solve() {
+void test_structured_packet_reciprocals() {
   using Complex = std::complex<RealScalar>;
   using CMatrix = Matrix<Complex, Dynamic, Dynamic>;
   CMatrix generator = CMatrix::Zero(3, 5);
@@ -975,10 +985,49 @@ void test_bccb_packet_solve() {
   const Bccb<Complex> op(generator);
   const CMatrix expected = CMatrix::Random(15, 2);
   const CMatrix rhs = generator(0, 0) * expected;
-  const CMatrix actual = op.solve(rhs);
+  CMatrix actual = op.solve(rhs);
   VERIFY(actual.allFinite());
   // Forward/inverse 3-by-5 transforms and one reciprocal contribute rounding.
   VERIFY((actual - expected).norm() <= RealScalar(64) * NumTraits<RealScalar>::epsilon() * expected.norm());
+  Matrix<Complex, Dynamic, 1> column = Matrix<Complex, Dynamic, 1>::Zero(15);
+  column(0) = generator(0, 0);
+  const Circulant<Complex> circulant(column);
+  actual = circulant.solve(rhs);
+  VERIFY(actual.allFinite());
+  VERIFY((actual - expected).norm() <= RealScalar(64) * NumTraits<RealScalar>::epsilon() * expected.norm());
+  actual = circulant.inverse() * rhs;
+  VERIFY(actual.allFinite());
+  VERIFY((actual - expected).norm() <= RealScalar(64) * NumTraits<RealScalar>::epsilon() * expected.norm());
+}
+
+template <typename RealScalar>
+void test_circulant_inverse_modes() {
+  using Complex = std::complex<RealScalar>;
+  using CVector = Matrix<Complex, Dynamic, 1>;
+  const RealScalar epsilon = NumTraits<RealScalar>::epsilon();
+  // The small mode is representable but below the solve's rank threshold.
+  CVector column(2);
+  column << Complex(1), Complex(1 - epsilon);
+  const Circulant<Complex> circulant(column);
+  VERIFY_IS_EQUAL(circulant.rank(), 1);
+  const Complex circulant_mode = circulant.inverse().symbol()(1);
+  VERIFY(numext::abs(circulant_mode * epsilon - Complex(1)) <= RealScalar(8) * epsilon);
+
+  // 1/(a+ia) = (0.5/a)(1-i), even when an unscaled denominator overflows.
+  const RealScalar a = RealScalar(0.75) * (std::numeric_limits<RealScalar>::max)();
+  for (Index n : {Index(1), Index(48)}) {
+    column.setZero(n);
+    column(0) = Complex(a, a);
+    const CVector circulant_inverse = Circulant<Complex>(column).inverse().symbol();
+    VERIFY(circulant_inverse.allFinite());
+    volatile RealScalar minimum = (std::numeric_limits<RealScalar>::min)();
+    if (!numext::is_exactly_zero(minimum * RealScalar(0.5))) {
+      for (Index k = 0; k < n; ++k) {
+        VERIFY(numext::abs(circulant_inverse(k).real() * a - RealScalar(0.5)) <= RealScalar(64) * epsilon);
+        VERIFY(numext::abs(circulant_inverse(k).imag() * a + RealScalar(0.5)) <= RealScalar(64) * epsilon);
+      }
+    }
+  }
 }
 
 EIGEN_DECLARE_TEST(structured_bccb) {
@@ -1080,10 +1129,12 @@ EIGEN_DECLARE_TEST(structured_bccb) {
     CALL_SUBTEST_7((test_bccb_nonfinite_product<std::complex<double>>(6, 8)));
     CALL_SUBTEST_7(test_bccb_nonfinite_zero_rhs(6, 8));
 
-    CALL_SUBTEST_8(test_bccb_symbol_reciprocals<float>());
-    CALL_SUBTEST_8(test_bccb_symbol_reciprocals<double>());
-    CALL_SUBTEST_8(test_bccb_symbol_reciprocals<long double>());
-    CALL_SUBTEST_8(test_bccb_packet_solve<float>());
-    CALL_SUBTEST_8(test_bccb_packet_solve<double>());
+    CALL_SUBTEST_8(test_structured_symbol_reciprocals<float>());
+    CALL_SUBTEST_8(test_structured_symbol_reciprocals<double>());
+    CALL_SUBTEST_8(test_structured_symbol_reciprocals<long double>());
+    CALL_SUBTEST_8(test_structured_packet_reciprocals<float>());
+    CALL_SUBTEST_8(test_structured_packet_reciprocals<double>());
+    CALL_SUBTEST_8(test_circulant_inverse_modes<float>());
+    CALL_SUBTEST_8(test_circulant_inverse_modes<double>());
   }
 }

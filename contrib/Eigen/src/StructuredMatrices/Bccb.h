@@ -246,7 +246,7 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
     // output instead of being silently zeroed.
     // The packet path sanitizes discarded entries before division; exceptional
     // packets retain the scalar branch and balanced reciprocal.
-    internal::structured_symbol_reciprocal_impl<RealScalar>::run(s.data(), mods.data(), tol, sinv.data(), s.size());
+    internal::structured_symbol_reciprocal(s.data(), mods.data(), tol, sinv.data(), s.size());
     Matrix<Scalar, RowsAtCompileTime, Rhs::ColsAtCompileTime> x(N, b.cols());
     if (!b.allFinite()) {
       // A non-finite right-hand side cannot go through the transforms (see

@@ -133,17 +133,18 @@ struct structured_reciprocal_packet_traits {
 #endif
 };
 
-template <typename RealScalar, bool Vectorize = structured_reciprocal_packet_traits<RealScalar>::Vectorizable>
+template <typename RealScalar, bool ApplyThreshold,
+          bool Vectorize = structured_reciprocal_packet_traits<RealScalar>::Vectorizable>
 struct structured_symbol_reciprocal_impl {
   using Complex = std::complex<RealScalar>;
   static void run(const Complex* symbol, const RealScalar* moduli, RealScalar tol, Complex* inverse, Index size) {
     for (Index k = 0; k < size; ++k)
-      inverse[k] = moduli[k] < tol ? Complex(0) : structured_scaled_reciprocal(symbol[k]);
+      inverse[k] = ApplyThreshold && moduli[k] < tol ? Complex(0) : structured_scaled_reciprocal(symbol[k]);
   }
 };
 
-template <typename RealScalar>
-struct structured_symbol_reciprocal_impl<RealScalar, true> {
+template <typename RealScalar, bool ApplyThreshold>
+struct structured_symbol_reciprocal_impl<RealScalar, ApplyThreshold, true> {
   using Complex = std::complex<RealScalar>;
   using Packet = typename packet_traits<Complex>::type;
   using RealPacket = typename unpacket_traits<Packet>::as_real;
@@ -162,7 +163,7 @@ struct structured_symbol_reciprocal_impl<RealScalar, true> {
     const Index packet_end = size - size % kPacketSize;
     Index k = 0;
     for (; k < packet_end; k += kPacketSize) {
-      const RealPacket discard = pcmp_lt(ploaddup<RealPacket>(moduli + k), threshold);
+      const RealPacket discard = ApplyThreshold ? pcmp_lt(ploaddup<RealPacket>(moduli + k), threshold) : zero.v;
       // Sanitize before arithmetic: selecting the output alone still divides discarded zeros.
       const Packet z = pselect(Packet(discard), safe_value, ploadu<Packet>(symbol + k));
       const RealPacket a = pabs(z.v);
@@ -179,12 +180,27 @@ struct structured_symbol_reciprocal_impl<RealScalar, true> {
           continue;
         }
       }
-      structured_symbol_reciprocal_impl<RealScalar, false>::run(symbol + k, moduli + k, tol, inverse + k, kPacketSize);
+      structured_symbol_reciprocal_impl<RealScalar, ApplyThreshold, false>::run(
+          symbol + k, ApplyThreshold ? moduli + k : nullptr, tol, inverse + k, kPacketSize);
     }
     if (k < size)
-      structured_symbol_reciprocal_impl<RealScalar, false>::run(symbol + k, moduli + k, tol, inverse + k, size - k);
+      structured_symbol_reciprocal_impl<RealScalar, ApplyThreshold, false>::run(
+          symbol + k, ApplyThreshold ? moduli + k : nullptr, tol, inverse + k, size - k);
   }
 };
+
+// The input and output may alias exactly. Threshold equality and NaN moduli are retained.
+template <typename RealScalar>
+void structured_symbol_reciprocal(const std::complex<RealScalar>* symbol, const RealScalar* moduli, RealScalar tol,
+                                  std::complex<RealScalar>* inverse, Index size) {
+  structured_symbol_reciprocal_impl<RealScalar, true>::run(symbol, moduli, tol, inverse, size);
+}
+
+// True inverses retain every mode and reuse the symbol storage without allocating a modulus array.
+template <typename RealScalar>
+void structured_symbol_reciprocal(std::complex<RealScalar>* symbol, Index size) {
+  structured_symbol_reciprocal_impl<RealScalar, false>::run(symbol, nullptr, RealScalar(0), symbol, size);
+}
 
 /** \internal \returns \c a - b guarded against spurious overflow: when the
  * plain difference of two finite values overflows to infinity, it is
