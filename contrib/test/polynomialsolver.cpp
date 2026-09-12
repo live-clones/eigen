@@ -302,6 +302,62 @@ void polynomialsolver_tiny_root() {
   VERIFY(found);
 }
 
+template <typename Polynomial, typename Roots>
+void polynomialsolver_verify_root_set(const Polynomial& poly, const Roots& expected) {
+  using Scalar = typename Polynomial::Scalar;
+  using Real = typename NumTraits<Scalar>::Real;
+  const PolynomialSolver<Scalar, Roots::RowsAtCompileTime> solver(poly);
+  Array<bool, Dynamic, 1> matched = Array<bool, Dynamic, 1>::Constant(expected.size(), false);
+  VERIFY_IS_EQUAL(solver.roots().size(), expected.size());
+  // These exactly represented polynomials have well-separated simple roots or exact roots at zero.
+  const Real tolerance = Real(64) * NumTraits<Real>::epsilon();
+  for (Index i = 0; i < expected.size(); ++i) {
+    Index match = expected.size();
+    for (Index j = 0; j < expected.size(); ++j) {
+      if (!matched[j] && numext::abs(solver.roots()[i] - expected[j]) <= tolerance) {
+        match = j;
+        break;
+      }
+    }
+    VERIFY(match < expected.size());
+    matched[match] = true;
+  }
+}
+
+template <typename Scalar>
+void polynomialsolver_real_part_is_another_root() {
+  using Real = typename NumTraits<Scalar>::Real;
+  using Complex = std::complex<Real>;
+  Matrix<Scalar, 4, 1> poly;
+  Matrix<Complex, 3, 1> expected;
+  poly << 0, 1, 0, 1;
+  expected << Complex(0), Complex(0, 1), Complex(0, -1);
+  polynomialsolver_verify_root_set(poly, expected);
+  poly << -2, 4, -3, 1;
+  expected << Complex(1), Complex(1, 1), Complex(1, -1);
+  polynomialsolver_verify_root_set(poly, expected);
+
+  Matrix<Scalar, Dynamic, 1> repeated(5);
+  Matrix<Complex, Dynamic, 1> repeatedExpected(4);
+  repeated << 0, 0, 1, 0, 1;
+  repeatedExpected << Complex(0), Complex(0), Complex(0, 1), Complex(0, -1);
+  polynomialsolver_verify_root_set(repeated, repeatedExpected);
+}
+
+template <typename Scalar>
+void polynomialsolver_scaled_quadratic() {
+  using Real = typename NumTraits<Scalar>::Real;
+  using Complex = std::complex<Real>;
+  Matrix<Scalar, 3, 1> poly;
+  Matrix<Complex, 2, 1> expected;
+  expected << Complex(0, 1), Complex(0, -1);
+  const Real scales[] = {Real(1), NumTraits<Real>::highest() * Real(0.75), (std::numeric_limits<Real>::min)()};
+  for (Real scale : scales) {
+    poly << Scalar(scale), Scalar(0), Scalar(scale);
+    polynomialsolver_verify_root_set(poly, expected);
+  }
+}
+
 EIGEN_DECLARE_TEST(polynomialsolver) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1((polynomialsolver<float, 1>(1)));
@@ -328,4 +384,10 @@ EIGEN_DECLARE_TEST(polynomialsolver) {
   }
   CALL_SUBTEST_15(polynomialsolver_complex_pair_kept());
   CALL_SUBTEST_15(polynomialsolver_tiny_root());
+  CALL_SUBTEST_16(polynomialsolver_real_part_is_another_root<float>());
+  CALL_SUBTEST_16(polynomialsolver_real_part_is_another_root<double>());
+  CALL_SUBTEST_16(polynomialsolver_real_part_is_another_root<std::complex<double>>());
+  CALL_SUBTEST_17(polynomialsolver_scaled_quadratic<float>());
+  CALL_SUBTEST_17(polynomialsolver_scaled_quadratic<double>());
+  CALL_SUBTEST_17(polynomialsolver_scaled_quadratic<std::complex<double>>());
 }
