@@ -25,16 +25,10 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet perf_neon(const Packet& x) {
   using PacketI = typename unpacket_traits<Packet>::integer_packet;
   const Packet result = generic_fast_erf<float>::run(x);
   const PacketI bits = preinterpret<PacketI>(x);
-  // NEON VABS clears the sign bit without flushing subnormal inputs.
-  const PacketI magnitude = preinterpret<PacketI>(pabs(x));
-  const PacketI subnormal =
-      pandnot(pcmp_lt(magnitude, pset1<PacketI>(0x00800000)), pcmp_eq(magnitude, pzero(magnitude)));
-  // The mask contains only 0/-1. Integer min avoids scalarizing the two-lane mask.
-  const bool hasSubnormal =
-      unpacket_traits<Packet>::size == 2 ? predux_min(subnormal) != 0 : predux_any(preinterpret<Packet>(subnormal));
-  if (!hasSubnormal) return result;
-  const PacketI significands = pand(magnitude, pset1<PacketI>(0x007fffff));
-  const PacketI recovered = por(perf_subnormal_significands(significands), pxor(bits, magnitude));
+  const PacketI magnitude = pand(bits, pset1<PacketI>(0x7fffffff));
+  const PacketI sign = pxor(bits, magnitude);
+  const PacketI subnormal = pcmp_lt(magnitude, pset1<PacketI>(0x00800000));
+  const PacketI recovered = por(perf_subnormal_significands(magnitude), sign);
   return pselect(preinterpret<Packet>(subnormal), preinterpret<Packet>(recovered), result);
 }
 

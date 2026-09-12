@@ -53,6 +53,10 @@ void packet_erf_subnormals() {
     Scalar values[PacketSize], before[PacketSize], after[PacketSize];
     for (int i = 0; i < PacketSize; ++i) values[i] = neighbor;
     internal::pstoreu(before, internal::perf(internal::ploadu<Packet>(values)));
+    if ((numext::bit_cast<Bits>(neighbor) & (Sign - 1)) == 0) {
+      for (int i = 0; i < PacketSize; ++i)
+        VERIFY_IS_EQUAL(numext::bit_cast<Bits>(before[i]), numext::bit_cast<Bits>(neighbor));
+    }
     values[0] = numext::bit_cast<Scalar>(Bits(1));
     internal::pstoreu(after, internal::perf(internal::ploadu<Packet>(values)));
     VERIFY_IS_EQUAL(numext::bit_cast<Bits>(after[0]), Bits(1));
@@ -71,10 +75,9 @@ void packet_erf_subnormals() {
   VERIFY_IS_APPROX(output(output.size() - 1), Scalar(std::erf(0.5)));
 }
 
-void neon_erf_subnormals() {
+void neon_erf_subnormals_float() {
   packet_erf_subnormals<float, internal::Packet2f>();
   packet_erf_subnormals<float, internal::Packet4f>();
-  packet_erf_subnormals<bfloat16, internal::Packet4bf>();
 
   // Rounded values straddling the subnormal/normal output boundary and the largest subnormal input.
   const numext::uint32_t inputs[] = {0x00716fe1u, 0x00716fe2u, 0x00716fe3u, 0x007fffffu};
@@ -86,6 +89,10 @@ void neon_erf_subnormals() {
     const int error = int(numext::bit_cast<numext::uint32_t>(output[i])) - int(expected[i]);
     VERIFY(std::abs(error) <= 1);
   }
+}
+
+void neon_erf_subnormals_bfloat16() {
+  packet_erf_subnormals<bfloat16, internal::Packet4bf>();
   // Exhaustive bfloat16 subnormals, with both signs, checked without floating-point subnormal conversions.
   for (unsigned int n = 1; n < 128; ++n) {
     const numext::uint16_t expectedBits =
@@ -299,10 +306,12 @@ struct runall {
 
 EIGEN_DECLARE_TEST(special_packetmath) {
 #if EIGEN_ARCH_ARM && defined(EIGEN_VECTORIZE_NEON)
-  CALL_SUBTEST_5(neon_erf_subnormals());
+  CALL_SUBTEST_1(neon_erf_subnormals_float());
+  CALL_SUBTEST_4(neon_erf_subnormals_bfloat16());
   {
     const Eigen::ScopedFlushToZero flush_to_zero;
-    CALL_SUBTEST_5(neon_erf_subnormals());
+    CALL_SUBTEST_1(neon_erf_subnormals_float());
+    CALL_SUBTEST_4(neon_erf_subnormals_bfloat16());
   }
 #endif
   g_first_pass = true;
