@@ -234,13 +234,7 @@ class SelfAdjointEigenSolver {
    */
   template <typename InputType>
   EIGEN_DEVICE_FUNC explicit SelfAdjointEigenSolver(EigenBase<InputType>& matrix, int options = ComputeEigenvectors)
-      : m_eivec(matrix.derived()),
-        m_workspace(matrix.cols()),
-        m_eivalues(matrix.cols()),
-        m_subdiag(matrix.rows() > 1 ? matrix.rows() - 1 : 1),
-        m_hcoeffs(matrix.cols() > 1 ? matrix.cols() - 1 : 1),
-        m_isInitialized(false),
-        m_eigenvectorsOk(false) {
+      : SelfAdjointEigenSolver(matrix, BindStorageTag()) {
     computeInPlace(options);
   }
 
@@ -448,7 +442,7 @@ class SelfAdjointEigenSolver {
   struct BindStorageTag {};
 
   /** \internal Binds the eigenvector storage to \a matrix, or copies it when #EigenvectorsType is a plain matrix, and
-   * allocates the workspace without computing anything: for derived solvers that fill the storage themselves. */
+   * allocates the workspace without computing anything. */
   template <typename InputType>
   EIGEN_DEVICE_FUNC SelfAdjointEigenSolver(EigenBase<InputType>& matrix, BindStorageTag)
       : m_eivec(matrix.derived()),
