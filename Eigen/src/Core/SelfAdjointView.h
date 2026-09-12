@@ -34,24 +34,27 @@ namespace Eigen {
 
 namespace internal {
 
-// The column step of the self-adjoint 1-norm: sums[i] += |x_i| into a real accumulator, returning
-// the sum of what was added, in a single packet pass so that short columns do not pay an expression
-// setup per pass. Real scalars go through pabs. std::complex has no packet abs (the functor
-// framework cannot turn a complex packet into a real one), so its lanes take sqrt(re^2 + im^2) on
-// the real lanes of the complex packet, which leaves |z| in both lanes of its slot: the accumulator
-// keeps that duplicated layout (Stride lanes per entry) rather than compress it, which would need
-// an arch-specific shuffle.
+// The column step of the self-adjoint 1-norm: sums[i] += |x_i|, returning the sum of what was
+// added, in a single packet pass so that short columns do not pay an expression setup per pass.
+// The accumulator has the matrix's scalar type and the column sums are read from the real parts.
+// Real scalars go through pabs. std::complex has no packet abs (the functor framework cannot turn
+// a complex packet into a real one), so its lanes take sqrt(re^2 + im^2) on the real lanes of the
+// complex packet, which leaves |z| in both lanes of its slot: that is the layout of a complex
+// accumulator, so it is added as is rather than compressed, which would need an arch-specific
+// shuffle.
 template <typename Scalar_>
 struct selfadjoint_l1norm_real_lanes {
   using Scalar = Scalar_;
   using Real = Scalar_;
-  using RPacket = typename packet_traits<Scalar>::type;
-  static constexpr Index PacketSize = unpacket_traits<RPacket>::size;
-  static constexpr Index Stride = 1;
+  using Packet = typename packet_traits<Scalar>::type;
+  using RPacket = Packet;
+  static constexpr Index PacketSize = unpacket_traits<Packet>::size;
   // Accumulating a column into the sums of the later ones chains the shortest columns on
   // store-to-load forwarding; up to here reading the mirrored term as a row is cheaper.
   static constexpr Index PerColumnUpTo = 16;
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket load(const Scalar* p) { return pabs(ploadu<RPacket>(p)); }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket lanes(const Packet& p) { return p; }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet pack(const RPacket& r) { return r; }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket abs(const RPacket& v) { return pabs(v); }
   static EIGEN_DEVICE_FUNC bool isReliable(Real, Index) { return true; }
 };
 
@@ -59,16 +62,16 @@ template <typename T>
 struct selfadjoint_l1norm_complex_lanes {
   using Scalar = std::complex<T>;
   using Real = T;
-  using CPacket = typename packet_traits<Scalar>::type;
-  using RPacket = typename unpacket_traits<CPacket>::as_real;
-  static constexpr Index PacketSize = unpacket_traits<CPacket>::size;
-  static constexpr Index Stride = 2;
+  using Packet = typename packet_traits<Scalar>::type;
+  using RPacket = typename unpacket_traits<Packet>::as_real;
+  static constexpr Index PacketSize = unpacket_traits<Packet>::size;
   static constexpr Index PerColumnUpTo = 0;
-  // |z_i| in lanes 2i and 2i+1.
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket load(const Scalar* p) {
-    RPacket s = ploadu<CPacket>(p).v;
-    s = pmul(s, s);
-    s = padd(s, pcplxflip(CPacket(s)).v);
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket lanes(const Packet& p) { return p.v; }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet pack(const RPacket& r) { return Packet(r); }
+  // |z| in both lanes of its slot.
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket abs(const RPacket& v) {
+    RPacket s = pmul(v, v);
+    s = padd(s, lanes(pcplxflip(pack(s))));
     return psqrt(s);
   }
   // Squaring the parts overflows and underflows well inside the scalar range: an infinite or a
@@ -82,7 +85,7 @@ struct selfadjoint_l1norm_complex_lanes {
 template <typename Lanes>
 struct selfadjoint_l1norm_packet_impl : Lanes {
   using Lanes::PacketSize;
-  using Lanes::Stride;
+  using typename Lanes::Packet;
   using typename Lanes::Real;
   using typename Lanes::RPacket;
   using typename Lanes::Scalar;
@@ -91,56 +94,57 @@ struct selfadjoint_l1norm_packet_impl : Lanes {
   using is_contiguous = bool_constant<has_direct_access<Xpr>::value && inner_stride_at_compile_time<Xpr>::value == 1>;
 
   template <typename Xpr>
-  static EIGEN_DEVICE_FUNC Real accumulate(Real* sums, const Xpr& x) {
+  static EIGEN_DEVICE_FUNC Real accumulate(Scalar* sums, const Xpr& x) {
     return accumulate(sums, x, is_contiguous<Xpr>());
   }
 
  private:
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void add(Real* s, Real a) {
-    for (Index l = 0; l < Stride; ++l) s[l] += a;
-  }
   template <typename Xpr>
-  static EIGEN_DEVICE_FUNC Real accumulate(Real* s, const Xpr& x, std::false_type) {
+  static EIGEN_DEVICE_FUNC Real accumulate(Scalar* s, const Xpr& x, std::false_type) {
     Real r = Real(0);
     for (Index i = 0; i < x.size(); ++i) {
       Real a = numext::abs(x.coeff(i));
-      add(s + Stride * i, a);
+      s[i] += a;
       r += a;
     }
     return r;
   }
   template <typename Xpr>
-  static EIGEN_DEVICE_FUNC Real accumulate(Real* s, const Xpr& x, std::true_type) {
+  static EIGEN_DEVICE_FUNC Real accumulate(Scalar* s, const Xpr& x, std::true_type) {
     const Scalar* p = x.data();
     const Index n = x.size();
     RPacket acc = pzero(RPacket());
     Index i = 0;
     for (; i + PacketSize <= n; i += PacketSize) {
-      RPacket a = Lanes::load(p + i);
+      RPacket a = Lanes::abs(Lanes::lanes(ploadu<Packet>(p + i)));
       acc = padd(acc, a);
-      pstoreu(s + Stride * i, padd(ploadu<RPacket>(s + Stride * i), a));
+      pstoreu(s + i, Lanes::pack(padd(Lanes::lanes(ploadu<Packet>(s + i)), a)));
     }
-    Real r = i > 0 ? predux(acc) / Real(Stride) : Real(0);
+    Real r = i > 0 ? numext::real(predux(Lanes::pack(acc))) : Real(0);
     for (; i < n; ++i) {
       Real a = numext::abs(p[i]);
-      add(s + Stride * i, a);
+      s[i] += a;
       r += a;
     }
     return r;
   }
 };
 
-// Expression fallback for scalars without a packet path: custom complex types, or complex packets
+// Scalar fallback for types without a packet path: custom complex types, or complex packets
 // without a real view.
 template <typename Scalar, typename Enable = void>
 struct selfadjoint_l1norm_impl {
   using Real = typename NumTraits<Scalar>::Real;
-  static constexpr Index Stride = 1;
   static constexpr Index PerColumnUpTo = 16;
   template <typename Xpr>
-  static EIGEN_DEVICE_FUNC Real accumulate(Real* sums, const Xpr& x) {
-    Map<Matrix<Real, Dynamic, 1>>(sums, x.size()) += x.cwiseAbs();
-    return x.template lpNorm<1>();
+  static EIGEN_DEVICE_FUNC Real accumulate(Scalar* sums, const Xpr& x) {
+    Real r = Real(0);
+    for (Index i = 0; i < x.size(); ++i) {
+      Real a = numext::abs(x.coeff(i));
+      sums[i] += Scalar(a);
+      r += a;
+    }
+    return r;
   }
   static EIGEN_DEVICE_FUNC bool isReliable(Real, Index) { return true; }
 };
@@ -363,20 +367,19 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
   // ones for Lower, the later ones for Upper, hence the direction of the walk.
   template <int Mode, typename Mat>
   static RealScalar l1NormStreaming(const Mat& m) {
-    static constexpr Index Stride = L1NormImpl::Stride;
     const Index n = m.rows();
-    ei_declare_aligned_stack_constructed_variable(RealScalar, sums, Stride * n, 0);
-    Map<Matrix<RealScalar, Dynamic, 1>>(sums, Stride * n).setZero();
+    ei_declare_aligned_stack_constructed_variable(Scalar, sums, n, 0);
+    Map<Matrix<Scalar, Dynamic, 1>>(sums, n).setZero();
     RealScalar norm = RealScalar(0);
     for (Index k = 0; k < n; ++k) {
       const Index j = Mode == Lower ? k : n - 1 - k;
       RealScalar colsum = numext::abs(m.coeff(j, j));
       EIGEN_IF_CONSTEXPR (Mode == Lower) {
-        colsum += L1NormImpl::accumulate(sums + Stride * (j + 1), m.col(j).tail(n - j - 1));
+        colsum += L1NormImpl::accumulate(sums + j + 1, m.col(j).tail(n - j - 1));
       } else {
         colsum += L1NormImpl::accumulate(sums, m.col(j).head(j));
       }
-      norm = numext::maxi(norm, colsum + sums[Stride * j]);
+      norm = numext::maxi(norm, colsum + numext::real(sums[j]));
     }
     return norm;
   }
