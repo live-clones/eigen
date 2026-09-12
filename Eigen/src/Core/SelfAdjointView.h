@@ -175,6 +175,7 @@ struct selfadjoint_l1norm_impl {
   using Scalar = Scalar_;
   using Real = typename NumTraits<Scalar>::Real;
   static constexpr Index PerColumnUpTo = 16;
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Real abs(const Scalar& x) { return numext::abs(x); }
   template <typename Derived>
   static EIGEN_DEVICE_FUNC Real accumulate(Scalar* sums, const DenseBase<Derived>& x) {
     Real r = Real(0);
@@ -416,7 +417,7 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
     L1NormAccumulator norm = L1NormAccumulator(0);
     for (Index k = 0; k < n; ++k) {
       const Index j = Mode == Lower ? k : n - 1 - k;
-      L1NormAccumulator colsum = L1NormAccumulator(numext::abs(m.coeff(j, j)));
+      L1NormAccumulator colsum = L1NormAccumulator(L1NormImpl::abs(m.coeff(j, j)));
       EIGEN_IF_CONSTEXPR (Mode == Lower) {
         colsum += L1NormImpl::accumulate(sums + j + 1, m.col(j).tail(n - j - 1));
       } else {
