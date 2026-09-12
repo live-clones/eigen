@@ -39,9 +39,10 @@ namespace internal {
 // The accumulator has the matrix's scalar type and the column sums are read from the real parts.
 // Real scalars go through pabs. std::complex has no packet abs (the functor framework cannot turn
 // a complex packet into a real one), so its lanes take sqrt(re^2 + im^2) on the real lanes of the
-// complex packet. Both lanes of a slot hold the same |z|^2, so the square roots of two packets
-// are taken at once on the even lanes of one and the odd lanes of the other, and the result is
-// spread back to both lanes for the accumulator, which as a complex vector has that very layout.
+// complex packet. Both lanes of a slot hold the same |z|^2, so one square root serves two packets:
+// the even lanes of one and the odd lanes of the other, giving |u0| |v0| |u1| |v1| ..., which is
+// added to u's slots as is and to v's slots flipped. The other packet's values land in the
+// imaginary lanes, which are never read.
 template <typename Scalar_>
 struct selfadjoint_l1norm_real_lanes {
   using Scalar = Scalar_;
@@ -54,16 +55,15 @@ struct selfadjoint_l1norm_real_lanes {
   static constexpr Index PerColumnUpTo = 16;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket lanes(const Packet& p) { return p; }
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet pack(const RPacket& r) { return r; }
-  // |u| into au and |v| into av, returning their contribution to the column sum.
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket abs(const RPacket& u, const RPacket& v, RPacket& au,
-                                                           RPacket& av) {
-    au = pabs(u);
-    av = pabs(v);
-    return padd(au, av);
+  // sums += |u| (and |v|), returning the contribution to the column sum.
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket accumulate(const RPacket& u, Scalar* su) {
+    RPacket a = pabs(u);
+    pstoreu(su, padd(ploadu<Packet>(su), a));
+    return a;
   }
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket abs(const RPacket& u, RPacket& au) {
-    au = pabs(u);
-    return au;
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket accumulate(const RPacket& u, const RPacket& v, Scalar* su,
+                                                                  Scalar* sv) {
+    return padd(accumulate(u, su), accumulate(v, sv));
   }
   static EIGEN_DEVICE_FUNC bool isReliable(Real, Index) { return true; }
 };
@@ -78,21 +78,17 @@ struct selfadjoint_l1norm_complex_lanes {
   static constexpr Index PerColumnUpTo = 0;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket lanes(const Packet& p) { return p.v; }
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet pack(const RPacket& r) { return Packet(r); }
-  // |z| of u in both lanes of its slot into au, same for v, returning the |z| of both packets
-  // once each: one square root serves the two packets.
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket abs(const RPacket& u, const RPacket& v, RPacket& au,
-                                                           RPacket& av) {
-    const RPacket even = peven_mask(RPacket());
-    RPacket r = psqrt(pselect(even, abs2(u), abs2(v)));  // |u0| |v0| |u1| |v1| ...
-    RPacket f = flip(r);                                 // |v0| |u0| |v1| |u1| ...
-    au = pselect(even, r, f);
-    av = pselect(even, f, r);
+  // sums += |u| (and |v|) on the real lanes, returning the contribution to the column sum.
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket accumulate(const RPacket& u, Scalar* su) {
+    RPacket r = psqrt(pselect(peven_mask(u), abs2(u), pzero(u)));  // |u0| 0 |u1| 0 ...
+    add(su, r);
     return r;
   }
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket abs(const RPacket& u, RPacket& au) {
-    const RPacket even = peven_mask(RPacket());
-    RPacket r = psqrt(pselect(even, abs2(u), pzero(u)));  // |u0| 0 |u1| 0 ...
-    au = pselect(even, r, flip(r));
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket accumulate(const RPacket& u, const RPacket& v, Scalar* su,
+                                                                  Scalar* sv) {
+    RPacket r = psqrt(pselect(peven_mask(u), abs2(u), abs2(v)));  // |u0| |v0| |u1| |v1| ...
+    add(su, r);
+    add(sv, flip(r));
     return r;
   }
   // Squaring the parts overflows and underflows well inside the scalar range: an infinite or a
@@ -108,6 +104,9 @@ struct selfadjoint_l1norm_complex_lanes {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket abs2(const RPacket& v) {
     RPacket s = pmul(v, v);
     return padd(s, flip(s));
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void add(Scalar* s, const RPacket& a) {
+    pstoreu(s, pack(padd(lanes(ploadu<Packet>(s)), a)));
   }
 };
 
@@ -132,9 +131,6 @@ struct selfadjoint_l1norm_packet_impl : Lanes {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RPacket load(const XprEvaluator& x, Index i) {
     return Lanes::lanes(x.template packet<Unaligned, Packet>(i));
   }
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void add(Scalar* s, const RPacket& a) {
-    pstoreu(s, Lanes::pack(padd(Lanes::lanes(ploadu<Packet>(s)), a)));
-  }
   template <typename XprEvaluator>
   static EIGEN_DEVICE_FUNC Real accumulate(Scalar* s, const XprEvaluator& x, Index begin, Index end) {
     Real r = Real(0);
@@ -153,16 +149,11 @@ struct selfadjoint_l1norm_packet_impl : Lanes {
   static EIGEN_DEVICE_FUNC Real accumulate(Scalar* s, const XprEvaluator& x, Index n, std::true_type) {
     if (n < PacketSize) return accumulate(s, x, Index(0), n);
     RPacket acc = pzero(RPacket());
-    RPacket au, av;
     Index i = 0;
-    for (; i + 2 * PacketSize <= n; i += 2 * PacketSize) {
-      acc = padd(acc, Lanes::abs(load(x, i), load(x, i + PacketSize), au, av));
-      add(s + i, au);
-      add(s + i + PacketSize, av);
-    }
+    for (; i + 2 * PacketSize <= n; i += 2 * PacketSize)
+      acc = padd(acc, Lanes::accumulate(load(x, i), load(x, i + PacketSize), s + i, s + i + PacketSize));
     if (i + PacketSize <= n) {
-      acc = padd(acc, Lanes::abs(load(x, i), au));
-      add(s + i, au);
+      acc = padd(acc, Lanes::accumulate(load(x, i), s + i));
       i += PacketSize;
     }
     return predux(acc) + accumulate(s, x, i, n);
