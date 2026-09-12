@@ -332,6 +332,19 @@ double bug_1281() {
   return (y1 + y2 + y3).value();
 }
 
+// LLT stores the 1-norm of its input for rcond(); the sum of AutoDiffScalars is an expression, so
+// the norm must materialize its column totals before comparing them.
+void test_autodiff_selfadjoint_l1norm() {
+  typedef AutoDiffScalar<Vector2d> AD;
+  Matrix<AD, 8, 8> m = Matrix<AD, 8, 8>::Identity();
+  m(3, 3) = AD(2, Vector2d(1, 0));
+  AD norm = m.selfadjointView<Lower>().l1Norm();
+  VERIFY_IS_EQUAL(norm.value(), 2.0);
+  VERIFY_IS_EQUAL(norm.derivatives()(0), 1.0);
+  LLT<Matrix<AD, 8, 8>> llt(m);
+  VERIFY(llt.info() == Success);
+}
+
 EIGEN_DECLARE_TEST(autodiff) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(test_autodiff_scalar<1>());
@@ -345,4 +358,5 @@ EIGEN_DECLARE_TEST(autodiff) {
   CALL_SUBTEST_5(bug_1260());
   CALL_SUBTEST_5(bug_1261());
   CALL_SUBTEST_5(bug_1281());
+  CALL_SUBTEST_5(test_autodiff_selfadjoint_l1norm());
 }
