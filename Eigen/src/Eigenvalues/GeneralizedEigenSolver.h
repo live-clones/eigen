@@ -145,8 +145,8 @@ class GeneralizedEigenSolver {
    * \param[in]  computeEigenvectors  If true, both the eigenvectors and the
    *    eigenvalues are computed; if false, only the eigenvalues are computed.
    *
-   * This constructor calls compute() to compute the generalized eigenvalues
-   * and eigenvectors.
+   * This constructor computes the generalized eigenvalues and eigenvectors
+   * as compute() does.
    *
    * \sa compute()
    */
@@ -158,9 +158,9 @@ class GeneralizedEigenSolver {
         m_betas(A.cols()),
         m_computeEigenvectors(false),
         m_isInitialized(false),
-        m_realQZ(A.cols()),
+        m_realQZ(A.derived(), B.derived(), computeEigenvectors),
         m_tmp(A.cols()) {
-    compute(A.derived(), B.derived(), computeEigenvectors);
+    computeFromQZ(computeEigenvectors);
   }
 
   /** \brief Constructor for \link InplaceDecomposition inplace decomposition \endlink
@@ -318,8 +318,6 @@ GeneralizedEigenSolver<MatrixType>& GeneralizedEigenSolver<MatrixType>::compute(
  * held by m_realQZ. */
 template <typename MatrixType>
 GeneralizedEigenSolver<MatrixType>& GeneralizedEigenSolver<MatrixType>::computeFromQZ(bool computeEigenvectors) {
-  using std::abs;
-  using std::sqrt;
   const Index size = m_realQZ.matrixS().cols();
   if (m_realQZ.info() == Success) {
     // Resize storage
@@ -346,7 +344,7 @@ GeneralizedEigenSolver<MatrixType>& GeneralizedEigenSolver<MatrixType>::computeF
           v.setConstant(Scalar(0.0));
           v.coeffRef(i) = Scalar(1.0);
           // For singular eigenvalues do nothing more
-          if (abs(m_betas.coeffRef(i)) >= (std::numeric_limits<RealScalar>::min)()) {
+          if (numext::abs(m_betas.coeffRef(i)) >= (std::numeric_limits<RealScalar>::min)()) {
             // Non-singular eigenvalue
             const Scalar alpha = real(m_alphas.coeffRef(i));
             const Scalar beta = m_betas.coeffRef(i);
@@ -390,7 +388,7 @@ GeneralizedEigenSolver<MatrixType>& GeneralizedEigenSolver<MatrixType>::computeF
         Matrix<RealScalar, 2, 2> S2 = mS.template block<2, 2>(i, i) * Matrix<Scalar, 2, 1>(b, a).asDiagonal();
 
         Scalar p = Scalar(0.5) * (S2.coeff(0, 0) - S2.coeff(1, 1));
-        Scalar z = sqrt(abs(p * p + S2.coeff(1, 0) * S2.coeff(0, 1)));
+        Scalar z = numext::sqrt(numext::abs(p * p + S2.coeff(1, 0) * S2.coeff(0, 1)));
         const ComplexScalar alpha = ComplexScalar(S2.coeff(1, 1) + p, (beta > 0) ? z : -z);
         m_alphas.coeffRef(i) = conj(alpha);
         m_alphas.coeffRef(i + 1) = alpha;
