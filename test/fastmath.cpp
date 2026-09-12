@@ -302,7 +302,9 @@ void check_complex_householder_qr() {
 }
 
 // The complex self-adjoint 1-norm takes sqrt(re^2 + im^2) in packets and falls back to the scalar
-// abs when that overflows; the overflow test must not be folded away by -ffinite-math-only.
+// abs when a component is too large to square. The decision must not depend on an infinity or
+// NaN surviving fast-math: an approximate packet sqrt can turn the overflow into a NaN that a
+// maximum then discards. Large entries both on the diagonal and inside a packet of a column.
 template <typename RealScalar>
 void check_complex_selfadjoint_l1norm() {
   typedef std::complex<RealScalar> Scalar;
@@ -310,6 +312,11 @@ void check_complex_selfadjoint_l1norm() {
   Matrix<Scalar, 8, 8> m = Matrix<Scalar, 8, 8>::Identity() * big;
   VERIFY_IS_APPROX(m.template selfadjointView<Lower>().l1Norm(), big);
   VERIFY_IS_APPROX(m.template selfadjointView<Upper>().l1Norm(), big);
+  m.setIdentity();
+  m(2, 0) = m(0, 2) = Scalar(big, big);
+  const RealScalar expected = numext::abs(Scalar(big, big)) + RealScalar(1);
+  VERIFY_IS_APPROX(m.template selfadjointView<Lower>().l1Norm(), expected);
+  VERIFY_IS_APPROX(m.template selfadjointView<Upper>().l1Norm(), expected);
 }
 
 template <typename RealScalar>
