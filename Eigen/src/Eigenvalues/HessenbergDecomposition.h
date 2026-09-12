@@ -337,6 +337,30 @@ void hessenberg_decomposition_inplace(MatrixType& matA, CoeffVectorType& hCoeffs
   }
 }
 
+/** \internal
+ * Reduces \a matA in place to the Hessenberg matrix H of \f$ A = Q H Q^* \f$.
+ *
+ * \param matA the input square matrix, overwritten by H
+ * \param hCoeffs returned Householder coefficients
+ * \param temp workspace of at least matA.rows() coefficients
+ * \param matQ returned unitary matrix Q, if \a computeQ is true
+ * \param computeQ whether to compute Q
+ *
+ * Unlike the packed form above, \a matA holds only H afterwards: Q is formed from the Householder vectors below the
+ * subdiagonal before they are cleared.
+ */
+template <typename MatrixType, typename CoeffVectorType, typename WorkspaceType, typename MatrixQType>
+void hessenberg_decomposition_inplace(MatrixType& matA, CoeffVectorType& hCoeffs, WorkspaceType& temp,
+                                      MatrixQType& matQ, bool computeQ) {
+  using HouseholderSequenceType =
+      HouseholderSequence<MatrixType, remove_all_t<typename CoeffVectorType::ConjugateReturnType>>;
+  const Index n = matA.rows();
+  hCoeffs.resize(n - 1);
+  hessenberg_decomposition_inplace(matA, hCoeffs, temp);
+  if (computeQ) HouseholderSequenceType(matA, hCoeffs.conjugate()).setLength(n - 1).setShift(1).evalTo(matQ, temp);
+  if (n > 2) matA.bottomLeftCorner(n - 2, n - 2).template triangularView<Lower>().setZero();
+}
+
 /** \eigenvalues_module \ingroup Eigenvalues_Module
  *
  *

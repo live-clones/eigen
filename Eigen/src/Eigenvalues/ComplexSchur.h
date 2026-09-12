@@ -25,6 +25,9 @@ template <typename MatrixType, bool IsComplex>
 struct complex_schur_reduce_to_hessenberg;
 }
 
+template <typename MatrixType_>
+class ComplexEigenSolver;
+
 /** \eigenvalues_module \ingroup Eigenvalues_Module
  *
  *
@@ -53,9 +56,6 @@ struct complex_schur_reduce_to_hessenberg;
  *
  * \sa class RealSchur, class EigenSolver, class ComplexEigenSolver
  */
-template <typename MatrixType_>
-class ComplexEigenSolver;
-
 template <typename MatrixType_>
 class ComplexSchur {
  public:
@@ -429,8 +429,7 @@ namespace internal {
 /* Reduce given matrix to Hessenberg form, and hold the workspace this takes. */
 template <typename MatrixType, bool IsComplex>
 struct complex_schur_reduce_to_hessenberg {
-  // this is the implementation for the case IsComplex = true: the reduction runs in place in m_matT, and U is
-  // formed from the Householder vectors it leaves below the subdiagonal before they are cleared.
+  // this is the implementation for the case IsComplex = true: the reduction runs in place in m_matT.
   using Schur = ComplexSchur<MatrixType>;
   using Scalar = typename Schur::ComplexScalar;
   using CoeffVectorType = Matrix<Scalar, Schur::RowsAtCompileTime == Dynamic ? Dynamic : Schur::RowsAtCompileTime - 1,
@@ -438,8 +437,6 @@ struct complex_schur_reduce_to_hessenberg {
                                  Schur::MaxRowsAtCompileTime == Dynamic ? Dynamic : Schur::MaxRowsAtCompileTime - 1, 1>;
   using WorkspaceType =
       Matrix<Scalar, Schur::ColsAtCompileTime, 1, Schur::Options & ~RowMajor, Schur::MaxColsAtCompileTime, 1>;
-  using HouseholderSequenceType =
-      HouseholderSequence<typename Schur::MatrixTType, remove_all_t<typename CoeffVectorType::ConjugateReturnType>>;
 
   explicit complex_schur_reduce_to_hessenberg(Index size) : m_workspace(size) {
     if (size > 1) m_hCoeffs.resize(size - 1);
@@ -452,16 +449,7 @@ struct complex_schur_reduce_to_hessenberg {
   }
 
   void runInPlace(Schur& _this, bool computeU) {
-    const Index n = _this.m_matT.rows();
-    m_hCoeffs.resize(n - 1);
-    hessenberg_decomposition_inplace(_this.m_matT, m_hCoeffs, m_workspace);
-    if (computeU) {
-      HouseholderSequenceType(_this.m_matT, m_hCoeffs.conjugate())
-          .setLength(n - 1)
-          .setShift(1)
-          .evalTo(_this.m_matU, m_workspace);
-    }
-    if (n > 2) _this.m_matT.bottomLeftCorner(n - 2, n - 2).template triangularView<Lower>().setZero();
+    hessenberg_decomposition_inplace(_this.m_matT, m_hCoeffs, m_workspace, _this.m_matU, computeU);
   }
 
   CoeffVectorType m_hCoeffs;
