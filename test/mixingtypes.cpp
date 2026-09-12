@@ -9,18 +9,6 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-#if defined(EIGEN_TEST_PART_7)
-
-// ignore double-promotion diagnostic for clang and gcc, if we check for static assertion anyway:
-// TODO do the same for MSVC?
-#if defined(__clang__)
-#pragma clang diagnostic ignored "-Wdouble-promotion"
-#elif defined(__GNUC__)
-#pragma GCC diagnostic ignored "-Wdouble-promotion"
-#endif
-
-#endif
-
 // Subtests 1, 2, 3, 8 and 9 build without vectorization; 4, 5, 6, 10 and 11 are their
 // vectorized counterparts.
 #if defined(EIGEN_TEST_PART_1) || defined(EIGEN_TEST_PART_2) || defined(EIGEN_TEST_PART_3) || \
