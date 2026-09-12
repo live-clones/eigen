@@ -201,7 +201,7 @@ std::ptrdiff_t triangular_solve_budget(std::ptrdiff_t l2, std::ptrdiff_t l3) {
 template <typename Index>
 Index triangular_solve_panel_columns(Index size, Index cols, std::ptrdiff_t budget, Index nr) {
   eigen_internal_assert(size > 0);
-  const std::ptrdiff_t width = budget / size / nr * nr;
+  const std::ptrdiff_t width = numext::round_down<std::ptrdiff_t>(budget / size, nr);
   return width >= 512 && width < cols ? Index(width) : cols;
 }
 
@@ -222,7 +222,7 @@ Index triangular_solve_kc(Index size, Index otherSize, Index extent, std::ptrdif
   if (!deep || blocking.blockA() != nullptr) return blocking.kc();
   Index kc = size, mc = size, nc = otherSize;
   computeProductBlockingSizes<Scalar, Scalar>(kc, mc, nc);
-  kc = (numext::mini)(kc, (numext::mini)(size / 8, Index(160)) & ~Index(7));
+  kc = (numext::mini)(kc, numext::round_down((numext::mini)(size / 8, Index(160)), Index(8)));
 #if defined(EIGEN_ALLOCA) && !defined(EIGEN_NO_ALLOCA)
   const std::ptrdiff_t stackKc =
       std::ptrdiff_t(EIGEN_STACK_ALLOCATION_LIMIT) / (std::ptrdiff_t(sizeof(Scalar)) * extent);
@@ -278,10 +278,10 @@ EIGEN_DONT_INLINE void triangular_solve_matrix<Scalar, Index, OnTheLeft, Mode, C
   // costs more the deeper they are, so a large triangle alone does not deepen it.
   const std::ptrdiff_t budget = triangular_solve_budget<Scalar>(l2, l3);
   const Index nc = triangular_solve_panel_columns(size, otherSize, budget, Index(Traits::nr));
-  const Index mc = (std::min)(size, blocking.mc());  // cache block size along the M direction
+  const Index mc = (numext::mini)(size, blocking.mc());  // cache block size along the M direction
   // The tr solve below packs up to SmallPanelWidth x kc entries of the triangle into blockA.
-  const Index blockARows = (std::max)(mc, Index(SmallPanelWidth));
-  const Index kc = triangular_solve_kc<Scalar>(size, otherSize, (std::max)(blockARows, nc), budget,
+  const Index blockARows = (numext::maxi)(mc, Index(SmallPanelWidth));
+  const Index kc = triangular_solve_kc<Scalar>(size, otherSize, (numext::maxi)(blockARows, nc), budget,
                                                /*slabRuns=*/false, blocking);  // cache block size along the K direction
 
   std::size_t sizeA = kc * blockARows;
@@ -298,16 +298,16 @@ EIGEN_DONT_INLINE void triangular_solve_matrix<Scalar, Index, OnTheLeft, Mode, C
 
   // the goal here is to subdivide the Rhs panels such that we keep some cache
   // coherence when accessing the rhs elements
-  Index subcols = otherSize > 0 ? l2 / (4 * sizeof(Scalar) * std::max<Index>(otherStride, size)) : 0;
-  subcols = std::max<Index>((subcols / Traits::nr) * Traits::nr, Traits::nr);
+  Index subcols = otherSize > 0 ? l2 / (4 * sizeof(Scalar) * numext::maxi<Index>(otherStride, size)) : 0;
+  subcols = numext::maxi<Index>((subcols / Traits::nr) * Traits::nr, Traits::nr);
 
   for (Index j0 = 0; j0 < otherSize; j0 += nc) {
-    const Index cols = (std::min)(otherSize - j0, nc);
+    const Index cols = (numext::mini)(otherSize - j0, nc);
     Scalar* _panel = _other + j0 * otherStride;
     OtherMapper other(_panel, otherStride, otherIncr);
 
     for (Index k2 = IsLower ? 0 : size; IsLower ? k2 < size : k2 > 0; IsLower ? k2 += kc : k2 -= kc) {
-      const Index actual_kc = (std::min)(IsLower ? size - k2 : k2, kc);
+      const Index actual_kc = (numext::mini)(IsLower ? size - k2 : k2, kc);
 
       // We have selected and packed a big horizontal panel R1 of rhs. Let B be the packed copy of this panel,
       // and R2 the remaining part of rhs. The corresponding vertical panel of lhs is split into
@@ -323,10 +323,10 @@ EIGEN_DONT_INLINE void triangular_solve_matrix<Scalar, Index, OnTheLeft, Mode, C
       // Each panel can be split into a small triangular part T1k which is processed without optimization,
       // and the remaining small part T2k which is processed using gebp with appropriate block strides
       for (Index j2 = 0; j2 < cols; j2 += subcols) {
-        Index actual_cols = (std::min)(cols - j2, subcols);
+        Index actual_cols = (numext::mini)(cols - j2, subcols);
         // for each small vertical panels [T1k^T, T2k^T]^T of lhs
         for (Index k1 = 0; k1 < actual_kc; k1 += SmallPanelWidth) {
-          Index actualPanelWidth = std::min<Index>(actual_kc - k1, SmallPanelWidth);
+          Index actualPanelWidth = numext::mini<Index>(actual_kc - k1, SmallPanelWidth);
           // tr solve
           {
             Index i = IsLower ? k2 + k1 : k2 - k1 - 1;
@@ -367,7 +367,7 @@ EIGEN_DONT_INLINE void triangular_solve_matrix<Scalar, Index, OnTheLeft, Mode, C
         Index start = IsLower ? k2 + kc : 0;
         Index end = IsLower ? size : k2 - kc;
         for (Index i2 = start; i2 < end; i2 += mc) {
-          const Index actual_mc = (std::min)(mc, end - i2);
+          const Index actual_mc = (numext::mini)(mc, end - i2);
           if (actual_mc > 0) {
             pack_lhs(blockA, tri.getSubMapper(i2, IsLower ? k2 : k2 - kc), actual_kc, actual_mc);
 
@@ -430,15 +430,16 @@ EIGEN_DONT_INLINE void triangular_solve_matrix<Scalar, Index, OnTheRight, Mode, 
   // column-major triangle one column run at a time, so a large triangle alone deepens this kernel
   // (issue #3162); a row-major triangle is packed by rows, as on the left.
   const std::ptrdiff_t budget = triangular_solve_budget<Scalar>(l2, l3);
-  Index mc = (std::min)(rows, blocking.mc());  // cache block size along the M direction
-  const Index kc = triangular_solve_kc<Scalar>(size, rows, (std::max)(mc, size), budget, TriStorageOrder == ColMajor,
-                                               blocking);  // cache block size along the K direction
+  Index mc = (numext::mini)(rows, blocking.mc());  // cache block size along the M direction
+  const Index kc =
+      triangular_solve_kc<Scalar>(size, rows, (numext::maxi)(mc, size), budget, TriStorageOrder == ColMajor,
+                                  blocking);  // cache block size along the K direction
   // blockA packs kc x mc entries of the left-hand side, and rows can far exceed size. Past half the
   // budget a deeper kc takes proportionally fewer rows per pass, so blockA does not outgrow the buffer
   // the blocking chose.
   if (kc > blocking.kc()) {
-    const std::ptrdiff_t maxA = (std::max)(std::ptrdiff_t(blocking.kc()) * mc, budget / 2);
-    mc = (std::min)(mc, (std::max)(Index(Traits::mr), Index(maxA / kc) / Traits::mr * Traits::mr));
+    const std::ptrdiff_t maxA = (numext::maxi)(std::ptrdiff_t(blocking.kc()) * mc, budget / 2);
+    mc = (numext::mini)(mc, (numext::maxi)(Index(Traits::mr), numext::round_down(Index(maxA / kc), Index(Traits::mr))));
   }
 
   std::size_t sizeA = kc * mc;
@@ -455,7 +456,7 @@ EIGEN_DONT_INLINE void triangular_solve_matrix<Scalar, Index, OnTheRight, Mode, 
       pack_lhs_panel;
 
   for (Index k2 = IsLower ? size : 0; IsLower ? k2 > 0 : k2 < size; IsLower ? k2 -= kc : k2 += kc) {
-    const Index actual_kc = (std::min)(IsLower ? k2 : size - k2, kc);
+    const Index actual_kc = (numext::mini)(IsLower ? k2 : size - k2, kc);
     Index actual_k2 = IsLower ? k2 - actual_kc : k2;
 
     Index startPanel = IsLower ? 0 : k2 + actual_kc;
@@ -468,7 +469,7 @@ EIGEN_DONT_INLINE void triangular_solve_matrix<Scalar, Index, OnTheRight, Mode, 
     // neglecting the blocks overlapping the diagonal
     {
       for (Index j2 = 0; j2 < actual_kc; j2 += SmallPanelWidth) {
-        Index actualPanelWidth = std::min<Index>(actual_kc - j2, SmallPanelWidth);
+        Index actualPanelWidth = numext::mini<Index>(actual_kc - j2, SmallPanelWidth);
         Index actual_j2 = actual_k2 + j2;
         Index panelOffset = IsLower ? j2 + actualPanelWidth : 0;
         Index panelLength = IsLower ? actual_kc - j2 - actualPanelWidth : j2;
@@ -480,7 +481,7 @@ EIGEN_DONT_INLINE void triangular_solve_matrix<Scalar, Index, OnTheRight, Mode, 
     }
 
     for (Index i2 = 0; i2 < rows; i2 += mc) {
-      const Index actual_mc = (std::min)(mc, rows - i2);
+      const Index actual_mc = (numext::mini)(mc, rows - i2);
 
       // triangular solver kernel
       {
@@ -489,7 +490,7 @@ EIGEN_DONT_INLINE void triangular_solve_matrix<Scalar, Index, OnTheRight, Mode, 
                                                                               : Index(SmallPanelWidth)))
                                 : 0;
              IsLower ? j2 >= 0 : j2 < actual_kc; IsLower ? j2 -= SmallPanelWidth : j2 += SmallPanelWidth) {
-          Index actualPanelWidth = std::min<Index>(actual_kc - j2, SmallPanelWidth);
+          Index actualPanelWidth = numext::mini<Index>(actual_kc - j2, SmallPanelWidth);
           Index absolute_j2 = actual_k2 + j2;
           Index panelOffset = IsLower ? j2 + actualPanelWidth : 0;
           Index panelLength = IsLower ? actual_kc - j2 - actualPanelWidth : j2;
