@@ -65,6 +65,20 @@ extern "C" {
 #include <Eigen/src/misc/blas.h>
 }
 
+// c += a * b, matching gemm() above.
+static void blas_gemm(EIGEN_BLAS_INT m, EIGEN_BLAS_INT n, EIGEN_BLAS_INT p, const float* a, const float* b, float* c) {
+  const char notrans = 'N';
+  const float one = 1;
+  EIGEN_BLAS_SYM(sgemm)(&notrans, &notrans, &m, &n, &p, &one, a, &m, b, &p, &one, c, &m);
+}
+
+static void blas_gemm(EIGEN_BLAS_INT m, EIGEN_BLAS_INT n, EIGEN_BLAS_INT p, const double* a, const double* b,
+                      double* c) {
+  const char notrans = 'N';
+  const double one = 1;
+  EIGEN_BLAS_SYM(dgemm)(&notrans, &notrans, &m, &n, &p, &one, a, &m, b, &p, &one, c, &m);
+}
+
 static void BM_BlasGemm(benchmark::State& state) {
   int m = state.range(0);
   int n = state.range(1);
@@ -74,15 +88,9 @@ static void BM_BlasGemm(benchmark::State& state) {
   Mat b(p, n);
   b.setRandom();
   Mat c = Mat::Zero(m, n);
-  char notrans = 'N';
-  Scalar one = 1, zero = 0;
   for (auto _ : state) {
     c.setZero();
-    if constexpr (std::is_same_v<Scalar, float>) {
-      sgemm_(&notrans, &notrans, &m, &n, &p, &one, a.data(), &m, b.data(), &p, &one, c.data(), &m);
-    } else {
-      dgemm_(&notrans, &notrans, &m, &n, &p, &one, a.data(), &m, b.data(), &p, &one, c.data(), &m);
-    }
+    blas_gemm(m, n, p, a.data(), b.data(), c.data());
     benchmark::DoNotOptimize(c.data());
     benchmark::ClobberMemory();
   }
