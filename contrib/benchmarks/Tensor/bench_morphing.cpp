@@ -1,4 +1,4 @@
-// Benchmarks for Eigen Tensor morphing operations: reshape, slice, chip, pad, stride.
+// Benchmarks for Eigen Tensor morphing operations: reshape, slice, chip, pad, strided slice.
 // SPDX-FileCopyrightText: The Eigen Authors
 // SPDX-License-Identifier: MPL-2.0
 
@@ -88,27 +88,6 @@ static void BM_Pad(benchmark::State& state) {
   }
   int outM = M + 2 * padSize;
   int outN = N + 2 * padSize;
-  state.SetBytesProcessed(state.iterations() * outM * outN * sizeof(Scalar));
-}
-
-// --- Stride ---
-static void BM_Stride(benchmark::State& state) {
-  const int M = state.range(0);
-  const int N = state.range(1);
-  const int stride = state.range(2);
-
-  Tensor<Scalar, 2> A(M, N);
-  A.setRandom();
-
-  Eigen::array<Index, 2> strides_arr = {stride, stride};
-
-  for (auto _ : state) {
-    Tensor<Scalar, 2> B = A.stride(strides_arr);
-    benchmark::DoNotOptimize(B.data());
-    benchmark::ClobberMemory();
-  }
-  int outM = (M + stride - 1) / stride;
-  int outN = (N + stride - 1) / stride;
   state.SetBytesProcessed(state.iterations() * outM * outN * sizeof(Scalar));
 }
 
@@ -322,10 +301,6 @@ static void BM_Pad_ThreadPool(benchmark::State& state) {
   ->Args({256, 256, 1})->Args({256, 256, 4})->Args({256, 256, 16}) \
   ->Args({1024, 1024, 1})->Args({1024, 1024, 4})->Args({1024, 1024, 16})
 
-#define STRIDE_SIZES \
-  ->Args({256, 256, 2})->Args({256, 256, 4}) \
-  ->Args({1024, 1024, 2})->Args({1024, 1024, 4})
-
 #define STRIDED_SLICE_SIZES \
   ->Args({256, 256, 1, 1})->Args({1024, 1024, 1, 1})   /* contiguous inner */ \
   ->Args({256, 256, -1, -1})->Args({1024, 1024, -1, -1}) /* reversed inner */ \
@@ -342,7 +317,6 @@ BENCHMARK(BM_Reshape) MORPH_SIZES;
 BENCHMARK(BM_Slice) MORPH_SIZES;
 BENCHMARK(BM_Chip) CHIP_SIZES;
 BENCHMARK(BM_Pad) PAD_SIZES;
-BENCHMARK(BM_Stride) STRIDE_SIZES;
 BENCHMARK(BM_StridedSliceRead) STRIDED_SLICE_SIZES;
 BENCHMARK(BM_StridedSliceExp) STRIDED_SLICE_SIZES;
 BENCHMARK(BM_StridedSliceWrite) STRIDED_SLICE_SIZES;
