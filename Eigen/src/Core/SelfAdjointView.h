@@ -65,6 +65,7 @@ struct selfadjoint_l1norm_real_lanes {
                                                                   Scalar* sv) {
     return padd(accumulate(u, su), accumulate(v, sv));
   }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Real abs(const Scalar& x) { return numext::abs(x); }
   static EIGEN_DEVICE_FUNC bool isReliable(Real, Index) { return true; }
 };
 
@@ -93,6 +94,9 @@ struct selfadjoint_l1norm_complex_lanes {
   }
   // Squaring the parts overflows and underflows well inside the scalar range: an infinite or a
   // tiny result (elements below sqrt(min) lose precision) is recomputed through numext::abs.
+  // The scalar tail of a column takes the packet's formula as well: hypot would cost it more than
+  // the packets cost the rest of the column.
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Real abs(const Scalar& z) { return numext::sqrt(numext::abs2(z)); }
   static EIGEN_DEVICE_FUNC bool isReliable(Real norm, Index n) {
     const Real tiny = Real(n) * numext::sqrt((std::numeric_limits<Real>::min)()) / NumTraits<Real>::epsilon();
     return norm > tiny && (numext::isfinite)(norm);
@@ -139,7 +143,7 @@ struct selfadjoint_l1norm_packet_impl : Lanes {
   static EIGEN_DEVICE_FUNC Real accumulate(Scalar* s, const XprEvaluator& x, Index begin, Index end) {
     Real r = Real(0);
     for (Index i = begin; i < end; ++i) {
-      Real a = numext::abs(x.coeff(i));
+      Real a = Lanes::abs(x.coeff(i));
       s[i] += a;
       r += a;
     }
