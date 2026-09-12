@@ -9,6 +9,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #define TEST_ENABLE_TEMPORARY_TRACKING
+#define EIGEN_RUNTIME_NO_MALLOC
 
 #include "main.h"
 #include <Eigen/Cholesky>
@@ -709,7 +710,7 @@ void cholesky_determinant(Index size) {
 
   const RealScalar absdet = d.prod();
   const RealScalar logabsdet = d.array().log().sum();
-  const MatrixType spd = q * d.template cast<Scalar>().asDiagonal() * q.adjoint();
+  MatrixType spd = q * d.template cast<Scalar>().asDiagonal() * q.adjoint();
 
   LLT<MatrixType, Lower> lltlo(spd);
   VERIFY(lltlo.info() == Success);
@@ -911,10 +912,32 @@ void cholesky_rowmajor_boundary() {
   }
 }
 
+// Preallocated decompositions of dynamic-size matrices stay allocation-free, including the 1-norm
+// they take for rcond(), whose workspace comes from the stack.
+template <typename Scalar>
+void cholesky_dynamic_preallocated_no_malloc() {
+  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
+  Index size = 8;
+  MatrixType A = MatrixType::Random(size, size);
+  MatrixType spd = A * A.adjoint() + MatrixType::Identity(size, size) * Scalar(size);
+  LLT<MatrixType> llt(size);
+  LDLT<MatrixType> ldlt(size);
+  internal::set_is_malloc_allowed(false);
+  llt.compute(spd);
+  VERIFY_IS_EQUAL(llt.info(), Success);
+  ldlt.compute(spd);
+  VERIFY_IS_EQUAL(ldlt.info(), Success);
+  VERIFY(spd.template selfadjointView<Lower>().l1Norm() > 0);
+  internal::set_is_malloc_allowed(true);
+  VERIFY(llt.rcond() > 0);
+}
+
 EIGEN_DECLARE_TEST(cholesky) {
   int s = 0;
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(cholesky(Matrix<double, 1, 1>()));
+    CALL_SUBTEST_1(cholesky_dynamic_preallocated_no_malloc<double>());
+    CALL_SUBTEST_1(cholesky_dynamic_preallocated_no_malloc<std::complex<double> >());
     CALL_SUBTEST_3(cholesky(Matrix2d()));
     CALL_SUBTEST_3(cholesky_bug241(Matrix2d()));
     CALL_SUBTEST_3(cholesky_definiteness(Matrix2d()));
