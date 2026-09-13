@@ -656,23 +656,13 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC float bfloat16_to_float(__bfloat16_raw h) 
 // --- standard functions ---
 
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool(isinf)(const bfloat16& a) {
-  EIGEN_USING_STD(isinf);
-#if defined(EIGEN_USE_HIP_BF16)
-  return (isinf)(a);  // Uses HIP hip_bfloat16 isinf operator
-#else
-  return (isinf)(float(a));
-#endif
+  return (raw_bfloat16_as_uint16(a) & 0x7fff) == 0x7f80;
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool(isnan)(const bfloat16& a) {
-  EIGEN_USING_STD(isnan);
-#if defined(EIGEN_USE_HIP_BF16)
-  return (isnan)(a);  // Uses HIP hip_bfloat16 isnan operator
-#else
-  return (isnan)(float(a));
-#endif
+  return (raw_bfloat16_as_uint16(a) & 0x7fff) > 0x7f80;
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool(isfinite)(const bfloat16& a) {
-  return !(isinf EIGEN_NOT_A_MACRO(a)) && !(isnan EIGEN_NOT_A_MACRO(a));
+  return (raw_bfloat16_as_uint16(a) & 0x7fff) < 0x7f80;
 }
 
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 abs(const bfloat16& a) {
@@ -712,11 +702,24 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 tanh(const bfloat16& a) { return 
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 asinh(const bfloat16& a) { return bfloat16(::asinhf(float(a))); }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 acosh(const bfloat16& a) { return bfloat16(::acoshf(float(a))); }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 atanh(const bfloat16& a) { return bfloat16(::atanhf(float(a))); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 floor(const bfloat16& a) { return bfloat16(::floorf(float(a))); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 ceil(const bfloat16& a) { return bfloat16(::ceilf(float(a))); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 rint(const bfloat16& a) { return bfloat16(::rintf(float(a))); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 round(const bfloat16& a) { return bfloat16(::roundf(float(a))); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 trunc(const bfloat16& a) { return bfloat16(::truncf(float(a))); }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 exact_float_to_bfloat16(float f) {
+  return raw_uint16_to_bfloat16(static_cast<numext::uint16_t>(numext::bit_cast<numext::uint32_t>(f) >> 16));
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 floor(const bfloat16& a) {
+  return exact_float_to_bfloat16(::floorf(float(a)));
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 ceil(const bfloat16& a) {
+  return exact_float_to_bfloat16(::ceilf(float(a)));
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 rint(const bfloat16& a) {
+  return exact_float_to_bfloat16(::rintf(float(a)));
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 round(const bfloat16& a) {
+  return exact_float_to_bfloat16(::roundf(float(a)));
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 trunc(const bfloat16& a) {
+  return exact_float_to_bfloat16(::truncf(float(a)));
+}
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 fmod(const bfloat16& a, const bfloat16& b) {
   return bfloat16(::fmodf(float(a), float(b)));
 }
