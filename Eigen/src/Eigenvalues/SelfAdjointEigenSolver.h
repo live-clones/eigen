@@ -229,10 +229,10 @@ class SelfAdjointEigenSolver {
    *
    * When \p MatrixType is a Ref<>, the decomposition is computed within the memory of \p matrix, whose content is
    * destroyed: with #ComputeEigenvectors it holds the eigenvectors afterwards and eigenvectors() refers to it, with
-   * #EigenvaluesOnly its content is unspecified. Otherwise this constructor behaves like
-   * SelfAdjointEigenSolver(const EigenBase<InputType>&, int).
+   * #EigenvaluesOnly its content is unspecified. This overload is only available for Ref<>; owning matrix types
+   * use the constructor taking a const input.
    */
-  template <typename InputType>
+  template <typename InputType, bool IsRef = internal::is_ref<MatrixType>::value, std::enable_if_t<IsRef, int> = 0>
   EIGEN_DEVICE_FUNC explicit SelfAdjointEigenSolver(EigenBase<InputType>& matrix, int options = ComputeEigenvectors)
       : SelfAdjointEigenSolver(matrix, BindStorageTag()) {
     computeInPlace(options);

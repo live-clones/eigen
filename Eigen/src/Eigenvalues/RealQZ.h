@@ -251,7 +251,7 @@ void RealQZ<MatrixType>::hessenbergTriangular() {
   const Index dim = m_S.cols();
 
   // perform QR decomposition of T in place: T holds R above the Householder vectors Q is formed from
-  HouseholderQR<Ref<PlainMatrixType>> qrT(m_T);
+  HouseholderQR<Ref<PlainMatrixType, 0, Stride<Dynamic, MatrixType::InnerStrideAtCompileTime>>> qrT(m_T);
   m_Q = qrT.householderQ();
   m_T.template triangularView<StrictlyLower>().setZero();
   // overwrite S with Q* S
