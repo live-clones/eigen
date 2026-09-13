@@ -2754,6 +2754,28 @@ EIGEN_STRONG_INLINE Packet16bf pcmp_lt_or_nan(const Packet16bf& a, const Packet1
   return Pack32To16(pcmp_lt_or_nan(Bf16ToF32(a), Bf16ToF32(b)));
 }
 
+// Classify on the raw bits, as the scalar isinf/isnan/isfinite do: |a| ==, >, < 0x7f80.
+template <>
+EIGEN_STRONG_INLINE Packet16bf pisinf<Packet16bf>(const Packet16bf& a) {
+  constexpr uint16_t kInf = ((1 << 8) - 1) << 7;
+  constexpr uint16_t kAbsMask = (1 << 15) - 1;
+  return _mm256_cmpeq_epi16(_mm256_and_si256(a, _mm256_set1_epi16(kAbsMask)), _mm256_set1_epi16(kInf));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet16bf pisnan<Packet16bf>(const Packet16bf& a) {
+  constexpr uint16_t kInf = ((1 << 8) - 1) << 7;
+  constexpr uint16_t kAbsMask = (1 << 15) - 1;
+  return _mm256_cmpgt_epi16(_mm256_and_si256(a, _mm256_set1_epi16(kAbsMask)), _mm256_set1_epi16(kInf));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet16bf pisfinite<Packet16bf>(const Packet16bf& a) {
+  constexpr uint16_t kInf = ((1 << 8) - 1) << 7;
+  constexpr uint16_t kAbsMask = (1 << 15) - 1;
+  return _mm256_cmpgt_epi16(_mm256_set1_epi16(kInf), _mm256_and_si256(a, _mm256_set1_epi16(kAbsMask)));
+}
+
 template <>
 EIGEN_STRONG_INLINE Packet16bf pnegate(const Packet16bf& a) {
   Packet16bf sign_mask = _mm256_set1_epi16(static_cast<short>(0x8000u));

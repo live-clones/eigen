@@ -4842,6 +4842,28 @@ EIGEN_STRONG_INLINE Packet4bf pcmp_lt_or_nan<Packet4bf>(const Packet4bf& a, cons
   return F32MaskToBf16Mask(pcmp_lt_or_nan<Packet4f>(Bf16ToF32(a), Bf16ToF32(b)));
 }
 
+// Classify on the raw bits, as the scalar isinf/isnan/isfinite do: |a| ==, >, < 0x7f80.
+template <>
+EIGEN_STRONG_INLINE Packet4bf pisinf<Packet4bf>(const Packet4bf& a) {
+  constexpr uint16_t kInf = ((1 << 8) - 1) << 7;
+  constexpr uint16_t kAbsMask = (1 << 15) - 1;
+  return vceq_u16(vand_u16(a, vdup_n_u16(kAbsMask)), vdup_n_u16(kInf));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4bf pisnan<Packet4bf>(const Packet4bf& a) {
+  constexpr uint16_t kInf = ((1 << 8) - 1) << 7;
+  constexpr uint16_t kAbsMask = (1 << 15) - 1;
+  return vcgt_u16(vand_u16(a, vdup_n_u16(kAbsMask)), vdup_n_u16(kInf));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4bf pisfinite<Packet4bf>(const Packet4bf& a) {
+  constexpr uint16_t kInf = ((1 << 8) - 1) << 7;
+  constexpr uint16_t kAbsMask = (1 << 15) - 1;
+  return vclt_u16(vand_u16(a, vdup_n_u16(kAbsMask)), vdup_n_u16(kInf));
+}
+
 template <>
 EIGEN_STRONG_INLINE Packet4bf pcmp_le<Packet4bf>(const Packet4bf& a, const Packet4bf& b) {
   return F32MaskToBf16Mask(pcmp_le<Packet4f>(Bf16ToF32(a), Bf16ToF32(b)));
