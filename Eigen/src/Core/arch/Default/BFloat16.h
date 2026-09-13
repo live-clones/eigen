@@ -777,7 +777,7 @@ struct random_impl<bfloat16> {
   }
   static EIGEN_DEVICE_FUNC inline bfloat16 run() {
     float result = Impl::run(MantissaBits);
-    return bfloat16(result);
+    return bfloat16_impl::exact_float_to_bfloat16(result);
   }
 };
 
