@@ -370,10 +370,8 @@ ComplexSchur<MatrixType>& ComplexSchur<MatrixType>::compute(const EigenBase<Inpu
   // maxCoeff propagates NaN; a zero or non-finite maxCoeff carries no usable exponent and is left unscaled.
   const RealScalar maxCoeff = internal::safe_scaling<RealScalar>::recover_flushed_max_coeff(
       matrix.derived(), matrix.derived().cwiseAbs().template maxCoeff<PropagateNaN>());
-  const internal::safe_scaling_factors<RealScalar> factors =
-      internal::safe_scaling<RealScalar>::with_scaled(matrix.derived(), maxCoeff, [&](const auto& scaled) {
-        m_hess.run(*this, scaled, computeU);
-      });
+  const internal::safe_scaling_factors<RealScalar> factors = internal::safe_scaling<RealScalar>::with_scaled(
+      matrix.derived(), maxCoeff, [&](const auto& scaled) { m_hess.run(*this, scaled, computeU); });
   computeFromHessenberg(m_matT, m_matU, computeU);
   // m_matU is unitary either way; only the triangular factor carries the scale.
   internal::safe_scaling<RealScalar>::unscale_in_place(m_matT, maxCoeff, factors);
@@ -402,7 +400,6 @@ ComplexSchur<MatrixType>& ComplexSchur<MatrixType>::computeInPlace(bool computeU
   computeFromHessenberg(m_matT, m_matU, computeU);
   internal::safe_scaling<RealScalar>::unscale_in_place(m_matT, maxCoeff, factors);
   return *this;
-
 }
 
 template <typename MatrixType>

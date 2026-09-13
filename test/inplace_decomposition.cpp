@@ -395,8 +395,8 @@ EIGEN_DECLARE_TEST(inplace_decomposition) {
     CALL_SUBTEST_8((inplace<CompleteOrthogonalDecomposition<Ref<MatrixXd> >, MatrixXd>(false, false)));
     CALL_SUBTEST_8((inplace<CompleteOrthogonalDecomposition<Ref<Matrix43d> >, Matrix43d>(false, false)));
 
-    CALL_SUBTEST_2((inplace<BunchKaufman<Ref<MatrixXd> >, MatrixXd>(true, true)));
-    CALL_SUBTEST_2((inplace<BunchKaufman<Ref<Matrix4d> >, Matrix4d>(true, true)));
+    CALL_SUBTEST_2((inplace<BunchKaufman<Ref<MatrixXd>>, MatrixXd>(true, true)));
+    CALL_SUBTEST_2((inplace<BunchKaufman<Ref<Matrix4d>>, Matrix4d>(true, true)));
 
     CALL_SUBTEST_9((inplace_reductions<MatrixXd>(size)));
     CALL_SUBTEST_9((inplace_reductions<MatrixXcd>(size)));
@@ -420,10 +420,10 @@ EIGEN_DECLARE_TEST(inplace_decomposition) {
     CALL_SUBTEST_11((inplace_selfadjoint_eigensolver<Matrix3d>(3)));
     CALL_SUBTEST_11((inplace_selfadjoint_eigensolver<Matrix4f>(4)));
     CALL_SUBTEST_11((inplace_selfadjoint_eigensolver<Matrix4d>(4)));
-    CALL_SUBTEST_11((inplace_selfadjoint_eigensolver<Matrix<float, Dynamic, Dynamic, RowMajor> >(size)));
+    CALL_SUBTEST_11((inplace_selfadjoint_eigensolver<Matrix<float, Dynamic, Dynamic, RowMajor>>(size)));
     // Large enough for the blocked tridiagonalization, on strided and row-major storage.
     CALL_SUBTEST_11((inplace_selfadjoint_eigensolver<MatrixXd>(100)));
-    CALL_SUBTEST_11((inplace_selfadjoint_eigensolver<Matrix<float, Dynamic, Dynamic, RowMajor> >(100)));
+    CALL_SUBTEST_11((inplace_selfadjoint_eigensolver<Matrix<float, Dynamic, Dynamic, RowMajor>>(100)));
 
     CALL_SUBTEST_12((inplace_eigensolver<MatrixXd, EigenSolver>(size)));
     CALL_SUBTEST_12((inplace_eigensolver<MatrixXd, EigenSolver>(1)));
