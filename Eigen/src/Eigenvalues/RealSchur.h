@@ -129,10 +129,10 @@ class RealSchur {
    * \param[in]      computeU  If true, both T and U are computed; if false, only T is computed.
    *
    * When \p MatrixType is a Ref<>, the decomposition is computed within the memory of \p matrix, which then holds
-   * the quasi-triangular matrix T returned by matrixT(); U is stored in the decomposition object. Otherwise this
-   * constructor behaves like RealSchur(const EigenBase<InputType>&, bool).
+   * the quasi-triangular matrix T returned by matrixT(); U is stored in the decomposition object. This overload is
+   * only available for Ref<>; owning matrix types use the constructor taking a const input.
    */
-  template <typename InputType>
+  template <typename InputType, bool IsRef = internal::is_ref<MatrixType>::value, std::enable_if_t<IsRef, int> = 0>
   explicit RealSchur(EigenBase<InputType>& matrix, bool computeU = true)
       : m_matT(matrix.derived()),
         m_matU(matrix.rows(), matrix.cols()),

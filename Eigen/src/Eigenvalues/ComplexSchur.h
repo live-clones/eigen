@@ -140,11 +140,10 @@ class ComplexSchur {
    * \param[in]      computeU  If true, both T and U are computed; if false, only T is computed.
    *
    * When \p MatrixType is a Ref<>, the decomposition is computed within the memory of \p matrix, which then holds
-   * the triangular matrix T returned by matrixT(); U is stored in the decomposition object. Otherwise this
-   * constructor behaves like ComplexSchur(const EigenBase<InputType>&, bool). It is only available for a complex
-   * \p MatrixType: a real matrix is reduced to Hessenberg form in real arithmetic, and T and U are complex.
+   * the triangular matrix T returned by matrixT(); U is stored in the decomposition object. This overload is only
+   * available for a complex Ref<>; owning matrix types use the constructor taking a const input.
    */
-  template <typename InputType, bool IsComplex = NumTraits<Scalar>::IsComplex, std::enable_if_t<IsComplex, int> = 0>
+  template <typename InputType, bool IsRef = internal::is_ref<MatrixType>::value, std::enable_if_t<IsRef, int> = 0>
   explicit ComplexSchur(EigenBase<InputType>& matrix, bool computeU = true)
       : m_matT(matrix.derived()),
         m_matU(matrix.rows(), matrix.cols()),

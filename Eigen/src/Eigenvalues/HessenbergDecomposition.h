@@ -23,7 +23,7 @@ template <typename MatrixType>
 struct HessenbergDecompositionMatrixHReturnType;
 template <typename MatrixType>
 struct traits<HessenbergDecompositionMatrixHReturnType<MatrixType>> {
-  using ReturnType = MatrixType;
+  using ReturnType = typename MatrixType::PlainObject;
 };
 
 template <typename MatrixType, typename CoeffVectorType, typename WorkspaceType>
