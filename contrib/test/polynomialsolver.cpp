@@ -139,9 +139,8 @@ void evalSolverSugarFunction(const POLYNOMIAL& pols, const REAL_ROOTS& real_root
 
   PolynomialSolverType psolve;
   if (aux_evalSolver<Deg, POLYNOMIAL, PolynomialSolverType>(pols, psolve)) {
-    // Root condition: a coefficient perturbation of size delta moves a simple root r_j of monic p by at most
-    // delta * sum_k |r_j|^k / |p'(r_j)|, p'(r_j) = prod_{k != j} (r_j - r_k). The companion-matrix eigenvalues
-    // have absolute backward error ~eps * max_k |a_k|; sampled roots stay below 10x that bound, hence 32x.
+    // First-order root displacement estimate: delta * sum_k |r_j|^k / |p'(r_j)| for a monic polynomial,
+    // p'(r_j) = prod_{k != j} (r_j - r_k). Use delta = 32 eps max_k |a_k| for the companion eigenvalue error.
     const RealScalar coefficientError = RealScalar(32) * NumTraits<RealScalar>::epsilon() * pols.cwiseAbs().maxCoeff();
     Matrix<RealScalar, Dynamic, 1> tolerance(real_roots.size());
     for (Index j = 0; j < real_roots.size(); ++j) {
@@ -155,6 +154,11 @@ void evalSolverSugarFunction(const POLYNOMIAL& pols, const REAL_ROOTS& real_root
         if (k != j) derivative *= numext::abs(root - real_roots[k]);
       }
       tolerance[j] = coefficientError * powerSum / derivative;
+    }
+    // A broad cluster tolerance must not hide a missing, well-conditioned root.
+    for (Index j = 0; j < real_roots.size(); ++j) {
+      VERIFY((numext::isfinite)(tolerance[j]));
+      VERIFY((psolve.roots().array() - real_roots[j]).abs().minCoeff() <= tolerance[j]);
     }
     for (Index i = 0; i < psolve.roots().size(); ++i) {
       bool found = false;
