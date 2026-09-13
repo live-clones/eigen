@@ -39,7 +39,7 @@ static void BM_PolynomialSolver(benchmark::State& state) {
   const Index degree = Deg == Dynamic ? Index(state.range(0)) : Index(Deg);
   using Polynomial = Matrix<Scalar, Deg == Dynamic ? Dynamic : Deg + 1, 1>;
   std::srand(1);
-  std::vector<Polynomial> polys;
+  std::vector<Polynomial, aligned_allocator<Polynomial>> polys;
   for (int b = 0; b < kBatch; ++b) polys.push_back(Polynomial::Random(degree + 1));
   PolynomialSolver<Scalar, Deg> solver;
   for (const Polynomial& poly : polys) {
