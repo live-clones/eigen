@@ -2593,27 +2593,27 @@ EIGEN_STRONG_INLINE Packet8bf pselect(const Packet8bf& mask, const Packet8bf& a,
 
 template <>
 EIGEN_STRONG_INLINE Packet8bf pround<Packet8bf>(const Packet8bf& a) {
-  return F32ToBf16(pround<Packet8f>(Bf16ToF32(a)));
+  return F32ToBf16Truncate(pround<Packet8f>(Bf16ToF32(a)));
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet8bf print<Packet8bf>(const Packet8bf& a) {
-  return F32ToBf16(print<Packet8f>(Bf16ToF32(a)));
+  return F32ToBf16Truncate(print<Packet8f>(Bf16ToF32(a)));
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet8bf pceil<Packet8bf>(const Packet8bf& a) {
-  return F32ToBf16(pceil<Packet8f>(Bf16ToF32(a)));
+  return F32ToBf16Truncate(pceil<Packet8f>(Bf16ToF32(a)));
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet8bf pfloor<Packet8bf>(const Packet8bf& a) {
-  return F32ToBf16(pfloor<Packet8f>(Bf16ToF32(a)));
+  return F32ToBf16Truncate(pfloor<Packet8f>(Bf16ToF32(a)));
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet8bf ptrunc<Packet8bf>(const Packet8bf& a) {
-  return F32ToBf16(ptrunc<Packet8f>(Bf16ToF32(a)));
+  return F32ToBf16Truncate(ptrunc<Packet8f>(Bf16ToF32(a)));
 }
 
 template <>

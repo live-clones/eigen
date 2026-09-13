@@ -4715,27 +4715,27 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4bf pselect(const Packet4bf& mask, c
 
 template <>
 EIGEN_STRONG_INLINE Packet4bf print<Packet4bf>(const Packet4bf& a) {
-  return F32ToBf16(print<Packet4f>(Bf16ToF32(a)));
+  return F32ToBf16Truncate(print<Packet4f>(Bf16ToF32(a)));
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet4bf pfloor<Packet4bf>(const Packet4bf& a) {
-  return F32ToBf16(pfloor<Packet4f>(Bf16ToF32(a)));
+  return F32ToBf16Truncate(pfloor<Packet4f>(Bf16ToF32(a)));
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet4bf pceil<Packet4bf>(const Packet4bf& a) {
-  return F32ToBf16(pceil<Packet4f>(Bf16ToF32(a)));
+  return F32ToBf16Truncate(pceil<Packet4f>(Bf16ToF32(a)));
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet4bf pround<Packet4bf>(const Packet4bf& a) {
-  return F32ToBf16(pround<Packet4f>(Bf16ToF32(a)));
+  return F32ToBf16Truncate(pround<Packet4f>(Bf16ToF32(a)));
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet4bf ptrunc<Packet4bf>(const Packet4bf& a) {
-  return F32ToBf16(ptrunc<Packet4f>(Bf16ToF32(a)));
+  return F32ToBf16Truncate(ptrunc<Packet4f>(Bf16ToF32(a)));
 }
 
 template <>
