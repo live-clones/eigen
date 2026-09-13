@@ -393,9 +393,24 @@ void polynomialsolver_scaled_quadratic() {
   }
 }
 
+template <int Degree>
+void polynomialsolver_real_starts_for_complex_pair() {
+  Matrix<double, 7, 1> poly;
+  poly << 0.015754773452117808, -0.2921305061016638, 1.8654828811488313, -4.9912618133859823, 6.4755674799802918,
+      -4.0734106361481288, 1;
+  PolynomialSolver<double, Degree> solver(poly);
+  // A nearly double nonreal pair initially appears as two real eigenvalues. Unconverged real-axis refinement
+  // used to increase the maximum componentwise backward error from 2.2 eps to 3.1e5 eps.
+  const long double tolerance = 32 * static_cast<long double>(NumTraits<double>::epsilon());
+  for (Index i = 0; i < solver.roots().size(); ++i)
+    VERIFY(root_backward_error<long double>(poly, solver.roots()[i]) <= tolerance);
+}
+
 EIGEN_DECLARE_TEST(polynomialsolver) {
   CALL_SUBTEST_7(polynomialsolver_sugar_cluster());
   CALL_SUBTEST_13(polynomialsolver_sugar_filtering());
+  CALL_SUBTEST_18(polynomialsolver_real_starts_for_complex_pair<6>());
+  CALL_SUBTEST_18(polynomialsolver_real_starts_for_complex_pair<Dynamic>());
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1((polynomialsolver<float, 1>(1)));
     CALL_SUBTEST_2((polynomialsolver<double, 2>(2)));

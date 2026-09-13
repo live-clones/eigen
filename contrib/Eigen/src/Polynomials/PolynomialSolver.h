@@ -290,9 +290,9 @@ class PolynomialSolverBase {
  *
  *
  * The eigenvalues of the balanced companion matrix of the polynomial give first approximations of
- * the roots, which Ehrlich-Aberth iterations on the polynomial itself then refine until each root is
- * an exact root of a polynomial whose coefficients differ from the given ones by about the rounding
- * error of evaluating it. The roots of a real polynomial are returned as real numbers or exact
+ * the roots. Ehrlich-Aberth iterations on the polynomial itself target a residual within the rounding
+ * error of evaluation, with a finite sweep limit and an initial-estimate fallback for unfinished
+ * iterates whose residual increased. The roots of a real polynomial are returned as real numbers or exact
  * conjugate pairs. A root of multiplicity \f$ m \f$ can only be located to about
  * \f$ \varepsilon^{1/m} \f$.
  */
@@ -373,16 +373,26 @@ class PolynomialSolver : public PolynomialSolverBase<Scalar_, Deg_> {
   /** Refines the eigenvalue estimates in m_roots by Ehrlich-Aberth iterations (Ehrlich 1967; Aberth 1973),
    * \f$ z_i \leftarrow z_i - w_i / (1 - w_i \sum_{j \ne i} (z_i - z_j)^{-1}) \f$ with \f$ w_i = p(z_i) / p'(z_i) \f$.
    * The iteration is cubic for simple roots, and the sum keeps the iterates apart, so every root is refined at
-   * once without deflation. Updates are applied in place: iterates that stayed exactly symmetric about the real
-   * axis could never turn a complex pair into two real roots or back. A root is final once \f$ |p(z_i)| \f$ is
+   * once without deflation. Updates use the latest estimates; real starting values receive an epsilon-sized imaginary
+   * perturbation so they can reach nonreal roots. At the sweep limit, unfinished estimates are compared with
+   * their initial polynomial residuals. A root is final once \f$ |p(z_i)| \f$ is
    * within the rounding bound of its evaluation, so that \f$ z_i \f$ is an exact root of a polynomial that close to
    * \f$ p \f$ (the stopping rule of Bini 1996), or once its Newton correction is below one ulp. */
   template <typename OtherPolynomial>
   void refineRoots(const OtherPolynomial& poly) {
     const Index n = m_roots.size();
     const RealScalar eps = NumTraits<RealScalar>::epsilon();
-    // Clustered iterates converge linearly, gaining at least a bit per sweep.
+    // Convergence is not guaranteed for clustered roots; retain the eigenvalue estimates as a fallback.
     const int maxSweeps = NumTraits<RealScalar>::digits();
+    EIGEN_IF_CONSTEXPR (!NumTraits<Scalar>::IsComplex) {
+      for (Index i = 0; i < n; ++i) {
+        // Real iterates cannot reach a nonreal root; perturb by +/- i eps |z|.
+        if (numext::imag(m_roots[i]) == RealScalar(0)) {
+          const RealScalar perturbation = eps * numext::abs(m_roots[i]);
+          m_roots[i] += RootType(0, i % 2 == 0 ? perturbation : -perturbation);
+        }
+      }
+    }
     Array<bool, Deg_, 1> active = Array<bool, Deg_, 1>::Constant(n, true);
     RootType value, derivative;
     for (int sweep = 0; sweep < maxSweeps; ++sweep) {
@@ -418,7 +428,15 @@ class PolynomialSolver : public PolynomialSolverBase<Scalar_, Deg_> {
           active[i] = false;
         }
       }
-      if (!moving) break;
+      if (!moving) return;
+    }
+    // Keep improvements to slowly converging multiple roots, but reject a larger residual at the sweep cap.
+    for (Index i = 0; i < n; ++i) {
+      if (!active[i]) continue;
+      RootType initialValue;
+      evaluate(poly, m_roots[i], value, derivative, false);
+      evaluate(poly, m_eigenSolver.eigenvalues()[i], initialValue, derivative, false);
+      if (!(numext::abs(value) <= numext::abs(initialValue))) m_roots[i] = m_eigenSolver.eigenvalues()[i];
     }
   }
 
