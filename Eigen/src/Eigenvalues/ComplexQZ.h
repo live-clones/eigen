@@ -302,7 +302,7 @@ void ComplexQZ<MatrixType_>::computeInPlace(bool computeQZ) {
 template <typename MatrixType_>
 void ComplexQZ<MatrixType_>::hessenbergTriangular() {
   // Perform the QR decomposition of T in place: T holds R above the Householder vectors Q is formed from
-  HouseholderQR<Ref<PlainMatrixType>> qr(m_T);
+  HouseholderQR<Ref<PlainMatrixType, 0, Stride<Dynamic, MatrixType::InnerStrideAtCompileTime>>> qr(m_T);
 
   if (m_computeQZ) m_Q = qr.householderQ();
 
