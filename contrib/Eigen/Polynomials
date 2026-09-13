@@ -117,9 +117,9 @@
         The QR algorithm is backward stable for the companion matrix, but a perturbation of that matrix is not a
   perturbation of the coefficients of \f$ p \f$, so the eigenvalues can be much less accurate than the conditioning of
   the roots allows, frequently so with 32bit (float) floating types. Each approximation is therefore refined by
-  simultaneous Ehrlich-Aberth iterations on \f$ p \f$ itself, until \f$ |p(z_i)| \f$ is within the rounding error of
-  its evaluation: every computed root is then an exact root of a polynomial whose coefficients are close to those of
-  \f$ p \f$. A root of multiplicity \f$ m \f$ can only be located to about \f$ \epsilon^{1/m} \f$.
+  simultaneous Ehrlich-Aberth iterations on \f$ p \f$ itself, targeting a residual within the rounding error of
+  evaluation. The number of sweeps is limited; an unfinished iterate whose residual increased falls back to its
+  initial eigenvalue estimate. A root of multiplicity \f$ m \f$ can only be located to about \f$ \epsilon^{1/m} \f$.
 
         \include PolynomialSolver1.cpp
 
