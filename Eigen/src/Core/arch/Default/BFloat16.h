@@ -720,8 +720,9 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 round(const bfloat16& a) {
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 trunc(const bfloat16& a) {
   return exact_float_to_bfloat16(::truncf(float(a)));
 }
+// fmod is exact: a - n*b is either a itself or a multiple of the ulp of b that is smaller than |b|.
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 fmod(const bfloat16& a, const bfloat16& b) {
-  return bfloat16(::fmodf(float(a), float(b)));
+  return exact_float_to_bfloat16(::fmodf(float(a), float(b)));
 }
 
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16(min)(const bfloat16& a, const bfloat16& b) {

@@ -4795,12 +4795,12 @@ EIGEN_STRONG_INLINE bfloat16 predux<Packet4bf>(const Packet4bf& a) {
 
 template <>
 EIGEN_STRONG_INLINE bfloat16 predux_max<Packet4bf>(const Packet4bf& a) {
-  return static_cast<bfloat16>(predux_max<Packet4f>(Bf16ToF32(a)));
+  return bfloat16_impl::exact_float_to_bfloat16(predux_max<Packet4f>(Bf16ToF32(a)));
 }
 
 template <>
 EIGEN_STRONG_INLINE bfloat16 predux_min<Packet4bf>(const Packet4bf& a) {
-  return static_cast<bfloat16>(predux_min<Packet4f>(Bf16ToF32(a)));
+  return bfloat16_impl::exact_float_to_bfloat16(predux_min<Packet4f>(Bf16ToF32(a)));
 }
 
 template <>
