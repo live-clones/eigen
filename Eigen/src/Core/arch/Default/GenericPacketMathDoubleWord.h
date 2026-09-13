@@ -59,9 +59,9 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void twoprod(const Packet& x, const Packet
 
 #else
 
-// Dekker's product below is exact only if each product and sum is rounded separately. Where the target has a
-// hardware fma, which <cmath> reports as FP_FAST_FMA*, GCC's C++ default -ffp-contract=fast may instead fuse
-// fl(x*y) into the sums that consume it; fma is exact and cheap there, so those scalar types use it.
+// Dekker's product requires separately rounded operations. GCC's C++ default -ffp-contract=fast may fuse
+// fl(x*y) into its consumers, so use fma for scalar types that <cmath> advertises as fast.
+// This does not prevent contraction in the remaining scalar or packet fallback paths.
 template <typename Scalar>
 struct has_fast_fma : std::false_type {};
 #ifdef FP_FAST_FMAF
