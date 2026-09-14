@@ -33,8 +33,8 @@ void inplace_plain_lapacke_dispatch() {
   using ComplexMatrix = Matrix<std::complex<double>, Dynamic, Dynamic, Options>;
   RealMatrix real = RealMatrix::Identity(3, 3);
   ComplexMatrix complex = ComplexMatrix::Identity(3, 3);
-  const RealMatrix constReal = real;
-  const ComplexMatrix constComplex = complex;
+  const RealMatrix constReal = RealMatrix::Identity(3, 3);
+  const ComplexMatrix constComplex = ComplexMatrix::Identity(3, 3);
   const int realBefore = real_schur_calls, complexBefore = complex_schur_calls, selfadjointBefore = selfadjoint_calls;
   RealSchur<RealMatrix> mutableRealSchur(real), constRealSchur(constReal);
   ComplexSchur<ComplexMatrix> mutableComplexSchur(complex), constComplexSchur(constComplex);

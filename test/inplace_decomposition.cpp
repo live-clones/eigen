@@ -110,6 +110,7 @@ void inplace_reductions(Index size) {
     MatrixType twiceH = Scalar(2) * hess.matrixH();
     VERIFY_IS_EQUAL(twiceH, Scalar(2) * H);
 
+    // NOLINTNEXTLINE(performance-unnecessary-copy-initialization): Snapshot verifies compute() preserves its input.
     MatrixType A1 = MatrixType::Random(size, size), A1c = A1;
     hess.compute(A1);
     VERIFY_IS_EQUAL(A1, A1c);
@@ -137,6 +138,7 @@ void inplace_schur(Index size) {
   VERIFY(internal::is_same_dense(schur.matrixT(), A));
   verify_inplace_similarity(A0, schur.matrixU(), schur.matrixT());
 
+  // NOLINTNEXTLINE(performance-unnecessary-copy-initialization): Snapshot verifies compute() preserves its input.
   MatrixType A1 = MatrixType::Random(size, size), A1c = A1;
   schur.compute(A1);
   VERIFY_IS_EQUAL(schur.info(), Success);
@@ -161,6 +163,7 @@ void inplace_selfadjoint_eigensolver(Index size) {
   VERIFY((A0 * A - A * es.eigenvalues().asDiagonal()).norm() <= tolerance * A0.norm());
   VERIFY(A.isUnitary(tolerance));
 
+  // NOLINTNEXTLINE(performance-unnecessary-copy-initialization): Snapshot verifies compute() preserves its input.
   MatrixType A1 = random_selfadjoint<MatrixType>(size), A1c = A1;
   es.compute(A1, EigenvaluesOnly);
   VERIFY_IS_EQUAL(es.info(), Success);
@@ -265,6 +268,7 @@ void inplace_eigensolver(Index size) {
          tolerance * A0.norm() * V.norm());
   VERIFY((V.colwise().norm().array() - RealScalar(1)).abs().maxCoeff() <= tolerance);
 
+  // NOLINTNEXTLINE(performance-unnecessary-copy-initialization): Snapshot verifies compute() preserves its input.
   MatrixType A1 = MatrixType::Random(size, size), A1c = A1;
   es.compute(A1);
   VERIFY_IS_EQUAL(es.info(), Success);
@@ -287,6 +291,7 @@ void inplace_qz(Index size) {
   VERIFY(internal::is_same_dense(qz.matrixT(), B));
   verify_inplace_qz(A0, Bin, qz);
 
+  // NOLINTNEXTLINE(performance-unnecessary-copy-initialization): Snapshots verify compute() preserves both inputs.
   MatrixType A1 = MatrixType::Random(size, size), B1 = MatrixType::Random(size, size), A1c = A1, B1c = B1;
   qz.compute(A1, B1);
   VERIFY_IS_EQUAL(A1, A1c);
