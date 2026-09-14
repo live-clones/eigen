@@ -97,8 +97,16 @@ class TensorMap : public TensorBase<TensorMap<PlainObjectType, Options_, MakePoi
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorMap(PlainObjectType& tensor)
       : m_data(tensor.data()), m_dimensions(tensor.dimensions()) {}
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index rank() const { return m_dimensions.rank(); }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index dimension(Index n) const { return m_dimensions[n]; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index rank() const { return NumIndices; }
+  template <std::size_t N>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index dimension() const {
+    EIGEN_STATIC_ASSERT(N < NumIndices, INVALID_DIMENSION);
+    return m_dimensions[N];
+  }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index dimension(Index n) const {
+    eigen_assert(n < NumIndices);
+    return m_dimensions[n];
+  }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_dimensions; }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index size() const { return m_dimensions.TotalSize(); }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE StoragePointerType data() { return m_data; }
