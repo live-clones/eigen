@@ -30,6 +30,16 @@ struct functor_traits<scalar_random_op<Scalar> > {
 
 }  // end namespace internal
 
+/** Sets the random seed for the random number generator.
+ *
+ * When \c EIGEN_USE_PCG_RANDOM is defined, each thread has independent random
+ * state via a PCG-XSH-RS generator, and this function only affects the calling
+ * thread. Otherwise, this calls \c std::srand().
+ *
+ * \sa DenseBase::Random(), DenseBase::setRandom()
+ */
+inline void setRandomSeed(uint64_t seed) { internal::set_random_seed(seed); }
+
 /** \returns a random matrix expression
  *
  * Numbers are uniformly spread through their whole definition range for integer types,
@@ -70,6 +80,7 @@ inline const typename DenseBase<Derived>::RandomReturnType DenseBase<Derived>::R
  * Must be compatible with this MatrixBase type.
  *
  * \only_for_vectors
+ *
  * \not_reentrant
  *
  * This variant is meant to be used for dynamic-size vector types. For fixed-size types,
