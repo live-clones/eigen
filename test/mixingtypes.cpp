@@ -367,9 +367,10 @@ void mixingtypes_zero_power() {
   volatile Real zero = 0;
   volatile Real exponents[5][2] = {{2, 0}, {0, 0}, {-1, 0}, {Real(-0.329765), Real(0.755738)}, {Real(0.5), Real(0.25)}};
   const Array<Real, 5, 1> real_bases = Array<Real, 5, 1>::Constant(Real(zero));
-  const Array<Complex, 5, 1> complex_bases = Array<Complex, 5, 1>::Constant(Complex(zero));
+  const Array<Complex, 5, 1> complex_bases = Array<Complex, 5, 1>::Constant(Complex(Real(zero)));
   Array<Complex, 5, 1> complex_exponents;
-  for (Index i = 0; i < real_bases.size(); ++i) complex_exponents[i] = Complex(exponents[i][0], exponents[i][1]);
+  for (Index i = 0; i < real_bases.size(); ++i)
+    complex_exponents[i] = Complex(Real(exponents[i][0]), Real(exponents[i][1]));
   const Array<Real, 5, 1> real_exponents = complex_exponents.real();
   Array<Complex, 5, 2> expected, member_power, free_power;
   for (Index i = 0; i < real_bases.size(); ++i) {
