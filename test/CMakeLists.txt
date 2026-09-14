@@ -317,6 +317,18 @@ if(NOT EIGEN_TEST_NO_EXCEPTIONS AND NOT EIGEN_TEST_OPENMP)
   ei_add_test(exceptions)
 endif()
 ei_add_test(redux)
+ei_add_test(redux_bounded)
+if(CMAKE_COMPILER_IS_GNUCXX)
+  # Keep this diagnostic isolated from the runtime suite's warning policy and packet reductions.
+  add_executable(redux_bounded_compile EXCLUDE_FROM_ALL redux_bounded_compile.cpp)
+  target_link_libraries(redux_bounded_compile PRIVATE Eigen3::Eigen)
+  target_compile_options(redux_bounded_compile PRIVATE -O2 -Werror=array-bounds)
+  add_dependencies(redux_bounded redux_bounded_compile)
+  add_test(NAME redux_bounded_compile
+           COMMAND ${CMAKE_COMMAND} --build . --target redux_bounded_compile --config $<CONFIG>
+           WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+  set_tests_properties(redux_bounded_compile PROPERTIES RESOURCE_LOCK eigen_failtest_build LABELS "failtest")
+endif()
 ei_add_test(visitor)
 ei_add_test(block)
 ei_add_test(corners)
