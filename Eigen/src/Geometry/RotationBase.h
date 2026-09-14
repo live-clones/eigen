@@ -191,16 +191,33 @@ EIGEN_DEVICE_FUNC static inline Matrix<Scalar, 2, 2> toRotationMatrix(const Scal
   return Rotation2D<Scalar>(s).toRotationMatrix();
 }
 
-template <typename Scalar, int Dim, typename OtherDerived>
-EIGEN_DEVICE_FUNC static inline Matrix<Scalar, Dim, Dim> toRotationMatrix(const RotationBase<OtherDerived, Dim>& r) {
+template <typename Scalar, int Dim, typename OtherDerived,
+          std::enable_if_t<std::is_same<Scalar, typename OtherDerived::Scalar>::value, int> = 0>
+EIGEN_DEVICE_FUNC static inline typename OtherDerived::RotationMatrixType toRotationMatrix(
+    const RotationBase<OtherDerived, Dim>& r) {
   return r.toRotationMatrix();
 }
 
-template <typename Scalar, int Dim, typename OtherDerived>
-EIGEN_DEVICE_FUNC static inline const MatrixBase<OtherDerived>& toRotationMatrix(const MatrixBase<OtherDerived>& mat) {
+template <typename Scalar, int Dim, typename OtherDerived,
+          std::enable_if_t<!std::is_same<Scalar, typename OtherDerived::Scalar>::value, int> = 0>
+EIGEN_DEVICE_FUNC static inline Matrix<Scalar, Dim, Dim> toRotationMatrix(const RotationBase<OtherDerived, Dim>& r) {
+  return r.toRotationMatrix().template cast<Scalar>();
+}
+
+template <typename Scalar, int Dim, typename OtherDerived,
+          std::enable_if_t<std::is_same<Scalar, typename OtherDerived::Scalar>::value, int> = 0>
+EIGEN_DEVICE_FUNC static inline const OtherDerived& toRotationMatrix(const MatrixBase<OtherDerived>& mat) {
   EIGEN_STATIC_ASSERT(OtherDerived::RowsAtCompileTime == Dim && OtherDerived::ColsAtCompileTime == Dim,
                       YOU_MADE_A_PROGRAMMING_MISTAKE)
-  return mat;
+  return mat.derived();
+}
+
+template <typename Scalar, int Dim, typename OtherDerived,
+          std::enable_if_t<!std::is_same<Scalar, typename OtherDerived::Scalar>::value, int> = 0>
+EIGEN_DEVICE_FUNC static inline auto toRotationMatrix(const MatrixBase<OtherDerived>& mat) {
+  EIGEN_STATIC_ASSERT(OtherDerived::RowsAtCompileTime == Dim && OtherDerived::ColsAtCompileTime == Dim,
+                      YOU_MADE_A_PROGRAMMING_MISTAKE)
+  return mat.template cast<Scalar>();
 }
 
 }  // end namespace internal

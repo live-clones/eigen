@@ -52,6 +52,28 @@ struct transform_construct_from_matrix;
 template <typename TransformType>
 struct transform_take_affine_part;
 
+template <typename LhsScalar, typename RhsScalar, typename BinaryOp, typename TargetScalar, typename = void>
+struct has_matching_binary_op_traits : std::false_type {};
+
+template <typename LhsScalar, typename RhsScalar, typename BinaryOp, typename TargetScalar>
+struct has_matching_binary_op_traits<LhsScalar, RhsScalar, BinaryOp, TargetScalar,
+                                     void_t<typename ScalarBinaryOpTraits<LhsScalar, RhsScalar, BinaryOp>::ReturnType>>
+    : std::is_same<typename ScalarBinaryOpTraits<LhsScalar, RhsScalar, BinaryOp>::ReturnType, TargetScalar> {};
+
+template <typename TargetScalar, typename Derived, typename LhsScalar, typename RhsScalar, typename BinaryOp,
+          typename = void>
+struct transform_convert_arg {
+  EIGEN_DEVICE_FUNC static auto run(const MatrixBase<Derived>& mat) { return mat.template cast<TargetScalar>(); }
+};
+
+template <typename TargetScalar, typename Derived, typename LhsScalar, typename RhsScalar, typename BinaryOp>
+struct transform_convert_arg<
+    TargetScalar, Derived, LhsScalar, RhsScalar, BinaryOp,
+    std::enable_if_t<std::is_same<typename Derived::Scalar, TargetScalar>::value ||
+                     has_matching_binary_op_traits<LhsScalar, RhsScalar, BinaryOp, TargetScalar>::value>> {
+  EIGEN_DEVICE_FUNC static const Derived& run(const MatrixBase<Derived>& mat) { return mat.derived(); }
+};
+
 template <typename Scalar_, int Dim_, int Mode_, int Options_>
 struct traits<Transform<Scalar_, Dim_, Mode_, Options_> > {
   using Scalar = Scalar_;
@@ -845,7 +867,10 @@ template <typename OtherDerived>
 EIGEN_DEVICE_FUNC Transform<Scalar, Dim, Mode, Options>& Transform<Scalar, Dim, Mode, Options>::translate(
     const MatrixBase<OtherDerived>& other) {
   EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(OtherDerived, int(Dim))
-  translationExt() += linearExt() * other;
+  translationExt() +=
+      linearExt() *
+      internal::transform_convert_arg<Scalar, OtherDerived, Scalar, typename OtherDerived::Scalar,
+                                      internal::fast_mult_op<Scalar, typename OtherDerived::Scalar>>::run(other);
   return *this;
 }
 
@@ -859,9 +884,14 @@ EIGEN_DEVICE_FUNC Transform<Scalar, Dim, Mode, Options>& Transform<Scalar, Dim, 
     const MatrixBase<OtherDerived>& other) {
   EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(OtherDerived, int(Dim))
   if (EIGEN_CONST_CONDITIONAL(int(Mode) == int(Projective)))
-    affine() += other * m_matrix.row(Dim);
+    affine() +=
+        internal::transform_convert_arg<Scalar, OtherDerived, typename OtherDerived::Scalar, Scalar,
+                                        internal::fast_mult_op<typename OtherDerived::Scalar, Scalar>>::run(other) *
+        m_matrix.row(Dim);
   else
-    translation() += other;
+    translation() +=
+        internal::transform_convert_arg<Scalar, OtherDerived, Scalar, typename OtherDerived::Scalar,
+                                        internal::scalar_sum_op<Scalar, typename OtherDerived::Scalar>>::run(other);
   return *this;
 }
 
