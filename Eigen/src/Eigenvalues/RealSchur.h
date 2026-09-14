@@ -161,6 +161,11 @@ class RealSchur {
    * may be taken to be \f$25n^3\f$ flops if \a computeU is true and
    * \f$10n^3\f$ flops if \a computeU is false.
    *
+   * To avoid cache-conflicting strides, this routine may allocate a temporary padded workspace even when
+   * the solver was constructed with the correct size. With EIGEN_NO_MALLOC, or when allocation or deallocation
+   * is disabled through EIGEN_RUNTIME_NO_MALLOC, it uses the unpadded workspace instead, which may be slower.
+   * This only suppresses padding; resizing solver storage and constructing Schur vectors may still allocate.
+   *
    * Example: \include RealSchur_compute.cpp
    * Output: \verbinclude RealSchur_compute.out
    *
@@ -183,6 +188,11 @@ class RealSchur {
    *
    * NOTE Q is referenced if computeU is true; so, if the initial orthogonal matrix
    * is not available, the user should give an identity matrix (Q.setIdentity())
+   *
+   * This routine may allocate a temporary padded workspace to avoid cache-conflicting strides. With EIGEN_NO_MALLOC,
+   * or when allocation or deallocation is disabled through EIGEN_RUNTIME_NO_MALLOC, it uses the unpadded workspace
+   * instead, which may be slower. Other allocations, such as resizing solver storage or evaluating input
+   * expressions, are unaffected.
    *
    * \sa compute(const MatrixType&, bool)
    */
@@ -292,7 +302,13 @@ RealSchur<MatrixType>& RealSchur<MatrixType>::computeFromHessenberg(const HessMa
   // Short reflectors traverse the outer dimension. Strides divisible by 1 KiB concentrate those accesses in
   // very few cache sets, even with fused column updates. One extra coefficient spreads successive rows/columns
   // across the cache; the public matrices retain their original shape and storage layout.
-  if (size >= 128 && (size * sizeof(Scalar)) % 1024 == 0) {
+  bool usePaddedWorkspace = size >= 128 && (size * sizeof(Scalar)) % 1024 == 0;
+#ifdef EIGEN_NO_MALLOC
+  usePaddedWorkspace = false;
+#elif defined(EIGEN_RUNTIME_NO_MALLOC)
+  usePaddedWorkspace = usePaddedWorkspace && internal::is_malloc_allowed() && internal::is_free_allowed();
+#endif
+  if (usePaddedWorkspace) {
     Matrix<Scalar, Dynamic, Dynamic, MatrixType::IsRowMajor ? RowMajor : ColMajor> storage(
         size + (MatrixType::IsRowMajor ? 0 : 1), size + (MatrixType::IsRowMajor ? 1 : 0));
     auto matT = storage.topLeftCorner(size, size);
