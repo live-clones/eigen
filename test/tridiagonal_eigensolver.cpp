@@ -557,7 +557,90 @@ void tridiagonal_eigensolver_narrow() {
   }
 }
 
+void tridiagonal_eigensolver_power_of_two_scaling() {
+  // An input sensitive to normalization rounding; bisection promises normwise accuracy, not correct rounding.
+  Vector3f diag;
+  diag << numext::bit_cast<float>(numext::uint32_t(0xf055994f)), numext::bit_cast<float>(numext::uint32_t(0x6fb2331a)),
+      numext::bit_cast<float>(numext::uint32_t(0x70d02374));
+  Vector2f subdiag;
+  subdiag << numext::bit_cast<float>(numext::uint32_t(0x70b84b8a)),
+      numext::bit_cast<float>(numext::uint32_t(0x6fc495b1));
+  Vector3f expected;
+  expected << numext::bit_cast<float>(numext::uint32_t(0xf0e811b7)),
+      numext::bit_cast<float>(numext::uint32_t(0x708f34f5)), numext::bit_cast<float>(numext::uint32_t(0x70eac055));
+
+  TridiagonalEigenSolver<float> eigenvalues;
+  eigenvalues.computeEigenvalues(diag, subdiag);
+  VERIFY_IS_EQUAL(eigenvalues.info(), Success);
+  VERIFY(eigenvalues.eigenvalues().allFinite());
+  const Matrix3d bisectionMatrix = dense_symmetric_tridiag(diag, subdiag).cast<double>();
+  const double bisectionNorm = bisectionMatrix.cwiseAbs().rowwise().sum().maxCoeff();
+  // Allow O(n*eps*||T||_inf) Sturm-count displacement, the final bracket width and reference rounding.
+  // Eight covers the 2.1*n*eps bracket expansion on both sides, with room for the latter two terms.
+  const double eigenvalueTolerance = 8.0 * double(diag.size()) * double(NumTraits<float>::epsilon()) * bisectionNorm;
+  VERIFY((eigenvalues.eigenvalues().cast<double>() - expected.cast<double>()).cwiseAbs().maxCoeff() <=
+         eigenvalueTolerance);
+
+  // Exercise normalization-sensitive inverse iteration with rounded supplied eigenvalues.
+  diag << numext::bit_cast<float>(numext::uint32_t(0x44d75b8b)), numext::bit_cast<float>(numext::uint32_t(0x45b9403d)),
+      numext::bit_cast<float>(numext::uint32_t(0x4554211f));
+  subdiag << numext::bit_cast<float>(numext::uint32_t(0x45609c76)),
+      numext::bit_cast<float>(numext::uint32_t(0xc590ed04));
+  expected << numext::bit_cast<float>(numext::uint32_t(0xc4e47d7d)),
+      numext::bit_cast<float>(numext::uint32_t(0x45173159)), numext::bit_cast<float>(numext::uint32_t(0x46235731));
+
+  TridiagonalEigenSolver<float> eigenvectors;
+  eigenvectors.computeEigenvectors(diag, subdiag, expected);
+  VERIFY_IS_EQUAL(eigenvectors.info(), Success);
+  const Matrix3d matrix = dense_symmetric_tridiag(diag, subdiag).cast<double>();
+  const Matrix3d vectors = eigenvectors.eigenvectors().cast<double>();
+  VERIFY(vectors.allFinite());
+  const double residual = (matrix * vectors - vectors * expected.cast<double>().asDiagonal()).cwiseAbs().maxCoeff();
+  // Match the inverse-iteration suite's 128*n*eps allowance for perturbed pivots, repeated solves and normalization.
+  const double tolerance = 128.0 * double(diag.size()) * double(NumTraits<float>::epsilon());
+  VERIFY(residual <= tolerance * matrix.cwiseAbs().maxCoeff());
+  VERIFY((vectors.transpose() * vectors - Matrix3d::Identity()).cwiseAbs().maxCoeff() <= tolerance);
+}
+
+template <typename Scalar>
+void tridiagonal_eigensolver_scaling_units() {
+  using Vector = Matrix<Scalar, Dynamic, 1>;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  Vector diag(4), subdiag(3);
+  diag << Scalar(2), Scalar(2), Scalar(10), Scalar(10);
+  subdiag << Scalar(1), Scalar(0), Scalar(2);
+  Vector expected(4);
+  expected << Scalar(1), Scalar(3), Scalar(8), Scalar(12);
+  const MatrixType matrix = dense_symmetric_tridiag(diag, subdiag);
+  const Scalar tolerance = Scalar(32) * NumTraits<Scalar>::epsilon();
+  for (int exponent : {-60, 0, 60}) {
+    const Scalar scale = numext::ldexp(Scalar(1), exponent);
+    const Vector d = diag * scale, e = subdiag * scale;
+    TridiagonalEigenSolver<Scalar> solver(d, e);
+    VERIFY_IS_EQUAL(solver.info(), Success);
+    const Vector values = solver.eigenvalues() / scale;
+    VERIFY(values.allFinite());
+    VERIFY((values - expected).cwiseAbs().maxCoeff() <= tolerance * Scalar(12));
+    const MatrixType vectors = solver.eigenvectors();
+    VERIFY(vectors.allFinite());
+    VERIFY((matrix * vectors - vectors * values.asDiagonal()).norm() <= tolerance * matrix.norm());
+    VERIFY((vectors.transpose() * vectors - MatrixType::Identity(4, 4)).norm() <= tolerance);
+    solver.computeEigenvalues(d, e, EigenvalueRange::values(double(scale) * 2, double(scale) * 9));
+    VERIFY_IS_EQUAL(solver.eigenvalues().size(), 2);
+    VERIFY((solver.eigenvalues() / scale - expected.segment(1, 2)).cwiseAbs().maxCoeff() <= tolerance * Scalar(12));
+
+    // The internal absolute tolerance is in input units, not normalized units.
+    Vector approximate;
+    const Scalar abs_tol = scale / Scalar(128);
+    internal::tridiagonal_bisection(d, e, EigenvalueRange::all(), abs_tol, approximate);
+    VERIFY((approximate / scale - expected).cwiseAbs().maxCoeff() <= Scalar(1) / Scalar(128) + tolerance);
+  }
+}
+
 EIGEN_DECLARE_TEST(tridiagonal_eigensolver) {
+  CALL_SUBTEST_2(tridiagonal_eigensolver_power_of_two_scaling());
+  CALL_SUBTEST_2(tridiagonal_eigensolver_scaling_units<float>());
+  CALL_SUBTEST_1(tridiagonal_eigensolver_scaling_units<double>());
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(tridiagonal_eigensolver_bisection<double>());
     CALL_SUBTEST_2(tridiagonal_eigensolver_bisection<float>());
