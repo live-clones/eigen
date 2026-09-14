@@ -845,7 +845,13 @@ template <typename OtherDerived>
 EIGEN_DEVICE_FUNC Transform<Scalar, Dim, Mode, Options>& Transform<Scalar, Dim, Mode, Options>::translate(
     const MatrixBase<OtherDerived>& other) {
   EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(OtherDerived, int(Dim))
-  translationExt() += linearExt() * other;
+  if constexpr (internal::has_ReturnType<
+                    ScalarBinaryOpTraits<Scalar, typename OtherDerived::Scalar,
+                                         internal::scalar_product_op<Scalar, typename OtherDerived::Scalar>>>::value) {
+    translationExt() += linearExt() * other.derived();
+  } else {
+    translationExt() += linearExt() * other.derived().template cast<Scalar>();
+  }
   return *this;
 }
 
@@ -858,10 +864,23 @@ template <typename OtherDerived>
 EIGEN_DEVICE_FUNC Transform<Scalar, Dim, Mode, Options>& Transform<Scalar, Dim, Mode, Options>::pretranslate(
     const MatrixBase<OtherDerived>& other) {
   EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(OtherDerived, int(Dim))
-  if (EIGEN_CONST_CONDITIONAL(int(Mode) == int(Projective)))
-    affine() += other * m_matrix.row(Dim);
-  else
-    translation() += other;
+  if constexpr (int(Mode) == int(Projective)) {
+    if constexpr (internal::has_ReturnType<ScalarBinaryOpTraits<
+                      typename OtherDerived::Scalar, Scalar,
+                      internal::scalar_product_op<typename OtherDerived::Scalar, Scalar>>>::value) {
+      affine() += other.derived() * m_matrix.row(Dim);
+    } else {
+      affine() += other.derived().template cast<Scalar>() * m_matrix.row(Dim);
+    }
+  } else {
+    if constexpr (internal::has_ReturnType<
+                      ScalarBinaryOpTraits<Scalar, typename OtherDerived::Scalar,
+                                           internal::scalar_sum_op<Scalar, typename OtherDerived::Scalar>>>::value) {
+      translation() += other.derived();
+    } else {
+      translation() += other.derived().template cast<Scalar>();
+    }
+  }
   return *this;
 }
 

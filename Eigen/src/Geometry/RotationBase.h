@@ -193,14 +193,17 @@ EIGEN_DEVICE_FUNC static inline Matrix<Scalar, 2, 2> toRotationMatrix(const Scal
 
 template <typename Scalar, int Dim, typename OtherDerived>
 EIGEN_DEVICE_FUNC static inline Matrix<Scalar, Dim, Dim> toRotationMatrix(const RotationBase<OtherDerived, Dim>& r) {
-  return r.toRotationMatrix();
+  return r.toRotationMatrix().template cast<Scalar>();
 }
 
 template <typename Scalar, int Dim, typename OtherDerived>
-EIGEN_DEVICE_FUNC static inline const MatrixBase<OtherDerived>& toRotationMatrix(const MatrixBase<OtherDerived>& mat) {
+EIGEN_DEVICE_FUNC static inline auto toRotationMatrix(const MatrixBase<OtherDerived>& mat) {
   EIGEN_STATIC_ASSERT(OtherDerived::RowsAtCompileTime == Dim && OtherDerived::ColsAtCompileTime == Dim,
                       YOU_MADE_A_PROGRAMMING_MISTAKE)
-  return mat;
+  if constexpr (std::is_same<Scalar, typename OtherDerived::Scalar>::value)
+    return mat.derived();
+  else
+    return mat.template cast<Scalar>();
 }
 
 }  // end namespace internal
