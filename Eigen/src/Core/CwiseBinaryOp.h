@@ -27,8 +27,10 @@ struct traits<CwiseBinaryOp<BinaryOp, Lhs, Rhs>> {
   enum {
     RowsAtCompileTime = traits<Ancestor>::RowsAtCompileTime,
     ColsAtCompileTime = traits<Ancestor>::ColsAtCompileTime,
-    MaxRowsAtCompileTime = traits<Ancestor>::MaxRowsAtCompileTime,
-    MaxColsAtCompileTime = traits<Ancestor>::MaxColsAtCompileTime
+    MaxRowsAtCompileTime =
+        min_size_prefer_fixed(traits<Ancestor>::MaxRowsAtCompileTime, traits<Rhs>::MaxRowsAtCompileTime),
+    MaxColsAtCompileTime =
+        min_size_prefer_fixed(traits<Ancestor>::MaxColsAtCompileTime, traits<Rhs>::MaxColsAtCompileTime)
   };
 
   // even though we require Lhs and Rhs to have the same scalar type (see CwiseBinaryOp constructor),
