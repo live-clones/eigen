@@ -16,6 +16,7 @@
 #include "main.h"
 #include "svd_fill.h"
 #include "tridiag_test_matrices.h"
+#include "fp_control.h"
 #include <limits>
 #include <Eigen/Eigenvalues>
 #include <Eigen/SparseCore>
@@ -1076,12 +1077,183 @@ void selfadjoint_iterative_scaling_blocks() {
 }
 #endif
 
+#if defined(EIGEN_TEST_PART_21) || defined(EIGEN_TEST_PART_ALL)
+template <typename Scalar, int Size, int Options>
+void direct_selfadjoint_safe_scaling() {
+  using MatrixType = Matrix<Scalar, Size, Size, Options>;
+  using WideMatrix = Matrix<long double, Size, Size>;
+  using WideVector = Matrix<long double, Size, 1>;
+  const long double epsilon = static_cast<long double>(NumTraits<Scalar>::epsilon());
+  // Well-separated spectra: allow 32*n*epsilon for the direct formulas and reconstruction.
+  const long double tolerance = 32 * Size * epsilon;
+  MatrixType base = MatrixType::Zero();
+  base(0, 0) = Scalar(1);
+  base(1, 1) = Scalar(1);
+  base(0, 1) = base(1, 0) = Scalar(0.5);
+  EIGEN_IF_CONSTEXPR (Size == 3) {
+    base(2, 2) = Scalar(2);
+  }
+  const Scalar minimum = (std::numeric_limits<Scalar>::min)();
+  const Scalar maximum = NumTraits<Scalar>::highest();
+  for (Scalar scale : {Scalar(1), minimum, Scalar(minimum / Scalar(16)), Scalar(maximum / Scalar(8))}) {
+    for (bool zeroTrace : {false, true}) {
+      MatrixType input = base * scale;
+      if (zeroTrace) input.diagonal().setZero();
+      const WideMatrix normalized = input.template cast<long double>() / static_cast<long double>(scale);
+      input.template triangularView<StrictlyUpper>().setConstant(Scalar(std::numeric_limits<Scalar>::quiet_NaN()));
+      for (int options : {EigenvaluesOnly, ComputeEigenvectors}) {
+#if EIGEN_ARCH_i386_OR_x86_64 && defined(_MM_SET_DENORMALS_ZERO_MODE)
+        for (int flushMode : {0, 1, 2, 3}) {
+          SelfAdjointEigenSolver<MatrixType> solver;
+          {
+            // Preserve the caller's FP state; select FTZ and DAZ independently inside this scope.
+            ScopedFlushToZero mode;
+            const unsigned int ftz = (flushMode & 1) ? _MM_FLUSH_ZERO_ON : _MM_FLUSH_ZERO_OFF;
+            const unsigned int daz = (flushMode & 2) ? _MM_DENORMALS_ZERO_ON : _MM_DENORMALS_ZERO_OFF;
+            _MM_SET_FLUSH_ZERO_MODE(ftz);
+            _MM_SET_DENORMALS_ZERO_MODE(daz);
+            VERIFY(mode.isSupported());
+            VERIFY_IS_EQUAL(_MM_GET_FLUSH_ZERO_MODE(), ftz);
+            VERIFY_IS_EQUAL(_MM_GET_DENORMALS_ZERO_MODE(), daz);
+            solver.computeDirect(input, options);
+          }
+#else
+        for (bool flush : {false, true}) {
+          SelfAdjointEigenSolver<MatrixType> solver;
+          if (flush) {
+            ScopedFlushToZero mode;
+            solver.computeDirect(input, options);
+          } else {
+            solver.computeDirect(input, options);
+          }
+#endif
+          VERIFY_IS_EQUAL(solver.info(), Success);
+          VERIFY(solver.eigenvalues().allFinite());
+          const WideVector values = solver.eigenvalues().template cast<long double>() / static_cast<long double>(scale);
+          SelfAdjointEigenSolver<WideMatrix> reference(normalized, EigenvaluesOnly);
+          const long double quantum =
+              static_cast<long double>(std::numeric_limits<Scalar>::denorm_min()) / static_cast<long double>(scale);
+          VERIFY((values - reference.eigenvalues()).norm() <= tolerance * normalized.norm() + Size * quantum);
+          for (Index i = 1; i < Size; ++i) VERIFY(values[i - 1] <= values[i]);
+          if (options == ComputeEigenvectors) {
+            VERIFY(solver.eigenvectors().allFinite());
+            const WideMatrix vectors = solver.eigenvectors().template cast<long double>();
+            VERIFY((normalized * vectors - vectors * values.asDiagonal()).norm() <=
+                   tolerance * normalized.norm() + Size * quantum);
+            VERIFY((vectors.transpose() * vectors - WideMatrix::Identity()).norm() <= tolerance);
+          }
+        }
+      }
+    }
+  }
+  // Same-sign traces and mixed-sign centering can overflow even though every eigenvalue is representable.
+  for (int negativeCount = 0; negativeCount <= Size; ++negativeCount) {
+    MatrixType input = MatrixType::Identity() * maximum;
+    for (int i = 0; i < negativeCount; ++i) input(i, i) = -maximum;
+    for (int options : {EigenvaluesOnly, ComputeEigenvectors}) {
+      SelfAdjointEigenSolver<MatrixType> solver;
+      solver.computeDirect(input, options);
+      VERIFY_IS_EQUAL(solver.info(), Success);
+      VERIFY(solver.eigenvalues().allFinite());
+      const WideVector values = solver.eigenvalues().template cast<long double>() / static_cast<long double>(maximum);
+      for (Index i = 0; i < Size; ++i) {
+        VERIFY(numext::abs(values[i] - (i < negativeCount ? -1.L : 1.L)) <= tolerance);
+      }
+      if (options == ComputeEigenvectors) {
+        const WideMatrix vectors = solver.eigenvectors().template cast<long double>();
+        const WideMatrix normalized = input.template cast<long double>() / static_cast<long double>(maximum);
+        VERIFY((normalized * vectors - vectors * values.asDiagonal()).norm() <= tolerance * normalized.norm());
+        VERIFY((vectors.transpose() * vectors - WideMatrix::Identity()).norm() <= tolerance);
+      }
+    }
+  }
+}
+template <typename Scalar, int Options>
+void direct_selfadjoint_clustered_boundary() {
+  using MatrixType = Matrix<Scalar, 3, 3, Options>;
+  using WideMatrix = Matrix<long double, 3, 3>;
+  using WideVector = Matrix<long double, 3, 1>;
+  const long double epsilon = static_cast<long double>(NumTraits<Scalar>::epsilon());
+  const Scalar scale = numext::ldexp(Scalar(1), std::numeric_limits<Scalar>::max_exponent - 1);
+  const long double diagonal = 1.75L - 4 * epsilon;
+  // A/scale = (d+b)*I - b*ones(3,3), b=1/4: eigenvalues d-2*b, d+b, d+b.
+  // All coefficients and roots are exactly representable; the repeated roots
+  // 2-4*epsilon lie below highest()/scale = 2-epsilon, without a cubic reference.
+  MatrixType input = MatrixType::Constant(Scalar(-0.25) * scale);
+  input.diagonal().setConstant(Scalar(diagonal) * scale);
+  const WideMatrix normalized = input.template cast<long double>() / static_cast<long double>(scale);
+  WideVector expected;
+  expected << diagonal - 0.5L, diagonal + 0.25L, diagonal + 0.25L;
+  VERIFY(expected.maxCoeff() <
+         static_cast<long double>(NumTraits<Scalar>::highest()) / static_cast<long double>(scale));
+  VERIFY(input.cwiseAbs().maxCoeff() > NumTraits<Scalar>::highest() / Scalar(6));
+  // Confirm that tridiagonalization leaves a coupling requiring QR iteration.
+  Tridiagonalization<MatrixType> tridiagonal(normalized.template cast<Scalar>());
+  Matrix<Scalar, 3, 1> diag = tridiagonal.diagonal();
+  Matrix<Scalar, 2, 1> subdiag = tridiagonal.subDiagonal();
+  MatrixType unusedVectors;
+  VERIFY_IS_EQUAL(internal::computeFromTridiagonal_impl<false>(diag, subdiag, 0, false, unusedVectors), NoConvergence);
+  // A 3x3 QR solve is backward stable to O(n*epsilon); allow 16*n rounding errors.
+  const long double tolerance = 48 * epsilon;
+  for (int options : {EigenvaluesOnly, ComputeEigenvectors}) {
+    SelfAdjointEigenSolver<MatrixType> solver;
+    solver.computeDirect(input, options);
+    VERIFY_IS_EQUAL(solver.info(), Success);
+    VERIFY(solver.eigenvalues().allFinite());
+    const WideVector values = solver.eigenvalues().template cast<long double>() / static_cast<long double>(scale);
+    VERIFY((values - expected).norm() <= tolerance * normalized.norm());
+    VERIFY(values[0] <= values[1] && values[1] <= values[2]);
+    if (options == ComputeEigenvectors) {
+      VERIFY(solver.eigenvectors().allFinite());
+      const WideMatrix vectors = solver.eigenvectors().template cast<long double>();
+      VERIFY((normalized * vectors - vectors * values.asDiagonal()).norm() <= tolerance * normalized.norm());
+      VERIFY((vectors.transpose() * vectors - WideMatrix::Identity()).norm() <= tolerance);
+    }
+  }
+}
+
+template <typename Scalar, int Size>
+void direct_selfadjoint_low_precision_boundary() {
+  using MatrixType = Matrix<Scalar, Size, Size>;
+  using WideMatrix = Matrix<double, Size, Size>;
+  const Scalar maximum = NumTraits<Scalar>::highest();
+  MatrixType input = MatrixType::Identity() * maximum;
+  for (int negativeCount = 0; negativeCount <= Size; ++negativeCount) {
+    if (negativeCount > 0) input(negativeCount - 1, negativeCount - 1) = -maximum;
+    SelfAdjointEigenSolver<MatrixType> solver;
+    solver.computeDirect(input);
+    VERIFY_IS_EQUAL(solver.info(), Success);
+    for (Index i = 0; i < Size; ++i) VERIFY_IS_EQUAL(solver.eigenvalues()[i], i < negativeCount ? -maximum : maximum);
+    const WideMatrix vectors = solver.eigenvectors().template cast<double>();
+    const WideMatrix normalized = input.template cast<double>() / double(maximum);
+    const auto values = solver.eigenvalues().template cast<double>() / double(maximum);
+    const double tolerance = 8 * Size * double(NumTraits<Scalar>::epsilon());
+    VERIFY((normalized * vectors - vectors * values.asDiagonal()).norm() <= tolerance);
+    VERIFY((vectors.transpose() * vectors - WideMatrix::Identity()).norm() <= tolerance);
+  }
+}
+#endif
+
 EIGEN_DECLARE_TEST(eigensolver_selfadjoint) {
   CALL_SUBTEST_20(selfadjoint_iterative_scaling_rounding());
   CALL_SUBTEST_20((selfadjoint_iterative_scaling_blocks<float, ColMajor>()));
   CALL_SUBTEST_20((selfadjoint_iterative_scaling_blocks<double, RowMajor>()));
   CALL_SUBTEST_20((selfadjoint_iterative_scaling_blocks<std::complex<float>, RowMajor>()));
   CALL_SUBTEST_20((selfadjoint_iterative_scaling_blocks<std::complex<double>, ColMajor>()));
+  CALL_SUBTEST_21((direct_selfadjoint_clustered_boundary<float, ColMajor>()));
+  CALL_SUBTEST_21((direct_selfadjoint_clustered_boundary<double, RowMajor>()));
+  CALL_SUBTEST_21((direct_selfadjoint_clustered_boundary<long double, ColMajor>()));
+  CALL_SUBTEST_21((direct_selfadjoint_clustered_boundary<half, RowMajor>()));
+  CALL_SUBTEST_21((direct_selfadjoint_clustered_boundary<bfloat16, ColMajor>()));
+  CALL_SUBTEST_21((direct_selfadjoint_safe_scaling<float, 2, ColMajor>()));
+  CALL_SUBTEST_21((direct_selfadjoint_safe_scaling<float, 3, RowMajor>()));
+  CALL_SUBTEST_21((direct_selfadjoint_safe_scaling<double, 2, RowMajor>()));
+  CALL_SUBTEST_21((direct_selfadjoint_safe_scaling<double, 3, ColMajor>()));
+  CALL_SUBTEST_21((direct_selfadjoint_safe_scaling<long double, 3, ColMajor>()));
+  CALL_SUBTEST_21((direct_selfadjoint_low_precision_boundary<half, 2>()));
+  CALL_SUBTEST_21((direct_selfadjoint_low_precision_boundary<half, 3>()));
+  CALL_SUBTEST_21((direct_selfadjoint_low_precision_boundary<bfloat16, 2>()));
+  CALL_SUBTEST_21((direct_selfadjoint_low_precision_boundary<bfloat16, 3>()));
   int s = 0;
   CALL_SUBTEST_4(generalizedselfadjointeigensolver_no_malloc<MatrixXd>());
   CALL_SUBTEST_5(generalizedselfadjointeigensolver_no_malloc<MatrixXcd>());
