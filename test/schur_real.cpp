@@ -147,6 +147,52 @@ void real_schur_subnormal_restoration() {
   }
 }
 
+template <typename Scalar, int StorageOrder>
+void schur_workspace_stride() {
+  using Mat = Matrix<Scalar, Dynamic, Dynamic, StorageOrder>;
+  // The middle size selects the padded workspace for both float and double; its neighbours do not.
+  const Index strideSize = 1024 / sizeof(Scalar);
+  for (Index n : {strideSize - 1, strideSize, strideSize + 1}) {
+    const Mat identity = Mat::Identity(n, n);
+    Mat a = Mat::Random(n, n);
+    const Scalar bound = Scalar(64 * n) * NumTraits<Scalar>::epsilon();
+    RealSchur<Mat> solver(n);
+    solver.compute(a);
+    VERIFY_IS_EQUAL(solver.info(), Success);
+    const Mat u = solver.matrixU(), t = solver.matrixT();
+    verifyIsQuasiTriangular(t);
+    VERIFY((a - u * t * u.transpose()).norm() <= bound * a.norm());
+    VERIFY((u.transpose() * u - identity).norm() <= bound);
+
+    solver.compute(a, false);
+    VERIFY_IS_EQUAL(solver.info(), Success);
+    VERIFY_IS_EQUAL(solver.matrixT(), t);
+
+    HessenbergDecomposition<Mat> hess(a);
+    const Mat h = hess.matrixH(), q = hess.matrixQ();
+    solver.computeFromHessenberg(h, q, true);
+    VERIFY_IS_EQUAL(solver.info(), Success);
+    VERIFY((a - solver.matrixU() * solver.matrixT() * solver.matrixU().transpose()).norm() <= bound * a.norm());
+
+    solver.setMaxIterations(1).computeFromHessenberg(h, q, true);
+    VERIFY_IS_EQUAL(solver.info(), NoConvergence);
+    // Partial results must be copied out of the workspace too.
+    VERIFY((a - solver.matrixU() * solver.matrixT() * solver.matrixU().transpose()).norm() <= bound * a.norm());
+    solver.setMaxIterations(-1);
+
+    // A decoupled trailing block exercises active windows smaller than the padded matrix.
+    a.bottomLeftCorner(n / 2, n - n / 2).setZero();
+    EigenSolver<Mat> eig(a);
+    VERIFY_IS_EQUAL(eig.info(), Success);
+    VERIFY((a * eig.pseudoEigenvectors() - eig.pseudoEigenvectors() * eig.pseudoEigenvalueMatrix()).norm() <=
+           bound * a.norm() * eig.pseudoEigenvectors().norm());
+    solver.compute(identity);
+    VERIFY_IS_EQUAL(solver.info(), Success);
+    VERIFY_IS_EQUAL(solver.matrixT(), identity);
+    VERIFY_IS_EQUAL(solver.matrixU(), identity);
+  }
+}
+
 EIGEN_DECLARE_TEST(schur_real) {
   CALL_SUBTEST_1((schur<Matrix4f>()));
   CALL_SUBTEST_2((schur<MatrixXd>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4))));
@@ -160,4 +206,8 @@ EIGEN_DECLARE_TEST(schur_real) {
   CALL_SUBTEST_6((real_schur_power_of_two_scaling()));
   CALL_SUBTEST_6(real_schur_subnormal_restoration<float>());
   CALL_SUBTEST_6(real_schur_subnormal_restoration<double>());
+  CALL_SUBTEST_7((schur_workspace_stride<float, ColMajor>()));
+  CALL_SUBTEST_8((schur_workspace_stride<double, ColMajor>()));
+  CALL_SUBTEST_9((schur_workspace_stride<float, RowMajor>()));
+  CALL_SUBTEST_10((schur_workspace_stride<double, RowMajor>()));
 }
