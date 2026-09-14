@@ -323,7 +323,7 @@ class PolynomialSolver : public PolynomialSolverBase<Scalar_, Deg_> {
       eigen_assert(m_eigenSolver.info() == Eigen::Success);
       m_roots = m_eigenSolver.eigenvalues();
       // Uniform coefficient scaling must not overflow or underflow the refinement's Horner recurrences.
-      const RealScalar scale = numext::maxi(poly.real().cwiseAbs().maxCoeff(), poly.imag().cwiseAbs().maxCoeff());
+      const RealScalar scale = poly.realView().cwiseAbs().maxCoeff();
       const auto scaledPoly = (poly / scale).eval();
       refineRoots(scaledPoly);
       cleanUpRoots(scaledPoly);
@@ -447,9 +447,9 @@ class PolynomialSolver : public PolynomialSolverBase<Scalar_, Deg_> {
   template <typename OtherPolynomial>
   void cleanUpRoots(const OtherPolynomial& poly) {
     const Index n = m_roots.size();
-    const bool realPolynomial = !NumTraits<Scalar>::IsComplex;
+    constexpr bool realPolynomial = !NumTraits<Scalar>::IsComplex;
     Array<bool, Deg_, 1> paired = Array<bool, Deg_, 1>::Constant(n, false);
-    if (realPolynomial) {
+    EIGEN_IF_CONSTEXPR (realPolynomial) {
       for (Index i = 0; i < n; ++i) {
         if (!(numext::imag(m_roots[i]) > RealScalar(0))) continue;
         Index partner = n;
