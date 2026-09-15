@@ -427,19 +427,19 @@ EIGEN_DECLARE_TEST(polynomialsolver) {
     CALL_SUBTEST_12((polynomialsolver<std::complex<double>, Dynamic>(internal::random<int>(2, 13))));
 
     CALL_SUBTEST_13((polynomialsolver_refinement_accuracy<float, double, 4>(4)));
-    CALL_SUBTEST_13((polynomialsolver_refinement_accuracy<float, double, 6>(6)));
-    CALL_SUBTEST_13((polynomialsolver_refinement_accuracy<float, double, 7>(7)));
+    CALL_SUBTEST_19((polynomialsolver_refinement_accuracy<float, double, 6>(6)));
+    CALL_SUBTEST_20((polynomialsolver_refinement_accuracy<float, double, 7>(7)));
     CALL_SUBTEST_14((polynomialsolver_refinement_accuracy<float, double, Dynamic>(internal::random<int>(8, 13))));
-    CALL_SUBTEST_14((polynomialsolver_refinement_accuracy<std::complex<float>, std::complex<double>, Dynamic>(
+    CALL_SUBTEST_21((polynomialsolver_refinement_accuracy<std::complex<float>, std::complex<double>, Dynamic>(
         internal::random<int>(2, 13))));
-    CALL_SUBTEST_14((polynomialsolver_refinement_accuracy<double, long double, Dynamic>(internal::random<int>(2, 20))));
+    CALL_SUBTEST_22((polynomialsolver_refinement_accuracy<double, long double, Dynamic>(internal::random<int>(2, 20))));
   }
   CALL_SUBTEST_15(polynomialsolver_complex_pair_kept());
   CALL_SUBTEST_15(polynomialsolver_tiny_root());
   CALL_SUBTEST_16(polynomialsolver_real_part_is_another_root<float>());
-  CALL_SUBTEST_16(polynomialsolver_real_part_is_another_root<double>());
-  CALL_SUBTEST_16(polynomialsolver_real_part_is_another_root<std::complex<double>>());
+  CALL_SUBTEST_23(polynomialsolver_real_part_is_another_root<double>());
+  CALL_SUBTEST_24(polynomialsolver_real_part_is_another_root<std::complex<double>>());
   CALL_SUBTEST_17(polynomialsolver_scaled_quadratic<float>());
   CALL_SUBTEST_17(polynomialsolver_scaled_quadratic<double>());
-  CALL_SUBTEST_17(polynomialsolver_scaled_quadratic<std::complex<double>>());
+  CALL_SUBTEST_25(polynomialsolver_scaled_quadratic<std::complex<double>>());
 }
