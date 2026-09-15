@@ -370,7 +370,11 @@ RealSchur<MatrixType>& RealSchur<MatrixType>::computeInPlace(TMatrix& matT, bool
   // Step 2. Reduce to real Schur form
   computeFromHessenbergInPlace(matT, computeU);
 
-  internal::safe_scaling<Scalar>::unscale_to(m_matT, matT, maxCoeff, factors);
+  // Keep aliasing explicit for the compiler on the in-place path.
+  if (internal::is_same_dense(m_matT, matT))
+    internal::safe_scaling<Scalar>::unscale_in_place(matT, maxCoeff, factors);
+  else
+    internal::safe_scaling<Scalar>::unscale_to(m_matT, matT, maxCoeff, factors);
 
   return *this;
 }
