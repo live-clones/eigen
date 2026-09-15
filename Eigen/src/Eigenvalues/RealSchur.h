@@ -289,7 +289,13 @@ RealSchur<MatrixType>& RealSchur<MatrixType>::computeInPlace(bool computeU) {
   const Index n = m_matT.rows();
   eigen_assert(m_matT.cols() == n);
 
-  Scalar scale = m_matT.cwiseAbs().maxCoeff();
+  Scalar scale = m_matT.cwiseAbs().template maxCoeff<PropagateNaN>();
+  if (!(numext::isfinite)(scale)) {
+    m_info = NoConvergence;
+    m_isInitialized = true;
+    m_matUisUptodate = false;
+    return *this;
+  }
   if (scale < considerAsZero) {
     m_matT.setZero();
     if (computeU) m_matU.setIdentity(n, n);
