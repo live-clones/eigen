@@ -554,7 +554,7 @@ EIGEN_DONT_INLINE BDCSVD<MatrixType, Options>& BDCSVD<MatrixType, Options>::comp
   const auto factors =
       internal::safe_scaling<RealScalar>::scale_to(diagonalDest, diagonal.template cast<RealScalar>(), maxCoeff);
   if (n > 1) {
-    auto superdiagonalDest = m_impl.computed().template diagonal<-1>().head(n - 1);
+    auto superdiagonalDest = m_impl.computed().topRows(n).template diagonal<-1>();
     internal::safe_scaling<RealScalar>::scale_to(superdiagonalDest, superdiagonal.template cast<RealScalar>(), maxCoeff,
                                                  factors);
   }
