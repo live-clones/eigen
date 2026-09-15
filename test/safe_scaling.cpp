@@ -40,6 +40,9 @@ void check_power_of_two_scaling_factor() {
     T restored;
     internal::safe_scaling<T>::unscale_to(restored, scaled(0), factors);
     VERIFY_IS_EQUAL(restored, value);
+    Matrix<T, 1, 1> restoredMatrix;
+    internal::safe_scaling<T>::unscale_to(restoredMatrix, scaled, value, factors);
+    VERIFY_IS_EQUAL(restoredMatrix, input);
     internal::safe_scaling<T>::unscale_in_place(scaled, factors);
     VERIFY_IS_EQUAL(scaled(0), value);
   };
@@ -392,6 +395,9 @@ void check_subnormal_preserving_scaling() {
   VERIFY(numext::abs(scaledSubnormal(0)) > RealScalar(0));
 
   // Unscaling restores the subnormal components exactly, still under FTZ.
+  Matrix<Scalar, 2, 1> restored;
+  internal::safe_scaling<RealScalar>::unscale_to(restored, scaled, maxCoeff, factors);
+  for (Index i = 0; i < input.size(); ++i) VERIFY(same_bits(restored(i), input(i)));
   internal::safe_scaling<RealScalar>::unscale_in_place(scaled, maxCoeff, factors);
   internal::safe_scaling<RealScalar>::unscale_in_place(scaledSubnormal, subnormalMaxCoeff, subnormalFactors);
   for (Index i = 0; i < input.size(); ++i) VERIFY(same_bits(scaled(i), input(i)));
