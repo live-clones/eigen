@@ -128,13 +128,13 @@ void real_schur_power_of_two_scaling() {
   VERIFY_IS_EQUAL(tailSchur.matrixT()(1, 1), denormMin);
 }
 
-template <typename Scalar>
-void real_schur_subnormal_restoration() {
+template <typename MatrixType>
+void real_schur_subnormal_restoration(Index n = MatrixType::RowsAtCompileTime) {
+  using Scalar = typename MatrixType::Scalar;
   using Bits = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
-  using MatrixType = Matrix<Scalar, 2, 2>;
   const Scalar normal_min = (std::numeric_limits<Scalar>::min)();
   const Bits half_min_bits = numext::bit_cast<Bits>(normal_min) >> 1;
-  MatrixType matrix = MatrixType::Zero();
+  MatrixType matrix = MatrixType::Zero(n, n);
   matrix(0, 0) = normal_min;
   matrix(1, 1) = numext::bit_cast<Scalar>(half_min_bits);
   const ScopedFlushToZero flush;
@@ -191,20 +191,8 @@ void schur_workspace_stride() {
     VERIFY_IS_EQUAL(solver.matrixT(), identity);
     VERIFY_IS_EQUAL(solver.matrixU(), identity);
 
-    using Bits = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
-    const Scalar normalMin = (std::numeric_limits<Scalar>::min)();
-    const Bits halfMinBits = numext::bit_cast<Bits>(normalMin) >> 1;
-    a.setZero();
-    a(0, 0) = normalMin;
-    a(1, 1) = numext::bit_cast<Scalar>(halfMinBits);
-    const ScopedFlushToZero flush;
-    for (bool computeU : {false, true}) {
-      solver.compute(a, computeU);
-      VERIFY_IS_EQUAL(solver.info(), Success);
-      // The fused copy from padded storage must preserve subnormal results under FTZ/DAZ too.
-      VERIFY_IS_EQUAL(numext::bit_cast<Bits>(solver.matrixT()(1, 1)), halfMinBits);
-      VERIFY_IS_EQUAL(numext::bit_cast<Bits>(solver.matrixT()(0, 0)), numext::bit_cast<Bits>(normalMin));
-    }
+    // Exercise subnormal restoration across the padded-workspace boundary too.
+    real_schur_subnormal_restoration<Mat>(n);
   }
 }
 
@@ -276,8 +264,8 @@ EIGEN_DECLARE_TEST(schur_real) {
 
   CALL_SUBTEST_6((test_bug2633()));
   CALL_SUBTEST_6((real_schur_power_of_two_scaling()));
-  CALL_SUBTEST_6(real_schur_subnormal_restoration<float>());
-  CALL_SUBTEST_6(real_schur_subnormal_restoration<double>());
+  CALL_SUBTEST_6(real_schur_subnormal_restoration<Matrix2f>());
+  CALL_SUBTEST_6(real_schur_subnormal_restoration<Matrix2d>());
   CALL_SUBTEST_7((schur_workspace_stride<float, ColMajor>()));
   CALL_SUBTEST_8((schur_workspace_stride<double, ColMajor>()));
   CALL_SUBTEST_9((schur_workspace_stride<float, RowMajor>()));
