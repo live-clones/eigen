@@ -31,13 +31,22 @@ void schur_no_malloc() {
     internal::set_is_malloc_allowed((restriction & 1) == 0);
     internal::set_is_free_allowed((restriction & 2) == 0);
 #endif
-    // Forming Schur vectors in compute() has separate allocations in the Hessenberg reduction.
     solver.setMaxIterations(-1).compute(a, false);
+    VERIFY_IS_EQUAL(solver.info(), Success);
+    // An already Hessenberg input has no reflectors, so forming its initial Q must not allocate.
+    solver.compute(h, true);
 #ifdef EIGEN_RUNTIME_NO_MALLOC
     internal::set_is_malloc_allowed(true);
     internal::set_is_free_allowed(true);
 #endif
     VERIFY_IS_EQUAL(solver.info(), Success);
+    Scalar hessenbergError(0);
+    for (Index j = 0; j < n; ++j) {
+      residual.noalias() = h * solver.matrixU().col(j);
+      residual.noalias() -= solver.matrixU() * solver.matrixT().col(j);
+      hessenbergError += residual.squaredNorm();
+    }
+    VERIFY(numext::sqrt(hessenbergError) <= bound * h.norm());
     for (Index maxIters : {Index(-1), Index(1)}) {
       solver.setMaxIterations(maxIters);
       for (bool computeU : {true, false}) {
