@@ -235,6 +235,7 @@ class SelfAdjointEigenSolver {
   template <typename InputType, bool IsRef = internal::is_ref<MatrixType>::value, std::enable_if_t<IsRef, int> = 0>
   EIGEN_DEVICE_FUNC explicit SelfAdjointEigenSolver(EigenBase<InputType>& matrix, int options = ComputeEigenvectors)
       : SelfAdjointEigenSolver(matrix, BindStorageTag()) {
+    m_eivec.template triangularView<StrictlyUpper>().setZero();
     computeInPlace(options);
   }
 
@@ -522,10 +523,6 @@ EIGEN_DEVICE_FUNC SelfAdjointEigenSolver<MatrixType>& SelfAdjointEigenSolver<Mat
   // declare some aliases
   RealVectorType& diag = m_eivalues;
   EigenvectorsType& mat = m_eivec;
-
-  // Only the lower triangle is referenced; the rest is cleared so that the scale below and the eigenvector
-  // accumulation see the same matrix whether mat was copied or bound in place.
-  mat.template triangularView<StrictlyUpper>().setZero();
 
   // Scale the matrix to [-1:1] to avoid overflow/underflow during tridiagonalization
   // and subsequent QR iteration. This uniform scaling ensures the tridiagonal output is
