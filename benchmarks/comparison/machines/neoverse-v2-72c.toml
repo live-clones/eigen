@@ -1,0 +1,33 @@
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
+
+# Arm Neoverse V2, 72 single-threaded cores in one socket, Ubuntu 24.04.
+
+id = "neoverse-v2-72c"
+display_name = "Arm Neoverse V2 (72-core, 1 socket), Ubuntu 24.04"
+cpu_model = "Neoverse-V2"
+max_load_avg = 0.5
+default_isa = "aarch64-neon"
+
+notes = """
+64 KiB L1d and 1 MiB L2 per core, a 114 MiB L3 shared by all 72 cores, so the
+level-3 fall-off happens much later here than on a desktop part. SVE2 at a
+128-bit vector length (/proc/sys/abi/sve_default_vector_length is 16 bytes):
+the aarch64-sve target is a different instruction set at the same width as
+NEON, so a difference between the two is code generation, not vector width.
+Nine NUMA nodes; the run is confined to node 0.
+"""
+
+[pinning]
+# The CPUs of NUMA node 0; adjust to `numactl --hardware` on first use.
+cpu_list = "0-7"
+
+[isa."aarch64-neon"]
+flags = []
+
+[isa."aarch64-sve"]
+flags = ["-march=armv9-a+sve2", "-msve-vector-bits=128", "-DEIGEN_ARM64_USE_SVE"]
+
+[arms.openblas]
+cmake_options = ["-DEIGEN_BENCH_REFERENCE=openblas"]
+thread_env = { OPENBLAS_NUM_THREADS = "{threads}" }

@@ -154,3 +154,10 @@ SPDX-License-Identifier = "BSD-3-Clause"
 path = "debug/msvc/eigen_autoexp_part.dat"
 SPDX-FileCopyrightText = "The Eigen Authors"
 SPDX-License-Identifier = "MPL-2.0"
+
+# The comparison benchmarks' README; a header in the Markdown would render as
+# text. Every other file in that directory carries the two-line header inline.
+[[annotations]]
+path = "benchmarks/comparison/README.md"
+SPDX-FileCopyrightText = "The Eigen Authors"
+SPDX-License-Identifier = "MPL-2.0"

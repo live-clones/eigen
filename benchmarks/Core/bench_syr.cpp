@@ -9,13 +9,9 @@
 #include <benchmark/benchmark.h>
 #include <Eigen/Core>
 
-using namespace Eigen;
+#include "../bench_common.h"
 
-template <typename Scalar>
-double syrFlops(Index n) {
-  // SYR: n*(n+1)/2 multiply-adds ~ n^2
-  return (NumTraits<Scalar>::IsComplex ? 8.0 : 2.0) * n * (n + 1) / 2;
-}
+using namespace Eigen;
 
 template <typename Scalar>
 static void BM_SYR_Lower(benchmark::State& state) {
@@ -30,8 +26,7 @@ static void BM_SYR_Lower(benchmark::State& state) {
     benchmark::DoNotOptimize(C.data());
     benchmark::ClobberMemory();
   }
-  state.counters["GFLOPS"] = benchmark::Counter(syrFlops<Scalar>(n), benchmark::Counter::kIsIterationInvariantRate,
-                                                benchmark::Counter::kIs1000);
+  eigen_bench::setFlopRate(state, eigen_bench::syrFlops<Scalar>(n));
 }
 
 template <typename Scalar>
@@ -47,8 +42,7 @@ static void BM_SYR_Upper(benchmark::State& state) {
     benchmark::DoNotOptimize(C.data());
     benchmark::ClobberMemory();
   }
-  state.counters["GFLOPS"] = benchmark::Counter(syrFlops<Scalar>(n), benchmark::Counter::kIsIterationInvariantRate,
-                                                benchmark::Counter::kIs1000);
+  eigen_bench::setFlopRate(state, eigen_bench::syrFlops<Scalar>(n));
 }
 
 // clang-format off

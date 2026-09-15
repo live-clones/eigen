@@ -10,6 +10,8 @@
 #include <Eigen/Cholesky>
 #include <Eigen/LU>
 
+#include "../bench_common.h"
+
 using namespace Eigen;
 
 #ifndef SCALAR
@@ -19,16 +21,6 @@ using namespace Eigen;
 typedef SCALAR Scalar;
 typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
 typedef Matrix<Scalar, Dynamic, 1> VectorType;
-
-// Half-flops symmetric-factorization cost (multiply + add counted separately), matching bench_cholesky.cpp.
-static double symmetric_factorization_cost(int n) {
-  double cost = 0;
-  for (int j = 0; j < n; ++j) {
-    int rem = std::max(n - j - 1, 0);
-    cost += 2 * (double(rem) * j + rem + j);
-  }
-  return cost;
-}
 
 // A symmetric/Hermitian indefinite test matrix.
 static MatrixType make_indefinite(int n) {
@@ -46,8 +38,7 @@ static void BM_BunchKaufman(benchmark::State& state) {
     acc += bk.matrixLDLT().coeff(r, r);
     benchmark::DoNotOptimize(acc);
   }
-  state.counters["GFLOPS"] = benchmark::Counter(
-      symmetric_factorization_cost(n), benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
+  eigen_bench::setFlopRate(state, eigen_bench::symmetricFactorizationFlops<Scalar>(n));
 }
 BENCHMARK(BM_BunchKaufman)->RangeMultiplier(2)->Range(8, 2048);
 
@@ -73,8 +64,7 @@ static void BM_LDLT(benchmark::State& state) {
     acc += ldlt.matrixLDLT().coeff(r, r);
     benchmark::DoNotOptimize(acc);
   }
-  state.counters["GFLOPS"] = benchmark::Counter(
-      symmetric_factorization_cost(n), benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
+  eigen_bench::setFlopRate(state, eigen_bench::symmetricFactorizationFlops<Scalar>(n));
 }
 BENCHMARK(BM_LDLT)->RangeMultiplier(2)->Range(8, 2048);
 
@@ -88,9 +78,10 @@ static void BM_PartialPivLU(benchmark::State& state) {
     acc += lu.matrixLU().coeff(r, r);
     benchmark::DoNotOptimize(acc);
   }
-  // LU does roughly twice the work of a symmetric factorization.
-  state.counters["GFLOPS"] = benchmark::Counter(
-      2 * symmetric_factorization_cost(n), benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
+  // The LU count, not twice the symmetric one: "roughly twice" holds only
+  // asymptotically, overstating the 2n^3/3 of a square LU by 31% at n=8 and 4.6%
+  // at n=64, and this sweep starts at n=8.
+  eigen_bench::setFlopRate(state, eigen_bench::getrfFlops<Scalar>(n, n));
 }
 BENCHMARK(BM_PartialPivLU)->RangeMultiplier(2)->Range(8, 2048);
 
