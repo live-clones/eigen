@@ -74,6 +74,27 @@ void inplace(bool square = false, bool SPD = false) {
 }
 
 template <typename MatrixType>
+void inplace_fullpivlu_subspaces() {
+  using RealScalar = typename MatrixType::RealScalar;
+  MatrixType input(3, 3);
+  input << 1, 0, 1, 0, 1, 1, 0, 0, 0;
+  MatrixType working = input;
+  FullPivLU<Ref<MatrixType>> lu(working);
+  Ref<MatrixType> original(input);
+  const auto kernel = lu.kernel().eval();
+  const auto image = lu.image(original).eval();
+  STATIC_CHECK((int(decltype(kernel)::IsRowMajor) == int(MatrixType::IsRowMajor)));
+  STATIC_CHECK((int(decltype(image)::IsRowMajor) == int(MatrixType::IsRowMajor)));
+  VERIFY_IS_EQUAL(kernel.cols(), 1);
+  VERIFY_IS_EQUAL(image.cols(), 2);
+  const RealScalar tolerance = RealScalar(128 * input.rows()) * NumTraits<RealScalar>::epsilon();
+  VERIFY((input * kernel).norm() <= tolerance * input.norm() * kernel.norm());
+  VERIFY_IS_EQUAL(kernel.fullPivLu().rank(), kernel.cols());
+  VERIFY_IS_EQUAL(image.fullPivLu().rank(), image.cols());
+  VERIFY((image * image.fullPivLu().solve(input) - input).norm() <= tolerance * input.norm());
+}
+
+template <typename MatrixType>
 MatrixType random_selfadjoint(Index n) {
   MatrixType a = MatrixType::Random(n, n);
   return a + a.adjoint();
@@ -154,9 +175,11 @@ void inplace_schur(Index size) {
 
 template <typename MatrixType>
 void inplace_selfadjoint_eigensolver(Index size) {
+  using Scalar = typename MatrixType::Scalar;
   using RealScalar = typename MatrixType::RealScalar;
   const RealScalar tolerance = RealScalar(128 * size) * NumTraits<RealScalar>::epsilon();
   MatrixType A = random_selfadjoint<MatrixType>(size), A0 = A;
+  A.template triangularView<StrictlyUpper>().setConstant(Scalar(std::numeric_limits<RealScalar>::quiet_NaN()));
   SelfAdjointEigenSolver<Ref<MatrixType>> es(A);
   VERIFY_IS_EQUAL(es.info(), Success);
   VERIFY(internal::is_same_dense(es.eigenvectors(), A));
@@ -221,7 +244,7 @@ void inplace_selfadjoint_eigensolver(Index size) {
   }
 }
 
-// Zero and NaN inputs exercise the early exits and failure status of the real solvers.
+// NaN inputs compare status only: a 2x2 RealSchur can report Success without a QR iteration.
 template <typename MatrixType>
 void inplace_special_values(Index size) {
   using RealScalar = typename MatrixType::RealScalar;
@@ -232,13 +255,13 @@ void inplace_special_values(Index size) {
     RealSchur<Ref<MatrixType>> schur(A);
     RealSchur<MatrixType> schur0(A0);
     VERIFY_IS_EQUAL(schur.info(), schur0.info());
-    if (schur.info() == Success) verify_inplace_similarity(A0, schur.matrixU(), schur.matrixT());
+    if (schur.info() == Success && kind == 0) verify_inplace_similarity(A0, schur.matrixU(), schur.matrixT());
 
     MatrixType B = A0;
     SelfAdjointEigenSolver<Ref<MatrixType>> saes(B);
     SelfAdjointEigenSolver<MatrixType> saes0(A0);
     VERIFY_IS_EQUAL(saes.info(), saes0.info());
-    if (saes.info() == Success) {
+    if (saes.info() == Success && kind == 0) {
       VERIFY_IS_EQUAL(saes.eigenvalues(), saes0.eigenvalues());
       VERIFY(saes.eigenvectors().isUnitary(RealScalar(128 * size) * NumTraits<RealScalar>::epsilon()));
     }
@@ -247,7 +270,7 @@ void inplace_special_values(Index size) {
     EigenSolver<Ref<MatrixType>> es(C);
     EigenSolver<MatrixType> es0(A0);
     VERIFY_IS_EQUAL(es.info(), es0.info());
-    if (es.info() == Success) {
+    if (es.info() == Success && kind == 0) {
       VERIFY_IS_EQUAL(es.eigenvalues(), es0.eigenvalues());
       VERIFY((es.eigenvectors().colwise().norm().array() > RealScalar(0)).all());
     }
@@ -369,6 +392,10 @@ void inplace_plain_lower_triangle() {
 }
 
 EIGEN_DECLARE_TEST(inplace_decomposition) {
+  CALL_SUBTEST_4((inplace_fullpivlu_subspaces<Matrix<double, Dynamic, Dynamic, ColMajor>>()));
+  CALL_SUBTEST_4((inplace_fullpivlu_subspaces<Matrix<double, Dynamic, Dynamic, RowMajor>>()));
+  CALL_SUBTEST_4((inplace_fullpivlu_subspaces<Matrix<double, 3, 3, RowMajor | DontAlign>>()));
+  CALL_SUBTEST_10((inplace_special_values<MatrixXd>(2)));
   CALL_SUBTEST_11(inplace_plain_lower_triangle());
   CALL_SUBTEST_14((inplace_qz_inner_stride<double, RealQZ>()));
   CALL_SUBTEST_14((inplace_qz_inner_stride<std::complex<double>, ComplexQZ>()));

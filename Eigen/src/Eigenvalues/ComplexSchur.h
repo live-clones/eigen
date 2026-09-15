@@ -395,7 +395,7 @@ ComplexSchur<MatrixType>& ComplexSchur<MatrixType>::computeInPlace(bool computeU
   const RealScalar maxCoeff = internal::safe_scaling<RealScalar>::recover_flushed_max_coeff(
       m_matT, m_matT.cwiseAbs().template maxCoeff<PropagateNaN>());
   const internal::safe_scaling_factors<RealScalar> factors =
-      internal::safe_scaling<RealScalar>::with_scaled(m_matT, maxCoeff, [&](const auto& scaled) { m_matT = scaled; });
+      internal::safe_scaling<RealScalar>::scale_in_place(m_matT, maxCoeff);
   m_hess.runInPlace(*this, computeU);
   computeFromHessenberg(m_matT, m_matU, computeU);
   internal::safe_scaling<RealScalar>::unscale_in_place(m_matT, maxCoeff, factors);
