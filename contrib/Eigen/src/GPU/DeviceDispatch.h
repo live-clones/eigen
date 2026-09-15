@@ -769,7 +769,8 @@ DeviceMatrix<Scalar_> DeviceMatrix<Scalar_>::cwiseProduct(Context& ctx, const De
   if (n > 0) {
     waitReady(ctx.stream());
     other.waitReady(ctx.stream());
-    internal::device_cwiseProduct(data_.get(), other.data_.get(), result.data_.get(), n, ctx.stream());
+    internal::device_cwiseProduct(data_.get(), other.data_.get(), result.data_.get(),
+                                  Eigen::internal::convert_index<int>(n), ctx.stream());
     result.recordReady(ctx.stream());
   }
   return result;
@@ -785,7 +786,8 @@ void DeviceMatrix<Scalar_>::cwiseProduct(Context& ctx, const DeviceMatrix& a, co
   if (n > 0) {
     a.waitReady(ctx.stream());
     b.waitReady(ctx.stream());
-    internal::device_cwiseProduct(a.data_.get(), b.data_.get(), data_.get(), n, ctx.stream());
+    internal::device_cwiseProduct(a.data_.get(), b.data_.get(), data_.get(), Eigen::internal::convert_index<int>(n),
+                                  ctx.stream());
     recordReady(ctx.stream());
   }
 }
