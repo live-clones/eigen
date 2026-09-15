@@ -140,7 +140,7 @@ class RealSchur {
         m_isInitialized(false),
         m_matUisUptodate(false),
         m_maxIters(-1) {
-    computeInPlace(computeU);
+    compute(m_matT, computeU);
   }
 
   /** \brief Returns the orthogonal matrix in the Schur decomposition.
@@ -276,7 +276,11 @@ class RealSchur {
   RealSchur& computeFromHessenbergInPlace(TMatrix& matT, bool computeU);
   using Vector3s = Matrix<Scalar, 3, 1>;
 
-  RealSchur& computeInPlace(bool computeU);
+  using WorkspaceMatrix = Matrix<Scalar, Dynamic, Dynamic, MatrixType::IsRowMajor ? RowMajor : ColMajor>;
+
+  bool usePaddedWorkspace(Index size) const;
+  template <typename TMatrix>
+  RealSchur& computeInPlace(TMatrix& matT, bool computeU);
   template <typename TMatrix>
   Scalar computeNormOfT(TMatrix& matT);
   template <typename TMatrix>
@@ -297,19 +301,44 @@ template <typename MatrixType>
 template <typename InputType>
 RealSchur<MatrixType>& RealSchur<MatrixType>::compute(const EigenBase<InputType>& matrix, bool computeU) {
   eigen_assert(matrix.cols() == matrix.rows());
-  m_matT = matrix.derived();
-  return computeInPlace(computeU);
+  const Index size = matrix.rows();
+  if (usePaddedWorkspace(size)) {
+    WorkspaceMatrix storage(size + (MatrixType::IsRowMajor ? 0 : 1), size + (MatrixType::IsRowMajor ? 1 : 0));
+    auto matT = storage.topLeftCorner(size, size);
+    matT = matrix.derived();
+    computeInPlace(matT, computeU);
+  } else {
+    if (!internal::is_same_dense(m_matT, matrix.derived())) m_matT = matrix.derived();
+    computeInPlace(m_matT, computeU);
+  }
+  return *this;
 }
 
-/** \internal Computes the Schur decomposition of the matrix held in m_matT, which is overwritten by T. */
 template <typename MatrixType>
-RealSchur<MatrixType>& RealSchur<MatrixType>::computeInPlace(bool computeU) {
-  const Scalar considerAsZero = (std::numeric_limits<Scalar>::min)();
-  const Index n = m_matT.rows();
-  eigen_assert(m_matT.cols() == n);
+bool RealSchur<MatrixType>::usePaddedWorkspace(Index size) const {
+  // Short reflectors traverse the outer dimension. Strides divisible by 1 KiB concentrate those accesses in
+  // very few cache sets. A Ref may already have a suitable stride; owning matrices resize to size-by-size.
+  const Index stride = internal::is_ref<MatrixType>::value ? m_matT.outerStride() : size;
+  bool usePadding = size >= 128 && (stride * sizeof(Scalar)) % 1024 == 0;
+#ifdef EIGEN_NO_MALLOC
+  usePadding = false;
+#elif defined(EIGEN_RUNTIME_NO_MALLOC)
+  usePadding = usePadding && internal::is_malloc_allowed() && internal::is_free_allowed();
+#endif
+  return usePadding;
+}
 
-  Scalar scale = m_matT.cwiseAbs().maxCoeff();
+/** \internal Reduces matT in place and writes the rescaled Schur form to m_matT. */
+template <typename MatrixType>
+template <typename TMatrix>
+RealSchur<MatrixType>& RealSchur<MatrixType>::computeInPlace(TMatrix& matT, bool computeU) {
+  const Scalar considerAsZero = (std::numeric_limits<Scalar>::min)();
+  const Index n = matT.rows();
+  eigen_assert(matT.cols() == n);
+
+  Scalar scale = matT.cwiseAbs().maxCoeff();
   if (scale < considerAsZero) {
+    m_matT.resize(n, n);
     m_matT.setZero();
     if (computeU) m_matU.setIdentity(n, n);
     m_info = Success;
@@ -317,15 +346,15 @@ RealSchur<MatrixType>& RealSchur<MatrixType>::computeInPlace(bool computeU) {
     m_matUisUptodate = computeU;
     return *this;
   }
-  m_matT /= scale;
+  matT /= scale;
 
   // Step 1. Reduce to Hessenberg form
-  internal::hessenberg_decomposition_inplace(m_matT, m_hCoeffs, m_workspaceVector, m_matU, computeU);
+  internal::hessenberg_decomposition_inplace(matT, m_hCoeffs, m_workspaceVector, m_matU, computeU);
 
   // Step 2. Reduce to real Schur form
-  computeFromHessenberg(m_matT, m_matU, computeU);
+  computeFromHessenbergInPlace(matT, computeU);
 
-  m_matT *= scale;
+  m_matT = matT * scale;
 
   return *this;
 }
@@ -333,28 +362,18 @@ template <typename MatrixType>
 template <typename HessMatrixType, typename OrthMatrixType>
 RealSchur<MatrixType>& RealSchur<MatrixType>::computeFromHessenberg(const HessMatrixType& matrixH,
                                                                     const OrthMatrixType& matrixQ, bool computeU) {
-  if (!internal::is_same_dense(m_matT, matrixH)) m_matT = matrixH;
-  m_workspaceVector.resize(m_matT.cols());
-  if (computeU && !internal::is_same_dense(m_matU, matrixQ)) m_matU = matrixQ;
-
-  const Index size = m_matT.rows();
-  // Short reflectors traverse the outer dimension. Strides divisible by 1 KiB concentrate those accesses in
-  // very few cache sets, even with fused column updates. One extra coefficient spreads successive rows/columns
-  // across the cache; the public matrices retain their original shape and storage layout.
-  bool usePaddedWorkspace = size >= 128 && (size * sizeof(Scalar)) % 1024 == 0;
-#ifdef EIGEN_NO_MALLOC
-  usePaddedWorkspace = false;
-#elif defined(EIGEN_RUNTIME_NO_MALLOC)
-  usePaddedWorkspace = usePaddedWorkspace && internal::is_malloc_allowed() && internal::is_free_allowed();
-#endif
-  if (usePaddedWorkspace) {
-    Matrix<Scalar, Dynamic, Dynamic, MatrixType::IsRowMajor ? RowMajor : ColMajor> storage(
-        size + (MatrixType::IsRowMajor ? 0 : 1), size + (MatrixType::IsRowMajor ? 1 : 0));
+  const Index size = matrixH.rows();
+  m_workspaceVector.resize(size);
+  if (usePaddedWorkspace(size)) {
+    WorkspaceMatrix storage(size + (MatrixType::IsRowMajor ? 0 : 1), size + (MatrixType::IsRowMajor ? 1 : 0));
     auto matT = storage.topLeftCorner(size, size);
-    matT = m_matT;
+    matT = matrixH;
+    if (computeU && !internal::is_same_dense(m_matU, matrixQ)) m_matU = matrixQ;
     computeFromHessenbergInPlace(matT, computeU);
     m_matT = matT;
   } else {
+    if (!internal::is_same_dense(m_matT, matrixH)) m_matT = matrixH;
+    if (computeU && !internal::is_same_dense(m_matU, matrixQ)) m_matU = matrixQ;
     computeFromHessenbergInPlace(m_matT, computeU);
   }
   return *this;
