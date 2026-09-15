@@ -23,7 +23,8 @@ void check_structured_abs_sum(const MatrixBase<Derived>& matrix) {
       Hessenberg ? internal::hessenberg_abs_sum<UpLo>(matrix) : internal::triangular_abs_sum<UpLo>(matrix);
   internal::set_is_malloc_allowed(true);
   // Each magnitude and addition contributes O(eps); the reference accumulates in long double.
-  const long double bound = 8 * static_cast<long double>(matrix.size()) * NumTraits<RealScalar>::epsilon() * expected;
+  const long double bound = 8 * static_cast<long double>(matrix.size()) *
+                            static_cast<long double>(NumTraits<RealScalar>::epsilon()) * expected;
   VERIFY((numext::isfinite)(actual));
   VERIFY(std::abs(static_cast<long double>(actual) - expected) <= bound);
 }
