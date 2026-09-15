@@ -362,8 +362,7 @@ void hessenberg_decomposition_inplace(MatrixType& matA, CoeffVectorType& hCoeffs
     while (firstReflector < n - 1 && numext::is_exactly_zero(hCoeffs.coeff(firstReflector))) ++firstReflector;
     if (firstReflector == n - 1) {
       // All tau_i = 0: Q = I, without allocating block Householder factors.
-      matQ.resize(n, n);
-      matQ.setIdentity();
+      matQ.setIdentity(n, n);
     } else {
       HouseholderSequenceType(matA, hCoeffs.conjugate()).setLength(n - 1).setShift(1).evalTo(matQ, temp);
     }
