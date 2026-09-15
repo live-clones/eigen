@@ -24,11 +24,17 @@ struct traits<CwiseBinaryOp<BinaryOp, Lhs, Rhs>> {
   // the potential to cause problems with MSVC
   using Ancestor = remove_all_t<Lhs>;
   using XprKind = typename traits<Ancestor>::XprKind;
+  // Tightening bounds across storage orders can create a vector with incompatible storage flags.
+  static constexpr bool StorageOrdersAgree = (traits<Lhs>::Flags & RowMajorBit) == (traits<Rhs>::Flags & RowMajorBit);
   enum {
     RowsAtCompileTime = traits<Ancestor>::RowsAtCompileTime,
     ColsAtCompileTime = traits<Ancestor>::ColsAtCompileTime,
-    MaxRowsAtCompileTime = traits<Ancestor>::MaxRowsAtCompileTime,
-    MaxColsAtCompileTime = traits<Ancestor>::MaxColsAtCompileTime
+    MaxRowsAtCompileTime = StorageOrdersAgree ? min_size_prefer_fixed(traits<Ancestor>::MaxRowsAtCompileTime,
+                                                                      traits<Rhs>::MaxRowsAtCompileTime)
+                                              : traits<Ancestor>::MaxRowsAtCompileTime,
+    MaxColsAtCompileTime = StorageOrdersAgree ? min_size_prefer_fixed(traits<Ancestor>::MaxColsAtCompileTime,
+                                                                      traits<Rhs>::MaxColsAtCompileTime)
+                                              : traits<Ancestor>::MaxColsAtCompileTime
   };
 
   // even though we require Lhs and Rhs to have the same scalar type (see CwiseBinaryOp constructor),

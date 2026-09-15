@@ -239,10 +239,17 @@ struct redux_impl<Func, Evaluator, DefaultTraversal, NoUnrolling> {
     eigen_assert(xpr.rows() > 0 && xpr.cols() > 0 && "you are using an empty matrix");
     const Index innerSize = xpr.innerSize();
     const Index outerSize = xpr.outerSize();
+    constexpr int MaxInnerSize = XprType::IsVectorAtCompileTime ? int(XprType::MaxSizeAtCompileTime)
+                                 : XprType::IsRowMajor          ? int(XprType::MaxColsAtCompileTime)
+                                                                : int(XprType::MaxRowsAtCompileTime);
     EIGEN_IF_CONSTEXPR (functor_is_commutative<Func>::value) {
-      if (innerSize >= kReduxCommutativeInnerCutoff) return runCommutative(eval, func, innerSize, outerSize);
+      EIGEN_IF_CONSTEXPR (MaxInnerSize == Dynamic || MaxInnerSize >= kReduxCommutativeInnerCutoff) {
+        if (innerSize >= kReduxCommutativeInnerCutoff) return runCommutative(eval, func, innerSize, outerSize);
+      }
     } else {
-      if (innerSize >= kReduxOrderedTreeCutoff) return runOrderedTree(eval, func, innerSize, outerSize);
+      EIGEN_IF_CONSTEXPR (MaxInnerSize == Dynamic || MaxInnerSize >= kReduxOrderedTreeCutoff) {
+        if (innerSize >= kReduxOrderedTreeCutoff) return runOrderedTree(eval, func, innerSize, outerSize);
+      }
     }
     Scalar res = eval.coeffByOuterInner(0, 0);
     for (Index j = 1; j < innerSize; ++j) res = func(res, eval.coeffByOuterInner(0, j));
@@ -307,10 +314,18 @@ struct redux_impl<Func, Evaluator, LinearTraversal, NoUnrolling> {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar run(const Evaluator& eval, const Func& func, const XprType& xpr) {
     const Index size = xpr.size();
     eigen_assert(size > 0 && "you are using an empty matrix");
+    // Do not generate wide reduction bodies for bounded expressions that cannot
+    // reach their cutoff (GCC can otherwise diagnose their unreachable loads).
     EIGEN_IF_CONSTEXPR (functor_is_commutative<Func>::value) {
-      if (size >= kReduxCommutativeCutoff) return runCommutative(eval, func, size);
+      EIGEN_IF_CONSTEXPR (XprType::MaxSizeAtCompileTime == Dynamic ||
+                          XprType::MaxSizeAtCompileTime >= kReduxCommutativeCutoff) {
+        if (size >= kReduxCommutativeCutoff) return runCommutative(eval, func, size);
+      }
     } else {
-      if (size >= kReduxOrderedTreeCutoff) return runOrderedTree(eval, func, size);
+      EIGEN_IF_CONSTEXPR (XprType::MaxSizeAtCompileTime == Dynamic ||
+                          XprType::MaxSizeAtCompileTime >= kReduxOrderedTreeCutoff) {
+        if (size >= kReduxOrderedTreeCutoff) return runOrderedTree(eval, func, size);
+      }
     }
     Scalar res = eval.coeff(0);
     for (Index k = 1; k < size; ++k) res = func(res, eval.coeff(k));
