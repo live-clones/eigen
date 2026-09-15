@@ -604,13 +604,11 @@ DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::squaredNo
   // dot(x,x) rather than nrm2()^2: the dot kernel is ~4.5x faster, since nrm2
   // runs a scaled sum of squares whose overflow protection convergence checks do
   // not need.
-  using RealScalar = typename NumTraits<Scalar_>::Real;
   return internal::squaredNorm_from_dot<Scalar_, RealScalar>(dot(ctx, *this), ctx.stream());
 }
 
 template <typename Scalar_>
 DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::norm(Context& ctx) const {
-  using RealScalar = typename NumTraits<Scalar>::Real;
   const int64_t n = internal::blas1_size(rows_, cols_);
   if (n > 0) {
     // See dot(): uninitialized on purpose, cublasXnrm2 overwrites the slot.
