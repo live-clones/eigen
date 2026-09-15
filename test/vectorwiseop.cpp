@@ -542,7 +542,7 @@ void vectorwiseop_operand_order() {
 
 // LLVM's ARM load/store optimization (LLVM 14 through 22 and trunk) miscompiles the unrolled quaternion assignments
 // below on 32-bit ARM: when it merges loads into VLDMIA it reuses a still-live base register as the new base, so a
-// later product reads past the end of its operand. The generated code is correct with --arm-load-store-opt=false.
+// later product reads past the end of its operand: https://github.com/llvm/llvm-project/issues/223754
 #if !(EIGEN_ARCH_ARM && EIGEN_COMP_CLANG)
   Array<Quaterniond, 2, 3> quaternions;
   quaternions.setConstant(Quaterniond(0, 0, 1, 0));
