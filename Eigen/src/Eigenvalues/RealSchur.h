@@ -273,7 +273,7 @@ class RealSchur {
   Index m_maxIters;
 
   template <typename TMatrix>
-  RealSchur& computeFromHessenbergInPlace(TMatrix& matT, bool computeU);
+  EIGEN_DONT_INLINE RealSchur& computeFromHessenbergInPlace(TMatrix& matT, bool computeU);
   using Vector3s = Matrix<Scalar, 3, 1>;
 
   using WorkspaceMatrix = Matrix<Scalar, Dynamic, Dynamic, MatrixType::IsRowMajor ? RowMajor : ColMajor>;
