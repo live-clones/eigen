@@ -165,6 +165,9 @@ void check_arithmetic_safe_scaling_fallback() {
   VERIFY_IS_EQUAL(factors.invScale, 1.0);
   VERIFY_IS_EQUAL(scaled(0), 1.0);
   VERIFY_IS_EQUAL(scaled(1), 2.0);
+  Matrix<double, 2, 1> restored;
+  Scaling::unscale_to(restored, scaled, 3.0, factors);
+  VERIFY_IS_EQUAL(restored, input);
   Scaling::unscale_in_place(scaled, factors);
   VERIFY_IS_EQUAL(scaled, input);
 
@@ -213,6 +216,9 @@ void check_custom_scalar_scaling_exceptions() {
   VERIFY_IS_EQUAL(overflow, 0);
   VERIFY_IS_EQUAL(scaled(0), Scalar(0.5));
   VERIFY_IS_EQUAL(scaled(1), Scalar(1));
+  Matrix<Scalar, 2, 1> restored;
+  Scaling::unscale_to(restored, scaled, Scalar(twiceDenorm), factors);
+  VERIFY_IS_EQUAL(restored, input);
   Scaling::unscale_in_place(scaled, factors);
   VERIFY_IS_EQUAL(scaled, input);
 }

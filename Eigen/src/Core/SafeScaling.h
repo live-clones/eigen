@@ -287,7 +287,8 @@ struct safe_scaling_operations {
   template <typename MatrixType>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void unscale_in_place(MatrixType& matrix, const Scalar& maxCoeff,
                                                                      const Factors& factors) {
-    if (factors.scale != Scalar(1)) unscale_to(matrix, matrix, maxCoeff, factors);
+    if (factors.scale == Scalar(1)) return;
+    unscale_to(matrix, matrix, maxCoeff, factors);
   }
 
   template <typename Dest, typename Src>
