@@ -128,9 +128,17 @@ class RealSchur {
    * \param[in,out]  matrix    Square matrix whose Schur decomposition is to be computed.
    * \param[in]      computeU  If true, both T and U are computed; if false, only T is computed.
    *
-   * When \p MatrixType is a Ref<>, the decomposition is computed within the memory of \p matrix, which then holds
-   * the quasi-triangular matrix T returned by matrixT(); U is stored in the decomposition object. This overload is
-   * only available for Ref<>; owning matrix types use the constructor taking a const input.
+   * When \p MatrixType is a Ref<>, \p matrix holds the quasi-triangular matrix T returned by matrixT(); U is stored
+   * in the decomposition object. For an n-by-n matrix with n >= 128 and an outer stride in bytes divisible by 1024,
+   * the computation uses a temporary padded workspace of n*(n+1) coefficients and copies T back to \p matrix.
+   * Otherwise, it computes directly in the bound storage.
+   *
+   * To avoid padding, bind a Ref<> whose outer stride in bytes is not divisible by 1024. EIGEN_NO_MALLOC, or
+   * disabling allocation or deallocation through EIGEN_RUNTIME_NO_MALLOC, also suppresses padding, which may
+   * reduce performance. These controls do not remove other allocations, such as solver storage or Schur vectors;
+   * the inplace constructor is not guaranteed to be allocation-free.
+   *
+   * This overload is only available for Ref<>; owning matrix types use the constructor taking a const input.
    */
   template <typename InputType, bool IsRef = internal::is_ref<MatrixType>::value, std::enable_if_t<IsRef, int> = 0>
   explicit RealSchur(EigenBase<InputType>& matrix, bool computeU = true)
