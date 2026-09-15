@@ -483,6 +483,41 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void MatrixBase<Derived>::stableNormalize(
 
 namespace internal {
 
+// Sum |a_ij| over i <= j + ExtraDiagonals (Upper), or j <= i + ExtraDiagonals (Lower).
+template <unsigned int UpLo, int ExtraDiagonals, typename Derived>
+EIGEN_DEVICE_FUNC typename Derived::RealScalar triangular_band_abs_sum(const MatrixBase<Derived>& matrix) {
+  static_assert(UpLo == Upper || UpLo == Lower, "UpLo must be Upper or Lower");
+  static_assert(ExtraDiagonals == 0 || ExtraDiagonals == 1, "Expected a triangular or Hessenberg envelope");
+  using RealScalar = typename Derived::RealScalar;
+  RealScalar result(0);
+  if (matrix.rows() == 0 || matrix.cols() == 0) return result;
+
+  // Inner-vector slices preserve packet access for contiguous storage and also work for strided expressions.
+  for (Index j = 0; j < matrix.outerSize(); ++j) {
+    EIGEN_IF_CONSTEXPR ((UpLo == Upper) != Derived::IsRowMajor) {
+      const Index length = numext::mini(matrix.innerSize(), j + ExtraDiagonals + 1);
+      result += matrix.derived().innerVector(j).head(length).cwiseAbs().sum();
+    } else {
+      const Index start = numext::mini(matrix.innerSize(), numext::maxi(Index(0), j - ExtraDiagonals));
+      result += matrix.derived().innerVector(j).tail(matrix.innerSize() - start).cwiseAbs().sum();
+    }
+  }
+  return result;
+}
+
+// Coefficient-wise l1 norm of the stored upper/lower triangle, including the diagonal.
+// Entries outside the selected triangle are never read; rectangular and empty expressions are supported.
+template <unsigned int UpLo, typename Derived>
+EIGEN_DEVICE_FUNC typename Derived::RealScalar triangular_abs_sum(const MatrixBase<Derived>& matrix) {
+  return triangular_band_abs_sum<UpLo, 0>(matrix);
+}
+
+// Coefficient-wise l1 norm of the upper/lower Hessenberg envelope, including its one extra off-diagonal.
+template <unsigned int UpLo, typename Derived>
+EIGEN_DEVICE_FUNC typename Derived::RealScalar hessenberg_abs_sum(const MatrixBase<Derived>& matrix) {
+  return triangular_band_abs_sum<UpLo, 1>(matrix);
+}
+
 template <typename Derived, int p>
 struct lpNorm_selector {
   using RealScalar = typename NumTraits<typename traits<Derived>::Scalar>::Real;
