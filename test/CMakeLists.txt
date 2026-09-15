@@ -460,6 +460,7 @@ ei_add_test(rvalue_types)
 ei_add_test(dense_storage)
 ei_add_test(ctorleak)
 ei_add_test(inplace_decomposition)
+ei_add_test(inplace_decomposition_lapacke)
 ei_add_test(half_float)
 ei_add_test(bfloat16_float)
 ei_add_test(bfloat16_classification)
@@ -590,7 +591,7 @@ if(EIGEN_TEST_CUDA_NVC AND NOT CMAKE_CXX_COMPILER_ID MATCHES "NVHPC")
   message(WARNING "EIGEN_TEST_CUDA_NVC is set, but CMAKE_CXX_COMPILER does not appear to be nvc++.")
 endif()
 
-find_package(CUDA 11.4)
+find_package(CUDA 11.8)
 if(CUDA_FOUND AND EIGEN_TEST_CUDA)
   # Make sure to compile without the -pedantic, -Wundef, -Wnon-virtual-dtor
   # and -fno-check-new flags since they trigger thousands of compilation warnings
@@ -637,6 +638,7 @@ if(CUDA_FOUND AND EIGEN_TEST_CUDA)
 
   ei_add_test(gpu_example)
   ei_add_test(gpu_basic)
+  ei_add_test(packetmath_gpu)
 
   unset(EIGEN_ADD_TEST_FILENAME_EXTENSION)
 
@@ -674,6 +676,7 @@ if (EIGEN_TEST_HIP)
       set(EIGEN_ADD_TEST_FILENAME_EXTENSION  "cu")
       ei_add_test(gpu_basic)
       ei_add_test(gpu_example)
+      ei_add_test(packetmath_gpu)
       unset(EIGEN_ADD_TEST_FILENAME_EXTENSION)
 
     elseif (HIP_PLATFORM STREQUAL "nvcc" OR HIP_PLATFORM STREQUAL "nvidia")
