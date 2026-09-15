@@ -193,6 +193,17 @@ void schur_workspace_stride() {
 
     // Exercise subnormal restoration across the padded-workspace boundary too.
     real_schur_subnormal_restoration<Mat>(n);
+
+    a.setZero();
+    for (Scalar nonfinite : {NumTraits<Scalar>::quiet_NaN(), NumTraits<Scalar>::infinity()}) {
+      a(n - 1, n - 1) = nonfinite;
+      solver.compute(a);
+      VERIFY_IS_EQUAL(solver.info(), NoConvergence);
+      VERIFY(!(numext::isfinite)(solver.matrixT()(n - 1, n - 1)));
+      VERIFY_RAISES_ASSERT(solver.matrixU());
+      eig.compute(a, false);
+      VERIFY_IS_EQUAL(eig.info(), NumericalIssue);
+    }
   }
 }
 
