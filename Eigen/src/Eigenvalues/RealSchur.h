@@ -353,6 +353,7 @@ RealSchur<MatrixType>& RealSchur<MatrixType>::computeInPlace(TMatrix& matT, bool
     return *this;
   }
   if (maxCoeff < considerAsZero) {
+    // Ref has no setZero(rows, cols) overload.
     m_matT.resize(n, n);
     m_matT.setZero();
     if (computeU) m_matU.setIdentity(n, n);
@@ -535,7 +536,7 @@ inline void RealSchur<MatrixType>::computeShift(TMatrix& matT, Index iu, Index i
     // Wilkinson's original ad hoc shift
     if (iter % 32 != 0) {
       exshift += shiftInfo.coeff(0);
-      for (Index i = 0; i <= iu; ++i) matT.coeffRef(i, i) -= shiftInfo.coeff(0);
+      matT.diagonal().head(iu + 1).array() -= shiftInfo.coeff(0);
       Scalar s = abs(matT.coeff(iu, iu - 1)) + abs(matT.coeff(iu - 1, iu - 2));
       shiftInfo.coeffRef(0) = Scalar(0.75) * s;
       shiftInfo.coeffRef(1) = Scalar(0.75) * s;
@@ -550,7 +551,7 @@ inline void RealSchur<MatrixType>::computeShift(TMatrix& matT, Index iu, Index i
         s = s + (shiftInfo.coeff(1) - shiftInfo.coeff(0)) / Scalar(2.0);
         s = shiftInfo.coeff(0) - shiftInfo.coeff(2) / s;
         exshift += s;
-        for (Index i = 0; i <= iu; ++i) matT.coeffRef(i, i) -= s;
+        matT.diagonal().head(iu + 1).array() -= s;
         shiftInfo.setConstant(Scalar(0.964));
       }
     }
