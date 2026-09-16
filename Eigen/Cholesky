@@ -41,6 +41,7 @@
 #include "src/misc/lapacke_helpers.h"
 #include "src/Cholesky/LLT_LAPACKE.h"
 #endif
+#include "src/Cholesky/InverseImpl.h"
 // IWYU pragma: end_exports
 
 #include "src/Core/util/ReenableStupidWarnings.h"
