@@ -59,7 +59,17 @@ struct traits<HouseholderQR<MatrixType_>> : traits<MatrixType_> {
  * ill-conditioned or singular even when A is well-conditioned and has full row rank. The remaining
  * equations are satisfied only insofar as the right-hand side is consistent and rounding errors permit;
  * these calls do not compute a least-squares solution for an inconsistent right-hand side.
- * To solve using all equations, factor A.transpose() or A.adjoint() directly.
+ * To solve using all equations when A has full row rank, factor the transpose directly:
+ * \code
+ * x = A.transpose().householderQr().solve(b);
+ * \endcode
+ * For rank-deficient A, or to reuse a decomposition of A, use CompleteOrthogonalDecomposition
+ * to obtain the minimum-norm least-squares solution:
+ * \code
+ * auto cod = A.completeOrthogonalDecomposition();
+ * x = cod.transpose().solve(b);
+ * \endcode
+ * Replace transpose() with adjoint() in these examples for the adjoint system.
  *
  * \sa MatrixBase::householderQr()
  */
