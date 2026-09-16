@@ -136,6 +136,7 @@ struct member_squaredNorm {
 template <typename ExpressionType, int Direction,
           bool ComplexInnerReduction =
               NumTraits<typename ExpressionType::Scalar>::IsComplex &&
+              complex_array_access<typename ExpressionType::Scalar>::value &&
               (Direction == (ExpressionType::IsRowMajor ? Horizontal : Vertical)) &&
               ((int(evaluator<ExpressionType>::Flags) & (DirectAccessBit | PacketAccessBit)) != 0)>
 struct partial_squared_norm {
@@ -146,8 +147,9 @@ struct partial_squared_norm {
   EIGEN_DEVICE_FUNC static Type run(const ExpressionType& matrix) { return Type(matrix.cwiseAbs2()); }
 };
 
-// Direct or packet access lets complex inner reductions benefit from realView(). Without either,
-// realView() would evaluate each complex coefficient twice, once for each real component.
+// Keep scalars without array-oriented access and scalar-only expressions on abs2(): realView()
+// copies/evaluates their coefficients twice. Packet expressions still evaluate scalar tails
+// and reductions shorter than one packet twice.
 template <typename ExpressionType, int Direction>
 struct partial_squared_norm<ExpressionType, Direction, true> {
   using Type =
