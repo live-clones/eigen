@@ -376,10 +376,8 @@ void tridiagonal_eigensolver_eigenvectors() {
     VERIFY_IS_EQUAL((staged.eigenvectors() - fz.eigenvectors()).cwiseAbs().maxCoeff(), RealScalar(0));
 
     // A matrix whose entries are all subnormal must still yield genuine unit-norm, orthonormal
-    // eigenvectors rather than all-zero columns. Inverse iteration normalizes the tridiagonal by
-    // dividing its entries directly by the largest magnitude; doing so (rather than multiplying by its
-    // reciprocal) keeps the normalization finite even when that magnitude is subnormal, where 1/scale
-    // overflows to infinity and would otherwise let the iterate underflow to zero. The eigenvalues are
+    // eigenvectors rather than all-zero columns. Normalization must avoid forming 1/scale when
+    // that reciprocal overflows; subnormal blocks require two finite scaling steps. The eigenvalues are
     // taken from the same matrix in a normal magnitude range (then scaled back down), so this exercises
     // the eigenvector normalization in isolation from the eigenvalue solver.
     // Skipped on flush-to-zero packet hardware, where the subnormal inputs read as zero (see the probe).
@@ -637,7 +635,40 @@ void tridiagonal_eigensolver_scaling_units() {
   }
 }
 
+template <typename Scalar>
+void tridiagonal_eigensolver_subnormal_staged() {
+  if (packet_path_flushes_subnormals<Scalar>()) return;
+  using Vector = Matrix<Scalar, 4, 1>;
+  using Subdiag = Matrix<Scalar, 3, 1>;
+  using MatrixType = Matrix<Scalar, 4, 4>;
+  const Vector diag = Vector::Constant(Scalar(2));
+  const Subdiag subdiag = Subdiag::Ones();
+  const MatrixType matrix = dense_symmetric_tridiag(diag, subdiag);
+  for (int divisor : {64, 1024, 4096}) {
+    const Scalar scale = (std::numeric_limits<Scalar>::min)() / Scalar(divisor);
+    const Vector d = diag * scale;
+    const Subdiag e = subdiag * scale;
+    TridiagonalEigenSolver<Scalar> solver;
+    solver.computeEigenvalues(d, e);
+    VERIFY_IS_EQUAL(solver.info(), Success);
+    solver.computeEigenvectors();
+    VERIFY_IS_EQUAL(solver.info(), Success);
+    const Vector values = solver.eigenvalues() / scale;
+    const MatrixType vectors = solver.eigenvectors();
+    VERIFY(values.allFinite());
+    VERIFY(vectors.allFinite());
+    // Restored eigenvalues have absolute quantization denorm_min/scale. This matrix has
+    // norm <= 4 and minimum eigenvalue gap 1, so both residual and orthogonality see this error.
+    const Scalar quantization = std::numeric_limits<Scalar>::denorm_min() / scale;
+    const Scalar tolerance = Scalar(128 * 4) * NumTraits<Scalar>::epsilon() + Scalar(8 * 4) * quantization;
+    VERIFY((matrix * vectors - vectors * values.asDiagonal()).norm() <= tolerance);
+    VERIFY((vectors.transpose() * vectors - MatrixType::Identity()).norm() <= tolerance);
+  }
+}
+
 EIGEN_DECLARE_TEST(tridiagonal_eigensolver) {
+  CALL_SUBTEST_1(tridiagonal_eigensolver_subnormal_staged<double>());
+  CALL_SUBTEST_2(tridiagonal_eigensolver_subnormal_staged<float>());
   CALL_SUBTEST_2(tridiagonal_eigensolver_power_of_two_scaling());
   CALL_SUBTEST_2(tridiagonal_eigensolver_scaling_units<float>());
   CALL_SUBTEST_1(tridiagonal_eigensolver_scaling_units<double>());
