@@ -98,6 +98,14 @@ since they invalidate the mapping itself; the `ci/*.gitlab-ci.yml` files are orc
 test includes which header, so they select nothing. Git rename detection is disabled for the input diff so both the
 old and new path of a move are evaluated; an old path absent from the current graph safely forces the full suite.
 
+`REGISTRATION_PATHS` -- the test trees' `CMakeLists.txt` and `failtest/CMakeLists.txt` -- and
+`cmake/EigenSmokeTestList.cmake` are read at the merge base as well, and force the full suite only when a line outside
+a registration differs, since everything else in one of those files (a compile definition, an include directory, a
+`find_package`) reaches every test in its directory. Registering a test is what a merge request adding one does, so the
+unconditional rule degraded the tier to the whole suite for 63 of 311 selections over 2026-09. The comparison needs
+`--base-sha`: without it those paths force the full suite like any other CMake file, which is what happens when the
+diff comes from `--changed-files` alone.
+
 The selector derives source-to-target mappings from test CMake registration, including multi-translation-unit
 executables and the GPU tests, whose sources are `.cu` because `ei_add_test` takes the extension from
 `EIGEN_ADD_TEST_FILENAME_EXTENSION`. A changed test source without a registration is an error rather than an

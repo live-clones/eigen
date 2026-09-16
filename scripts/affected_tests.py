@@ -16,6 +16,12 @@ safe direction here: the point is to widen coverage relative to the fixed smoke
 list, not to minimise work.  Changes that invalidate the mapping itself (CMake,
 CI, the BLAS/LAPACK shims) fall back to the full ``buildtests`` target.
 
+The test CMakeLists files and the smoke list are the exception: they are
+compared against their merge-base version, and fall back only when the diff
+reaches past the registrations.  Adding a test otherwise forced the full suite
+on every merge request that added one.  ``--base-sha`` supplies the old version;
+without it they force the full suite as any other CMake file does.
+
 Two output files are written, both consumed by the build and test scripts of each
 platform in the tier -- ``ci/scripts/build.linux.script.sh`` and
 ``ci/scripts/test.linux.script.sh``, and their ``.windows.script.ps1``
@@ -56,6 +62,7 @@ job, so an ``add_executable`` there is not a test registration.
 
 import argparse
 import collections
+import difflib
 import fnmatch
 import os
 import re
@@ -144,6 +151,23 @@ FULL_REBUILD_PATTERNS = (
     "blas/*",
     "lapack/*",
 )
+
+# Compared against their merge-base version before FULL_REBUILD_PATTERNS
+# applies: registering a test is what a merge request adding one does, and that
+# alone was 63 of 311 full-suite selections over 2026-09.
+REGISTRATION_PATHS = ("test/CMakeLists.txt", "contrib/test/CMakeLists.txt",
+                      FAILTEST_ROOT + "/CMakeLists.txt")
+# Assigns the `smoketest` CTest label and nothing else: it cannot change what a
+# test covers, only whether the smoke tier picks it up.
+SMOKE_LIST_PATH = "cmake/EigenSmokeTestList.cmake"
+
+# A registration, as opposed to something that reaches every test in the
+# directory.  A multi-line add_executable() stops matching after its first line
+# and so forces the full suite, which is the safe direction.
+REGISTRATION_LINE_RE = re.compile(
+    r"^[ \t]*(?:ei_add_test|ei_add_gpu_test|ei_add_failtest|add_executable)\(")
+# An entry of the ei_smoke_test_list: one CTest name on a line of its own.
+SMOKE_LIST_LINE_RE = re.compile(r"^[ \t]*[A-Za-z_][A-Za-z_0-9]*[ \t]*$")
 
 INCLUDE_RE = re.compile(r'^[ \t]*#[ \t]*include[ \t]*[<"]([^>"]+)[>"]', re.MULTILINE)
 # One pass over a test CMakeLists.txt, in source order, because what a
@@ -280,6 +304,42 @@ def _loop_expand(token, loops):
     return []
 
 
+def _registration_pairs(text, directory):
+    """``(source, target, standalone)`` triples a test CMakeLists registers.
+
+    Nothing here touches the filesystem, so the same parse serves the checked-out
+    file and a merge-base version of it; the caller decides which sources exist.
+    """
+    extension = "cpp"
+    # foreach() bindings in effect, innermost last.  A loop over anything but a
+    # literal item list pushes None so endforeach() stays balanced.
+    loops = []
+    for match in CMAKE_REGISTRATION_RE.finditer(text):
+        if match.group("scope"):
+            # unset(), or a set() with no value, restores the default.
+            extension = match.group("extension") if match.group("scope") == "set" else ""
+            extension = extension or "cpp"
+            continue
+        if match.group("loop") is not None:
+            loops.append(_loop_binding(match.group("loop")))
+            continue
+        if match.group("endloop"):
+            if loops:
+                loops.pop()
+            continue
+        if match.group("test"):
+            for target in _loop_expand(match.group("test"), loops):
+                source = os.path.join(directory, "%s.%s" % (target, extension))
+                yield os.path.normpath(source), target, False
+            continue
+        target = match.group("executable")
+        for token in re.findall(r'"[^"]*"|[^\s]+', match.group("sources")):
+            token = token.strip('"')
+            if not token.endswith(TEST_SOURCE_SUFFIXES) or "$" in token:
+                continue
+            yield os.path.normpath(os.path.join(directory, token)), target, True
+
+
 def test_registrations(graph):
     """Map registered translation units to what CI has to build or run."""
     source_targets = {}
@@ -299,40 +359,13 @@ def test_registrations(graph):
         and not _under(rel, EXCLUDED_TEST_DIRS)
     )
     for cmake_file in cmake_files:
-        directory = os.path.dirname(cmake_file)
-        extension = "cpp"
-        # foreach() bindings in effect, innermost last.  A loop over anything
-        # but a literal item list pushes None so endforeach() stays balanced.
-        loops = []
-        for match in CMAKE_REGISTRATION_RE.finditer(graph.read_text(cmake_file)):
-            if match.group("scope"):
-                # unset(), or a set() with no value, restores the default.
-                extension = match.group("extension") if match.group("scope") == "set" else ""
-                extension = extension or "cpp"
+        for source, target, is_standalone in _registration_pairs(
+                graph.read_text(cmake_file), os.path.dirname(cmake_file)):
+            if source not in graph.files:
                 continue
-            if match.group("loop") is not None:
-                loops.append(_loop_binding(match.group("loop")))
-                continue
-            if match.group("endloop"):
-                if loops:
-                    loops.pop()
-                continue
-            if match.group("test"):
-                for target in _loop_expand(match.group("test"), loops):
-                    source = os.path.normpath(
-                        os.path.join(directory, "%s.%s" % (target, extension)))
-                    if source in graph.files:
-                        register(source, target)
-                continue
-            target = match.group("executable")
-            for token in re.findall(r'"[^"]*"|[^\s]+', match.group("sources")):
-                token = token.strip('"')
-                if not token.endswith(TEST_SOURCE_SUFFIXES) or "$" in token:
-                    continue
-                source = os.path.normpath(os.path.join(directory, token))
-                if source in graph.files:
-                    register(source, target)
-                    standalone.add(target)
+            register(source, target)
+            if is_standalone:
+                standalone.add(target)
 
     failtests = {}
     for name in CMAKE_FAILTEST_RE.findall(graph.read_text(FAILTEST_ROOT + "/CMakeLists.txt")):
@@ -397,8 +430,74 @@ class Selection:
         return "^(%s)(_[0-9]+)?$\n" % "|".join(re.escape(name) for name in names)
 
 
-def select(graph, changed_files, max_fraction=DEFAULT_MAX_FRACTION):
-    """Map changed paths to the tests that must run."""
+# What comparing one file against its merge-base version selects.
+# targets      -- CMake targets to build and run
+# ctest_names  -- CTest names with no build target of their own
+Delta = collections.namedtuple("Delta", "targets ctest_names")
+
+
+def _changed_lines(base_text, head_text):
+    """Every line that differs between two versions of a file, either way round."""
+    base = base_text.splitlines()
+    head = head_text.splitlines()
+    changed = []
+    for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(
+            None, base, head, autojunk=False).get_opcodes():
+        if tag != "equal":
+            changed.extend(base[i1:i2] + head[j1:j2])
+    return changed
+
+
+def registration_delta(graph, path, base_text):
+    """The ``Delta`` whose registration ``path`` adds, drops or moves.
+
+    ``None`` when the diff touches a line that is not a registration: the rest of
+    a test CMakeLists -- a compile definition, an include directory, a
+    find_package() -- reaches every test in its directory.
+    """
+    head_text = graph.read_text(path)
+    if not all(REGISTRATION_LINE_RE.match(line)
+               for line in _changed_lines(base_text, head_text)):
+        return None
+    directory = os.path.dirname(path)
+
+    def pairs(text):
+        return {(source, target) for source, target, _ in _registration_pairs(text, directory)}
+
+    targets = {target for _, target in pairs(head_text) ^ pairs(base_text)}
+    failtests = (set(CMAKE_FAILTEST_RE.findall(head_text))
+                 ^ set(CMAKE_FAILTEST_RE.findall(base_text)))
+    return Delta(targets, {name + suffix for name in failtests for suffix in ("_ok", "_ko")})
+
+
+def smoke_list_delta(graph, path, base_text, target_names):
+    """The ``Delta`` behind the smoke-list entries ``path`` adds or drops.
+
+    ``None`` when the diff is not confined to the list of names.
+    """
+    changed = _changed_lines(base_text, graph.read_text(path))
+    if not all(SMOKE_LIST_LINE_RE.match(line) for line in changed):
+        return None
+    targets = set()
+    for line in changed:
+        # A list entry is a CTest name: `bdcsvd_9` runs from target `bdcsvd`,
+        # while an unsplit test such as `bandmatrix` is already the target.
+        name = line.strip()
+        for candidate in (name, re.sub(r"_[0-9]+\Z", "", name)):
+            if candidate in target_names:
+                targets.add(candidate)
+                break
+    # The list holds no compile-failure test, so it selects no bare CTest name.
+    return Delta(targets, set())
+
+
+def select(graph, changed_files, max_fraction=DEFAULT_MAX_FRACTION, base_reader=None):
+    """Map changed paths to the tests that must run.
+
+    ``base_reader(path)`` returns that path's merge-base contents, or ``None``
+    when git cannot produce them.  Without one, a changed registration file
+    forces the full suite rather than being compared against its old version.
+    """
     paths = []
     for path in changed_files:
         path = path.strip()
@@ -406,7 +505,12 @@ def select(graph, changed_files, max_fraction=DEFAULT_MAX_FRACTION):
             paths.append(path)
     if not paths:
         return Selection("none", reasons=["no change reaches a test"])
-    for path in paths:
+    # Compared against their merge-base version below; the rest map through the
+    # include graph.
+    compared = [path for path in paths
+                if path in REGISTRATION_PATHS or path == SMOKE_LIST_PATH]
+    mapped = [path for path in paths if path not in compared]
+    for path in mapped:
         if _matches(path, FULL_REBUILD_PATTERNS):
             return full_suite(graph, ["%s forces the full suite" % path])
 
@@ -415,13 +519,34 @@ def select(graph, changed_files, max_fraction=DEFAULT_MAX_FRACTION):
     except ValueError as error:
         return Selection("error", reasons=[str(error)])
     sources = sorted(registered.targets)
+    target_names = set(registered.targets.values())
     reverse = reverse_map(graph, sources)
     failtest_reverse = reverse_map(graph, sorted(registered.failtests))
 
+    reasons = []
+    extra_targets = set()
+    extra_ctest_names = set()
+    for path in compared:
+        base_text = base_reader(path) if base_reader is not None else None
+        if base_text is None:
+            return full_suite(graph, ["%s has no merge-base version to compare" % path])
+        if path == SMOKE_LIST_PATH:
+            scope = "the smoke list"
+            delta = smoke_list_delta(graph, path, base_text, target_names)
+        else:
+            scope = "test registration"
+            delta = registration_delta(graph, path, base_text)
+        if delta is None:
+            return full_suite(graph, ["%s changes more than %s" % (path, scope)])
+        extra_targets |= delta.targets
+        extra_ctest_names |= delta.ctest_names
+        reasons.append("%s changes %s alone" % (path, scope))
+    # A registration the change drops leaves no target to build.
+    extra_targets &= target_names
+
     selected = set()
     selected_failtests = set()
-    reasons = []
-    for path in paths:
+    for path in mapped:
         reached_by = set(reverse.get(path, ()))
         if path in registered.targets:
             reached_by.add(path)
@@ -445,7 +570,7 @@ def select(graph, changed_files, max_fraction=DEFAULT_MAX_FRACTION):
         # what it affected, so do not guess.
         return full_suite(graph, ["%s is not in the include graph" % path])
 
-    if not selected and not selected_failtests:
+    if not (selected or selected_failtests or extra_targets or extra_ctest_names):
         return Selection("none", reasons=reasons or ["no change reaches a test"])
 
     if len(selected) > max_fraction * len(sources):
@@ -455,14 +580,15 @@ def select(graph, changed_files, max_fraction=DEFAULT_MAX_FRACTION):
         )
         return full_suite(graph, reasons)
 
-    ctest_names = set()
+    ctest_names = set(extra_ctest_names)
     for source in sorted(selected_failtests):
         ctest_names.update(registered.failtests[source])
     if ctest_names:
+        # Two CTest names, _ok and _ko, per compile-failure test.
         reasons.append("%d compile-failure test(s) build from inside CTest"
-                       % len(selected_failtests))
-    return Selection("targets", (registered.targets[s] for s in selected), reasons,
-                     ctest_names=ctest_names)
+                       % (len(ctest_names) // 2))
+    targets = {registered.targets[source] for source in selected} | extra_targets
+    return Selection("targets", targets, reasons, ctest_names=ctest_names)
 
 
 def changed_files_from_git(source_dir, base_sha, head="HEAD"):
@@ -476,6 +602,17 @@ def changed_files_from_git(source_dir, base_sha, head="HEAD"):
     if result.returncode != 0:
         raise RuntimeError("git diff failed: %s" % result.stderr.strip())
     return [line for line in result.stdout.splitlines() if line.strip()]
+
+
+def file_at_revision(source_dir, revision, path):
+    """Contents of ``path`` at ``revision``, or ``None`` if git cannot produce them."""
+    result = subprocess.run(
+        ["git", "show", "%s:%s" % (revision, path)],
+        cwd=source_dir,
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout if result.returncode == 0 else None
 
 
 def parse_args(argv):
@@ -516,11 +653,16 @@ def main(argv=None):
         print("one of --base-sha or --changed-files is required", file=sys.stderr)
         return 2
 
+    base_reader = None
+    if args.base_sha:
+        def base_reader(path):
+            return file_at_revision(args.source_dir, args.base_sha, path)
+
     graph = IncludeGraph(args.source_dir)
     if changed is None:
         selection = full_suite(graph, ["the merge-base diff is unavailable"])
     else:
-        selection = select(graph, changed, args.max_fraction)
+        selection = select(graph, changed, args.max_fraction, base_reader)
 
     print("mode: %s" % selection.mode, file=sys.stderr)
     for reason in selection.reasons:

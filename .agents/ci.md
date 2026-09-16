@@ -114,10 +114,9 @@ jobs on two independent triggers, either of which is enough:
 Several labels select the union of their platforms — `neon-tests` with `altivec-tests` runs 32-bit arm and ppc64le and
 nothing else. Apart from `gpu-tests` and `draft-tests`, none of them does anything without `affected-tests`;
 `draft-tests` does nothing without one of the two tier labels either, since all it does is stop a draft suppressing
-them. `all-platforms` is a
-shorthand for every row that *runs the affected selection*; the three rows marked "no" ignore the selection and
-compile the whole suite, so reaching them means naming their label, and `all-platforms` on a one-line change cannot
-silently buy hours of whole-suite compilation.
+them. `all-platforms` is a shorthand for every row that *runs the affected selection*; the three rows marked "no"
+ignore the selection and compile the whole suite, so reaching them means naming their label, and `all-platforms` on a
+one-line change cannot silently buy hours of whole-suite compilation.
 
 Rows worth knowing before relying on them:
 
