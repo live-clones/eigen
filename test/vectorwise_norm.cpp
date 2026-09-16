@@ -5,6 +5,7 @@
 #define TEST_ENABLE_TEMPORARY_TRACKING
 #include "main.h"
 #include <Eigen/Core>
+#include "CustomComplex.h"
 
 template <typename Derived>
 void check_vectorwise_norms(const DenseBase<Derived>& input) {
@@ -33,6 +34,7 @@ void check_vectorwise_norms(const DenseBase<Derived>& input) {
 
   // Check coefficient access: compiler contraction can change rounding when assigning the whole result.
   EIGEN_IF_CONSTEXPR (NumTraits<typename Derived::Scalar>::IsComplex &&
+                      internal::complex_array_access<typename Derived::Scalar>::value &&
                       ((int(internal::evaluator<Derived>::Flags) & (DirectAccessBit | PacketAccessBit)) != 0)) {
     EIGEN_IF_CONSTEXPR (Derived::IsRowMajor) {
       for (Index i = 0; i < rows; ++i)
@@ -103,12 +105,13 @@ template <typename Scalar, int Order>
 void vectorwise_norm_layout() {
   using MatrixType = Matrix<Scalar, Dynamic, Dynamic, Order>;
   using Real = typename NumTraits<Scalar>::Real;
-  // Complex inner reductions must reach the shared squaredNorm kernel; the outer real reduction
-  // must retain its existing packet path.
+  // Only complex scalars with array-oriented access use the shared squaredNorm kernel.
+  constexpr bool useVectorNorm = NumTraits<Scalar>::IsComplex && internal::complex_array_access<Scalar>::value;
   using InnerReduction =
       typename VectorwiseOp<const MatrixType, Order == RowMajor ? Horizontal : Vertical>::SquaredNormReturnType;
   using InnerInput = internal::remove_all_t<decltype(std::declval<InnerReduction>().nestedExpression())>;
-  STATIC_CHECK((internal::is_same<typename InnerInput::Scalar, Scalar>::value));
+  using InnerScalar = std::conditional_t<useVectorNorm, Scalar, Real>;
+  STATIC_CHECK((internal::is_same<typename InnerInput::Scalar, InnerScalar>::value));
   using OuterReduction =
       typename VectorwiseOp<const MatrixType, Order == RowMajor ? Vertical : Horizontal>::SquaredNormReturnType;
   if (!NumTraits<Scalar>::IsComplex) {
@@ -152,8 +155,8 @@ void vectorwise_norm_layout() {
   VERIFY_IS_APPROX(actual, (matrix + matrix).eval().colwise().squaredNorm());
   MatrixType product = matrix.adjoint() * matrix;
   Matrix<Real, 1, Dynamic> productNorms(19);
-  // The existing real path materializes the product and its squared coefficients.
-  const int expectedTemporaries = NumTraits<Scalar>::IsComplex ? 1 : 2;
+  // The abs2 path materializes the product and its squared coefficients.
+  const int expectedTemporaries = useVectorNorm ? 1 : 2;
   VERIFY_EVALUATION_COUNT(productNorms = (matrix.adjoint() * matrix).colwise().squaredNorm(), expectedTemporaries);
   VERIFY_IS_APPROX(productNorms, product.colwise().squaredNorm());
 
@@ -187,29 +190,35 @@ void vectorwise_norm_mixed_special_values() {
 }
 
 EIGEN_DECLARE_TEST(vectorwise_norm) {
-  CALL_SUBTEST_1((vectorwise_norm_layout<float, ColMajor>()));
-  CALL_SUBTEST_2((vectorwise_norm_layout<float, RowMajor>()));
-  CALL_SUBTEST_3((vectorwise_norm_layout<double, ColMajor>()));
-  CALL_SUBTEST_4((vectorwise_norm_layout<double, RowMajor>()));
-  CALL_SUBTEST_5((vectorwise_norm_layout<std::complex<float>, ColMajor>()));
-  CALL_SUBTEST_6((vectorwise_norm_layout<std::complex<float>, RowMajor>()));
-  CALL_SUBTEST_7((vectorwise_norm_layout<std::complex<double>, ColMajor>()));
-  CALL_SUBTEST_8((vectorwise_norm_layout<std::complex<double>, RowMajor>()));
-  CALL_SUBTEST_5((vectorwise_norm_mixed_special_values<float, ColMajor>()));
-  CALL_SUBTEST_6((vectorwise_norm_mixed_special_values<float, RowMajor>()));
-  CALL_SUBTEST_7((vectorwise_norm_mixed_special_values<double, ColMajor>()));
-  CALL_SUBTEST_8((vectorwise_norm_mixed_special_values<double, RowMajor>()));
-  CALL_SUBTEST_9(([] {
-    Matrix<int, 2, 2> integers;
-    integers << 3, 0, 4, 5;
-    VERIFY_IS_EQUAL(integers.colwise().squaredNorm().eval(), RowVector2i(25, 25));
-    VERIFY_IS_EQUAL(integers.transpose().rowwise().squaredNorm().eval(), Vector2i(25, 25));
-    Array<bool, 2, 2> flags;
-    flags << false, true, true, false;
-    VERIFY(flags.colwise().squaredNorm().all());
-    VERIFY(flags.rowwise().squaredNorm().all());
-    flags.setZero();
-    VERIFY(!flags.colwise().squaredNorm().any());
-    VERIFY(!flags.rowwise().squaredNorm().any());
-  }()));
+  for (int i = 0; i < g_repeat; ++i) {
+    CALL_SUBTEST_1((vectorwise_norm_layout<float, ColMajor>()));
+    CALL_SUBTEST_2((vectorwise_norm_layout<float, RowMajor>()));
+    CALL_SUBTEST_3((vectorwise_norm_layout<double, ColMajor>()));
+    CALL_SUBTEST_4((vectorwise_norm_layout<double, RowMajor>()));
+    CALL_SUBTEST_5((vectorwise_norm_layout<std::complex<float>, ColMajor>()));
+    CALL_SUBTEST_6((vectorwise_norm_layout<std::complex<float>, RowMajor>()));
+    CALL_SUBTEST_7((vectorwise_norm_layout<std::complex<double>, ColMajor>()));
+    CALL_SUBTEST_8((vectorwise_norm_layout<std::complex<double>, RowMajor>()));
+    CALL_SUBTEST_5((vectorwise_norm_mixed_special_values<float, ColMajor>()));
+    CALL_SUBTEST_6((vectorwise_norm_mixed_special_values<float, RowMajor>()));
+    CALL_SUBTEST_7((vectorwise_norm_mixed_special_values<double, ColMajor>()));
+    CALL_SUBTEST_8((vectorwise_norm_mixed_special_values<double, RowMajor>()));
+    CALL_SUBTEST_10((vectorwise_norm_layout<CustomComplex<float>, ColMajor>()));
+    CALL_SUBTEST_11((vectorwise_norm_layout<CustomComplex<float>, RowMajor>()));
+    CALL_SUBTEST_12((vectorwise_norm_layout<CustomComplex<double>, ColMajor>()));
+    CALL_SUBTEST_13((vectorwise_norm_layout<CustomComplex<double>, RowMajor>()));
+    CALL_SUBTEST_9(([] {
+      Matrix<int, 2, 2> integers;
+      integers << 3, 0, 4, 5;
+      VERIFY_IS_EQUAL(integers.colwise().squaredNorm().eval(), RowVector2i(25, 25));
+      VERIFY_IS_EQUAL(integers.transpose().rowwise().squaredNorm().eval(), Vector2i(25, 25));
+      Array<bool, 2, 2> flags;
+      flags << false, true, true, false;
+      VERIFY(flags.colwise().squaredNorm().all());
+      VERIFY(flags.rowwise().squaredNorm().all());
+      flags.setZero();
+      VERIFY(!flags.colwise().squaredNorm().any());
+      VERIFY(!flags.rowwise().squaredNorm().any());
+    }()));
+  }
 }
