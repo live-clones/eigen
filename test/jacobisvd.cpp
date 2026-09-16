@@ -195,13 +195,69 @@ void jacobisvd_power_of_two_scaling() {
 
   volatile float denormMinInput = std::numeric_limits<float>::denorm_min();
   const float denormMin = denormMinInput;
-  if (!(denormMin > 0.0f)) return;
   matrix.diagonal() << 1.5f, denormMin;
   const JacobiSVD<Matrix2f> tailSvd(matrix);
-  VERIFY_IS_EQUAL(tailSvd.singularValues()(1), denormMin);
+  VERIFY_IS_EQUAL(numext::bit_cast<numext::uint32_t>(tailSvd.singularValues()(1)),
+                  numext::bit_cast<numext::uint32_t>(denormMin));
+}
+
+template <typename Scalar, int Options>
+void jacobisvd_subnormal_ordering() {
+  using MatrixType = Matrix<Scalar, 4, 4>;
+  using Binary = internal::binary_floating_point_traits<Scalar>;
+  const Scalar small = numext::bit_cast<Scalar>(typename Binary::Bits(Binary::kExponentUnit / 4));
+  const Scalar large = numext::bit_cast<Scalar>(typename Binary::Bits(Binary::kExponentUnit / 2));
+  MatrixType matrix = MatrixType::Zero();
+  for (Scalar leading : {Scalar(1), large}) {
+    matrix.diagonal() << leading, Scalar(0), small, large;
+    for (int mode = 0; mode < 4; ++mode) {
+      JacobiSVD<MatrixType, Options> svd;
+#if !defined(EIGEN_GPU_COMPILE_PHASE) && !defined(SYCL_DEVICE_ONLY) && EIGEN_ARCH_i386_OR_x86_64 && \
+    (defined(__SSE__) || defined(_M_X64) || (defined(_M_IX86_FP) && _M_IX86_FP >= 1))
+      {
+        struct RestoreMxcsr {
+          unsigned saved = _mm_getcsr();
+          ~RestoreMxcsr() { _mm_setcsr(saved); }
+        } restore;
+        const unsigned mask = _MM_FLUSH_ZERO_MASK | _MM_DENORMALS_ZERO_MASK;
+        const unsigned requested = ((mode & 1) ? _MM_FLUSH_ZERO_ON : 0) | ((mode & 2) ? _MM_DENORMALS_ZERO_ON : 0);
+        _mm_setcsr((restore.saved & ~mask) | requested);
+        VERIFY_IS_EQUAL(_mm_getcsr() & mask, requested);
+        svd.compute(matrix);
+        VERIFY_IS_EQUAL(_mm_getcsr() & mask, requested);
+      }
+#else
+      if (mode > 1) continue;
+      if (mode == 1) {
+        ScopedFlushToZero flush;
+        if (!flush.isSupported()) continue;
+        svd.compute(matrix);
+      } else {
+        svd.compute(matrix);
+      }
+#endif
+      VERIFY_IS_EQUAL(svd.info(), Success);
+      VERIFY_IS_EQUAL(svd.nonzeroSingularValues(), 3);
+      const Scalar expected[] = {leading, large, small, Scalar(0)};
+      const Index source[] = {0, 3, 2, 1};
+      for (Index i = 0; i < 4; ++i) {
+        // Compare encodings so an inherited DAZ mode cannot hide a lost subnormal.
+        VERIFY_IS_EQUAL(Binary::bits(svd.singularValues()(i)), Binary::bits(expected[i]));
+        if (Options) {
+          VERIFY_IS_EQUAL(svd.matrixU().col(i), MatrixType::Identity().col(source[i]));
+          VERIFY_IS_EQUAL(svd.matrixV().col(i), MatrixType::Identity().col(source[i]));
+        }
+      }
+      if (Options) svd_check_full(matrix, svd);
+    }
+  }
 }
 
 EIGEN_DECLARE_TEST(jacobisvd) {
+  CALL_SUBTEST_62((jacobisvd_subnormal_ordering<float, 0>()));
+  CALL_SUBTEST_62((jacobisvd_subnormal_ordering<double, 0>()));
+  CALL_SUBTEST_62((jacobisvd_subnormal_ordering<float, ComputeFullU | ComputeFullV>()));
+  CALL_SUBTEST_62((jacobisvd_subnormal_ordering<double, ComputeFullU | ComputeFullV>()));
   CALL_SUBTEST_60((svd_normal_equation_roundoff<float, ColMajor>()));
   CALL_SUBTEST_60((svd_normal_equation_roundoff<double, RowMajor>()));
   CALL_SUBTEST_61((svd_normal_equation_roundoff<std::complex<float>, RowMajor>()));
