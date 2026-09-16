@@ -813,21 +813,6 @@ EIGEN_DEVICE_FUNC inline Packet ploadu(const typename unpacket_traits<Packet>::t
   return *from;
 }
 
-// Load one component of PacketSize interleaved complex coefficients. Both components must exist,
-// even when only the real part is requested. Unannotated packets retain the scalar evaluator.
-template <typename Packet>
-struct complex_component_load {
-  static constexpr bool Vectorizable = false;
-  using Scalar = typename unpacket_traits<Packet>::type;
-
-  template <int Component>
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Packet run(const Scalar* from) {
-    Scalar values[unpacket_traits<Packet>::size];
-    for (Index i = 0; i < unpacket_traits<Packet>::size; ++i) values[i] = from[2 * i + Component];
-    return ploadu<Packet>(values);
-  }
-};
-
 /** \internal \returns n elements of a packet version of \a *from, (un-aligned load)
  * All elements after the last element loaded will initialized with zero */
 template <typename Packet>

@@ -2641,16 +2641,6 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet2f pgather<float, Packet2f>(const fl
   return res;
 }
 template <>
-struct complex_component_load<Packet4f> {
-  static constexpr bool Vectorizable = true;
-
-  template <int Component>
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Packet4f run(const float* from) {
-    EIGEN_DEBUG_UNALIGNED_LOAD return vld2q_f32(from).val[Component];
-  }
-};
-
-template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4f pgather<float, Packet4f>(const float* from, Index stride) {
   Packet4f res = vld1q_dup_f32(from);
   res = vld1q_lane_f32(from + 1 * stride, res, 1);
@@ -5162,16 +5152,6 @@ template <>
 EIGEN_STRONG_INLINE void pstoreu<double>(double* to, const Packet2d& from) {
   EIGEN_DEBUG_UNALIGNED_STORE vst1q_f64(to, from);
 }
-
-template <>
-struct complex_component_load<Packet2d> {
-  static constexpr bool Vectorizable = true;
-
-  template <int Component>
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Packet2d run(const double* from) {
-    EIGEN_DEBUG_UNALIGNED_LOAD return vld2q_f64(from).val[Component];
-  }
-};
 
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet2d pgather<double, Packet2d>(const double* from, Index stride) {

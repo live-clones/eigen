@@ -79,7 +79,7 @@ static void BM_VectorAbsMaxCoeff(benchmark::State& state) {
   state.SetBytesProcessed(state.iterations() * n * sizeof(Scalar));
 }
 
-// Component reductions use deinterleaving packet loads when the backend supports them.
+// Component reductions can use stride-2 packet gathers.
 template <typename Scalar, int NaNPropagation>
 static void BM_ComplexRealAbsMaxCoeff(benchmark::State& state) {
   using Real = typename NumTraits<Scalar>::Real;

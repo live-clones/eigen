@@ -1566,33 +1566,9 @@ EIGEN_STRONG_INLINE bool pfirst<Packet16b>(const Packet16b& a) {
 }
 
 template <>
-struct complex_component_load<Packet4f> {
-  static constexpr bool Vectorizable = true;
-
-  template <int Component>
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Packet4f run(const float* from) {
-    const Packet4f a = ploadu<Packet4f>(from);
-    const Packet4f b = ploadu<Packet4f>(from + 4);
-    return _mm_shuffle_ps(a, b, Component == 0 ? _MM_SHUFFLE(2, 0, 2, 0) : _MM_SHUFFLE(3, 1, 3, 1));
-  }
-};
-
-template <>
 EIGEN_STRONG_INLINE Packet4f pgather<float, Packet4f>(const float* from, Index stride) {
   return _mm_set_ps(from[3 * stride], from[2 * stride], from[1 * stride], from[0 * stride]);
 }
-template <>
-struct complex_component_load<Packet2d> {
-  static constexpr bool Vectorizable = true;
-
-  template <int Component>
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Packet2d run(const double* from) {
-    const Packet2d a = ploadu<Packet2d>(from);
-    const Packet2d b = ploadu<Packet2d>(from + 2);
-    return _mm_shuffle_pd(a, b, Component == 0 ? 0 : 3);
-  }
-};
-
 template <>
 EIGEN_STRONG_INLINE Packet2d pgather<double, Packet2d>(const double* from, Index stride) {
   return _mm_set_pd(from[1 * stride], from[0 * stride]);

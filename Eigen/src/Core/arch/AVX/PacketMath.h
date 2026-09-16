@@ -1633,20 +1633,6 @@ EIGEN_STRONG_INLINE void pstoreu<float>(float* to, const Packet8f& from, uint8_t
 #endif
 }
 
-template <>
-struct complex_component_load<Packet8f> {
-  static constexpr bool Vectorizable = true;
-
-  template <int Component>
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Packet8f run(const float* from) {
-    const Packet8f a = ploadu<Packet8f>(from);
-    const Packet8f b = ploadu<Packet8f>(from + 8);
-    const Packet8f lo = _mm256_permute2f128_ps(a, b, 0x20);
-    const Packet8f hi = _mm256_permute2f128_ps(a, b, 0x31);
-    return _mm256_shuffle_ps(lo, hi, Component == 0 ? _MM_SHUFFLE(2, 0, 2, 0) : _MM_SHUFFLE(3, 1, 3, 1));
-  }
-};
-
 // NOTE: leverage _mm256_i32gather_ps and _mm256_i32gather_pd if AVX2 instructions are available
 // NOTE: for the record the following seems to be slower: return _mm256_i32gather_ps(from, _mm256_set1_epi32(stride),
 // 4);
@@ -1655,20 +1641,6 @@ EIGEN_DEVICE_FUNC inline Packet8f pgather<float, Packet8f>(const float* from, In
   return _mm256_set_ps(from[7 * stride], from[6 * stride], from[5 * stride], from[4 * stride], from[3 * stride],
                        from[2 * stride], from[1 * stride], from[0 * stride]);
 }
-template <>
-struct complex_component_load<Packet4d> {
-  static constexpr bool Vectorizable = true;
-
-  template <int Component>
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Packet4d run(const double* from) {
-    const Packet4d a = ploadu<Packet4d>(from);
-    const Packet4d b = ploadu<Packet4d>(from + 4);
-    const Packet4d lo = _mm256_permute2f128_pd(a, b, 0x20);
-    const Packet4d hi = _mm256_permute2f128_pd(a, b, 0x31);
-    return _mm256_shuffle_pd(lo, hi, Component == 0 ? 0 : 15);
-  }
-};
-
 template <>
 EIGEN_DEVICE_FUNC inline Packet4d pgather<double, Packet4d>(const double* from, Index stride) {
   return _mm256_set_pd(from[3 * stride], from[2 * stride], from[1 * stride], from[0 * stride]);
