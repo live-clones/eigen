@@ -32,11 +32,17 @@ struct functor_traits<scalar_random_op<Scalar> > {
 
 /** Sets the random seed for the random number generator.
  *
- * When \c EIGEN_USE_PCG_RANDOM is defined, each thread has independent random
- * state via a PCG-XSH-RS generator, and this function only affects the calling
- * thread. Otherwise, this calls \c std::srand().
+ * With the PCG backend enabled (\c EIGEN_HAS_THREAD_LOCAL_RANDOM is 1), this
+ * seeds only the calling thread's generator. All threads initially use the
+ * same default state; seed each thread explicitly to obtain different sequences.
+ * Calling \c std::srand() does not seed the PCG backend.
  *
- * \sa DenseBase::Random(), DenseBase::setRandom()
+ * Otherwise, this calls \c std::srand(static_cast<unsigned>(seed)), affecting
+ * process-global state. This fallback also applies when \c EIGEN_USE_PCG_RANDOM
+ * is defined but thread-local storage is unavailable or disabled by
+ * \c EIGEN_AVOID_THREAD_LOCAL, or during GPU device compilation.
+ *
+ * \sa DenseBase::Random(), DenseBase::setRandom(), \ref TopicMultiThreading
  */
 inline void setRandomSeed(uint64_t seed) { internal::set_random_seed(seed); }
 

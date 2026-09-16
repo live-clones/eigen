@@ -9,10 +9,12 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include <cstdlib>
+#include <atomic>
 #include <thread>
 #include <vector>
 
 #include "main.h"
+#include <Eigen/Core>
 #include "SafeScalar.h"
 
 // SafeScalar<T> is used to simulate custom Scalar types, which use a more generalized approach to generate random
@@ -217,49 +219,89 @@ void check_histogram<bool>(int) {
 
 template <typename Scalar>
 void check_reproducibility() {
-  constexpr int n = 100;
-  Eigen::internal::set_random_seed(42);
-  std::vector<Scalar> seq1(n);
-  for (int i = 0; i < n; ++i) seq1[i] = Eigen::internal::random<Scalar>();
-  // Re-seed with the same value.
-  Eigen::internal::set_random_seed(42);
-  for (int i = 0; i < n; ++i) {
-    Scalar val = Eigen::internal::random<Scalar>();
-    VERIFY_IS_EQUAL(val, seq1[i]);
+  using Vector = Matrix<Scalar, Dynamic, 1>;
+  const uint64_t seeds[] = {0, 42, 0x10000002aULL, 0xffffffffffffffffULL};
+  Vector expected(100), actual(100);
+  for (uint64_t seed : seeds) {
+    Eigen::setRandomSeed(seed);
+    expected = Vector::Random(actual.size());
+    Eigen::setRandomSeed(seed);
+    actual.setRandom();
+    VERIFY((actual.array() == expected.array()).all());
   }
+}
+
+void check_seed_backend() {
+  using Vector = Matrix<uint32_t, Dynamic, 1>;
+  constexpr uint64_t seed = 0x123456780000002aULL;
+#if EIGEN_HAS_THREAD_LOCAL_RANDOM
+  static_assert(internal::eigen_random_device::Entropy == 32, "PCG supplies 32 random bits");
+  static_assert(internal::eigen_random_device::Highest == 0xffffffffu, "PCG spans uint32_t");
+  Eigen::setRandomSeed(seed);
+  const Vector expected = Vector::Random(100);
+  Eigen::setRandomSeed(seed);
+  std::srand(17);
+  const Vector actual = Vector::Random(100);
+  VERIFY((actual.array() == expected.array()).all());
+
+  Eigen::setRandomSeed(static_cast<unsigned>(seed));
+  const Vector truncated = Vector::Random(100);
+  VERIFY((truncated.array() != expected.array()).any());
+
+  std::srand(31);
+  const int expected_rand = std::rand();
+  std::srand(31);
+  Eigen::setRandomSeed(seed);
+  const Vector unused = Vector::Random(100);
+  EIGEN_UNUSED_VARIABLE(unused);
+  VERIFY_IS_EQUAL(std::rand(), expected_rand);
+#else
+  static_assert(internal::eigen_random_device::Highest == RAND_MAX, "Fallback retains the std::rand range");
+  std::srand(static_cast<unsigned>(seed));
+  const Vector expected = Vector::Random(100);
+  Eigen::setRandomSeed(seed);
+  const Vector actual = Vector::Random(100);
+  VERIFY((actual.array() == expected.array()).all());
+#endif
 }
 
 #if EIGEN_HAS_THREAD_LOCAL_RANDOM
 void check_thread_safety() {
+  using Vector = Matrix<uint32_t, Dynamic, 1>;
   constexpr int num_threads = 4;
   constexpr int samples_per_thread = 10000;
-  // Each thread generates random values; we verify no crashes and that
-  // threads with different seeds produce different sequences.
-  std::vector<std::vector<uint32_t>> results(num_threads);
+  const uint64_t seeds[num_threads] = {7, 7, 0x100000007ULL, 0xffffffffffffffffULL};
+  std::vector<Vector> expected(num_threads), results(num_threads);
+  for (int t = 0; t < num_threads; ++t) {
+    Eigen::setRandomSeed(seeds[t]);
+    expected[t] = Vector::Random(samples_per_thread);
+    results[t].resize(samples_per_thread);
+  }
+  Eigen::setRandomSeed(123);
+  const Vector expected_main = Vector::Random(samples_per_thread);
+
+  std::atomic<int> ready{0};
+  std::atomic<bool> start{false};
   std::vector<std::thread> threads;
   for (int t = 0; t < num_threads; ++t) {
-    threads.emplace_back([t, &results]() {
-      Eigen::internal::set_random_seed(static_cast<uint64_t>(t + 1));
-      results[t].resize(samples_per_thread);
-      for (int i = 0; i < samples_per_thread; ++i) {
-        results[t][i] = Eigen::internal::random<uint32_t>();
-      }
+    threads.emplace_back([&, t]() {
+      Eigen::setRandomSeed(seeds[t]);
+      ready.fetch_add(1);
+      while (!start.load()) std::this_thread::yield();
+      results[t].setRandom();
     });
   }
+  while (ready.load() != num_threads) std::this_thread::yield();
+  // Reseeding the main thread must not reset any worker's stream.
+  Eigen::setRandomSeed(123);
+  start.store(true);
   for (auto& th : threads) th.join();
-  // Verify different threads produce different sequences.
-  for (int t1 = 0; t1 < num_threads; ++t1) {
-    for (int t2 = t1 + 1; t2 < num_threads; ++t2) {
-      bool all_same = true;
-      for (int i = 0; i < samples_per_thread; ++i) {
-        if (results[t1][i] != results[t2][i]) {
-          all_same = false;
-          break;
-        }
-      }
-      VERIFY(!all_same);
-    }
+  for (int t = 0; t < num_threads; ++t) {
+    VERIFY((results[t].array() == expected[t].array()).all());
   }
+  // Worker draws must leave the main thread's stream untouched.
+  const Vector actual_main = Vector::Random(samples_per_thread);
+  VERIFY((actual_main.array() == expected_main.array()).all());
 }
 #endif  // EIGEN_HAS_THREAD_LOCAL_RANDOM
 
@@ -380,6 +422,8 @@ EIGEN_DECLARE_TEST(rand) {
   CALL_SUBTEST_16(check_reproducibility<double>());
   CALL_SUBTEST_16(check_reproducibility<int32_t>());
   CALL_SUBTEST_16(check_reproducibility<uint64_t>());
+  CALL_SUBTEST_16(check_reproducibility<std::complex<double>>());
+  CALL_SUBTEST_16(check_seed_backend());
 
 #if EIGEN_HAS_THREAD_LOCAL_RANDOM
   CALL_SUBTEST_17(check_thread_safety());
