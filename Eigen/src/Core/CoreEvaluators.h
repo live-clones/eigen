@@ -1169,16 +1169,16 @@ struct unary_evaluator<CwiseUnaryView<UnaryOp, ArgType, StrideType>, IndexBased>
   Data m_d;
 };
 
-// Read-only component evaluators can use deinterleaving loads for contiguous std::complex storage. In particular,
+// Read-only component evaluators can gather from contiguous std::complex storage. In particular,
 // PacketAccessBit on a custom expression does not imply array-oriented component access.
-template <
-    typename XprType, int Component,
-    bool Vectorizable =
-        bool(traits<typename XprType::NestedExpression>::Flags & DirectAccessBit) &&
-        inner_stride_at_compile_time<typename XprType::NestedExpression>::value == 1 &&
-        complex_component_load<typename packet_traits<typename XprType::Scalar>::type>::Vectorizable &&
-        std::is_same<typename XprType::Scalar,
-                     typename unpacket_traits<typename packet_traits<typename XprType::Scalar>::type>::type>::value>
+template <typename XprType, int Component,
+          bool Vectorizable = bool(traits<typename XprType::NestedExpression>::Flags & DirectAccessBit) &&
+                              inner_stride_at_compile_time<typename XprType::NestedExpression>::value == 1 &&
+                              (std::is_same<typename XprType::Scalar, float>::value ||
+                               std::is_same<typename XprType::Scalar, double>::value) &&
+                              packet_traits<typename XprType::Scalar>::Vectorizable &&
+                              std::is_same<typename XprType::Scalar, typename unpacket_traits<typename packet_traits<
+                                                                         typename XprType::Scalar>::type>::type>::value>
 struct complex_component_evaluator : unary_evaluator<XprType> {
   using Base = unary_evaluator<XprType>;
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE explicit complex_component_evaluator(const XprType& xpr)
@@ -1201,7 +1201,7 @@ struct complex_component_evaluator<XprType, Component, true> : unary_evaluator<X
 
   template <int LoadMode, typename PacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packet(Index index) const {
-    return complex_component_load<PacketType>::template run<Component>(m_data + 2 * index);
+    return pgather<Scalar, PacketType>(m_data + 2 * index + Component, 2);
   }
 
   template <int LoadMode, typename PacketType>

@@ -80,11 +80,8 @@ template <typename Real>
 void component_reductions() {
   using Complex = std::complex<Real>;
   using Vector = Matrix<Complex, Dynamic, 1>;
-#if (defined(EIGEN_VECTORIZE_SSE2) && !defined(EIGEN_VECTORIZE_AVX512)) || defined(EIGEN_VECTORIZE_NEON)
-  constexpr bool vectorizable = internal::packet_traits<Real>::Vectorizable;
-#else
-  constexpr bool vectorizable = false;
-#endif
+  constexpr bool vectorizable = (std::is_same<Real, float>::value || std::is_same<Real, double>::value) &&
+                                internal::packet_traits<Real>::Vectorizable;
   using View = decltype(std::declval<Vector&>().real());
   using ConstOp = decltype(std::declval<const Vector&>().imag());
   STATIC_CHECK(bool(internal::redux_evaluator<View>::Flags & PacketAccessBit) == vectorizable);
