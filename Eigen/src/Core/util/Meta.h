@@ -478,6 +478,8 @@ constexpr EIGEN_STRONG_INLINE bool is_identically_zero(const Scalar& s) {
 template <typename T>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::enable_if_t<std::is_arithmetic<T>::value> optimization_barrier(T& value) {
   EIGEN_OPTIMIZATION_BARRIER(value)
+  // The macro is empty on architectures without an implementation, and during the GPU compile phase.
+  EIGEN_UNUSED_VARIABLE(value);
 }
 template <typename T>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::enable_if_t<!std::is_arithmetic<T>::value> optimization_barrier(T&) {}
