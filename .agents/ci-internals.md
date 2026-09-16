@@ -54,6 +54,13 @@ though nothing distinguished two hosts within one tag pool before this either.
 
 ## Tier Rules
 
+`$EIGEN_CI_WIDER_TIERS` is the one switch for both wider tiers. The workflow rules in `.gitlab-ci.yml` set it to
+`"off"` for a draft merge request without the `draft-tests` label; every rule entry that reads
+`$CI_MERGE_REQUEST_LABELS` — in this file and the three inline `all-tests` entries in the build and test files — tests
+it as well, which is what makes one variable both drop the wider tier and stop its labels suppressing the smoke jobs.
+It defaults to `"on"` in the global `variables:` block, so an unset variable fails towards running more. Keep any new
+label-gated rule entry in step with it.
+
 `affected-tests` and `all-tests` each suppress the smoke jobs (`.rules:libeigen:smoketest`), because both go deeper
 than the fixed list on the same native runners and the smoke jobs would only pay for it twice. The suppression is
 scoped to the `libeigen` namespace, since neither wider tier has any job in a fork. The NVHPC pair sits behind
@@ -90,6 +97,14 @@ compile dependency. Changes to CMake, `ci/scripts/`, `ci/docker/`, or the BLAS/L
 since they invalidate the mapping itself; the `ci/*.gitlab-ci.yml` files are orchestration and cannot change which
 test includes which header, so they select nothing. Git rename detection is disabled for the input diff so both the
 old and new path of a move are evaluated; an old path absent from the current graph safely forces the full suite.
+
+`REGISTRATION_PATHS` -- the test trees' `CMakeLists.txt` and `failtest/CMakeLists.txt` -- and
+`cmake/EigenSmokeTestList.cmake` are read at the merge base as well, and force the full suite only when a line outside
+a registration differs, since everything else in one of those files (a compile definition, an include directory, a
+`find_package`) reaches every test in its directory. Registering a test is what a merge request adding one does, so the
+unconditional rule degraded the tier to the whole suite for 63 of 311 selections over 2026-09. The comparison needs
+`--base-sha`: without it those paths force the full suite like any other CMake file, which is what happens when the
+diff comes from `--changed-files` alone.
 
 The selector derives source-to-target mappings from test CMake registration, including multi-translation-unit
 executables and the GPU tests, whose sources are `.cu` because `ei_add_test` takes the extension from

@@ -67,6 +67,9 @@ ei_add_test(after_gpu)
     "failtest/svd_int.cpp": "#include <Eigen/SVD>\n",
     "failtest/const_block.cpp": "#include <Eigen/Core>\n",
     "failtest/CMakeLists.txt": 'ei_add_failtest("svd_int")\nei_add_failtest("const_block")\n',
+    # Outside SCAN_ROOTS, so it never enters the graph; the selector reads it
+    # off disk when the change is confined to the list.
+    "cmake/EigenSmokeTestList.cmake": "set(ei_smoke_test_list\n  block_1\n  dense\n)\n",
 }
 
 
@@ -143,7 +146,9 @@ def test_fixture_graph(root):
     check(sel.mode == "none", "docs and benchmarks select nothing, got %s (%s)"
           % (sel.mode, sel.reasons))
 
-    # CMake and CI changes invalidate the mapping.
+    # CMake and CI changes invalidate the mapping.  The registration files among
+    # them force the full suite here only because no base_reader is given; see
+    # test_registration_diffs.
     for path in ["CMakeLists.txt", "test/CMakeLists.txt", "cmake/EigenTesting.cmake",
                  "ci/scripts/build.linux.script.sh", "ci/scripts/test_cache.py",
                  "ci/docker/ubuntu-24.04-amd64-smoketest-run/Dockerfile",
@@ -231,6 +236,60 @@ def test_buildsystem_fixtures(root):
               "a new buildsystem source is not an unregistered test, got %s" % sel.mode)
     finally:
         os.remove(extra)
+
+
+def test_registration_diffs(root):
+    """A registration-only CMake change selects what it registers, not the suite."""
+    graph = IncludeGraph(root)
+    cmake_path = "test/CMakeLists.txt"
+    smoke_path = "cmake/EigenSmokeTestList.cmake"
+    head = FIXTURE[cmake_path]
+
+    # Adding a registration selects the test it adds.
+    reader = {cmake_path: head.replace("ei_add_test(after_gpu)\n", "")}.get
+    sel = select(graph, [cmake_path], base_reader=reader)
+    check(sel.mode == "targets" and targets_of(sel) == ["after_gpu"],
+          "a new registration selects that test, got %s (%s)" % (targets_of(sel), sel.mode))
+
+    # Dropping one leaves nothing to build: the target is gone from the tree.
+    reader = {cmake_path: head + "ei_add_test(retired)\n"}.get
+    sel = select(graph, [cmake_path], base_reader=reader)
+    check(sel.mode == "none", "a dropped registration selects nothing, got %s (%s)"
+          % (sel.mode, targets_of(sel)))
+
+    # Anything else in the file reaches every test in its directory.
+    reader = {cmake_path: "add_definitions(-DEIGEN_TEST_X)\n" + head}.get
+    sel = select(graph, [cmake_path], base_reader=reader)
+    check(sel.mode == "all", "a non-registration edit forces the full suite, got %s" % sel.mode)
+
+    # So does a base version git cannot produce, such as a file the change adds.
+    sel = select(graph, [cmake_path], base_reader=lambda path: None)
+    check(sel.mode == "all", "an unavailable base version forces the full suite, got %s"
+          % sel.mode)
+
+    # The compile-failure suite registers CTest names rather than targets.
+    reader = {"failtest/CMakeLists.txt": 'ei_add_failtest("svd_int")\n'}.get
+    sel = select(graph, ["failtest/CMakeLists.txt"], base_reader=reader)
+    check(sel.mode == "targets" and targets_of(sel) == [],
+          "a failtest registration builds nothing, got %s" % targets_of(sel))
+    check(sorted(sel.ctest_names) == ["const_block_ko", "const_block_ok"],
+          "a failtest registration selects its CTest names, got %s" % sorted(sel.ctest_names))
+
+    # The smoke list names CTest tests: a split part selects its parent target.
+    reader = {smoke_path: "set(ei_smoke_test_list\n  dense\n)\n"}.get
+    sel = select(graph, [smoke_path], base_reader=reader)
+    check(sel.mode == "targets" and targets_of(sel) == ["block"],
+          "a smoke-list entry selects its target, got %s (%s)" % (targets_of(sel), sel.mode))
+
+    reader = {smoke_path: "set(ei_smoke_test_list # note\n  block_1\n  dense\n)\n"}.get
+    sel = select(graph, [smoke_path], base_reader=reader)
+    check(sel.mode == "all", "an edit outside the list forces the full suite, got %s" % sel.mode)
+
+    # A registration change unions with what the rest of the diff reaches.
+    reader = {cmake_path: head.replace("ei_add_test(after_gpu)\n", "")}.get
+    sel = select(graph, [cmake_path, "Eigen/src/SVD/BDCSVD.h"], base_reader=reader)
+    check(sel.mode == "targets" and targets_of(sel) == ["after_gpu", "bdcsvd", "dense"],
+          "registration and source changes union, got %s" % targets_of(sel))
 
 
 def test_failtests(root):
@@ -552,6 +611,7 @@ def main():
         build_fixture(root)
         test_fixture_graph(root)
         test_buildsystem_fixtures(root)
+        test_registration_diffs(root)
         test_failtests(root)
         test_cuda_registrations(root)
     finally:
