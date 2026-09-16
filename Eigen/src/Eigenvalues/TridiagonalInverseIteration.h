@@ -365,6 +365,16 @@ Index tridiagonal_inverse_iteration_connected(const DiagType& diag, const Subdia
   Matrix<RealScalar, Dynamic, 1> sdiag(n), ssub(n - 1);
   const auto factors = safe_scaling<RealScalar>::scale_to(sdiag, diag, maxCoeff);
   safe_scaling<RealScalar>::scale_to(ssub, subdiag, maxCoeff, factors);
+  Matrix<RealScalar, Dynamic, 1> xj_scaled(m);
+  safe_scaling<RealScalar>::scale_to(xj_scaled, eivals, maxCoeff, factors);
+  if (maxCoeff > RealScalar(0) && maxCoeff < (std::numeric_limits<RealScalar>::min)()) {
+    // The first scale is clamped to normal range. Finish normalization in a second finite step
+    // so the absolute pivot floor and growth threshold still see an O(1) matrix.
+    const RealScalar scaledMax = numext::maxi(sdiag.cwiseAbs().maxCoeff(), ssub.cwiseAbs().maxCoeff());
+    const auto remaining = safe_scaling<RealScalar>::scale_in_place(sdiag, scaledMax);
+    safe_scaling<RealScalar>::scale_in_place(ssub, scaledMax, remaining);
+    safe_scaling<RealScalar>::scale_in_place(xj_scaled, scaledMax, remaining);
+  }
 
   // Infinity norm of the scaled T: max_i (|e_{i-1}| + |d_i| + |e_i|), missing boundary off-diagonals zero.
   RealScalar onenrm = numext::abs(sdiag[0]) + numext::abs(ssub[0]);
@@ -387,8 +397,6 @@ Index tridiagonal_inverse_iteration_connected(const DiagType& diag, const Subdia
   // top of its predecessor is nudged up by pertol so the two factorizations stay distinct; a gap larger
   // than ortol starts a new cluster (within which the eigenvectors are reorthogonalized). The
   // perturbation is at most ~pertol << ortol, so it never moves a column across a cluster boundary.
-  Matrix<RealScalar, Dynamic, 1> xj_scaled(m);
-  safe_scaling<RealScalar>::scale_to(xj_scaled, eivals, maxCoeff, factors);
   Matrix<Index, Dynamic, 1> clstart(m);
   {
     Index gpind = 0;
