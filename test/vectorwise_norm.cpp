@@ -32,19 +32,6 @@ void check_vectorwise_norms(const DenseBase<Derived>& input) {
   rowNorms = matrix.rowwise().norm();
   internal::set_is_malloc_allowed(true);
 
-  // Check coefficient access: compiler contraction can change rounding when assigning the whole result.
-  EIGEN_IF_CONSTEXPR (NumTraits<typename Derived::Scalar>::IsComplex &&
-                      internal::complex_array_access<typename Derived::Scalar>::value &&
-                      ((int(internal::evaluator<Derived>::Flags) & (DirectAccessBit | PacketAccessBit)) != 0)) {
-    EIGEN_IF_CONSTEXPR (Derived::IsRowMajor) {
-      for (Index i = 0; i < rows; ++i)
-        VERIFY_IS_EQUAL(matrix.rowwise().squaredNorm()(i), matrix.row(i).matrix().squaredNorm());
-    } else {
-      for (Index j = 0; j < cols; ++j)
-        VERIFY_IS_EQUAL(matrix.colwise().squaredNorm()(j), matrix.col(j).matrix().squaredNorm());
-    }
-  }
-
   for (int direction = 0; direction < 2; ++direction) {
     const Index count = direction == 0 ? cols : rows;
     const Index length = direction == 0 ? rows : cols;
@@ -58,9 +45,16 @@ void check_vectorwise_norms(const DenseBase<Derived>& input) {
       }
       const Real square = direction == 0 ? columnSquares(k) : rowSquares(k);
       const Real norm = direction == 0 ? columnNorms(k) : rowNorms(k);
+      // FMA contraction can round coefficient access and vector reductions differently.
+      const Real coefficientSquare =
+          direction == 0 ? matrix.colwise().squaredNorm()(k) : matrix.rowwise().squaredNorm()(k);
+      const Real vectorSquare =
+          direction == 0 ? matrix.col(k).matrix().squaredNorm() : matrix.row(k).matrix().squaredNorm();
       // Two squares and at most two additions per complex coefficient, plus sqrt rounding.
       const long double relativeBound = (4 * length + 4) * static_cast<long double>(NumTraits<Real>::epsilon());
       VERIFY(numext::abs(static_cast<long double>(square) - reference) <= relativeBound * reference);
+      VERIFY(numext::abs(static_cast<long double>(coefficientSquare) - reference) <= relativeBound * reference);
+      VERIFY(numext::abs(static_cast<long double>(vectorSquare) - reference) <= relativeBound * reference);
       VERIFY(numext::abs(static_cast<long double>(norm) - numext::sqrt(reference)) <=
              relativeBound * numext::sqrt(reference));
     }
