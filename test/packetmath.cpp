@@ -2207,6 +2207,19 @@ void packetmath_scatter_gather() {
   }
 }
 
+template <typename Scalar, typename Packet>
+void packetmath_complex_component_load() {
+  constexpr Index packet_size = internal::unpacket_traits<Packet>::size;
+  Scalar input[2 * packet_size + 1], output[packet_size];
+  for (Index i = 0; i < 2 * packet_size + 1; ++i) input[i] = Scalar(i + 1);
+  for (Index offset = 0; offset <= 1; ++offset) {
+    internal::pstoreu(output, internal::complex_component_load<Packet>::template run<0>(input + offset));
+    for (Index i = 0; i < packet_size; ++i) VERIFY_IS_EQUAL(output[i], input[offset + 2 * i]);
+    internal::pstoreu(output, internal::complex_component_load<Packet>::template run<1>(input + offset));
+    for (Index i = 0; i < packet_size; ++i) VERIFY_IS_EQUAL(output[i], input[offset + 2 * i + 1]);
+  }
+}
+
 // At saturated unsigned short operands the scalar pmul family must wrap, not overflow the int that
 // integral promotion would otherwise multiply in.
 void packetmath_unsigned_short() {
@@ -2251,6 +2264,7 @@ struct runall<Scalar, PacketType, false, false> {  // i.e. float or double
     packetmath_scatter_gather<Scalar, PacketType>();
     packetmath_notcomplex<Scalar, PacketType>();
     packetmath_real<Scalar, PacketType>();
+    packetmath_complex_component_load<Scalar, PacketType>();
   }
 };
 
