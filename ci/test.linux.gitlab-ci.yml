@@ -206,7 +206,7 @@ test:linux:x86-64:clang-19:generic:avx512dq:contrib:
     - !reference [.rules:libeigen:gpu-schedule-guard, rules]
     - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/all-tests/"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/all-tests/" && $EIGEN_CI_WIDER_TIERS != "off"
 
 test:linux:x86-64:clang-19:cxx20:nightly:official:
   extends: .test:linux:x86-64:clang-19:cxx20:nightly

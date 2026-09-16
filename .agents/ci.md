@@ -66,6 +66,12 @@ unconditional jobs use the smoke compilers, gcc-10 and clang-14 on x86-64 and aa
 back only with a label: riscv64 (`rvv-tests` or `all-platforms`), and x86-64 gcc at baseline ISA (`sse-tests` or
 `all-platforms`), since the unconditional gcc job is AVX2.
 
+**A draft merge request runs the smoke tier whatever it is labelled.** Both wider tiers re-run in full on every push,
+and the labels are sticky, so a long-lived draft used to pay the whole matrix for each iteration; one draft spent 8.6%
+of the project's September 2026 quota that way. Add `draft-tests` to opt a draft back in when the coverage is what you
+are iterating on — a cross-platform failure that reproduces nowhere else. Marking a merge request ready does not by
+itself create a pipeline, so push or start one at that point to get the wider tier back before merging.
+
 [`scripts/affected_tests.py`](../scripts/affected_tests.py) computes the selection in the `select:tests` job. Run it
 locally the same way CI does:
 
@@ -106,7 +112,9 @@ jobs on two independent triggers, either of which is enough:
 | `arch/GPU`, the `Half.h`/`BFloat16.h` scalar headers, the `GpuHipCuda*.inc` alias files and `GpuRuntime.h`, `cmake/EigenTesting.cmake`, the Tensor `*Gpu*.h` headers, the GPU tests and their harness headers (`.rules:libeigen:gpu` in [`ci/common.gitlab-ci.yml`](../ci/common.gitlab-ci.yml) has the exact list) | `gpu-tests` | the CUDA build and test jobs | no |
 
 Several labels select the union of their platforms — `neon-tests` with `altivec-tests` runs 32-bit arm and ppc64le and
-nothing else. Apart from `gpu-tests`, none of them does anything without `affected-tests`. `all-platforms` is a
+nothing else. Apart from `gpu-tests` and `draft-tests`, none of them does anything without `affected-tests`;
+`draft-tests` does nothing without one of the two tier labels either, since all it does is stop a draft suppressing
+them. `all-platforms` is a
 shorthand for every row that *runs the affected selection*; the three rows marked "no" ignore the selection and
 compile the whole suite, so reaching them means naming their label, and `all-platforms` on a one-line change cannot
 silently buy hours of whole-suite compilation.

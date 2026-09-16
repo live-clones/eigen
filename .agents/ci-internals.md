@@ -54,6 +54,13 @@ though nothing distinguished two hosts within one tag pool before this either.
 
 ## Tier Rules
 
+`$EIGEN_CI_WIDER_TIERS` is the one switch for both wider tiers. The workflow rules in `.gitlab-ci.yml` set it to
+`"off"` for a draft merge request without the `draft-tests` label; every rule entry that reads
+`$CI_MERGE_REQUEST_LABELS` — in this file and the three inline `all-tests` entries in the build and test files — tests
+it as well, which is what makes one variable both drop the wider tier and stop its labels suppressing the smoke jobs.
+It defaults to `"on"` in the global `variables:` block, so an unset variable fails towards running more. Keep any new
+label-gated rule entry in step with it.
+
 `affected-tests` and `all-tests` each suppress the smoke jobs (`.rules:libeigen:smoketest`), because both go deeper
 than the fixed list on the same native runners and the smoke jobs would only pay for it twice. The suppression is
 scoped to the `libeigen` namespace, since neither wider tier has any job in a fork. The NVHPC pair sits behind
