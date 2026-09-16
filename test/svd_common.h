@@ -44,7 +44,26 @@ void svd_check_full(const MatrixType& m, const SvdType& svd) {
   MatrixVType v = svd.matrixV();
   RealScalar scaling = m.cwiseAbs().maxCoeff();
   if (scaling < (std::numeric_limits<RealScalar>::min)()) {
-    VERIFY(sigma.cwiseAbs().maxCoeff() <= (std::numeric_limits<RealScalar>::min)());
+    using Scaling = internal::safe_scaling<RealScalar>;
+    scaling = Scaling::recover_flushed_max_coeff(m, scaling);
+    if (numext::is_exactly_zero_no_flush(scaling)) {
+      for (Index i = 0; i < svd.singularValues().size(); ++i)
+        VERIFY(numext::is_exactly_zero_no_flush(svd.singularValues()(i)));
+    } else {
+      MatrixType scaledMatrix, scaledSigma;
+      const auto factors = Scaling::scale_to(scaledMatrix, m, scaling);
+      Scaling::scale_to(scaledSigma, sigma, scaling, factors);
+      Matrix<RealScalar, 1, 1> spacing;
+      spacing(0) = std::numeric_limits<RealScalar>::denorm_min();
+      Scaling::scale_in_place(spacing, scaling, factors);
+      // Each singular value rounds by at most half a subnormal ULP; unitary factors preserve the Frobenius norm.
+      const RealScalar tolerance =
+          16 * RealScalar(rows + cols) * NumTraits<RealScalar>::epsilon() * scaledMatrix.norm() +
+          RealScalar(0.5) * numext::sqrt(RealScalar(svd.singularValues().size())) * spacing(0);
+      const RealScalar error = (scaledMatrix - u * scaledSigma * v.adjoint()).norm();
+      VERIFY((numext::isfinite)(tolerance));
+      VERIFY(error <= tolerance);
+    }
   } else {
     VERIFY_IS_APPROX(m / scaling, u * (sigma / scaling) * v.adjoint());
   }

@@ -19,6 +19,30 @@ namespace Eigen {
 
 namespace internal {
 
+template <typename Scalar,
+          bool = (std::is_same<Scalar, float>::value || std::is_same<Scalar, double>::value) &&
+                 std::numeric_limits<Scalar>::is_iec559 && std::numeric_limits<Scalar>::radix == 2 &&
+                 (sizeof(Scalar) == sizeof(numext::uint32_t) || sizeof(Scalar) == sizeof(numext::uint64_t))>
+struct jacobi_svd_max_singular_value {
+  template <typename Derived>
+  static Scalar run(const MatrixBase<Derived>& values, Index& pos) {
+    return values.maxCoeff(&pos);
+  }
+};
+
+template <typename Scalar>
+struct jacobi_svd_max_singular_value<Scalar, true> {
+  template <typename Derived>
+  static Scalar run(const MatrixBase<Derived>& values, Index& pos) {
+    const Scalar maximum = values.maxCoeff(&pos);
+    if (maximum >= (std::numeric_limits<Scalar>::min)()) return maximum;
+    // Singular values are nonnegative. Integer encoding order preserves subnormal ordering under DAZ.
+    using Binary = binary_floating_point_traits<Scalar>;
+    values.unaryExpr([](const Scalar& value) { return Binary::magnitude(value); }).maxCoeff(&pos);
+    return values.coeff(pos);
+  }
+};
+
 // forward declaration (needed by ICC)
 // the empty body is required by MSVC
 template <typename MatrixType, int Options, bool IsComplex = NumTraits<typename MatrixType::Scalar>::IsComplex>
@@ -827,7 +851,8 @@ JacobiSVD<MatrixType, Options>& JacobiSVD<MatrixType, Options>::compute_impl(con
   const RealScalar considerAsZero = (std::numeric_limits<RealScalar>::min)();
 
   // Scaling factor to reduce over/under-flows
-  const RealScalar maxCoeff = matrix.cwiseAbs().template maxCoeff<PropagateNaN>();
+  const RealScalar maxCoeff = internal::safe_scaling<RealScalar>::recover_flushed_max_coeff(
+      matrix.derived(), matrix.cwiseAbs().template maxCoeff<PropagateNaN>());
   if (!(numext::isfinite)(maxCoeff)) {
     m_isInitialized = true;
     m_info = InvalidInput;
@@ -913,15 +938,16 @@ JacobiSVD<MatrixType, Options>& JacobiSVD<MatrixType, Options>::compute_impl(con
     }
   }
 
-  internal::safe_scaling<RealScalar>::unscale_in_place(m_singularValues, factors);
+  internal::safe_scaling<RealScalar>::unscale_in_place(m_singularValues, maxCoeff, factors);
 
   /*** step 4. Sort singular values in descending order and compute the number of nonzero singular values ***/
 
   m_nonzeroSingularValues = diagSize();
   for (Index i = 0; i < diagSize(); i++) {
     Index pos;
-    RealScalar maxRemainingSingularValue = m_singularValues.tail(diagSize() - i).maxCoeff(&pos);
-    if (numext::is_exactly_zero(maxRemainingSingularValue)) {
+    RealScalar maxRemainingSingularValue =
+        internal::jacobi_svd_max_singular_value<RealScalar>::run(m_singularValues.tail(diagSize() - i), pos);
+    if (numext::is_exactly_zero_no_flush(maxRemainingSingularValue)) {
       m_nonzeroSingularValues = i;
       break;
     }
