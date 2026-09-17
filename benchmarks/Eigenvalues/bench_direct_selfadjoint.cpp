@@ -31,6 +31,21 @@ static void BM_DirectSelfAdjoint(benchmark::State& state) {
     case 3:
       scale = Eigen::NumTraits<Scalar>::highest() / Scalar(2);
       break;
+    case 4:
+      scale = Scalar(0.001);
+      break;
+    case 5:
+      scale = Scalar(0.1);
+      break;
+    case 6:
+      scale = Scalar(8);
+      break;
+    case 7:
+      scale = Scalar(1000);
+      break;
+    case 8:
+      scale = Scalar(1000000);
+      break;
   }
   std::mt19937 generator(42);
   std::uniform_real_distribution<double> random(-0.125, 0.125);
@@ -77,5 +92,5 @@ static void BM_DirectSelfAdjoint(benchmark::State& state) {
 }
 
 BENCHMARK(BM_DirectSelfAdjoint)
-    ->ArgsProduct({{Eigen::EigenvaluesOnly, Eigen::ComputeEigenvectors}, {0, 1, 2, 3}})
+    ->ArgsProduct({{Eigen::EigenvaluesOnly, Eigen::ComputeEigenvectors}, {0, 1, 2, 3, 4, 5, 6, 7, 8}})
     ->ArgNames({"options", "scale_case"});
