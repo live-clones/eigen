@@ -672,9 +672,16 @@ struct dense_assignment_loop_impl<Kernel, SliceVectorizedTraversal, NoUnrolling>
 #endif
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(Kernel& kernel) {
-    const Scalar* dst_ptr = kernel.dstDataPtr();
     const Index innerSize = kernel.innerSize();
     const Index outerSize = kernel.outerSize();
+#if EIGEN_UNALIGNED_VECTORIZE
+    EIGEN_IF_CONSTEXPR (DstIsAligned) {
+      // A single store path reduces code size and helps callers inline strided assignments.
+      runUnaligned(kernel, innerSize, outerSize);
+      return;
+    }
+#endif
+    const Scalar* dst_ptr = kernel.dstDataPtr();
     const Index alignedStep = Alignable ? (PacketSize - kernel.outerStride() % PacketSize) % PacketSize : 0;
     Index alignedStart = ((!Alignable) || DstIsAligned) ? 0 : internal::first_aligned<Alignment>(dst_ptr, innerSize);
 
