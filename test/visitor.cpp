@@ -419,21 +419,39 @@ void checkBooleanVisitorTraversal() {
   checkBooleanVisitors(fixed);
 }
 
+template <bool Vectorize = false>
 struct CountVisitorReads {
   Index* reads;
   float operator()(float value) const {
     ++*reads;
     return value;
   }
+  template <typename Packet>
+  Packet packetOp(const Packet& value) const {
+    *reads += internal::unpacket_traits<Packet>::size;
+    return value;
+  }
 };
 
-template <int Options>
+namespace Eigen {
+namespace internal {
+template <bool Vectorize>
+struct functor_traits<CountVisitorReads<Vectorize>> {
+  static constexpr int Cost = 1;
+  static constexpr bool PacketAccess = Vectorize;
+};
+}  // namespace internal
+}  // namespace Eigen
+
+template <int Options, bool Vectorize = false>
 void checkVisitorShortCircuit() {
   using MatrixType = Matrix<float, Dynamic, Dynamic, Options>;
-  MatrixType matrix(7, 5);
+  const Index inner = Vectorize ? 1 : 7;
+  const Index outer = 35;
+  MatrixType matrix(Options == RowMajor ? outer : inner, Options == RowMajor ? inner : outer);
   for (Index index : {Index(0), Index(1), matrix.size() - 1}) {
     Index reads = 0;
-    auto counted = matrix.unaryExpr(CountVisitorReads{&reads});
+    auto counted = matrix.unaryExpr(CountVisitorReads<Vectorize>{&reads});
     for (int value = 0; value <= 1; ++value) {
       matrix.setConstant(float(value));
       matrix(index) = float(!value);
@@ -575,4 +593,6 @@ EIGEN_DECLARE_TEST(visitor) {
   CALL_SUBTEST_14((checkBooleanVisitorTraversal<std::complex<float>, RowMajor>()));
   CALL_SUBTEST_14(checkVisitorShortCircuit<ColMajor>());
   CALL_SUBTEST_14(checkVisitorShortCircuit<RowMajor>());
+  CALL_SUBTEST_14((checkVisitorShortCircuit<ColMajor, true>()));
+  CALL_SUBTEST_14((checkVisitorShortCircuit<RowMajor, true>()));
 }

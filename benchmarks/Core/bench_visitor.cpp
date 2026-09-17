@@ -61,13 +61,8 @@ void BM_Visitor(benchmark::State& state) {
       ->Args({3, 1367, 1})                                   \
       ->Args({3, 1367, 2})
 
-#define EIGEN_BENCH_VISITORS(SCALAR, ORDER)         \
-  EIGEN_BENCH_VISITOR(SCALAR, ORDER, All, false);   \
-  EIGEN_BENCH_VISITOR(SCALAR, ORDER, Any, false);   \
-  EIGEN_BENCH_VISITOR(SCALAR, ORDER, Count, false); \
-  EIGEN_BENCH_VISITOR(SCALAR, ORDER, All, true);    \
-  EIGEN_BENCH_VISITOR(SCALAR, ORDER, Any, true);    \
-  EIGEN_BENCH_VISITOR(SCALAR, ORDER, Count, true)
+#define EIGEN_BENCH_VISITORS(SCALAR, ORDER) \
+  EIGEN_BENCH_VISITOR(SCALAR, ORDER, EIGEN_BENCH_VISITOR_OP, EIGEN_BENCH_VISITOR_STRIDED)
 
 EIGEN_BENCH_VISITORS(float, ColMajor);
 EIGEN_BENCH_VISITORS(float, RowMajor);
