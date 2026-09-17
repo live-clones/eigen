@@ -77,6 +77,62 @@ struct BlockViewCounter {
   float operator()(float value) const { return value + float(calls++); }
 };
 
+template <bool Vectorized>
+struct BlockViewRvalueFunctor {
+  using Packet = typename internal::packet_traits<float>::type;
+  float operator()(float&& value) const { return value + 1.0f; }
+  Packet packetOp(Packet&& value) const { return internal::padd(value, internal::pset1<Packet>(1.0f)); }
+};
+
+template <bool Vectorized>
+struct BlockViewOverloadedFunctor : BlockViewRvalueFunctor<Vectorized> {
+  using Base = BlockViewRvalueFunctor<Vectorized>;
+  using Packet = typename Base::Packet;
+  using Base::operator();
+  using Base::packetOp;
+  float operator()(const float& value) const { return value + 2.0f; }
+  Packet packetOp(const Packet& value) const { return internal::padd(value, internal::pset1<Packet>(2.0f)); }
+};
+
+namespace Eigen {
+namespace internal {
+template <bool Vectorized>
+struct functor_traits<BlockViewRvalueFunctor<Vectorized>> {
+  static constexpr int Cost = NumTraits<float>::AddCost;
+  static constexpr bool PacketAccess = Vectorized && packet_traits<float>::Vectorizable;
+};
+template <bool Vectorized>
+struct functor_traits<BlockViewOverloadedFunctor<Vectorized>> : functor_traits<BlockViewRvalueFunctor<Vectorized>> {};
+}  // namespace internal
+}  // namespace Eigen
+
+template <int Layout, bool Vectorized, typename Device>
+static void test_view_functor_forwarding(const Device& device) {
+  const Index rows = 129, cols = 193;
+  Tensor<float, 2, Layout> input(cols, rows), bias(rows, cols), output(rows, cols);
+  for (Index j = 0; j < cols; ++j) {
+    for (Index i = 0; i < rows; ++i) {
+      input(j, i) = float((i * 3 + j) % 17);
+      bias(i, j) = float((i + j * 7) % 13);
+    }
+  }
+  const array<int, 2> transpose{{1, 0}};
+  const auto check = [&](const auto& functor) {
+    auto expression = input.shuffle(transpose) + bias.unaryExpr(functor);
+    using Assign = TensorAssignOp<decltype(output), const decltype(expression)>;
+    static_assert(internal::IsTileable<Device, const Assign>::value == internal::TiledEvaluation::On,
+                  "Functor forwarding must reach block evaluation");
+    static_assert(internal::IsVectorizable<Device, const Assign>::value ==
+                      (Vectorized && internal::packet_traits<float>::Vectorizable),
+                  "Exercise both scalar and packet functor forwarding");
+    output.device(device) = expression;
+    for (Index j = 0; j < cols; ++j)
+      for (Index i = 0; i < rows; ++i) VERIFY_IS_EQUAL(output(i, j), input(j, i) + bias(i, j) + 1.0f);
+  };
+  check(BlockViewRvalueFunctor<Vectorized>());
+  check(BlockViewOverloadedFunctor<Vectorized>());
+}
+
 template <int Layout>
 static void test_view_functor_state(bool dense_source) {
   Tensor<float, 2, Layout> input(dense_source ? 7 : 23, dense_source ? 9 : 19), output(23, 19);
@@ -182,11 +238,19 @@ EIGEN_DECLARE_TEST(tensor_block_view) {
     CALL_SUBTEST((test_view_functor_state<RowMajor>(dense_source)));
   }
   DefaultDevice device;
+  CALL_SUBTEST((test_view_functor_forwarding<ColMajor, false>(device)));
+  CALL_SUBTEST((test_view_functor_forwarding<RowMajor, false>(device)));
+  CALL_SUBTEST((test_view_functor_forwarding<ColMajor, true>(device)));
+  CALL_SUBTEST((test_view_functor_forwarding<RowMajor, true>(device)));
   CALL_SUBTEST((test_view_compositions<ColMajor>(device)));
   CALL_SUBTEST((test_view_compositions<RowMajor>(device)));
   ThreadPool pool(4);
   for (int threads : {1, 4}) {
     ThreadPoolDevice threaded_device(&pool, threads);
+    CALL_SUBTEST((test_view_functor_forwarding<ColMajor, false>(threaded_device)));
+    CALL_SUBTEST((test_view_functor_forwarding<RowMajor, false>(threaded_device)));
+    CALL_SUBTEST((test_view_functor_forwarding<ColMajor, true>(threaded_device)));
+    CALL_SUBTEST((test_view_functor_forwarding<RowMajor, true>(threaded_device)));
     CALL_SUBTEST((test_view_compositions<ColMajor>(threaded_device)));
     CALL_SUBTEST((test_view_compositions<RowMajor>(threaded_device)));
   }

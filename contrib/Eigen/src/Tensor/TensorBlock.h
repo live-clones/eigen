@@ -1493,14 +1493,14 @@ class TensorBlockReadFunctor {
  public:
   explicit TensorBlockReadFunctor(const Functor& functor) : m_functor(&functor) {}
   template <typename... Args>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE auto operator()(const Args&... args) const
-      -> decltype(std::declval<const Functor&>()(args...)) {
-    return (*m_functor)(args...);
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE auto operator()(Args&&... args) const
+      -> decltype(std::declval<const Functor&>()(std::forward<Args>(args)...)) {
+    return (*m_functor)(std::forward<Args>(args)...);
   }
   template <typename... Args, typename F = Functor>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE auto packetOp(const Args&... args) const
-      -> decltype(std::declval<const F&>().packetOp(args...)) {
-    return m_functor->packetOp(args...);
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE auto packetOp(Args&&... args) const
+      -> decltype(std::declval<const F&>().packetOp(std::forward<Args>(args)...)) {
+    return m_functor->packetOp(std::forward<Args>(args)...);
   }
 
  private:
