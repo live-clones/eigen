@@ -104,7 +104,7 @@ bool idrstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Precondition
   */
   // Set up the initial residual
   VectorType x0 = x;
-  r.col(0) = rhs - mat * x;
+  r.col(0).noalias() = rhs - mat * x;
   x.setZero();  // The final solution will be x0+x
 
   tol_error = r.col(0).stableNorm();
@@ -234,12 +234,12 @@ bool idrstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Precondition
 
       // Obtain new solution and residual from this update
       update.noalias() = U.topRows(N) * alpha;
-      r.col(0) -= mat * precond.solve(update);
+      r.col(0).noalias() -= mat * precond.solve(update);
       x += update;
 
       for (Index i = 1; i <= j - 2; ++i) {
         // This only affects the case L>2
-        r.col(i) -= U.block(N * (i + 1), 0, N, S) * alpha;
+        r.col(i).noalias() -= U.block(N * (i + 1), 0, N, S) * alpha;
       }
       if (j > 1) {
         // r=[r;A*r_{j-2}]
@@ -320,7 +320,7 @@ bool idrstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Precondition
     // Update solution and residual using the "minimized residual coefficients"
     update.noalias() = r.leftCols(L) * gamma;
     x += update;
-    r.col(0) -= mat * precond.solve(update);
+    r.col(0).noalias() -= mat * precond.solve(update);
 
     // Update iteration info
     ++k;

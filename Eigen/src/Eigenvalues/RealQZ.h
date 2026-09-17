@@ -481,7 +481,7 @@ inline void RealQZ<MatrixType>::step(Index f, Index l, Index iter) {
       m_S.col(k + 2).head(lr) -= tau * tmp;
       m_S.template middleCols<2>(k).topRows(lr).noalias() -= (tau * tmp) * essential2.adjoint();
       // T
-      tmp = m_T.template middleCols<2>(k).topRows(lr) * essential2;
+      tmp.noalias() = m_T.template middleCols<2>(k).topRows(lr) * essential2;
       tmp += m_T.col(k + 2).head(lr);
       m_T.col(k + 2).head(lr) -= tau * tmp;
       m_T.template middleCols<2>(k).topRows(lr).noalias() -= (tau * tmp) * essential2.adjoint();
