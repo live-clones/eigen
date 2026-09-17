@@ -43,12 +43,149 @@ struct trsmKernelR {
                      Index otherStride);
 };
 
+// The packet lanes are independent right-hand sides. Four rows with two packets each
+// provide eight independent multiply-add chains on targets with at least 16 registers.
+template <typename Scalar>
+struct triangular_solve_packet_traits {
+  static constexpr bool Enabled = packet_traits<Scalar>::Vectorizable &&
+                                  (std::is_same<Scalar, float>::value || std::is_same<Scalar, double>::value);
+  static constexpr int PacketSize = packet_traits<Scalar>::size;
+  static constexpr int RhsPackets = EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS >= 16 ? 2 : 1;
+  static constexpr int MaxRows = 128;
+#if defined(EIGEN_VECTORIZE_AVX512) && EIGEN_USE_AVX512_TRSM_L_KERNELS
+  static constexpr int UnblockedSize = 0;
+#else
+  static constexpr int UnblockedSize = MaxRows;
+#endif
+};
+
+template <typename Scalar, typename Index, int Mode, int TriStorageOrder>
+struct triangular_solve_packet_kernel {
+  using Traits = triangular_solve_packet_traits<Scalar>;
+  using Packet = typename packet_traits<Scalar>::type;
+  using TriMapper = const_blas_data_mapper<Scalar, Index, TriStorageOrder>;
+  static constexpr int PacketSize = Traits::PacketSize;
+  static constexpr bool IsLower = (Mode & Lower) != 0;
+
+  template <int RhsPackets>
+  static EIGEN_STRONG_INLINE void update(PacketBlock<Packet, RhsPackets>& x, const PacketBlock<Packet, RhsPackets>& y,
+                                         Scalar a) {
+    const Packet pa = pset1<Packet>(a);
+    for (int p = 0; p < RhsPackets; ++p) x.packet[p] = pnmadd(pa, y.packet[p], x.packet[p]);
+  }
+
+  template <int RhsPackets>
+  static EIGEN_STRONG_INLINE void scale(PacketBlock<Packet, RhsPackets>& x, Scalar a) {
+    EIGEN_IF_CONSTEXPR (!(Mode & UnitDiag)) {
+      const Packet pa = pset1<Packet>(a);
+      for (int p = 0; p < RhsPackets; ++p) x.packet[p] = pmul(x.packet[p], pa);
+    }
+  }
+
+  template <int RhsPackets>
+  static EIGEN_STRONG_INLINE void solve(Index size, const TriMapper& a, const Scalar* inverse, Scalar* other,
+                                        Index otherStride) {
+    PacketBlock<Packet, RhsPackets> work[Traits::MaxRows];
+    for (int p = 0; p < RhsPackets; ++p) {
+      Index i = 0;
+      for (; i + PacketSize <= size; i += PacketSize) {
+        PacketBlock<Packet, PacketSize> block;
+        for (int c = 0; c < PacketSize; ++c)
+          block.packet[c] = ploadu<Packet>(other + i + (p * PacketSize + c) * otherStride);
+        ptranspose(block);
+        for (int r = 0; r < PacketSize; ++r) work[i + r].packet[p] = block.packet[r];
+      }
+      for (; i < size; ++i)
+        work[i].packet[p] = pgather<Scalar, Packet>(other + i + p * PacketSize * otherStride, otherStride);
+    }
+    Index i = 0;
+    const Index step = IsLower ? 1 : -1;
+    for (; i + 4 <= size; i += 4) {
+      const Index r0 = IsLower ? i : size - i - 1;
+      const Index r1 = r0 + step, r2 = r1 + step, r3 = r2 + step;
+      PacketBlock<Packet, RhsPackets> x0 = work[r0], x1 = work[r1], x2 = work[r2], x3 = work[r3];
+      for (Index k = 0; k < i; ++k) {
+        const Index c = IsLower ? k : size - k - 1;
+        const PacketBlock<Packet, RhsPackets> y = work[c];
+        update(x0, y, a(r0, c));
+        update(x1, y, a(r1, c));
+        update(x2, y, a(r2, c));
+        update(x3, y, a(r3, c));
+      }
+      scale(x0, inverse[r0]);
+      update(x1, x0, a(r1, r0));
+      update(x2, x0, a(r2, r0));
+      update(x3, x0, a(r3, r0));
+      scale(x1, inverse[r1]);
+      update(x2, x1, a(r2, r1));
+      update(x3, x1, a(r3, r1));
+      scale(x2, inverse[r2]);
+      update(x3, x2, a(r3, r2));
+      scale(x3, inverse[r3]);
+      work[r0] = x0;
+      work[r1] = x1;
+      work[r2] = x2;
+      work[r3] = x3;
+    }
+    for (; i < size; ++i) {
+      const Index r = IsLower ? i : size - i - 1;
+      PacketBlock<Packet, RhsPackets> x = work[r];
+      for (Index k = 0; k < i; ++k) {
+        const Index c = IsLower ? k : size - k - 1;
+        update(x, work[c], a(r, c));
+      }
+      scale(x, inverse[r]);
+      work[r] = x;
+    }
+    for (int p = 0; p < RhsPackets; ++p) {
+      Index i = 0;
+      for (; i + PacketSize <= size; i += PacketSize) {
+        PacketBlock<Packet, PacketSize> block;
+        for (int r = 0; r < PacketSize; ++r) block.packet[r] = work[i + r].packet[p];
+        ptranspose(block);
+        for (int c = 0; c < PacketSize; ++c) pstoreu(other + i + (p * PacketSize + c) * otherStride, block.packet[c]);
+      }
+      for (; i < size; ++i)
+        pscatter<Scalar, Packet>(other + i + p * PacketSize * otherStride, work[i].packet[p], otherStride);
+    }
+  }
+
+  static EIGEN_DONT_INLINE void kernel(Index size, Index cols, const Scalar* tri, Index triStride, Scalar* other,
+                                       Index otherStride) {
+    eigen_internal_assert(size <= Traits::MaxRows && cols % PacketSize == 0);
+    if (!IsLower) {
+      tri -= (size - 1) * (triStride + 1);
+      other -= size - 1;
+    }
+    TriMapper a(tri, triStride);
+    Scalar inverse[Traits::MaxRows];
+    for (Index i = 0; i < size; ++i) inverse[i] = (Mode & UnitDiag) ? Scalar(1) : Scalar(1) / a(i, i);
+    Index j = 0;
+    EIGEN_IF_CONSTEXPR (Traits::RhsPackets > 1) {
+      for (; j + Traits::RhsPackets * PacketSize <= cols; j += Traits::RhsPackets * PacketSize)
+        solve<Traits::RhsPackets>(size, a, inverse, other + j * otherStride, otherStride);
+    }
+    for (; j + PacketSize <= cols; j += PacketSize) solve<1>(size, a, inverse, other + j * otherStride, otherStride);
+  }
+};
+
 template <typename Scalar, typename Index, int Mode, bool Conjugate, int TriStorageOrder, int OtherInnerStride,
           bool Specialized>
 EIGEN_STRONG_INLINE void trsmKernelL<Scalar, Index, Mode, Conjugate, TriStorageOrder, OtherInnerStride,
                                      Specialized>::kernel(Index size, Index otherSize, const Scalar* _tri,
                                                           Index triStride, Scalar* _other, Index otherIncr,
                                                           Index otherStride) {
+  EIGEN_IF_CONSTEXPR ((Specialized && OtherInnerStride == 1 && triangular_solve_packet_traits<Scalar>::Enabled)) {
+    if (size >= 4 && size <= triangular_solve_packet_traits<Scalar>::MaxRows &&
+        otherSize >= packet_traits<Scalar>::size) {
+      const Index packetCols = otherSize - otherSize % packet_traits<Scalar>::size;
+      triangular_solve_packet_kernel<Scalar, Index, Mode, TriStorageOrder>::kernel(size, packetCols, _tri, triStride,
+                                                                                   _other, otherStride);
+      if (packetCols == otherSize) return;
+      otherSize -= packetCols;
+      _other += packetCols * otherStride;
+    }
+  }
   using TriMapper = const_blas_data_mapper<Scalar, Index, TriStorageOrder>;
   using OtherMapper = blas_data_mapper<Scalar, Index, ColMajor, Unaligned, OtherInnerStride>;
   TriMapper tri(_tri, triStride);
@@ -246,6 +383,15 @@ EIGEN_DONT_INLINE void triangular_solve_matrix<Scalar, Index, OnTheLeft, Mode, C
                                                                       Index triStride, Scalar* _other, Index otherIncr,
                                                                       Index otherStride,
                                                                       level3_blocking<Scalar, Scalar>& blocking) {
+  EIGEN_IF_CONSTEXPR ((OtherInnerStride == 1 && triangular_solve_packet_traits<Scalar>::Enabled)) {
+    if (size >= 4 && size <= triangular_solve_packet_traits<Scalar>::UnblockedSize &&
+        otherSize >= packet_traits<Scalar>::size) {
+      const Index origin = (Mode & Lower) ? 0 : size - 1;
+      trsmKernelL<Scalar, Index, Mode, Conjugate, TriStorageOrder, OtherInnerStride, true>::kernel(
+          size, otherSize, _tri + origin * (triStride + 1), triStride, _other + origin, otherIncr, otherStride);
+      return;
+    }
+  }
   std::ptrdiff_t l1, l2, l3;
   manage_caching_sizes(GetAction, &l1, &l2, &l3);
 
