@@ -1270,18 +1270,19 @@ void direct_selfadjoint_clustered_boundary() {
   using WideVector = Matrix<long double, 3, 1>;
   const long double epsilon = static_cast<long double>(NumTraits<Scalar>::epsilon());
   const Scalar scale = numext::ldexp(Scalar(1), std::numeric_limits<Scalar>::max_exponent - 1);
-  const long double diagonal = 1.75L - 4 * epsilon;
+  const long double normalizedMaximum =
+      static_cast<long double>(NumTraits<Scalar>::highest()) / static_cast<long double>(scale);
+  const long double diagonal = normalizedMaximum - 0.25L - 4 * epsilon;
   // A/scale = (d+b)*I - b*ones(3,3), b=1/4: eigenvalues d-2*b, d+b, d+b.
-  // All coefficients and roots are exactly representable; the repeated roots
-  // 2-4*epsilon lie below highest()/scale = 2-epsilon, without a cubic reference.
+  // Keep the repeated roots below the actual boundary: highest()/scale is not
+  // 2-epsilon for IBM double-double long double.
   MatrixType input = MatrixType::Constant(Scalar(-0.25) * scale);
   input.diagonal().setConstant(Scalar(diagonal) * scale);
   const WideMatrix normalized = input.template cast<long double>() / static_cast<long double>(scale);
   WideVector expected;
   expected << diagonal - 0.5L, diagonal + 0.25L, diagonal + 0.25L;
-  VERIFY(expected.maxCoeff() <
-         static_cast<long double>(NumTraits<Scalar>::highest()) / static_cast<long double>(scale));
-  VERIFY(input.cwiseAbs().maxCoeff() > NumTraits<Scalar>::highest() / Scalar(6));
+  VERIFY(expected.maxCoeff() < normalizedMaximum);
+  VERIFY(input.cwiseAbs().maxCoeff() > (NumTraits<Scalar>::highest() * Scalar(0.5)) / Scalar(3));
   // Confirm that tridiagonalization leaves a coupling requiring QR iteration.
   Tridiagonalization<MatrixType> tridiagonal(normalized.template cast<Scalar>());
   Matrix<Scalar, 3, 1> diag = tridiagonal.diagonal();

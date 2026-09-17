@@ -982,7 +982,7 @@ struct direct_selfadjoint_eigenvalues<SolverType, Size, false, true> {
     PlainMatrixType scaledMat = mat.template selfadjointView<Lower>();
     const Scalar recoveredMax = safe_scaling<Scalar>::recover_flushed_max_coeff(scaledMat, maxCoeff);
     const auto inputFactors = safe_scaling<Scalar>::scale_to(scaledMat, scaledMat, recoveredMax);
-    if (maxCoeff > NumTraits<Scalar>::highest() / Scalar(2 * Size)) {
+    if (maxCoeff > (NumTraits<Scalar>::highest() * Scalar(0.5)) / Scalar(Size)) {
       run_large(solver, scaledMat, options,
                 bool_constant<(Size == 3 && supports_power_of_two_scaling<Scalar>::value)>());
     } else {
@@ -999,8 +999,9 @@ struct direct_selfadjoint_eigenvalues<SolverType, Size, false, true> {
     const Scalar maxCoeff = scaledMat.cwiseAbs().maxCoeff();
     // Bound centered coefficients by 2*M and eigenvalues by Size*M. Prescale tiny inputs before any FTZ-sensitive
     // subtraction, and large inputs before centering or restoring the centered eigenvalues could overflow.
+    // Halve highest() first: IBM double-double division can overflow internally at the maximum value.
     if (EIGEN_PREDICT_FALSE(maxCoeff < (std::numeric_limits<Scalar>::min)() / NumTraits<Scalar>::epsilon() ||
-                            maxCoeff > NumTraits<Scalar>::highest() / Scalar(2 * Size))) {
+                            maxCoeff > (NumTraits<Scalar>::highest() * Scalar(0.5)) / Scalar(Size))) {
       run_prescaled(solver, mat, maxCoeff, options);
     } else {
       run_centered(solver, mat, options);
