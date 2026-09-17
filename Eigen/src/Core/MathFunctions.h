@@ -218,6 +218,9 @@ struct conj_impl : conj_default_impl<Scalar, IsComplex> {};
 // Unsigned operands narrower than int promote to int, where a product whose wrapped value is representable
 // can still overflow: (unsigned short)0xffff squared is 0xfffe0001 > INT_MAX. Multiplying in unsigned int,
 // wider than every such operand, wraps instead. Mixed operand types, signed types, and bool keep operator*.
+EIGEN_DIAGNOSTICS(push)
+EIGEN_DIAGNOSTICS_OFF(disable : 4789, ignored "-Warray-bounds")
+
 template <typename Lhs, typename Rhs,
           bool NarrowUnsigned = std::is_same<Lhs, Rhs>::value && std::is_unsigned<Lhs>::value &&
                                 !std::is_same<Lhs, bool>::value && (sizeof(Lhs) < sizeof(int))>
@@ -239,6 +242,8 @@ template <typename Lhs, typename Rhs>
 EIGEN_DEVICE_FUNC constexpr EIGEN_ALWAYS_INLINE auto mul(const Lhs& a, const Rhs& b) {
   return mul_impl<Lhs, Rhs>::run(a, b);
 }
+
+EIGEN_DIAGNOSTICS(pop)
 
 /****************************************************************************
  * Implementation of abs2                                                 *
