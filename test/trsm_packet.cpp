@@ -61,6 +61,55 @@ void trsm_packet_modes(Index n, Index nrhs, Index inner = 1) {
 }
 
 template <typename Scalar>
+void trsm_packet_cache_sizes() {
+  using Traits = internal::triangular_solve_packet_traits<Scalar>;
+  std::ptrdiff_t saved_l1, saved_l2, saved_l3, saved_l3_per_cpu;
+  internal::manage_caching_sizes(GetAction, &saved_l1, &saved_l2, &saved_l3, &saved_l3_per_cpu);
+  const Index packet = Traits::PacketSize;
+  const Index widths[] = {packet, Traits::RhsPackets * packet, Traits::RhsPackets * packet + 1};
+  const auto cutoff_for = [](Index nrhs) {
+    Index cutoff = 0;
+    for (Index n = Traits::RegisterRows; n <= Traits::WorkspaceRows; ++n) {
+      if (!Traits::use_unblocked(n, nrhs, l1CacheSize())) break;
+      cutoff = n;
+    }
+    return cutoff;
+  };
+  Index previous = 0;
+  for (std::ptrdiff_t l1 : {512, 2048, 8192, 32768}) {
+    setCpuCacheSizes(l1, 4 * l1, 16 * l1);
+    const Index wide_cutoff = cutoff_for(widths[1]);
+    VERIFY(wide_cutoff >= previous);
+    previous = wide_cutoff;
+    for (Index nrhs : widths) {
+      const Index cutoff = cutoff_for(nrhs);
+      VERIFY(cutoff >= 0 && cutoff <= Traits::WorkspaceRows);
+      if (nrhs == packet) VERIFY(cutoff >= wide_cutoff);
+      // Exercise both algorithms at the configured crossover, plus the allocation bound.
+      const Index sizes[] = {
+          (numext::maxi)(Index(Traits::RegisterRows), cutoff - 1), (numext::maxi)(Index(Traits::RegisterRows), cutoff),
+          (numext::maxi)(Index(Traits::RegisterRows), cutoff + 1), Traits::WorkspaceRows, Traits::WorkspaceRows + 1};
+      for (Index n : sizes) {
+        trsm_packet_modes<Scalar, ColMajor, ColMajor, OnTheLeft>(n, nrhs);
+        trsm_packet_modes<Scalar, RowMajor, ColMajor, OnTheLeft>(n, nrhs);
+        trsm_packet_modes<Scalar, ColMajor, RowMajor, OnTheRight>(n, nrhs);
+        trsm_packet_modes<Scalar, RowMajor, RowMajor, OnTheRight>(n, nrhs);
+      }
+    }
+  }
+  VERIFY(!Traits::use_unblocked(Index(Traits::RegisterRows), packet - 1, saved_l1));
+  VERIFY(!Traits::use_unblocked(Index(Traits::RegisterRows), packet, std::ptrdiff_t(0)));
+  VERIFY(!Traits::use_unblocked(Index(Traits::RegisterRows), packet, (std::numeric_limits<std::ptrdiff_t>::min)()));
+  VERIFY(
+      !Traits::use_unblocked(Index(Traits::WorkspaceRows + 1), packet, (std::numeric_limits<std::ptrdiff_t>::max)()));
+  VERIFY(Traits::use_unblocked(Index(Traits::WorkspaceRows), widths[1], (std::numeric_limits<std::ptrdiff_t>::max)()) ==
+         Traits::UseUnblocked);
+  VERIFY(!Traits::use_unblocked((std::numeric_limits<Index>::max)(), packet,
+                                (std::numeric_limits<std::ptrdiff_t>::max)()));
+  internal::manage_caching_sizes(SetAction, &saved_l1, &saved_l2, &saved_l3, &saved_l3_per_cpu);
+}
+
+template <typename Scalar>
 void trsm_packet() {
   STATIC_CHECK((internal::triangular_solve_packet_traits<Scalar>::Enabled ==
                 bool(internal::packet_traits<Scalar>::Vectorizable)));
@@ -89,6 +138,7 @@ void trsm_packet() {
     trsm_packet_case<Scalar, ColMajor, ColMajor, OnTheLeft, Lower, 1>(65, 19, 1, true, magnitude);
     trsm_packet_case<Scalar, RowMajor, ColMajor, OnTheLeft, Upper, 1>(65, 19, 1, true, magnitude);
   }
+  trsm_packet_cache_sizes<Scalar>();
 }
 
 EIGEN_DECLARE_TEST(trsm_packet) {
