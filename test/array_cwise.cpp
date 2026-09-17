@@ -20,6 +20,41 @@ static_assert(
     std::is_same<ArrayXf::AbsReturnType, std::remove_const_t<decltype(std::declval<const ArrayXf&>().abs())>>::value,
     "ArrayBase unary return type aliases must match their corresponding expressions");
 
+template <typename Derived>
+void global_unary_return_types(const ArrayBase<Derived>& x) {
+  using Scalar = typename Derived::Scalar;
+  STATIC_CHECK((std::is_same<decltype(Eigen::real(x)),
+                             const CwiseUnaryOp<internal::scalar_real_op<Scalar>, const Derived>>::value));
+  STATIC_CHECK((std::is_same<decltype(Eigen::imag(x)),
+                             const CwiseUnaryOp<internal::scalar_imag_op<Scalar>, const Derived>>::value));
+  STATIC_CHECK((std::is_same<decltype(Eigen::conj(x)),
+                             const CwiseUnaryOp<internal::scalar_conjugate_op<Scalar>, const Derived>>::value));
+  STATIC_CHECK((std::is_same<decltype(Eigen::sin(x)),
+                             const CwiseUnaryOp<internal::scalar_sin_op<Scalar>, const Derived>>::value));
+  STATIC_CHECK((std::is_same<decltype(Eigen::abs2(x)),
+                             const CwiseUnaryOp<internal::scalar_abs2_op<Scalar>, const Derived>>::value));
+  VERIFY_IS_APPROX(Eigen::real(x), x.real());
+  VERIFY_IS_APPROX(Eigen::imag(x), x.imag());
+  VERIFY_IS_APPROX(Eigen::conj(x), x.conjugate());
+  VERIFY_IS_APPROX(Eigen::sin(x), x.sin());
+  VERIFY_IS_APPROX(Eigen::abs2(x), x.abs2());
+}
+
+template <typename ArrayType>
+void global_unary_expressions() {
+  ArrayType x(3, 3);
+  x.setRandom();
+  global_unary_return_types(x);
+  global_unary_return_types(x + x);
+  global_unary_return_types(x.template block<2, 2>(0, 0));
+
+  const auto real = Eigen::real(x + x);
+  const auto conjugate = Eigen::conj(x.template block<2, 2>(0, 0));
+  x += 1;
+  VERIFY_IS_APPROX(real, (x + x).real());
+  VERIFY_IS_APPROX(conjugate, (x.template block<2, 2>(0, 0).conjugate()));
+}
+
 // suppress annoying unsigned integer warnings
 template <typename Scalar, bool IsSignedInteger = NumTraits<Scalar>::IsSigned && NumTraits<Scalar>::IsInteger,
           bool IsSigned = NumTraits<Scalar>::IsSigned>
@@ -1545,6 +1580,11 @@ EIGEN_DECLARE_TEST(array_cwise) {
   CALL_SUBTEST_17(complex_classification<float>());
   CALL_SUBTEST_18(complex_classification<double>());
   CALL_SUBTEST_18(complex_classification<long double>());
+
+  CALL_SUBTEST_43((global_unary_expressions<Array<float, 3, 3>>()));
+  CALL_SUBTEST_43((global_unary_expressions<Array<double, Dynamic, Dynamic, RowMajor>>()));
+  CALL_SUBTEST_43((global_unary_expressions<Array<std::complex<float>, 3, 3, RowMajor>>()));
+  CALL_SUBTEST_43((global_unary_expressions<ArrayXXcd>()));
 
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_19(float_pow_test());
