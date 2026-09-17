@@ -794,7 +794,7 @@ EIGEN_DEVICE_FUNC Transform<Scalar, Dim, Mode, Options>& Transform<Scalar, Dim, 
     const MatrixBase<OtherDerived>& other) {
   EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(OtherDerived, int(Dim))
   EIGEN_STATIC_ASSERT(Mode != int(Isometry), THIS_METHOD_IS_ONLY_FOR_SPECIFIC_TRANSFORMATIONS)
-  linearExt().noalias() = linearExt() * other.asDiagonal();
+  linearExt() = linearExt() * other.asDiagonal();
   return *this;
 }
 
@@ -820,7 +820,7 @@ EIGEN_DEVICE_FUNC Transform<Scalar, Dim, Mode, Options>& Transform<Scalar, Dim, 
     const MatrixBase<OtherDerived>& other) {
   EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(OtherDerived, int(Dim))
   EIGEN_STATIC_ASSERT(Mode != int(Isometry), THIS_METHOD_IS_ONLY_FOR_SPECIFIC_TRANSFORMATIONS)
-  affine().noalias() = other.asDiagonal() * affine();
+  affine() = other.asDiagonal() * affine();
   return *this;
 }
 
