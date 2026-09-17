@@ -257,6 +257,9 @@ class SelfAdjointEigenSolver {
    * avoid overflow from roundoff near repeated eigenvalues. This fallback has the
    * runtime characteristics of compute() and may fail to converge. Check info()
    * for Success before using the results; the fallback can report NoConvergence.
+   * Non-finite inputs have no guaranteed decomposition. In particular, infinite
+   * coefficients can also enter the 3x3 fallback and report NoConvergence;
+   * a Success status alone does not validate non-finite input.
    *
    * Currently only 2x2 and 3x3 matrices for which the sizes are known at compile time are supported (e.g., Matrix3d).
    *
@@ -790,7 +793,7 @@ struct direct_selfadjoint_eigensolver_kernel<SolverType, 3> {
   }
 
   EIGEN_DEVICE_FUNC static void run(PlainMatrixType& scaledMat, VectorType& eivals, EigenvectorsType& eivecs,
-                                    bool computeEigenvectors) {
+                                    bool computeEigenvectors, const Scalar& maxCoeff) {
     // compute the eigenvalues
     computeRoots(scaledMat, eivals);
 
@@ -803,7 +806,7 @@ struct direct_selfadjoint_eigensolver_kernel<SolverType, 3> {
 
     // compute the eigenvectors
     if (computeEigenvectors) {
-      if ((eivals(2) - eivals(0)) <= Eigen::NumTraits<Scalar>::epsilon() * scaledMat.cwiseAbs().maxCoeff()) {
+      if ((eivals(2) - eivals(0)) <= Eigen::NumTraits<Scalar>::epsilon() * maxCoeff) {
         // All three eigenvalues are numerically the same
         eivecs.setIdentity();
       } else {
@@ -865,7 +868,8 @@ struct direct_selfadjoint_eigensolver_kernel<SolverType, 2> {
   }
 
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE static void run(PlainMatrixType& scaledMat, VectorType& eivals,
-                                                        EigenvectorsType& eivecs, bool computeEigenvectors) {
+                                                        EigenvectorsType& eivecs, bool computeEigenvectors,
+                                                        const Scalar&) {
     EIGEN_USING_STD(sqrt);
     EIGEN_USING_STD(abs);
 
@@ -902,14 +906,40 @@ struct direct_selfadjoint_eigenvalues<SolverType, Size, false, true> {
   using PlainMatrixType = typename SolverType::PlainMatrixType;
   using Scalar = typename SolverType::Scalar;
 
+  EIGEN_DEVICE_FUNC static constexpr long double power_of_two(int exponent) {
+    long double result = 1;
+    for (; exponent > 0; --exponent) result *= 2;
+    for (; exponent < 0; ++exponent) result *= 0.5L;
+    return result;
+  }
+
+  EIGEN_DEVICE_FUNC static bool safe_without_scaling(const Scalar& magnitude, true_type) {
+    // The quadratic/cubic kernels have degree 2/6. Reserve 12 exponent bits
+    // for intermediate growth and keep flushed terms below epsilon*mu^degree.
+    constexpr int degree = Size == 3 ? 6 : 2;
+    constexpr int lower = std::numeric_limits<Scalar>::min_exponent - 1 + std::numeric_limits<Scalar>::digits - 1 + 12;
+    constexpr int upper = std::numeric_limits<Scalar>::max_exponent - 1 - 12;
+    constexpr int minExponent = lower >= 0 ? (lower + degree - 1) / degree : lower / degree;
+    constexpr int maxExponent = upper >= 0 ? upper / degree : (upper - degree + 1) / degree;
+    constexpr long double minimum = power_of_two(minExponent);
+    constexpr long double maximum = power_of_two(maxExponent);
+    return magnitude >= Scalar(minimum) && magnitude <= Scalar(maximum);
+  }
+
+  EIGEN_DEVICE_FUNC static bool safe_without_scaling(const Scalar& magnitude, false_type) {
+    return magnitude >= Scalar(0.25) && magnitude <= Scalar(2) &&
+           NumTraits<Scalar>::epsilon() / Scalar(4096) >= (std::numeric_limits<Scalar>::min)();
+  }
+
   EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE static void run_scaled(SolverType& solver, const MatrixType& mat,
                                                              const Scalar& shift, Scalar centeredMax, int options) {
     PlainMatrixType scaledMat = mat.template selfadjointView<Lower>();
     scaledMat.diagonal().array() -= shift;
     centeredMax = safe_scaling<Scalar>::recover_flushed_max_coeff(scaledMat, centeredMax);
     const auto factors = safe_scaling<Scalar>::scale_to(scaledMat, scaledMat, centeredMax);
-    direct_selfadjoint_eigensolver_kernel<SolverType, Size>::run(
-        scaledMat, solver.m_eivalues, solver.m_eivec, (options & ComputeEigenvectors) == ComputeEigenvectors);
+    direct_selfadjoint_eigensolver_kernel<SolverType, Size>::run(scaledMat, solver.m_eivalues, solver.m_eivec,
+                                                                 (options & ComputeEigenvectors) == ComputeEigenvectors,
+                                                                 scaledMat.cwiseAbs().maxCoeff());
     safe_scaling<Scalar>::unscale_in_place(solver.m_eivalues, centeredMax, factors);
   }
 
@@ -923,11 +953,9 @@ struct direct_selfadjoint_eigenvalues<SolverType, Size, false, true> {
     scaledMat.diagonal().array() -= shift;
     // Centering can leave a much smaller matrix; normalize again for the cubic and cross-product formulas.
     const Scalar centeredMax = scaledMat.cwiseAbs().maxCoeff();
-    // Degree-six terms are safe in this modest range, including significant sub-dominant terms under FTZ.
-    if (centeredMax >= Scalar(0.25) && centeredMax <= Scalar(2) &&
-        NumTraits<Scalar>::epsilon() / Scalar(4096) >= (std::numeric_limits<Scalar>::min)()) {
+    if (safe_without_scaling(centeredMax, supports_power_of_two_scaling<Scalar>())) {
       direct_selfadjoint_eigensolver_kernel<SolverType, Size>::run(scaledMat, solver.m_eivalues, solver.m_eivec,
-                                                                   computeEigenvectors);
+                                                                   computeEigenvectors, centeredMax);
     } else {
       run_scaled(solver, mat, shift, centeredMax, options);
     }
@@ -953,7 +981,7 @@ struct direct_selfadjoint_eigenvalues<SolverType, Size, false, true> {
     const auto inputFactors = safe_scaling<Scalar>::scale_to(scaledMat, scaledMat, recoveredMax);
     if (maxCoeff > NumTraits<Scalar>::highest() / Scalar(2 * Size)) {
       run_large(solver, scaledMat, options,
-                bool_constant < Size == 3 && supports_power_of_two_scaling<Scalar>::value > ());
+                bool_constant<(Size == 3 && supports_power_of_two_scaling<Scalar>::value)>());
     } else {
       run_centered(solver, scaledMat, options);
     }
