@@ -98,7 +98,7 @@ struct functor_traits<add_assign_op<DstScalar, SrcScalar>> : add_assign_op<DstSc
  */
 template <typename DstScalar, typename SrcScalar = DstScalar>
 struct sub_assign_op : compound_assign_op<DstScalar, SrcScalar, scalar_difference_op<DstScalar, SrcScalar>> {
-  // Fused product subtraction can bypass scalar_difference_op.
+  // Inner and matrix-vector products can bypass scalar_difference_op.
   EIGEN_STATIC_ASSERT((!std::is_same<DstScalar, bool>::value || !std::is_same<SrcScalar, bool>::value),
                       BOOLEAN_SUBTRACTION_IS_NOT_SUPPORTED__CAST_TO_A_SIGNED_INTEGER_TYPE)
 };
