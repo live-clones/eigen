@@ -18,6 +18,13 @@ namespace Eigen {
 
 namespace internal {
 
+// Opt in only when coefficient updates are valid without init/initpacket.
+template <typename Visitor, typename = void>
+struct visitor_already_initialized : std::false_type {};
+template <typename Visitor>
+struct visitor_already_initialized<Visitor, void_t<decltype(functor_traits<Visitor>::AlreadyInitialized)>>
+    : bool_constant<functor_traits<Visitor>::AlreadyInitialized> {};
+
 template <typename Visitor, typename Derived, int UnrollCount,
           bool Vectorize = (Derived::PacketAccess && functor_traits<Visitor>::PacketAccess), bool LinearAccess = false,
           bool ShortCircuitEvaluation = false>
@@ -197,12 +204,13 @@ struct visitor_impl<Visitor, Derived, Dynamic, /*Vectorize=*/true, /*LinearAcces
   static constexpr int PacketSize = packet_traits<Scalar>::size;
   using short_circuit = short_circuit_eval_impl<Visitor, ShortCircuitEvaluation>;
   static constexpr bool RowMajor = Derived::IsRowMajor;
+  static constexpr bool AlreadyInitialized = visitor_already_initialized<Visitor>::value;
 
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(const Derived& mat, Visitor& visitor) {
     const Index innerSize = RowMajor ? mat.cols() : mat.rows();
     const Index outerSize = RowMajor ? mat.rows() : mat.cols();
     if (innerSize == 0 || outerSize == 0) return;
-    {
+    EIGEN_IF_CONSTEXPR (!AlreadyInitialized) {
       Index i = 0;
       if (innerSize < PacketSize) {
         visitor.init(mat.coeff(0, 0), 0, 0);
@@ -227,9 +235,10 @@ struct visitor_impl<Visitor, Derived, Dynamic, /*Vectorize=*/true, /*LinearAcces
         if EIGEN_PREDICT_FALSE (short_circuit::run(visitor)) return;
       }
     }
-    for (Index j = 1; j < outerSize; j++) {
+    const Index packetEnd = innerSize - innerSize % PacketSize;
+    for (Index j = AlreadyInitialized ? 0 : 1; j < outerSize; j++) {
       Index i = 0;
-      for (; i + PacketSize - 1 < innerSize; i += PacketSize) {
+      for (; AlreadyInitialized ? i < packetEnd : i + PacketSize - 1 < innerSize; i += PacketSize) {
         Index r = RowMajor ? j : i;
         Index c = RowMajor ? i : j;
         Packet p = mat.template packet<Packet>(r, c);
@@ -270,25 +279,28 @@ struct visitor_impl<Visitor, Derived, Dynamic, /*Vectorize=*/true, /*LinearAcces
   using Packet = typename packet_traits<Scalar>::type;
   static constexpr int PacketSize = packet_traits<Scalar>::size;
   using short_circuit = short_circuit_eval_impl<Visitor, ShortCircuitEvaluation>;
+  static constexpr bool AlreadyInitialized = visitor_already_initialized<Visitor>::value;
 
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(const Derived& mat, Visitor& visitor) {
     const Index size = mat.size();
     if (size == 0) return;
     const Index packetEnd = size - size % PacketSize;
     Index k = 0;
-    if (size < PacketSize) {
-      visitor.init(mat.coeff(0), 0);
-      k = 1;
-    } else {
-      Packet p = mat.template packet<Packet>(k);
-      visitor.initpacket(p, k);
-      k = PacketSize;
+    EIGEN_IF_CONSTEXPR (!AlreadyInitialized) {
+      if (size < PacketSize) {
+        visitor.init(mat.coeff(0), 0);
+        k = 1;
+      } else {
+        Packet p = mat.template packet<Packet>(k);
+        visitor.initpacket(p, k);
+        k = PacketSize;
+      }
+      if EIGEN_PREDICT_FALSE (short_circuit::run(visitor)) return;
     }
-    if EIGEN_PREDICT_FALSE (short_circuit::run(visitor)) return;
     for (; k < packetEnd; k += PacketSize) {
       Packet p = mat.template packet<Packet>(k);
       visitor.packet(p, k);
-      if EIGEN_PREDICT_FALSE (short_circuit::run(visitor)) return;
+      if (AlreadyInitialized ? short_circuit::run(visitor) : EIGEN_PREDICT_FALSE(short_circuit::run(visitor))) return;
     }
     for (; k < size; k++) {
       visitor(mat.coeff(k), k);
@@ -346,6 +358,9 @@ template <typename T>
 struct visitor_has_linear_access<T, void_t<decltype(functor_traits<T>::LinearAccess)>>
     : bool_constant<static_cast<bool>(functor_traits<T>::LinearAccess)> {};
 
+template <typename Scalar, bool Approximate>
+struct visitor_has_linear_access<fuzzy_constant_visitor<Scalar, Approximate>> : std::true_type {};
+
 template <typename Derived, typename Visitor, bool ShortCircuitEvaluation>
 struct visit_impl {
   using Evaluator = visitor_evaluator<Derived>;
@@ -359,8 +374,9 @@ struct visit_impl {
   static constexpr int OuterSizeAtCompileTime = IsRowMajor ? RowsAtCompileTime : ColsAtCompileTime;
 
   // Linear packets can make an early scalar short-circuit exit more expensive.
-  static constexpr bool LinearAccess =
-      !ShortCircuitEvaluation && Evaluator::LinearAccess && visitor_has_linear_access<Visitor>::value;
+  // Preinitialized visitors opt into starting directly with packet traversal.
+  static constexpr bool LinearAccess = (!ShortCircuitEvaluation || visitor_already_initialized<Visitor>::value) &&
+                                       Evaluator::LinearAccess && visitor_has_linear_access<Visitor>::value;
   static constexpr bool Vectorize = Evaluator::PacketAccess && static_cast<bool>(functor_traits<Visitor>::PacketAccess);
 
   static constexpr int PacketSize = packet_traits<Scalar>::size;
@@ -559,6 +575,41 @@ template <typename Derived>
 EIGEN_DEVICE_FUNC inline bool DenseBase<Derived>::allFinite() const {
   return internal::all_finite_impl<Derived>::run(derived());
 }
+
+namespace internal {
+template <bool Approximate, typename Derived,
+          std::enable_if_t<use_fuzzy_constant_visitor<typename Derived::Scalar>::value, int>>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool fuzzy_constant_all(const Derived& matrix,
+                                                              const typename Derived::Scalar& value,
+                                                              const typename Derived::RealScalar& precision) {
+  fuzzy_constant_visitor<typename Derived::Scalar, Approximate> visitor{value, precision};
+  visit_impl<Derived, decltype(visitor), true>::run(matrix, visitor);
+  return visitor.result;
+}
+
+// Separate overloads keep custom scalars from instantiating unused comparisons in C++14.
+template <bool Approximate, typename Derived,
+          std::enable_if_t<!use_fuzzy_constant_visitor<typename Derived::Scalar>::value && Approximate, int>>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool fuzzy_constant_all(const Derived& matrix,
+                                                              const typename Derived::Scalar& value,
+                                                              const typename Derived::RealScalar& precision) {
+  for (Index j = 0; j < matrix.cols(); ++j)
+    for (Index i = 0; i < matrix.rows(); ++i)
+      if (!internal::isApprox(matrix.coeff(i, j), value, precision)) return false;
+  return true;
+}
+
+template <bool Approximate, typename Derived,
+          std::enable_if_t<!use_fuzzy_constant_visitor<typename Derived::Scalar>::value && !Approximate, int>>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool fuzzy_constant_all(const Derived& matrix, const typename Derived::Scalar&,
+                                                              const typename Derived::RealScalar& precision) {
+  using Scalar = typename Derived::Scalar;
+  for (Index j = 0; j < matrix.cols(); ++j)
+    for (Index i = 0; i < matrix.rows(); ++i)
+      if (!internal::isMuchSmallerThan(matrix.coeff(i, j), Scalar(1), precision)) return false;
+  return true;
+}
+}  // namespace internal
 
 }  // end namespace Eigen
 
