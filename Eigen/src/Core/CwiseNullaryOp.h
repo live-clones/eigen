@@ -309,12 +309,10 @@ DenseBase<Derived>::EqualSpaced(const Scalar& low, const Scalar& step) {
 
 /** \returns true if all coefficients in this matrix are approximately equal to \a val, to within precision \a prec */
 template <typename Derived>
-EIGEN_DEVICE_FUNC bool DenseBase<Derived>::isApproxToConstant(const Scalar& val, const RealScalar& prec) const {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool DenseBase<Derived>::isApproxToConstant(const Scalar& val,
+                                                                                  const RealScalar& prec) const {
   typename internal::nested_eval<Derived, 1>::type self(derived());
-  for (Index j = 0; j < cols(); ++j)
-    for (Index i = 0; i < rows(); ++i)
-      if (!internal::isApprox(self.coeff(i, j), val, prec)) return false;
-  return true;
+  return internal::fuzzy_constant_all<true>(self, val, prec);
 }
 
 /** This is just an alias for isApproxToConstant().
@@ -529,12 +527,9 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const typename DenseBase<Derived>::ZeroRet
  * \sa class CwiseNullaryOp, Zero()
  */
 template <typename Derived>
-EIGEN_DEVICE_FUNC bool DenseBase<Derived>::isZero(const RealScalar& prec) const {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool DenseBase<Derived>::isZero(const RealScalar& prec) const {
   typename internal::nested_eval<Derived, 1>::type self(derived());
-  for (Index j = 0; j < cols(); ++j)
-    for (Index i = 0; i < rows(); ++i)
-      if (!internal::isMuchSmallerThan(self.coeff(i, j), static_cast<Scalar>(1), prec)) return false;
-  return true;
+  return internal::fuzzy_constant_all<false>(self, Scalar(0), prec);
 }
 
 /** Sets all coefficients in this expression to zero.
