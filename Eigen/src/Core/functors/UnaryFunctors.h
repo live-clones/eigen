@@ -1493,6 +1493,70 @@ struct functor_traits<scalar_unary_pow_op<Scalar, ExponentScalar>> {
   };
 };
 
+template <typename Scalar, bool Approximate>
+struct fuzzy_constant_visitor {
+  Scalar value;
+  typename NumTraits<Scalar>::Real precision;
+  bool result = true;
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void operator()(const Scalar& x, Index, Index = 0) {
+    result = result && (Approximate ? internal::isApprox(x, value, precision)
+                                    : internal::isMuchSmallerThan(x, Scalar(1), precision));
+  }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void init(const Scalar& x, Index r, Index c = 0) { (*this)(x, r, c); }
+  EIGEN_DEVICE_FUNC bool done() const { return !result; }
+  template <typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void packet(const Packet& x, Index, Index = 0) {
+    const Packet p = pset1<Packet>(precision);
+    Packet mask;
+    EIGEN_IF_CONSTEXPR (Approximate) {
+      const Packet v = pset1<Packet>(value);
+      mask = pcmp_le(pabs(psub(x, v)), pmul(pmin(pabs(x), pabs(v)), p));
+    } else {
+      mask = pcmp_le(pabs(x), p);
+    }
+    // Reduce the comparison mask directly, without comparing its lanes to zero again.
+    result = result && !predux_any(pandnot(ptrue(mask), mask));
+  }
+  template <typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void initpacket(const Packet& x, Index r, Index c = 0) {
+    packet(x, r, c);
+  }
+};
+
+template <typename Scalar, bool Approximate>
+struct functor_traits<fuzzy_constant_visitor<Scalar, Approximate>> {
+  static constexpr bool AlreadyInitialized = true;
+  static constexpr int Cost = 4 * NumTraits<Scalar>::AddCost + NumTraits<Scalar>::MulCost;
+  static constexpr bool PacketAccess =
+      (std::is_same<Scalar, float>::value || std::is_same<Scalar, double>::value) && packet_traits<Scalar>::HasAbs &&
+      packet_traits<Scalar>::HasCmp &&
+      (!Approximate ||
+       (packet_traits<Scalar>::HasSub && packet_traits<Scalar>::HasMin && packet_traits<Scalar>::HasMul));
+};
+
+template <typename Scalar>
+using use_fuzzy_constant_visitor =
+    bool_constant<std::is_same<Scalar, float>::value || std::is_same<Scalar, double>::value>;
+
+template <bool Approximate, typename Derived,
+          std::enable_if_t<use_fuzzy_constant_visitor<typename Derived::Scalar>::value, int> = 0>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool fuzzy_constant_all(const Derived& matrix,
+                                                              const typename Derived::Scalar& value,
+                                                              const typename Derived::RealScalar& precision);
+
+template <bool Approximate, typename Derived,
+          std::enable_if_t<!use_fuzzy_constant_visitor<typename Derived::Scalar>::value && Approximate, int> = 0>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool fuzzy_constant_all(const Derived& matrix,
+                                                              const typename Derived::Scalar& value,
+                                                              const typename Derived::RealScalar& precision);
+
+template <bool Approximate, typename Derived,
+          std::enable_if_t<!use_fuzzy_constant_visitor<typename Derived::Scalar>::value && !Approximate, int> = 0>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool fuzzy_constant_all(const Derived& matrix,
+                                                              const typename Derived::Scalar& value,
+                                                              const typename Derived::RealScalar& precision);
+
 }  // end namespace internal
 
 }  // end namespace Eigen
