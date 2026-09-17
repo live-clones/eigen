@@ -79,33 +79,48 @@ void complex_qz_exceptional_shift() {
   using RealScalar = typename MatrixType::RealScalar;
   for (Index dim : {3, 4, 5, 8}) {
     for (Scalar phase : {Scalar(1), Scalar(0, 1)}) {
-      // The trailing 2x2 block has two zero shifts: ordinary double shifts cycle without deflation.
-      MatrixType a = MatrixType::Zero(dim, dim), b = MatrixType::Identity(dim, dim);
-      a.diagonal(-1).setConstant(phase);
-      a(0, dim - 1) = phase;
-      for (Index j = 0; j < dim; ++j) {
-        b(j, j) = Scalar(1 << (j % 3));
-        a.col(j) *= b(j, j);
+      // With corner -1 and phase 1, the exceptional shift 2 is equidistant from the eigenvalues exp(+-i*pi/dim).
+      for (RealScalar corner : {RealScalar(1), RealScalar(-1)}) {
+        // The trailing 2x2 block has two zero shifts: ordinary double shifts cycle without deflation.
+        MatrixType a = MatrixType::Zero(dim, dim), b = MatrixType::Identity(dim, dim);
+        a.diagonal(-1).setConstant(phase);
+        a(0, dim - 1) = corner * phase;
+        for (Index j = 0; j < dim; ++j) {
+          b(j, j) = Scalar(1 << (j % 3));
+          a.col(j) *= b(j, j);
+        }
+        const RealScalar tolerance = RealScalar(128 * dim) * NumTraits<RealScalar>::epsilon();
+
+        ComplexQZ<MatrixType> qz(a, b);
+        verify_complex_qz_convergence(a, b, qz);
+        // a*b^-1 = phase*P with P^dim = corner*I, so lambda_k = phase*w_k with w_k^dim = corner. These are
+        // 2*sin(pi/dim) apart with unit condition number (y^* b x = 1 for unit left y and |x| <= 1), so each moves by
+        // at most the backward error, including the dropped strictly lower parts of S and T.
+        const Matrix<Scalar, Dynamic, 1> lambda = qz.matrixS().diagonal().cwiseQuotient(qz.matrixT().diagonal());
+        const RealScalar eigenvalueTolerance = RealScalar(2) * tolerance * (a.norm() + b.norm());
+        for (Index k = 0; k < dim; ++k) {
+          const RealScalar angle = (RealScalar(2 * k) + (corner < 0 ? RealScalar(1) : RealScalar(0))) *
+                                   RealScalar(EIGEN_PI) / RealScalar(dim);
+          const Scalar expected = phase * std::polar(RealScalar(1), angle);
+          VERIFY((lambda.array() - expected).abs().minCoeff() <= eigenvalueTolerance);
+        }
+
+        ComplexQZ<MatrixType> limited(a, b, true, 1);
+        VERIFY_IS_EQUAL(limited.info(), NoConvergence);
+        VERIFY_IS_EQUAL(limited.iterations(), 1);
+
+        MatrixType inplaceA = a, inplaceB = b;
+        ComplexQZ<Ref<MatrixType>> inplace(inplaceA, inplaceB);
+        verify_complex_qz_convergence(a, b, inplace);
+
+        const MatrixType s = qz.matrixS(), t = qz.matrixT();
+        qz.compute(a, b, false);
+        VERIFY_IS_EQUAL(qz.info(), Success);
+        VERIFY((qz.matrixS() - s).norm() <= tolerance * a.norm());
+        VERIFY((qz.matrixT() - t).norm() <= tolerance * b.norm());
+        qz.compute(a, b);
+        verify_complex_qz_convergence(a, b, qz);
       }
-
-      ComplexQZ<MatrixType> qz(a, b);
-      verify_complex_qz_convergence(a, b, qz);
-      ComplexQZ<MatrixType> limited(a, b, true, 1);
-      VERIFY_IS_EQUAL(limited.info(), NoConvergence);
-      VERIFY_IS_EQUAL(limited.iterations(), 1);
-
-      MatrixType inplaceA = a, inplaceB = b;
-      ComplexQZ<Ref<MatrixType>> inplace(inplaceA, inplaceB);
-      verify_complex_qz_convergence(a, b, inplace);
-
-      const MatrixType s = qz.matrixS(), t = qz.matrixT();
-      qz.compute(a, b, false);
-      VERIFY_IS_EQUAL(qz.info(), Success);
-      const RealScalar tolerance = RealScalar(128 * dim) * NumTraits<RealScalar>::epsilon();
-      VERIFY((qz.matrixS() - s).norm() <= tolerance * a.norm());
-      VERIFY((qz.matrixT() - t).norm() <= tolerance * b.norm());
-      qz.compute(a, b);
-      verify_complex_qz_convergence(a, b, qz);
     }
   }
 }
