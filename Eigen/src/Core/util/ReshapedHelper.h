@@ -25,7 +25,7 @@ template <typename SizeType, typename OtherSize, int TotalSize>
 struct get_compiletime_reshape_size : get_fixed_value<SizeType> {};
 
 template <typename SizeType>
-Index get_runtime_reshape_size(SizeType size, Index /*other*/, Index /*total*/) {
+constexpr Index get_runtime_reshape_size(SizeType size, Index /*other*/, Index /*total*/) {
   return internal::get_runtime_value(size);
 }
 
@@ -37,7 +37,7 @@ struct get_compiletime_reshape_size<AutoSize_t, OtherSize, TotalSize> {
   };
 };
 
-inline Index get_runtime_reshape_size(AutoSize_t /*size*/, Index other, Index total) { return total / other; }
+constexpr Index get_runtime_reshape_size(AutoSize_t /*size*/, Index other, Index total) { return total / other; }
 
 constexpr int get_compiletime_reshape_order(int flags, int order) {
   return order == AutoOrder ? flags & RowMajorBit : order;
