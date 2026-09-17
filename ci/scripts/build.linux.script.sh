@@ -12,6 +12,13 @@ cd ${EIGEN_CI_BUILDDIR}
 # The GitLab cache holds ${CCACHE_DIR}, keyed on content and compiler, so it
 # still hits after the fresh per-job clone re-stamps every source mtime
 # (which makes any cached ninja state rebuild from scratch).
+# EIGEN_CI_CCACHE_* provide the YAML fallback defaults.  A runner may explicitly
+# set standard CCACHE_* variables (e.g. CCACHE_DIR to a persistent host bind-mount)
+# in /etc/gitlab-runner/config.toml without being overridden by the YAML template.
+export CCACHE_DIR="${CCACHE_DIR:-${EIGEN_CI_CCACHE_DIR}}"
+export CCACHE_MAXSIZE="${CCACHE_MAXSIZE:-${EIGEN_CI_CCACHE_MAXSIZE}}"
+export CCACHE_BASEDIR="${CCACHE_BASEDIR:-${EIGEN_CI_CCACHE_BASEDIR}}"
+export CCACHE_COMPRESSLEVEL="${CCACHE_COMPRESSLEVEL:-${EIGEN_CI_CCACHE_COMPRESSLEVEL}}"
 launchers=""
 if [[ "${EIGEN_CI_CCACHE}" == "on" ]] && command -v ccache >/dev/null 2>&1; then
   launchers="-DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache"

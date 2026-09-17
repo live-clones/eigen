@@ -136,6 +136,22 @@ if ("${EIGEN_CI_CCACHE}" -eq "on") {
 
 $launchers = @()
 if ($ccache_exe) {
+  # EIGEN_CI_CCACHE_* provide the YAML fallback defaults.  A runner may explicitly
+  # set standard CCACHE_* variables (e.g. to a persistent host directory) in
+  # config.toml without being overridden by the YAML template.
+  if (-not $env:CCACHE_DIR -and $env:EIGEN_CI_CCACHE_DIR) {
+    $env:CCACHE_DIR = $env:EIGEN_CI_CCACHE_DIR
+  }
+  if (-not $env:CCACHE_MAXSIZE -and $env:EIGEN_CI_CCACHE_MAXSIZE) {
+    $env:CCACHE_MAXSIZE = $env:EIGEN_CI_CCACHE_MAXSIZE
+  }
+  if (-not $env:CCACHE_BASEDIR -and $env:EIGEN_CI_CCACHE_BASEDIR) {
+    $env:CCACHE_BASEDIR = $env:EIGEN_CI_CCACHE_BASEDIR
+  }
+  if (-not $env:CCACHE_COMPRESSLEVEL -and $env:EIGEN_CI_CCACHE_COMPRESSLEVEL) {
+    $env:CCACHE_COMPRESSLEVEL = $env:EIGEN_CI_CCACHE_COMPRESSLEVEL
+  }
+
   # Forward slashes: CMake treats the launcher as a path-valued cache entry.
   $ccache_cmake = $ccache_exe -replace '\\', '/'
   $launchers = "-DCMAKE_C_COMPILER_LAUNCHER=${ccache_cmake}",
