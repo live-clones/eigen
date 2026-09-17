@@ -44,10 +44,16 @@ static void BM_TrsmPacket(benchmark::State& state) {
       ->Args({12, 12})     \
       ->Args({16, 16})     \
       ->Args({24, 24})     \
+      ->Args({31, 31})     \
       ->Args({32, 32})     \
+      ->Args({33, 33})     \
       ->Args({48, 48})     \
+      ->Args({63, 63})     \
       ->Args({64, 64})     \
+      ->Args({65, 65})     \
+      ->Args({95, 95})     \
       ->Args({96, 96})     \
+      ->Args({97, 97})     \
       ->Args({100, 100})   \
       ->Args({127, 127})   \
       ->Args({128, 128})   \
@@ -65,6 +71,9 @@ static void BM_TrsmPacket(benchmark::State& state) {
       ->Args({64, 16})     \
       ->Args({64, 17})     \
       ->Args({64, 4096})   \
+      ->Args({128, 4})     \
+      ->Args({128, 8})     \
+      ->Args({128, 17})    \
       ->Args({1024, 8})    \
       ->Args({1024, 32})   \
       ->Args({1024, 128})  \
