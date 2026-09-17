@@ -72,7 +72,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool stable_normalization_combined_factor(
   // Check before dividing: an overflowing reciprocal can raise FE_OVERFLOW even if the two-step fallback is used.
   if (sqrtNorm < Accumulator(1) && invScale > Accumulator(NumTraits<Accumulator>::highest()) * sqrtNorm) return false;
   Accumulator localSqrtNorm = sqrtNorm;
-  optimization_barrier(localSqrtNorm);
+  EIGEN_OPTIMIZATION_BARRIER(localSqrtNorm)
   factor = invScale / localSqrtNorm;
   return factor >= stable_normalization_normal_min<Accumulator, Accumulator>::run();
 }

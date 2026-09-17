@@ -471,19 +471,6 @@ constexpr EIGEN_STRONG_INLINE bool is_identically_zero(const Scalar& s) {
   return is_identically_zero_impl<Scalar>::run(s);
 }
 
-// EIGEN_OPTIMIZATION_BARRIER applies to plain types only: its operand must be register-allocatable, and ppc64le/GCC
-// constrains it to "+r,v,wa" with no memory alternative, so a class type that must stay in memory is a compile error.
-// This wrapper makes it usable from code generic over Scalar, and is a no-op for any other type. Packets need the
-// macro directly.
-template <typename T>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::enable_if_t<std::is_arithmetic<T>::value> optimization_barrier(T& value) {
-  EIGEN_OPTIMIZATION_BARRIER(value)
-  // The macro is empty on architectures without an implementation, and during the GPU compile phase.
-  EIGEN_UNUSED_VARIABLE(value);
-}
-template <typename T>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::enable_if_t<!std::is_arithmetic<T>::value> optimization_barrier(T&) {}
-
 // true if T can be considered as an integral index (i.e., an integral type or enum)
 template <typename T>
 using is_valid_index_type = bool_constant<std::is_integral<T>::value || std::is_enum<T>::value>;
