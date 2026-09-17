@@ -301,7 +301,8 @@ void inner_product_runtime_stride() {
   using Vec = Matrix<Scalar, Dynamic, 1>;
   using StridedMap = Map<const Vec, Unaligned, InnerStride<Dynamic>>;
   const Index packetSize = internal::packet_traits<Scalar>::size;
-  const Index sizes[] = {0, 1, packetSize - 1, packetSize, packetSize + 1, 4 * packetSize, 9 * packetSize + 1};
+  const Index sizes[] = {
+      0, 1, 2, 3, 4, 5, packetSize - 1, packetSize, packetSize + 1, 4 * packetSize, 9 * packetSize + 1};
   for (Index n : sizes) {
     Vec a = Vec::Random(2 * n + 2), b = Vec::Random(2 * n + 2);
     for (Index lhsStride : {1, 2, -2}) {
@@ -333,7 +334,7 @@ void inner_product_runtime_stride() {
 template <typename Scalar>
 void inner_product_exact_values() {
   using Vec = Matrix<Scalar, Dynamic, 1>;
-  for (Index n : {0, 1, 17, 65}) {
+  for (Index n : {0, 1, 2, 3, 4, 5, 17, 65}) {
     Vec a(2 * n), b(2 * n);
     for (Index i = 0; i < 2 * n; ++i) {
       a(i) = Scalar(i % 3 == 0);

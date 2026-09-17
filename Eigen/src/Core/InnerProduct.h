@@ -266,6 +266,30 @@ struct inner_product_dispatch<Lhs, Rhs, Conj, true> {
   using result_type = typename Impl::result_type;
 
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type run(const MatrixBase<Lhs>& a, const MatrixBase<Rhs>& b) {
+    EIGEN_IF_CONSTEXPR (Conj) {
+      return run_general(a, b);
+    }
+    // Keep tiny products inlined without the remapping and packet-loop setup.
+    if (a.size() <= 4) {
+      typename Impl::Evaluator eval(a.derived(), b.derived());
+      if (eval.size() == 0) return result_type(0);
+      result_type result = eval.coeff(0);
+      if (eval.size() > 1) result = eval.coeff(result, 1);
+      if (eval.size() > 2) result = eval.coeff(result, 2);
+      if (eval.size() > 3) result = eval.coeff(result, 3);
+      return result;
+    }
+    return run_large_product(a, b);
+  }
+
+  // Keep the larger product kernel out of tiny callers, while dot() retains its existing inlining.
+  static EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE result_type run_large_product(const MatrixBase<Lhs>& a,
+                                                                           const MatrixBase<Rhs>& b) {
+    return run_general(a, b);
+  }
+
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type run_general(const MatrixBase<Lhs>& a,
+                                                                       const MatrixBase<Rhs>& b) {
     using LhsUnwrapper = unwrap_unary<Lhs>;
     using RhsUnwrapper = unwrap_unary<Rhs>;
     using LhsInner = typename LhsUnwrapper::type;

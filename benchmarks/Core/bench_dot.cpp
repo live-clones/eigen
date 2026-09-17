@@ -66,7 +66,7 @@ static void BM_StridedInnerProduct(benchmark::State& state) {
 }
 
 // clang-format off
-#define STRIDED_INNER_PRODUCT_SIZES ->ArgsProduct({{3, 8, 17, 64, 1024, 16384}, {1, 2}, {1, 2}})
+#define STRIDED_INNER_PRODUCT_SIZES ->ArgsProduct({{1, 2, 3, 4, 5, 8, 17, 64, 1024, 16384}, {1, 2}, {1, 2}})
 BENCHMARK_TEMPLATE(BM_StridedInnerProduct, float, false) STRIDED_INNER_PRODUCT_SIZES ->Name("StridedDot_float");
 BENCHMARK_TEMPLATE(BM_StridedInnerProduct, double, false) STRIDED_INNER_PRODUCT_SIZES ->Name("StridedDot_double");
 BENCHMARK_TEMPLATE(BM_StridedInnerProduct, std::complex<float>, false) STRIDED_INNER_PRODUCT_SIZES ->Name("StridedDot_cfloat");
