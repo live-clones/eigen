@@ -1424,7 +1424,7 @@ struct transform_transform_product_impl<Transform<Scalar, Dim, LhsMode, LhsOptio
   static EIGEN_DEVICE_FUNC ResultType run(const Lhs& lhs, const Rhs& rhs) {
     ResultType res;
     res.linear().noalias() = lhs.linear() * rhs.linear();
-    res.translation() = lhs.linear() * rhs.translation() + lhs.translation();
+    res.translation().noalias() = lhs.linear() * rhs.translation() + lhs.translation();
     res.makeAffine();
     return res;
   }
@@ -1449,7 +1449,7 @@ struct transform_transform_product_impl<Transform<Scalar, Dim, AffineCompact, Lh
   using ResultType = Transform<Scalar, Dim, Projective>;
   static EIGEN_DEVICE_FUNC ResultType run(const Lhs& lhs, const Rhs& rhs) {
     ResultType res;
-    res.matrix().template topRows<Dim>() = lhs.matrix() * rhs.matrix();
+    res.matrix().template topRows<Dim>().noalias() = lhs.matrix() * rhs.matrix();
     res.matrix().row(Dim) = rhs.matrix().row(Dim);
     return res;
   }
