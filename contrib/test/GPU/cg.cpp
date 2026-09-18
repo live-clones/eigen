@@ -127,6 +127,54 @@ void test_gpu_cg(Index n) {
   VERIFY((x_gpu - x_cpu).norm() / (x_cpu.norm() + RealScalar(1)) < sol_tol);
 }
 
+// ---- Eigen's own conjugate_gradient() template on device types ---------------
+// The template is generic in its vector type (Dest::PlainObject). This test is
+// what makes the README's claim true: it calls the unmodified template with a
+// DeviceSparseView matrix and DeviceMatrix vectors and checks the result against
+// the CPU solver. It exercises the pieces added for it: `rhs - mat * x`,
+// stableNorm(), operator/=, and the deep copy behind `p = precond.solve(r)`.
+template <typename Scalar>
+void test_gpu_cg_template(Index n) {
+  using SpMat = SparseMatrix<Scalar, ColMajor, int>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  SpMat A = make_spd<Scalar>(n);
+  Vec b = Vec::Random(n);
+  ConjugateGradient<SpMat, Lower | Upper, IdentityPreconditioner> cpu_cg;
+  cpu_cg.setMaxIterations(1000);
+  cpu_cg.setTolerance(RealScalar(1e-8));
+  cpu_cg.compute(A);
+  Vec x_cpu = cpu_cg.solve(b);
+  VERIFY_IS_EQUAL(cpu_cg.info(), Success);
+
+  gpu::Context ctx;
+  gpu::Context::setThreadLocal(&ctx);
+  gpu::SparseContext<Scalar> spmv_ctx(ctx);
+  auto mat = spmv_ctx.deviceView(A);
+  auto d_b = gpu::DeviceMatrix<Scalar>::fromHost(b, ctx.stream());
+  gpu::DeviceMatrix<Scalar> d_x(n, 1);
+  d_x.setZero(ctx);
+  Index iters = 1000;
+  RealScalar tol_error = RealScalar(1e-8);
+  internal::conjugate_gradient(mat, d_b, d_x, IdentityPreconditioner(), iters, tol_error);
+  VERIFY(iters > 0 && iters < 1000);
+  VERIFY(tol_error <= RealScalar(1e-8));
+
+  // The deep copy and the scalar division the template relies on.
+  gpu::DeviceMatrix<Scalar> d_c = d_b;
+  d_c /= Scalar(2);
+  gpu::Context::setThreadLocal(nullptr);
+  Vec c = d_c.toHost(ctx.stream());
+  VERIFY_IS_APPROX(c, (b / Scalar(2)).eval());
+
+  Vec x_gpu = d_x.toHost(ctx.stream());
+  Vec r = A * x_gpu - b;
+  RealScalar relres = r.norm() / b.norm();
+  VERIFY(relres < RealScalar(1e-6));
+  RealScalar sol_tol = RealScalar(100) * RealScalar(n) * NumTraits<Scalar>::epsilon();
+  VERIFY((x_gpu - x_cpu).norm() / (x_cpu.norm() + RealScalar(1)) < sol_tol);
+}
+
 // ---- GPU CG with Jacobi preconditioner --------------------------------------
 
 template <typename Scalar>
@@ -224,8 +272,12 @@ EIGEN_DECLARE_TEST(gpu_cg) {
   CALL_SUBTEST_1(test_gpu_cg<double>(256));
   CALL_SUBTEST_1(test_gpu_cg_jacobi<double>(64));
   CALL_SUBTEST_1(test_gpu_cg_jacobi<double>(256));
+  CALL_SUBTEST_1(test_gpu_cg_template<double>(64));
+  CALL_SUBTEST_1(test_gpu_cg_template<double>(256));
   CALL_SUBTEST_2(test_gpu_cg<float>(64));
   CALL_SUBTEST_2(test_gpu_cg<float>(256));
   CALL_SUBTEST_2(test_gpu_cg_jacobi<float>(64));
   CALL_SUBTEST_2(test_gpu_cg_jacobi<float>(256));
+  CALL_SUBTEST_2(test_gpu_cg_template<float>(64));
+  CALL_SUBTEST_2(test_gpu_cg_template<float>(256));
 }

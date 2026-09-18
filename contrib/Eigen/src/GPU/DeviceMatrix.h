@@ -202,8 +202,14 @@ class DeviceMatrix {
     return *this;
   }
 
-  DeviceMatrix(const DeviceMatrix&) = delete;
-  DeviceMatrix& operator=(const DeviceMatrix&) = delete;
+  /** Deep copy: a device-to-device cuBLAS copy on the thread-local Context,
+   * asynchronous and without a host transfer. Copies exist so that generic Eigen
+   * algorithm code with value semantics (`p = precond.solve(residual)` in
+   * internal::conjugate_gradient) compiles against DeviceMatrix; code that
+   * manages streams explicitly should prefer copyFrom(ctx, other). Defined
+   * out-of-line in DeviceDispatch.h, where Context is complete. */
+  DeviceMatrix(const DeviceMatrix& other);
+  DeviceMatrix& operator=(const DeviceMatrix& other);
 
   /** Upload a host Eigen matrix to device memory (synchronous).
    *
@@ -438,6 +444,11 @@ class DeviceMatrix {
   /** L2 norm, without a host sync. */
   DeviceScalar<typename NumTraits<Scalar>::Real> norm(Context& ctx) const;
 
+  /** Overflow-safe L2 norm, the same as norm(): cuBLAS nrm2 already runs a
+   * scaled sum of squares. Provided so that Eigen's iterative solver templates,
+   * which call stableNorm(), compile against DeviceMatrix. */
+  DeviceScalar<typename NumTraits<Scalar>::Real> stableNorm(Context& ctx) const;
+
   /** Set all elements to zero. */
   void setZero(Context& ctx);
   void setZero(cudaStream_t stream);
@@ -454,6 +465,7 @@ class DeviceMatrix {
   DeviceScalar<Scalar> dot(const DeviceMatrix& other) const;
   DeviceScalar<typename NumTraits<Scalar>::Real> squaredNorm() const;
   DeviceScalar<typename NumTraits<Scalar>::Real> norm() const;
+  DeviceScalar<typename NumTraits<Scalar>::Real> stableNorm() const;
   void setZero();
 
   // The operators below let iterative-solver code written against Matrix — say
@@ -476,6 +488,9 @@ class DeviceMatrix {
   /** this *= alpha (cuBLAS scal, host pointer mode). */
   DeviceMatrix& operator*=(Scalar alpha);
 
+  /** this /= alpha (cuBLAS scal with 1/alpha). */
+  DeviceMatrix& operator/=(Scalar alpha);
+
   /** this *= alpha (cuBLAS scal, device pointer mode). Avoids a host sync. */
   DeviceMatrix& operator*=(const DeviceScalar<Scalar>& alpha);
 
@@ -492,7 +507,9 @@ class DeviceMatrix {
   /** this -= DeviceScalar * x (cuBLAS axpy with negated device scalar). */
   DeviceMatrix& operator-=(const DeviceScaledDevice<Scalar>& expr);
 
-  /** Assign from an SpMV expression: d_y = d_A * d_x. */
+  /** Assign from an SpMV expression: d_y = d_A * d_x, or with an addend,
+   * d_y = d_b - d_A * d_x and the other sign combinations (one cuSPARSE call
+   * with beta = ±1 after a copy of the addend, skipped when it is d_y). */
   DeviceMatrix& operator=(const SpMVExpr<Scalar>& expr);
 
   /** Assign from an add expression: d_C = alpha * d_A + beta * d_B (cuBLAS geam). */

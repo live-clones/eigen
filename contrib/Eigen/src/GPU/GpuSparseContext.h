@@ -42,21 +42,58 @@
 namespace Eigen {
 namespace gpu {
 
-/** Sparse product expression: DeviceSparseView * DeviceMatrix → SpMVExpr.
- * Evaluated by DeviceMatrix::operator=(SpMVExpr): dispatches to cusparseSpMV
- * when the dense operand has one column, cusparseSpMM otherwise. */
+/** Sparse product expression: alpha * (DeviceSparseView * DeviceMatrix) + beta * addend.
+ * `d_A * d_x` alone has alpha = 1, beta = 0 and no addend; `d_b - d_A * d_x`,
+ * `d_b + d_A * d_x` and `d_A * d_x - d_b` set alpha, beta and the addend so that
+ * Eigen's iterative solver templates (`residual = rhs - mat * x`) compile.
+ * Evaluated by DeviceMatrix::operator=(SpMVExpr): the addend is copied into the
+ * destination unless it already is the destination, then one cusparseSpMV
+ * (one column) or cusparseSpMM call runs with the given alpha and beta. */
 template <typename Scalar_>
 class SpMVExpr {
  public:
   using Scalar = Scalar_;
-  SpMVExpr(const DeviceSparseView<Scalar>& view, const DeviceMatrix<Scalar>& x) : view_(view), x_(x) {}
+  SpMVExpr(const DeviceSparseView<Scalar>& view, const DeviceMatrix<Scalar>& x, Scalar alpha = Scalar(1),
+           Scalar beta = Scalar(0), const DeviceMatrix<Scalar>* addend = nullptr)
+      : view_(view), x_(x), alpha_(alpha), beta_(beta), addend_(addend) {}
   const DeviceSparseView<Scalar>& view() const { return view_; }
   const DeviceMatrix<Scalar>& x() const { return x_; }
+  Scalar alpha() const { return alpha_; }
+  Scalar beta() const { return beta_; }
+  /** The dense term added to the product, or nullptr when there is none. */
+  const DeviceMatrix<Scalar>* addend() const { return addend_; }
 
  private:
   const DeviceSparseView<Scalar>& view_;
   const DeviceMatrix<Scalar>& x_;
+  Scalar alpha_;
+  Scalar beta_;
+  const DeviceMatrix<Scalar>* addend_;
 };
+
+// d_b - d_A * d_x, d_b + d_A * d_x, d_A * d_x - d_b: one SpMV with beta = ±1 into a copy of d_b.
+template <typename S>
+SpMVExpr<S> operator-(const DeviceMatrix<S>& b, const SpMVExpr<S>& p) {
+  eigen_assert(p.addend() == nullptr && "SpMVExpr: only one dense addend is supported");
+  return SpMVExpr<S>(p.view(), p.x(), -p.alpha(), S(1), &b);
+}
+
+template <typename S>
+SpMVExpr<S> operator+(const DeviceMatrix<S>& b, const SpMVExpr<S>& p) {
+  eigen_assert(p.addend() == nullptr && "SpMVExpr: only one dense addend is supported");
+  return SpMVExpr<S>(p.view(), p.x(), p.alpha(), S(1), &b);
+}
+
+template <typename S>
+SpMVExpr<S> operator+(const SpMVExpr<S>& p, const DeviceMatrix<S>& b) {
+  return b + p;
+}
+
+template <typename S>
+SpMVExpr<S> operator-(const SpMVExpr<S>& p, const DeviceMatrix<S>& b) {
+  eigen_assert(p.addend() == nullptr && "SpMVExpr: only one dense addend is supported");
+  return SpMVExpr<S>(p.view(), p.x(), p.alpha(), S(-1), &b);
+}
 
 /** Device-resident sparse matrix view. Returned by SparseContext::deviceView().
  * Lightweight handle referencing the context's cached device data.
@@ -660,10 +697,14 @@ DeviceMatrix<Scalar_>& DeviceMatrix<Scalar_>::operator=(const SpMVExpr<Scalar_>&
   // uploaded again, replacing the cached data) is caught here.
   eigen_assert(expr.view().generation() == expr.view().context().uploadGeneration() &&
                "DeviceSparseView is stale: its SparseContext has since uploaded another sparse matrix");
+  // With an addend (d_y = d_b ± d_A * d_x) the product accumulates into a copy of
+  // it; when the addend is the destination itself (d_y = d_y - d_A * d_x) there
+  // is nothing to copy and cuSPARSE's beta does the accumulation in place.
+  if (expr.addend() != nullptr && expr.addend() != this) copyFrom(Context::threadLocal(), *expr.addend());
   if (expr.x().cols() <= 1) {
-    expr.view().context().spmv_device_exec(expr.x(), *this, Scalar_(1), Scalar_(0), GpuOp::NoTrans);
+    expr.view().context().spmv_device_exec(expr.x(), *this, expr.alpha(), expr.beta(), GpuOp::NoTrans);
   } else {
-    expr.view().context().spmm_device_exec(expr.x(), *this, Scalar_(1), Scalar_(0), GpuOp::NoTrans);
+    expr.view().context().spmm_device_exec(expr.x(), *this, expr.alpha(), expr.beta(), GpuOp::NoTrans);
   }
   return *this;
 }
