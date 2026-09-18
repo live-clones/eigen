@@ -12,6 +12,7 @@
 #define EIGEN_LAPACK_UTILS_H
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <complex>
 #include <limits>
@@ -30,6 +31,10 @@ T xlapy2(const T x, const T y) {
 // Compute sqrt(x*x + y*y + z*z) taking care not to cause unnecessary overflow.
 template <typename T>
 T xlapy3(const T x, const T y, const T z) {
+  if (x == T(0) && y == T(0) && z == T(0)) {
+    return T(0);
+  }
+
   const T xabs = numext::abs(x);
   const T yabs = numext::abs(y);
   const T zabs = numext::abs(z);
@@ -48,40 +53,34 @@ T xlapy3(const T x, const T y, const T z) {
 // Determines machine parameters according to LAPACK specification.
 template <typename T>
 T xlamch(const char c) {
-  if (c == 'E' || c == 'e') {
-    return numext::numeric_limits<T>::epsilon() / numext::numeric_limits<T>::radix;
+  switch (std::tolower(static_cast<unsigned char>(c))) {
+    case 'e':
+      return numext::numeric_limits<T>::epsilon() / numext::numeric_limits<T>::radix;
+    case 's': {
+      EIGEN_CONSTEXPR T tiny = (numext::numeric_limits<T>::min)();
+      EIGEN_CONSTEXPR T small = T(1) / (numext::numeric_limits<T>::max)();
+      EIGEN_CONSTEXPR T small_scaled = small * (T(1) + numext::numeric_limits<T>::epsilon());
+      return (small >= tiny) ? small_scaled : tiny;
+    }
+    case 'b':
+      return numext::numeric_limits<T>::radix;
+    case 'p':
+      return numext::numeric_limits<T>::epsilon();
+    case 'n':
+      return numext::numeric_limits<T>::digits;
+    case 'r':
+      return 1;
+    case 'm':
+      return numext::numeric_limits<T>::min_exponent;
+    case 'u':
+      return (numext::numeric_limits<T>::min)();
+    case 'l':
+      return numext::numeric_limits<T>::max_exponent;
+    case 'o':
+      return (numext::numeric_limits<T>::max)();
+    default:
+      return 0;
   }
-  if (c == 'S' || c == 's') {
-    EIGEN_CONSTEXPR T tiny = (numext::numeric_limits<T>::min)();
-    EIGEN_CONSTEXPR T small = T(1) / (numext::numeric_limits<T>::max)();
-    EIGEN_CONSTEXPR T small_scaled = small * (T(1) + numext::numeric_limits<T>::epsilon());
-    return (small >= tiny) ? small_scaled : tiny;
-  }
-  if (c == 'B' || c == 'b') {
-    return numext::numeric_limits<T>::radix;
-  }
-  if (c == 'P' || c == 'p') {
-    return numext::numeric_limits<T>::epsilon();
-  }
-  if (c == 'N' || c == 'n') {
-    return numext::numeric_limits<T>::digits;
-  }
-  if (c == 'R' || c == 'r') {
-    return 1;
-  }
-  if (c == 'M' || c == 'm') {
-    return numext::numeric_limits<T>::min_exponent;
-  }
-  if (c == 'U' || c == 'u') {
-    return (numext::numeric_limits<T>::min)();
-  }
-  if (c == 'L' || c == 'l') {
-    return numext::numeric_limits<T>::max_exponent;
-  }
-  if (c == 'O' || c == 'o') {
-    return (numext::numeric_limits<T>::max)();
-  }
-  return 0;
 }
 
 // Performs complex division in real arithmetic, avoiding unnecessary intermediate overflow.
@@ -119,7 +118,7 @@ EIGEN_STRONG_INLINE std::complex<RealScalar> xladiv(const RealScalar a, const Re
 // Conjugate entries of vector x.
 template <typename T>
 void xlacgv(const int n, T* x, const int incx) {
-  using StridedVector = Map<Matrix<T, Dynamic, 1>, 0, InnerStride<Dynamic> >;
+  using StridedVector = Map<Matrix<T, Dynamic, 1>, Unaligned, InnerStride<Dynamic> >;
   StridedVector xvec(x, n, InnerStride<Dynamic>(numext::abs(incx)));
   xvec = xvec.conjugate();
 }
@@ -128,7 +127,7 @@ void xlacgv(const int n, T* x, const int incx) {
 template <typename T>
 int ilaxlc(const int m, const int n, const T* a, const int lda) {
   if (m == 0 || n == 0) return 0;
-  using MatrixType = Map<const Matrix<T, Dynamic, Dynamic, ColMajor>, 0, OuterStride<> >;
+  using MatrixType = Map<const Matrix<T, Dynamic, Dynamic, ColMajor>, Unaligned, OuterStride<> >;
   MatrixType a_matrix(a, m, n, OuterStride<>(lda));
 
   // Quick test for the common case where one corner is non-zero.
@@ -138,10 +137,8 @@ int ilaxlc(const int m, const int n, const T* a, const int lda) {
 
   // Now scan each column from the end, returning with the first non-zero.
   int c = n - 1;
-  for (; c >= 0; --c) {
-    if ((a_matrix.array().col(c) != T(0)).any()) {
-      break;
-    }
+  while (c >= 0 && (a_matrix.array().col(c) == T(0)).all()) {
+    --c;
   }
   return c + 1;
 }
@@ -150,7 +147,7 @@ int ilaxlc(const int m, const int n, const T* a, const int lda) {
 template <typename T>
 int ilaxlr(const int m, const int n, const T* a, const int lda) {
   if (m == 0 || n == 0) return 0;
-  using MatrixType = Map<const Matrix<T, Dynamic, Dynamic, ColMajor>, 0, OuterStride<> >;
+  using MatrixType = Map<const Matrix<T, Dynamic, Dynamic, ColMajor>, Unaligned, OuterStride<> >;
   MatrixType a_matrix(a, m, n, OuterStride<>(lda));
 
   // Quick test for the common case where one corner is non-zero.
@@ -160,10 +157,8 @@ int ilaxlr(const int m, const int n, const T* a, const int lda) {
 
   // Now scan each row from the end, returning with the first non-zero.
   int r = m - 1;
-  for (; r >= 0; --r) {
-    if ((a_matrix.array().row(r) != T(0)).any()) {
-      break;
-    }
+  while (r >= 0 && (a_matrix.array().row(r) == T(0)).all()) {
+    --r;
   }
   return r + 1;
 }
