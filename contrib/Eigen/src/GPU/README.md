@@ -540,11 +540,14 @@ context asserts instead of silently multiplying by the wrong matrix.
 
 #### Block sparse matrices (BSR)
 
-Every `SparseContext` entry point above also accepts a `BlockSparseMatrix`
-with square blocks, uploaded in cuSPARSE's BSR (block sparse row) format.
-This needs cuSPARSE 12.6.3 (CUDA 13.0 Update 1) or newer, where the generic
+Every `SparseContext` entry point above also accepts a `BlockSparseMatrix`.
+Square blocks of size at least 2 upload in cuSPARSE's BSR (block sparse row)
+format on cuSPARSE 12.6.3 (CUDA 13.0 Update 1) or newer, where the generic
 SpMV and SpMM run on BSR descriptors; `EIGEN_HAS_CUSPARSE_BSR` is 1 there and
-0 on older toolkits, which do not declare these overloads.
+0 on older toolkits. Any other block shape, and every `BlockSparseMatrix` on an
+older toolkit, takes the CSC path instead: the matrix is expanded with
+`toSparse()` on the host, once per host-input call or once per `deviceView()`,
+so source compatibility does not depend on the toolkit.
 
 ```cpp
 BlockSparseMatrix<double, RowMajor, 3, 3> A = ...;   // 3x3 blocks, block-row storage
@@ -566,10 +569,11 @@ combination transposes (and conjugates) the matrix on the host first, once per
 host-input call or once per `deviceView()`. `spmv_device_exec()` and
 `spmm_device_exec()` consequently accept only `NoTrans` against a BSR upload.
 
-The block type must be square and at least 2 x 2: cuSPARSE rejects
-rectangular blocks at descriptor creation and runs no BSR SpMV on 1 x 1
-blocks (use `SparseMatrix` for scalar entries). The `int` index type and the
-`int` limits on dimensions and nonzeros are as for `SparseMatrix`.
+The CSC fallback exists because cuSPARSE rejects rectangular blocks at
+descriptor creation and runs no BSR SpMV on 1 x 1 blocks;
+`internal::use_cusparse_bsr<BlockRows, BlockCols>` is the exact selector. The
+`int` index type and the `int` limits on dimensions and nonzeros are as for
+`SparseMatrix`.
 
 ### Eigen algorithm interop (example: Conjugate gradient)
 
@@ -1064,10 +1068,11 @@ the input scalar type (complex vs real).
 
 ### `gpu::SparseContext<Scalar>` -- SpMV/SpMM (cuSPARSE)
 
-Accepts `SparseMatrix<Scalar, ColMajor>` and, with `EIGEN_HAS_CUSPARSE_BSR`,
-`BlockSparseMatrix<Scalar, Options, B, B, int>` (the `BlockSpMat<Options, B,
-B>` alias; see [Block sparse matrices](#block-sparse-matrices-bsr) for which
-op / storage-order combinations upload without a host copy). Host-input
+Accepts `SparseMatrix<Scalar, ColMajor>` and `BlockSparseMatrix<Scalar,
+Options, BlockRows, BlockCols, int>` (the `BlockSpMat<Options, BlockRows,
+BlockCols>` alias; see [Block sparse matrices](#block-sparse-matrices-bsr) for
+which block shapes upload as BSR and which op / storage-order combinations do
+so without a host copy). Host-input
 methods accept host data and return host data; device-input methods
 (`deviceView()`, `multiply(A, d_x, d_y)`) operate on `DeviceMatrix`. Matrix
 dimensions and nonzero count must fit in `int` (cuSPARSE limitation; debug

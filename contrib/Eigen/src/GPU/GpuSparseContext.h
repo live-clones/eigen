@@ -15,9 +15,10 @@
 // SparseMatrix<Scalar, ColMajor> (CSC), implicitly converting RowMajor input, and
 // can borrow a gpu::Context so that sparse products share a stream with BLAS-1
 // operations — which removes the cross-stream event waits in solvers like CG.
-// With EIGEN_HAS_CUSPARSE_BSR it also takes BlockSparseMatrix (BSR); cuSPARSE
-// multiplies a BSR descriptor only with CUSPARSE_OPERATION_NON_TRANSPOSE and,
-// in SpMM, only with row-major blocks, so op(A) is formed on the host
+// It also takes BlockSparseMatrix: as BSR when internal::use_cusparse_bsr
+// holds for the block shape, as the scalar-level toSparse() copy otherwise.
+// cuSPARSE multiplies a BSR descriptor only with CUSPARSE_OPERATION_NON_TRANSPOSE
+// and, in SpMM, only with row-major blocks, so op(A) is formed on the host
 // (internal::BsrBinding) and the descriptor always describes op(A) itself.
 //
 // Caching: host-input calls re-upload the values *and* index arrays on every
@@ -45,6 +46,17 @@
 
 namespace Eigen {
 namespace gpu {
+
+namespace internal {
+/** Whether a BlockSparseMatrix with this block shape uploads as BSR. cuSPARSE
+ * runs BSR products only on square blocks of size at least 2 (cusparseCreateBsr
+ * rejects rectangular blocks; SpMV on 1 x 1 blocks returns
+ * CUSPARSE_STATUS_NOT_SUPPORTED) and only from cuSPARSE 12.6.3; every other
+ * case takes the CSC path. */
+template <int BlockRows, int BlockCols>
+struct use_cusparse_bsr
+    : Eigen::internal::bool_constant<(EIGEN_HAS_CUSPARSE_BSR != 0 && BlockRows == BlockCols && BlockRows >= 2)> {};
+}  // namespace internal
 
 #if EIGEN_HAS_CUSPARSE_BSR
 namespace internal {
@@ -89,7 +101,7 @@ bsr_arrays<typename Bsm::Scalar, typename Bsm::StorageIndex> bsr_of(const Bsm& M
  * conjugation. The copy lives as long as the binding. */
 template <typename Bsm>
 class BsrBinding {
-  EIGEN_STATIC_ASSERT(Bsm::BlockRows == Bsm::BlockCols && Bsm::BlockRows >= 2,
+  EIGEN_STATIC_ASSERT((use_cusparse_bsr<int(Bsm::BlockRows), int(Bsm::BlockCols)>::value),
                       CUSPARSE_BSR_REQUIRES_SQUARE_BLOCKS_OF_SIZE_AT_LEAST_2)
 
  public:
@@ -193,17 +205,23 @@ class SparseContext {
   using SpMat = SparseMatrix<Scalar, ColMajor, StorageIndex>;
   using DenseVector = Matrix<Scalar, Dynamic, 1>;
   using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
-#if EIGEN_HAS_CUSPARSE_BSR
-  /** BlockSparseMatrix types the BSR overloads accept: square blocks of size
-   * at least 2 (cuSPARSE rejects rectangular blocks and runs no BSR SpMV on
-   * 1 x 1 blocks; use SparseMatrix for those), `int` indices, either storage
-   * order. A RowMajor matrix uploads without a host copy for `op == NoTrans`, a
-   * ColMajor one for `op == Trans`; the remaining combinations transpose (and
-   * conjugate) on the host first. */
+  /** BlockSparseMatrix types the block-sparse overloads accept: `int` indices,
+   * either storage order, any block shape. Square blocks of size at least 2
+   * upload as BSR when EIGEN_HAS_CUSPARSE_BSR is 1 — without a host copy for
+   * `op == NoTrans` on a RowMajor matrix and for `op == Trans` on a ColMajor
+   * one, transposing (and conjugating) on the host otherwise. Every other block
+   * shape, and every shape on older cuSPARSE, takes the CSC path as the
+   * scalar-level toSparse() copy. */
   template <int Options, int BlockRows, int BlockCols>
   using BlockSpMat = BlockSparseMatrix<Scalar, Options, BlockRows, BlockCols, StorageIndex>;
-#endif
 
+ private:
+  template <int BlockRows, int BlockCols>
+  using require_bsr_t = internal::require_t<internal::use_cusparse_bsr<BlockRows, BlockCols>>;
+  template <int BlockRows, int BlockCols>
+  using require_csc_fallback_t = internal::require_not_t<internal::use_cusparse_bsr<BlockRows, BlockCols>>;
+
+ public:
   /** Standalone: creates own stream and cuSPARSE handle. */
   SparseContext() : owns_handle_(true) {
     EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&stream_));
@@ -326,7 +344,7 @@ class SparseContext {
   /** Upload a block-sparse matrix as BSR and return a view; see the
    * SparseMatrix overload for the caching contract. A ColMajor matrix is
    * transposed on the host once, at upload. */
-  template <int Options, int BlockRows, int BlockCols>
+  template <int Options, int BlockRows, int BlockCols, require_bsr_t<BlockRows, BlockCols> = 0>
   DeviceSparseView<Scalar> deviceView(const BlockSpMat<Options, BlockRows, BlockCols>& A) {
     internal::check_storage_index_bounds<StorageIndex>(A.rows(), A.cols(), A.nonZeros());
     const internal::BsrBinding<BlockSpMat<Options, BlockRows, BlockCols>> bound(A, GpuOp::NoTrans);
@@ -335,13 +353,14 @@ class SparseContext {
   }
 
   /** Compute y = A * x for a block-sparse A. Returns y as a new dense vector. */
-  template <int Options, int BlockRows, int BlockCols, typename Rhs>
+  template <int Options, int BlockRows, int BlockCols, typename Rhs, require_bsr_t<BlockRows, BlockCols> = 0>
   DenseVector multiply(const BlockSpMat<Options, BlockRows, BlockCols>& A, const MatrixBase<Rhs>& x) {
     return multiply_host_return_bsr(A, x, GpuOp::NoTrans);
   }
 
   /** Compute y = alpha * op(A) * x + beta * y (in-place, host vectors) for a block-sparse A. */
-  template <int Options, int BlockRows, int BlockCols, typename Rhs, typename Dest>
+  template <int Options, int BlockRows, int BlockCols, typename Rhs, typename Dest,
+            require_bsr_t<BlockRows, BlockCols> = 0>
   void multiply(const BlockSpMat<Options, BlockRows, BlockCols>& A, const MatrixBase<Rhs>& x, MatrixBase<Dest>& y,
                 Scalar alpha = Scalar(1), Scalar beta = Scalar(0), GpuOp op = GpuOp::NoTrans) {
     multiply_host_bsr(A, x.derived(), y.derived(), alpha, beta, op);
@@ -349,14 +368,14 @@ class SparseContext {
 
   /** Compute d_y = A * d_x for a block-sparse A; the matrix is re-uploaded on
    * each call, use deviceView() to upload once. */
-  template <int Options, int BlockRows, int BlockCols>
+  template <int Options, int BlockRows, int BlockCols, require_bsr_t<BlockRows, BlockCols> = 0>
   void multiply(const BlockSpMat<Options, BlockRows, BlockCols>& A, const DeviceMatrix<Scalar>& d_x,
                 DeviceMatrix<Scalar>& d_y) {
     multiply(A, d_x, d_y, Scalar(1), Scalar(0), GpuOp::NoTrans);
   }
 
   /** Compute d_y = alpha * op(A) * d_x + beta * d_y (DeviceMatrix, in-place) for a block-sparse A. */
-  template <int Options, int BlockRows, int BlockCols>
+  template <int Options, int BlockRows, int BlockCols, require_bsr_t<BlockRows, BlockCols> = 0>
   void multiply(const BlockSpMat<Options, BlockRows, BlockCols>& A, const DeviceMatrix<Scalar>& d_x,
                 DeviceMatrix<Scalar>& d_y, Scalar alpha, Scalar beta, GpuOp op = GpuOp::NoTrans) {
     internal::check_storage_index_bounds<StorageIndex>(A.rows(), A.cols(), A.nonZeros());
@@ -366,19 +385,19 @@ class SparseContext {
   }
 
   /** Compute y = A^T * x (host vectors) for a block-sparse A. */
-  template <int Options, int BlockRows, int BlockCols, typename Rhs>
+  template <int Options, int BlockRows, int BlockCols, typename Rhs, require_bsr_t<BlockRows, BlockCols> = 0>
   DenseVector multiplyT(const BlockSpMat<Options, BlockRows, BlockCols>& A, const MatrixBase<Rhs>& x) {
     return multiply_host_return_bsr(A, x, GpuOp::Trans);
   }
 
   /** Compute y = A^H * x for a block-sparse A. For real Scalar this is equivalent to multiplyT. */
-  template <int Options, int BlockRows, int BlockCols, typename Rhs>
+  template <int Options, int BlockRows, int BlockCols, typename Rhs, require_bsr_t<BlockRows, BlockCols> = 0>
   DenseVector multiplyAdjoint(const BlockSpMat<Options, BlockRows, BlockCols>& A, const MatrixBase<Rhs>& x) {
     return multiply_host_return_bsr(A, x, GpuOp::ConjTrans);
   }
 
   /** Compute Y = op(A) * X for a block-sparse A and a dense X (multiple RHS). Returns Y. */
-  template <int Options, int BlockRows, int BlockCols, typename Rhs>
+  template <int Options, int BlockRows, int BlockCols, typename Rhs, require_bsr_t<BlockRows, BlockCols> = 0>
   DenseMatrix multiplyMat(const BlockSpMat<Options, BlockRows, BlockCols>& A, const MatrixBase<Rhs>& X,
                           GpuOp op = GpuOp::NoTrans) {
     internal::check_storage_index_bounds<StorageIndex>(A.rows(), A.cols(), A.nonZeros());
@@ -396,6 +415,62 @@ class SparseContext {
     return Y;
   }
 #endif  // EIGEN_HAS_CUSPARSE_BSR
+
+  // BlockSparseMatrix shapes without a cuSPARSE BSR product take the CSC path
+  // as the scalar-level toSparse() copy (bind_sparse transposes a RowMajor one).
+
+  /** Upload a block-sparse matrix without a BSR product as CSC and return a view. */
+  template <int Options, int BlockRows, int BlockCols, require_csc_fallback_t<BlockRows, BlockCols> = 0>
+  DeviceSparseView<Scalar> deviceView(const BlockSpMat<Options, BlockRows, BlockCols>& A) {
+    return deviceView(SpMat(A.toSparse()));
+  }
+
+  /** Compute y = A * x for a block-sparse A without a BSR product. */
+  template <int Options, int BlockRows, int BlockCols, typename Rhs, require_csc_fallback_t<BlockRows, BlockCols> = 0>
+  DenseVector multiply(const BlockSpMat<Options, BlockRows, BlockCols>& A, const MatrixBase<Rhs>& x) {
+    return multiply(A.toSparse(), x);
+  }
+
+  /** Compute y = alpha * op(A) * x + beta * y (in-place, host vectors) for a block-sparse A without a BSR product. */
+  template <int Options, int BlockRows, int BlockCols, typename Rhs, typename Dest,
+            require_csc_fallback_t<BlockRows, BlockCols> = 0>
+  void multiply(const BlockSpMat<Options, BlockRows, BlockCols>& A, const MatrixBase<Rhs>& x, MatrixBase<Dest>& y,
+                Scalar alpha = Scalar(1), Scalar beta = Scalar(0), GpuOp op = GpuOp::NoTrans) {
+    multiply(A.toSparse(), x, y, alpha, beta, op);
+  }
+
+  /** Compute d_y = A * d_x for a block-sparse A without a BSR product. */
+  template <int Options, int BlockRows, int BlockCols, require_csc_fallback_t<BlockRows, BlockCols> = 0>
+  void multiply(const BlockSpMat<Options, BlockRows, BlockCols>& A, const DeviceMatrix<Scalar>& d_x,
+                DeviceMatrix<Scalar>& d_y) {
+    multiply(A.toSparse(), d_x, d_y);
+  }
+
+  /** Compute d_y = alpha * op(A) * d_x + beta * d_y for a block-sparse A without a BSR product. */
+  template <int Options, int BlockRows, int BlockCols, require_csc_fallback_t<BlockRows, BlockCols> = 0>
+  void multiply(const BlockSpMat<Options, BlockRows, BlockCols>& A, const DeviceMatrix<Scalar>& d_x,
+                DeviceMatrix<Scalar>& d_y, Scalar alpha, Scalar beta, GpuOp op = GpuOp::NoTrans) {
+    multiply(A.toSparse(), d_x, d_y, alpha, beta, op);
+  }
+
+  /** Compute y = A^T * x for a block-sparse A without a BSR product. */
+  template <int Options, int BlockRows, int BlockCols, typename Rhs, require_csc_fallback_t<BlockRows, BlockCols> = 0>
+  DenseVector multiplyT(const BlockSpMat<Options, BlockRows, BlockCols>& A, const MatrixBase<Rhs>& x) {
+    return multiplyT(A.toSparse(), x);
+  }
+
+  /** Compute y = A^H * x for a block-sparse A without a BSR product. */
+  template <int Options, int BlockRows, int BlockCols, typename Rhs, require_csc_fallback_t<BlockRows, BlockCols> = 0>
+  DenseVector multiplyAdjoint(const BlockSpMat<Options, BlockRows, BlockCols>& A, const MatrixBase<Rhs>& x) {
+    return multiplyAdjoint(A.toSparse(), x);
+  }
+
+  /** Compute Y = op(A) * X for a block-sparse A without a BSR product. */
+  template <int Options, int BlockRows, int BlockCols, typename Rhs, require_csc_fallback_t<BlockRows, BlockCols> = 0>
+  DenseMatrix multiplyMat(const BlockSpMat<Options, BlockRows, BlockCols>& A, const MatrixBase<Rhs>& X,
+                          GpuOp op = GpuOp::NoTrans) {
+    return multiplyMat(A.toSparse(), X, op);
+  }
 
   cudaStream_t stream() const { return stream_; }
 
