@@ -53,8 +53,24 @@ class DeviceScalar {
     return *this;
   }
 
-  DeviceScalar(const DeviceScalar&) = delete;
-  DeviceScalar& operator=(const DeviceScalar&) = delete;
+  /** Deep copy: a device-to-device cudaMemcpyAsync on the source's stream, no
+   * host round trip. Provided so that generic code returning a DeviceScalar by
+   * value from a const reference (numext::real in Eigen's iterative solver
+   * templates) compiles; explicit code should move instead. */
+  DeviceScalar(const DeviceScalar& o) : d_val_(sizeof(Scalar)), stream_(o.stream_) {
+    EIGEN_CUDA_RUNTIME_CHECK(
+        cudaMemcpyAsync(d_val_.get(), o.d_val_.get(), sizeof(Scalar), cudaMemcpyDeviceToDevice, stream_));
+  }
+
+  DeviceScalar& operator=(const DeviceScalar& o) {
+    if (this != &o) {
+      if (!d_val_.get()) d_val_ = decltype(d_val_)(sizeof(Scalar));  // moved-from: reallocate
+      stream_ = o.stream_;
+      EIGEN_CUDA_RUNTIME_CHECK(
+          cudaMemcpyAsync(d_val_.get(), o.d_val_.get(), sizeof(Scalar), cudaMemcpyDeviceToDevice, stream_));
+    }
+    return *this;
+  }
 
   /** Download from device, synchronizing the stream. */
   Scalar get() const {

@@ -88,12 +88,14 @@ supported expression maps to a single NVIDIA library call. There is no
 coefficient-level evaluation, lazy fusion, or packet operations.
 
 **Interoperability where useful.** `DeviceMatrix` provides the same operator
-signatures as `Matrix` for common vector operations: `+=`, `-=`, `*=`,
-`dot()`, `squaredNorm()`, `norm()`, `setZero()`, and `noalias()`. This makes
+signatures as `Matrix` for common vector operations: `+=`, `-=`, `*=`, `/=`,
+`dot()`, `squaredNorm()`, `norm()`, `stableNorm()`, `setZero()`, `noalias()`,
+and copy construction and assignment (a device-to-device copy). This makes
 `DeviceMatrix` usable as a drop-in `VectorType` in Eigen algorithm templates
-that rely on these operations. For example, Eigen's `conjugate_gradient()`
-template works with `DeviceMatrix` with a single typedef change -- no
-modifications to the algorithm or the expression template system. Conjugate
+that rely on these operations. Eigen's `internal::conjugate_gradient()`
+template runs unmodified on a `DeviceSparseView` and `DeviceMatrix` vectors
+(see [Eigen algorithm interop](#eigen-algorithm-interop-example-conjugate-gradient));
+the algorithm and the expression template system are untouched. Conjugate
 gradient is just the motivating example; we are open to expanding operator
 coverage as needed to support other high-level Eigen algorithms on the GPU.
 
@@ -274,7 +276,15 @@ double n = norm_val;                   // implicit conversion triggers sync
 d_x += alpha * d_p;                    // axpy: x = x + alpha * p
 d_x -= alpha * d_p;                    // axpy: x = x - alpha * p
 d_x *= alpha;                          // scal: x = alpha * x
+d_x /= alpha;                          // scal: x = x / alpha
 d_r.setZero();                         // cudaMemsetAsync
+auto s = d_r.stableNorm();             // same as norm(): cuBLAS nrm2 is already overflow-safe
+
+// Copies are device-to-device (cuBLAS copy) on the thread-local Context; no host round trip.
+// They exist so that existing Eigen algorithm code runs on the GPU unchanged; code written for
+// the GPU should avoid them (move, or reuse a buffer with copyFrom), since each is a transfer.
+gpu::DeviceMatrix<double> d_q = d_p;   // copy construction
+d_q = d_r;                             // copy assignment, resizes if needed
 
 // DeviceScalar arithmetic (stays on device, real types only)
 auto alpha = absNew / dot_val;         // device-side division via NPP
@@ -528,6 +538,8 @@ gpu::SparseContext<double> spmv_dev(ctx);   // share gpu::Context for same-strea
 auto d_A = spmv_dev.deviceView(A);          // upload sparse matrix once
 d_y = d_A * d_x;                            // SpMV, stays on device
 d_Y = d_A * d_X;                            // SpMM when the RHS has > 1 column
+d_r = d_b - d_A * d_x;                      // residual: copy of d_b, then one SpMV with beta = 1
+d_r = d_r - d_A * d_x;                      // in place when the addend is the destination: no copy
 ```
 
 Host-input calls re-upload the sparse values *and* index arrays on every call
@@ -540,12 +552,31 @@ context asserts instead of silently multiplying by the wrong matrix.
 
 ### Eigen algorithm interop (example: Conjugate gradient)
 
-The BLAS-1 operators and `DeviceSparseView` make `DeviceMatrix` usable as a
-vector type in GPU implementations of algorithms like conjugate gradient.
-Conjugate gradient is the motivating example -- the GPU CG mirrors Eigen's
-`conjugate_gradient()` line for line, with only one host sync per iteration
-(the convergence check). All scalar intermediates (`alpha`, `beta`, `absNew`)
-stay on device as `DeviceScalar` values:
+Eigen's own `internal::conjugate_gradient()` template runs unmodified on the GPU
+types: the matrix is a `DeviceSparseView`, the vectors are `DeviceMatrix`, and
+the template's `VectorType` (`Dest::PlainObject`) is `DeviceMatrix` itself. The
+identity preconditioner works as is; `DiagonalPreconditioner` and the other
+Eigen preconditioners evaluate host expressions and do not.
+
+```cpp
+gpu::Context ctx;
+gpu::Context::setThreadLocal(&ctx);
+gpu::SparseContext<double> spmv(ctx);
+auto mat = spmv.deviceView(A);
+auto d_b = gpu::DeviceMatrix<double>::fromHost(b, ctx.stream());
+gpu::DeviceMatrix<double> d_x(n, 1);
+d_x.setZero(ctx);
+Index iters = 1000;
+double tol_error = 1e-10;
+internal::conjugate_gradient(mat, d_b, d_x, IdentityPreconditioner(), iters, tol_error);
+gpu::Context::setThreadLocal(nullptr);
+```
+
+The template's `Scalar alpha = absNew / p.dot(tmp)` and `stableNorm()` checks
+each read a value on the host, so this form synchronizes three times per
+iteration. The hand-written loop below is the same algorithm with one host sync
+per iteration (the convergence check); all scalar intermediates (`alpha`,
+`beta`, `absNew`) stay on device as `DeviceScalar` values:
 
 ```cpp
 gpu::Context ctx;

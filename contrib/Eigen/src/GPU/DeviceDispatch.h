@@ -709,6 +709,35 @@ DeviceMatrix<Scalar_>& DeviceMatrix<Scalar_>::operator*=(Scalar alpha) {
   return *this;
 }
 
+// this /= alpha  (scal with 1/alpha, host pointer)
+template <typename Scalar_>
+DeviceMatrix<Scalar_>& DeviceMatrix<Scalar_>::operator/=(Scalar alpha) {
+  scale(Context::threadLocal(), Scalar(1) / alpha);
+  return *this;
+}
+
+// Deep copies: device-to-device cuBLAS copy on the thread-local Context.
+template <typename Scalar_>
+DeviceMatrix<Scalar_>::DeviceMatrix(const DeviceMatrix& other) : DeviceMatrix() {
+  copyFrom(Context::threadLocal(), other);
+}
+
+template <typename Scalar_>
+DeviceMatrix<Scalar_>& DeviceMatrix<Scalar_>::operator=(const DeviceMatrix& other) {
+  if (this != &other) copyFrom(Context::threadLocal(), other);
+  return *this;
+}
+
+template <typename Scalar_>
+DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::stableNorm(Context& ctx) const {
+  return norm(ctx);
+}
+
+template <typename Scalar_>
+DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::stableNorm() const {
+  return norm(Context::threadLocal());
+}
+
 // this *= alpha  (scal, device pointer — avoids host sync)
 template <typename Scalar_>
 DeviceMatrix<Scalar_>& DeviceMatrix<Scalar_>::operator*=(const DeviceScalar<Scalar>& alpha) {
