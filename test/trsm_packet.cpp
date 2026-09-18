@@ -112,7 +112,8 @@ void trsm_packet_cache_sizes() {
 template <typename Scalar>
 void trsm_packet() {
   STATIC_CHECK((internal::triangular_solve_packet_traits<Scalar>::Enabled ==
-                bool(internal::packet_traits<Scalar>::Vectorizable)));
+                bool(internal::packet_traits<Scalar>::Vectorizable && std::numeric_limits<Scalar>::is_iec559 &&
+                     std::numeric_limits<Scalar>::radix == 2)));
   STATIC_CHECK((!internal::triangular_solve_packet_traits<std::complex<Scalar>>::Enabled));
   const Index packet = internal::packet_traits<Scalar>::size;
   const Index widths[] = {1, 2, packet, 2 * packet - 1, 2 * packet, 2 * packet + 1, 4 * packet + 3};

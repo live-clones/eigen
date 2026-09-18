@@ -48,7 +48,8 @@ struct trsmKernelR {
 template <typename Scalar>
 struct triangular_solve_packet_traits {
   static constexpr bool Enabled = packet_traits<Scalar>::Vectorizable &&
-                                  (std::is_same<Scalar, float>::value || std::is_same<Scalar, double>::value);
+                                  (std::is_same<Scalar, float>::value || std::is_same<Scalar, double>::value) &&
+                                  std::numeric_limits<Scalar>::is_iec559 && std::numeric_limits<Scalar>::radix == 2;
   static constexpr int PacketSize = packet_traits<Scalar>::size;
   static constexpr int RegisterRows = 4;
   static constexpr int RhsPackets =
@@ -80,6 +81,27 @@ struct triangular_solve_packet_kernel {
   using TriMapper = const_blas_data_mapper<Scalar, Index, TriStorageOrder>;
   static constexpr int PacketSize = Traits::PacketSize;
   static constexpr bool IsLower = (Mode & Lower) != 0;
+
+  template <int RhsPackets>
+  static EIGEN_STRONG_INLINE bool all_finite(const PacketBlock<Packet, RhsPackets>& x, bool_constant<true>) {
+    // Classify bits: fast-math may assume the arithmetic results are finite.
+    using FloatTraits = binary_floating_point_traits<Scalar>;
+    bool nonfinite = false;
+    for (int p = 0; p < RhsPackets; ++p) {
+      Scalar values[PacketSize];
+      pstoreu(values, x.packet[p]);
+      EIGEN_FAST_MATH_CONSTANT_BARRIER(values);
+      for (int c = 0; c < PacketSize; ++c)
+        nonfinite |= (FloatTraits::bits(values[c]) & FloatTraits::kExponentMask) == FloatTraits::kExponentMask;
+    }
+    return !nonfinite;
+  }
+
+  // Keep disabled scalar instantiations valid in C++14.
+  template <int RhsPackets>
+  static EIGEN_STRONG_INLINE bool all_finite(const PacketBlock<Packet, RhsPackets>&, bool_constant<false>) {
+    return true;
+  }
 
   template <int RhsPackets>
   static EIGEN_STRONG_INLINE void update(PacketBlock<Packet, RhsPackets>& x, const PacketBlock<Packet, RhsPackets>& y,
@@ -186,6 +208,18 @@ struct triangular_solve_packet_kernel {
       scale(x, inverse[r]);
       work[r] = x;
     }
+    EIGEN_IF_CONSTEXPR (TriStorageOrder == RowMajor) {
+      // Successive RHS updates can overflow before cancellation in a row's dot product.
+      // Every later row uses all solved rows, propagating nonfinite lanes to the final row.
+      // Retry with the original accumulation order before overwriting any RHS coefficient.
+      if (!all_finite(work[IsLower ? size - 1 : 0], bool_constant<Traits::Enabled>{})) {
+        const Index origin = IsLower ? 0 : size - 1;
+        trsmKernelL<Scalar, Index, Mode, false, TriStorageOrder, 1, false>::kernel(
+            size, Index(RhsPackets * PacketSize), &a(origin, origin), a.stride(), other + origin, Index(1),
+            otherStride);
+        return;
+      }
+    }
     for (int p = 0; p < RhsPackets; ++p) {
       Index i = 0;
       for (; i + PacketSize <= size; i += PacketSize) {
@@ -202,13 +236,20 @@ struct triangular_solve_packet_kernel {
   static EIGEN_DONT_INLINE void kernel(Index size, Index cols, const Scalar* tri, Index triStride, Scalar* other,
                                        Index otherStride) {
     eigen_internal_assert(size <= Traits::WorkspaceRows && cols % PacketSize == 0);
-    if (!IsLower) {
+    EIGEN_IF_CONSTEXPR (!IsLower) {
       tri -= (size - 1) * (triStride + 1);
       other -= size - 1;
     }
     TriMapper a(tri, triStride);
     Scalar inverse[Traits::WorkspaceRows];
-    for (Index i = 0; i < size; ++i) inverse[i] = (Mode & UnitDiag) ? Scalar(1) : Scalar(1) / a(i, i);
+    Map<Vector<Scalar, Dynamic>> mapped(inverse, size);
+    EIGEN_IF_CONSTEXPR (Mode & UnitDiag) {
+      mapped.setOnes();
+    } else {
+      const Map<const Vector<Scalar, Dynamic>, Unaligned, InnerStride<Dynamic>> diagonal(
+          tri, size, InnerStride<Dynamic>(triStride + 1));
+      mapped = diagonal.cwiseInverse();
+    }
     Index j = 0;
     EIGEN_IF_CONSTEXPR (Traits::RhsPackets > 1) {
       for (; j + Traits::RhsPackets * PacketSize <= cols; j += Traits::RhsPackets * PacketSize)
@@ -227,7 +268,7 @@ EIGEN_STRONG_INLINE void trsmKernelL<Scalar, Index, Mode, Conjugate, TriStorageO
   EIGEN_IF_CONSTEXPR ((Specialized && OtherInnerStride == 1 && triangular_solve_packet_traits<Scalar>::Enabled)) {
     if (size >= triangular_solve_packet_traits<Scalar>::RegisterRows &&
         size <= triangular_solve_packet_traits<Scalar>::WorkspaceRows && otherSize >= packet_traits<Scalar>::size) {
-      const Index packetCols = otherSize - otherSize % packet_traits<Scalar>::size;
+      const Index packetCols = numext::round_down(otherSize, Index(packet_traits<Scalar>::size));
       triangular_solve_packet_kernel<Scalar, Index, Mode, TriStorageOrder>::kernel(size, packetCols, _tri, triStride,
                                                                                    _other, otherStride);
       if (packetCols == otherSize) return;
