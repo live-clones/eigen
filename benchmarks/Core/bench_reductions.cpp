@@ -264,6 +264,45 @@ static void BM_ColwiseSumRaggedTail(benchmark::State& state) {
   state.SetBytesProcessed(state.iterations() * rows * cols * sizeof(Scalar));
 }
 
+// --- Block reductions (SliceVectorizedTraversal) ---
+
+// A block of a larger matrix is reduced panel by panel, one packet loop per panel, so it takes
+// SliceVectorizedTraversal rather than the linear path a whole matrix takes. The inner size is
+// given in packets of the scalar: four packets or more per panel is the wide case, fewer is the
+// narrow one where the accumulators have to come from the outer dimension.
+template <typename Scalar>
+static void BM_BlockSum(benchmark::State& state) {
+  const Index rows = state.range(0), cols = state.range(1);
+  Matrix<Scalar, Dynamic, Dynamic> m = Matrix<Scalar, Dynamic, Dynamic>::Random(rows + 8, cols + 8);
+  for (auto _ : state) {
+    Scalar s = m.block(0, 0, rows, cols).sum();
+    benchmark::DoNotOptimize(s);
+  }
+  state.SetBytesProcessed(state.iterations() * rows * cols * sizeof(Scalar));
+}
+
+template <typename Scalar>
+static void BM_BlockMaxCoeff(benchmark::State& state) {
+  const Index rows = state.range(0), cols = state.range(1);
+  Matrix<Scalar, Dynamic, Dynamic> m = Matrix<Scalar, Dynamic, Dynamic>::Random(rows + 8, cols + 8);
+  for (auto _ : state) {
+    Scalar v = m.block(0, 0, rows, cols).maxCoeff();
+    benchmark::DoNotOptimize(v);
+  }
+  state.SetBytesProcessed(state.iterations() * rows * cols * sizeof(Scalar));
+}
+
+template <typename Scalar>
+static void BM_BlockSquaredNorm(benchmark::State& state) {
+  const Index rows = state.range(0), cols = state.range(1);
+  Matrix<Scalar, Dynamic, Dynamic> m = Matrix<Scalar, Dynamic, Dynamic>::Random(rows + 8, cols + 8);
+  for (auto _ : state) {
+    Scalar s = m.block(0, 0, rows, cols).squaredNorm();
+    benchmark::DoNotOptimize(s);
+  }
+  state.SetBytesProcessed(state.iterations() * rows * cols * sizeof(Scalar));
+}
+
 // --- Size configurations ---
 
 // The vectorized linear reduction takes a straight-line path for two and three packets and a
@@ -281,6 +320,9 @@ constexpr int64_t packetsOf(int n) {
 #define MATRIX_SIZES ->Arg(8)->Arg(32)->Arg(64)->Arg(128)->Arg(256)->Arg(512)->Arg(1024)
 #define RAGGED_SIZES ->Args({4096, 5})->Args({4096, 9})->Args({4096, 17})->Args({65536, 5})->Args({65536, 9})->Args({65536, 17})
 // Scalar redux paths change shape at the small-size cutoffs, so sample densely there.
+// Blocks: one row of panels per width, from one packet (accumulators must come from the outer
+// dimension) through the four-packet unroll and on to panels that no longer fit in L1.
+#define BLOCK_SIZES(SCALAR) ->Args({packetsOf<SCALAR>(1), 8})->Args({packetsOf<SCALAR>(2), 64})->Args({packetsOf<SCALAR>(3), 64})->Args({packetsOf<SCALAR>(4), 64})->Args({packetsOf<SCALAR>(6), 64})->Args({packetsOf<SCALAR>(8), 512})->Args({packetsOf<SCALAR>(16), 512})->Args({256, 256})->Args({1024, 1024})
 #define REDUX_SIZES ->Arg(8)->Arg(16)->Arg(24)->Arg(32)->Arg(64)->Arg(128)->Arg(192)->Arg(256)->Arg(1024)->Arg(16384)->Arg(262144)
 
 // --- Register: float ---
@@ -300,6 +342,9 @@ BENCHMARK(BM_VectorNorm<float>) VECTOR_SIZES(float) ->Name("VectorNorm_float");
 BENCHMARK(BM_VectorLpNorm1<float>) VECTOR_SIZES(float) ->Name("VectorLpNorm1_float");
 BENCHMARK(BM_VectorLpNormInf<float>) VECTOR_SIZES(float) ->Name("VectorLpNormInf_float");
 BENCHMARK(BM_MatrixSum<float>) MATRIX_SIZES ->Name("MatrixSum_float");
+BENCHMARK(BM_BlockSum<float>) BLOCK_SIZES(float) ->Name("BlockSum_float");
+BENCHMARK(BM_BlockMaxCoeff<float>) BLOCK_SIZES(float) ->Name("BlockMaxCoeff_float");
+BENCHMARK(BM_BlockSquaredNorm<float>) BLOCK_SIZES(float) ->Name("BlockSquaredNorm_float");
 BENCHMARK(BM_MatrixNorm<float>) MATRIX_SIZES ->Name("MatrixNorm_float");
 BENCHMARK(BM_VectorReduxOp<float, UserSumOp>) REDUX_SIZES ->Name("VectorReduxUserOp_float");
 BENCHMARK(BM_VectorReduxOp<float, CommutativeUserSumOp>) REDUX_SIZES ->Name("VectorReduxCommutativeOp_float");
@@ -325,6 +370,9 @@ BENCHMARK(BM_VectorNorm<double>) VECTOR_SIZES(double) ->Name("VectorNorm_double"
 BENCHMARK(BM_VectorLpNorm1<double>) VECTOR_SIZES(double) ->Name("VectorLpNorm1_double");
 BENCHMARK(BM_VectorLpNormInf<double>) VECTOR_SIZES(double) ->Name("VectorLpNormInf_double");
 BENCHMARK(BM_MatrixSum<double>) MATRIX_SIZES ->Name("MatrixSum_double");
+BENCHMARK(BM_BlockSum<double>) BLOCK_SIZES(double) ->Name("BlockSum_double");
+BENCHMARK(BM_BlockMaxCoeff<double>) BLOCK_SIZES(double) ->Name("BlockMaxCoeff_double");
+BENCHMARK(BM_BlockSquaredNorm<double>) BLOCK_SIZES(double) ->Name("BlockSquaredNorm_double");
 BENCHMARK(BM_MatrixNorm<double>) MATRIX_SIZES ->Name("MatrixNorm_double");
 BENCHMARK(BM_VectorReduxOp<double, UserSumOp>) REDUX_SIZES ->Name("VectorReduxUserOp_double");
 BENCHMARK(BM_VectorReduxOp<double, CommutativeUserSumOp>) REDUX_SIZES ->Name("VectorReduxCommutativeOp_double");
@@ -346,6 +394,7 @@ BENCHMARK(BM_ComplexRealViewAbsMaxCoeff<std::complex<double>, PropagateNaN>) VEC
 #undef PACKET_SIZES
 #undef VECTOR_SIZES
 #undef MATRIX_SIZES
+#undef BLOCK_SIZES
 #undef RAGGED_SIZES
 #undef REDUX_SIZES
 // clang-format on

@@ -259,6 +259,39 @@ void redux_vec_boundary() {
   }
 }
 
+// Test block reductions at sizes that hit the boundaries of SliceVectorizedTraversal in Redux.h:
+// panels of one to eight packets, the 4-way unroll inside a panel and each of its residuals, and
+// the narrow panels whose accumulators have to come from the outer dimension instead.
+template <typename Scalar>
+void redux_block_boundary() {
+  const Index PS = internal::packet_traits<Scalar>::size;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  const Index innerSizes[] = {1,      PS - 1, PS,     PS + 1, 2 * PS,     3 * PS,    4 * PS - 1,
+                              4 * PS, 5 * PS, 6 * PS, 7 * PS, 8 * PS - 1, 8 * PS + 1};
+  // Panel counts below, at and above the four the outer-dimension accumulators consume at a time.
+  const Index outerSizes[] = {1, 2, 3, 4, 5, 8, 9};
+  for (const Index rows : innerSizes) {
+    for (const Index cols : outerSizes) {
+      // A strict sub-block keeps the reduction off the linear path.
+      Mat m = Mat::Random(rows + 3, cols + 3);
+      Scalar ref_sum(0);
+      RealScalar ref_min = numext::real(m(0, 0)), ref_max = numext::real(m(0, 0)), ref_sqnorm(0);
+      for (Index j = 0; j < cols; ++j)
+        for (Index i = 0; i < rows; ++i) {
+          ref_sum += m(i, j);
+          ref_sqnorm += numext::abs2(m(i, j));
+          ref_min = (std::min)(ref_min, numext::real(m(i, j)));
+          ref_max = (std::max)(ref_max, numext::real(m(i, j)));
+        }
+      VERIFY_IS_APPROX(m.block(0, 0, rows, cols).sum(), ref_sum);
+      VERIFY_IS_APPROX(m.block(0, 0, rows, cols).squaredNorm(), ref_sqnorm);
+      VERIFY_IS_APPROX(m.block(0, 0, rows, cols).real().minCoeff(), ref_min);
+      VERIFY_IS_APPROX(m.block(0, 0, rows, cols).real().maxCoeff(), ref_max);
+    }
+  }
+}
+
 // Test reductions on strided (non-contiguous) mapped data.
 // This exercises SliceVectorizedTraversal or DefaultTraversal in Redux.h
 // depending on stride and packet size.
@@ -682,6 +715,9 @@ EIGEN_DECLARE_TEST(redux) {
   // Integer reductions are already tested by matrixRedux/vectorRedux with clamped values.
   CALL_SUBTEST_12(redux_vec_boundary<float>());
   CALL_SUBTEST_12(redux_vec_boundary<double>());
+  CALL_SUBTEST_12(redux_block_boundary<float>());
+  CALL_SUBTEST_12(redux_block_boundary<double>());
+  CALL_SUBTEST_12(redux_block_boundary<std::complex<float>>());
 
   // Strided (non-contiguous) reductions.
   CALL_SUBTEST_13(redux_strided<float>());
