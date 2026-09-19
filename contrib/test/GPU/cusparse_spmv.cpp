@@ -430,8 +430,17 @@ void test_block_sparse_input(Index block_rows, Index block_cols) {
   gpu::SparseContext<Scalar> ctx(gctx);
   const Vec y_ref = A * x;
   VERIFY((ctx.multiply(A, x) - y_ref).norm() / (y_ref.norm() + RealScalar(1)) < tol);
-  const Vec yt_ref = A.adjoint() * xt;
-  VERIFY((ctx.multiplyAdjoint(A, xt) - yt_ref).norm() / (yt_ref.norm() + RealScalar(1)) < tol);
+  // As for test_spmv_adjoint below: shapes on the CSC path cannot form A^H * x
+  // for complex scalars on cuSPARSE < 12, where SparseContext asserts.
+#if !defined(CUSPARSE_VERSION) || CUSPARSE_VERSION >= 12000
+  constexpr bool kTestAdjoint = true;
+#else
+  constexpr bool kTestAdjoint = !NumTraits<Scalar>::IsComplex;
+#endif
+  if (kTestAdjoint) {
+    const Vec yt_ref = A.adjoint() * xt;
+    VERIFY((ctx.multiplyAdjoint(A, xt) - yt_ref).norm() / (yt_ref.norm() + RealScalar(1)) < tol);
+  }
   const Mat Y_ref = A * X;
   VERIFY((ctx.multiplyMat(A, X) - Y_ref).norm() / (Y_ref.norm() + RealScalar(1)) < tol);
 
