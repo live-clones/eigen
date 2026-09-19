@@ -15,11 +15,8 @@
 // SparseMatrix<Scalar, ColMajor> (CSC), implicitly converting RowMajor input, and
 // can borrow a gpu::Context so that sparse products share a stream with BLAS-1
 // operations — which removes the cross-stream event waits in solvers like CG.
-// It also takes BlockSparseMatrix: as BSR when internal::use_cusparse_bsr
-// holds for the block shape, as the scalar-level toSparse() copy otherwise.
-// cuSPARSE multiplies a BSR descriptor only with CUSPARSE_OPERATION_NON_TRANSPOSE
-// and, in SpMM, only with row-major blocks, so op(A) is formed on the host
-// (internal::BsrBinding) and the descriptor always describes op(A) itself.
+// It also takes BlockSparseMatrix: as BSR (internal::BsrBinding) where
+// internal::use_cusparse_bsr holds, as the scalar-level toSparse() copy otherwise.
 //
 // Caching: host-input calls re-upload the values *and* index arrays on every
 // call. Host pointer identity cannot detect a sparsity pattern rewritten in
@@ -65,7 +62,7 @@ namespace internal {
  * block-column indices (bnnz), and bnnz row-major blockSize x blockSize
  * value blocks. Sizes are in blocks; rows()/cols()/nonZeros() in scalars. */
 template <typename Scalar, typename StorageIndex>
-struct bsr_arrays {
+struct BsrArrays {
   Index brows;
   Index bcols;
   Index bnnz;
@@ -86,12 +83,12 @@ struct bsr_arrays {
  * rows of M^T, and a column-major B x B block read row-major is the transposed
  * block. */
 template <typename Bsm>
-bsr_arrays<typename Bsm::Scalar, typename Bsm::StorageIndex> bsr_of(const Bsm& M) {
-  return bsr_arrays<typename Bsm::Scalar, typename Bsm::StorageIndex>{
-      /*brows=*/M.blockOuterSize(),
-      /*bcols=*/M.blockInnerSize(),
-      /*bnnz=*/M.nonZeroBlocks(),
-      /*blockSize=*/Index(Bsm::BlockRows), M.outerIndexPtr(), M.innerIndexPtr(), M.valuePtr()};
+BsrArrays<typename Bsm::Scalar, typename Bsm::StorageIndex> bsr_of(const Bsm& M) {
+  return BsrArrays<typename Bsm::Scalar, typename Bsm::StorageIndex>{
+      /*brows=*/M.blockOuterSize(), /*bcols=*/M.blockInnerSize(),
+      /*bnnz=*/M.nonZeroBlocks(),   /*blockSize=*/Index(Bsm::BlockRows),
+      /*outer=*/M.outerIndexPtr(),  /*inner=*/M.innerIndexPtr(),
+      /*values=*/M.valuePtr()};
 }
 
 /** Binds op(A) as BSR arrays of op(A) itself, the only form cuSPARSE
@@ -106,7 +103,7 @@ class BsrBinding {
 
  public:
   using Scalar = typename Bsm::Scalar;
-  using Arrays = bsr_arrays<Scalar, typename Bsm::StorageIndex>;
+  using Arrays = BsrArrays<Scalar, typename Bsm::StorageIndex>;
 
   BsrBinding(const Bsm& A, GpuOp op) {
     if (op == GpuOp::ConjTrans && !NumTraits<Scalar>::IsComplex) op = GpuOp::Trans;
@@ -206,12 +203,10 @@ class SparseContext {
   using DenseVector = Matrix<Scalar, Dynamic, 1>;
   using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
   /** BlockSparseMatrix types the block-sparse overloads accept: `int` indices,
-   * either storage order, any block shape. Square blocks of size at least 2
-   * upload as BSR when EIGEN_HAS_CUSPARSE_BSR is 1 — without a host copy for
-   * `op == NoTrans` on a RowMajor matrix and for `op == Trans` on a ColMajor
-   * one, transposing (and conjugating) on the host otherwise. Every other block
-   * shape, and every shape on older cuSPARSE, takes the CSC path as the
-   * scalar-level toSparse() copy. */
+   * either storage order, any block shape. internal::use_cusparse_bsr picks the
+   * upload: BSR — no host copy for `op == NoTrans` on a RowMajor matrix or
+   * `op == Trans` on a ColMajor one, a transposing (and conjugating) copy
+   * otherwise — or the scalar-level toSparse() copy on the CSC path. */
   template <int Options, int BlockRows, int BlockCols>
   using BlockSpMat = BlockSparseMatrix<Scalar, Options, BlockRows, BlockCols, StorageIndex>;
 
@@ -488,11 +483,10 @@ class SparseContext {
     spmv_host_cached(x, y, x_size, y_size, alpha, beta, op);
   }
 
-  // BlockSparseMatrix primitives, dispatched on use_cusparse_bsr: the
-  // true_type overloads bind op(A) as BSR on the host (internal::BsrBinding)
-  // and run cuSPARSE with NON_TRANSPOSE; the false_type ones forward the
-  // scalar-level toSparse() copy to the CSC overloads (bind_sparse transposes
-  // a RowMajor one).
+  // BlockSparseMatrix primitives, dispatched on use_cusparse_bsr: the true_type
+  // overloads bind op(A) as BSR (internal::BsrBinding) and run cuSPARSE with
+  // NON_TRANSPOSE, the false_type ones forward the scalar-level toSparse() copy
+  // to the CSC overloads.
   template <typename Bsm, typename Rhs>
   DenseVector multiply_host_return_block(const Bsm& A, const MatrixBase<Rhs>& x, GpuOp op) {
     DenseVector y((op == GpuOp::NoTrans) ? A.rows() : A.cols());
@@ -538,7 +532,7 @@ class SparseContext {
                            std::true_type) {
     internal::check_storage_index_bounds<StorageIndex>(A.rows(), A.cols(), A.nonZeros());
     const internal::BsrBinding<Bsm> bound(A, op);
-    const internal::bsr_arrays<Scalar, StorageIndex>& opA = bound.arrays();
+    const internal::BsrArrays<Scalar, StorageIndex>& opA = bound.arrays();
 
     eigen_assert(x.size() == opA.cols());
     eigen_assert(y.size() == opA.rows());
@@ -565,7 +559,7 @@ class SparseContext {
   DenseMatrix multiply_mat_block(const Bsm& A, const MatrixBase<Rhs>& X, GpuOp op, std::true_type) {
     internal::check_storage_index_bounds<StorageIndex>(A.rows(), A.cols(), A.nonZeros());
     const internal::BsrBinding<Bsm> bound(A, op);
-    const internal::bsr_arrays<Scalar, StorageIndex>& opA = bound.arrays();
+    const internal::BsrArrays<Scalar, StorageIndex>& opA = bound.arrays();
     const DenseMatrix rhs(X.derived());
     eigen_assert(opA.cols() == rhs.rows());
 
@@ -615,8 +609,7 @@ class SparseContext {
   void spmv_device_exec(const DeviceMatrix<Scalar>& d_x, DeviceMatrix<Scalar>& d_y, Scalar alpha = Scalar(1),
                         Scalar beta = Scalar(0), GpuOp op = GpuOp::NoTrans) const {
     eigen_assert(spmat_desc_ && "sparse matrix not uploaded — call deviceView() or multiply() first");
-    eigen_assert((cached_block_size_ == 0 || op == GpuOp::NoTrans) &&
-                 "cuSPARSE runs BSR products only with op == NoTrans; pass op to multiply(A, d_x, d_y, ...) instead");
+    check_op_against_upload(op);
     // cuSPARSE SpMV: y must not alias x (undefined behavior).
     eigen_assert(d_x.data() != d_y.data() && "SpMV: output aliases input vector");
 
@@ -659,8 +652,7 @@ class SparseContext {
   void spmm_device_exec(const DeviceMatrix<Scalar>& d_X, DeviceMatrix<Scalar>& d_Y, Scalar alpha = Scalar(1),
                         Scalar beta = Scalar(0), GpuOp op = GpuOp::NoTrans) const {
     eigen_assert(spmat_desc_ && "sparse matrix not uploaded — call deviceView() or multiply() first");
-    eigen_assert((cached_block_size_ == 0 || op == GpuOp::NoTrans) &&
-                 "cuSPARSE runs BSR products only with op == NoTrans; pass op to multiply(A, d_x, d_y, ...) instead");
+    check_op_against_upload(op);
     eigen_assert(d_X.data() != d_Y.data() && "SpMM: output aliases input matrix");
 
     const cusparseOperation_t cu_op = internal::to_cusparse_op<Scalar>(op);
@@ -866,7 +858,7 @@ class SparseContext {
     const Index nnz = A.nonZeros();
     upload_arrays(/*outer_count=*/n + 1, /*inner_count=*/nnz, /*value_count=*/nnz, A.outerIndexPtr(), A.innerIndexPtr(),
                   A.valuePtr());
-    if (descriptor_matches(m, n, nnz, /*block_size=*/0)) return;
+    if (descriptor_key_matches(m, n, nnz, /*block_size=*/0)) return;
 
     destroy_spmat_descriptor(/*checked=*/true);
     EIGEN_IF_CONSTEXPR (kUseCsrOfTranspose) {
@@ -881,21 +873,21 @@ class SparseContext {
                                              d_values_.get(), kIndexType, kIndexType, CUSPARSE_INDEX_BASE_ZERO,
                                              kValueType));
     }
-    cache_descriptor(m, n, nnz, /*block_size=*/0);
+    set_descriptor_key(m, n, nnz, /*block_size=*/0);
   }
 
 #if EIGEN_HAS_CUSPARSE_BSR
-  void upload_bsr(const internal::bsr_arrays<Scalar, StorageIndex>& opA) {
+  void upload_bsr(const internal::BsrArrays<Scalar, StorageIndex>& opA) {
     upload_arrays(/*outer_count=*/opA.brows + 1, /*inner_count=*/opA.bnnz, /*value_count=*/opA.nonZeros(), opA.outer,
                   opA.inner, opA.values);
-    if (descriptor_matches(opA.rows(), opA.cols(), opA.nonZeros(), opA.blockSize)) return;
+    if (descriptor_key_matches(opA.rows(), opA.cols(), opA.nonZeros(), opA.blockSize)) return;
 
     destroy_spmat_descriptor(/*checked=*/true);
     // Row-major blocks: cusparseSpMM accepts no other block layout for BSR.
     EIGEN_CUSPARSE_CHECK(cusparseCreateBsr(&spmat_desc_, opA.brows, opA.bcols, opA.bnnz, opA.blockSize, opA.blockSize,
                                            d_outerPtr_.get(), d_innerIdx_.get(), d_values_.get(), kIndexType,
                                            kIndexType, CUSPARSE_INDEX_BASE_ZERO, kValueType, CUSPARSE_ORDER_ROW));
-    cache_descriptor(opA.rows(), opA.cols(), opA.nonZeros(), opA.blockSize);
+    set_descriptor_key(opA.rows(), opA.cols(), opA.nonZeros(), opA.blockSize);
   }
 #endif  // EIGEN_HAS_CUSPARSE_BSR
 
@@ -926,15 +918,23 @@ class SparseContext {
   // Same shape, nnz and format: the grow-only device buffers cannot have been
   // reallocated, so the existing descriptor still points at the freshly
   // written data.
-  bool descriptor_matches(Index m, Index n, Index nnz, Index block_size) const {
+  bool descriptor_key_matches(Index m, Index n, Index nnz, Index block_size) const {
     return m == cached_rows_ && n == cached_cols_ && nnz == cached_nnz_ && block_size == cached_block_size_;
   }
 
-  void cache_descriptor(Index m, Index n, Index nnz, Index block_size) {
+  void set_descriptor_key(Index m, Index n, Index nnz, Index block_size) {
     cached_rows_ = m;
     cached_cols_ = n;
     cached_nnz_ = nnz;
     cached_block_size_ = block_size;
+  }
+
+  // A BSR descriptor holds op(A) as bound at upload time, and cuSPARSE runs no
+  // transposed BSR product.
+  void check_op_against_upload(GpuOp op) const {
+    eigen_assert((cached_block_size_ == 0 || op == GpuOp::NoTrans) &&
+                 "cuSPARSE runs BSR products only with op == NoTrans; pass op to multiply(A, d_x, d_y, ...) instead");
+    EIGEN_UNUSED_VARIABLE(op);
   }
 
   // Destroy the sparse-matrix descriptor and reset the cache identity.
@@ -948,7 +948,7 @@ class SparseContext {
       EIGEN_UNUSED_VARIABLE(checked);
       spmat_desc_ = nullptr;
     }
-    cache_descriptor(-1, -1, -1, 0);
+    set_descriptor_key(-1, -1, -1, 0);
     invalidate_ws_caches();
   }
 

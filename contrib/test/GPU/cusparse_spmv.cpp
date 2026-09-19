@@ -407,6 +407,7 @@ void test_device_multiply_gpuop(Index n) {
 template <typename Scalar, int Options, int BlockRows, int BlockCols>
 void test_block_sparse_input(Index block_rows, Index block_cols) {
   using Bsm = BlockSparseMatrix<Scalar, Options, BlockRows, BlockCols, int>;
+  using Block = typename Bsm::BlockType;
   using Vec = Matrix<Scalar, Dynamic, 1>;
   using Mat = Matrix<Scalar, Dynamic, Dynamic>;
   using RealScalar = typename NumTraits<Scalar>::Real;
@@ -414,9 +415,7 @@ void test_block_sparse_input(Index block_rows, Index block_cols) {
   std::vector<typename Bsm::TripletType> triplets;
   for (Index bi = 0; bi < block_rows; ++bi) {
     for (Index bj = 0; bj < block_cols; ++bj) {
-      if (internal::random<double>(0.0, 1.0) < 0.4) {
-        triplets.emplace_back(int(bi), int(bj), Matrix<Scalar, BlockRows, BlockCols, Options>::Random());
-      }
+      if (internal::random<double>(0.0, 1.0) < 0.4) triplets.emplace_back(int(bi), int(bj), Block::Random());
     }
   }
   Bsm A(block_rows, block_cols);
@@ -425,17 +424,20 @@ void test_block_sparse_input(Index block_rows, Index block_cols) {
   const Vec xt = Vec::Random(A.rows());
   const Mat X = Mat::Random(A.cols(), 3);
   const RealScalar tol = RealScalar(10) * RealScalar((std::max)(A.rows(), A.cols())) * NumTraits<Scalar>::epsilon();
+  auto verify_close = [tol](const auto& result, const auto& ref) {
+    VERIFY((result - ref).norm() / (ref.norm() + RealScalar(1)) < tol);
+  };
 
   gpu::Context gctx;
   gpu::SparseContext<Scalar> ctx(gctx);
   const Vec y_ref = A * x;
-  VERIFY((ctx.multiply(A, x) - y_ref).norm() / (y_ref.norm() + RealScalar(1)) < tol);
+  verify_close(ctx.multiply(A, x), y_ref);
   const Vec yt_ref = A.transpose() * xt;
-  VERIFY((ctx.multiplyT(A, xt) - yt_ref).norm() / (yt_ref.norm() + RealScalar(1)) < tol);
+  verify_close(ctx.multiplyT(A, xt), yt_ref);
   Vec y_acc = Vec::Random(A.cols());
   const Vec y_acc_ref = Scalar(2) * yt_ref + Scalar(3) * y_acc;
   ctx.multiply(A, xt, y_acc, Scalar(2), Scalar(3), gpu::GpuOp::Trans);
-  VERIFY((y_acc - y_acc_ref).norm() / (y_acc_ref.norm() + RealScalar(1)) < tol);
+  verify_close(y_acc, y_acc_ref);
   // As for test_spmv_adjoint below: shapes on the CSC path cannot form A^H * x
   // for complex scalars on cuSPARSE < 12, where SparseContext asserts.
 #if !defined(CUSPARSE_VERSION) || CUSPARSE_VERSION >= 12000
@@ -443,23 +445,19 @@ void test_block_sparse_input(Index block_rows, Index block_cols) {
 #else
   constexpr bool kTestAdjoint = !NumTraits<Scalar>::IsComplex;
 #endif
-  if (kTestAdjoint) {
-    const Vec yh_ref = A.adjoint() * xt;
-    VERIFY((ctx.multiplyAdjoint(A, xt) - yh_ref).norm() / (yh_ref.norm() + RealScalar(1)) < tol);
-  }
-  const Mat Y_ref = A * X;
-  VERIFY((ctx.multiplyMat(A, X) - Y_ref).norm() / (Y_ref.norm() + RealScalar(1)) < tol);
+  if (kTestAdjoint) verify_close(ctx.multiplyAdjoint(A, xt), Vec(A.adjoint() * xt));
+  verify_close(ctx.multiplyMat(A, X), Mat(A * X));
 
   auto d_x = gpu::DeviceMatrix<Scalar>::fromHost(x, gctx.stream());
   gpu::DeviceMatrix<Scalar> d_y;
   ctx.multiply(A, d_x, d_y);
-  VERIFY((d_y.toHost(gctx.stream()) - y_ref).norm() / (y_ref.norm() + RealScalar(1)) < tol);
+  verify_close(d_y.toHost(gctx.stream()), y_ref);
 
   auto view = ctx.deviceView(A);
   VERIFY_IS_EQUAL(view.rows(), A.rows());
   VERIFY_IS_EQUAL(view.cols(), A.cols());
   gpu::DeviceMatrix<Scalar> d_y2 = view * d_x;
-  VERIFY((d_y2.toHost(gctx.stream()) - y_ref).norm() / (y_ref.norm() + RealScalar(1)) < tol);
+  verify_close(d_y2.toHost(gctx.stream()), y_ref);
 }
 
 template <typename Scalar>

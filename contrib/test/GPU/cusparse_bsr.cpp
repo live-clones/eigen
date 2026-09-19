@@ -41,12 +41,14 @@ Bsm<Scalar, Options, B> make_block_sparse(Index block_rows, Index block_cols, do
   return A;
 }
 
-// Relative bound for y = op(A) x: each entry sums at most max(rows, cols)
-// products, so 10 * max(rows, cols) * eps covers the accumulation error.
-template <typename Scalar, typename Lhs, typename Rhs>
-void verify_product(const Lhs& gpu, const Rhs& cpu, Index rows, Index cols) {
+// Relative bound for a product by A: each entry sums at most
+// max(A.rows(), A.cols()) terms, so 10 * max(A.rows(), A.cols()) * eps covers
+// the accumulation error.
+template <typename Lhs, typename Rhs, typename MatrixType>
+void verify_product(const Lhs& gpu, const Rhs& cpu, const MatrixType& A) {
+  using Scalar = typename Lhs::Scalar;
   using RealScalar = typename NumTraits<Scalar>::Real;
-  const RealScalar tol = RealScalar(10) * RealScalar((std::max)(rows, cols)) * NumTraits<Scalar>::epsilon();
+  const RealScalar tol = RealScalar(10) * RealScalar((std::max)(A.rows(), A.cols())) * NumTraits<Scalar>::epsilon();
   VERIFY_IS_EQUAL(gpu.rows(), cpu.rows());
   VERIFY_IS_EQUAL(gpu.cols(), cpu.cols());
   VERIFY((gpu - cpu).norm() / (cpu.norm() + RealScalar(1)) < tol);
@@ -64,11 +66,11 @@ void test_bsr_spmv(Index block_rows, Index block_cols) {
 
   gpu::SparseContext<Scalar> ctx;
   const Vec y = ctx.multiply(A, x);
-  verify_product<Scalar>(y, Vec(A * x), A.rows(), A.cols());
+  verify_product(y, Vec(A * x), A);
   const Vec yt = ctx.multiplyT(A, xt);
-  verify_product<Scalar>(yt, Vec(A.transpose() * xt), A.rows(), A.cols());
+  verify_product(yt, Vec(A.transpose() * xt), A);
   const Vec yh = ctx.multiplyAdjoint(A, xt);
-  verify_product<Scalar>(yh, Vec(A.adjoint() * xt), A.rows(), A.cols());
+  verify_product(yh, Vec(A.adjoint() * xt), A);
 }
 
 // ---- Host SpMV in place: y = alpha * op(A) * x + beta * y ---------------------
@@ -86,13 +88,13 @@ void test_bsr_spmv_alpha_beta(Index block_rows, Index block_cols) {
   const Vec y_init = Vec::Random(A.rows());
   Vec y = y_init;
   ctx.multiply(A, x, y, alpha, beta);
-  verify_product<Scalar>(y, Vec(alpha * (A * x) + beta * y_init), A.rows(), A.cols());
+  verify_product(y, Vec(alpha * (A * x) + beta * y_init), A);
 
   const Vec xt = Vec::Random(A.rows());
   const Vec yt_init = Vec::Random(A.cols());
   Vec yt = yt_init;
   ctx.multiply(A, xt, yt, alpha, beta, gpu::GpuOp::ConjTrans);
-  verify_product<Scalar>(yt, Vec(alpha * (A.adjoint() * xt) + beta * yt_init), A.rows(), A.cols());
+  verify_product(yt, Vec(alpha * (A.adjoint() * xt) + beta * yt_init), A);
 }
 
 // ---- Host SpMM: Y = op(A) * X -------------------------------------------------
@@ -106,9 +108,9 @@ void test_bsr_spmm(Index block_rows, Index block_cols, Index nrhs) {
   const Mat Xt = Mat::Random(A.rows(), nrhs);
 
   gpu::SparseContext<Scalar> ctx;
-  verify_product<Scalar>(ctx.multiplyMat(A, X), Mat(A * X), A.rows(), A.cols());
-  verify_product<Scalar>(ctx.multiplyMat(A, Xt, gpu::GpuOp::Trans), Mat(A.transpose() * Xt), A.rows(), A.cols());
-  verify_product<Scalar>(ctx.multiplyMat(A, Xt, gpu::GpuOp::ConjTrans), Mat(A.adjoint() * Xt), A.rows(), A.cols());
+  verify_product(ctx.multiplyMat(A, X), Mat(A * X), A);
+  verify_product(ctx.multiplyMat(A, Xt, gpu::GpuOp::Trans), Mat(A.transpose() * Xt), A);
+  verify_product(ctx.multiplyMat(A, Xt, gpu::GpuOp::ConjTrans), Mat(A.adjoint() * Xt), A);
 }
 
 // ---- DeviceMatrix in/out with an explicit op ----------------------------------
@@ -125,15 +127,15 @@ void test_bsr_device_multiply(Index block_rows, Index block_cols) {
   auto d_x = gpu::DeviceMatrix<Scalar>::fromHost(x, gctx.stream());
   gpu::DeviceMatrix<Scalar> d_y;
   ctx.multiply(A, d_x, d_y);
-  verify_product<Scalar>(d_y.toHost(gctx.stream()), Vec(A * x), A.rows(), A.cols());
+  verify_product(d_y.toHost(gctx.stream()), Vec(A * x), A);
 
   const Vec xt = Vec::Random(A.rows());
   auto d_xt = gpu::DeviceMatrix<Scalar>::fromHost(xt, gctx.stream());
   gpu::DeviceMatrix<Scalar> d_yt;
   ctx.multiply(A, d_xt, d_yt, Scalar(1), Scalar(0), gpu::GpuOp::Trans);
-  verify_product<Scalar>(d_yt.toHost(gctx.stream()), Vec(A.transpose() * xt), A.rows(), A.cols());
+  verify_product(d_yt.toHost(gctx.stream()), Vec(A.transpose() * xt), A);
   ctx.multiply(A, d_xt, d_yt, Scalar(1), Scalar(0), gpu::GpuOp::ConjTrans);
-  verify_product<Scalar>(d_yt.toHost(gctx.stream()), Vec(A.adjoint() * xt), A.rows(), A.cols());
+  verify_product(d_yt.toHost(gctx.stream()), Vec(A.adjoint() * xt), A);
 }
 
 // ---- deviceView: upload once, SpMV and SpMM by expression ----------------------
@@ -154,13 +156,13 @@ void test_bsr_device_view(Index block_rows, Index block_cols, Index nrhs) {
   const Vec x = Vec::Random(A.cols());
   auto d_x = gpu::DeviceMatrix<Scalar>::fromHost(x, gctx.stream());
   gpu::DeviceMatrix<Scalar> d_y = view * d_x;
-  verify_product<Scalar>(d_y.toHost(gctx.stream()), Vec(A * x), A.rows(), A.cols());
+  verify_product(d_y.toHost(gctx.stream()), Vec(A * x), A);
 
   const Mat X = Mat::Random(A.cols(), nrhs);
   auto d_X = gpu::DeviceMatrix<Scalar>::fromHost(X, gctx.stream());
   gpu::DeviceMatrix<Scalar> d_Y;
   d_Y.noalias() = view * d_X;
-  verify_product<Scalar>(d_Y.toHost(gctx.stream()), Mat(A * X), A.rows(), A.cols());
+  verify_product(d_Y.toHost(gctx.stream()), Mat(A * X), A);
 
   // cuSPARSE runs no transposed BSR product; the exec entry points reject any
   // other op against a BSR upload before queuing work.
@@ -184,9 +186,9 @@ void test_bsr_format_switch(Index block_n) {
   const Vec x = Vec::Random(A.cols());
 
   gpu::SparseContext<Scalar> ctx;
-  verify_product<Scalar>(ctx.multiply(A, x), Vec(A * x), A.rows(), A.cols());
-  verify_product<Scalar>(ctx.multiply(S, x), Vec(S * x), A.rows(), A.cols());
-  verify_product<Scalar>(ctx.multiply(A, x), Vec(A * x), A.rows(), A.cols());
+  verify_product(ctx.multiply(A, x), Vec(A * x), A);
+  verify_product(ctx.multiply(S, x), Vec(S * x), A);
+  verify_product(ctx.multiply(A, x), Vec(A * x), A);
 }
 
 // ---- Pattern rewrite at unchanged host pointers -------------------------------
@@ -207,7 +209,7 @@ void test_bsr_pattern_rewrite(Index n) {
   const Vec x = Vec::Random(A.cols());
 
   gpu::SparseContext<Scalar> ctx;
-  verify_product<Scalar>(ctx.multiply(A, x), Vec(A * x), A.rows(), A.cols());
+  verify_product(ctx.multiply(A, x), Vec(A * x), A);
 
   // RowMajor: inner index = block column, shift it. ColMajor: inner index =
   // block row; shifting the *outer* boundaries instead moves block i to
@@ -220,7 +222,7 @@ void test_bsr_pattern_rewrite(Index n) {
     A.outerIndexPtr()[n + 1] = int(n);
   }
   VERIFY_IS_EQUAL(A.nonZeroBlocks(), n);
-  verify_product<Scalar>(ctx.multiply(A, x), Vec(A * x), A.rows(), A.cols());
+  verify_product(ctx.multiply(A, x), Vec(A * x), A);
 }
 
 // ---- Empty matrices ------------------------------------------------------------
