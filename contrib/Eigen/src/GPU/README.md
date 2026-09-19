@@ -277,7 +277,7 @@ double n = norm_val;                   // implicit conversion triggers sync
 d_x += alpha * d_p;                    // axpy: x = x + alpha * p
 d_x -= alpha * d_p;                    // axpy: x = x - alpha * p
 d_x *= alpha;                          // scal: x = alpha * x
-d_x /= alpha;                          // scal: x = x / alpha
+d_x /= alpha;                          // NPP divide-by-constant: x = x / alpha (true division for real Scalar)
 d_r.setZero();                         // cudaMemsetAsync
 auto s = d_r.stableNorm();             // same as norm(): cuBLAS nrm2 is already overflow-safe
 
@@ -600,7 +600,11 @@ traits, so `IterativeSolverBase` holds it by pointer), the vectors are
 expressions and need Eigen operands; `solveWithGuessInPlace(b, x)` is the entry
 point for device vectors, with `x` holding the initial guess. The identity
 preconditioner works as is; `DiagonalPreconditioner` and the other Eigen
-preconditioners evaluate host expressions and do not.
+preconditioners evaluate host expressions and do not. `compute()` stores a
+pointer to the view, so the view and the `SparseContext` behind it must outlive
+the solver. The class form is real-`Scalar` only: `DeviceScalar` arithmetic
+covers real types, and `numext::real()` of a complex `DeviceScalar` has no host
+conversion to `RealScalar`.
 
 ```cpp
 gpu::Context ctx;
@@ -619,11 +623,18 @@ cg.solveWithGuessInPlace(d_b, d_x);    // Eigen's algorithm, cuSPARSE and cuBLAS
 gpu::Context::setThreadLocal(nullptr);
 ```
 
-The algorithm's `Scalar alpha = absNew / p.dot(tmp)` and `stableNorm()` checks
-each read a value on the host, so this form synchronizes three times per
-iteration. The hand-written loop below is the same algorithm with one host sync
-per iteration (the convergence check); all scalar intermediates (`alpha`,
-`beta`, `absNew`) stay on device as `DeviceScalar` values:
+The algorithm reads three values on the host per iteration -- `alpha`, the
+`stableNorm()` convergence check and `absNew` -- so this form synchronizes three
+times per iteration. The division `absNew / p.dot(tmp)` resolves to the
+device-side `operator/(Scalar, DeviceScalar)`: `absNew` is uploaded into a
+fresh `DeviceScalar`, divided through NPP and read back, two small allocations
+and a kernel launch per iteration on top of the sync. The hand-written loop
+below is the same algorithm with one host sync per iteration (the convergence
+check); all scalar intermediates (`alpha`, `beta`, `absNew`) stay on device as
+`DeviceScalar` values. Its convergence test squares the residual norm
+(`squaredNorm()`, a cuBLAS dot), which overflows for `||r|| > sqrt(max)` and
+underflows to 0 for `||r|| < sqrt(min)`, so it lacks the extreme-scale
+robustness the template gets from `stableNorm()` and its residual scaling:
 
 ```cpp
 gpu::Context ctx;
