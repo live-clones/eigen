@@ -8,10 +8,10 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-// End-to-end test: CG algorithm running on GPU via gpu::DeviceMatrix.
-//
-// Uses DeviceSparseView for SpMV, gpu::DeviceMatrix for vectors, DeviceScalar
-// for deferred reductions. Verifies correctness against CPU ConjugateGradient.
+// End-to-end tests of conjugate gradient on the GPU types: Eigen's ConjugateGradient
+// class on DeviceSparseView and DeviceMatrix through solveWithGuessInPlace(), and the
+// module's hand-written loop with DeviceScalar reductions. Both are checked against
+// the CPU ConjugateGradient.
 
 #define EIGEN_USE_GPU
 #include "main.h"
@@ -87,113 +87,6 @@ void check_cg_solution(const SparseMatrix<Scalar, ColMajor, int>& A, const Matri
   VERIFY(dx.norm() <= 2 * condition_bound(A) * relres_bound * x_cpu.template cast<double>().norm());
 }
 
-// ---- GPU CG without preconditioner ------------------------------------------
-
-template <typename Scalar>
-void test_gpu_cg(Index n) {
-  using SpMat = SparseMatrix<Scalar, ColMajor, int>;
-  using Vec = Matrix<Scalar, Dynamic, 1>;
-  using RealScalar = typename NumTraits<Scalar>::Real;
-
-  SpMat A = make_spd<Scalar>(n);
-  Vec b = Vec::Random(n);
-  const RealScalar tol = cg_tolerance<Scalar>();
-  Vec x_cpu = cpu_reference(A, b, tol);
-
-  // GPU CG: mirrors Eigen's conjugate_gradient() using gpu::DeviceMatrix ops.
-  gpu::Context ctx;
-  gpu::Context::setThreadLocal(&ctx);
-  gpu::SparseContext<Scalar> spmv_ctx(ctx);
-  auto mat = spmv_ctx.deviceView(A);
-
-  auto d_b = gpu::DeviceMatrix<Scalar>::fromHost(b, ctx.stream());
-  gpu::DeviceMatrix<Scalar> d_x(n, 1);
-  d_x.setZero(ctx);
-
-  // r = b (since x=0)
-  gpu::DeviceMatrix<Scalar> residual(n, 1);
-  residual.copyFrom(ctx, d_b);
-
-  RealScalar rhsNorm2 = d_b.squaredNorm(ctx);
-  RealScalar threshold = tol * tol * rhsNorm2;
-  RealScalar residualNorm2 = residual.squaredNorm(ctx);
-
-  // p = r (no preconditioner)
-  gpu::DeviceMatrix<Scalar> p(n, 1);
-  p.copyFrom(ctx, residual);
-  gpu::DeviceMatrix<Scalar> z(n, 1), tmp(n, 1);
-
-  auto absNew = residual.dot(ctx, p);
-  Index maxIters = 1000;
-  Index i = 0;
-  while (i < maxIters) {
-    tmp.noalias() = mat * p;
-
-    auto alpha = absNew / p.dot(ctx, tmp);
-    d_x += alpha * p;
-    residual -= alpha * tmp;
-
-    residualNorm2 = residual.squaredNorm(ctx);
-    if (residualNorm2 < threshold) break;
-
-    // z = r (no preconditioner)
-    z.copyFrom(ctx, residual);
-
-    auto absOld = std::move(absNew);
-    absNew = residual.dot(ctx, z);
-    auto beta = absNew / absOld;
-
-    p *= beta;
-    p += z;
-    i++;
-  }
-
-  gpu::Context::setThreadLocal(nullptr);
-
-  Vec x_gpu = d_x.toHost(ctx.stream());
-  check_cg_solution(A, b, x_gpu, x_cpu, tol);
-}
-
-// ---- Eigen's own conjugate_gradient() template on device types ---------------
-// The unmodified template with a DeviceSparseView matrix and DeviceMatrix vectors:
-// `rhs - mat * x`, stableNorm(), operator/= and the deep copy behind `p = precond.solve(r)`.
-template <typename Scalar>
-void test_gpu_cg_template(Index n) {
-  using SpMat = SparseMatrix<Scalar, ColMajor, int>;
-  using Vec = Matrix<Scalar, Dynamic, 1>;
-  using RealScalar = typename NumTraits<Scalar>::Real;
-  SpMat A = make_spd<Scalar>(n);
-  Vec b = Vec::Random(n);
-  const RealScalar tol = cg_tolerance<Scalar>();
-  Vec x_cpu = cpu_reference(A, b, tol);
-
-  gpu::Context ctx;
-  gpu::Context::setThreadLocal(&ctx);
-  gpu::SparseContext<Scalar> spmv_ctx(ctx);
-  auto mat = spmv_ctx.deviceView(A);
-  auto d_b = gpu::DeviceMatrix<Scalar>::fromHost(b, ctx.stream());
-  gpu::DeviceMatrix<Scalar> d_x(n, 1);
-  d_x.setZero(ctx);
-  Index iters = 1000;
-  RealScalar tol_error = tol;
-  internal::conjugate_gradient(mat, d_b, d_x, IdentityPreconditioner(), iters, tol_error);
-  VERIFY(iters > 0 && iters < 1000);
-  VERIFY(tol_error <= tol);
-
-  // The deep copy and the scalar division the template relies on. 3 is not a power of two,
-  // so the quotient rounds; each element must be within 2 eps of the host division.
-  gpu::DeviceMatrix<Scalar> d_c = d_b;
-  d_c /= Scalar(3);
-  gpu::Context::setThreadLocal(nullptr);
-  const Vec c = d_c.toHost(ctx.stream());
-  const Vec c_ref = b / Scalar(3);
-  VERIFY(((c - c_ref).cwiseAbs().array() <= RealScalar(2) * NumTraits<Scalar>::epsilon() * c_ref.cwiseAbs().array())
-             .all());
-
-  Vec x_gpu = d_x.toHost(ctx.stream());
-  check_cg_solution(A, b, x_gpu, x_cpu, tol);
-}
-
 // ---- Eigen's ConjugateGradient class on device types ------------------------
 // DeviceSparseView is a matrix-free matrix type, so the public solver class
 // instantiates with it; solveWithGuessInPlace() is the entry point that takes
@@ -224,7 +117,17 @@ void test_gpu_cg_class(Index n) {
   VERIFY_IS_EQUAL(cg.info(), Success);
   VERIFY(cg.iterations() > 0 && cg.iterations() < 1000);
   VERIFY(cg.error() <= tol);
+
+  // The deep copy and the scalar division the algorithm relies on (`p = precond.solve(r)`,
+  // `residual /= residualScale`). 3 is not a power of two, so the quotient rounds; each element
+  // must be within 2 eps of the host division.
+  gpu::DeviceMatrix<Scalar> d_c = d_b;
+  d_c /= Scalar(3);
   gpu::Context::setThreadLocal(nullptr);
+  const Vec c = d_c.toHost(ctx.stream());
+  const Vec c_ref = b / Scalar(3);
+  VERIFY(((c - c_ref).cwiseAbs().array() <= RealScalar(2) * NumTraits<Scalar>::epsilon() * c_ref.cwiseAbs().array())
+             .all());
 
   Vec x_gpu = d_x.toHost(ctx.stream());
   check_cg_solution(A, b, x_gpu, x_cpu, tol);
@@ -276,10 +179,12 @@ void test_gpu_cg_extreme_rhs() {
   gpu::Context::setThreadLocal(nullptr);
 }
 
-// ---- GPU CG with Jacobi preconditioner --------------------------------------
-
+// ---- The module's hand-written CG loop --------------------------------------
+// The README's loop: every scalar intermediate stays on device as a DeviceScalar and the
+// convergence check is the one host sync per iteration. `jacobi` selects the diagonal
+// preconditioner, applied as a cwiseProduct with 1 / diag(A).
 template <typename Scalar>
-void test_gpu_cg_jacobi(Index n) {
+void test_gpu_cg_loop(Index n, bool jacobi) {
   using SpMat = SparseMatrix<Scalar, ColMajor, int>;
   using Vec = Matrix<Scalar, Dynamic, 1>;
   using RealScalar = typename NumTraits<Scalar>::Real;
@@ -289,18 +194,9 @@ void test_gpu_cg_jacobi(Index n) {
   const RealScalar tol = cg_tolerance<Scalar>();
   Vec x_cpu = cpu_reference(A, b, tol);
 
-  // Extract inverse diagonal.
   Vec invdiag(n);
-  for (Index j = 0; j < A.outerSize(); ++j) {
-    typename SpMat::InnerIterator it(A, j);
-    while (it && it.index() != j) ++it;
-    if (it && it.index() == j && it.value() != Scalar(0))
-      invdiag(j) = Scalar(1) / it.value();
-    else
-      invdiag(j) = Scalar(1);
-  }
+  for (Index j = 0; j < n; ++j) invdiag(j) = Scalar(1) / A.coeff(j, j);
 
-  // GPU CG with Jacobi preconditioner.
   gpu::Context ctx;
   gpu::Context::setThreadLocal(&ctx);
   gpu::SparseContext<Scalar> spmv_ctx(ctx);
@@ -311,6 +207,7 @@ void test_gpu_cg_jacobi(Index n) {
   gpu::DeviceMatrix<Scalar> d_x(n, 1);
   d_x.setZero(ctx);
 
+  // r = b (since x = 0)
   gpu::DeviceMatrix<Scalar> residual(n, 1);
   residual.copyFrom(ctx, d_b);
 
@@ -318,8 +215,13 @@ void test_gpu_cg_jacobi(Index n) {
   RealScalar threshold = tol * tol * rhsNorm2;
   RealScalar residualNorm2 = residual.squaredNorm(ctx);
 
-  // p = precond.solve(r) = invdiag .* r
-  gpu::DeviceMatrix<Scalar> p = d_invdiag.cwiseProduct(ctx, residual);
+  // p = precond.solve(r)
+  gpu::DeviceMatrix<Scalar> p(n, 1);
+  if (jacobi) {
+    p.cwiseProduct(ctx, d_invdiag, residual);
+  } else {
+    p.copyFrom(ctx, residual);
+  }
   gpu::DeviceMatrix<Scalar> z(n, 1), tmp(n, 1);
 
   auto absNew = residual.dot(ctx, p);
@@ -335,8 +237,12 @@ void test_gpu_cg_jacobi(Index n) {
     residualNorm2 = residual.squaredNorm(ctx);
     if (residualNorm2 < threshold) break;
 
-    // z = precond.solve(r) = invdiag .* r
-    z.cwiseProduct(ctx, d_invdiag, residual);
+    // z = precond.solve(r)
+    if (jacobi) {
+      z.cwiseProduct(ctx, d_invdiag, residual);
+    } else {
+      z.copyFrom(ctx, residual);
+    }
 
     auto absOld = std::move(absNew);
     absNew = residual.dot(ctx, z);
@@ -357,22 +263,16 @@ EIGEN_DECLARE_TEST(gpu_cg) {
   gpu_test::require_cusparse_context();
 
   // Split by scalar so each part compiles in parallel.
-  CALL_SUBTEST_1(test_gpu_cg<double>(64));
-  CALL_SUBTEST_1(test_gpu_cg<double>(256));
-  CALL_SUBTEST_1(test_gpu_cg_jacobi<double>(64));
-  CALL_SUBTEST_1(test_gpu_cg_jacobi<double>(256));
-  CALL_SUBTEST_1(test_gpu_cg_template<double>(64));
-  CALL_SUBTEST_1(test_gpu_cg_template<double>(256));
   CALL_SUBTEST_1(test_gpu_cg_class<double>(64));
   CALL_SUBTEST_1(test_gpu_cg_class<double>(256));
   CALL_SUBTEST_1(test_gpu_cg_extreme_rhs<double>());
-  CALL_SUBTEST_2(test_gpu_cg<float>(64));
-  CALL_SUBTEST_2(test_gpu_cg<float>(256));
-  CALL_SUBTEST_2(test_gpu_cg_jacobi<float>(64));
-  CALL_SUBTEST_2(test_gpu_cg_jacobi<float>(256));
-  CALL_SUBTEST_2(test_gpu_cg_template<float>(64));
-  CALL_SUBTEST_2(test_gpu_cg_template<float>(256));
+  CALL_SUBTEST_1(test_gpu_cg_loop<double>(64, false));
+  CALL_SUBTEST_1(test_gpu_cg_loop<double>(256, false));
+  CALL_SUBTEST_1(test_gpu_cg_loop<double>(256, true));
   CALL_SUBTEST_2(test_gpu_cg_class<float>(64));
   CALL_SUBTEST_2(test_gpu_cg_class<float>(256));
   CALL_SUBTEST_2(test_gpu_cg_extreme_rhs<float>());
+  CALL_SUBTEST_2(test_gpu_cg_loop<float>(64, false));
+  CALL_SUBTEST_2(test_gpu_cg_loop<float>(256, false));
+  CALL_SUBTEST_2(test_gpu_cg_loop<float>(256, true));
 }
