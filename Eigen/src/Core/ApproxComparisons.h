@@ -58,8 +58,8 @@ struct comparison_magnitude {
   EIGEN_DEVICE_FUNC bool operator<=(const comparison_magnitude<OtherRealScalar>& other) const {
     using Common = std::common_type_t<RealScalar, OtherRealScalar>;
     if (!isFinite()) return false;
-    if (!other.isFinite()) return Common(fraction) <= Common(other.fraction);
-    if (fraction == RealScalar(0) || other.fraction == OtherRealScalar(0))
+    // Zero and non-finite magnitudes carry no exponent.
+    if (!other.isFinite() || fraction == RealScalar(0) || other.fraction == OtherRealScalar(0))
       return Common(fraction) <= Common(other.fraction);
     return exponent < other.exponent || (exponent == other.exponent && Common(fraction) <= Common(other.fraction));
   }
@@ -130,6 +130,9 @@ template <typename Scalar>
 struct approx_comparison_impl<Scalar, true> {
   using RealScalar = typename NumTraits<Scalar>::Real;
   using Accumulator = typename stable_norm_accumulator<RealScalar>::type;
+  template <typename Y>
+  using CommonAccumulator =
+      std::common_type_t<Accumulator, typename stable_norm_accumulator<typename Y::RealScalar>::type>;
 
   template <typename ValueScalar>
   EIGEN_DEVICE_FUNC static typename stable_norm_accumulator<ValueScalar>::type squared_norm_lower_bound(Index size) {
@@ -139,12 +142,11 @@ struct approx_comparison_impl<Scalar, true> {
            ValueAccumulator(NumTraits<ValueScalar>::epsilon()) * ValueAccumulator(size);
   }
 
-  template <typename ValueScalar, typename BoundScalar>
+  template <typename BoundScalar>
   EIGEN_DEVICE_FUNC static bool safe_squared_norm(const BoundScalar& value, Index size) {
-    using ValueAccumulator = typename stable_norm_accumulator<ValueScalar>::type;
-    using Common = std::common_type_t<ValueAccumulator, BoundScalar>;
-    return Common(value) >= Common(squared_norm_lower_bound<ValueScalar>(size)) &&
-           Common(value) <= Common(NumTraits<ValueScalar>::highest());
+    using Common = std::common_type_t<Accumulator, BoundScalar>;
+    return Common(value) >= Common(squared_norm_lower_bound<RealScalar>(size)) &&
+           Common(value) <= Common(NumTraits<RealScalar>::highest());
   }
 
   template <typename X, typename Y>
@@ -155,8 +157,7 @@ struct approx_comparison_impl<Scalar, true> {
     const RealScalar precision2 = prec * prec;
     const RealScalar bound = precision2 * minimum;
     // Only the smaller norm enters the bound; overflow of the larger norm is harmless.
-    if (safe_squared_norm<RealScalar>(bound, x.size()) &&
-        Accumulator(minimum) >= squared_norm_lower_bound<RealScalar>(x.size()) &&
+    if (safe_squared_norm(bound, x.size()) && Accumulator(minimum) >= squared_norm_lower_bound<RealScalar>(x.size()) &&
         Accumulator(precision2) >= squared_norm_lower_bound<RealScalar>(1))
       return (x.matrix() - y.matrix()).cwiseAbs2().sum() <= bound;
 
@@ -165,7 +166,7 @@ struct approx_comparison_impl<Scalar, true> {
 
   template <typename X, typename Y>
   EIGEN_DEVICE_FUNC static bool isMuchSmallerThan(const X& x, const Y& y, const RealScalar& prec) {
-    using Common = std::common_type_t<Accumulator, typename stable_norm_accumulator<typename Y::RealScalar>::type>;
+    using Common = CommonAccumulator<Y>;
     typename nested_eval<X, 2>::type nested(x);
     typename nested_eval<Y, 2>::type otherNested(y);
     const RealScalar x2 = nested.cwiseAbs2().sum();
@@ -173,7 +174,7 @@ struct approx_comparison_impl<Scalar, true> {
     const RealScalar precision2 = numext::abs2(prec);
     const Common bound = Common(precision2) * Common(y2);
     // A finite bound above the flushing error makes overflow/underflow of x2 harmless.
-    if (safe_squared_norm<RealScalar>(bound, x.size()) &&
+    if (safe_squared_norm(bound, x.size()) &&
         Common(y2) >= Common(squared_norm_lower_bound<typename Y::RealScalar>(y.size())) &&
         Accumulator(precision2) >= squared_norm_lower_bound<RealScalar>(1))
       return Common(x2) <= bound;
@@ -185,7 +186,7 @@ struct approx_comparison_impl<Scalar, true> {
     typename nested_eval<X, 2>::type nested(x);
     const RealScalar x2 = nested.cwiseAbs2().sum();
     const RealScalar bound = numext::abs2(prec * y);
-    if (safe_squared_norm<RealScalar>(bound, x.size())) return x2 <= bound;
+    if (safe_squared_norm(bound, x.size())) return x2 <= bound;
     return isMuchSmallerThan_scaled(nested, y, prec);
   }
 
@@ -204,7 +205,7 @@ struct approx_comparison_impl<Scalar, true> {
   template <typename X, typename Y>
   EIGEN_DEVICE_FUNC static EIGEN_DONT_INLINE bool isMuchSmallerThan_scaled(const X& x, const Y& y,
                                                                            const RealScalar& prec) {
-    using Common = std::common_type_t<Accumulator, typename stable_norm_accumulator<typename Y::RealScalar>::type>;
+    using Common = CommonAccumulator<Y>;
     comparison_magnitude<Common> tolerance(scaled_comparison_norm(y));
     tolerance.multiply(numext::abs(Common(prec)));
     return scaled_comparison_norm(x) <= tolerance;
@@ -219,15 +220,18 @@ struct approx_comparison_impl<Scalar, true> {
   }
 };
 
+// Exponent scaling needs binary floating-point on both sides.
+template <typename Derived, typename OtherDerived>
+using approx_comparison_impl_t =
+    approx_comparison_impl<typename Derived::Scalar, use_scaled_comparison<typename Derived::Scalar>::value &&
+                                                         use_scaled_comparison<typename OtherDerived::Scalar>::value>;
+
 template <typename Derived, typename OtherDerived, bool is_integer = NumTraits<typename Derived::Scalar>::IsInteger>
 struct isApprox_selector {
   EIGEN_DEVICE_FUNC static bool run(const Derived& x, const OtherDerived& y, const typename Derived::RealScalar& prec) {
     typename internal::nested_eval<Derived, 2>::type nested(x);
     typename internal::nested_eval<OtherDerived, 2>::type otherNested(y);
-    using Impl = approx_comparison_impl<typename Derived::Scalar,
-                                        use_scaled_comparison<typename Derived::Scalar>::value &&
-                                            use_scaled_comparison<typename OtherDerived::Scalar>::value>;
-    return Impl::isApprox(nested, otherNested, prec);
+    return approx_comparison_impl_t<Derived, OtherDerived>::isApprox(nested, otherNested, prec);
   }
 };
 
@@ -241,10 +245,7 @@ struct isApprox_selector<Derived, OtherDerived, true> {
 template <typename Derived, typename OtherDerived, bool is_integer = NumTraits<typename Derived::Scalar>::IsInteger>
 struct isMuchSmallerThan_object_selector {
   EIGEN_DEVICE_FUNC static bool run(const Derived& x, const OtherDerived& y, const typename Derived::RealScalar& prec) {
-    using Impl = approx_comparison_impl<typename Derived::Scalar,
-                                        use_scaled_comparison<typename Derived::Scalar>::value &&
-                                            use_scaled_comparison<typename OtherDerived::Scalar>::value>;
-    return Impl::isMuchSmallerThan(x, y, prec);
+    return approx_comparison_impl_t<Derived, OtherDerived>::isMuchSmallerThan(x, y, prec);
   }
 };
 
