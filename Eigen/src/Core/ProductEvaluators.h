@@ -43,7 +43,33 @@ struct evaluator<Product<Lhs, Rhs, Options>> : public product_evaluator<Product<
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit evaluator(const XprType& xpr) : Base(xpr) {}
 };
 
-// Catch "scalar * ( A * B )" and transform it to "(A*scalar) * B"
+// A scalar factor cannot be folded into a unit diagonal or a permutation.
+template <typename Lhs, typename Shape = typename evaluator_traits<Lhs>::Shape>
+struct product_can_fold_scalar
+    : bool_constant<std::is_same<Shape, DenseShape>::value || std::is_same<Shape, SparseShape>::value ||
+                    std::is_same<Shape, DiagonalShape>::value || std::is_same<Shape, SelfAdjointShape>::value> {};
+
+template <typename Lhs>
+struct product_can_fold_scalar<Lhs, TriangularShape> : bool_constant<(Lhs::Mode & UnitDiag) == 0> {};
+
+template <typename Xpr, bool Fold = product_can_fold_scalar<typename Xpr::Rhs::Lhs>::value>
+struct scaled_product_evaluator : binary_evaluator<Xpr> {
+  using Base = binary_evaluator<Xpr>;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit scaled_product_evaluator(const Xpr& xpr) : Base(xpr) {}
+};
+
+template <typename Xpr>
+struct scaled_product_evaluator<Xpr, true>
+    : evaluator<remove_all_t<decltype((std::declval<Xpr>().lhs().functor().m_other * std::declval<Xpr>().rhs().lhs()) *
+                                      std::declval<Xpr>().rhs().rhs())>> {
+  using Base =
+      evaluator<remove_all_t<decltype((std::declval<Xpr>().lhs().functor().m_other * std::declval<Xpr>().rhs().lhs()) *
+                                      std::declval<Xpr>().rhs().rhs())>>;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit scaled_product_evaluator(const Xpr& xpr)
+      : Base((xpr.lhs().functor().m_other * xpr.rhs().lhs()) * xpr.rhs().rhs()) {}
+};
+
+// Catch "scalar * ( A * B )" and transform it to "(scalar*A) * B"
 // TODO: we should apply that rule only if that's really helpful
 template <typename Lhs, typename Rhs, typename Scalar1, typename Scalar2, typename Plain1>
 struct evaluator_assume_aliasing<CwiseBinaryOp<internal::scalar_product_op<Scalar1, Scalar2>,
@@ -53,16 +79,15 @@ template <typename Lhs, typename Rhs, typename Scalar1, typename Scalar2, typena
 struct evaluator<CwiseBinaryOp<internal::scalar_product_op<Scalar1, Scalar2>,
                                const CwiseNullaryOp<internal::scalar_constant_op<Scalar1>, Plain1>,
                                const Product<Lhs, Rhs, DefaultProduct>>>
-    : public evaluator<Product<EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(Scalar1, Lhs, internal::scalar_product_op), Rhs,
-                               DefaultProduct>> {
+    : scaled_product_evaluator<CwiseBinaryOp<internal::scalar_product_op<Scalar1, Scalar2>,
+                                             const CwiseNullaryOp<internal::scalar_constant_op<Scalar1>, Plain1>,
+                                             const Product<Lhs, Rhs, DefaultProduct>>> {
   using XprType = CwiseBinaryOp<internal::scalar_product_op<Scalar1, Scalar2>,
                                 const CwiseNullaryOp<internal::scalar_constant_op<Scalar1>, Plain1>,
                                 const Product<Lhs, Rhs, DefaultProduct>>;
-  using Base = evaluator<
-      Product<EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(Scalar1, Lhs, internal::scalar_product_op), Rhs, DefaultProduct>>;
+  using Base = scaled_product_evaluator<XprType>;
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit evaluator(const XprType& xpr)
-      : Base(xpr.lhs().functor().m_other * xpr.rhs().lhs() * xpr.rhs().rhs()) {}
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit evaluator(const XprType& xpr) : Base(xpr) {}
 };
 
 template <typename Lhs, typename Rhs, int DiagIndex>
@@ -174,7 +199,7 @@ struct Assignment<DstXprType,
                   CwiseBinaryOp<internal::scalar_product_op<ScalarBis, Scalar>,
                                 const CwiseNullaryOp<internal::scalar_constant_op<ScalarBis>, Plain>,
                                 const Product<Lhs, Rhs, DefaultProduct>>,
-                  AssignFunc, Dense2Dense> {
+                  AssignFunc, Dense2Dense, std::enable_if_t<product_can_fold_scalar<Lhs>::value>> {
   using SrcXprType = CwiseBinaryOp<internal::scalar_product_op<ScalarBis, Scalar>,
                                    const CwiseNullaryOp<internal::scalar_constant_op<ScalarBis>, Plain>,
                                    const Product<Lhs, Rhs, DefaultProduct>>;
@@ -293,7 +318,7 @@ void EIGEN_DEVICE_FUNC outer_product_selector_run_small(Dst& dst, const Lhs& lhs
   const Index rows = dst.rows();
   const Index cols = dst.cols();
   for (Index j = 0; j < cols; ++j) {
-    const Scalar rhs_j = rhsEval.coeff(Index(0), j);
+    const auto rhs_j = rhsEval.coeff(Index(0), j);
     for (Index i = 0; i < rows; ++i) {
       func.assignCoeff(dst.coeffRef(i, j), alpha * (rhs_j * actual_lhs.coeff(i, Index(0))));
     }
@@ -308,7 +333,7 @@ void EIGEN_DEVICE_FUNC outer_product_selector_run_small(Dst& dst, const Lhs& lhs
   const Index rows = dst.rows();
   const Index cols = dst.cols();
   for (Index i = 0; i < rows; ++i) {
-    const Scalar lhs_i = lhsEval.coeff(i, Index(0));
+    const auto lhs_i = lhsEval.coeff(i, Index(0));
     for (Index j = 0; j < cols; ++j) {
       func.assignCoeff(dst.coeffRef(i, j), alpha * (lhs_i * actual_rhs.coeff(Index(0), j)));
     }
@@ -320,6 +345,9 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, OuterProduct> {
   template <typename T>
   struct is_row_major : bool_constant<(int(T::Flags) & RowMajorBit)> {};
   using Scalar = typename Product<Lhs, Rhs>::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  // A real unit factor avoids the 0*inf terms introduced by complex(1).
+  using UnitScalar = std::conditional_t<std::is_same<Scalar, std::complex<RealScalar>>::value, RealScalar, Scalar>;
 
   // TODO: it would be nice to be able to exploit our *_assign_op functors for that purpose
   struct set {
@@ -345,7 +373,7 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, OuterProduct> {
   struct adds {
     Scalar m_scale;
     /** Constructor */
-    explicit adds(const Scalar& s) : m_scale(s) {}
+    EIGEN_DEVICE_FUNC explicit adds(const Scalar& s) : m_scale(s) {}
     /** Scaled add to dst. */
     template <typename Dst, typename Src>
     void EIGEN_DEVICE_FUNC operator()(const Dst& dst, const Src& src) const {
@@ -357,7 +385,7 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, OuterProduct> {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void evalTo(Dst& dst, const Lhs& lhs, const Rhs& rhs) {
     if (internal::outer_product_use_small_assignment(dst)) {
       internal::outer_product_selector_run_small(dst, lhs, rhs, internal::assign_op<typename Dst::Scalar, Scalar>(),
-                                                 Scalar(1), is_row_major<Dst>());
+                                                 UnitScalar(1), is_row_major<Dst>());
     } else {
       internal::outer_product_selector_run(dst, lhs, rhs, set(), is_row_major<Dst>());
     }
@@ -367,7 +395,7 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, OuterProduct> {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void addTo(Dst& dst, const Lhs& lhs, const Rhs& rhs) {
     if (internal::outer_product_use_small_assignment(dst)) {
       internal::outer_product_selector_run_small(dst, lhs, rhs, internal::add_assign_op<typename Dst::Scalar, Scalar>(),
-                                                 Scalar(1), is_row_major<Dst>());
+                                                 UnitScalar(1), is_row_major<Dst>());
     } else {
       internal::outer_product_selector_run(dst, lhs, rhs, add(), is_row_major<Dst>());
     }
@@ -377,7 +405,7 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, OuterProduct> {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void subTo(Dst& dst, const Lhs& lhs, const Rhs& rhs) {
     if (internal::outer_product_use_small_assignment(dst)) {
       internal::outer_product_selector_run_small(dst, lhs, rhs, internal::sub_assign_op<typename Dst::Scalar, Scalar>(),
-                                                 Scalar(1), is_row_major<Dst>());
+                                                 UnitScalar(1), is_row_major<Dst>());
     } else {
       internal::outer_product_selector_run(dst, lhs, rhs, sub(), is_row_major<Dst>());
     }
@@ -1685,16 +1713,15 @@ struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DiagonalSha
 
 // Dense SelfAdjointView statically rejects the Upper|Lower mode (only one half is stored), so the
 // off-stored coefficient is always reconstructed by conjugating its mirror.
-template <int Mode, int ProductOrder, typename MatrixType, typename DiagonalType, typename Derived>
+template <int Mode, int ProductOrder, typename MatrixType, typename DiagonalType, typename Derived,
+          bool HasScalarFactor = blas_traits<MatrixType>::HasScalarFactor>
 struct selfadjoint_diagonal_product_lazy_evaluator_base : evaluator_base<Derived> {
   using Scalar = typename ScalarBinaryOpTraits<typename MatrixType::Scalar, typename DiagonalType::Scalar>::ReturnType;
 
-  enum {
-    CoeffReadCost = int(NumTraits<Scalar>::MulCost) + int(evaluator<MatrixType>::CoeffReadCost) +
-                    int(evaluator<DiagonalType>::CoeffReadCost),
-    Flags = HereditaryBits & static_cast<unsigned int>(evaluator<MatrixType>::Flags),
-    Alignment = 0
-  };
+  static constexpr int CoeffReadCost = int(NumTraits<Scalar>::MulCost) + int(evaluator<MatrixType>::CoeffReadCost) +
+                                       int(evaluator<DiagonalType>::CoeffReadCost);
+  static constexpr unsigned int Flags = HereditaryBits & static_cast<unsigned int>(evaluator<MatrixType>::Flags);
+  static constexpr int Alignment = 0;
 
   EIGEN_DEVICE_FUNC selfadjoint_diagonal_product_lazy_evaluator_base(const MatrixType& mat, const DiagonalType& diag)
       : m_diagImpl(diag), m_matImpl(mat) {}
@@ -1710,6 +1737,34 @@ struct selfadjoint_diagonal_product_lazy_evaluator_base : evaluator_base<Derived
  protected:
   evaluator<DiagonalType> m_diagImpl;
   evaluator<MatrixType> m_matImpl;
+};
+
+template <int Mode, int ProductOrder, typename MatrixType, typename DiagonalType, typename Derived>
+struct selfadjoint_diagonal_product_lazy_evaluator_base<Mode, ProductOrder, MatrixType, DiagonalType, Derived, true>
+    : selfadjoint_diagonal_product_lazy_evaluator_base<
+          Mode, ProductOrder,
+          remove_all_t<decltype(blas_traits<MatrixType>::extract(std::declval<const MatrixType&>())
+                                    .template conjugateIf<bool(blas_traits<MatrixType>::NeedToConjugate)>())>,
+          DiagonalType, Derived, false> {
+  using BlasTraits = blas_traits<MatrixType>;
+  using ActualMatrixType = remove_all_t<decltype(BlasTraits::extract(std::declval<const MatrixType&>())
+                                                     .template conjugateIf<bool(BlasTraits::NeedToConjugate)>())>;
+  using Base = selfadjoint_diagonal_product_lazy_evaluator_base<Mode, ProductOrder, ActualMatrixType, DiagonalType,
+                                                                Derived, false>;
+  using Scalar = typename Base::Scalar;
+  static constexpr int CoeffReadCost = int(NumTraits<Scalar>::MulCost) + Base::CoeffReadCost;
+
+  EIGEN_DEVICE_FUNC selfadjoint_diagonal_product_lazy_evaluator_base(const MatrixType& mat, const DiagonalType& diag)
+      : Base(BlasTraits::extract(mat).template conjugateIf<bool(BlasTraits::NeedToConjugate)>(), diag),
+        m_factor(BlasTraits::extractScalarFactor(mat)) {}
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar coeff(Index row, Index col) const {
+    // The factor scales both triangles; conjugating it with the mirror changes the product.
+    return m_factor * Base::coeff(row, col);
+  }
+
+ protected:
+  typename MatrixType::Scalar m_factor;
 };
 
 // SelfAdjoint × Diagonal

@@ -197,19 +197,12 @@ struct product_transpose_helper<Lhs, Rhs, Option, TransposeProductEnum::MatrixPe
  */
 template <typename Lhs_, typename Rhs_, int Option>
 class Product
-    : public ProductImpl<Lhs_, Rhs_, Option,
-                         typename internal::product_promote_storage_type<
-                             typename internal::traits<Lhs_>::StorageKind, typename internal::traits<Rhs_>::StorageKind,
-                             internal::product_type<Lhs_, Rhs_>::value>::ret> {
+    : public ProductImpl<Lhs_, Rhs_, Option, typename internal::traits<Product<Lhs_, Rhs_, Option>>::StorageKind> {
  public:
   using Lhs = Lhs_;
   using Rhs = Rhs_;
 
-  using Base =
-      typename ProductImpl<Lhs, Rhs, Option,
-                           typename internal::product_promote_storage_type<
-                               typename internal::traits<Lhs>::StorageKind, typename internal::traits<Rhs>::StorageKind,
-                               internal::product_type<Lhs, Rhs>::value>::ret>::Base;
+  using Base = typename ProductImpl<Lhs, Rhs, Option, typename internal::traits<Product>::StorageKind>::Base;
   EIGEN_GENERIC_PUBLIC_INTERFACE(Product)
 
   using LhsNested = typename internal::ref_selector<Lhs>::type;
