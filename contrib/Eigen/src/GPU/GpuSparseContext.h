@@ -42,57 +42,68 @@
 namespace Eigen {
 namespace gpu {
 
-/** Sparse product expression: alpha * (DeviceSparseView * DeviceMatrix) + beta * addend.
- * `d_A * d_x` alone has alpha = 1, beta = 0 and no addend; `d_b - d_A * d_x`,
- * `d_b + d_A * d_x` and `d_A * d_x - d_b` set alpha, beta and the addend so that
- * Eigen's iterative solver templates (`residual = rhs - mat * x`) compile.
- * Evaluated by DeviceMatrix::operator=(SpMVExpr): the addend is copied into the
- * destination unless it already is the destination, then one cusparseSpMV
- * (one column) or cusparseSpMM call runs with the given alpha and beta. */
+/** Sparse product expression: DeviceSparseView * DeviceMatrix → SpMVExpr.
+ * Evaluated by DeviceMatrix::operator=(SpMVExpr): dispatches to cusparseSpMV
+ * when the dense operand has one column, cusparseSpMM otherwise. Adding or
+ * subtracting a DeviceMatrix yields an SpMVAffineExpr. */
 template <typename Scalar_>
 class SpMVExpr {
  public:
   using Scalar = Scalar_;
-  SpMVExpr(const DeviceSparseView<Scalar>& view, const DeviceMatrix<Scalar>& x, Scalar alpha = Scalar(1),
-           Scalar beta = Scalar(0), const DeviceMatrix<Scalar>* addend = nullptr)
-      : view_(view), x_(x), alpha_(alpha), beta_(beta), addend_(addend) {}
+  SpMVExpr(const DeviceSparseView<Scalar>& view, const DeviceMatrix<Scalar>& x) : view_(view), x_(x) {}
+  const DeviceSparseView<Scalar>& view() const { return view_; }
+  const DeviceMatrix<Scalar>& x() const { return x_; }
+
+ private:
+  const DeviceSparseView<Scalar>& view_;
+  const DeviceMatrix<Scalar>& x_;
+};
+
+/** alpha * (DeviceSparseView * DeviceMatrix) + beta * addend with alpha, beta = ±1: the
+ * result of `d_b - d_A * d_x`, `d_b + d_A * d_x`, `d_A * d_x + d_b` and `d_A * d_x - d_b`,
+ * so that Eigen's iterative solver templates (`residual = rhs - mat * x`) compile.
+ * Evaluated by DeviceMatrix::operator=(SpMVAffineExpr): the addend is copied into the
+ * destination unless it already is the destination, then one cusparseSpMV (one column)
+ * or cusparseSpMM call runs with the given alpha and beta. No operator takes an
+ * SpMVAffineExpr, so an expression with a second addend does not compile. */
+template <typename Scalar_>
+class SpMVAffineExpr {
+ public:
+  using Scalar = Scalar_;
+  SpMVAffineExpr(const SpMVExpr<Scalar>& product, Scalar alpha, Scalar beta, const DeviceMatrix<Scalar>& addend)
+      : view_(product.view()), x_(product.x()), alpha_(alpha), beta_(beta), addend_(addend) {}
   const DeviceSparseView<Scalar>& view() const { return view_; }
   const DeviceMatrix<Scalar>& x() const { return x_; }
   Scalar alpha() const { return alpha_; }
   Scalar beta() const { return beta_; }
-  /** The dense term added to the product, or nullptr when there is none. */
-  const DeviceMatrix<Scalar>* addend() const { return addend_; }
+  const DeviceMatrix<Scalar>& addend() const { return addend_; }
 
  private:
   const DeviceSparseView<Scalar>& view_;
   const DeviceMatrix<Scalar>& x_;
   Scalar alpha_;
   Scalar beta_;
-  const DeviceMatrix<Scalar>* addend_;
+  const DeviceMatrix<Scalar>& addend_;
 };
 
-// d_b - d_A * d_x, d_b + d_A * d_x, d_A * d_x - d_b: one SpMV with beta = ±1 into a copy of d_b.
 template <typename S>
-SpMVExpr<S> operator-(const DeviceMatrix<S>& b, const SpMVExpr<S>& p) {
-  eigen_assert(p.addend() == nullptr && "SpMVExpr: only one dense addend is supported");
-  return SpMVExpr<S>(p.view(), p.x(), -p.alpha(), S(1), &b);
+SpMVAffineExpr<S> operator-(const DeviceMatrix<S>& b, const SpMVExpr<S>& p) {
+  return SpMVAffineExpr<S>(p, S(-1), S(1), b);
 }
 
 template <typename S>
-SpMVExpr<S> operator+(const DeviceMatrix<S>& b, const SpMVExpr<S>& p) {
-  eigen_assert(p.addend() == nullptr && "SpMVExpr: only one dense addend is supported");
-  return SpMVExpr<S>(p.view(), p.x(), p.alpha(), S(1), &b);
+SpMVAffineExpr<S> operator+(const DeviceMatrix<S>& b, const SpMVExpr<S>& p) {
+  return SpMVAffineExpr<S>(p, S(1), S(1), b);
 }
 
 template <typename S>
-SpMVExpr<S> operator+(const SpMVExpr<S>& p, const DeviceMatrix<S>& b) {
+SpMVAffineExpr<S> operator+(const SpMVExpr<S>& p, const DeviceMatrix<S>& b) {
   return b + p;
 }
 
 template <typename S>
-SpMVExpr<S> operator-(const SpMVExpr<S>& p, const DeviceMatrix<S>& b) {
-  eigen_assert(p.addend() == nullptr && "SpMVExpr: only one dense addend is supported");
-  return SpMVExpr<S>(p.view(), p.x(), p.alpha(), S(-1), &b);
+SpMVAffineExpr<S> operator-(const SpMVExpr<S>& p, const DeviceMatrix<S>& b) {
+  return SpMVAffineExpr<S>(p, S(1), S(-1), b);
 }
 
 }  // namespace gpu
@@ -142,6 +153,8 @@ class DeviceSparseView : public EigenBase<DeviceSparseView<Scalar_>> {
 
   Index rows() const { return rows_; }
   Index cols() const { return cols_; }
+  /** Number of stored entries of the cached matrix. */
+  Index nonZeros() const { return ctx_.nonZeros(); }
   const SparseContext<Scalar>& context() const { return ctx_; }
 
   /** Upload generation this view was created against. Used to detect stale
@@ -209,6 +222,9 @@ class SparseContext {
   /** Generation counter of the currently cached sparse matrix. Bumped on
    * every sparse upload (deviceView() or a host-input multiply). */
   uint64_t uploadGeneration() const { return generation_; }
+
+  /** Number of stored entries of the cached sparse matrix, -1 before the first upload. */
+  Index nonZeros() const { return cached_nnz_; }
 
   /** Compute y = A * x. Returns y as a new dense vector. */
   template <typename InputType, typename Rhs>
@@ -719,20 +735,47 @@ DeviceMatrix<Scalar_>& DeviceMatrix<Scalar_>::operator=(const SpMVExpr<Scalar_>&
   // uploaded again, replacing the cached data) is caught here.
   eigen_assert(expr.view().generation() == expr.view().context().uploadGeneration() &&
                "DeviceSparseView is stale: its SparseContext has since uploaded another sparse matrix");
-  // With an addend (d_y = d_b ± d_A * d_x) the product accumulates into a copy of
-  // it; when the addend is the destination itself (d_y = d_y - d_A * d_x) there
-  // is nothing to copy and cuSPARSE's beta does the accumulation in place.
-  if (expr.addend() != nullptr && expr.addend() != this) copyFrom(Context::threadLocal(), *expr.addend());
   if (expr.x().cols() <= 1) {
-    expr.view().context().spmv_device_exec(expr.x(), *this, expr.alpha(), expr.beta(), GpuOp::NoTrans);
+    expr.view().context().spmv_device_exec(expr.x(), *this, Scalar_(1), Scalar_(0), GpuOp::NoTrans);
   } else {
-    expr.view().context().spmm_device_exec(expr.x(), *this, expr.alpha(), expr.beta(), GpuOp::NoTrans);
+    expr.view().context().spmm_device_exec(expr.x(), *this, Scalar_(1), Scalar_(0), GpuOp::NoTrans);
+  }
+  return *this;
+}
+
+template <typename Scalar_>
+DeviceMatrix<Scalar_>& DeviceMatrix<Scalar_>::operator=(const SpMVAffineExpr<Scalar_>& expr) {
+  const DeviceSparseView<Scalar_>& view = expr.view();
+  const DeviceMatrix& addend = expr.addend();
+  eigen_assert(view.generation() == view.context().uploadGeneration() &&
+               "DeviceSparseView is stale: its SparseContext has since uploaded another sparse matrix");
+  eigen_assert(addend.rows() == view.rows() && addend.cols() == expr.x().cols() &&
+               "SpMVAffineExpr: the addend must have the shape of the product");
+  eigen_assert(&expr.x() != this && "SpMVAffineExpr: the destination aliases the dense operand");
+  // The product accumulates into a copy of the addend; when the addend is the destination
+  // itself (d_r = d_r - d_A * d_x) cuSPARSE's beta accumulates in place.
+  if (&addend != this) copyFrom(Context::threadLocal(), addend);
+  // With no stored entries the expression is beta * addend, which spmv_device_exec cannot
+  // form: SparseContext owns no cuBLAS handle to scale d_y by beta.
+  if (view.nonZeros() == 0 || view.rows() == 0 || view.cols() == 0) {
+    if (expr.beta() != Scalar_(1)) scale(Context::threadLocal(), expr.beta());
+    return *this;
+  }
+  if (expr.x().cols() <= 1) {
+    view.context().spmv_device_exec(expr.x(), *this, expr.alpha(), expr.beta(), GpuOp::NoTrans);
+  } else {
+    view.context().spmm_device_exec(expr.x(), *this, expr.alpha(), expr.beta(), GpuOp::NoTrans);
   }
   return *this;
 }
 
 template <typename Scalar_>
 DeviceMatrix<Scalar_>::DeviceMatrix(const SpMVExpr<Scalar_>& expr) : DeviceMatrix() {
+  *this = expr;
+}
+
+template <typename Scalar_>
+DeviceMatrix<Scalar_>::DeviceMatrix(const SpMVAffineExpr<Scalar_>& expr) : DeviceMatrix() {
   *this = expr;
 }
 }  // namespace gpu

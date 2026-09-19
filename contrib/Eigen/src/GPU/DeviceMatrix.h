@@ -158,6 +158,7 @@ class DeviceMatrix {
   template <int UpLo>
   DeviceMatrix(const SymmExpr<Scalar, UpLo>& expr);
   DeviceMatrix(const SpMVExpr<Scalar>& expr);
+  DeviceMatrix(const SpMVAffineExpr<Scalar>& expr);
 
   ~DeviceMatrix() {
     // cudaEventDestroy on a pending event is non-blocking: the runtime defers
@@ -459,6 +460,11 @@ class DeviceMatrix {
   /** this *= alpha (cuBLAS scal). */
   void scale(Context& ctx, Scalar alpha);
 
+  /** this /= alpha. A true division for real Scalar (NPP divide-by-constant: one
+   * rounding per element, and no overflow of 1/alpha for subnormal alpha); complex
+   * Scalar scales by the host reciprocal, one extra rounding. */
+  void divide(Context& ctx, Scalar alpha);
+
   /** Deep copy: this = other (cuBLAS copy). Resizes if needed. */
   void copyFrom(Context& ctx, const DeviceMatrix& other);
 
@@ -488,7 +494,7 @@ class DeviceMatrix {
   /** this *= alpha (cuBLAS scal, host pointer mode). */
   DeviceMatrix& operator*=(Scalar alpha);
 
-  /** this /= alpha (cuBLAS scal with 1/alpha). */
+  /** this /= alpha, see divide(). */
   DeviceMatrix& operator/=(Scalar alpha);
 
   /** this *= alpha (cuBLAS scal, device pointer mode). Avoids a host sync. */
@@ -507,10 +513,14 @@ class DeviceMatrix {
   /** this -= DeviceScalar * x (cuBLAS axpy with negated device scalar). */
   DeviceMatrix& operator-=(const DeviceScaledDevice<Scalar>& expr);
 
-  /** Assign from an SpMV expression: d_y = d_A * d_x, or with an addend,
-   * d_y = d_b - d_A * d_x and the other sign combinations (one cuSPARSE call
-   * with beta = ±1 after a copy of the addend, skipped when it is d_y). */
+  /** Assign from an SpMV expression: d_y = d_A * d_x (one cuSPARSE call). */
   DeviceMatrix& operator=(const SpMVExpr<Scalar>& expr);
+
+  /** Assign from an SpMV expression with a dense addend: d_y = d_b - d_A * d_x and
+   * the other sign combinations. Copies the addend into d_y (skipped when it is
+   * d_y), then one cuSPARSE call with beta = ±1. The addend must have the shape
+   * of the product, and d_x must not be d_y. */
+  DeviceMatrix& operator=(const SpMVAffineExpr<Scalar>& expr);
 
   /** Assign from an add expression: d_C = alpha * d_A + beta * d_B (cuBLAS geam). */
   DeviceMatrix& operator=(const DeviceAddExpr<Scalar>& expr);

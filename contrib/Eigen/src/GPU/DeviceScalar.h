@@ -62,13 +62,11 @@ class DeviceScalar {
         cudaMemcpyAsync(d_val_.get(), o.d_val_.get(), sizeof(Scalar), cudaMemcpyDeviceToDevice, stream_));
   }
 
+  /** Copy assignment adopts the source's stream. Copy construction followed by a
+   * move releases the previous buffer instead of writing into it: a write on the
+   * source's stream could race with reads still queued on this scalar's old stream. */
   DeviceScalar& operator=(const DeviceScalar& o) {
-    if (this != &o) {
-      if (!d_val_.get()) d_val_ = decltype(d_val_)(sizeof(Scalar));  // moved-from: reallocate
-      stream_ = o.stream_;
-      EIGEN_CUDA_RUNTIME_CHECK(
-          cudaMemcpyAsync(d_val_.get(), o.d_val_.get(), sizeof(Scalar), cudaMemcpyDeviceToDevice, stream_));
-    }
+    if (this != &o) *this = DeviceScalar(o);
     return *this;
   }
 
