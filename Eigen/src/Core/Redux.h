@@ -450,29 +450,45 @@ struct redux_impl<Func, Evaluator, LinearVectorizedTraversal, NoUnrolling> {
     Scalar res;
     if (alignedSize) {
       PacketScalar packet_res0 = eval.template packet<alignment, PacketScalar>(alignedStart);
-      if (alignedSize > packetSize)  // we have at least two packets to partly unroll the loop
+      if (alignedSize4)  // four independent accumulators keep the loop off the packetOp latency chain
       {
-        Index index = alignedStart + packetSize;
-        if (alignedSize4)  // four independent accumulators keep the loop off the packetOp latency chain
-        {
-          PacketScalar packet_res1 = eval.template packet<alignment, PacketScalar>(index);
-          PacketScalar packet_res2 = eval.template packet<alignment, PacketScalar>(index + packetSize);
-          PacketScalar packet_res3 = eval.template packet<alignment, PacketScalar>(index + 2 * packetSize);
-          for (index += 3 * packetSize; index < alignedEnd4; index += 4 * packetSize) {
-            packet_res0 = func.packetOp(packet_res0, eval.template packet<alignment, PacketScalar>(index));
-            packet_res1 = func.packetOp(packet_res1, eval.template packet<alignment, PacketScalar>(index + packetSize));
-            packet_res2 =
-                func.packetOp(packet_res2, eval.template packet<alignment, PacketScalar>(index + 2 * packetSize));
-            packet_res3 =
-                func.packetOp(packet_res3, eval.template packet<alignment, PacketScalar>(index + 3 * packetSize));
-          }
-
-          packet_res0 = func.packetOp(packet_res0, packet_res1);
-          packet_res2 = func.packetOp(packet_res2, packet_res3);
-          packet_res0 = func.packetOp(packet_res0, packet_res2);
-        }
-        for (; index < alignedEnd; index += packetSize)
+        PacketScalar packet_res1 = eval.template packet<alignment, PacketScalar>(alignedStart + packetSize);
+        PacketScalar packet_res2 = eval.template packet<alignment, PacketScalar>(alignedStart + 2 * packetSize);
+        PacketScalar packet_res3 = eval.template packet<alignment, PacketScalar>(alignedStart + 3 * packetSize);
+        for (Index index = alignedStart + 4 * packetSize; index < alignedEnd4; index += 4 * packetSize) {
           packet_res0 = func.packetOp(packet_res0, eval.template packet<alignment, PacketScalar>(index));
+          packet_res1 = func.packetOp(packet_res1, eval.template packet<alignment, PacketScalar>(index + packetSize));
+          packet_res2 =
+              func.packetOp(packet_res2, eval.template packet<alignment, PacketScalar>(index + 2 * packetSize));
+          packet_res3 =
+              func.packetOp(packet_res3, eval.template packet<alignment, PacketScalar>(index + 3 * packetSize));
+        }
+
+        // The one to three leftover packets go into accumulators that are still independent, so they
+        // cost a packetOp each rather than extending the merge below.
+        const Index remSize = alignedSize - alignedSize4;
+        if (remSize >= packetSize) {
+          packet_res0 = func.packetOp(packet_res0, eval.template packet<alignment, PacketScalar>(alignedEnd4));
+          if (remSize >= 2 * packetSize) {
+            packet_res1 =
+                func.packetOp(packet_res1, eval.template packet<alignment, PacketScalar>(alignedEnd4 + packetSize));
+            if (remSize == 3 * packetSize)
+              packet_res2 = func.packetOp(packet_res2,
+                                          eval.template packet<alignment, PacketScalar>(alignedEnd4 + 2 * packetSize));
+          }
+        }
+
+        // Merge as (res0 + res1) + (res2 + res3): two packetOp latencies deep instead of three.
+        packet_res0 = func.packetOp(packet_res0, packet_res1);
+        packet_res2 = func.packetOp(packet_res2, packet_res3);
+        packet_res0 = func.packetOp(packet_res0, packet_res2);
+      } else if (alignedSize > packetSize) {
+        // Two or three packets: straight-line, with none of the trip-count setup a loop would need.
+        packet_res0 =
+            func.packetOp(packet_res0, eval.template packet<alignment, PacketScalar>(alignedStart + packetSize));
+        if (alignedSize > 2 * packetSize)
+          packet_res0 =
+              func.packetOp(packet_res0, eval.template packet<alignment, PacketScalar>(alignedStart + 2 * packetSize));
       }
       res = func.predux(packet_res0);
 
