@@ -11,9 +11,9 @@ static void BM_ApproxComparison(benchmark::State& state) {
   using Real = typename NumTraits<Scalar>::Real;
   using Vector = Matrix<Scalar, Size, 1>;
   const Index size = Index(state.range(0));
-  Real scale = Real(1);
-  if (state.range(1) == 1) scale = NumTraits<Real>::highest() / Real(32);
-  if (state.range(1) == 2) scale = (numext::numeric_limits<Real>::min)() * Real(32);
+  const Real scales[] = {Real(1), NumTraits<Real>::highest() / Real(32),
+                         (numext::numeric_limits<Real>::min)() * Real(32)};
+  const Real scale = scales[state.range(1)];
   const Real precision = Real(0.125);
   Vector x = Vector::Constant(size, Scalar(scale));
   Vector y = x * (Real(1) + precision / Real(2));
