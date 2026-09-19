@@ -198,6 +198,39 @@ static void verify_conjugated_products(int n) {
   C.setZero();
   C.noalias() += alpha * (A.adjoint() * B);
   VERIFY_IS_APPROX(SmeColMajorMat<Scalar>(C), SmeColMajorMat<Scalar>(alpha * Aa.lazyProduct(Bp)));
+
+  // A deep rectangular product reaches GEMM even for half-tile output widths.
+  const LhsMat deepA = LhsMat::Random(n, 65);
+  const RhsMat deepB = RhsMat::Random(65, n);
+  const ResMat initial = ResMat::Random(n, n);
+  const SmeColMajorMat<Scalar> reference = deepA.lazyProduct(deepB);
+  C = initial;
+  C.noalias() += deepA * deepB;
+  VERIFY_IS_APPROX(SmeColMajorMat<Scalar>(C), SmeColMajorMat<Scalar>(initial + reference));
+  C = initial;
+  C.noalias() += alpha * (deepA * deepB);
+  VERIFY_IS_APPROX(SmeColMajorMat<Scalar>(C), SmeColMajorMat<Scalar>(initial + alpha * reference));
+
+#ifdef EIGEN_VECTORIZE_SME_F64F64
+  // RowMajor GEMM normally transposes the computation. Call the packed kernel
+  // too, so RowMajor C actually reaches its horizontal ZA slice store.
+  if (n <= sme_tile<Scalar>()) {
+    std::vector<Scalar> packedA(n * 65), packedB(n * 65);
+    for (Index k = 0; k < 65; ++k) {
+      for (Index i = 0; i < n; ++i) {
+        set_packed(packedA.data(), Index(n), k, i, deepA(i, k));
+        set_packed(packedB.data(), Index(n), k, i, deepB(k, i));
+      }
+    }
+    for (Scalar scale : {Scalar(1), alpha}) {
+      C = initial;
+      internal::sme_gebp_impl<Scalar, false, false>(
+          C.data(), Index(ResMat::IsRowMajor ? n : 1), Index(ResMat::IsRowMajor ? 1 : n), packedA.data(),
+          packedB.data(), Index(n), Index(65), Index(n), scale, Index(65), Index(65), Index(0), Index(0));
+      VERIFY_IS_APPROX(SmeColMajorMat<Scalar>(C), SmeColMajorMat<Scalar>(initial + scale * reference));
+    }
+  }
+#endif
 }
 
 // Exercise the kc split path just above the SME blocking heuristic's depth cap
@@ -646,8 +679,8 @@ static std::vector<int> sme_edge_sizes() {
   const int T = sme_tile<Scalar>();
   const int MR = sme_mr<Scalar>();
   const int NR = sme_nr<Scalar>();
-  std::vector<int> sizes = {1,  T - 1,  T,          T + 1,  MR - 1,     MR,         MR + 1, NR - 1,
-                            NR, NR + 1, 2 * MR - 1, 2 * MR, 2 * MR + 1, 2 * NR - 1, 2 * NR, 2 * NR + 1};
+  std::vector<int> sizes = {T / 2,  T + T / 2, 1,      T - 1,      T,      T + 1,      MR - 1,     MR,     MR + 1,
+                            NR - 1, NR,        NR + 1, 2 * MR - 1, 2 * MR, 2 * MR + 1, 2 * NR - 1, 2 * NR, 2 * NR + 1};
   std::sort(sizes.begin(), sizes.end());
   sizes.erase(std::unique(sizes.begin(), sizes.end()), sizes.end());
   return sizes;
