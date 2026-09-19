@@ -161,6 +161,11 @@ void test_bsr_device_view(Index block_rows, Index block_cols, Index nrhs) {
   gpu::DeviceMatrix<Scalar> d_Y;
   d_Y.noalias() = view * d_X;
   verify_product<Scalar>(d_Y.toHost(gctx.stream()), Mat(A * X), A.rows(), A.cols());
+
+  // cuSPARSE runs no transposed BSR product; the exec entry points reject any
+  // other op against a BSR upload before queuing work.
+  VERIFY_RAISES_ASSERT(ctx.spmv_device_exec(d_x, d_y, Scalar(1), Scalar(0), gpu::GpuOp::Trans));
+  VERIFY_RAISES_ASSERT(ctx.spmm_device_exec(d_X, d_Y, Scalar(1), Scalar(0), gpu::GpuOp::Trans));
 }
 
 // ---- Descriptor cache across formats ------------------------------------------
@@ -284,6 +289,9 @@ EIGEN_DECLARE_TEST(gpu_cusparse_bsr) {
   CALL_SUBTEST_2(test_scalar<double>());
   CALL_SUBTEST_3(test_scalar<std::complex<float>>());
   CALL_SUBTEST_4(test_scalar<std::complex<double>>());
+  // Block size 4, in one scalar type to bound compile time.
+  CALL_SUBTEST_5((test_order<double, RowMajor, 4>()));
+  CALL_SUBTEST_5((test_order<double, ColMajor, 4>()));
 #else
   std::cout << "SKIP: BSR products need cuSPARSE >= 12.6.3 (CUDA 13.0 Update 1); this build has CUSPARSE_VERSION "
             << CUSPARSE_VERSION << std::endl;

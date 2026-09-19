@@ -567,7 +567,9 @@ block-column order — is BSR of its transpose and uploads without a copy for
 `Trans` (and `ConjTrans` on real scalars). Every other op / storage-order
 combination transposes (and conjugates) the matrix on the host first, once per
 host-input call or once per `deviceView()`. `spmv_device_exec()` and
-`spmm_device_exec()` consequently accept only `NoTrans` against a BSR upload.
+`spmm_device_exec()` consequently accept only `NoTrans` against a BSR upload
+(debug builds assert); a `BlockSparseMatrix` on the CSC path passes the op to
+cuSPARSE like a `SparseMatrix`.
 
 The CSC fallback exists because cuSPARSE rejects rectangular blocks at
 descriptor creation and runs no BSR SpMV on 1 x 1 blocks;
@@ -1099,7 +1101,7 @@ DeviceSparseView   deviceView(A)                                        // Uploa
 uint64_t           uploadGeneration()                                   // Generation of the cached upload
 
 // Advanced: run SpMV/SpMM against the already-uploaded matrix (op must be
-// NoTrans after a BlockSparseMatrix upload)
+// NoTrans after a BSR upload)
 void               spmv_device_exec(d_x, d_y, alpha=1, beta=0, op=GpuOp::NoTrans)
 void               spmm_device_exec(d_X, d_Y, alpha=1, beta=0, op=GpuOp::NoTrans)
 
