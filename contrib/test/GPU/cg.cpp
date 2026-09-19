@@ -175,6 +175,49 @@ void test_gpu_cg_template(Index n) {
   VERIFY((x_gpu - x_cpu).norm() / (x_cpu.norm() + RealScalar(1)) < sol_tol);
 }
 
+// ---- Eigen's ConjugateGradient class on device types ------------------------
+// DeviceSparseView is a matrix-free matrix type, so the public solver class
+// instantiates with it; solveWithGuessInPlace() is the entry point that takes
+// non-Eigen vectors.
+template <typename Scalar>
+void test_gpu_cg_class(Index n) {
+  using SpMat = SparseMatrix<Scalar, ColMajor, int>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  SpMat A = make_spd<Scalar>(n);
+  Vec b = Vec::Random(n);
+  ConjugateGradient<SpMat, Lower | Upper, IdentityPreconditioner> cpu_cg;
+  cpu_cg.setMaxIterations(1000);
+  cpu_cg.setTolerance(RealScalar(1e-8));
+  cpu_cg.compute(A);
+  Vec x_cpu = cpu_cg.solve(b);
+  VERIFY_IS_EQUAL(cpu_cg.info(), Success);
+
+  gpu::Context ctx;
+  gpu::Context::setThreadLocal(&ctx);
+  gpu::SparseContext<Scalar> spmv_ctx(ctx);
+  auto mat = spmv_ctx.deviceView(A);
+  auto d_b = gpu::DeviceMatrix<Scalar>::fromHost(b, ctx.stream());
+  gpu::DeviceMatrix<Scalar> d_x(n, 1);
+  d_x.setZero(ctx);
+
+  ConjugateGradient<gpu::DeviceSparseView<Scalar>, Lower | Upper, IdentityPreconditioner> cg;
+  cg.setMaxIterations(1000);
+  cg.setTolerance(RealScalar(1e-8));
+  cg.compute(mat);
+  cg.solveWithGuessInPlace(d_b, d_x);
+  VERIFY_IS_EQUAL(cg.info(), Success);
+  VERIFY(cg.iterations() > 0 && cg.iterations() < 1000);
+  VERIFY(cg.error() <= RealScalar(1e-8));
+  gpu::Context::setThreadLocal(nullptr);
+
+  Vec x_gpu = d_x.toHost(ctx.stream());
+  Vec r = A * x_gpu - b;
+  VERIFY(r.norm() / b.norm() < RealScalar(1e-6));
+  RealScalar sol_tol = RealScalar(100) * RealScalar(n) * NumTraits<Scalar>::epsilon();
+  VERIFY((x_gpu - x_cpu).norm() / (x_cpu.norm() + RealScalar(1)) < sol_tol);
+}
+
 // ---- GPU CG with Jacobi preconditioner --------------------------------------
 
 template <typename Scalar>
@@ -274,10 +317,14 @@ EIGEN_DECLARE_TEST(gpu_cg) {
   CALL_SUBTEST_1(test_gpu_cg_jacobi<double>(256));
   CALL_SUBTEST_1(test_gpu_cg_template<double>(64));
   CALL_SUBTEST_1(test_gpu_cg_template<double>(256));
+  CALL_SUBTEST_1(test_gpu_cg_class<double>(64));
+  CALL_SUBTEST_1(test_gpu_cg_class<double>(256));
   CALL_SUBTEST_2(test_gpu_cg<float>(64));
   CALL_SUBTEST_2(test_gpu_cg<float>(256));
   CALL_SUBTEST_2(test_gpu_cg_jacobi<float>(64));
   CALL_SUBTEST_2(test_gpu_cg_jacobi<float>(256));
   CALL_SUBTEST_2(test_gpu_cg_template<float>(64));
   CALL_SUBTEST_2(test_gpu_cg_template<float>(256));
+  CALL_SUBTEST_2(test_gpu_cg_class<float>(64));
+  CALL_SUBTEST_2(test_gpu_cg_class<float>(256));
 }

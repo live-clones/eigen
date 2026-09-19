@@ -92,12 +92,13 @@ signatures as `Matrix` for common vector operations: `+=`, `-=`, `*=`, `/=`,
 `dot()`, `squaredNorm()`, `norm()`, `stableNorm()`, `setZero()`, `noalias()`,
 and copy construction and assignment (a device-to-device copy). This makes
 `DeviceMatrix` usable as a drop-in `VectorType` in Eigen algorithm templates
-that rely on these operations. Eigen's `internal::conjugate_gradient()`
-template runs unmodified on a `DeviceSparseView` and `DeviceMatrix` vectors
-(see [Eigen algorithm interop](#eigen-algorithm-interop-example-conjugate-gradient));
-the algorithm and the expression template system are untouched. Conjugate
-gradient is just the motivating example; we are open to expanding operator
-coverage as needed to support other high-level Eigen algorithms on the GPU.
+that rely on these operations, and `DeviceSparseView` is a matrix-free matrix
+type for Eigen's iterative solvers: `ConjugateGradient<gpu::DeviceSparseView<double>,
+Lower | Upper>` runs Eigen's own algorithm, unmodified, on device vectors (see
+[Eigen algorithm interop](#eigen-algorithm-interop-example-conjugate-gradient)).
+Conjugate gradient is just the motivating example; we are open to expanding
+operator coverage as needed to support other high-level Eigen algorithms on the
+GPU.
 
 **Explicit over implicit.** Host-device transfers, stream management, and
 library handle lifetimes are visible in the API. There are no hidden
@@ -591,11 +592,15 @@ descriptor creation and runs no BSR SpMV on 1 x 1 blocks;
 
 ### Eigen algorithm interop (example: Conjugate gradient)
 
-Eigen's own `internal::conjugate_gradient()` template runs unmodified on the GPU
-types: the matrix is a `DeviceSparseView`, the vectors are `DeviceMatrix`, and
-the template's `VectorType` (`Dest::PlainObject`) is `DeviceMatrix` itself. The
-identity preconditioner works as is; `DiagonalPreconditioner` and the other
-Eigen preconditioners evaluate host expressions and do not.
+Eigen's `ConjugateGradient` runs on the GPU types. `DeviceSparseView` is a
+matrix-free matrix type (it inherits `EigenBase` and carries `SparseMatrix`
+traits, so `IterativeSolverBase` holds it by pointer), the vectors are
+`DeviceMatrix`, and the algorithm's `VectorType` (`Dest::PlainObject`) is
+`DeviceMatrix` itself. `solve()` and `solveWithGuess()` return Eigen
+expressions and need Eigen operands; `solveWithGuessInPlace(b, x)` is the entry
+point for device vectors, with `x` holding the initial guess. The identity
+preconditioner works as is; `DiagonalPreconditioner` and the other Eigen
+preconditioners evaluate host expressions and do not.
 
 ```cpp
 gpu::Context ctx;
@@ -605,13 +610,16 @@ auto mat = spmv.deviceView(A);
 auto d_b = gpu::DeviceMatrix<double>::fromHost(b, ctx.stream());
 gpu::DeviceMatrix<double> d_x(n, 1);
 d_x.setZero(ctx);
-Index iters = 1000;
-double tol_error = 1e-10;
-internal::conjugate_gradient(mat, d_b, d_x, IdentityPreconditioner(), iters, tol_error);
+
+ConjugateGradient<gpu::DeviceSparseView<double>, Lower | Upper, IdentityPreconditioner> cg;
+cg.setTolerance(1e-10);
+cg.compute(mat);                       // matrix-free: stores a pointer to mat
+cg.solveWithGuessInPlace(d_b, d_x);    // Eigen's algorithm, cuSPARSE and cuBLAS underneath
+// cg.info(), cg.iterations(), cg.error() as usual
 gpu::Context::setThreadLocal(nullptr);
 ```
 
-The template's `Scalar alpha = absNew / p.dot(tmp)` and `stableNorm()` checks
+The algorithm's `Scalar alpha = absNew / p.dot(tmp)` and `stableNorm()` checks
 each read a value on the host, so this form synchronizes three times per
 iteration. The hand-written loop below is the same algorithm with one host sync
 per iteration (the convergence check); all scalar intermediates (`alpha`,
