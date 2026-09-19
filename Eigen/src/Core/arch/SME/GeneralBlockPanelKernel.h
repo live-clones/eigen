@@ -420,26 +420,37 @@ static EIGEN_ALWAYS_INLINE void sve_copy_panel(Scalar* EIGEN_RESTRICT dst, const
   sve_copy_panel_range<Conjugate>(dst, src, src_stride, Index(0), depth, width);
 }
 
-// Transpose-pack `width` source rows into depth-major packed output using ZA's
-// 2D store as a free transpose, for the depth sub-range [k0, k1): a svl x svl
-// block of source (svl rows x svl depth) is loaded as horizontal ZA slices,
-// then read back as vertical slices, which emits it depth-major.  Row-groups of
-// svl rows are processed two at a time through ZA tiles 0 and 1: ZA is not
-// renamed, so a single tile would stall every load pass on the previous read
-// pass (write-after-read); two tiles in flight keep the phases independent.
-// Trailing row-groups (when width is not a multiple of 2*svl) use tile 0 with
-// predicated rows -- which is also what a panel narrower than 2*svl gets in
-// full: complex<float> has mr = svl at SVL=512, so its LHS panels take the
-// single-tile path and do not get the write-after-read overlap described above.
-// Widening the gate would need the pairing to run over depth instead of rows.
-// Both dst and src are indexed by the absolute depth index k:
-//   dst[k*width + r] = src[r*src_stride + k],  k in [k0,k1), r in [0,width).
-// The symm packers reuse this for the diagonal-split transposed/direct regions
-// (a depth sub-range at a depth offset, with a tail-panel width < mr).
-//
-// NegateOddRows negates every odd output depth row.  That is how the complex
-// overload below conjugates: in the real view of a complex panel those rows are
-// exactly the imaginary halves.
+// Emit one vertical slice, preserving absolute-depth conjugation parity.
+template <int Tile, bool NegateOddRows, typename RealScalar, typename Index>
+static EIGEN_ALWAYS_INLINE void sme_pack_read_tile(RealScalar* dst, typename sme_traits<RealScalar>::Vec zero,
+                                                   svbool_t pg, uint32_t slice,
+                                                   Index k) __arm_streaming __arm_inout("za") {
+  typename sme_traits<RealScalar>::Vec v = sme_read_ver_za<Tile>(zero, pg, slice);
+  EIGEN_IF_CONSTEXPR (NegateOddRows) {
+    if ((k & Index(1)) != Index(0)) v = sme_neg(pg, v);
+  }
+  sme_st1(pg, dst, v);
+}
+
+// Transpose-pack `width` source rows into depth-major output for [k0, k1).
+// Horizontal ZA loads followed by vertical reads transpose each svl x svl tile.
+// ZA is not renamed, so a tile's next load pass waits for its last read pass;
+// four tiles in flight keep the two phases apart.  Two schedules fill them:
+//   - depth ranges up to kPairDepthMax vectors: two full row-groups pair over
+//     two depth chunks, tiles 0/1 holding adjacent groups at depth k and 2/3
+//     at k+svl, so every vertical slice stores one contiguous 2*svl run;
+//   - longer ranges, and any remaining row-group (including panels narrower
+//     than 2*svl, such as the complex<float> LHS at SVL 512): one row-group
+//     over four depth chunks in tiles 0..3, one source stream per row.
+// Apple M4, SVL 512, float GEMM (#3128): over rows only, the four-chunk form
+// is 0.80x on 2048x64x64 -- each slice then stores half a 128-byte line, and
+// the other half lands a whole row-group pass later -- while the pairing over
+// rows only is 0.87x on 64x64x2048, where its two source streams sit 8 KiB
+// apart; the switch measures 0.98x and 1.15x on those two.
+//   dst[k*width + r] = src[r*src_stride + k], k in [k0,k1), r in [0,width).
+// SYMM reuses this for offset depth sub-ranges and partial-width panels.
+// NegateOddRows flips odd absolute depth rows: the imaginary halves in the
+// complex overload's real view.
 template <bool NegateOddRows, typename RealScalar, typename Index>
 static EIGEN_ALWAYS_INLINE void sme_transpose_pack_real(RealScalar* EIGEN_RESTRICT dst,
                                                         const RealScalar* EIGEN_RESTRICT src, Index src_stride,
@@ -448,48 +459,76 @@ static EIGEN_ALWAYS_INLINE void sme_transpose_pack_real(RealScalar* EIGEN_RESTRI
   using Traits = sme_traits<RealScalar>;
   using Vec = typename Traits::Vec;
   const Vec zero = Traits::dup(RealScalar(0));
-  const svbool_t pg_all = Traits::ptrue();
   const int svl = Traits::svl();
-
-  for (Index k = k0; k < k1; k += svl) {
-    const int dk = static_cast<int>(sme_min(k1 - k, Index(svl)));
-    const svbool_t pg_d = Traits::whilelt(k, k1);
-    int r0 = 0;
-    // Pairs of full row-groups: tiles 0 and 1 in flight.
-    for (; r0 + 2 * svl <= width; r0 += 2 * svl) {
+  const svbool_t pg_all = Traits::ptrue();
+  // 32 vectors is 2 KiB of source row for either element width; at 16 the
+  // four-chunk form still costs 0.89x on 2048x64x256, at 32 both forms are
+  // within 0.96-1.00x of the previous packer up to depth 512.
+  constexpr int kPairDepthMax = 32;
+  const bool pair_rows = (k1 - k0) <= Index(kPairDepthMax) * Index(svl);
+  int r0 = 0;
+  for (; pair_rows && width - r0 >= 2 * svl; r0 += 2 * svl) {
+    for (Index k = k0; k < k1; k += 2 * svl) {
+      const Index remaining = k1 - k;
+      const bool second = remaining > svl;
+      const int dk0 = static_cast<int>(sme_min(remaining, Index(svl)));
+      const int dk1 = static_cast<int>(sme_min(remaining - svl, Index(svl)));
+      const svbool_t pg_d0 = Traits::whilelt(0, remaining);
+      const svbool_t pg_d1 = Traits::whilelt(svl, remaining);
       for (int r = 0; r < svl; ++r) {
-        sme_ld1_hor_za<0>(uint32_t(r), pg_d, &src[(r0 + r) * src_stride + k]);
-        sme_ld1_hor_za<1>(uint32_t(r), pg_d, &src[(r0 + svl + r) * src_stride + k]);
-      }
-      for (int c = 0; c < dk; ++c) {
-        Vec v0 = sme_read_ver_za<0>(zero, pg_all, uint32_t(c));
-        Vec v1 = sme_read_ver_za<1>(zero, pg_all, uint32_t(c));
-        EIGEN_IF_CONSTEXPR (NegateOddRows) {
-          if (((k + Index(c)) & Index(1)) != Index(0)) {
-            v0 = sme_neg(pg_all, v0);
-            v1 = sme_neg(pg_all, v1);
-          }
+        const RealScalar* p0 = &src[(r0 + r) * src_stride + k];
+        const RealScalar* p1 = &src[(r0 + svl + r) * src_stride + k];
+        sme_ld1_hor_za<0>(uint32_t(r), pg_d0, p0);
+        sme_ld1_hor_za<1>(uint32_t(r), pg_d0, p1);
+        if (second) {
+          sme_ld1_hor_za<2>(uint32_t(r), pg_d1, p0 + svl);
+          sme_ld1_hor_za<3>(uint32_t(r), pg_d1, p1 + svl);
         }
-        sme_st1(pg_all, &dst[(k + c) * width + r0], v0);
-        sme_st1(pg_all, &dst[(k + c) * width + r0 + svl], v1);
+      }
+      for (int c = 0; c < dk0; ++c) {
+        const Index kc = k + c;
+        sme_pack_read_tile<0, NegateOddRows>(&dst[kc * width + r0], zero, pg_all, uint32_t(c), kc);
+        sme_pack_read_tile<1, NegateOddRows>(&dst[kc * width + r0 + svl], zero, pg_all, uint32_t(c), kc);
+        if (c < dk1) {
+          sme_pack_read_tile<2, NegateOddRows>(&dst[(kc + svl) * width + r0], zero, pg_all, uint32_t(c), kc + svl);
+          sme_pack_read_tile<3, NegateOddRows>(&dst[(kc + svl) * width + r0 + svl], zero, pg_all, uint32_t(c),
+                                               kc + svl);
+        }
       }
     }
-    // Trailing row-groups (at most two svl-wide passes remain, since the pair
-    // loop consumed all multiples of 2*svl): predicate down to the remaining
-    // rows.  A single `if` would drop rows when a tail width lands in
-    // (svl, 2*svl); a loop handles any leftover.
-    for (; r0 < width; r0 += svl) {
-      const int rg = sme_min(width - r0, svl);
-      const svbool_t pg_r = Traits::whilelt(r0, width);
+  }
+  for (; r0 < width; r0 += svl) {
+    const int rg = sme_min(width - r0, svl);
+    const svbool_t pg_r = Traits::whilelt(r0, width);
+    for (Index k = k0; k < k1; k += 4 * svl) {
+      const Index remaining = k1 - k;
+      const int chunks = 1 + (remaining > svl) + (remaining > 2 * svl) + (remaining > 3 * svl);
+      const svbool_t pg_d0 = Traits::whilelt(0, remaining);
+      const svbool_t pg_d1 = Traits::whilelt(svl, remaining);
+      const svbool_t pg_d2 = Traits::whilelt(2 * svl, remaining);
+      const svbool_t pg_d3 = Traits::whilelt(3 * svl, remaining);
+      const int dk0 = static_cast<int>(sme_min(remaining, Index(svl)));
+      const int dk1 = static_cast<int>(sme_min(remaining - svl, Index(svl)));
+      const int dk2 = static_cast<int>(sme_min(remaining - 2 * svl, Index(svl)));
+      const int dk3 = static_cast<int>(sme_min(remaining - 3 * svl, Index(svl)));
       for (int r = 0; r < rg; ++r) {
-        sme_ld1_hor_za<0>(uint32_t(r), pg_d, &src[(r0 + r) * src_stride + k]);
+        const RealScalar* p = &src[(r0 + r) * src_stride + k];
+        sme_ld1_hor_za<0>(uint32_t(r), pg_d0, p);
+        if (chunks > 1) sme_ld1_hor_za<1>(uint32_t(r), pg_d1, p + svl);
+        if (chunks > 2) sme_ld1_hor_za<2>(uint32_t(r), pg_d2, p + 2 * svl);
+        if (chunks > 3) sme_ld1_hor_za<3>(uint32_t(r), pg_d3, p + 3 * svl);
       }
-      for (int c = 0; c < dk; ++c) {
-        Vec v0 = sme_read_ver_za<0>(zero, pg_r, uint32_t(c));
-        EIGEN_IF_CONSTEXPR (NegateOddRows) {
-          if (((k + Index(c)) & Index(1)) != Index(0)) v0 = sme_neg(pg_r, v0);
-        }
-        sme_st1(pg_r, &dst[(k + c) * width + r0], v0);
+      for (int c = 0; c < dk0; ++c) {
+        const Index kc = k + c;
+        sme_pack_read_tile<0, NegateOddRows>(&dst[kc * width + r0], zero, pg_r, uint32_t(c), kc);
+        if (c < dk1)
+          sme_pack_read_tile<1, NegateOddRows>(&dst[(kc + svl) * width + r0], zero, pg_r, uint32_t(c), kc + svl);
+        if (c < dk2)
+          sme_pack_read_tile<2, NegateOddRows>(&dst[(kc + 2 * svl) * width + r0], zero, pg_r, uint32_t(c),
+                                               kc + 2 * svl);
+        if (c < dk3)
+          sme_pack_read_tile<3, NegateOddRows>(&dst[(kc + 3 * svl) * width + r0], zero, pg_r, uint32_t(c),
+                                               kc + 3 * svl);
       }
     }
   }
