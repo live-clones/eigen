@@ -13,10 +13,9 @@ void approx_comparisons_floating() {
   using Real = typename NumTraits<Scalar>::Real;
   using MatrixType = Matrix<Scalar, Dynamic, Dynamic, Options>;
   const Real precision = Real(0.125);
-  const Real scales[] = {Real(1), NumTraits<Real>::highest() / Real(32),
-                         (numext::numeric_limits<Real>::min)() * Real(32)};
   MatrixType x(3, 5), y(3, 5);
-  for (const Real scale : scales) {
+  for (const Real scale :
+       {Real(1), NumTraits<Real>::highest() / Real(32), (numext::numeric_limits<Real>::min)() * Real(32)}) {
     x.setConstant(Scalar(scale));
     y = x * Real(2);
     internal::set_is_malloc_allowed(false);
@@ -183,7 +182,7 @@ template <typename Real>
 void approx_comparisons_scale_invariance() {
   using Vector = Matrix<Real, 17, 1>;
   const Real precision = Real(0.125);
-  const int exponents[] = {0, NumTraits<Real>::min_exponent() + 4, NumTraits<Real>::max_exponent() - 8};
+  const long double precision2 = static_cast<long double>(precision) * static_cast<long double>(precision);
   for (int repeat = 0; repeat < g_repeat; ++repeat) {
     const Vector a = Vector::Random();
     for (int close = 0; close < 2; ++close) {
@@ -197,9 +196,8 @@ void approx_comparisons_scale_invariance() {
         a2 += av * av;
         b2 += bv * bv;
       }
-      const bool expected =
-          difference <= static_cast<long double>(precision) * static_cast<long double>(precision) * (std::min)(a2, b2);
-      for (int exponent : exponents) {
+      const bool expected = difference <= precision2 * (std::min)(a2, b2);
+      for (int exponent : {0, NumTraits<Real>::min_exponent() + 4, NumTraits<Real>::max_exponent() - 8}) {
         const Real scale = numext::ldexp(Real(1), exponent);
         const Vector x = a * scale, y = b * scale;
         VERIFY_IS_EQUAL(x.isApprox(y, precision), expected);
