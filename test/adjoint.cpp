@@ -17,12 +17,11 @@ template <>
 struct adjoint_specific<true> {
   template <typename Vec, typename Mat, typename Scalar>
   static void run(const Vec& v1, const Vec& v2, Vec& v3, const Mat& square, Scalar s1, Scalar s2) {
-    VERIFY(test_isApproxWithRef((s1 * v1 + s2 * v2).dot(v3),
-                                numext::conj(s1) * v1.dot(v3) + numext::conj(s2) * v2.dot(v3), 0));
-    VERIFY(test_isApproxWithRef(v3.dot(s1 * v1 + s2 * v2), s1 * v3.dot(v1) + s2 * v3.dot(v2), 0));
+    VERIFY_IS_EQUAL((s1 * v1 + s2 * v2).dot(v3), numext::conj(s1) * v1.dot(v3) + numext::conj(s2) * v2.dot(v3));
+    VERIFY_IS_EQUAL(v3.dot(s1 * v1 + s2 * v2), s1 * v3.dot(v1) + s2 * v3.dot(v2));
 
     // check compatibility of dot and adjoint
-    VERIFY(test_isApproxWithRef(v1.dot(square * v2), (square.adjoint() * v1).dot(v2), 0));
+    VERIFY_IS_EQUAL(v1.dot(square * v2), (square.adjoint() * v1).dot(v2));
   }
 };
 
@@ -30,13 +29,23 @@ template <>
 struct adjoint_specific<false> {
   template <typename Vec, typename Mat, typename Scalar>
   static void run(const Vec& v1, const Vec& v2, Vec& v3, const Mat& square, Scalar s1, Scalar s2) {
-    typedef typename NumTraits<Scalar>::Real RealScalar;
+    using RealScalar = typename NumTraits<Scalar>::Real;
     using std::abs;
 
-    RealScalar ref = NumTraits<Scalar>::IsInteger ? RealScalar(0) : (std::max)((s1 * v1 + s2 * v2).norm(), v3.norm());
-    VERIFY(test_isApproxWithRef((s1 * v1 + s2 * v2).dot(v3),
-                                numext::conj(s1) * v1.dot(v3) + numext::conj(s2) * v2.dot(v3), ref));
-    VERIFY(test_isApproxWithRef(v3.dot(s1 * v1 + s2 * v2), s1 * v3.dot(v1) + s2 * v3.dot(v2), ref));
+    const long double eps = static_cast<long double>(NumTraits<RealScalar>::epsilon());
+    long double scale = 0;
+    for (Index i = 0; i < v1.size(); ++i)
+      scale += (static_cast<long double>(abs(s1)) * static_cast<long double>(abs(v1(i))) +
+                static_cast<long double>(abs(s2)) * static_cast<long double>(abs(v2(i)))) *
+               static_cast<long double>(abs(v3(i)));
+    // Two evaluation orders, including complex multiply-adds and scalar-vector products.
+    const long double linearityBound = 8 * (v1.size() + 4) * eps * scale;
+    VERIFY((numext::isfinite)(linearityBound));
+    VERIFY(static_cast<long double>(
+               abs((s1 * v1 + s2 * v2).dot(v3) - (numext::conj(s1) * v1.dot(v3) + numext::conj(s2) * v2.dot(v3)))) <=
+           linearityBound);
+    VERIFY(static_cast<long double>(abs(v3.dot(s1 * v1 + s2 * v2) - (s1 * v3.dot(v1) + s2 * v3.dot(v2)))) <=
+           linearityBound);
 
     VERIFY_IS_APPROX(v1.squaredNorm(), v1.norm() * v1.norm());
     // check normalized() and normalize()
@@ -59,11 +68,15 @@ struct adjoint_specific<false> {
 #endif
 
     // check compatibility of dot and adjoint
-    ref = NumTraits<Scalar>::IsInteger ? 0
-                                       : (std::max)((std::max)(v1.norm(), v2.norm()),
-                                                    (std::max)((square * v2).norm(), (square.adjoint() * v1).norm()));
-    VERIFY(internal::isMuchSmallerThan(abs(v1.dot(square * v2) - (square.adjoint() * v1).dot(v2)), ref,
-                                       test_precision<Scalar>()));
+    scale = 0;
+    for (Index i = 0; i < square.rows(); ++i)
+      for (Index j = 0; j < square.cols(); ++j)
+        scale += static_cast<long double>(abs(v1(i))) * static_cast<long double>(abs(square(i, j))) *
+                 static_cast<long double>(abs(v2(j)));
+    // Each order has two reductions; allow 8*n*eps per complex product and its accumulation.
+    const long double adjointBound = 16 * (v1.size() + 1) * eps * scale;
+    VERIFY((numext::isfinite)(adjointBound));
+    VERIFY(static_cast<long double>(abs(v1.dot(square * v2) - (square.adjoint() * v1).dot(v2))) <= adjointBound);
 
     // check that Random().normalized() works: tricky as the random xpr must be evaluated by
     // normalized() in order to produce a consistent result.
