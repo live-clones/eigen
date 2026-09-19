@@ -33,15 +33,17 @@
 // the integer width.
 extern "C" {
 void sgeqrf_(const eigen_bench::BlasInt* m, const eigen_bench::BlasInt* n, float* a, const eigen_bench::BlasInt* lda,
-             float* tau, float* work, const eigen_bench::BlasInt* lwork, eigen_bench::BlasInt* info);
+             float* tau, float* work, const eigen_bench::BlasInt* lwork, eigen_bench::BlasInt* info)
+    EIGEN_BENCH_FORTRAN_SYMBOL(sgeqrf);
 void dgeqrf_(const eigen_bench::BlasInt* m, const eigen_bench::BlasInt* n, double* a, const eigen_bench::BlasInt* lda,
-             double* tau, double* work, const eigen_bench::BlasInt* lwork, eigen_bench::BlasInt* info);
+             double* tau, double* work, const eigen_bench::BlasInt* lwork, eigen_bench::BlasInt* info)
+    EIGEN_BENCH_FORTRAN_SYMBOL(dgeqrf);
 void cgeqrf_(const eigen_bench::BlasInt* m, const eigen_bench::BlasInt* n, std::complex<float>* a,
              const eigen_bench::BlasInt* lda, std::complex<float>* tau, std::complex<float>* work,
-             const eigen_bench::BlasInt* lwork, eigen_bench::BlasInt* info);
+             const eigen_bench::BlasInt* lwork, eigen_bench::BlasInt* info) EIGEN_BENCH_FORTRAN_SYMBOL(cgeqrf);
 void zgeqrf_(const eigen_bench::BlasInt* m, const eigen_bench::BlasInt* n, std::complex<double>* a,
              const eigen_bench::BlasInt* lda, std::complex<double>* tau, std::complex<double>* work,
-             const eigen_bench::BlasInt* lwork, eigen_bench::BlasInt* info);
+             const eigen_bench::BlasInt* lwork, eigen_bench::BlasInt* info) EIGEN_BENCH_FORTRAN_SYMBOL(zgeqrf);
 }
 #endif
 

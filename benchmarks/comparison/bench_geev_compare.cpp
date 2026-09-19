@@ -36,19 +36,21 @@ extern "C" {
 void sgeev_(const char* jobvl, const char* jobvr, const eigen_bench::BlasInt* n, float* a,
             const eigen_bench::BlasInt* lda, float* wr, float* wi, float* vl, const eigen_bench::BlasInt* ldvl,
             float* vr, const eigen_bench::BlasInt* ldvr, float* work, const eigen_bench::BlasInt* lwork,
-            eigen_bench::BlasInt* info);
+            eigen_bench::BlasInt* info) EIGEN_BENCH_FORTRAN_SYMBOL(sgeev);
 void dgeev_(const char* jobvl, const char* jobvr, const eigen_bench::BlasInt* n, double* a,
             const eigen_bench::BlasInt* lda, double* wr, double* wi, double* vl, const eigen_bench::BlasInt* ldvl,
             double* vr, const eigen_bench::BlasInt* ldvr, double* work, const eigen_bench::BlasInt* lwork,
-            eigen_bench::BlasInt* info);
+            eigen_bench::BlasInt* info) EIGEN_BENCH_FORTRAN_SYMBOL(dgeev);
 void cgeev_(const char* jobvl, const char* jobvr, const eigen_bench::BlasInt* n, std::complex<float>* a,
             const eigen_bench::BlasInt* lda, std::complex<float>* w, std::complex<float>* vl,
             const eigen_bench::BlasInt* ldvl, std::complex<float>* vr, const eigen_bench::BlasInt* ldvr,
-            std::complex<float>* work, const eigen_bench::BlasInt* lwork, float* rwork, eigen_bench::BlasInt* info);
+            std::complex<float>* work, const eigen_bench::BlasInt* lwork, float* rwork, eigen_bench::BlasInt* info)
+    EIGEN_BENCH_FORTRAN_SYMBOL(cgeev);
 void zgeev_(const char* jobvl, const char* jobvr, const eigen_bench::BlasInt* n, std::complex<double>* a,
             const eigen_bench::BlasInt* lda, std::complex<double>* w, std::complex<double>* vl,
             const eigen_bench::BlasInt* ldvl, std::complex<double>* vr, const eigen_bench::BlasInt* ldvr,
-            std::complex<double>* work, const eigen_bench::BlasInt* lwork, double* rwork, eigen_bench::BlasInt* info);
+            std::complex<double>* work, const eigen_bench::BlasInt* lwork, double* rwork, eigen_bench::BlasInt* info)
+    EIGEN_BENCH_FORTRAN_SYMBOL(zgeev);
 }
 #endif
 

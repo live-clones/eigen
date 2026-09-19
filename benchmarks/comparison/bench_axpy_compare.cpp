@@ -20,13 +20,15 @@
 // static_assert in bench_compare.h.
 extern "C" {
 void saxpy_(const eigen_bench::BlasInt* n, const float* alpha, const float* x, const eigen_bench::BlasInt* incx,
-            float* y, const eigen_bench::BlasInt* incy);
+            float* y, const eigen_bench::BlasInt* incy) EIGEN_BENCH_FORTRAN_SYMBOL(saxpy);
 void daxpy_(const eigen_bench::BlasInt* n, const double* alpha, const double* x, const eigen_bench::BlasInt* incx,
-            double* y, const eigen_bench::BlasInt* incy);
+            double* y, const eigen_bench::BlasInt* incy) EIGEN_BENCH_FORTRAN_SYMBOL(daxpy);
 void caxpy_(const eigen_bench::BlasInt* n, const std::complex<float>* alpha, const std::complex<float>* x,
-            const eigen_bench::BlasInt* incx, std::complex<float>* y, const eigen_bench::BlasInt* incy);
+            const eigen_bench::BlasInt* incx, std::complex<float>* y, const eigen_bench::BlasInt* incy)
+    EIGEN_BENCH_FORTRAN_SYMBOL(caxpy);
 void zaxpy_(const eigen_bench::BlasInt* n, const std::complex<double>* alpha, const std::complex<double>* x,
-            const eigen_bench::BlasInt* incx, std::complex<double>* y, const eigen_bench::BlasInt* incy);
+            const eigen_bench::BlasInt* incx, std::complex<double>* y, const eigen_bench::BlasInt* incy)
+    EIGEN_BENCH_FORTRAN_SYMBOL(zaxpy);
 }
 #endif
 

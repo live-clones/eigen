@@ -34,19 +34,21 @@ extern "C" {
 void sgesdd_(const char* jobz, const eigen_bench::BlasInt* m, const eigen_bench::BlasInt* n, float* a,
              const eigen_bench::BlasInt* lda, float* s, float* u, const eigen_bench::BlasInt* ldu, float* vt,
              const eigen_bench::BlasInt* ldvt, float* work, const eigen_bench::BlasInt* lwork,
-             eigen_bench::BlasInt* iwork, eigen_bench::BlasInt* info);
+             eigen_bench::BlasInt* iwork, eigen_bench::BlasInt* info) EIGEN_BENCH_FORTRAN_SYMBOL(sgesdd);
 void dgesdd_(const char* jobz, const eigen_bench::BlasInt* m, const eigen_bench::BlasInt* n, double* a,
              const eigen_bench::BlasInt* lda, double* s, double* u, const eigen_bench::BlasInt* ldu, double* vt,
              const eigen_bench::BlasInt* ldvt, double* work, const eigen_bench::BlasInt* lwork,
-             eigen_bench::BlasInt* iwork, eigen_bench::BlasInt* info);
+             eigen_bench::BlasInt* iwork, eigen_bench::BlasInt* info) EIGEN_BENCH_FORTRAN_SYMBOL(dgesdd);
 void cgesdd_(const char* jobz, const eigen_bench::BlasInt* m, const eigen_bench::BlasInt* n, std::complex<float>* a,
              const eigen_bench::BlasInt* lda, float* s, std::complex<float>* u, const eigen_bench::BlasInt* ldu,
              std::complex<float>* vt, const eigen_bench::BlasInt* ldvt, std::complex<float>* work,
-             const eigen_bench::BlasInt* lwork, float* rwork, eigen_bench::BlasInt* iwork, eigen_bench::BlasInt* info);
+             const eigen_bench::BlasInt* lwork, float* rwork, eigen_bench::BlasInt* iwork, eigen_bench::BlasInt* info)
+    EIGEN_BENCH_FORTRAN_SYMBOL(cgesdd);
 void zgesdd_(const char* jobz, const eigen_bench::BlasInt* m, const eigen_bench::BlasInt* n, std::complex<double>* a,
              const eigen_bench::BlasInt* lda, double* s, std::complex<double>* u, const eigen_bench::BlasInt* ldu,
              std::complex<double>* vt, const eigen_bench::BlasInt* ldvt, std::complex<double>* work,
-             const eigen_bench::BlasInt* lwork, double* rwork, eigen_bench::BlasInt* iwork, eigen_bench::BlasInt* info);
+             const eigen_bench::BlasInt* lwork, double* rwork, eigen_bench::BlasInt* iwork, eigen_bench::BlasInt* info)
+    EIGEN_BENCH_FORTRAN_SYMBOL(zgesdd);
 }
 #endif
 

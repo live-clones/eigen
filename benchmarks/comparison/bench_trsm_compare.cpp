@@ -23,16 +23,18 @@
 extern "C" {
 void strsm_(const char* side, const char* uplo, const char* transa, const char* diag, const eigen_bench::BlasInt* m,
             const eigen_bench::BlasInt* n, const float* alpha, const float* a, const eigen_bench::BlasInt* lda,
-            float* b, const eigen_bench::BlasInt* ldb);
+            float* b, const eigen_bench::BlasInt* ldb) EIGEN_BENCH_FORTRAN_SYMBOL(strsm);
 void dtrsm_(const char* side, const char* uplo, const char* transa, const char* diag, const eigen_bench::BlasInt* m,
             const eigen_bench::BlasInt* n, const double* alpha, const double* a, const eigen_bench::BlasInt* lda,
-            double* b, const eigen_bench::BlasInt* ldb);
+            double* b, const eigen_bench::BlasInt* ldb) EIGEN_BENCH_FORTRAN_SYMBOL(dtrsm);
 void ctrsm_(const char* side, const char* uplo, const char* transa, const char* diag, const eigen_bench::BlasInt* m,
             const eigen_bench::BlasInt* n, const std::complex<float>* alpha, const std::complex<float>* a,
-            const eigen_bench::BlasInt* lda, std::complex<float>* b, const eigen_bench::BlasInt* ldb);
+            const eigen_bench::BlasInt* lda, std::complex<float>* b, const eigen_bench::BlasInt* ldb)
+    EIGEN_BENCH_FORTRAN_SYMBOL(ctrsm);
 void ztrsm_(const char* side, const char* uplo, const char* transa, const char* diag, const eigen_bench::BlasInt* m,
             const eigen_bench::BlasInt* n, const std::complex<double>* alpha, const std::complex<double>* a,
-            const eigen_bench::BlasInt* lda, std::complex<double>* b, const eigen_bench::BlasInt* ldb);
+            const eigen_bench::BlasInt* lda, std::complex<double>* b, const eigen_bench::BlasInt* ldb)
+    EIGEN_BENCH_FORTRAN_SYMBOL(ztrsm);
 }
 #endif
 

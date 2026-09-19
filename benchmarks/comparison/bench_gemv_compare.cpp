@@ -22,18 +22,18 @@
 extern "C" {
 void sgemv_(const char* trans, const eigen_bench::BlasInt* m, const eigen_bench::BlasInt* n, const float* alpha,
             const float* a, const eigen_bench::BlasInt* lda, const float* x, const eigen_bench::BlasInt* incx,
-            const float* beta, float* y, const eigen_bench::BlasInt* incy);
+            const float* beta, float* y, const eigen_bench::BlasInt* incy) EIGEN_BENCH_FORTRAN_SYMBOL(sgemv);
 void dgemv_(const char* trans, const eigen_bench::BlasInt* m, const eigen_bench::BlasInt* n, const double* alpha,
             const double* a, const eigen_bench::BlasInt* lda, const double* x, const eigen_bench::BlasInt* incx,
-            const double* beta, double* y, const eigen_bench::BlasInt* incy);
+            const double* beta, double* y, const eigen_bench::BlasInt* incy) EIGEN_BENCH_FORTRAN_SYMBOL(dgemv);
 void cgemv_(const char* trans, const eigen_bench::BlasInt* m, const eigen_bench::BlasInt* n,
             const std::complex<float>* alpha, const std::complex<float>* a, const eigen_bench::BlasInt* lda,
             const std::complex<float>* x, const eigen_bench::BlasInt* incx, const std::complex<float>* beta,
-            std::complex<float>* y, const eigen_bench::BlasInt* incy);
+            std::complex<float>* y, const eigen_bench::BlasInt* incy) EIGEN_BENCH_FORTRAN_SYMBOL(cgemv);
 void zgemv_(const char* trans, const eigen_bench::BlasInt* m, const eigen_bench::BlasInt* n,
             const std::complex<double>* alpha, const std::complex<double>* a, const eigen_bench::BlasInt* lda,
             const std::complex<double>* x, const eigen_bench::BlasInt* incx, const std::complex<double>* beta,
-            std::complex<double>* y, const eigen_bench::BlasInt* incy);
+            std::complex<double>* y, const eigen_bench::BlasInt* incy) EIGEN_BENCH_FORTRAN_SYMBOL(zgemv);
 }
 #endif
 

@@ -26,9 +26,9 @@
 // static_assert in bench_compare.h.
 extern "C" {
 float sdot_(const eigen_bench::BlasInt* n, const float* x, const eigen_bench::BlasInt* incx, const float* y,
-            const eigen_bench::BlasInt* incy);
+            const eigen_bench::BlasInt* incy) EIGEN_BENCH_FORTRAN_SYMBOL(sdot);
 double ddot_(const eigen_bench::BlasInt* n, const double* x, const eigen_bench::BlasInt* incx, const double* y,
-             const eigen_bench::BlasInt* incy);
+             const eigen_bench::BlasInt* incy) EIGEN_BENCH_FORTRAN_SYMBOL(ddot);
 }
 #endif
 

@@ -19,16 +19,16 @@
 extern "C" {
 void ssyrk_(const char* uplo, const char* trans, const eigen_bench::BlasInt* n, const eigen_bench::BlasInt* k,
             const float* alpha, const float* a, const eigen_bench::BlasInt* lda, const float* beta, float* c,
-            const eigen_bench::BlasInt* ldc);
+            const eigen_bench::BlasInt* ldc) EIGEN_BENCH_FORTRAN_SYMBOL(ssyrk);
 void dsyrk_(const char* uplo, const char* trans, const eigen_bench::BlasInt* n, const eigen_bench::BlasInt* k,
             const double* alpha, const double* a, const eigen_bench::BlasInt* lda, const double* beta, double* c,
-            const eigen_bench::BlasInt* ldc);
+            const eigen_bench::BlasInt* ldc) EIGEN_BENCH_FORTRAN_SYMBOL(dsyrk);
 void cherk_(const char* uplo, const char* trans, const eigen_bench::BlasInt* n, const eigen_bench::BlasInt* k,
             const float* alpha, const std::complex<float>* a, const eigen_bench::BlasInt* lda, const float* beta,
-            std::complex<float>* c, const eigen_bench::BlasInt* ldc);
+            std::complex<float>* c, const eigen_bench::BlasInt* ldc) EIGEN_BENCH_FORTRAN_SYMBOL(cherk);
 void zherk_(const char* uplo, const char* trans, const eigen_bench::BlasInt* n, const eigen_bench::BlasInt* k,
             const double* alpha, const std::complex<double>* a, const eigen_bench::BlasInt* lda, const double* beta,
-            std::complex<double>* c, const eigen_bench::BlasInt* ldc);
+            std::complex<double>* c, const eigen_bench::BlasInt* ldc) EIGEN_BENCH_FORTRAN_SYMBOL(zherk);
 }
 #endif
 

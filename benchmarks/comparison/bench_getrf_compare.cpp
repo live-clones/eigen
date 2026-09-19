@@ -31,13 +31,15 @@
 // the integer width.
 extern "C" {
 void sgetrf_(const eigen_bench::BlasInt* m, const eigen_bench::BlasInt* n, float* a, const eigen_bench::BlasInt* lda,
-             eigen_bench::BlasInt* ipiv, eigen_bench::BlasInt* info);
+             eigen_bench::BlasInt* ipiv, eigen_bench::BlasInt* info) EIGEN_BENCH_FORTRAN_SYMBOL(sgetrf);
 void dgetrf_(const eigen_bench::BlasInt* m, const eigen_bench::BlasInt* n, double* a, const eigen_bench::BlasInt* lda,
-             eigen_bench::BlasInt* ipiv, eigen_bench::BlasInt* info);
+             eigen_bench::BlasInt* ipiv, eigen_bench::BlasInt* info) EIGEN_BENCH_FORTRAN_SYMBOL(dgetrf);
 void cgetrf_(const eigen_bench::BlasInt* m, const eigen_bench::BlasInt* n, std::complex<float>* a,
-             const eigen_bench::BlasInt* lda, eigen_bench::BlasInt* ipiv, eigen_bench::BlasInt* info);
+             const eigen_bench::BlasInt* lda, eigen_bench::BlasInt* ipiv, eigen_bench::BlasInt* info)
+    EIGEN_BENCH_FORTRAN_SYMBOL(cgetrf);
 void zgetrf_(const eigen_bench::BlasInt* m, const eigen_bench::BlasInt* n, std::complex<double>* a,
-             const eigen_bench::BlasInt* lda, eigen_bench::BlasInt* ipiv, eigen_bench::BlasInt* info);
+             const eigen_bench::BlasInt* lda, eigen_bench::BlasInt* ipiv, eigen_bench::BlasInt* info)
+    EIGEN_BENCH_FORTRAN_SYMBOL(zgetrf);
 }
 #endif
 

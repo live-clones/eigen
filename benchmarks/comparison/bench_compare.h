@@ -38,6 +38,17 @@
 #define EIGEN_BENCH_REFERENCE_ARM_STR ""
 #endif
 
+// Accelerate exports every BLAS and LAPACK routine twice. The unsuffixed symbol
+// is the deprecated CLAPACK-era interface, which keeps the f2c convention (sdot_
+// returns double); name$NEWLAPACK is the current one, which Apple's headers
+// select under ACCELERATE_NEW_LAPACK. A declaration ends with
+// EIGEN_BENCH_FORTRAN_SYMBOL(name) to bind to it.
+#ifdef EIGEN_BENCH_ACCELERATE_NEW_LAPACK
+#define EIGEN_BENCH_FORTRAN_SYMBOL(name) __asm("_" #name "$NEWLAPACK")
+#else
+#define EIGEN_BENCH_FORTRAN_SYMBOL(name)
+#endif
+
 // Both arms of ONE grid point, registered adjacently. Google Benchmark runs
 // instances in registration order, so a whole arm's grid followed by the other's
 // would put minutes of thermal and background drift between the two numbers a

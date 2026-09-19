@@ -42,7 +42,9 @@ names are `OP/arm/scalar/dim:value/...`, for example `GEMM/openblas/f64/m:256/n:
    name it: `-DBLAS_LIBRARIES=<path>`, `-DLAPACK_LIBRARIES=<path>[;<path>...]`, and
    `-DCMAKE_LIBRARY_PATH=<dir>` for an install layout no default prefix covers. A library with no
    version query (Accelerate, netlib) gets `-DEIGEN_BENCH_REFERENCE_VERSION="..."`. The existing
-   profiles carry the exact lines each library needed on its host.
+   profiles carry the exact lines each library needed on its host. The `accelerate` arm binds to Apple's
+   current interface, the `$NEWLAPACK` symbols, rather than the deprecated unsuffixed one, whose `sdot_`
+   returns `double`.
 
 3. **Run**, one arm at a time, on an otherwise idle machine:
 

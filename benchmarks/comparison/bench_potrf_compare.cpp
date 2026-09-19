@@ -29,13 +29,13 @@
 // the integer width.
 extern "C" {
 void spotrf_(const char* uplo, const eigen_bench::BlasInt* n, float* a, const eigen_bench::BlasInt* lda,
-             eigen_bench::BlasInt* info);
+             eigen_bench::BlasInt* info) EIGEN_BENCH_FORTRAN_SYMBOL(spotrf);
 void dpotrf_(const char* uplo, const eigen_bench::BlasInt* n, double* a, const eigen_bench::BlasInt* lda,
-             eigen_bench::BlasInt* info);
+             eigen_bench::BlasInt* info) EIGEN_BENCH_FORTRAN_SYMBOL(dpotrf);
 void cpotrf_(const char* uplo, const eigen_bench::BlasInt* n, std::complex<float>* a, const eigen_bench::BlasInt* lda,
-             eigen_bench::BlasInt* info);
+             eigen_bench::BlasInt* info) EIGEN_BENCH_FORTRAN_SYMBOL(cpotrf);
 void zpotrf_(const char* uplo, const eigen_bench::BlasInt* n, std::complex<double>* a, const eigen_bench::BlasInt* lda,
-             eigen_bench::BlasInt* info);
+             eigen_bench::BlasInt* info) EIGEN_BENCH_FORTRAN_SYMBOL(zpotrf);
 }
 #endif
 

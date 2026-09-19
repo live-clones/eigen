@@ -23,19 +23,21 @@ extern "C" {
 void sgemm_(const char* transa, const char* transb, const eigen_bench::BlasInt* m, const eigen_bench::BlasInt* n,
             const eigen_bench::BlasInt* k, const float* alpha, const float* a, const eigen_bench::BlasInt* lda,
             const float* b, const eigen_bench::BlasInt* ldb, const float* beta, float* c,
-            const eigen_bench::BlasInt* ldc);
+            const eigen_bench::BlasInt* ldc) EIGEN_BENCH_FORTRAN_SYMBOL(sgemm);
 void dgemm_(const char* transa, const char* transb, const eigen_bench::BlasInt* m, const eigen_bench::BlasInt* n,
             const eigen_bench::BlasInt* k, const double* alpha, const double* a, const eigen_bench::BlasInt* lda,
             const double* b, const eigen_bench::BlasInt* ldb, const double* beta, double* c,
-            const eigen_bench::BlasInt* ldc);
+            const eigen_bench::BlasInt* ldc) EIGEN_BENCH_FORTRAN_SYMBOL(dgemm);
 void cgemm_(const char* transa, const char* transb, const eigen_bench::BlasInt* m, const eigen_bench::BlasInt* n,
             const eigen_bench::BlasInt* k, const std::complex<float>* alpha, const std::complex<float>* a,
             const eigen_bench::BlasInt* lda, const std::complex<float>* b, const eigen_bench::BlasInt* ldb,
-            const std::complex<float>* beta, std::complex<float>* c, const eigen_bench::BlasInt* ldc);
+            const std::complex<float>* beta, std::complex<float>* c, const eigen_bench::BlasInt* ldc)
+    EIGEN_BENCH_FORTRAN_SYMBOL(cgemm);
 void zgemm_(const char* transa, const char* transb, const eigen_bench::BlasInt* m, const eigen_bench::BlasInt* n,
             const eigen_bench::BlasInt* k, const std::complex<double>* alpha, const std::complex<double>* a,
             const eigen_bench::BlasInt* lda, const std::complex<double>* b, const eigen_bench::BlasInt* ldb,
-            const std::complex<double>* beta, std::complex<double>* c, const eigen_bench::BlasInt* ldc);
+            const std::complex<double>* beta, std::complex<double>* c, const eigen_bench::BlasInt* ldc)
+    EIGEN_BENCH_FORTRAN_SYMBOL(zgemm);
 }
 #endif
 

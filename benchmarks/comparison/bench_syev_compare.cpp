@@ -32,16 +32,16 @@
 extern "C" {
 void ssyev_(const char* jobz, const char* uplo, const eigen_bench::BlasInt* n, float* a,
             const eigen_bench::BlasInt* lda, float* w, float* work, const eigen_bench::BlasInt* lwork,
-            eigen_bench::BlasInt* info);
+            eigen_bench::BlasInt* info) EIGEN_BENCH_FORTRAN_SYMBOL(ssyev);
 void dsyev_(const char* jobz, const char* uplo, const eigen_bench::BlasInt* n, double* a,
             const eigen_bench::BlasInt* lda, double* w, double* work, const eigen_bench::BlasInt* lwork,
-            eigen_bench::BlasInt* info);
+            eigen_bench::BlasInt* info) EIGEN_BENCH_FORTRAN_SYMBOL(dsyev);
 void cheev_(const char* jobz, const char* uplo, const eigen_bench::BlasInt* n, std::complex<float>* a,
             const eigen_bench::BlasInt* lda, float* w, std::complex<float>* work, const eigen_bench::BlasInt* lwork,
-            float* rwork, eigen_bench::BlasInt* info);
+            float* rwork, eigen_bench::BlasInt* info) EIGEN_BENCH_FORTRAN_SYMBOL(cheev);
 void zheev_(const char* jobz, const char* uplo, const eigen_bench::BlasInt* n, std::complex<double>* a,
             const eigen_bench::BlasInt* lda, double* w, std::complex<double>* work, const eigen_bench::BlasInt* lwork,
-            double* rwork, eigen_bench::BlasInt* info);
+            double* rwork, eigen_bench::BlasInt* info) EIGEN_BENCH_FORTRAN_SYMBOL(zheev);
 }
 #endif
 
