@@ -331,3 +331,25 @@ static void BM_KroneckerSolveIdentityRightSparseMaterialized(benchmark::State& s
   }
 }
 BENCHMARK(BM_KroneckerSolveIdentityRightSparseMaterialized)->Arg(64)->Arg(128)->Arg(256);
+
+static void BM_KroneckerProductNonFiniteSparse(benchmark::State& state) {
+  const Index n = state.range(0);
+  SpMat A(n, n);
+  for (Index i = 1; i < n; ++i) A.insert(i, i) = 2.0;
+  Mat B = Mat::Identity(2, 2);
+  B(0, 0) = NumTraits<double>::infinity();
+  auto K = makeKroneckerOperator(B, A);
+  Vec x = Vec::Ones(2 * n), y = K * x;
+  Vec expected = Vec::Constant(2 * n, 2.0);
+  expected.head(n).setConstant(NumTraits<double>::infinity());
+  expected[0] = expected[n] = 0.0;  // The empty sparse row annihilates Inf.
+  if (!(y.array() == expected.array()).all()) {
+    state.SkipWithError("non-finite product did not preserve structural zeros");
+    return;
+  }
+  for (auto _ : state) {
+    y.noalias() = K * x;
+    benchmark::DoNotOptimize(y.data());
+  }
+}
+BENCHMARK(BM_KroneckerProductNonFiniteSparse)->Arg(64)->Arg(128)->Arg(256)->Arg(512);

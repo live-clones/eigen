@@ -131,6 +131,10 @@ struct kron_factor_ops {
   static constexpr bool StoresAllEntries = true;
 
   static void prepare(Factor&) {}
+  static bool coeffIfStored(const Factor& f, Index row, Index col, Scalar& value) {
+    value = f.coeff(row, col);
+    return true;
+  }
   template <typename Visitor>
   static void forEachNonZero(const Factor& f, Visitor&& visit) {
     for (Index j = 0; j < f.cols(); ++j)
@@ -179,6 +183,11 @@ struct kron_factor_ops<Factor, kKronDiagonalFactor> {
   static constexpr bool StoresAllEntries = false;
 
   static void prepare(Factor&) {}
+  static bool coeffIfStored(const Factor& f, Index row, Index col, Scalar& value) {
+    if (row != col) return false;
+    value = f.diagonal().coeff(row);
+    return true;
+  }
   template <typename Visitor>
   static void forEachNonZero(const Factor& f, Visitor&& visit) {
     for (Index k = 0; k < f.rows(); ++k) visit(k, k, f.diagonal().coeff(k));
@@ -241,6 +250,16 @@ struct kron_factor_ops<Factor, kKronSparseFactor> {
 
   // coeffs() below reads the compressed value array.
   static void prepare(Factor& f) { f.makeCompressed(); }
+  static bool coeffIfStored(const Factor& f, Index row, Index col, Scalar& value) {
+    const Index outer = Factor::IsRowMajor ? row : col;
+    const Index inner = Factor::IsRowMajor ? col : row;
+    const Index start = f.outerIndexPtr()[outer], end = f.outerIndexPtr()[outer + 1];
+    if (start == end) return false;
+    const Index position = f.data().searchLowerIndex(start, end, inner);
+    if (position == end || f.innerIndexPtr()[position] != inner) return false;
+    value = f.valuePtr()[position];
+    return true;
+  }
   template <typename Visitor>
   static void forEachNonZero(const Factor& f, Visitor&& visit) {
     for (Index k = 0; k < f.outerSize(); ++k)
@@ -277,9 +296,20 @@ struct kron_factor_ops<Factor, kKronSparseFactor> {
   // The dense contraction bound: a row holds at most n stored entries.
   static int growthBits(Index n) { return log2_floor(static_cast<numext::uint64_t>(n)) + 1; }
   static Scalar balancedDet(const Factor& M, Index& exponent) {
+    // SparseLU forms 1/pivot: scale small factors up to avoid reciprocal overflow.
+    // Scaling down could erase small pivots in factors with a wide exponent range.
+    const int scaleExponent = numext::mini(exponentBound(M), 0);
+    ColMajorFactor normalized(M);
+    if (scaleExponent != 0) {
+      auto values = normalized.coeffs();
+      kron_ldexp_entries(values, -scaleExponent);
+    }
     kron_sparse_lu<ColMajorFactor> lu;
-    lu.compute(ColMajorFactor(M));
-    if (lu.info() == Success) return lu.balancedDet(exponent);
+    lu.compute(normalized);
+    if (lu.info() == Success) {
+      exponent += M.rows() * scaleExponent;
+      return lu.balancedDet(exponent);
+    }
     // An aborted factorization met an exactly zero pivot column -- an exactly
     // singular factor -- unless a non-finite entry defeated the pivot search.
     return M.coeffs().allFinite() ? Scalar(0) : Scalar(NumTraits<RealScalar>::quiet_NaN());
@@ -446,17 +476,20 @@ class kron_factor_solver<Factor, kKronSparseFactor> {
  * \ref rank) currently materializes a diagonal factor densely for the factor
  * decomposition.
  *
- * Either factor may also be a \c SparseMatrix, stored compressed. Its side of
- * every product is a sparse-dense product -- O(nnz) per right-hand-side column
+ * Either factor may also be a \c SparseMatrix, stored compressed. For finite
+ * inputs, its side of a product is sparse-dense -- O(nnz) per right-hand-side column
  * instead of O(m n) -- \ref solve factorizes it once with \c SparseLU and
  * back-substitutes per column, \ref transpose, \ref conjugate and \ref adjoint
  * stay sparse, and \ref determinant accumulates the SparseLU pivots in the same
- * balanced form as the dense LU path. Its \ref inverse is dense (one SparseLU
- * solve against the identity), and the decomposition family densifies it like a
- * diagonal factor. As in every sparse kernel, absent entries are exact zeros:
- * a structural zero annihilates the Inf or NaN it meets, where a stored zero
- * (or a dense factor) would produce NaN. A sparse factor whose \c SparseLU
- * factorization fails -- an exactly zero or non-finite pivot column -- solves
+ * balanced form as the dense LU path, scaling small factors up before
+ * factorization to keep pivot reciprocals representable. Its \ref inverse is
+ * dense (one SparseLU solve against the identity), and the decomposition family
+ * densifies it like a diagonal factor. As in every sparse kernel, absent entries
+ * are exact zeros: a structural zero annihilates the Inf or NaN it meets, where a stored zero
+ * (or a dense factor) would produce NaN. Products with non-finite inputs visit
+ * pairs of stored factor entries to preserve this distinction without
+ * materializing the product. A sparse factor whose \c SparseLU factorization
+ * fails -- an exactly zero or non-finite pivot column -- solves
  * and inverts to NaN, and has determinant 0 when exactly singular (NaN when
  * non-finite). Assigning the operator to a \c SparseMatrix materializes the
  * product sparsely, every inner vector reserved to its exact size. For a sparse
@@ -546,8 +579,12 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
 
   /** \returns the coefficient at row \a row and column \a col. */
   Scalar coeff(Index row, Index col) const {
+    eigen_assert(row >= 0 && row < rows() && col >= 0 && col < cols());
     const Index m2 = m_B.rows(), n2 = m_B.cols();
-    return m_A.coeff(row / m2, col / n2) * m_B.coeff(row % m2, col % n2);
+    Scalar a, b;
+    if (!LhsOps::coeffIfStored(m_A, row / m2, col / n2, a) || !RhsOps::coeffIfStored(m_B, row % m2, col % n2, b))
+      return Scalar(0);
+    return a * b;
   }
 
   /** \returns the transpose \f$ A^T \otimes B^T \f$, itself a Kronecker
@@ -935,7 +972,9 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
    * no overflow risk, so results of moderate magnitude are bit-identical to the
    * unscaled evaluation. Non-finite data is never scaled (the bounds cannot see
    * past an Inf/NaN, and 0 * Inf would manufacture NaNs); the unscaled GEMMs
-   * propagate it entrywise exactly like a dense product. */
+   * propagate it entrywise exactly like a dense product. With structural zeros,
+   * non-finite inputs instead use the stored-entry product to preserve the
+   * distinction between absent entries and stored zeros. */
   template <typename Dest, typename Rhs, typename ProductScalar>
   void addProduct(Dest& dst, const Rhs& rhs, const ProductScalar& alpha) const {
     using ProductVector = Matrix<ProductScalar, Dynamic, 1>;
@@ -962,7 +1001,8 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
     for (Index k = 0; k < actualRhs.cols(); ++k) {
       xc = actualRhs.col(k).template cast<ProductScalar>();
       int e = 0;
-      if (factorsFinite && xc.allFinite()) {
+      const bool finite = factorsFinite && xc.allFinite();
+      if (finite) {
         const int expX = internal::structured_exponent_bound(xc);  // 0 for an all-zero column: no scaling
         e = numext::maxi(0, numext::maxi(expB + expX + bits2 - budget, expA + expB + expX + bits1 + bits2 - budget));
         // The cap keeps the half-factors below overflow; it only binds when the
@@ -979,7 +1019,10 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
       }
       // For a diagonal factor its side degenerates to a diagonal scaling
       // (transposedOperand: a diagonal matrix is its own transpose).
-      Y.noalias() = m_B * xc.reshaped(n2, n1) * LhsOps::transposedOperand(m_A);
+      if (EIGEN_PREDICT_FALSE(!finite && (!LhsOps::StoresAllEntries || !RhsOps::StoresAllEntries)))
+        productNonFinite(Y, xc);
+      else
+        Y.noalias() = m_B * xc.reshaped(n2, n1) * LhsOps::transposedOperand(m_A);
       if (e > 0) {
         const ProductReal up1 = ProductReal(std::ldexp(ProductReal(1), e / 2));
         const ProductReal up2 = ProductReal(std::ldexp(ProductReal(1), e - e / 2));
@@ -991,6 +1034,19 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
   }
 
  private:
+  // A dense intermediate loses which zeros were structural; a later Inf/NaN
+  // factor would turn those absent terms into NaNs. Preserve the stored pairs.
+  template <typename ProductScalar>
+  EIGEN_DONT_INLINE void productNonFinite(Matrix<ProductScalar, Dynamic, Dynamic, ColMajor>& result,
+                                          const Matrix<ProductScalar, Dynamic, 1>& x) const {
+    result.setZero();
+    LhsOps::forEachNonZero(m_A, [&result, &x, this](Index iA, Index jA, const Scalar& a) {
+      RhsOps::forEachNonZero(m_B, [&result, &x, jA, iA, &a, this](Index iB, Index jB, const Scalar& b) {
+        result.coeffRef(iB, iA) += (a * b) * x.coeff(jA * m_B.cols() + jB);
+      });
+    });
+  }
+
   /** \internal \returns the relative rank/pseudo-inversion threshold for the
    * pairwise singular-value products, in the spirit of the SVD-based
    * pseudo-inverse: a mode \c (i,j) is kept when

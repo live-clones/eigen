@@ -8,6 +8,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
+#include "fp_control.h"
 
 #include <contrib/Eigen/StructuredMatrices>
 
@@ -1664,6 +1665,124 @@ void test_kron_sparse_matrix_free_cg(Index n1, Index n2) {
   VERIFY_IS_APPROX((dense * x).eval(), b);
 }
 
+template <typename Scalar, int Options>
+void test_kron_sparse_determinant_subnormal(const Scalar& phase) {
+  using Real = typename NumTraits<Scalar>::Real;
+  using Mat = Matrix<Scalar, 2, 2>;
+  using Sparse = SparseMatrix<Scalar, Options>;
+  const Real normalMin = (std::numeric_limits<Real>::min)();
+  const Real large = Real(1) / normalMin;
+  Matrix<Scalar, 1, 1> b;
+  b << Scalar(1);
+
+  // Scaling this whole factor down would discard its small, essential pivot.
+  Mat a = Mat::Zero();
+  Sparse wide(2, 2);
+  wide.insert(0, 0) = Scalar(large);
+  wide.insert(1, 1) = Scalar(normalMin);
+  VERIFY_IS_EQUAL(makeKroneckerOperator(wide, b).determinant(), Scalar(1));
+
+  if (underflowProbe<Real>() == Real(0) || ScopedFlushToZero::hardwareFlushesSubnormalInputs()) return;
+  const Real small = normalMin / Real(16);
+  b << Scalar(large);
+  const Real tolerance = Real(64) * NumTraits<Real>::epsilon();
+  Sparse sparseA(2, 2), singular(2, 2);
+  for (int swap = 0; swap < 2; ++swap) {
+    a << Real(2) * small * phase, small * phase, small * phase, Real(2) * small * phase;
+    if (swap) a.row(0).swap(a.row(1));
+    // Insert explicitly: sparseView's complex magnitude test can underflow.
+    sparseA.setZero();
+    for (Index j = 0; j < 2; ++j)
+      for (Index i = 0; i < 2; ++i) sparseA.insert(i, j) = a(i, j);
+    // (small * large)^2 * det([[2,1],[1,2]]) = 3/256, exactly.
+    const Scalar expected = Scalar(swap ? -Real(3) / Real(256) : Real(3) / Real(256)) * phase * phase;
+    const Scalar left = makeKroneckerOperator(sparseA, b).determinant();
+    const Scalar right = makeKroneckerOperator(b, sparseA).determinant();
+    VERIFY((numext::isfinite)(left));
+    VERIFY((numext::isfinite)(right));
+    VERIFY(numext::abs(left - expected) <= tolerance * numext::abs(expected));
+    VERIFY(numext::abs(right - expected) <= tolerance * numext::abs(expected));
+
+    const DiagonalMatrix<Scalar, 2> identityScale(Matrix<Scalar, 2, 1>::Constant(Scalar(large)));
+    const Scalar repeated = makeKroneckerOperator(sparseA, identityScale).determinant();
+    VERIFY((numext::isfinite)(repeated));
+    VERIFY(numext::abs(repeated - expected * expected) <= tolerance * numext::abs(expected * expected));
+
+    singular = sparseA;
+    for (Index j = 0; j < 2; ++j) singular.coeffRef(1, j) = singular.coeff(0, j);
+    VERIFY_IS_EQUAL(makeKroneckerOperator(singular, b).determinant(), Scalar(0));
+  }
+}
+
+template <typename ProductScalar, typename Lhs, typename Rhs>
+void check_kron_sparse_nonfinite(const KroneckerOperator<Lhs, Rhs>& k) {
+  using Scalar = typename Lhs::Scalar;
+  using Real = typename NumTraits<ProductScalar>::Real;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using ProductMatrix = Matrix<ProductScalar, Dynamic, Dynamic, RowMajor>;
+  SparseMatrix<Scalar> sparse;
+  sparse = k;
+  const Mat dense = k;
+  Mat coefficients(k.rows(), k.cols());
+  for (Index j = 0; j < k.cols(); ++j)
+    for (Index i = 0; i < k.rows(); ++i) coefficients(i, j) = k.coeff(i, j);
+  VERIFY_IS_CWISE_EQUAL(coefficients.realView(), dense.realView());
+  VERIFY_IS_CWISE_EQUAL(Mat(sparse).realView(), dense.realView());
+
+  ProductMatrix x = ProductMatrix::Ones(k.cols(), 3);
+  x(0, 1) = ProductScalar(NumTraits<Real>::quiet_NaN());
+  x(k.cols() - 1, 2) = ProductScalar(NumTraits<Real>::infinity());
+  // Vector products keep the reference independent of complex packet Inf/NaN handling.
+  ProductMatrix expected(k.rows(), x.cols());
+  for (Index j = 0; j < x.cols(); ++j) expected.col(j) = sparse * x.col(j);
+  ProductMatrix actual = k * x;
+  VERIFY_IS_CWISE_EQUAL(actual.realView(), expected.realView());
+  actual.setConstant(ProductScalar(3));
+  actual.noalias() += k * x;
+  const ProductMatrix added = (expected.array() + ProductScalar(3)).matrix();
+  VERIFY_IS_CWISE_EQUAL(actual.realView(), added.realView());
+  actual.setConstant(ProductScalar(3));
+  actual.noalias() -= k * x;
+  const ProductMatrix subtracted = (ProductScalar(3) - expected.array()).matrix();
+  VERIFY_IS_CWISE_EQUAL(actual.realView(), subtracted.realView());
+}
+
+template <typename Scalar, int Options>
+void test_kron_sparse_nonfinite() {
+  using Real = typename NumTraits<Scalar>::Real;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Sparse = SparseMatrix<Scalar, Options>;
+  const Sparse empty(1, 1);
+  Sparse storedZero(1, 1);
+  storedZero.insert(0, 0) = Scalar(0);
+  Sparse pattern(3, 3);
+  pattern.insert(0, 0) = Scalar(1);
+  pattern.insert(2, 0) = Scalar(0);
+  pattern.insert(0, 2) = Scalar(2);  // Row 1 and column 1 are structurally empty.
+
+  Mat finite = Mat::Ones(2, 2);
+  check_kron_sparse_nonfinite<Scalar>(makeKroneckerOperator(finite, pattern));
+  check_kron_sparse_nonfinite<std::complex<Real>>(makeKroneckerOperator(finite, pattern));
+  for (Real special : {NumTraits<Real>::infinity(), NumTraits<Real>::quiet_NaN()}) {
+    const Mat single = Mat::Constant(1, 1, Scalar(special));
+    check_kron_sparse_nonfinite<Scalar>(makeKroneckerOperator(single, empty));
+    check_kron_sparse_nonfinite<Scalar>(makeKroneckerOperator(empty, single));
+    check_kron_sparse_nonfinite<Scalar>(makeKroneckerOperator(single, storedZero));
+    check_kron_sparse_nonfinite<Scalar>(makeKroneckerOperator(storedZero, single));
+    Mat nonfinite = finite;
+    nonfinite(0, 0) = Scalar(special);
+    const Sparse sparseNonfinite = nonfinite.sparseView();
+    check_kron_sparse_nonfinite<Scalar>(makeKroneckerOperator(nonfinite, pattern));
+    check_kron_sparse_nonfinite<std::complex<Real>>(makeKroneckerOperator(nonfinite, pattern));
+    check_kron_sparse_nonfinite<Scalar>(makeKroneckerOperator(pattern, nonfinite));
+    check_kron_sparse_nonfinite<Scalar>(makeKroneckerOperator(sparseNonfinite, pattern));
+    check_kron_sparse_nonfinite<Scalar>(makeKroneckerOperator(pattern, sparseNonfinite));
+    const DiagonalMatrix<Scalar, 2> diagonal(nonfinite.diagonal());
+    check_kron_sparse_nonfinite<Scalar>(makeKroneckerOperator(diagonal, pattern));
+    check_kron_sparse_nonfinite<Scalar>(makeKroneckerOperator(pattern, diagonal));
+  }
+}
+
 EIGEN_DECLARE_TEST(structured_kronecker) {
   for (int i = 0; i < g_repeat; ++i) {
     // Products, dense assignment, coefficient access across factor shapes.
@@ -1791,5 +1910,15 @@ EIGEN_DECLARE_TEST(structured_kronecker) {
     CALL_SUBTEST_11(test_kron_sparse_degenerate(4, 3));
     CALL_SUBTEST_11(test_kron_sparse_extreme_scale());
     CALL_SUBTEST_11(test_kron_sparse_matrix_free_cg(6, 7));
+
+    CALL_SUBTEST_12((test_kron_sparse_determinant_subnormal<float, ColMajor>(1)));
+    CALL_SUBTEST_12((test_kron_sparse_determinant_subnormal<double, RowMajor>(1)));
+    CALL_SUBTEST_12((test_kron_sparse_determinant_subnormal<std::complex<float>, RowMajor>({1, 1})));
+    CALL_SUBTEST_12((test_kron_sparse_determinant_subnormal<std::complex<double>, ColMajor>({1, 1})));
+
+    CALL_SUBTEST_13((test_kron_sparse_nonfinite<float, ColMajor>()));
+    CALL_SUBTEST_13((test_kron_sparse_nonfinite<double, RowMajor>()));
+    CALL_SUBTEST_13((test_kron_sparse_nonfinite<std::complex<float>, RowMajor>()));
+    CALL_SUBTEST_13((test_kron_sparse_nonfinite<std::complex<double>, ColMajor>()));
   }
 }
