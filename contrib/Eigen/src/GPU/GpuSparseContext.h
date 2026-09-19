@@ -95,8 +95,24 @@ SpMVExpr<S> operator-(const SpMVExpr<S>& p, const DeviceMatrix<S>& b) {
   return SpMVExpr<S>(p.view(), p.x(), p.alpha(), S(-1), &b);
 }
 
+}  // namespace gpu
+
+namespace internal {
+// DeviceSparseView is a matrix-free matrix type for Eigen's iterative solvers: it looks like a
+// SparseMatrix to the traits machinery, and IterativeSolverBase stores it by pointer because
+// Ref<> cannot bind to it (the same mechanism as the matrix-free example in the documentation).
+template <typename Scalar_>
+struct traits<gpu::DeviceSparseView<Scalar_>> : traits<SparseMatrix<Scalar_, ColMajor, int>> {};
+}  // namespace internal
+
+namespace gpu {
+
 /** Device-resident sparse matrix view. Returned by SparseContext::deviceView().
  * Lightweight handle referencing the context's cached device data.
+ *
+ * It is also a matrix-free matrix type for Eigen's iterative solvers:
+ * `ConjugateGradient<DeviceSparseView<Scalar>, Lower | Upper>` runs Eigen's own
+ * algorithm on device vectors through `solveWithGuessInPlace()`; see the README.
  *
  * \warning One SparseContext caches one sparse matrix at a time. Any later
  * upload through the same context — a second deviceView() or any host-input
@@ -107,10 +123,16 @@ SpMVExpr<S> operator-(const SpMVExpr<S>& p, const DeviceMatrix<S>& b) {
  *
  * Supports `d_y = d_A * d_x` (SpMV) and `d_Y = d_A * d_X` (SpMM). */
 template <typename Scalar_>
-class DeviceSparseView {
+class DeviceSparseView : public EigenBase<DeviceSparseView<Scalar_>> {
  public:
   using Scalar = Scalar_;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using StorageIndex = int;
   using SpMat = SparseMatrix<Scalar, ColMajor, int>;
+  // What IterativeSolverBase and ConjugateGradient read from a matrix type.
+  static constexpr int ColsAtCompileTime = Dynamic;
+  static constexpr int MaxColsAtCompileTime = Dynamic;
+  static constexpr bool IsRowMajor = false;
 
   DeviceSparseView(SparseContext<Scalar>& ctx, Index rows, Index cols, uint64_t generation)
       : ctx_(ctx), rows_(rows), cols_(cols), generation_(generation) {}
