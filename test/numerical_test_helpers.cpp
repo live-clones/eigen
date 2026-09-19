@@ -111,13 +111,7 @@ void scaled_comparison_helpers() {
   VERIFY(verifyIsApproxScaled(empty, empty, Real(1)));
 }
 
-EIGEN_DECLARE_TEST(numerical_test_helpers) {
-  comparison_helpers<float>();
-  comparison_helpers<double>();
-  comparison_helpers<long double>();
-  integer_diagnostics();
-  scaled_comparison_helpers<float>();
-  scaled_comparison_helpers<double>();
+void packet_comparison_helpers() {
   const double inf = NumTraits<double>::infinity();
   const double opposite = -inf;
   const double one = 1, near = 1 + 1e-8;
@@ -126,4 +120,14 @@ EIGEN_DECLARE_TEST(numerical_test_helpers) {
   VERIFY(!test::areApprox(&inf, &opposite, 1, NumTraits<double>::epsilon()));
   // Packet checks retain dummy_precision(), which is tighter than the legacy test_precision().
   VERIFY(!test::areApprox(&one, &near, 1));
+}
+
+EIGEN_DECLARE_TEST(numerical_test_helpers) {
+  comparison_helpers<float>();
+  comparison_helpers<double>();
+  comparison_helpers<long double>();
+  integer_diagnostics();
+  scaled_comparison_helpers<float>();
+  scaled_comparison_helpers<double>();
+  packet_comparison_helpers();
 }
