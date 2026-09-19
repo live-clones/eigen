@@ -124,10 +124,6 @@ EIGEN_TEST_COMPLEX_TEST_OVERLOAD(long double)
 #undef EIGEN_TEST_COMPLEX_TEST_OVERLOAD
 #endif
 
-// Promote before subtraction and squaring, avoiding Boolean subtraction and integer overflow.
-template <typename Scalar>
-using test_difference_scalar_t = typename NumTraits<Scalar>::NonInteger;
-
 template <typename Scalar, bool = internal::use_scaled_comparison<Scalar>::value>
 struct test_relative_error_impl {
   template <typename X, typename Y>
@@ -155,8 +151,9 @@ struct test_relative_error_impl<Scalar, true> {
 template <typename T1, typename T2>
 typename NumTraits<typename T1::RealScalar>::NonInteger test_relative_error(const EigenBase<T1>& a,
                                                                             const EigenBase<T2>& b) {
-  using DiffScalar1 = test_difference_scalar_t<typename T1::Scalar>;
-  using DiffScalar2 = test_difference_scalar_t<typename T2::Scalar>;
+  // Promote before subtraction and squaring, avoiding Boolean subtraction and integer overflow.
+  using DiffScalar1 = typename NumTraits<typename T1::Scalar>::NonInteger;
+  using DiffScalar2 = typename NumTraits<typename T2::Scalar>::NonInteger;
   typename internal::nested_eval<T1, 2>::type ea(a.derived());
   typename internal::nested_eval<T2, 2>::type eb(b.derived());
   return test_relative_error_impl<DiffScalar1>::run(ea.template cast<DiffScalar1>(), eb.template cast<DiffScalar2>());
@@ -279,9 +276,9 @@ typename NumTraits<typename Derived::Scalar>::Real max_abs_coeff(const DenseBase
   return m.size() == 0 ? Real(0) : m.derived().matrix().cwiseAbs().template maxCoeff<PropagateNaN>();
 }
 
-// Compares two expressions that are mathematically equal but
-// whose evaluations differ by rounding proportional to `scale` rather than to the result. verifyIsApprox measures the
-// error relative to the result, which no implementation can meet once the result is formed by cancellation.
+// Compares two expressions that are mathematically equal but whose evaluations differ by rounding proportional to
+// `scale` rather than to the result. verifyIsApprox measures the error relative to the result, which no
+// implementation can meet once the result is formed by cancellation.
 template <typename Type1, typename Type2>
 inline bool verifyIsApproxScaled(const Type1& a, const Type2& b,
                                  const typename NumTraits<typename Type1::Scalar>::Real& scale) {
