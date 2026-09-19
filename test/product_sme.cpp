@@ -18,6 +18,8 @@
 
 #include "product.h"
 
+#include <cstring>
+
 // Without the right -march flags, __ARM_FEATURE_SME is undefined and
 // EIGEN_VECTORIZE_SME never fires - the test would silently compile
 // against the NEON GEBP kernel and pass, making this a useless no-op.
@@ -225,7 +227,7 @@ static void test_deep_k_split() {
 // at a specific SVL/region boundary.  The tests below call the SME packers
 // directly and compare the packed buffer exactly against a scalar reference
 // (equality is exact).  This pins every region -- in particular a dropped
-// row-group in the two-pass trailing transpose, and a SYMM packer that copies
+// row-group in a partial-width transpose, and a SYMM packer that copies
 // the unused triangle instead of mirroring -- at whatever SVL the run uses.
 // ---------------------------------------------------------------------------
 
@@ -289,7 +291,7 @@ static void verify_symm_pack_lhs(Index n) {
 // RHS SYMM packer: a depth block [k2, k2 + depth) x cols columns of an N x N
 // selfadjoint matrix, packed into nr-wide depth-major panels.  Reference:
 // full(k2 + k, j + c).  A k2 > 0 offset makes the transposed region non-empty,
-// so partial-width panels reach the two-pass transpose.
+// so partial-width panels reach the ZA transpose.
 template <typename Scalar, int StorageOrder>
 static void verify_symm_pack_rhs(Index N, Index depth, Index cols, Index k2) {
   eigen_assert(k2 + depth <= N && cols <= N);
@@ -312,11 +314,8 @@ static void verify_symm_pack_rhs(Index N, Index depth, Index cols, Index k2) {
 
 template <typename Scalar>
 static void test_symm_pack() {
-  // The last panel width sweeps a range of partial widths; at each SVL the
-  // two-pass trailing transpose (the if->loop fix) fires when a partial width
-  // leaves a trailing row-group remainder in (svl, 2*svl).  The spread below
-  // hits that for svl in {2, 4, 8, 16, 32, 64} -- fp32 SVL 128..2048 and the
-  // fp64 lane counts, which are half of those.
+  // Partial panel widths straddle row-group boundaries at SVL 128..2048,
+  // including widths in (svl, 2*svl) that need more than one predicated group.
   const int sizes[] = {1, 5, 7, 17, 31, 32, 33, 37, 39, 45, 48, 49, 55, 57, 63, 64, 65, 79, 96, 97};
   for (int n : sizes) {
     verify_symm_pack_lhs<Scalar, ColMajor>(n);
@@ -328,7 +327,7 @@ static void test_symm_pack() {
 
   // RHS depth blocks offset from the diagonal (k2 > 0): the transposed region is
   // non-empty, so the RowMajor operand drives partial-width panels through the
-  // two-pass transpose and the ColMajor operand through the partial copy.
+  // ZA transpose and the ColMajor operand through the partial copy.
   struct RhsCase {
     int N, depth, cols, k2;
   };
@@ -599,18 +598,81 @@ static void sweep_fallback_byvalue(Index n, Index depth) {
 }
 
 template <typename Scalar>
+__arm_locally_streaming static int sme_runtime_svl() {
+  return internal::sme_traits<typename NumTraits<Scalar>::Real>::svl();
+}
+
+template <bool Conjugate, typename Scalar>
+__arm_locally_streaming __arm_new("za") static void transpose_pack_range(Scalar* dst, const Scalar* src, Index stride,
+                                                                         Index k0, Index k1, int width) {
+  internal::sme_transpose_pack_range<Conjugate>(dst, src, stride, k0, k1, width);
+}
+
+// GEMM tails bypass ZA. Call the range primitive used by SYMM as well, so
+// narrow panels and non-zero absolute depth offsets exercise the ZA schedule.
+template <typename Scalar, int StorageOrder, bool Conjugate>
+static void verify_transpose_pack_range(int width, Index depth, Index k0) {
+  const Index k1 = k0 + depth, extent = k1 + 3;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic, StorageOrder>;
+  MatrixType src =
+      MatrixType::Random(StorageOrder == RowMajor ? width : extent, StorageOrder == RowMajor ? extent : width);
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  const RealScalar values[] = {RealScalar(0),
+                               -RealScalar(0),
+                               NumTraits<RealScalar>::infinity(),
+                               -NumTraits<RealScalar>::infinity(),
+                               NumTraits<RealScalar>::quiet_NaN(),
+                               (std::numeric_limits<RealScalar>::denorm_min)()};
+  RealScalar* reals = reinterpret_cast<RealScalar*>(src.data());
+  constexpr int components = NumTraits<Scalar>::IsComplex ? 2 : 1;
+  for (Index r = 0; r < width; ++r)
+    for (Index k = k0; k < k1; ++k)
+      if ((r + k) % 7 == 0)
+        for (int c = 0; c < components; ++c) reals[components * (r * extent + k) + c] = values[(r + k + c) % 6];
+  SmeVector<Scalar> packed = SmeVector<Scalar>::Constant(width * extent, pack_sentinel<Scalar>());
+  SmeVector<Scalar> ref = packed;
+  for (Index k = k0; k < k1; ++k) {
+    for (Index r = 0; r < width; ++r) {
+      const Scalar v = StorageOrder == RowMajor ? src(r, k) : src(k, r);
+      set_packed(ref.data(), Index(width), k, r, Conjugate ? numext::conj(v) : v);
+    }
+  }
+  transpose_pack_range<Conjugate>(packed.data(), src.data(), src.outerStride(), k0, k1, width);
+  VERIFY(std::memcmp(packed.data(), ref.data(), std::size_t(packed.size()) * sizeof(Scalar)) == 0);
+}
+
+template <typename Scalar>
 static void test_pack_direct() {
   const int TILE = sme_tile<Scalar>();
+  const int svl = sme_runtime_svl<Scalar>();
   const int MR = sme_mr<Scalar>();
   const int NR = sme_nr<Scalar>();
-  // Widths around the tile side and both panel widths, which differ for
-  // complex scalars.
-  const int widths[] = {1, TILE - 1, TILE, TILE + 1, MR, MR + 1, NR, NR + 1, 2 * NR + 1};
-  const int depths[] = {1, 3, 8, 35};
+  std::vector<int> widths = {1,          TILE - 1, TILE, TILE + 1, MR,          MR + 1,  NR,         NR + 1,
+                             2 * NR + 1, svl - 1,  svl,  svl + 1,  2 * svl - 1, 2 * svl, 2 * svl + 1};
+  std::vector<int> depths = {1,       3,           8,           35,      svl - 1,     svl,        svl + 1,
+                             2 * svl, 3 * svl + 1, 4 * svl - 1, 4 * svl, 4 * svl + 1, 8 * svl + 3};
+  std::sort(widths.begin(), widths.end());
+  widths.erase(std::unique(widths.begin(), widths.end()), widths.end());
+  std::sort(depths.begin(), depths.end());
+  depths.erase(std::unique(depths.begin(), depths.end()), depths.end());
   for (int d : depths) {
     for (int n : widths) {
       sweep_pack_direct<Scalar, ColMajor>(n, d);
       sweep_pack_direct<Scalar, RowMajor>(n, d);
+    }
+  }
+  std::vector<int> range_widths = {1, svl - 1, svl, svl + 1, 2 * svl - 1, 2 * svl, 2 * svl + 1, MR, NR};
+  for (int& w : range_widths) w = numext::mini(w, numext::maxi(MR, NR));
+  std::sort(range_widths.begin(), range_widths.end());
+  range_widths.erase(std::unique(range_widths.begin(), range_widths.end()), range_widths.end());
+  for (int d : depths) {
+    for (int w : range_widths) {
+      for (Index k0 : {Index(0), Index(1), Index(svl + 1)}) {
+        verify_transpose_pack_range<Scalar, RowMajor, false>(w, d, k0);
+        verify_transpose_pack_range<Scalar, RowMajor, true>(w, d, k0);
+        verify_transpose_pack_range<Scalar, ColMajor, false>(w, d, k0);
+        verify_transpose_pack_range<Scalar, ColMajor, true>(w, d, k0);
+      }
     }
   }
 }
