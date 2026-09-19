@@ -72,7 +72,9 @@ void test_solve_with_guess_in_place() {
   VERIFY_IS_EQUAL(cg.info(), Success);
   VERIFY(cg.iterations() > 0);
   VERIFY_IS_APPROX(x1, x2);
-  VERIFY((A * x2 - b).norm() < 1e-9 * b.norm());
+  // The recursive residual is below tolerance() ||b|| at exit; the true residual differs by
+  // the rounding of a few iterations, far below the factor 10.
+  VERIFY((A * x2 - b).norm() <= 10 * cg.tolerance() * b.norm());
 }
 
 EIGEN_DECLARE_TEST(conjugate_gradient) {
