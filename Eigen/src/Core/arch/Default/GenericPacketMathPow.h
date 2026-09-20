@@ -589,29 +589,24 @@ struct binary_exponent_scaling {
   }
 
   // Factors x = m * 2^e with 2 <= |m| < 4 for a finite, nonzero x, where m = (x * lift) * scale: lift is 2^digits
-  // for a subnormal x and one otherwise, and both products are exact. Zero, infinity and NaN get lift = scale = 1,
-  // so they pass through unchanged, with an unspecified e.
+  // for a subnormal x and one otherwise, and both products are exact. Zero and infinity make m NaN (their scale
+  // is infinite, respectively zero), which the callers resolve at the end; NaN stays NaN.
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void input_scale(const Packet& x, Packet& lift, Packet& scale,
                                                                 Packet& e) {
     constexpr int kDigits = numext::numeric_limits<Scalar>::digits;
-    Packet zero = pzero(x);
-    Packet one = pset1<Packet>(Scalar(1));
-    Packet abs_x = pabs(x);
-    Packet is_subnormal = pcmp_lt(abs_x, pset1<Packet>((numext::numeric_limits<Scalar>::min)()));
-    lift = pselect(is_subnormal, pset1<Packet>(Scalar(Bits(1) << kDigits)), one);
+    Packet is_subnormal = pcmp_lt(pabs(x), pset1<Packet>((numext::numeric_limits<Scalar>::min)()));
+    lift = pselect(is_subnormal, pset1<Packet>(Scalar(Bits(1) << kDigits)), pset1<Packet>(Scalar(1)));
     scale = inverse_scale(pmul(x, lift), e);
-    e = psub(e, pselect(is_subnormal, pset1<Packet>(Scalar(kDigits)), zero));
-    Packet is_special = por(por(pcmp_eq(x, zero), pcmp_eq(abs_x, pinf<Packet>())), pisnan(x));
-    scale = pselect(is_special, one, scale);
-    lift = pselect(is_special, one, lift);
+    e = psub(e, pselect(is_subnormal, pset1<Packet>(Scalar(kDigits)), pzero(x)));
   }
 };
 
 // The running power of repeated squaring: a double word {hi, lo} times 2^exponent, with the exponent kept as a
-// floating-point value that is exact while the result is finite, plus what a non-finite or zero base turns into.
-// The double-word residuals are NaN once an operand is non-finite, and cannot be otherwise for a finite, nonzero
-// base, so result() falls back to the special value where hi is NaN, and where it is zero, whose sign the
-// double-word sums do not keep.
+// floating-point value that is exact while the result is finite, plus what a zero or infinite base turns into:
+// itself, or its reciprocal, with the sign dropped for an even exponent. Such a base makes hi NaN from the input
+// scaling on, and a finite nonzero base cannot make hi NaN or zero since the scaled power stays within 2^(+-62),
+// so result() substitutes the special value exactly where hi is NaN or zero. (A zero hi would also lose its sign
+// in the double-word sums.) NaN needs nothing: it propagates.
 template <typename Packet, bool IsComplex = NumTraits<typename unpacket_traits<Packet>::type>::IsComplex>
 struct repeated_squaring_ops {
   using Scalar = typename unpacket_traits<Packet>::type;
@@ -631,15 +626,14 @@ struct repeated_squaring_ops {
       return b;
     }
     // 1/m = q + (1 - q*m)/m, where 1 - q*m is formed from the exact product q*m = p_hi + p_lo (1 - p_hi is exact
-    // as p_hi is within rounding of 1); renormalizing makes hi the correctly rounded reciprocal. For a zero or
-    // non-finite x, m is x and q is 1/x.
-    const Packet cst_pos_one = pset1<Packet>(Scalar(1));
+    // as p_hi is within rounding of 1); renormalizing makes hi the correctly rounded reciprocal.
+    Packet cst_pos_one = pset1<Packet>(Scalar(1));
     Packet q = pdiv(cst_pos_one, m);
     Packet p_hi, p_lo;
     twoprod(q, m, p_hi, p_lo);
     fast_twosum(q, pdiv(psub(psub(cst_pos_one, p_hi), p_lo), m), b.hi, b.lo);
     b.exponent = pnegate(b.exponent);
-    b.special = q;
+    b.special = pdiv(cst_pos_one, x);
     return b;
   }
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void multiply(State& y, const State& b) {
