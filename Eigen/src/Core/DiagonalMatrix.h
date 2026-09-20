@@ -44,6 +44,8 @@ class DiagonalBase : public EigenBase<Derived> {
     ColsAtCompileTime = DiagonalVectorType::SizeAtCompileTime,
     MaxRowsAtCompileTime = DiagonalVectorType::MaxSizeAtCompileTime,
     MaxColsAtCompileTime = DiagonalVectorType::MaxSizeAtCompileTime,
+    SizeAtCompileTime = internal::size_at_compile_time(RowsAtCompileTime, ColsAtCompileTime),
+    MaxSizeAtCompileTime = internal::size_at_compile_time(MaxRowsAtCompileTime, MaxColsAtCompileTime),
     IsVectorAtCompileTime = 0,
     Flags = NoPreferredStorageOrderBit
   };
@@ -144,6 +146,39 @@ class DiagonalBase : public EigenBase<Derived> {
   EIGEN_DEVICE_FUNC inline const DiagonalDifferenceReturnType<OtherDerived> operator-(
       const DiagonalBase<OtherDerived>& other) const {
     return (diagonal() - other.diagonal()).asDiagonal();
+  }
+
+  // Sums with a dense matrix are lazy: the diagonal is read through its index-based evaluator and no dense
+  // copy of it is formed, so `A + D` composes with the enclosing expression like `A + B` does.
+
+  /** \returns the lazy sum of the dense matrix \a lhs and the diagonal matrix \a rhs */
+  template <typename OtherDerived>
+  EIGEN_DEVICE_FUNC friend const EIGEN_CWISE_BINARY_RETURN_TYPE(OtherDerived, Derived, internal::scalar_sum_op)
+  operator+(const MatrixBase<OtherDerived>& lhs, const DiagonalBase & rhs) {
+    return EIGEN_CWISE_BINARY_RETURN_TYPE(OtherDerived, Derived, internal::scalar_sum_op)(lhs.derived(), rhs.derived());
+  }
+
+  /** \returns the lazy sum of the diagonal matrix \a lhs and the dense matrix \a rhs */
+  template <typename OtherDerived>
+  EIGEN_DEVICE_FUNC friend const EIGEN_CWISE_BINARY_RETURN_TYPE(Derived, OtherDerived, internal::scalar_sum_op)
+  operator+(const DiagonalBase & lhs, const MatrixBase<OtherDerived>& rhs) {
+    return EIGEN_CWISE_BINARY_RETURN_TYPE(Derived, OtherDerived, internal::scalar_sum_op)(lhs.derived(), rhs.derived());
+  }
+
+  /** \returns the lazy difference of the dense matrix \a lhs and the diagonal matrix \a rhs */
+  template <typename OtherDerived>
+  EIGEN_DEVICE_FUNC friend const EIGEN_CWISE_BINARY_RETURN_TYPE(OtherDerived, Derived, internal::scalar_difference_op)
+  operator-(const MatrixBase<OtherDerived>& lhs, const DiagonalBase & rhs) {
+    return EIGEN_CWISE_BINARY_RETURN_TYPE(OtherDerived, Derived, internal::scalar_difference_op)(lhs.derived(),
+                                                                                                 rhs.derived());
+  }
+
+  /** \returns the lazy difference of the diagonal matrix \a lhs and the dense matrix \a rhs */
+  template <typename OtherDerived>
+  EIGEN_DEVICE_FUNC friend const EIGEN_CWISE_BINARY_RETURN_TYPE(Derived, OtherDerived, internal::scalar_difference_op)
+  operator-(const DiagonalBase & lhs, const MatrixBase<OtherDerived>& rhs) {
+    return EIGEN_CWISE_BINARY_RETURN_TYPE(Derived, OtherDerived, internal::scalar_difference_op)(lhs.derived(),
+                                                                                                 rhs.derived());
   }
 };
 
@@ -447,6 +482,52 @@ namespace internal {
 template <>
 struct storage_kind_to_shape<DiagonalShape> {
   using Shape = DiagonalShape;
+};
+
+/** \internal
+ * Index-based evaluator of a diagonal matrix, for coefficient-wise expressions that mix it with a dense
+ * operand. Off-diagonal coefficients are synthesized, so there is no linear, packet or direct access.
+ * Products with a diagonal matrix have dedicated evaluators and do not use this one.
+ */
+template <typename XprType>
+struct diagonal_matrix_evaluator : evaluator_base<XprType> {
+  using DiagonalVectorType = typename XprType::DiagonalVectorType;
+  using Scalar = typename XprType::Scalar;
+  using CoeffReturnType = Scalar;
+
+  static constexpr int CoeffReadCost =
+      int(evaluator<DiagonalVectorType>::CoeffReadCost) + int(NumTraits<Scalar>::AddCost);
+  static constexpr unsigned int Flags = 0;
+  static constexpr int Alignment = 0;
+
+  EIGEN_DEVICE_FUNC explicit diagonal_matrix_evaluator(const XprType& xpr) : m_diagonal(xpr.diagonal()) {
+    EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost);
+  }
+
+  EIGEN_DEVICE_FUNC Scalar coeff(Index row, Index col) const { return row == col ? m_diagonal.coeff(row) : Scalar(0); }
+
+  // Linear access is requested only for vector-shaped operands (inner products), i.e. a 1x1 diagonal.
+  EIGEN_DEVICE_FUNC Scalar coeff(Index index) const {
+    eigen_assert(index == 0);
+    return m_diagonal.coeff(index);
+  }
+
+ protected:
+  evaluator<DiagonalVectorType> m_diagonal;
+};
+
+template <typename Scalar_, int SizeAtCompileTime, int MaxSizeAtCompileTime>
+struct evaluator<DiagonalMatrix<Scalar_, SizeAtCompileTime, MaxSizeAtCompileTime>>
+    : diagonal_matrix_evaluator<DiagonalMatrix<Scalar_, SizeAtCompileTime, MaxSizeAtCompileTime>> {
+  using XprType = DiagonalMatrix<Scalar_, SizeAtCompileTime, MaxSizeAtCompileTime>;
+  EIGEN_DEVICE_FUNC explicit evaluator(const XprType& xpr) : diagonal_matrix_evaluator<XprType>(xpr) {}
+};
+
+template <typename DiagonalVectorType_>
+struct evaluator<DiagonalWrapper<DiagonalVectorType_>>
+    : diagonal_matrix_evaluator<DiagonalWrapper<DiagonalVectorType_>> {
+  using XprType = DiagonalWrapper<DiagonalVectorType_>;
+  EIGEN_DEVICE_FUNC explicit evaluator(const XprType& xpr) : diagonal_matrix_evaluator<XprType>(xpr) {}
 };
 
 struct Diagonal2Dense {};
