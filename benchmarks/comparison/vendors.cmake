@@ -202,6 +202,21 @@ eigen_bench_declare_vendor(armpl
   PROVIDES blas lapack
   VERSION_RUNTIME_SYMBOL armplversion)
 
+# The same library with its SME kernels switched off, for a NEON-against-NEON
+# comparison on a CPU that has SME: the profile's arm sets ARMPL_SME_UNITS=0 at
+# run time. Arm does not document the variable; on an Apple M4 with ArmPL 26.07
+# it takes sgemm and dgemm at n = 1024 from 724 and 358 GFLOP/s to 126 and 62
+# (measured 2026-09). A page carries it under this name, never as ArmPL.
+eigen_bench_declare_vendor(armpl_neon
+  DISPLAY_NAME "Arm Performance Libraries, SME off"
+  ALIASES armpl_nosme
+  BLA_VENDOR Arm Arm_mp
+  INTERFACE_WIDTH lp64
+  THREAD_ENV ARMPL_NUM_THREADS
+  PROVIDES blas lapack
+  VERSION_RUNTIME_SYMBOL armplversion
+  NOTES "ARMPL_SME_UNITS=0 is set at run time, which keeps the library on its NEON kernels; the variable is not documented by Arm.")
+
 eigen_bench_declare_vendor(nvpl
   DISPLAY_NAME "NVPL BLAS"
   ALIASES nvidia

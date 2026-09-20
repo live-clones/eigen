@@ -38,8 +38,8 @@ names are `OP/arm/scalar/dim:value/...`, for example `GEMM/openblas/f64/m:256/n:
    ```
 
    `EIGEN_BENCH_REFERENCE` names a row of `vendors.cmake` (`openblas`, `mkl`, `mkl_bypass`, `aocl`,
-   `blis`, `armpl`, `nvpl`, `accelerate`, `netlib`). Where CMake's FindBLAS cannot find the library,
-   name it: `-DBLAS_LIBRARIES=<path>`, `-DLAPACK_LIBRARIES=<path>[;<path>...]`, and
+   `blis`, `armpl`, `armpl_neon`, `nvpl`, `accelerate`, `netlib`). Where CMake's FindBLAS cannot find
+   the library, name it: `-DBLAS_LIBRARIES=<path>`, `-DLAPACK_LIBRARIES=<path>[;<path>...]`, and
    `-DCMAKE_LIBRARY_PATH=<dir>` for an install layout no default prefix covers. A library with no
    version query (Accelerate, netlib) gets `-DEIGEN_BENCH_REFERENCE_VERSION="..."`. The existing
    profiles carry the exact lines each library needed on its host. The `accelerate` arm binds to Apple's

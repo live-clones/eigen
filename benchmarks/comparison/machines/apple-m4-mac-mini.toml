@@ -39,6 +39,12 @@ thread_env = { VECLIB_MAXIMUM_THREADS = "{threads}" }
 cmake_options = ["-DEIGEN_BENCH_REFERENCE=armpl", "-DBLAS_LIBRARIES=/opt/arm/armpl_26.07_flang-22/lib/libarmpl_lp64.dylib", "-DLAPACK_LIBRARIES=/opt/arm/armpl_26.07_flang-22/lib/libarmpl_lp64.dylib"]
 thread_env = { ARMPL_NUM_THREADS = "{threads}" }
 
+# The same library held to its NEON kernels, for the aarch64-neon target. thread_env carries any
+# run-time environment, not only thread caps; run.py records it in the result file.
+[arms.armpl_neon]
+cmake_options = ["-DEIGEN_BENCH_REFERENCE=armpl_neon", "-DBLAS_LIBRARIES=/opt/arm/armpl_26.07_flang-22/lib/libarmpl_lp64.dylib", "-DLAPACK_LIBRARIES=/opt/arm/armpl_26.07_flang-22/lib/libarmpl_lp64.dylib"]
+thread_env = { ARMPL_NUM_THREADS = "{threads}", ARMPL_SME_UNITS = "0" }
+
 # Homebrew's keg-only bottle: DYNAMIC_ARCH, threaded, LAPACK included.
 [arms.openblas]
 cmake_options = ["-DEIGEN_BENCH_REFERENCE=openblas", "-DBLAS_LIBRARIES=/opt/homebrew/opt/openblas/lib/libopenblas.dylib", "-DLAPACK_LIBRARIES=/opt/homebrew/opt/openblas/lib/libopenblas.dylib"]
