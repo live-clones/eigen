@@ -582,10 +582,16 @@ struct binary_exponent_scaling {
   }
 
   // x * 2^e for the scaled power, whose |x| lies within 2^(+-62): beyond the clamp the result is infinite or zero
-  // either way, and the scalar pldexp converts the exponent to int.
+  // either way, and the scalar pldexp converts the exponent to int. Below kZeroBelow the result rounds to zero,
+  // which multiplying by zero gives exactly, whereas pldexp would underflow through several subnormal
+  // intermediates, each a microcode assist on x86.
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet scale_result(const Packet& x, const Packet& e) {
     constexpr int kLimit = 4 * numext::numeric_limits<Scalar>::max_exponent;
-    return pldexp(x, pmin(pmax(e, pset1<Packet>(Scalar(-kLimit))), pset1<Packet>(Scalar(kLimit))));
+    constexpr int kZeroBelow =
+        numext::numeric_limits<Scalar>::min_exponent - numext::numeric_limits<Scalar>::digits - 64;
+    Packet zero_below = pset1<Packet>(Scalar(kZeroBelow));
+    Packet value = pselect(pcmp_lt(e, zero_below), pmul(x, pzero(x)), x);
+    return pldexp(value, pmin(pmax(e, zero_below), pset1<Packet>(Scalar(kLimit))));
   }
 
   // Factors x = m * 2^e with 2 <= |m| < 4 for a finite, nonzero x, where m = (x * lift) * scale: lift is 2^digits
@@ -611,29 +617,48 @@ template <typename Packet, bool IsComplex = NumTraits<typename unpacket_traits<P
 struct repeated_squaring_ops {
   using Scalar = typename unpacket_traits<Packet>::type;
   using Scaling = binary_exponent_scaling<Packet>;
+  using Bound = Packet;
   struct State {
     Packet hi, lo, exponent, special;
   };
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE State base(const Packet& x, bool reciprocal) {
-    State b;
-    Packet lift, scale;
-    Scaling::input_scale(x, lift, scale, b.exponent);
-    Packet m = pmul(pmul(x, lift), scale);
+  // Whether every lane lies within [1/bound, bound], where the power and its residuals stay normal without scaling.
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool in_range(const Packet& x, const Packet& bound) {
+    Packet abs_x = pabs(x);
+    Packet out = por(pcmp_lt(pmul(abs_x, bound), pset1<Packet>(Scalar(1))), pcmp_lt_or_nan(bound, abs_x));
+    return !predux_any(out);
+  }
+  // The double word of m or of 1/m = q + (1 - q*m)/m, where 1 - q*m is formed from the exact product
+  // q*m = p_hi + p_lo (1 - p_hi is exact as p_hi is within rounding of 1); renormalizing makes hi the correctly
+  // rounded reciprocal.
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void power_base(const Packet& m, bool reciprocal, Packet& hi,
+                                                               Packet& lo) {
     if (!reciprocal) {
-      b.hi = m;
-      b.lo = pzero(x);
-      b.special = x;
-      return b;
+      hi = m;
+      lo = pzero(m);
+      return;
     }
-    // 1/m = q + (1 - q*m)/m, where 1 - q*m is formed from the exact product q*m = p_hi + p_lo (1 - p_hi is exact
-    // as p_hi is within rounding of 1); renormalizing makes hi the correctly rounded reciprocal.
     Packet cst_pos_one = pset1<Packet>(Scalar(1));
     Packet q = pdiv(cst_pos_one, m);
     Packet p_hi, p_lo;
     twoprod(q, m, p_hi, p_lo);
-    fast_twosum(q, pdiv(psub(psub(cst_pos_one, p_hi), p_lo), m), b.hi, b.lo);
-    b.exponent = pnegate(b.exponent);
-    b.special = pdiv(cst_pos_one, x);
+    fast_twosum(q, pdiv(psub(psub(cst_pos_one, p_hi), p_lo), m), hi, lo);
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE State base(const Packet& x, bool reciprocal) {
+    State b;
+    Packet lift, scale;
+    Scaling::input_scale(x, lift, scale, b.exponent);
+    power_base(pmul(pmul(x, lift), scale), reciprocal, b.hi, b.lo);
+    if (reciprocal) {
+      b.exponent = pnegate(b.exponent);
+      b.special = pdiv(pset1<Packet>(Scalar(1)), x);
+    } else {
+      b.special = x;
+    }
+    return b;
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE State unscaled_base(const Packet& x, bool reciprocal) {
+    State b;
+    power_base(x, reciprocal, b.hi, b.lo);
     return b;
   }
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void multiply(State& y, const State& b) {
@@ -652,6 +677,7 @@ struct repeated_squaring_ops {
     Packet use_special = por(pisnan(y.hi), pcmp_eq(y.hi, pzero(y.hi)));
     return pselect(use_special, odd ? b.special : pabs(b.special), Scaling::scale_result(y.hi, y.exponent));
   }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet unscaled_result(const State& y) { return y.hi; }
   // A NaN result here comes from a NaN base and needs no recomputation.
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool any_nan(const Packet&) { return false; }
 };
@@ -702,25 +728,47 @@ struct repeated_squaring_ops<Packet, true> {
   using Components = complex_components<Packet>;
   using R = typename Components::R;
   using Scaling = binary_exponent_scaling<R>;
+  using Bound = R;
   struct State {
     R re_hi, re_lo, im_hi, im_lo, exponent;
   };
+  // Whether every lane's max(|re|, |im|) lies within [1/bound, bound], where the power and its residuals stay
+  // normal without scaling.
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool in_range(const Packet& x, const R& bound) {
+    R re, im;
+    Components::split(x, re, im);
+    R magnitude = pmax(pabs(re), pabs(im));
+    R out = por(pcmp_lt(pmul(magnitude, bound), pset1<R>(typename NumTraits<Scalar>::Real(1))),
+                pcmp_lt_or_nan(bound, magnitude));
+    return predux_any(out) == false;
+  }
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE State base(const Packet& x, bool reciprocal) {
     State b;
     R re, im, lift, scale;
     Components::split(x, re, im);
     Scaling::input_scale(pmax(pabs(re), pabs(im)), lift, scale, b.exponent);
-    R wr = pmul(pmul(re, lift), scale), wi = pmul(pmul(im, lift), scale);
+    power_base(pmul(pmul(re, lift), scale), pmul(pmul(im, lift), scale), reciprocal, b);
+    if (reciprocal) b.exponent = pnegate(b.exponent);
+    return b;
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE State unscaled_base(const Packet& x, bool reciprocal) {
+    State b;
+    R re, im;
+    Components::split(x, re, im);
+    power_base(re, im, reciprocal, b);
+    return b;
+  }
+  // The double words of w or of 1/w = q + e*q with q = conj(w)/|w|^2 and e = 1 - q*w = er - t i. The norm cannot
+  // over- or underflow for max(|wr|, |wi|) in [2, 4) or within the unscaled range, and the few ulps of error in q
+  // are what the residual corrects: e is of order u and is formed from exact products so that e*q carries the
+  // correction to order u^2. 1 - s_hi is exact as s_hi is within rounding of 1.
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void power_base(const R& wr, const R& wi, bool reciprocal, State& b) {
     b.re_lo = b.im_lo = pzero(wr);
     if (!reciprocal) {
       b.re_hi = wr;
       b.im_hi = wi;
-      return b;
+      return;
     }
-    // 1/w = q + e*q with q = conj(w)/|w|^2 and e = 1 - q*w = er - t i. With max(|wr|, |wi|) in [2, 4) the norm
-    // cannot over- or underflow, and the few ulps of error in q are what the residual corrects: e is of order u
-    // and is formed from exact products so that e*q carries the correction to order u^2. 1 - s_hi is exact as
-    // s_hi is within rounding of 1.
     R inv = pdiv(pset1<R>(typename NumTraits<Scalar>::Real(1)), pmadd(wr, wr, pmul(wi, wi)));
     R qr = pmul(wr, inv), qi = pnegate(pmul(wi, inv));
     R a_hi, a_lo, c_hi, c_lo, s_hi, s_lo, t_hi, t_lo;
@@ -734,8 +782,6 @@ struct repeated_squaring_ops<Packet, true> {
     R t = padd(t_hi, t_lo);
     fast_twosum(qr, pmadd(er, qr, pmul(t, qi)), b.re_hi, b.re_lo);
     fast_twosum(qi, pmsub(er, qi, pmul(t, qr)), b.im_hi, b.im_lo);
-    b.exponent = pnegate(b.exponent);
-    return b;
   }
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void square(State& y) {
     R a_hi, a_lo, c_hi, c_lo, p_hi, p_lo;
@@ -768,6 +814,9 @@ struct repeated_squaring_ops<Packet, true> {
   }
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet result(const State& y, const State&, bool) {
     return Components::join(Scaling::scale_result(y.re_hi, y.exponent), Scaling::scale_result(y.im_hi, y.exponent));
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet unscaled_result(const State& y) {
+    return Components::join(y.re_hi, y.im_hi);
   }
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool any_nan(const Packet& r) { return Components::any_nan(r); }
 };
@@ -832,12 +881,38 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet int_pow_double_word(const Packet& x
     if (m == AbsExponentType(1)) return pdiv(pset1<Packet>(Scalar(1)), x);
     if (m == AbsExponentType(2) && !negative) return pmul(x, x);
   }
+  AbsExponentType top = highest_set_bit(m);
+
+  // Bases whose magnitude lies within 2^(+-B) for B = budget / |n| keep every power up to x^n and its residuals
+  // normal: |x^n| <= 2^budget < max and u * |x^n| >= 2^(min_exponent - 1), the smallest normal, so the loop
+  // needs neither scaling nor exponents and the result is hi itself. A complex base is tested on its larger
+  // component, which its magnitude exceeds by up to sqrt(2), so B is one less to absorb sqrt(2)^n, and its
+  // reciprocal forms |w|^2, which bounds B by half the exponent range. Zero, infinity and NaN fail the test.
+  using Real = typename NumTraits<Scalar>::Real;
+  using RealBits = std::make_unsigned_t<typename make_integer<Real>::type>;
+  constexpr int kBudget = -(numext::numeric_limits<Real>::min_exponent + numext::numeric_limits<Real>::digits);
+  constexpr int kMantissaBits = numext::numeric_limits<Real>::digits - 1;
+  constexpr RealBits kBiasBits = RealBits(numext::numeric_limits<Real>::max_exponent - 1);
+  int b = m > AbsExponentType(kBudget) ? 0 : kBudget / int(m);
+  EIGEN_IF_CONSTEXPR (NumTraits<Scalar>::IsComplex)
+    b = numext::mini(b > 0 ? b - 1 : 0, (numext::numeric_limits<Real>::max_exponent - 1) / 2);
+  typename Ops::Bound bound = pset1frombits<typename Ops::Bound>(RealBits(kBiasBits + RealBits(b)) << kMantissaBits);
+  if (Ops::in_range(x, bound)) {
+    typename Ops::State base = Ops::unscaled_base(x, negative);
+    typename Ops::State y = base;
+    for (AbsExponentType bit = top >> 1; bit != 0; bit >>= 1) {
+      Ops::square(y);
+      if ((m & bit) != 0) Ops::multiply(y, base);
+    }
+    return Ops::unscaled_result(y);
+  }
+
   typename Ops::State base = Ops::base(x, negative);
   typename Ops::State y = base;
   // With |base| in [1/4, 4) a step at most cubes the magnitude bound, so four steps keep it within 2^(+-62) and
   // the residuals, u times smaller, normal.
   int steps_since_renormalization = 0;
-  for (AbsExponentType bit = highest_set_bit(m) >> 1; bit != 0; bit >>= 1) {
+  for (AbsExponentType bit = top >> 1; bit != 0; bit >>= 1) {
     Ops::square(y);
     if ((m & bit) != 0) Ops::multiply(y, base);
     if (++steps_since_renormalization == 4) {
