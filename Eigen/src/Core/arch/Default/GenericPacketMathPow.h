@@ -473,15 +473,20 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS std::enable_if_t<is_scalar<S
 namespace unary_pow {
 
 // Integer exponents up to this magnitude use repeated squaring; larger ones take the log/exp path of generic_pow
-// where that can represent them. Double-word squaring costs about as much as generic_pow here for float (double
-// crosses over near 2^20), and an integer type's exponent beyond the base's significand would be rounded.
-constexpr numext::uint64_t kMaxSquaringExponent = numext::uint64_t(1) << 12;
+// where that can represent them. The crossover is where a squaring step per exponent bit stops being cheaper
+// than generic_pow, whose cost per element is about four times higher for double than for float (half the
+// lanes, longer polynomials): measured at 2^12 for float and 2^20 for double on AVX2 with FMA. Complex bases
+// take their real scalar's value; it only limits their scalar path, since no vectorized complex pow exists.
+template <typename Scalar>
+constexpr numext::uint64_t max_squaring_exponent() {
+  return numext::uint64_t(1) << (std::is_same<typename NumTraits<Scalar>::Real, double>::value ? 20 : 12);
+}
 
 template <typename ScalarExponent, bool IsInteger = NumTraits<ScalarExponent>::IsInteger>
 struct exponent_helper {
   using safe_abs_type = numext::uint64_t;
-  // this routine assumes that exp is an integer of magnitude at most kMaxSquaringExponent stored as a floating point
-  // type
+  // this routine assumes that exp is an integer of magnitude at most max_squaring_exponent() stored as a floating
+  // point type
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE safe_abs_type safe_abs(const ScalarExponent& exp) {
     eigen_assert(((numext::isfinite)(exp) && exp == numext::floor(exp)) && "exp must be an integer");
     return static_cast<safe_abs_type>(numext::abs(exp));
@@ -799,7 +804,7 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet int_pow_plain(const Packet& x, cons
 // repeated squaring doubles the accumulated rounding error at every squaring, so its error grows like n * u for
 // x^n. Keeping the running power as an unevaluated sum {hi, lo} bounds each step's relative error by about
 // 7 * u^2 (fast_twoprod), so the result is correctly rounded unless the exact power lies within about 7 * n * u^2
-// of a rounding boundary, and stays within 1 ulp up to n = kMaxSquaringExponent for float. The power is scaled
+// of a rounding boundary, and stays within 1 ulp up to n = max_squaring_exponent() for float. The power is scaled
 // by powers of two throughout and only the final pldexp can overflow or underflow.
 template <typename Packet, typename ScalarExponent>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet int_pow_double_word(const Packet& x, const ScalarExponent& exponent) {
@@ -855,7 +860,7 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet int_pow(const Packet& x, const Scal
 // over. Plain squaring is accurate to a few ulps only for small exponents.
 template <typename Scalar, typename ScalarExponent>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool use_repeated_squaring(const ScalarExponent& exponent) {
-  return is_double_word_base<Scalar>::value ? numext::abs(exponent) <= ScalarExponent(kMaxSquaringExponent)
+  return is_double_word_base<Scalar>::value ? numext::abs(exponent) <= ScalarExponent(max_squaring_exponent<Scalar>())
                                             : (exponent <= ScalarExponent(7) && exponent >= ScalarExponent(-3));
 }
 
