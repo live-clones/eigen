@@ -989,7 +989,7 @@ struct unary_pow_impl;
 template <typename Packet, typename ScalarExponent, bool ExponentIsSigned>
 struct unary_pow_impl<Packet, ScalarExponent, false, false, ExponentIsSigned> {
   using Scalar = typename unpacket_traits<Packet>::type;
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& x, const ScalarExponent& exponent) {
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet run(const Packet& x, const ScalarExponent& exponent) {
     const bool exponent_is_integer = (numext::isfinite)(exponent) && numext::round(exponent) == exponent;
     if (exponent_is_integer) {
       return unary_pow::use_repeated_squaring<Scalar>(exponent) ? unary_pow::int_pow(x, exponent)
@@ -1008,16 +1008,16 @@ struct unary_pow_impl<Packet, ScalarExponent, false, true, ExponentIsSigned> {
   // Only real float and double bases fall back to generic_pow for large exponents: complex bases have no
   // vectorized generic_pow, and other real bases may have no packet generic_pow at all (half, bfloat16). Their
   // squaring loop runs at most 64 steps.
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& x, const ScalarExponent& exponent) {
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet run(const Packet& x, const ScalarExponent& exponent) {
     return run(x, exponent,
                bool_constant < unary_pow::is_double_word_base<Scalar>::value && !NumTraits<Scalar>::IsComplex > ());
   }
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& x, const ScalarExponent& exponent, true_type) {
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet run(const Packet& x, const ScalarExponent& exponent, true_type) {
     return unary_pow::use_repeated_squaring_for_integer<Scalar>(exponent)
                ? unary_pow::int_pow(x, exponent)
                : generic_pow(x, pset1<Packet>(static_cast<Scalar>(exponent)));
   }
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& x, const ScalarExponent& exponent, false_type) {
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet run(const Packet& x, const ScalarExponent& exponent, false_type) {
     return unary_pow::int_pow(x, exponent);
   }
 };
