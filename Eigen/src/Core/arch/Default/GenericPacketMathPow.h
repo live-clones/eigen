@@ -579,8 +579,8 @@ struct binary_exponent_scaling {
   // x * 2^e for the scaled power, whose |x| lies within 2^(+-62): beyond the clamp the result is infinite or zero
   // either way, and the scalar pldexp converts the exponent to int.
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet scale_result(const Packet& x, const Packet& e) {
-    Packet limit = pset1<Packet>(Scalar(4 * numext::numeric_limits<Scalar>::max_exponent));
-    return pldexp(x, pmin(pmax(e, pnegate(limit)), limit));
+    constexpr int kLimit = 4 * numext::numeric_limits<Scalar>::max_exponent;
+    return pldexp(x, pmin(pmax(e, pset1<Packet>(Scalar(-kLimit))), pset1<Packet>(Scalar(kLimit))));
   }
 
   // Factors x = m * 2^e with 2 <= |m| < 4 for a finite, nonzero x, where m = (x * lift) * scale: lift is 2^digits
@@ -724,20 +724,20 @@ struct repeated_squaring_ops<Packet, true> {
       b.im_hi = wi;
       return b;
     }
-    // 1/w = q + e*q with e = 1 - q*w; the residual e is of order u and is formed from exact products so that e*q
-    // carries the correction to order u^2. 1 - s_hi is exact as s_hi is within rounding of 1.
+    // 1/w = q + e*q with e = 1 - q*w = er - t i; the residual is of order u and is formed from exact products so
+    // that e*q carries the correction to order u^2. 1 - s_hi is exact as s_hi is within rounding of 1.
     R qr, qi, a_hi, a_lo, c_hi, c_lo, s_hi, s_lo, t_hi, t_lo;
     Components::reciprocal(wr, wi, qr, qi);
     twoprod(qr, wr, a_hi, a_lo);
     twoprod(qi, wi, c_hi, c_lo);
-    twosum(a_hi, a_lo, pnegate(c_hi), pnegate(c_lo), s_hi, s_lo);
+    twodiff(a_hi, a_lo, c_hi, c_lo, s_hi, s_lo);
     twoprod(qr, wi, a_hi, a_lo);
     twoprod(qi, wr, c_hi, c_lo);
     twosum(a_hi, a_lo, c_hi, c_lo, t_hi, t_lo);
     R er = psub(psub(pset1<R>(typename NumTraits<Scalar>::Real(1)), s_hi), s_lo);
-    R ei = pnegate(padd(t_hi, t_lo));
-    fast_twosum(qr, pmsub(er, qr, pmul(ei, qi)), b.re_hi, b.re_lo);
-    fast_twosum(qi, pmadd(er, qi, pmul(ei, qr)), b.im_hi, b.im_lo);
+    R t = padd(t_hi, t_lo);
+    fast_twosum(qr, pmadd(er, qr, pmul(t, qi)), b.re_hi, b.re_lo);
+    fast_twosum(qi, pmsub(er, qi, pmul(t, qr)), b.im_hi, b.im_lo);
     b.exponent = pnegate(b.exponent);
     return b;
   }
@@ -746,7 +746,7 @@ struct repeated_squaring_ops<Packet, true> {
     fast_twoprod(y.re_hi, y.re_lo, y.re_hi, y.re_lo, a_hi, a_lo);
     fast_twoprod(y.im_hi, y.im_lo, y.im_hi, y.im_lo, c_hi, c_lo);
     fast_twoprod(y.re_hi, y.re_lo, y.im_hi, y.im_lo, p_hi, p_lo);
-    twosum(a_hi, a_lo, pnegate(c_hi), pnegate(c_lo), y.re_hi, y.re_lo);
+    twodiff(a_hi, a_lo, c_hi, c_lo, y.re_hi, y.re_lo);
     y.im_hi = padd(p_hi, p_hi);
     y.im_lo = padd(p_lo, p_lo);
     y.exponent = padd(y.exponent, y.exponent);
@@ -757,7 +757,7 @@ struct repeated_squaring_ops<Packet, true> {
     fast_twoprod(y.im_hi, y.im_lo, b.im_hi, b.im_lo, bd_hi, bd_lo);
     fast_twoprod(y.re_hi, y.re_lo, b.im_hi, b.im_lo, ad_hi, ad_lo);
     fast_twoprod(y.im_hi, y.im_lo, b.re_hi, b.re_lo, bc_hi, bc_lo);
-    twosum(ac_hi, ac_lo, pnegate(bd_hi), pnegate(bd_lo), y.re_hi, y.re_lo);
+    twodiff(ac_hi, ac_lo, bd_hi, bd_lo, y.re_hi, y.re_lo);
     twosum(ad_hi, ad_lo, bc_hi, bc_lo, y.im_hi, y.im_lo);
     y.exponent = padd(y.exponent, b.exponent);
   }
