@@ -313,6 +313,10 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool outer_product_use_small_assignment(co
 template <typename Dst, typename Lhs, typename Rhs, typename Func, typename Scalar>
 void EIGEN_DEVICE_FUNC outer_product_selector_run_small(Dst& dst, const Lhs& lhs, const Rhs& rhs, const Func& func,
                                                         const Scalar& alpha, const std::false_type&) {
+  EIGEN_IF_CONSTEXPR ((!std::is_same<typename Lhs::Scalar, typename Dst::Scalar>::value)) {
+    call_assignment_no_alias(dst, alpha * lhs.lazyProduct(rhs), func);
+    return;
+  }
   evaluator<Rhs> rhsEval(rhs);
   ei_declare_local_nested_eval(Lhs, lhs, Rhs::SizeAtCompileTime, actual_lhs);
   const Index rows = dst.rows();
@@ -328,6 +332,10 @@ void EIGEN_DEVICE_FUNC outer_product_selector_run_small(Dst& dst, const Lhs& lhs
 template <typename Dst, typename Lhs, typename Rhs, typename Func, typename Scalar>
 void EIGEN_DEVICE_FUNC outer_product_selector_run_small(Dst& dst, const Lhs& lhs, const Rhs& rhs, const Func& func,
                                                         const Scalar& alpha, const std::true_type&) {
+  EIGEN_IF_CONSTEXPR ((!std::is_same<typename Rhs::Scalar, typename Dst::Scalar>::value)) {
+    call_assignment_no_alias(dst, alpha * lhs.lazyProduct(rhs), func);
+    return;
+  }
   evaluator<Lhs> lhsEval(lhs);
   ei_declare_local_nested_eval(Rhs, rhs, Lhs::SizeAtCompileTime, actual_rhs);
   const Index rows = dst.rows();
@@ -848,6 +856,11 @@ struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape,
                                             (int(InnerSize) % packet_traits<Scalar>::size == 0);
 
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const CoeffReturnType coeff(Index row, Index col) const {
+    // An outer product needs no one-element blocks or reduction.
+    EIGEN_IF_CONSTEXPR (InnerSize == 1) {
+      return fast_mult_op<LhsScalar, RhsScalar>()(LhsEtorType(m_lhs).coeff(row, Index(0)),
+                                                  RhsEtorType(m_rhs).coeff(Index(0), col));
+    }
     // fast_mult_op is cwiseProduct's scalar_product_op with a pmul-based scalar path, so the
     // reduction (and its precision) is unchanged but complex scalars avoid std::complex::operator*
     // (the slow libgcc __mul?c3). See fast_mult_op.
@@ -861,7 +874,7 @@ struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape,
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const CoeffReturnType coeff(Index index) const {
     const Index row = (RowsAtCompileTime == 1 || MaxRowsAtCompileTime == 1) ? 0 : index;
     const Index col = (RowsAtCompileTime == 1 || MaxRowsAtCompileTime == 1) ? index : 0;
-    return m_lhs.row(row).transpose().binaryExpr(m_rhs.col(col), fast_mult_op<LhsScalar, RhsScalar>()).sum();
+    return coeff(row, col);
   }
 
   template <int LoadMode, typename PacketType>

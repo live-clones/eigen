@@ -73,6 +73,37 @@ void outer_product_mixed_infinity() {
   }
 }
 
+template <typename LhsScalar, typename RhsScalar, int Order>
+void lazy_outer_product_strides() {
+  using Scalar = typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType;
+  using Real = typename NumTraits<Scalar>::Real;
+  using Lhs = Matrix<LhsScalar, Dynamic, 1>;
+  using Rhs = Matrix<RhsScalar, 1, Dynamic>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic, Order>;
+  const Lhs lhsStorage = Lhs::Random(34);
+  const Rhs rhsStorage = Rhs::Random(51);
+  const Map<const Lhs, Unaligned, InnerStride<2>> lhs(lhsStorage.data(), 17);
+  const Map<const Rhs, Unaligned, InnerStride<3>> rhs(rhsStorage.data(), 17);
+  const auto product = lhs.lazyProduct(rhs);
+  STATIC_CHECK((internal::evaluator<decltype(product)>::InnerSize == 1));
+  const Mat actual = product;
+  for (Index j = 0; j < rhs.size(); ++j) {
+    for (Index i = 0; i < lhs.size(); ++i) {
+      const Scalar expected = lhs(i) * rhs(j);
+      const Real bound = Real(8) * NumTraits<Real>::epsilon() * (Real(1) + numext::abs(expected));
+      VERIFY(numext::abs(actual(i, j) - expected) <= bound);
+      VERIFY(numext::abs(product.coeff(i, j) - expected) <= bound);
+    }
+  }
+  const Matrix<RhsScalar, 1, 1> single = Matrix<RhsScalar, 1, 1>::Constant(RhsScalar(3));
+  const auto columnProduct = lhs.lazyProduct(single);
+  for (Index i = 0; i < lhs.size(); ++i) {
+    const Scalar expected = lhs(i) * single(0);
+    const Real bound = Real(8) * NumTraits<Real>::epsilon() * (Real(1) + numext::abs(expected));
+    VERIFY(numext::abs(columnProduct.coeff(i) - expected) <= bound);
+  }
+}
+
 template <typename ProductType, typename Mat>
 void check_scaled_product(const ProductType& product, const Mat& expected) {
   Mat actual = product;
@@ -149,22 +180,30 @@ void scaled_unit_triangular_product() {
 }
 
 EIGEN_DECLARE_TEST(product_evaluators) {
-  CALL_SUBTEST_1((outer_product_scalar_types<double, double, ColMajor>()));
-  CALL_SUBTEST_1((outer_product_scalar_types<double, double, RowMajor>()));
-  CALL_SUBTEST_1((outer_product_scalar_types<std::complex<double>, double, ColMajor>()));
-  CALL_SUBTEST_1((outer_product_scalar_types<std::complex<double>, double, RowMajor>()));
-  CALL_SUBTEST_1((outer_product_scalar_types<double, std::complex<double>, ColMajor>()));
-  CALL_SUBTEST_1((outer_product_scalar_types<double, std::complex<double>, RowMajor>()));
-  CALL_SUBTEST_1((outer_product_mixed_infinity<float, ColMajor>()));
-  CALL_SUBTEST_1((outer_product_mixed_infinity<float, RowMajor>()));
-  CALL_SUBTEST_1((outer_product_mixed_infinity<double, ColMajor>()));
-  CALL_SUBTEST_1((outer_product_mixed_infinity<double, RowMajor>()));
-  CALL_SUBTEST_2((scaled_selfadjoint_diagonal_product<Lower, ColMajor>()));
-  CALL_SUBTEST_2((scaled_selfadjoint_diagonal_product<Lower, RowMajor>()));
-  CALL_SUBTEST_2((scaled_selfadjoint_diagonal_product<Upper, ColMajor>()));
-  CALL_SUBTEST_2((scaled_selfadjoint_diagonal_product<Upper, RowMajor>()));
-  CALL_SUBTEST_3((scaled_unit_triangular_product<UnitLower, ColMajor>()));
-  CALL_SUBTEST_3((scaled_unit_triangular_product<UnitLower, RowMajor>()));
-  CALL_SUBTEST_3((scaled_unit_triangular_product<UnitUpper, ColMajor>()));
-  CALL_SUBTEST_3((scaled_unit_triangular_product<UnitUpper, RowMajor>()));
+  for (int repeat = 0; repeat < g_repeat; ++repeat) {
+    CALL_SUBTEST_1((outer_product_scalar_types<double, double, ColMajor>()));
+    CALL_SUBTEST_1((outer_product_scalar_types<double, double, RowMajor>()));
+    CALL_SUBTEST_1((outer_product_scalar_types<std::complex<double>, double, ColMajor>()));
+    CALL_SUBTEST_1((outer_product_scalar_types<std::complex<double>, double, RowMajor>()));
+    CALL_SUBTEST_1((outer_product_scalar_types<double, std::complex<double>, ColMajor>()));
+    CALL_SUBTEST_1((outer_product_scalar_types<double, std::complex<double>, RowMajor>()));
+    CALL_SUBTEST_1((outer_product_mixed_infinity<float, ColMajor>()));
+    CALL_SUBTEST_1((outer_product_mixed_infinity<float, RowMajor>()));
+    CALL_SUBTEST_1((outer_product_mixed_infinity<double, ColMajor>()));
+    CALL_SUBTEST_1((outer_product_mixed_infinity<double, RowMajor>()));
+    CALL_SUBTEST_1((lazy_outer_product_strides<float, std::complex<float>, ColMajor>()));
+    CALL_SUBTEST_1((lazy_outer_product_strides<std::complex<float>, float, RowMajor>()));
+    CALL_SUBTEST_1((lazy_outer_product_strides<double, std::complex<double>, RowMajor>()));
+    CALL_SUBTEST_1((lazy_outer_product_strides<std::complex<double>, double, ColMajor>()));
+    CALL_SUBTEST_1((lazy_outer_product_strides<std::complex<double>, std::complex<double>, ColMajor>()));
+    CALL_SUBTEST_1((lazy_outer_product_strides<std::complex<double>, std::complex<double>, RowMajor>()));
+    CALL_SUBTEST_2((scaled_selfadjoint_diagonal_product<Lower, ColMajor>()));
+    CALL_SUBTEST_2((scaled_selfadjoint_diagonal_product<Lower, RowMajor>()));
+    CALL_SUBTEST_2((scaled_selfadjoint_diagonal_product<Upper, ColMajor>()));
+    CALL_SUBTEST_2((scaled_selfadjoint_diagonal_product<Upper, RowMajor>()));
+    CALL_SUBTEST_3((scaled_unit_triangular_product<UnitLower, ColMajor>()));
+    CALL_SUBTEST_3((scaled_unit_triangular_product<UnitLower, RowMajor>()));
+    CALL_SUBTEST_3((scaled_unit_triangular_product<UnitUpper, ColMajor>()));
+    CALL_SUBTEST_3((scaled_unit_triangular_product<UnitUpper, RowMajor>()));
+  }
 }

@@ -47,6 +47,23 @@ struct coeff_wise {
   }
 };
 
+template <int Order>
+struct mixed_outer_product {
+  EIGEN_DEVICE_FUNC void operator()(int i, const std::complex<float>* in, std::complex<float>* out) const {
+    using Mat = Eigen::Matrix<std::complex<float>, 4, 4, Order>;
+    const Eigen::Map<const Eigen::Vector4cf> complex(in + i);
+    const Eigen::Vector4f real = complex.real();
+    Eigen::Map<Mat> result(out + i * 16);
+    if (Order == Eigen::RowMajor) {
+      result.noalias() = complex * real.transpose();
+      result += complex.lazyProduct(real.transpose());
+    } else {
+      result.noalias() = real * complex.transpose();
+      result += real.lazyProduct(complex.transpose());
+    }
+  }
+};
+
 struct make_householder_small_tail {
   EIGEN_DEVICE_FUNC void operator()(int i, const float* /*in*/, float* out) const {
     Eigen::Vector3f vector;
@@ -646,6 +663,8 @@ EIGEN_DECLARE_TEST(gpu_basic) {
 
   CALL_SUBTEST(run_and_compare_to_gpu(prod_test<Matrix3f, Matrix3f>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(prod_test<Matrix4f, Vector4f>(), nthreads, in, out));
+  CALL_SUBTEST(run_and_compare_to_gpu(mixed_outer_product<RowMajor>(), nthreads, cfin, cfout));
+  CALL_SUBTEST(run_and_compare_to_gpu(mixed_outer_product<ColMajor>(), nthreads, cfin, cfout));
 
   CALL_SUBTEST(run_and_compare_to_gpu(diagonal<Matrix3f, Vector3f>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(diagonal<Matrix4f, Vector4f>(), nthreads, in, out));
