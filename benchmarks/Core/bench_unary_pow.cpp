@@ -79,6 +79,19 @@ static void BM_GenericPow(benchmark::State& state) {
   state.SetLabel(tiny ? "tiny" : "ordinary");
 }
 
+// Fixed sizes with a literal exponent: the assignment unrolls and the exponent can fold into straight-line code.
+template <typename T, int Size, int Exponent>
+static void BM_UnaryPowFixed(benchmark::State& state) {
+  Array<T, Size, 1> x = Array<T, Size, 1>::Random() * T(0.5) + T(1.25), y;
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(x.data());
+    y = x.pow(Exponent);
+    benchmark::DoNotOptimize(y.data());
+    benchmark::ClobberMemory();
+  }
+  state.SetItemsProcessed(state.iterations() * Size);
+}
+
 template <typename T>
 Array<std::complex<T>, Dynamic, 1> complex_bases(Index size) {
   using C = std::complex<T>;
@@ -136,6 +149,16 @@ BENCHMARK_TEMPLATE(BM_UnaryPowReal, float)->ArgsProduct({kExponents, {0, 1}});
 BENCHMARK_TEMPLATE(BM_UnaryPowReal, double)->ArgsProduct({kExponents, {0, 1}});
 BENCHMARK_TEMPLATE(BM_GenericPow, float)->ArgsProduct({kExponents, {0, 1}});
 BENCHMARK_TEMPLATE(BM_GenericPow, double)->ArgsProduct({kExponents, {0, 1}});
+BENCHMARK_TEMPLATE(BM_UnaryPowFixed, float, 8, 3);
+BENCHMARK_TEMPLATE(BM_UnaryPowFixed, float, 8, 8);
+BENCHMARK_TEMPLATE(BM_UnaryPowFixed, float, 64, 3);
+BENCHMARK_TEMPLATE(BM_UnaryPowFixed, float, 64, 8);
+BENCHMARK_TEMPLATE(BM_UnaryPowFixed, float, 64, 100);
+BENCHMARK_TEMPLATE(BM_UnaryPowFixed, double, 4, 3);
+BENCHMARK_TEMPLATE(BM_UnaryPowFixed, double, 4, 8);
+BENCHMARK_TEMPLATE(BM_UnaryPowFixed, double, 64, 3);
+BENCHMARK_TEMPLATE(BM_UnaryPowFixed, double, 64, 8);
+BENCHMARK_TEMPLATE(BM_UnaryPowFixed, double, 64, 100);
 BENCHMARK_TEMPLATE(BM_ComplexPowInt, float)->Args({2})->Args({3})->Args({8})->Args({100})->Args({-2})->Args({-8});
 BENCHMARK_TEMPLATE(BM_ComplexPowInt, double)->Args({2})->Args({3})->Args({8})->Args({100})->Args({-2})->Args({-8});
 BENCHMARK_TEMPLATE(BM_ComplexPowReal, float)->Args({2})->Args({3})->Args({8})->Args({100})->Args({-2})->Args({-8});
