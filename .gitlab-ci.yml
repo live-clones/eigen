@@ -10,6 +10,14 @@
 
 default:
   interruptible: true
+  # Auto-retry infrastructure drops (e.g. GCP Spot VM preemption or runner loss).
+  # Genuine compile or test failures exit with script_failure and are not retried.
+  retry:
+    max: 2  # Up to 2 retries (3 attempts total) before failing
+    when:
+      - runner_system_failure   # Runner setup or environment errors (e.g. Docker crash)
+      - stuck_or_timeout_failure  # Legacy fallback for stuck or dropped jobs
+      - no_updates_running      # Host terminated mid-run (e.g. GCP Spot preemption)
 
 # For MR pipelines, auto-cancel running jobs when new commits are pushed.
 # For scheduled (weekly) pipelines, never auto-cancel so all jobs run to
