@@ -1441,6 +1441,44 @@ struct generic_product_impl<Lhs, Rhs, DiagonalShape, SelfAdjointShape, ProductTa
 };
 
 /***************************************************************************
+ * Products of two triangular or self-adjoint views
+ ***************************************************************************/
+
+/** \internal
+ * The right factor is evaluated into a plain dense matrix and the product is re-dispatched to the
+ * LhsShape x DenseShape kernel (TRMM or SYMM), so only one operand is densified and the kernels keep
+ * their error bounds. The structure of the result (Upper * Upper is upper triangular) is not tracked.
+ */
+template <typename Lhs, typename Rhs, typename LhsShape, int ProductTag>
+struct structured_view_product_impl
+    : generic_product_impl_base<Lhs, Rhs, structured_view_product_impl<Lhs, Rhs, LhsShape, ProductTag>> {
+  using Scalar = typename Product<Lhs, Rhs>::Scalar;
+  using RhsDenseType = typename Rhs::DenseMatrixType;
+
+  template <typename Dest>
+  static void scaleAndAddTo(Dest& dst, const Lhs& lhs, const Rhs& rhs, const Scalar& alpha) {
+    const RhsDenseType rhsDense(rhs);
+    generic_product_impl<Lhs, RhsDenseType, LhsShape, DenseShape, ProductTag>::scaleAndAddTo(dst, lhs, rhsDense, alpha);
+  }
+};
+
+template <typename Lhs, typename Rhs, int ProductTag>
+struct generic_product_impl<Lhs, Rhs, TriangularShape, TriangularShape, ProductTag>
+    : structured_view_product_impl<Lhs, Rhs, TriangularShape, ProductTag> {};
+
+template <typename Lhs, typename Rhs, int ProductTag>
+struct generic_product_impl<Lhs, Rhs, TriangularShape, SelfAdjointShape, ProductTag>
+    : structured_view_product_impl<Lhs, Rhs, TriangularShape, ProductTag> {};
+
+template <typename Lhs, typename Rhs, int ProductTag>
+struct generic_product_impl<Lhs, Rhs, SelfAdjointShape, TriangularShape, ProductTag>
+    : structured_view_product_impl<Lhs, Rhs, SelfAdjointShape, ProductTag> {};
+
+template <typename Lhs, typename Rhs, int ProductTag>
+struct generic_product_impl<Lhs, Rhs, SelfAdjointShape, SelfAdjointShape, ProductTag>
+    : structured_view_product_impl<Lhs, Rhs, SelfAdjointShape, ProductTag> {};
+
+/***************************************************************************
  * Diagonal products
  ***************************************************************************/
 

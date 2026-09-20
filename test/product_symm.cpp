@@ -94,6 +94,31 @@ void symm(int size = Size, int othersize = OtherSize) {
   VERIFY_IS_APPROX(rhs22 = (rhs2) * (m2).template selfadjointView<Lower>(), rhs23 = (rhs2) * (m1));
   VERIFY_IS_APPROX(rhs22 = (s2 * rhs2) * (s1 * m2).template selfadjointView<Lower>(), rhs23 = (s2 * rhs2) * (s1 * m1));
 
+  // Self-adjoint times self-adjoint or triangular view: the right factor is densified and the
+  // product runs the SYMM kernel, including the scalar factor folded into the left view.
+  {
+    MatrixType m4 = MatrixType::Random(rows, cols), m5(rows, cols), m6(rows, cols), m7(rows, cols);
+    m4 = (m4 + m4.adjoint()).eval();
+    m5 = m4.template triangularView<Upper>();
+    const MatrixType tri4 = m4.template triangularView<UnitLower>();
+    VERIFY_IS_APPROX(m6 = m2.template selfadjointView<Lower>() * m5.template selfadjointView<Upper>(), m7 = m1 * m4);
+    VERIFY_IS_APPROX(m6.noalias() = (s1 * m2).template selfadjointView<Lower>() * m5.template selfadjointView<Upper>(),
+                     m7 = (s1 * m1) * m4);
+    VERIFY_IS_APPROX(m6 = m2.template selfadjointView<Lower>() * m4.template triangularView<UnitLower>(),
+                     m7 = m1 * tri4);
+    VERIFY_IS_APPROX(m6.noalias() = m4.template triangularView<UnitLower>() * m2.template selfadjointView<Lower>(),
+                     m7 = tri4 * m1);
+    VERIFY_IS_APPROX(
+        m6 = m2.adjoint().template selfadjointView<Upper>() * m5.transpose().template selfadjointView<Lower>(),
+        m7 = m1.adjoint() * m4.transpose());
+    m6.setRandom();
+    m7 = m6;
+    VERIFY_IS_APPROX(m6.noalias() += m2.template selfadjointView<Lower>() * m5.template selfadjointView<Upper>(),
+                     m7 += m1 * m4);
+    VERIFY_IS_APPROX(m6.noalias() -= s1 * (m2.template selfadjointView<Lower>() * m5.template selfadjointView<Upper>()),
+                     m7 -= s1 * (m1 * m4));
+  }
+
   // destination with a non-default inner-stride
   // see bug 1741
   {
