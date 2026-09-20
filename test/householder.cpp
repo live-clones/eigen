@@ -1002,6 +1002,47 @@ void householder_noncommutative_scalar() {
   VERIFY(a == expected);
 }
 
+// Q times a diagonal, triangular, self-adjoint or permutation matrix, both orders: the structured operand is
+// densified, so the results match the products with the dense Q.
+template <typename Scalar>
+void householder_structured_products(Index size) {
+  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
+  typedef Matrix<Scalar, Dynamic, 1> VectorType;
+
+  const MatrixType a = MatrixType::Random(size, size);
+  const HouseholderQR<MatrixType> qr(a);
+  const MatrixType q = qr.householderQ();
+  const DiagonalMatrix<Scalar, Dynamic> d(VectorType::Random(size));
+  PermutationMatrix<Dynamic> p(size);
+  randomPermutationVector(p.indices(), size);
+  const MatrixType dDense = d.toDenseMatrix();
+  const MatrixType pDense = p.toDenseMatrix().template cast<Scalar>();
+  const MatrixType upperDense = a.template triangularView<Upper>();
+  const MatrixType selfadjointDense = a.template selfadjointView<Lower>();
+
+  STATIC_CHECK((internal::is_same<decltype(qr.householderQ() * d), MatrixType>::value));
+  STATIC_CHECK((internal::is_same<decltype(p * qr.householderQ()), MatrixType>::value));
+
+  MatrixType result = qr.householderQ() * d;
+  VERIFY_IS_APPROX(result, q * dDense);
+  result = d * qr.householderQ();
+  VERIFY_IS_APPROX(result, dDense * q);
+  result = qr.householderQ() * a.template triangularView<Upper>();
+  VERIFY_IS_APPROX(result, q * upperDense);
+  result = a.template triangularView<UnitLower>() * qr.householderQ();
+  VERIFY_IS_APPROX(result, MatrixType(a.template triangularView<UnitLower>()) * q);
+  result = qr.householderQ() * a.template selfadjointView<Lower>();
+  VERIFY_IS_APPROX(result, q * selfadjointDense);
+  result = a.template selfadjointView<Upper>() * qr.householderQ();
+  VERIFY_IS_APPROX(result, MatrixType(a.template selfadjointView<Upper>()) * q);
+  result = qr.householderQ() * p;
+  VERIFY_IS_APPROX(result, q * pDense);
+  result = p * qr.householderQ();
+  VERIFY_IS_APPROX(result, pDense * q);
+  result = qr.householderQ().adjoint() * d;
+  VERIFY_IS_APPROX(result, q.adjoint() * dDense);
+}
+
 EIGEN_DECLARE_TEST(householder) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(householder(Matrix<double, 2, 2>()));
@@ -1044,5 +1085,10 @@ EIGEN_DECLARE_TEST(householder) {
     CALL_SUBTEST_21((householder_essential_expressions<std::complex<double>, RowMajor>()));
     CALL_SUBTEST_22(householder_noncommutative_scalar<2>());
     CALL_SUBTEST_22(householder_noncommutative_scalar<3>());
+    CALL_SUBTEST_23(householder_structured_products<float>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
+    CALL_SUBTEST_23(householder_structured_products<double>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
+    CALL_SUBTEST_23(
+        householder_structured_products<std::complex<double>>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2)));
   }
+  CALL_SUBTEST_23(householder_structured_products<double>(1));
 }
