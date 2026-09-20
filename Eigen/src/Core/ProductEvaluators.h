@@ -52,9 +52,19 @@ struct product_can_fold_scalar
 template <typename Lhs>
 struct product_can_fold_scalar<Lhs, TriangularShape> : bool_constant<(Lhs::Mode & UnitDiag) == 0> {};
 
-template <typename Xpr, bool Fold = product_can_fold_scalar<typename Xpr::Rhs::Lhs>::value>
+// The lazy selfadjoint/diagonal evaluator would conjugate a folded complex factor.
+template <typename Lhs, typename Rhs>
+struct product_evaluator_can_fold_scalar
+    : bool_constant<product_can_fold_scalar<Lhs>::value &&
+                    !(std::is_same<typename evaluator_traits<Lhs>::Shape, SelfAdjointShape>::value &&
+                      std::is_same<typename evaluator_traits<Rhs>::Shape, DiagonalShape>::value)> {};
+
+template <typename Xpr,
+          bool Fold = product_evaluator_can_fold_scalar<typename Xpr::Rhs::Lhs, typename Xpr::Rhs::Rhs>::value>
 struct scaled_product_evaluator_type {
-  using type = binary_evaluator<Xpr>;
+  // The assignment kernel extracts selfadjoint factors; materializing also protects nested aliases.
+  using type = std::conditional_t<product_can_fold_scalar<typename Xpr::Rhs::Lhs>::value, evaluator<EvalToTemp<Xpr>>,
+                                  binary_evaluator<Xpr>>;
 };
 
 template <typename Xpr>
@@ -82,11 +92,11 @@ struct evaluator<CwiseBinaryOp<internal::scalar_product_op<Scalar1, Scalar2>,
                                 const Product<Lhs, Rhs, DefaultProduct>>;
   using Base = typename scaled_product_evaluator_type<XprType>::type;
 
-  template <bool Fold = product_can_fold_scalar<Lhs>::value, std::enable_if_t<Fold, int> = 0>
+  template <bool Fold = product_evaluator_can_fold_scalar<Lhs, Rhs>::value, std::enable_if_t<Fold, int> = 0>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit evaluator(const XprType& xpr)
       : Base(xpr.lhs().functor().m_other * xpr.rhs().lhs() * xpr.rhs().rhs()) {}
 
-  template <bool Fold = product_can_fold_scalar<Lhs>::value, std::enable_if_t<!Fold, int> = 0>
+  template <bool Fold = product_evaluator_can_fold_scalar<Lhs, Rhs>::value, std::enable_if_t<!Fold, int> = 0>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit evaluator(const XprType& xpr) : Base(xpr) {}
 };
 

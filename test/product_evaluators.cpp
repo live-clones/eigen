@@ -103,6 +103,34 @@ void scaled_structured_product() {
   check_scaled_product(alpha * (matrix.template selfadjointView<Lower>() * rhs), expected);
 }
 
+template <int Mode, int Order>
+void scaled_selfadjoint_diagonal_product() {
+  using Scalar = std::complex<double>;
+  using Mat = Matrix<Scalar, 3, 3, Order>;
+  Mat matrix;
+  matrix << Scalar(1), Scalar(2, 1), Scalar(3, 2), Scalar(4, 3), Scalar(5), Scalar(6, 4), Scalar(7, 5), Scalar(8, 6),
+      Scalar(9);
+  Matrix<Scalar, 3, 1> diagonal;
+  diagonal << Scalar(1, -1), Scalar(2, 3), Scalar(-4, 2);
+  const Scalar alpha(2, 3);
+  Mat expected, expectedLeft;
+  for (Index j = 0; j < 3; ++j) {
+    for (Index i = 0; i < 3; ++i) {
+      const bool stored = Mode == Lower ? i >= j : i <= j;
+      const Scalar value = stored ? matrix(i, j) : numext::conj(matrix(j, i));
+      expected(i, j) = alpha * (value * diagonal(j));
+      expectedLeft(i, j) = alpha * (diagonal(i) * value);
+    }
+  }
+  check_scaled_product(alpha * (matrix.template selfadjointView<Mode>() * diagonal.asDiagonal()), expected);
+  const DiagonalMatrix<Scalar, 3> ownedDiagonal(diagonal);
+  check_scaled_product(alpha * (matrix.template selfadjointView<Mode>() * ownedDiagonal), expected);
+  check_scaled_product(alpha * (diagonal.asDiagonal() * matrix.template selfadjointView<Mode>()), expectedLeft);
+  Mat aliased = matrix;
+  aliased = alpha * (aliased.template selfadjointView<Mode>() * diagonal.asDiagonal()) + Mat::Zero();
+  VERIFY_IS_EQUAL(aliased, expected);
+}
+
 EIGEN_DECLARE_TEST(product_evaluators) {
   for (int repeat = 0; repeat < g_repeat; ++repeat) {
     CALL_SUBTEST_1((scaled_unit_triangular_product<double, UnitLower, ColMajor>()));
@@ -117,5 +145,9 @@ EIGEN_DECLARE_TEST(product_evaluators) {
     CALL_SUBTEST_2((scaled_permutation_product<std::complex<double>, RowMajor>()));
     CALL_SUBTEST_3((scaled_structured_product<ColMajor>()));
     CALL_SUBTEST_3((scaled_structured_product<RowMajor>()));
+    CALL_SUBTEST_3((scaled_selfadjoint_diagonal_product<Lower, ColMajor>()));
+    CALL_SUBTEST_3((scaled_selfadjoint_diagonal_product<Lower, RowMajor>()));
+    CALL_SUBTEST_3((scaled_selfadjoint_diagonal_product<Upper, ColMajor>()));
+    CALL_SUBTEST_3((scaled_selfadjoint_diagonal_product<Upper, RowMajor>()));
   }
 }
