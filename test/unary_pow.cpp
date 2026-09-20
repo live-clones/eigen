@@ -244,12 +244,14 @@ void complex_pow_test() {
     check_complex_pow<Real, Real>(bases, exponents, 2.0);
   }
   // Magnitudes across the range, against the same base scaled by a power of two, which only moves the exponent.
+  // The scale runs through the range in steps, ends included: at its extremes |z| exceeds what the reciprocal's
+  // norm can represent.
   {
     constexpr int max_exponent = std::numeric_limits<Real>::max_exponent;
-    for (long n : {3L, 8L, 100L, -3L, -8L, -100L}) {
-      for (int i = 0; i < 32; ++i) {
-        int e =
-            internal::random<int>(-(max_exponent / 2) / int(numext::abs(n)), (max_exponent / 2) / int(numext::abs(n)));
+    for (long n : {1L, 3L, 8L, 100L, -1L, -2L, -3L, -8L, -100L}) {
+      int extreme = (max_exponent - 4) / int(numext::abs(n)) - 1;  // |base|^n within 2^(+-|n|) stays finite
+      for (int i = 0; i <= 32; ++i) {
+        int e = -extreme + (2 * extreme * i) / 32;
         Real scale = Real(std::ldexp(1.0, e));
         Real magnitude = internal::random<Real>(Real(0.5), Real(1.5));
         Real angle = internal::random<Real>(Real(-3.14159), Real(3.14159));
