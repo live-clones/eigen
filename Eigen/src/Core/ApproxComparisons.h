@@ -53,17 +53,18 @@ struct comparison_magnitude {
   }
 
   EIGEN_DEVICE_FUNC bool isFinite() const { return fraction <= RealScalar(1); }
-
-  template <typename OtherRealScalar>
-  EIGEN_DEVICE_FUNC bool operator<=(const comparison_magnitude<OtherRealScalar>& other) const {
-    using Common = std::common_type_t<RealScalar, OtherRealScalar>;
-    if (!isFinite()) return false;
-    // Zero and non-finite magnitudes carry no exponent.
-    if (!other.isFinite() || fraction == RealScalar(0) || other.fraction == OtherRealScalar(0))
-      return Common(fraction) <= Common(other.fraction);
-    return exponent < other.exponent || (exponent == other.exponent && Common(fraction) <= Common(other.fraction));
-  }
 };
+
+template <typename RealScalar, typename OtherRealScalar>
+EIGEN_DEVICE_FUNC bool operator<=(const comparison_magnitude<RealScalar>& x,
+                                  const comparison_magnitude<OtherRealScalar>& y) {
+  using Common = std::common_type_t<RealScalar, OtherRealScalar>;
+  if (!x.isFinite()) return false;
+  // Zero and non-finite magnitudes carry no exponent.
+  if (!y.isFinite() || x.fraction == RealScalar(0) || y.fraction == OtherRealScalar(0))
+    return Common(x.fraction) <= Common(y.fraction);
+  return x.exponent < y.exponent || (x.exponent == y.exponent && Common(x.fraction) <= Common(y.fraction));
+}
 
 template <typename Derived>
 EIGEN_DEVICE_FUNC comparison_magnitude<typename stable_norm_accumulator<typename Derived::RealScalar>::type>
@@ -75,8 +76,8 @@ scaled_comparison_norm(const Derived& x) {
   const auto& components = realComponents.template cast<RealScalar>();
   RealScalar scale = components.cwiseAbs().template maxCoeff<PropagateNaN>();
   scale = safe_scaling<RealScalar>::recover_flushed_max_coeff(components, scale);
-  if (!(scale > RealScalar(0)) || !(scale <= NumTraits<RealScalar>::highest()))
-    return comparison_magnitude<RealScalar>(scale);
+  // Classify first so NaNs do not reach the ordered comparison.
+  if (!(numext::isfinite)(scale) || !(scale > RealScalar(0))) return comparison_magnitude<RealScalar>(scale);
   RealScalar squaredNorm = RealScalar(0);
   const auto factors = safe_scaling<RealScalar>::with_scaled(
       components, scale, [&](const auto& scaled) { squaredNorm = scaled.squaredNorm(); });
