@@ -470,6 +470,50 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS std::enable_if_t<is_scalar<S
   return numext::pow(x, y);
 }
 
+// A complex value as two real lanes [re, im], standing in for the interleaved real view of a complex packet so
+// that the complex squaring below runs on complex scalars as well: lane-wise arithmetic, with fused products so
+// that twoprod residuals are exact. Only what the algorithm and the double-word helpers use is defined.
+template <typename R>
+struct lane_pair {
+  R re, im;
+  lane_pair() = default;
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE lane_pair(const R& value) : re(value), im(value) {}
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE lane_pair(const R& re_, const R& im_) : re(re_), im(im_) {}
+};
+template <typename R>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE lane_pair<R> operator+(const lane_pair<R>& a, const lane_pair<R>& b) {
+  return {a.re + b.re, a.im + b.im};
+}
+template <typename R>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE lane_pair<R> operator-(const lane_pair<R>& a, const lane_pair<R>& b) {
+  return {a.re - b.re, a.im - b.im};
+}
+template <typename R>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE lane_pair<R> operator*(const lane_pair<R>& a, const lane_pair<R>& b) {
+  return {a.re * b.re, a.im * b.im};
+}
+template <typename R>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE lane_pair<R> pnegate(const lane_pair<R>& a) {
+  return {-a.re, -a.im};
+}
+template <typename R>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE lane_pair<R> pmadd(const lane_pair<R>& a, const lane_pair<R>& b,
+                                                         const lane_pair<R>& c) {
+  return {numext::fma(a.re, b.re, c.re), numext::fma(a.im, b.im, c.im)};
+}
+template <typename R>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE lane_pair<R> pmsub(const lane_pair<R>& a, const lane_pair<R>& b,
+                                                         const lane_pair<R>& c) {
+  return {numext::fma(a.re, b.re, -c.re), numext::fma(a.im, b.im, -c.im)};
+}
+
+template <typename R>
+struct unpacket_traits<lane_pair<R>> : default_unpacket_traits {
+  using type = R;
+  using half = lane_pair<R>;
+  enum { size = 2, alignment = alignof(R) };
+};
+
 namespace unary_pow {
 
 // Integer exponents up to this magnitude use repeated squaring; larger ones take the log/exp path of generic_pow
@@ -656,135 +700,161 @@ struct repeated_squaring_ops {
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool any_nan(const Packet&) { return false; }
 };
 
-// The real and imaginary parts of a complex value or packet as two values of a real representation R, on which
-// the complex algorithm below runs component-wise. For a complex packet R is its interleaved real view with both
-// lanes of a pair holding the same component, so every lane operation applies to the pair at once.
+// The lane operations of the complex squaring: L is the interleaved real view of a complex packet, or a
+// lane_pair for a complex scalar, and R the real type that scaling and exponents use, which for a packet is L
+// itself with both lanes of a pair equal.
 template <typename Packet, bool IsScalar = is_scalar<Packet>::value>
-struct complex_components {
+struct complex_lanes {
   using Scalar = typename unpacket_traits<Packet>::type;
   using RealScalar = typename NumTraits<Scalar>::Real;
-  using R = typename unpacket_traits<Packet>::as_real;
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE R flip(const R& x) { return pcplxflip(Packet(x)).v; }
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE R odd_lanes() {
-    return pcmp_eq(pset1<Packet>(Scalar(0, 1)).v, pset1<R>(RealScalar(1)));
+  using L = typename unpacket_traits<Packet>::as_real;
+  using R = L;
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE L lanes(const Packet& z) { return z.v; }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet pack(const L& x) { return Packet(x); }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE L flip(const L& x) { return pcplxflip(Packet(x)).v; }
+  // Even lanes from `even`, odd lanes from `odd`.
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE L blend(const L& even, const L& odd) {
+    return pselect(pcmp_eq(pset1<Packet>(Scalar(0, 1)).v, pset1<L>(RealScalar(1))), odd, even);
   }
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void split(const Packet& z, R& re, R& im) {
-    R odd = odd_lanes();
-    re = pselect(odd, flip(z.v), z.v);
-    im = pselect(odd, z.v, flip(z.v));
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE L negate_even(const L& x) {
+    return pxor(x, pset1<Packet>(Scalar(RealScalar(-0.0), RealScalar(0))).v);
   }
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet join(const R& re, const R& im) {
-    return Packet(pselect(odd_lanes(), im, re));
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE L negate_odd(const L& x) {
+    return pxor(x, pset1<Packet>(Scalar(RealScalar(0), RealScalar(-0.0))).v);
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE L one() { return pset1<Packet>(Scalar(1)).v; }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE R pair_magnitude(const L& x) {
+    L abs_x = pabs(x);
+    return pmax(abs_x, flip(abs_x));
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE R pair_sum(const L& x) { return padd(x, flip(x)); }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE L scale(const L& x, const R& s) { return pmul(x, s); }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE L scale_result(const L& x, const R& e) {
+    return binary_exponent_scaling<R>::scale_result(x, e);
   }
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool any_nan(const Packet& z) { return predux_any(pisnan(z).v); }
 };
 
 template <typename Scalar>
-struct complex_components<Scalar, true> {
+struct complex_lanes<Scalar, true> {
   using R = typename NumTraits<Scalar>::Real;
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void split(const Scalar& z, R& re, R& im) {
-    re = numext::real(z);
-    im = numext::imag(z);
+  using L = lane_pair<R>;
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE L lanes(const Scalar& z) { return {numext::real(z), numext::imag(z)}; }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar pack(const L& x) { return Scalar(x.re, x.im); }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE L flip(const L& x) { return {x.im, x.re}; }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE L blend(const L& even, const L& odd) { return {even.re, odd.im}; }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE L negate_even(const L& x) { return {-x.re, x.im}; }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE L negate_odd(const L& x) { return {x.re, -x.im}; }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE L one() { return {R(1), R(0)}; }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE R pair_magnitude(const L& x) {
+    return numext::maxi(numext::abs(x.re), numext::abs(x.im));
   }
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar join(const R& re, const R& im) { return Scalar(re, im); }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE R pair_sum(const L& x) { return x.re + x.im; }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE L scale(const L& x, const R& s) { return {x.re * s, x.im * s}; }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE L scale_result(const L& x, const R& e) {
+    return {binary_exponent_scaling<R>::scale_result(x.re, e), binary_exponent_scaling<R>::scale_result(x.im, e)};
+  }
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool any_nan(const Scalar& z) {
     return (numext::isnan)(numext::real(z)) || (numext::isnan)(numext::imag(z));
   }
 };
 
-// Complex bases keep the real and imaginary parts as separate double words sharing one exponent, scaled by the
-// larger component: z^2 = (a^2 - b^2) + 2ab i is three products and a product (a + bi)(c + di) four. Either
-// component may legitimately be zero, and the special values of complex arithmetic are what the plain product
-// makes of them, so int_pow_double_word recomputes a NaN double-word result that way.
+// Complex bases keep the running power as an interleaved double word [re, im] with one exponent, scaled by the
+// larger component. z^2 = (a^2 - b^2) + 2ab i is the two lane products [a^2, b^2] and [ab, ab], and a product
+// (a + bi)(c + di) is [ac, bd] and [ad, bc], each recombined lane-wise into [u0 - v0, u1 + v1]. Either component
+// may legitimately be zero, and the special values of complex arithmetic are what the plain product makes of
+// them, so int_pow_double_word recomputes a NaN double-word result that way.
 template <typename Packet>
 struct repeated_squaring_ops<Packet, true> {
-  using Scalar = typename unpacket_traits<Packet>::type;
-  using Components = complex_components<Packet>;
-  using R = typename Components::R;
+  using Lanes = complex_lanes<Packet>;
+  using L = typename Lanes::L;
+  using R = typename Lanes::R;
   using Scaling = binary_exponent_scaling<R>;
   struct State {
-    R re_hi, re_lo, im_hi, im_lo, exponent;
+    L hi, lo, flip_hi, flip_lo;  // the flipped lanes serve the base only
+    R exponent;
   };
+  // {u_hi, u_lo} and {v_hi, v_lo} into [u0 - v0, u1 + v1].
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void recombine(const L& u_hi, const L& u_lo, const L& v_hi,
+                                                              const L& v_lo, L& s_hi, L& s_lo) {
+    twosum(u_hi, u_lo, Lanes::negate_even(v_hi), Lanes::negate_even(v_lo), s_hi, s_lo);
+  }
+  // [x0, x1] and [y0, y1] into [x0 - x1, y0 + y1].
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void combine(const L& x_hi, const L& x_lo, const L& y_hi,
+                                                            const L& y_lo, L& s_hi, L& s_lo) {
+    recombine(Lanes::blend(x_hi, y_hi), Lanes::blend(x_lo, y_lo), Lanes::flip(Lanes::blend(y_hi, x_hi)),
+              Lanes::flip(Lanes::blend(y_lo, x_lo)), s_hi, s_lo);
+  }
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE State base(const Packet& x, bool reciprocal) {
     State b;
-    R re, im, lift, scale;
-    Components::split(x, re, im);
-    Scaling::input_scale(pmax(pabs(re), pabs(im)), lift, scale, b.exponent);
-    R wr = pmul(pmul(re, lift), scale), wi = pmul(pmul(im, lift), scale);
-    b.re_lo = b.im_lo = pzero(wr);
-    if (!reciprocal) {
-      b.re_hi = wr;
-      b.im_hi = wi;
-      return b;
+    R lift, scale;
+    L z = Lanes::lanes(x);
+    Scaling::input_scale(Lanes::pair_magnitude(z), lift, scale, b.exponent);
+    L w = Lanes::scale(Lanes::scale(z, lift), scale);
+    b.lo = pzero(w);
+    if (reciprocal) {
+      // 1/w = q + e*q with q = conj(w)/|w|^2 and e = 1 - q*w. With max(|wr|, |wi|) in [2, 4) the norm cannot
+      // over- or underflow, and the few ulps of error in q are what the residual corrects: e is of order u and is
+      // formed from exact products so that e*q carries the correction to order u^2. 1 - s_hi is exact in the real
+      // lane, as s_hi is within rounding of 1, and trivially in the imaginary lane.
+      R inv = pdiv(pset1<R>(typename NumTraits<typename unpacket_traits<Packet>::type>::Real(1)),
+                   Lanes::pair_sum(pmul(w, w)));
+      L q = Lanes::negate_odd(Lanes::scale(w, inv));
+      L x_hi, x_lo, y_hi, y_lo, s_hi, s_lo;
+      twoprod(q, w, x_hi, x_lo);                // [qr wr, qi wi]
+      twoprod(q, Lanes::flip(w), y_hi, y_lo);   // [qr wi, qi wr]
+      combine(x_hi, x_lo, y_hi, y_lo, s_hi, s_lo);  // q*w
+      L e = psub(psub(Lanes::one(), s_hi), s_lo);
+      L p = pmul(e, q), r = pmul(e, Lanes::flip(q));  // [er qr, ei qi], [er qi, ei qr]
+      L q_lo = padd(Lanes::blend(p, r), Lanes::negate_even(Lanes::flip(Lanes::blend(r, p))));  // e*q
+      fast_twosum(q, q_lo, b.hi, b.lo);
+      b.exponent = pnegate(b.exponent);
+    } else {
+      b.hi = w;
     }
-    // 1/w = q + e*q with q = conj(w)/|w|^2 and e = 1 - q*w = er - t i. With max(|wr|, |wi|) in [2, 4) the norm
-    // cannot over- or underflow, and the few ulps of error in q are what the residual corrects: e is of order u
-    // and is formed from exact products so that e*q carries the correction to order u^2. 1 - s_hi is exact as
-    // s_hi is within rounding of 1.
-    R inv = pdiv(pset1<R>(typename NumTraits<Scalar>::Real(1)), pmadd(wr, wr, pmul(wi, wi)));
-    R qr = pmul(wr, inv), qi = pnegate(pmul(wi, inv));
-    R a_hi, a_lo, c_hi, c_lo, s_hi, s_lo, t_hi, t_lo;
-    twoprod(qr, wr, a_hi, a_lo);
-    twoprod(qi, wi, c_hi, c_lo);
-    twodiff(a_hi, a_lo, c_hi, c_lo, s_hi, s_lo);
-    twoprod(qr, wi, a_hi, a_lo);
-    twoprod(qi, wr, c_hi, c_lo);
-    twosum(a_hi, a_lo, c_hi, c_lo, t_hi, t_lo);
-    R er = psub(psub(pset1<R>(typename NumTraits<Scalar>::Real(1)), s_hi), s_lo);
-    R t = padd(t_hi, t_lo);
-    fast_twosum(qr, pmadd(er, qr, pmul(t, qi)), b.re_hi, b.re_lo);
-    fast_twosum(qi, pmsub(er, qi, pmul(t, qr)), b.im_hi, b.im_lo);
-    b.exponent = pnegate(b.exponent);
+    b.flip_hi = Lanes::flip(b.hi);
+    b.flip_lo = Lanes::flip(b.lo);
     return b;
   }
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void square(State& y) {
-    R a_hi, a_lo, c_hi, c_lo, p_hi, p_lo;
-    fast_twoprod(y.re_hi, y.re_lo, y.re_hi, y.re_lo, a_hi, a_lo);
-    fast_twoprod(y.im_hi, y.im_lo, y.im_hi, y.im_lo, c_hi, c_lo);
-    fast_twoprod(y.re_hi, y.re_lo, y.im_hi, y.im_lo, p_hi, p_lo);
-    twodiff(a_hi, a_lo, c_hi, c_lo, y.re_hi, y.re_lo);
-    y.im_hi = padd(p_hi, p_hi);
-    y.im_lo = padd(p_lo, p_lo);
+    L d_hi, d_lo, p_hi, p_lo;
+    fast_twoprod(y.hi, y.lo, y.hi, y.lo, d_hi, d_lo);                                  // [a^2, b^2]
+    fast_twoprod(y.hi, y.lo, Lanes::flip(y.hi), Lanes::flip(y.lo), p_hi, p_lo);        // [ab, ab]
+    recombine(Lanes::blend(d_hi, p_hi), Lanes::blend(d_lo, p_lo), Lanes::blend(Lanes::flip(d_hi), p_hi),
+              Lanes::blend(Lanes::flip(d_lo), p_lo), y.hi, y.lo);                      // [a^2 - b^2, ab + ab]
     y.exponent = padd(y.exponent, y.exponent);
   }
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void multiply(State& y, const State& b) {
-    R ac_hi, ac_lo, bd_hi, bd_lo, ad_hi, ad_lo, bc_hi, bc_lo;
-    fast_twoprod(y.re_hi, y.re_lo, b.re_hi, b.re_lo, ac_hi, ac_lo);
-    fast_twoprod(y.im_hi, y.im_lo, b.im_hi, b.im_lo, bd_hi, bd_lo);
-    fast_twoprod(y.re_hi, y.re_lo, b.im_hi, b.im_lo, ad_hi, ad_lo);
-    fast_twoprod(y.im_hi, y.im_lo, b.re_hi, b.re_lo, bc_hi, bc_lo);
-    twodiff(ac_hi, ac_lo, bd_hi, bd_lo, y.re_hi, y.re_lo);
-    twosum(ad_hi, ad_lo, bc_hi, bc_lo, y.im_hi, y.im_lo);
+    L x_hi, x_lo, w_hi, w_lo;
+    fast_twoprod(y.hi, y.lo, b.hi, b.lo, x_hi, x_lo);            // [ac, bd]
+    fast_twoprod(y.hi, y.lo, b.flip_hi, b.flip_lo, w_hi, w_lo);  // [ad, bc]
+    combine(x_hi, x_lo, w_hi, w_lo, y.hi, y.lo);                 // [ac - bd, ad + bc]
     y.exponent = padd(y.exponent, b.exponent);
   }
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void renormalize(State& y) {
     R e;
-    R scale = Scaling::inverse_scale(pmax(pabs(y.re_hi), pabs(y.im_hi)), e);
-    y.re_hi = pmul(y.re_hi, scale);
-    y.re_lo = pmul(y.re_lo, scale);
-    y.im_hi = pmul(y.im_hi, scale);
-    y.im_lo = pmul(y.im_lo, scale);
+    R scale = Scaling::inverse_scale(Lanes::pair_magnitude(y.hi), e);
+    y.hi = Lanes::scale(y.hi, scale);
+    y.lo = Lanes::scale(y.lo, scale);
     y.exponent = padd(y.exponent, e);
   }
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet result(const State& y, const State&, bool) {
-    return Components::join(Scaling::scale_result(y.re_hi, y.exponent), Scaling::scale_result(y.im_hi, y.exponent));
+    return Lanes::pack(Lanes::scale_result(y.hi, y.exponent));
   }
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool any_nan(const Packet& r) { return Components::any_nan(r); }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool any_nan(const Packet& r) { return Lanes::any_nan(r); }
 };
 
-// 1/x, dividing real packets only: a complex x goes through its components as conj(x) / |x|^2.
+// 1/x, dividing real packets only: a complex x goes through its lanes as conj(x) / |x|^2.
 template <typename Packet>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet plain_reciprocal(const Packet& x, false_type) {
   return pdiv(pset1<Packet>(typename unpacket_traits<Packet>::type(1)), x);
 }
 template <typename Packet>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet plain_reciprocal(const Packet& x, true_type) {
-  using Components = complex_components<Packet>;
-  using R = typename Components::R;
-  R re, im;
-  Components::split(x, re, im);
-  R inv = plain_reciprocal(pmadd(re, re, pmul(im, im)), false_type());
-  return Components::join(pmul(re, inv), pnegate(pmul(im, inv)));
+  using Lanes = complex_lanes<Packet>;
+  typename Lanes::L z = Lanes::lanes(x);
+  typename Lanes::R inv = plain_reciprocal(Lanes::pair_sum(pmul(z, z)), false_type());
+  return Lanes::pack(Lanes::negate_odd(Lanes::scale(z, inv)));
 }
 template <typename Packet>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet plain_reciprocal(const Packet& x) {
