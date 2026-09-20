@@ -26,8 +26,6 @@ set(EIGEN_BENCH_VENDOR_FIELDS
     PROVIDES            # subset of: blas lapack -- what the linked library itself carries
     VERSION_RUNTIME_SYMBOL  # version query the binary calls if it links (bench_compare.h)
     PLATFORM            # CMake variable that must be true for this vendor
-    ARM_SOURCES         # extra sources compiled into every binary linking this arm
-    ARM_LINK_OPTIONS    # extra link options for those binaries
     NOTES)
 
 function(eigen_bench_declare_vendor key)
@@ -151,25 +149,6 @@ eigen_bench_declare_vendor(mkl
   PROVIDES blas lapack
   VERSION_RUNTIME_SYMBOL mkl_get_version_string
   NOTES "On a non-Intel CPU oneMKL takes a conservative code path chosen from the CPUID vendor string.")
-
-# The same oneMKL with its CPUID vendor check answered "Intel" from inside the
-# binary (mkl_vendor_bypass.cpp): on Zen 5 the as-shipped row runs dgemm at half
-# of Eigen's rate and this row at parity (measured 2026-09). Intel does not
-# support the configuration; a page carries it under this name, never as MKL.
-eigen_bench_declare_vendor(mkl_bypass
-  DISPLAY_NAME "Intel oneMKL, vendor check bypassed"
-  ALIASES mkl_unlocked
-  BLA_VENDOR Intel10_64lp_seq Intel10_64lp Intel10_64_dyn
-  INTERFACE_WIDTH lp64
-  THREAD_ENV MKL_NUM_THREADS
-  PROVIDES blas lapack
-  VERSION_RUNTIME_SYMBOL mkl_get_version_string
-  ARM_SOURCES ${CMAKE_CURRENT_LIST_DIR}/mkl_vendor_bypass.cpp
-  # The executable's definition must reach the dynamic symbol table to interpose
-  # on the library's own; ld exports it on its own only when a shared library
-  # leaves the symbol undefined, and libmkl_core defines it.
-  ARM_LINK_OPTIONS -Wl,--export-dynamic-symbol=mkl_serv_get_cpu_true
-  NOTES "oneMKL's CPUID vendor check is answered 'Intel' from inside the binary; unsupported by Intel, published only under this name.")
 
 # LAPACK is AOCL-libFLAME, a separate libflame.so; FindLAPACK's AOCL route
 # resolves it when BLA_VENDOR is AOCL, or pass -DLAPACK_LIBRARIES explicitly.

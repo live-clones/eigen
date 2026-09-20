@@ -218,17 +218,6 @@ foreach(_source IN LISTS _comparison_sources)
     if(_family_line)
       target_link_libraries(${_target} PRIVATE ${EIGEN_BENCH_LAPACK_LINK_LIBRARIES})
     endif()
-    # An arm that changes how the library behaves from inside the binary (the
-    # oneMKL vendor-check bypass) carries that code as a source of its own, so
-    # the binary is the record of what was measured.
-    if(EIGEN_BENCH_BLAS_ARM_SOURCES)
-      target_sources(${_target} PRIVATE ${EIGEN_BENCH_BLAS_ARM_SOURCES})
-    endif()
-    if(EIGEN_BENCH_BLAS_ARM_LINK_OPTIONS)
-      # Through target_link_libraries rather than target_link_options, which
-      # needs CMake 3.13 where benchmarks/CMakeLists.txt promises 3.10.
-      target_link_libraries(${_target} PRIVATE ${EIGEN_BENCH_BLAS_ARM_LINK_OPTIONS})
-    endif()
   endif()
   add_dependencies(bench_comparison_all ${_target})
 

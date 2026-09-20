@@ -37,7 +37,7 @@ names are `OP/arm/scalar/dim:value/...`, for example `GEMM/openblas/f64/m:256/n:
    thread_env = { OPENBLAS_NUM_THREADS = "{threads}" }
    ```
 
-   `EIGEN_BENCH_REFERENCE` names a row of `vendors.cmake` (`openblas`, `mkl`, `mkl_bypass`, `aocl`,
+   `EIGEN_BENCH_REFERENCE` names a row of `vendors.cmake` (`openblas`, `mkl`, `aocl`,
    `blis`, `armpl`, `armpl_neon`, `nvpl`, `accelerate`, `netlib`). Where CMake's FindBLAS cannot find
    the library, name it: `-DBLAS_LIBRARIES=<path>`, `-DLAPACK_LIBRARIES=<path>[;<path>...]`, and
    `-DCMAKE_LIBRARY_PATH=<dir>` for an install layout no default prefix covers. A library with no
