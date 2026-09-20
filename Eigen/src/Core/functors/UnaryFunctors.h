@@ -1486,7 +1486,9 @@ template <typename Scalar, typename ExponentScalar>
 struct functor_traits<scalar_unary_pow_op<Scalar, ExponentScalar>> {
   enum {
     GenPacketAccess = functor_traits<scalar_pow_op<Scalar, ExponentScalar>>::PacketAccess,
-    IntPacketAccess = !NumTraits<Scalar>::IsComplex && packet_traits<Scalar>::HasMul &&
+    // Only the real-exponent specializations define packetOp.
+    IntPacketAccess = !NumTraits<Scalar>::IsComplex && !NumTraits<ExponentScalar>::IsComplex &&
+                      packet_traits<Scalar>::HasMul &&
                       (packet_traits<Scalar>::HasDiv || NumTraits<Scalar>::IsInteger) && packet_traits<Scalar>::HasCmp,
     PacketAccess = NumTraits<ExponentScalar>::IsInteger ? IntPacketAccess : (IntPacketAccess && GenPacketAccess),
     Cost = functor_traits<scalar_pow_op<Scalar, ExponentScalar>>::Cost
