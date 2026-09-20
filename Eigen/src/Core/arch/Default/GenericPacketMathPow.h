@@ -676,9 +676,6 @@ struct complex_components {
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet join(const R& re, const R& im) {
     return Packet(pselect(odd_lanes(), im, re));
   }
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void reciprocal(const R& re, const R& im, R& qr, R& qi) {
-    split(pdiv(pset1<Packet>(Scalar(1)), join(re, im)), qr, qi);
-  }
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool any_nan(const Packet& z) { return predux_any(pisnan(z).v); }
 };
 
@@ -690,9 +687,6 @@ struct complex_components<Scalar, true> {
     im = numext::imag(z);
   }
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar join(const R& re, const R& im) { return Scalar(re, im); }
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void reciprocal(const R& re, const R& im, R& qr, R& qi) {
-    split(pdiv(Scalar(1), Scalar(re, im)), qr, qi);
-  }
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool any_nan(const Scalar& z) {
     return (numext::isnan)(numext::real(z)) || (numext::isnan)(numext::imag(z));
   }
@@ -723,10 +717,13 @@ struct repeated_squaring_ops<Packet, true> {
       b.im_hi = wi;
       return b;
     }
-    // 1/w = q + e*q with e = 1 - q*w = er - t i; the residual is of order u and is formed from exact products so
-    // that e*q carries the correction to order u^2. 1 - s_hi is exact as s_hi is within rounding of 1.
-    R qr, qi, a_hi, a_lo, c_hi, c_lo, s_hi, s_lo, t_hi, t_lo;
-    Components::reciprocal(wr, wi, qr, qi);
+    // 1/w = q + e*q with q = conj(w)/|w|^2 and e = 1 - q*w = er - t i. With max(|wr|, |wi|) in [2, 4) the norm
+    // cannot over- or underflow, and the few ulps of error in q are what the residual corrects: e is of order u
+    // and is formed from exact products so that e*q carries the correction to order u^2. 1 - s_hi is exact as
+    // s_hi is within rounding of 1.
+    R inv = pdiv(pset1<R>(typename NumTraits<Scalar>::Real(1)), pmadd(wr, wr, pmul(wi, wi)));
+    R qr = pmul(wr, inv), qi = pnegate(pmul(wi, inv));
+    R a_hi, a_lo, c_hi, c_lo, s_hi, s_lo, t_hi, t_lo;
     twoprod(qr, wr, a_hi, a_lo);
     twoprod(qi, wi, c_hi, c_lo);
     twodiff(a_hi, a_lo, c_hi, c_lo, s_hi, s_lo);
