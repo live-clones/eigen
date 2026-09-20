@@ -643,8 +643,14 @@ struct repeated_squaring_ops {
     twoprod(q, m, p_hi, p_lo);
     fast_twosum(q, pdiv(psub(psub(cst_pos_one, p_hi), p_lo), m), hi, lo);
   }
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE State base(const Packet& x, bool reciprocal) {
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE State base(const Packet& x, bool reciprocal, bool scaled) {
     State b;
+    if (!scaled) {
+      power_base(x, reciprocal, b.hi, b.lo);
+      b.exponent = pzero(x);
+      b.special = x;
+      return b;
+    }
     Packet lift, scale;
     Scaling::input_scale(x, lift, scale, b.exponent);
     power_base(pmul(pmul(x, lift), scale), reciprocal, b.hi, b.lo);
@@ -654,11 +660,6 @@ struct repeated_squaring_ops {
     } else {
       b.special = x;
     }
-    return b;
-  }
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE State unscaled_base(const Packet& x, bool reciprocal) {
-    State b;
-    power_base(x, reciprocal, b.hi, b.lo);
     return b;
   }
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void multiply(State& y, const State& b) {
@@ -673,11 +674,11 @@ struct repeated_squaring_ops {
     y.lo = pmul(y.lo, scale);
     y.exponent = padd(y.exponent, e);
   }
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet result(const State& y, const State& b, bool odd) {
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet result(const State& y, const State& b, bool odd, bool scaled) {
+    if (!scaled) return y.hi;
     Packet use_special = por(pisnan(y.hi), pcmp_eq(y.hi, pzero(y.hi)));
     return pselect(use_special, odd ? b.special : pabs(b.special), Scaling::scale_result(y.hi, y.exponent));
   }
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet unscaled_result(const State& y) { return y.hi; }
   // A NaN result here comes from a NaN base and needs no recomputation.
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool any_nan(const Packet&) { return false; }
 };
@@ -748,20 +749,19 @@ struct repeated_squaring_ops<Packet, true> {
                 pcmp_lt_or_nan(bound, magnitude));
     return predux_any(out) == false;
   }
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE State base(const Packet& x, bool reciprocal) {
-    State b;
-    R re, im, lift, scale;
-    Components::split(x, re, im);
-    Scaling::input_scale(Components::magnitude(x), lift, scale, b.exponent);
-    power_base(pmul(pmul(re, lift), scale), pmul(pmul(im, lift), scale), reciprocal, b);
-    if (reciprocal) b.exponent = pnegate(b.exponent);
-    return b;
-  }
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE State unscaled_base(const Packet& x, bool reciprocal) {
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE State base(const Packet& x, bool reciprocal, bool scaled) {
     State b;
     R re, im;
     Components::split(x, re, im);
-    power_base(re, im, reciprocal, b);
+    if (!scaled) {
+      power_base(re, im, reciprocal, b);
+      b.exponent = pzero(re);
+      return b;
+    }
+    R lift, scale;
+    Scaling::input_scale(Components::magnitude(x), lift, scale, b.exponent);
+    power_base(pmul(pmul(re, lift), scale), pmul(pmul(im, lift), scale), reciprocal, b);
+    if (reciprocal) b.exponent = pnegate(b.exponent);
     return b;
   }
   // The double words of w or of 1/w = q + e*q with q = conj(w)/|w|^2 and e = 1 - q*w = er - t i. The norm cannot
@@ -818,11 +818,9 @@ struct repeated_squaring_ops<Packet, true> {
     y.im_lo = pmul(y.im_lo, scale);
     y.exponent = padd(y.exponent, e);
   }
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet result(const State& y, const State&, bool) {
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet result(const State& y, const State&, bool, bool scaled) {
+    if (!scaled) return Components::join(y.re_hi, y.im_hi);
     return Components::join(Scaling::scale_result(y.re_hi, y.exponent), Scaling::scale_result(y.im_hi, y.exponent));
-  }
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet unscaled_result(const State& y) {
-    return Components::join(y.re_hi, y.im_hi);
   }
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool any_nan(const Packet& r) { return Components::any_nan(r); }
 };
@@ -903,31 +901,23 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet int_pow_double_word(const Packet& x
   EIGEN_IF_CONSTEXPR (NumTraits<Scalar>::IsComplex)
     b = numext::mini(b > 0 ? b - 1 : 0, (numext::numeric_limits<Real>::max_exponent - 1) / 2);
   typename Ops::Bound bound = pset1frombits<typename Ops::Bound>(RealBits(kBiasBits + RealBits(b)) << kMantissaBits);
-  if (Ops::in_range(x, bound)) {
-    typename Ops::State base = Ops::unscaled_base(x, negative);
-    typename Ops::State y = base;
-    for (AbsExponentType bit = top >> 1; bit != 0; bit >>= 1) {
-      Ops::square(y);
-      if ((m & bit) != 0) Ops::multiply(y, base);
-    }
-    return Ops::unscaled_result(y);
-  }
+  bool scaled = !Ops::in_range(x, bound);
 
-  typename Ops::State base = Ops::base(x, negative);
+  typename Ops::State base = Ops::base(x, negative, scaled);
   typename Ops::State y = base;
-  // With |base| in [1/4, 4) a step at most cubes the magnitude bound, so four steps keep it within 2^(+-62) and
-  // the residuals, u times smaller, normal.
+  // With a scaled |base| in [1/4, 4) a step at most cubes the magnitude bound, so four steps keep it within
+  // 2^(+-62) and the residuals, u times smaller, normal.
   int steps_since_renormalization = 0;
   for (AbsExponentType bit = top >> 1; bit != 0; bit >>= 1) {
     Ops::square(y);
     if ((m & bit) != 0) Ops::multiply(y, base);
-    if (++steps_since_renormalization == 4) {
+    if (scaled && ++steps_since_renormalization == 4) {
       Ops::renormalize(y);
       steps_since_renormalization = 0;
     }
   }
-  Packet r = Ops::result(y, base, odd);
-  if (Ops::any_nan(r)) return pselect(pisnan(r), int_pow_plain(x, exponent), r);
+  Packet r = Ops::result(y, base, odd, scaled);
+  if (scaled && Ops::any_nan(r)) return pselect(pisnan(r), int_pow_plain(x, exponent), r);
   return r;
 }
 
