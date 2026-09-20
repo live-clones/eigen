@@ -702,6 +702,11 @@ struct complex_components {
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet join(const R& re, const R& im) {
     return Packet(pselect(odd_lanes(), im, re));
   }
+  // max(|re|, |im|) in both lanes of each pair.
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE R magnitude(const Packet& z) {
+    R abs_z = pabs(z.v);
+    return pmax(abs_z, flip(abs_z));
+  }
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool any_nan(const Packet& z) { return predux_any(pisnan(z).v); }
 };
 
@@ -713,6 +718,9 @@ struct complex_components<Scalar, true> {
     im = numext::imag(z);
   }
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar join(const R& re, const R& im) { return Scalar(re, im); }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE R magnitude(const Scalar& z) {
+    return numext::maxi(numext::abs(numext::real(z)), numext::abs(numext::imag(z)));
+  }
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool any_nan(const Scalar& z) {
     return (numext::isnan)(numext::real(z)) || (numext::isnan)(numext::imag(z));
   }
@@ -735,9 +743,7 @@ struct repeated_squaring_ops<Packet, true> {
   // Whether every lane's max(|re|, |im|) lies within [1/bound, bound], where the power and its residuals stay
   // normal without scaling.
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool in_range(const Packet& x, const R& bound) {
-    R re, im;
-    Components::split(x, re, im);
-    R magnitude = pmax(pabs(re), pabs(im));
+    R magnitude = Components::magnitude(x);
     R out = por(pcmp_lt(pmul(magnitude, bound), pset1<R>(typename NumTraits<Scalar>::Real(1))),
                 pcmp_lt_or_nan(bound, magnitude));
     return predux_any(out) == false;
@@ -746,7 +752,7 @@ struct repeated_squaring_ops<Packet, true> {
     State b;
     R re, im, lift, scale;
     Components::split(x, re, im);
-    Scaling::input_scale(pmax(pabs(re), pabs(im)), lift, scale, b.exponent);
+    Scaling::input_scale(Components::magnitude(x), lift, scale, b.exponent);
     power_base(pmul(pmul(re, lift), scale), pmul(pmul(im, lift), scale), reciprocal, b);
     if (reciprocal) b.exponent = pnegate(b.exponent);
     return b;
