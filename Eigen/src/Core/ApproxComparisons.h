@@ -66,9 +66,16 @@ EIGEN_DEVICE_FUNC bool operator<=(const comparison_magnitude<RealScalar>& x,
   return x.exponent < y.exponent || (x.exponent == y.exponent && Common(x.fraction) <= Common(y.fraction));
 }
 
+// The scaled path rescales its operands with operator*(Scalar). Dense-shaped expressions stay lazy, so nothing is
+// allocated; another shape may hide that operator (Homogeneous does) and is evaluated first.
+template <typename X>
+using scaled_comparison_operand_t =
+    std::conditional_t<std::is_same<typename evaluator_traits<X>::Shape, DenseShape>::value, const X&,
+                       typename plain_object_eval<X>::type>;
+
 template <typename Derived>
 EIGEN_DEVICE_FUNC comparison_magnitude<typename stable_norm_accumulator<typename Derived::RealScalar>::type>
-scaled_comparison_norm(const Derived& x) {
+scaled_comparison_norm_impl(const Derived& x) {
   using RealScalar = typename stable_norm_accumulator<typename Derived::RealScalar>::type;
   if (x.size() == 0) return comparison_magnitude<RealScalar>(RealScalar(0));
   const auto& matrix = x.matrix();
@@ -86,21 +93,30 @@ scaled_comparison_norm(const Derived& x) {
   return result;
 }
 
+template <typename Derived>
+EIGEN_DEVICE_FUNC comparison_magnitude<typename stable_norm_accumulator<typename Derived::RealScalar>::type>
+scaled_comparison_norm(const Derived& xExpr) {
+  scaled_comparison_operand_t<Derived> x(xExpr);
+  return scaled_comparison_norm_impl(x);
+}
+
 template <typename X, typename Y>
 EIGEN_DEVICE_FUNC comparison_magnitude<typename stable_norm_accumulator<typename X::RealScalar>::type>
-scaled_comparison_distance(const X& x, const Y& y) {
+scaled_comparison_distance(const X& xExpr, const Y& yExpr) {
   using Accumulator = typename stable_norm_accumulator<typename X::RealScalar>::type;
   using WideScalar =
       std::conditional_t<NumTraits<typename X::Scalar>::IsComplex || NumTraits<typename Y::Scalar>::IsComplex,
                          std::complex<Accumulator>, Accumulator>;
+  scaled_comparison_operand_t<X> x(xExpr);
+  scaled_comparison_operand_t<Y> y(yExpr);
   const auto& matrixX = x.matrix();
   const auto& matrixY = y.matrix();
   const auto& wideX = matrixX.template cast<WideScalar>();
   const auto& wideY = matrixY.template cast<WideScalar>();
-  auto difference = scaled_comparison_norm(wideX - wideY);
+  auto difference = scaled_comparison_norm_impl(wideX - wideY);
   if (!difference.isFinite()) {
     // Finite operands can overflow on subtraction; halving first keeps every component representable.
-    difference = scaled_comparison_norm(wideX * Accumulator(0.5) - wideY * Accumulator(0.5));
+    difference = scaled_comparison_norm_impl(wideX * Accumulator(0.5) - wideY * Accumulator(0.5));
     difference.multiply(Accumulator(2));
   }
   return difference;
@@ -194,7 +210,10 @@ struct approx_comparison_impl<Scalar, true> {
  private:
   // Keep exponent scaling from inhibiting inlining of ordinary comparisons.
   template <typename X, typename Y>
-  EIGEN_DEVICE_FUNC static EIGEN_DONT_INLINE bool isApprox_scaled(const X& x, const Y& y, const RealScalar& prec) {
+  EIGEN_DEVICE_FUNC static EIGEN_DONT_INLINE bool isApprox_scaled(const X& xExpr, const Y& yExpr,
+                                                                  const RealScalar& prec) {
+    scaled_comparison_operand_t<X> x(xExpr);
+    scaled_comparison_operand_t<Y> y(yExpr);
     const auto nx = scaled_comparison_norm(x);
     const auto ny = scaled_comparison_norm(y);
     if (!nx.isFinite() || !ny.isFinite()) return false;
