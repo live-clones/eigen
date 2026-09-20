@@ -736,8 +736,8 @@ struct repeated_squaring_ops<Packet, true> {
     twosum(a_hi, a_lo, c_hi, c_lo, t_hi, t_lo);
     R er = psub(psub(pset1<R>(typename NumTraits<Scalar>::Real(1)), s_hi), s_lo);
     R ei = pnegate(padd(t_hi, t_lo));
-    fast_twosum(qr, psub(pmul(er, qr), pmul(ei, qi)), b.re_hi, b.re_lo);
-    fast_twosum(qi, padd(pmul(er, qi), pmul(ei, qr)), b.im_hi, b.im_lo);
+    fast_twosum(qr, pmsub(er, qr, pmul(ei, qi)), b.re_hi, b.re_lo);
+    fast_twosum(qi, pmadd(er, qi, pmul(ei, qr)), b.im_hi, b.im_lo);
     b.exponent = pnegate(b.exponent);
     return b;
   }
