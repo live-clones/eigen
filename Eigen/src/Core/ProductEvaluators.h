@@ -1844,6 +1844,30 @@ struct permutation_matrix_product<ExpressionType, Side, Transposed, DenseShape> 
   }
 };
 
+/** \internal
+ * Permutation products with a triangular or self-adjoint operand: the operand is evaluated into a plain dense
+ * matrix (its implicit unit diagonal, zeros and mirrored half included) and the dense kernel permutes that into
+ * dst. The result is dense; the permuted structure is not tracked.
+ */
+template <typename ExpressionType, int Side, bool Transposed>
+struct permutation_densified_matrix_product {
+  using DenseType = typename ExpressionType::DenseMatrixType;
+
+  template <typename Dest, typename PermutationType>
+  static EIGEN_DEVICE_FUNC void run(Dest& dst, const PermutationType& perm, const ExpressionType& xpr) {
+    const DenseType dense(xpr);
+    permutation_matrix_product<DenseType, Side, Transposed, DenseShape>::run(dst, perm, dense);
+  }
+};
+
+template <typename ExpressionType, int Side, bool Transposed>
+struct permutation_matrix_product<ExpressionType, Side, Transposed, TriangularShape>
+    : permutation_densified_matrix_product<ExpressionType, Side, Transposed> {};
+
+template <typename ExpressionType, int Side, bool Transposed>
+struct permutation_matrix_product<ExpressionType, Side, Transposed, SelfAdjointShape>
+    : permutation_densified_matrix_product<ExpressionType, Side, Transposed> {};
+
 template <typename Lhs, typename Rhs, int ProductTag, typename MatrixShape>
 struct generic_product_impl<Lhs, Rhs, PermutationShape, MatrixShape, ProductTag> {
   template <typename Dest>
