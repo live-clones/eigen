@@ -152,12 +152,6 @@ struct unpacket_traits : default_unpacket_traits {
 template <typename T>
 struct unpacket_traits<const T> : unpacket_traits<T> {};
 
-// Opt in only for interleaved complex packets with real-packet reinterpretation,
-// unaligned loads/stores and broadcasts. ploaddup<as_real> must read exactly half
-// a real packet and duplicate each input into its real/imaginary lanes.
-template <typename Packet>
-struct packet_supports_mixed_complex_product : std::false_type {};
-
 /** \internal A convenience utility for determining if the type is a scalar.
  * This is used to enable some generic packet implementations.
  */

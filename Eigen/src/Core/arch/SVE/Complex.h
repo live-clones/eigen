@@ -115,9 +115,6 @@ struct unpacket_traits<PacketXcf> {
 };
 
 template <>
-struct packet_supports_mixed_complex_product<PacketXcf> : std::true_type {};
-
-template <>
 struct unpacket_traits<PacketXcd> {
   typedef std::complex<double> type;
   typedef PacketXcd half;
@@ -130,9 +127,6 @@ struct unpacket_traits<PacketXcd> {
     masked_store_available = false
   };
 };
-
-template <>
-struct packet_supports_mixed_complex_product<PacketXcd> : std::true_type {};
 
 /********************************* complex<float> *****************************/
 

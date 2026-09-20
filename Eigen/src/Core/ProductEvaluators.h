@@ -53,20 +53,15 @@ template <typename Lhs>
 struct product_can_fold_scalar<Lhs, TriangularShape> : bool_constant<(Lhs::Mode & UnitDiag) == 0> {};
 
 template <typename Xpr, bool Fold = product_can_fold_scalar<typename Xpr::Rhs::Lhs>::value>
-struct scaled_product_evaluator : binary_evaluator<Xpr> {
-  using Base = binary_evaluator<Xpr>;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit scaled_product_evaluator(const Xpr& xpr) : Base(xpr) {}
+struct scaled_product_evaluator_type {
+  using type = binary_evaluator<Xpr>;
 };
 
 template <typename Xpr>
-struct scaled_product_evaluator<Xpr, true>
-    : evaluator<remove_all_t<decltype((std::declval<Xpr>().lhs().functor().m_other * std::declval<Xpr>().rhs().lhs()) *
-                                      std::declval<Xpr>().rhs().rhs())>> {
-  using Base =
+struct scaled_product_evaluator_type<Xpr, true> {
+  using type =
       evaluator<remove_all_t<decltype((std::declval<Xpr>().lhs().functor().m_other * std::declval<Xpr>().rhs().lhs()) *
                                       std::declval<Xpr>().rhs().rhs())>>;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit scaled_product_evaluator(const Xpr& xpr)
-      : Base((xpr.lhs().functor().m_other * xpr.rhs().lhs()) * xpr.rhs().rhs()) {}
 };
 
 // Catch "scalar * ( A * B )" and transform it to "(scalar*A) * B"
@@ -79,14 +74,19 @@ template <typename Lhs, typename Rhs, typename Scalar1, typename Scalar2, typena
 struct evaluator<CwiseBinaryOp<internal::scalar_product_op<Scalar1, Scalar2>,
                                const CwiseNullaryOp<internal::scalar_constant_op<Scalar1>, Plain1>,
                                const Product<Lhs, Rhs, DefaultProduct>>>
-    : scaled_product_evaluator<CwiseBinaryOp<internal::scalar_product_op<Scalar1, Scalar2>,
-                                             const CwiseNullaryOp<internal::scalar_constant_op<Scalar1>, Plain1>,
-                                             const Product<Lhs, Rhs, DefaultProduct>>> {
+    : scaled_product_evaluator_type<CwiseBinaryOp<internal::scalar_product_op<Scalar1, Scalar2>,
+                                                  const CwiseNullaryOp<internal::scalar_constant_op<Scalar1>, Plain1>,
+                                                  const Product<Lhs, Rhs, DefaultProduct>>>::type {
   using XprType = CwiseBinaryOp<internal::scalar_product_op<Scalar1, Scalar2>,
                                 const CwiseNullaryOp<internal::scalar_constant_op<Scalar1>, Plain1>,
                                 const Product<Lhs, Rhs, DefaultProduct>>;
-  using Base = scaled_product_evaluator<XprType>;
+  using Base = typename scaled_product_evaluator_type<XprType>::type;
 
+  template <bool Fold = product_can_fold_scalar<Lhs>::value, std::enable_if_t<Fold, int> = 0>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit evaluator(const XprType& xpr)
+      : Base(xpr.lhs().functor().m_other * xpr.rhs().lhs() * xpr.rhs().rhs()) {}
+
+  template <bool Fold = product_can_fold_scalar<Lhs>::value, std::enable_if_t<!Fold, int> = 0>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit evaluator(const XprType& xpr) : Base(xpr) {}
 };
 
@@ -313,16 +313,12 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool outer_product_use_small_assignment(co
 template <typename Dst, typename Lhs, typename Rhs, typename Func, typename Scalar>
 void EIGEN_DEVICE_FUNC outer_product_selector_run_small(Dst& dst, const Lhs& lhs, const Rhs& rhs, const Func& func,
                                                         const Scalar& alpha, const std::false_type&) {
-  EIGEN_IF_CONSTEXPR ((!std::is_same<typename Lhs::Scalar, typename Dst::Scalar>::value)) {
-    call_assignment_no_alias(dst, alpha * lhs.lazyProduct(rhs), func);
-    return;
-  }
   evaluator<Rhs> rhsEval(rhs);
   ei_declare_local_nested_eval(Lhs, lhs, Rhs::SizeAtCompileTime, actual_lhs);
   const Index rows = dst.rows();
   const Index cols = dst.cols();
   for (Index j = 0; j < cols; ++j) {
-    const auto rhs_j = rhsEval.coeff(Index(0), j);
+    const Scalar rhs_j = rhsEval.coeff(Index(0), j);
     for (Index i = 0; i < rows; ++i) {
       func.assignCoeff(dst.coeffRef(i, j), alpha * (rhs_j * actual_lhs.coeff(i, Index(0))));
     }
@@ -332,152 +328,23 @@ void EIGEN_DEVICE_FUNC outer_product_selector_run_small(Dst& dst, const Lhs& lhs
 template <typename Dst, typename Lhs, typename Rhs, typename Func, typename Scalar>
 void EIGEN_DEVICE_FUNC outer_product_selector_run_small(Dst& dst, const Lhs& lhs, const Rhs& rhs, const Func& func,
                                                         const Scalar& alpha, const std::true_type&) {
-  EIGEN_IF_CONSTEXPR ((!std::is_same<typename Rhs::Scalar, typename Dst::Scalar>::value)) {
-    call_assignment_no_alias(dst, alpha * lhs.lazyProduct(rhs), func);
-    return;
-  }
   evaluator<Lhs> lhsEval(lhs);
   ei_declare_local_nested_eval(Rhs, rhs, Lhs::SizeAtCompileTime, actual_rhs);
   const Index rows = dst.rows();
   const Index cols = dst.cols();
   for (Index i = 0; i < rows; ++i) {
-    const auto lhs_i = lhsEval.coeff(i, Index(0));
+    const Scalar lhs_i = lhsEval.coeff(i, Index(0));
     for (Index j = 0; j < cols; ++j) {
       func.assignCoeff(dst.coeffRef(i, j), alpha * (lhs_i * actual_rhs.coeff(Index(0), j)));
     }
   }
 }
 
-template <typename Dst, typename Lhs, typename Rhs, typename = void>
-struct mixed_outer_product_packet_traits : std::false_type {};
-
-template <typename Dst, typename Lhs, typename Rhs>
-struct mixed_outer_product_packet_traits<Dst, Lhs, Rhs,
-                                         void_t<std::enable_if_t<packet_supports_mixed_complex_product<
-                                             typename packet_traits<typename Dst::Scalar>::type>::value>>> {
-  using Scalar = typename Dst::Scalar;
-  using Real = typename NumTraits<Scalar>::Real;
-  using Packet = typename packet_traits<Scalar>::type;
-  using RealPacket = typename unpacket_traits<Packet>::as_real;
-  using Inner = std::conditional_t<bool(Dst::Flags& RowMajorBit), Rhs, Lhs>;
-  // Duplicating real inputs into narrow complex packets can cost more than the scalar loop.
-  static constexpr bool value =
-      EIGEN_UNALIGNED_VECTORIZE && std::is_floating_point<Real>::value &&
-      std::is_same<Scalar, std::complex<Real>>::value &&
-      ((std::is_same<typename Lhs::Scalar, Scalar>::value && std::is_same<typename Rhs::Scalar, Real>::value) ||
-       (std::is_same<typename Rhs::Scalar, Scalar>::value && std::is_same<typename Lhs::Scalar, Real>::value)) &&
-      packet_traits<Scalar>::Vectorizable && packet_traits<Real>::HasMul &&
-      std::is_same<RealPacket, typename packet_traits<Real>::type>::value &&
-      unpacket_traits<RealPacket>::size == 2 * unpacket_traits<Packet>::size &&
-      (std::is_same<typename Inner::Scalar, Scalar>::value || unpacket_traits<Packet>::size >= 4) &&
-      (Dst::Flags & DirectAccessBit) && (Inner::Flags & DirectAccessBit) && Dst::InnerStrideAtCompileTime == 1 &&
-      Inner::InnerStrideAtCompileTime == 1;
-};
-
-template <typename Packet, typename Real>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename unpacket_traits<Packet>::as_real mixed_outer_product_broadcast(
-    const std::complex<Real>& factor) {
-  using RealPacket = typename unpacket_traits<Packet>::as_real;
-  return preinterpret<RealPacket>(pset1<Packet>(factor));
-}
-
-template <typename Packet, typename Real, std::enable_if_t<std::is_floating_point<Real>::value, int> = 0>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename unpacket_traits<Packet>::as_real mixed_outer_product_broadcast(
-    const Real& factor) {
-  using RealPacket = typename unpacket_traits<Packet>::as_real;
-  return pset1<RealPacket>(factor);
-}
-
-template <typename Packet, typename Real, std::enable_if_t<std::is_floating_point<Real>::value, int> = 0>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet
-mixed_outer_product_packet(const typename unpacket_traits<Packet>::as_real& factor, const Real* input) {
-  using RealPacket = typename unpacket_traits<Packet>::as_real;
-  return preinterpret<Packet>(pmul(factor, ploaddup<RealPacket>(input)));
-}
-
-template <typename Packet, typename Real>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet
-mixed_outer_product_packet(const typename unpacket_traits<Packet>::as_real& factor, const std::complex<Real>* input) {
-  using RealPacket = typename unpacket_traits<Packet>::as_real;
-  return preinterpret<Packet>(pmul(factor, preinterpret<RealPacket>(ploadu<Packet>(input))));
-}
-
-template <bool Enabled>
-struct mixed_outer_product_packet_selector {
-  template <typename Dst, typename Lhs, typename Rhs, typename Func>
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Dst&, const Lhs&, const Rhs&, const Func&) {}
-};
-
-template <>
-struct mixed_outer_product_packet_selector<true> {
-  template <typename Dst, typename Outer, typename Inner, typename Func>
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void assign(Dst& dst, const Outer& outer, const Inner& inner,
-                                                           const Func& func) {
-    using Scalar = typename Dst::Scalar;
-    using Packet = typename packet_traits<Scalar>::type;
-    constexpr int PacketSize = unpacket_traits<Packet>::size;
-    const Index innerSize = dst.innerSize();
-    const Index outerSize = dst.outerSize();
-    const Index outerStride = dst.outerStride();
-    if (innerSize <= 0 || outerSize <= 0) return;
-    const Index packetEnd = innerSize - innerSize % PacketSize;
-    const Index unrolledEnd = innerSize - innerSize % (4 * PacketSize);
-    const auto* input = inner.data();
-    Scalar* const outputBase = dst.data();
-    const evaluator<Outer> outerEvaluator(outer);
-    for (Index i = 0; i < outerSize; ++i) {
-      Scalar* output = outputBase + i * outerStride;
-      // A complex copy can turn the broadcast into two stores followed by a wider reload.
-      const typename Outer::Scalar& factor = outerEvaluator.coeff(i);
-      if (packetEnd != 0) {
-        const auto factorPacket = mixed_outer_product_broadcast<Packet>(factor);
-        for (Index j = 0; j < unrolledEnd; j += 4 * PacketSize) {
-          func.template assignPacket<Unaligned>(output + j,
-                                                mixed_outer_product_packet<Packet>(factorPacket, input + j));
-          func.template assignPacket<Unaligned>(
-              output + j + PacketSize, mixed_outer_product_packet<Packet>(factorPacket, input + j + PacketSize));
-          func.template assignPacket<Unaligned>(
-              output + j + 2 * PacketSize,
-              mixed_outer_product_packet<Packet>(factorPacket, input + j + 2 * PacketSize));
-          func.template assignPacket<Unaligned>(
-              output + j + 3 * PacketSize,
-              mixed_outer_product_packet<Packet>(factorPacket, input + j + 3 * PacketSize));
-        }
-        for (Index j = unrolledEnd; j < packetEnd; j += PacketSize) {
-          func.template assignPacket<Unaligned>(output + j,
-                                                mixed_outer_product_packet<Packet>(factorPacket, input + j));
-        }
-      }
-      // Keep the remainder bound independent of the packet-loop induction variables.
-      for (Index j = packetEnd; j < innerSize; ++j) func.assignCoeff(output[j], factor * input[j]);
-    }
-  }
-
-  template <typename Dst, typename Lhs, typename Rhs, typename Func>
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_order(Dst& dst, const Lhs& lhs, const Rhs& rhs,
-                                                              const Func& func, const std::true_type&) {
-    assign(dst, lhs, rhs, func);
-  }
-
-  template <typename Dst, typename Lhs, typename Rhs, typename Func>
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_order(Dst& dst, const Lhs& lhs, const Rhs& rhs,
-                                                              const Func& func, const std::false_type&) {
-    assign(dst, rhs, lhs, func);
-  }
-
-  template <typename Dst, typename Lhs, typename Rhs, typename Func>
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Dst& dst, const Lhs& lhs, const Rhs& rhs, const Func& func) {
-    run_order(dst, lhs, rhs, func, bool_constant<bool(Dst::Flags & RowMajorBit)>());
-  }
-};
 template <typename Lhs, typename Rhs>
 struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, OuterProduct> {
   template <typename T>
   struct is_row_major : bool_constant<(int(T::Flags) & RowMajorBit)> {};
   using Scalar = typename Product<Lhs, Rhs>::Scalar;
-  using RealScalar = typename NumTraits<Scalar>::Real;
-  // A real unit factor avoids the 0*inf terms introduced by complex(1).
-  using UnitScalar = std::conditional_t<std::is_same<Scalar, std::complex<RealScalar>>::value, RealScalar, Scalar>;
 
   // TODO: it would be nice to be able to exploit our *_assign_op functors for that purpose
   struct set {
@@ -513,17 +380,9 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, OuterProduct> {
 
   template <typename Dst>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void evalTo(Dst& dst, const Lhs& lhs, const Rhs& rhs) {
-    using AssignmentFunc = internal::assign_op<typename Dst::Scalar, Scalar>;
-    constexpr bool UsePackets =
-        mixed_outer_product_packet_traits<Dst, Lhs, Rhs>::value && functor_traits<AssignmentFunc>::PacketAccess;
-    constexpr int PacketSize = unpacket_traits<typename packet_traits<typename Dst::Scalar>::type>::size;
-    if (UsePackets && dst.innerSize() >= 2 * PacketSize) {
-      mixed_outer_product_packet_selector<UsePackets>::run(dst, lhs, rhs, AssignmentFunc());
-      return;
-    }
     if (internal::outer_product_use_small_assignment(dst)) {
       internal::outer_product_selector_run_small(dst, lhs, rhs, internal::assign_op<typename Dst::Scalar, Scalar>(),
-                                                 UnitScalar(1), is_row_major<Dst>());
+                                                 Scalar(1), is_row_major<Dst>());
     } else {
       internal::outer_product_selector_run(dst, lhs, rhs, set(), is_row_major<Dst>());
     }
@@ -531,17 +390,9 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, OuterProduct> {
 
   template <typename Dst>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void addTo(Dst& dst, const Lhs& lhs, const Rhs& rhs) {
-    using AssignmentFunc = internal::add_assign_op<typename Dst::Scalar, Scalar>;
-    constexpr bool UsePackets =
-        mixed_outer_product_packet_traits<Dst, Lhs, Rhs>::value && functor_traits<AssignmentFunc>::PacketAccess;
-    constexpr int PacketSize = unpacket_traits<typename packet_traits<typename Dst::Scalar>::type>::size;
-    if (UsePackets && dst.innerSize() >= 2 * PacketSize) {
-      mixed_outer_product_packet_selector<UsePackets>::run(dst, lhs, rhs, AssignmentFunc());
-      return;
-    }
     if (internal::outer_product_use_small_assignment(dst)) {
       internal::outer_product_selector_run_small(dst, lhs, rhs, internal::add_assign_op<typename Dst::Scalar, Scalar>(),
-                                                 UnitScalar(1), is_row_major<Dst>());
+                                                 Scalar(1), is_row_major<Dst>());
     } else {
       internal::outer_product_selector_run(dst, lhs, rhs, add(), is_row_major<Dst>());
     }
@@ -549,17 +400,9 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, OuterProduct> {
 
   template <typename Dst>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void subTo(Dst& dst, const Lhs& lhs, const Rhs& rhs) {
-    using AssignmentFunc = internal::sub_assign_op<typename Dst::Scalar, Scalar>;
-    constexpr bool UsePackets =
-        mixed_outer_product_packet_traits<Dst, Lhs, Rhs>::value && functor_traits<AssignmentFunc>::PacketAccess;
-    constexpr int PacketSize = unpacket_traits<typename packet_traits<typename Dst::Scalar>::type>::size;
-    if (UsePackets && dst.innerSize() >= 2 * PacketSize) {
-      mixed_outer_product_packet_selector<UsePackets>::run(dst, lhs, rhs, AssignmentFunc());
-      return;
-    }
     if (internal::outer_product_use_small_assignment(dst)) {
       internal::outer_product_selector_run_small(dst, lhs, rhs, internal::sub_assign_op<typename Dst::Scalar, Scalar>(),
-                                                 UnitScalar(1), is_row_major<Dst>());
+                                                 Scalar(1), is_row_major<Dst>());
     } else {
       internal::outer_product_selector_run(dst, lhs, rhs, sub(), is_row_major<Dst>());
     }
@@ -1002,11 +845,6 @@ struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape,
                                             (int(InnerSize) % packet_traits<Scalar>::size == 0);
 
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const CoeffReturnType coeff(Index row, Index col) const {
-    // An outer product needs no one-element blocks or reduction.
-    EIGEN_IF_CONSTEXPR (InnerSize == 1) {
-      return fast_mult_op<LhsScalar, RhsScalar>()(LhsEtorType(m_lhs).coeff(row, Index(0)),
-                                                  RhsEtorType(m_rhs).coeff(Index(0), col));
-    }
     // fast_mult_op is cwiseProduct's scalar_product_op with a pmul-based scalar path, so the
     // reduction (and its precision) is unchanged but complex scalars avoid std::complex::operator*
     // (the slow libgcc __mul?c3). See fast_mult_op.
@@ -1020,7 +858,7 @@ struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape,
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const CoeffReturnType coeff(Index index) const {
     const Index row = (RowsAtCompileTime == 1 || MaxRowsAtCompileTime == 1) ? 0 : index;
     const Index col = (RowsAtCompileTime == 1 || MaxRowsAtCompileTime == 1) ? index : 0;
-    return coeff(row, col);
+    return m_lhs.row(row).transpose().binaryExpr(m_rhs.col(col), fast_mult_op<LhsScalar, RhsScalar>()).sum();
   }
 
   template <int LoadMode, typename PacketType>
@@ -1872,15 +1710,16 @@ struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DiagonalSha
 
 // Dense SelfAdjointView statically rejects the Upper|Lower mode (only one half is stored), so the
 // off-stored coefficient is always reconstructed by conjugating its mirror.
-template <int Mode, int ProductOrder, typename MatrixType, typename DiagonalType, typename Derived,
-          bool HasScalarFactor = blas_traits<MatrixType>::HasScalarFactor>
+template <int Mode, int ProductOrder, typename MatrixType, typename DiagonalType, typename Derived>
 struct selfadjoint_diagonal_product_lazy_evaluator_base : evaluator_base<Derived> {
   using Scalar = typename ScalarBinaryOpTraits<typename MatrixType::Scalar, typename DiagonalType::Scalar>::ReturnType;
 
-  static constexpr int CoeffReadCost = int(NumTraits<Scalar>::MulCost) + int(evaluator<MatrixType>::CoeffReadCost) +
-                                       int(evaluator<DiagonalType>::CoeffReadCost);
-  static constexpr unsigned int Flags = HereditaryBits & static_cast<unsigned int>(evaluator<MatrixType>::Flags);
-  static constexpr int Alignment = 0;
+  enum {
+    CoeffReadCost = int(NumTraits<Scalar>::MulCost) + int(evaluator<MatrixType>::CoeffReadCost) +
+                    int(evaluator<DiagonalType>::CoeffReadCost),
+    Flags = HereditaryBits & static_cast<unsigned int>(evaluator<MatrixType>::Flags),
+    Alignment = 0
+  };
 
   EIGEN_DEVICE_FUNC selfadjoint_diagonal_product_lazy_evaluator_base(const MatrixType& mat, const DiagonalType& diag)
       : m_diagImpl(diag), m_matImpl(mat) {}
@@ -1896,34 +1735,6 @@ struct selfadjoint_diagonal_product_lazy_evaluator_base : evaluator_base<Derived
  protected:
   evaluator<DiagonalType> m_diagImpl;
   evaluator<MatrixType> m_matImpl;
-};
-
-template <int Mode, int ProductOrder, typename MatrixType, typename DiagonalType, typename Derived>
-struct selfadjoint_diagonal_product_lazy_evaluator_base<Mode, ProductOrder, MatrixType, DiagonalType, Derived, true>
-    : selfadjoint_diagonal_product_lazy_evaluator_base<
-          Mode, ProductOrder,
-          remove_all_t<decltype(blas_traits<MatrixType>::extract(std::declval<const MatrixType&>())
-                                    .template conjugateIf<bool(blas_traits<MatrixType>::NeedToConjugate)>())>,
-          DiagonalType, Derived, false> {
-  using BlasTraits = blas_traits<MatrixType>;
-  using ActualMatrixType = remove_all_t<decltype(BlasTraits::extract(std::declval<const MatrixType&>())
-                                                     .template conjugateIf<bool(BlasTraits::NeedToConjugate)>())>;
-  using Base = selfadjoint_diagonal_product_lazy_evaluator_base<Mode, ProductOrder, ActualMatrixType, DiagonalType,
-                                                                Derived, false>;
-  using Scalar = typename Base::Scalar;
-  static constexpr int CoeffReadCost = int(NumTraits<Scalar>::MulCost) + Base::CoeffReadCost;
-
-  EIGEN_DEVICE_FUNC selfadjoint_diagonal_product_lazy_evaluator_base(const MatrixType& mat, const DiagonalType& diag)
-      : Base(BlasTraits::extract(mat).template conjugateIf<bool(BlasTraits::NeedToConjugate)>(), diag),
-        m_factor(BlasTraits::extractScalarFactor(mat)) {}
-
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar coeff(Index row, Index col) const {
-    // The factor scales both triangles; conjugating it with the mirror changes the product.
-    return m_factor * Base::coeff(row, col);
-  }
-
- protected:
-  typename MatrixType::Scalar m_factor;
 };
 
 // SelfAdjoint × Diagonal

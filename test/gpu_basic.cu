@@ -48,19 +48,29 @@ struct coeff_wise {
 };
 
 template <int Order>
-struct mixed_outer_product {
-  EIGEN_DEVICE_FUNC void operator()(int i, const std::complex<float>* in, std::complex<float>* out) const {
-    using Mat = Eigen::Matrix<std::complex<float>, 4, 4, Order>;
-    const Eigen::Map<const Eigen::Vector4cf> complex(in + i);
-    const Eigen::Vector4f real = complex.real();
-    Eigen::Map<Mat> result(out + i * 16);
-    if (Order == Eigen::RowMajor) {
-      result.noalias() = complex * real.transpose();
-      result += complex.lazyProduct(real.transpose());
-    } else {
-      result.noalias() = real * complex.transpose();
-      result += real.lazyProduct(complex.transpose());
-    }
+struct scaled_structured_product {
+  EIGEN_DEVICE_FUNC void operator()(int i, const float* in, float* out) const {
+    using Mat = Eigen::Matrix<float, 3, 3, Order>;
+    const Eigen::Map<const Mat> matrix(in + i);
+    Eigen::Map<Mat> result(out + i * 9);
+    result.noalias() = 3.0f * (matrix.template triangularView<Eigen::UnitLower>() * matrix.diagonal().asDiagonal());
+    result += 2.0f * (matrix.diagonal().asDiagonal() * matrix) + Mat::Zero();
+  }
+};
+
+template <int Order>
+struct scaled_outer_product {
+  EIGEN_DEVICE_FUNC void operator()(int i, const float* in, float* out) const {
+    // More than 16 rows select the scaled outer-product functor.
+    using Lhs = Eigen::Matrix<float, 17, 1>;
+    using Rhs = Eigen::RowVector3f;
+    using ProductImpl =
+        Eigen::internal::generic_product_impl<Lhs, Rhs, Eigen::DenseShape, Eigen::DenseShape, Eigen::OuterProduct>;
+    const Lhs lhs(in + i);
+    const Rhs rhs(in + i + 17);
+    Eigen::Map<Eigen::Matrix<float, 17, 3, Order>> result(out + i * 51);
+    result.setZero();
+    ProductImpl::scaleAndAddTo(result, lhs, rhs, 2.0f);
   }
 };
 
@@ -696,8 +706,10 @@ EIGEN_DECLARE_TEST(gpu_basic) {
 
   CALL_SUBTEST(run_and_compare_to_gpu(prod_test<Matrix3f, Matrix3f>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(prod_test<Matrix4f, Vector4f>(), nthreads, in, out));
-  CALL_SUBTEST(run_and_compare_to_gpu(mixed_outer_product<RowMajor>(), nthreads, cfin, cfout));
-  CALL_SUBTEST(run_and_compare_to_gpu(mixed_outer_product<ColMajor>(), nthreads, cfin, cfout));
+  CALL_SUBTEST(run_and_compare_to_gpu(scaled_structured_product<RowMajor>(), nthreads, in, out));
+  CALL_SUBTEST(run_and_compare_to_gpu(scaled_structured_product<ColMajor>(), nthreads, in, out));
+  CALL_SUBTEST(run_and_compare_to_gpu(scaled_outer_product<RowMajor>(), nthreads, in, out));
+  CALL_SUBTEST(run_and_compare_to_gpu(scaled_outer_product<ColMajor>(), nthreads, in, out));
 
   CALL_SUBTEST(run_and_compare_to_gpu(diagonal<Matrix3f, Vector3f>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(diagonal<Matrix4f, Vector4f>(), nthreads, in, out));
