@@ -541,6 +541,8 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
   // Factor-kind dispatch (dense, diagonal or sparse), see kron_factor_ops.
   using LhsOps = internal::kron_factor_ops<LhsMatrix>;
   using RhsOps = internal::kron_factor_ops<RhsMatrix>;
+  static constexpr bool kHasSparseFactor = internal::kron_factor_is_sparse_matrix<LhsMatrix>::value ||
+                                           internal::kron_factor_is_sparse_matrix<RhsMatrix>::value;
 
  public:
   static constexpr int RowsAtCompileTime =
@@ -902,8 +904,10 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
    * sparse one) meets every stored entry of \c B, so \a dst holds exactly the
    * products of the stored entries, explicit zeros included (\c prune() drops
    * them). Each inner vector is reserved to its exact final size, the product of
-   * the factors' inner-vector counts, and column-major factors deliver the
-   * entries of a column-major destination in sorted order. */
+   * the factors' inner-vector counts, and receives its entries in increasing
+   * inner index for every mix of storage orders: with the loop over \c A
+   * outermost, the visits to a fixed column <tt>(jA, jB)</tt> are lexicographic
+   * in <tt>(iA, iB)</tt>, and those to a fixed row in <tt>(jA, jB)</tt>. */
   template <typename Dest>
   void evalToImpl(Dest& S, std::true_type) const {
     const Index m2 = m_B.rows(), n2 = m_B.cols();
@@ -971,7 +975,7 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
    * no overflow risk, so results of moderate magnitude are bit-identical to the
    * unscaled evaluation. Non-finite data is never scaled (the bounds cannot see
    * past an Inf/NaN, and 0 * Inf would manufacture NaNs); the unscaled GEMMs
-   * propagate it entrywise exactly like a dense product. With structural zeros,
+   * propagate it entrywise exactly like a dense product. With a sparse factor,
    * non-finite inputs instead use the stored-entry product to preserve the
    * distinction between absent entries and stored zeros. */
   template <typename Dest, typename Rhs, typename ProductScalar>
@@ -1017,8 +1021,10 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
         xc = (xc * down1) * down2;
       }
       // For a diagonal factor its side degenerates to a diagonal scaling
-      // (transposedOperand: a diagonal matrix is its own transpose).
-      if (EIGEN_PREDICT_FALSE(!finite && (!LhsOps::StoresAllEntries || !RhsOps::StoresAllEntries)))
+      // (transposedOperand: a diagonal matrix is its own transpose), a single
+      // stored term per entry: only a sparse factor can leave an exact 0 in B X
+      // (an empty row) for an Inf/NaN of A to meet.
+      if (EIGEN_PREDICT_FALSE(!finite && kHasSparseFactor))
         productNonFinite(Y, xc);
       else
         Y.noalias() = m_B * xc.reshaped(n2, n1) * LhsOps::transposedOperand(m_A);

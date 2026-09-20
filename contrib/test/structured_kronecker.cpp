@@ -1209,13 +1209,15 @@ void test_kron_sparse_materialize(Index m1, Index n1, Index m2, Index n2) {
   VERIFY_IS_EQUAL(Mdense.nonZeros(), B.size() * B.size());
   VERIFY_IS_APPROX(Mat(Mdense), reference_kron<Scalar>(B, B));
 
-  // Row-major sparse factors deliver their entries out of column order; the
-  // per-inner-vector reservation absorbs the unsorted insertions.
+  // Row-major sparse factors visit the destination columns out of order, each
+  // column still in increasing row index: every insertion is an append into
+  // the per-inner-vector reservation.
   const RowSparse R1(S1), R2(S2);
   KroneckerOperator<RowSparse, RowSparse> KRM(R1, R2);
   Sparse Mrm;
   Mrm = KRM;
   VERIFY(Mrm.isCompressed());
+  VERIFY(Mrm.innerIndicesAreSorted());
   VERIFY_IS_EQUAL(Mrm.nonZeros(), S1.nonZeros() * S2.nonZeros());
   VERIFY_IS_APPROX(Mat(Mrm), refS);
 
@@ -1780,6 +1782,14 @@ void test_kron_sparse_nonfinite() {
     const DiagonalMatrix<Scalar, 2> diagonal(nonfinite.diagonal());
     check_kron_sparse_nonfinite<Scalar>(makeKroneckerOperator(diagonal, pattern));
     check_kron_sparse_nonfinite<Scalar>(makeKroneckerOperator(pattern, diagonal));
+    // Without a sparse factor the product stays on the GEMM path, which must
+    // agree with the materialization as well. Real scalars only: the scalar
+    // reference does not fix the Inf/NaN components of a complex packet product.
+    if (!NumTraits<Scalar>::IsComplex) {
+      check_kron_sparse_nonfinite<Scalar>(makeKroneckerOperator(diagonal, nonfinite));
+      check_kron_sparse_nonfinite<Scalar>(makeKroneckerOperator(nonfinite, diagonal));
+      check_kron_sparse_nonfinite<Scalar>(makeKroneckerOperator(diagonal, diagonal));
+    }
   }
 }
 
