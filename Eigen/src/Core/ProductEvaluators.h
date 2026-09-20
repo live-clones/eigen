@@ -1841,6 +1841,74 @@ struct generic_product_impl<Lhs, Inverse<Rhs>, MatrixShape, PermutationShape, Pr
   }
 };
 
+/** \internal
+ * dst += alpha * Q * D (Side == OnTheLeft) or dst += alpha * D * Q (Side == OnTheRight), where Q is the
+ * permutation P itself (Transposed == false) or its inverse. P has its ones at (indices(k), k), hence P^-1
+ * at (k, indices(k)); Q * D scales the one in column c by d(c) and D * Q the one in row r by d(r).
+ * Unlike a permutation, the result has no structured representation, so it is always dense.
+ */
+template <int Side, bool Transposed>
+struct permutation_diagonal_product {
+  template <typename Dest, typename PermutationType, typename DiagonalType, typename Scalar>
+  static EIGEN_DEVICE_FUNC void run(Dest& dst, const PermutationType& perm, const DiagonalType& diag,
+                                    const Scalar& alpha) {
+    const Index n = perm.size();
+    eigen_assert(diag.rows() == n && dst.rows() == n && dst.cols() == n);
+    for (Index k = 0; k < n; ++k) {
+      const Index p = perm.indices().coeff(k);
+      const Index row = Transposed ? k : p;
+      const Index col = Transposed ? p : k;
+      dst.coeffRef(row, col) += alpha * diag.diagonal().coeff(Side == OnTheLeft ? col : row);
+    }
+  }
+};
+
+template <typename Lhs, typename Rhs, int ProductTag>
+struct generic_product_impl<Lhs, Rhs, PermutationShape, DiagonalShape, ProductTag>
+    : generic_product_impl_base<Lhs, Rhs, generic_product_impl<Lhs, Rhs, PermutationShape, DiagonalShape, ProductTag>> {
+  using Scalar = typename Product<Lhs, Rhs>::Scalar;
+
+  template <typename Dest>
+  static EIGEN_DEVICE_FUNC void scaleAndAddTo(Dest& dst, const Lhs& lhs, const Rhs& rhs, const Scalar& alpha) {
+    permutation_diagonal_product<OnTheLeft, false>::run(dst, lhs, rhs, alpha);
+  }
+};
+
+template <typename Lhs, typename Rhs, int ProductTag>
+struct generic_product_impl<Inverse<Lhs>, Rhs, PermutationShape, DiagonalShape, ProductTag>
+    : generic_product_impl_base<Inverse<Lhs>, Rhs,
+                                generic_product_impl<Inverse<Lhs>, Rhs, PermutationShape, DiagonalShape, ProductTag>> {
+  using Scalar = typename Product<Inverse<Lhs>, Rhs>::Scalar;
+
+  template <typename Dest>
+  static EIGEN_DEVICE_FUNC void scaleAndAddTo(Dest& dst, const Inverse<Lhs>& lhs, const Rhs& rhs, const Scalar& alpha) {
+    permutation_diagonal_product<OnTheLeft, true>::run(dst, lhs.nestedExpression(), rhs, alpha);
+  }
+};
+
+template <typename Lhs, typename Rhs, int ProductTag>
+struct generic_product_impl<Lhs, Rhs, DiagonalShape, PermutationShape, ProductTag>
+    : generic_product_impl_base<Lhs, Rhs, generic_product_impl<Lhs, Rhs, DiagonalShape, PermutationShape, ProductTag>> {
+  using Scalar = typename Product<Lhs, Rhs>::Scalar;
+
+  template <typename Dest>
+  static EIGEN_DEVICE_FUNC void scaleAndAddTo(Dest& dst, const Lhs& lhs, const Rhs& rhs, const Scalar& alpha) {
+    permutation_diagonal_product<OnTheRight, false>::run(dst, rhs, lhs, alpha);
+  }
+};
+
+template <typename Lhs, typename Rhs, int ProductTag>
+struct generic_product_impl<Lhs, Inverse<Rhs>, DiagonalShape, PermutationShape, ProductTag>
+    : generic_product_impl_base<Lhs, Inverse<Rhs>,
+                                generic_product_impl<Lhs, Inverse<Rhs>, DiagonalShape, PermutationShape, ProductTag>> {
+  using Scalar = typename Product<Lhs, Inverse<Rhs>>::Scalar;
+
+  template <typename Dest>
+  static EIGEN_DEVICE_FUNC void scaleAndAddTo(Dest& dst, const Lhs& lhs, const Inverse<Rhs>& rhs, const Scalar& alpha) {
+    permutation_diagonal_product<OnTheRight, true>::run(dst, rhs.nestedExpression(), lhs, alpha);
+  }
+};
+
 /***************************************************************************
  * Products with transpositions matrices
  ***************************************************************************/

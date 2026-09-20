@@ -785,6 +785,16 @@ template <int ProductTag>
 struct product_promote_storage_type<PermutationStorage, Dense, ProductTag> {
   using ret = Dense;
 };
+// A permuted diagonal is neither a permutation nor a diagonal, and without these the
+// <A, DiagonalShape> and <PermutationStorage, B> rules are ambiguous.
+template <int ProductTag>
+struct product_promote_storage_type<PermutationStorage, DiagonalShape, ProductTag> {
+  using ret = Dense;
+};
+template <int ProductTag>
+struct product_promote_storage_type<DiagonalShape, PermutationStorage, ProductTag> {
+  using ret = Dense;
+};
 
 /** \internal gives the plain matrix or array type to store a row/column/diagonal of a matrix type.
  * \tparam Scalar optional parameter allowing to pass a different scalar type than the one of the MatrixType.

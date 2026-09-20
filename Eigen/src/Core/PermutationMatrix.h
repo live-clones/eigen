@@ -42,7 +42,8 @@ enum PermPermProduct_t { PermPermProduct };
  *
  * Notice that in addition to the member functions and operators listed here, there also are non-member
  * operator* to multiply any kind of permutation object with any kind of matrix expression (MatrixBase)
- * on either side.
+ * or diagonal matrix (DiagonalBase) on either side; the product with a diagonal matrix is a dense
+ * matrix expression.
  *
  * \sa class PermutationMatrix, class PermutationWrapper
  */
@@ -495,6 +496,30 @@ EIGEN_DEVICE_FUNC const Product<PermutationDerived, MatrixDerived, DefaultProduc
   return Product<PermutationDerived, MatrixDerived, DefaultProduct>(permutation.derived(), matrix.derived());
 }
 
+/** \returns the dense matrix expression of the permutation \a permutation applied to the rows of the diagonal
+ * matrix \a diagonal.
+ *
+ * The result has one nonzero per row and column but no structured representation, so it is evaluated as a dense
+ * matrix; in a product chain such as `permutation * diagonal * vector`, write `permutation * (diagonal * vector)` to
+ * stay in linear time.
+ */
+template <typename PermutationDerived, typename DiagonalDerived>
+EIGEN_DEVICE_FUNC const Product<PermutationDerived, DiagonalDerived, DefaultProduct> operator*(
+    const PermutationBase<PermutationDerived>& permutation, const DiagonalBase<DiagonalDerived>& diagonal) {
+  return Product<PermutationDerived, DiagonalDerived, DefaultProduct>(permutation.derived(), diagonal.derived());
+}
+
+/** \returns the dense matrix expression of the permutation \a permutation applied to the columns of the diagonal
+ * matrix \a diagonal.
+ *
+ * \sa operator*(const PermutationBase<PermutationDerived>&, const DiagonalBase<DiagonalDerived>&)
+ */
+template <typename DiagonalDerived, typename PermutationDerived>
+EIGEN_DEVICE_FUNC const Product<DiagonalDerived, PermutationDerived, DefaultProduct> operator*(
+    const DiagonalBase<DiagonalDerived>& diagonal, const PermutationBase<PermutationDerived>& permutation) {
+  return Product<DiagonalDerived, PermutationDerived, DefaultProduct>(diagonal.derived(), permutation.derived());
+}
+
 template <typename PermutationType>
 class InverseImpl<PermutationType, PermutationStorage> : public EigenBase<Inverse<PermutationType> > {
   using PlainPermutationType = typename PermutationType::PlainPermutationType;
@@ -544,6 +569,24 @@ class InverseImpl<PermutationType, PermutationStorage> : public EigenBase<Invers
   template <typename OtherDerived>
   const Product<InverseType, OtherDerived, DefaultProduct> operator*(const MatrixBase<OtherDerived>& matrix) const {
     return Product<InverseType, OtherDerived, DefaultProduct>(derived(), matrix.derived());
+  }
+
+  /** \returns the dense matrix expression of the inverse permutation applied to the columns of the diagonal matrix
+   * \a diagonal.
+   */
+  template <typename DiagonalDerived>
+  EIGEN_DEVICE_FUNC friend const Product<DiagonalDerived, InverseType, DefaultProduct> operator*(
+      const DiagonalBase<DiagonalDerived>& diagonal, const InverseType& trPerm) {
+    return Product<DiagonalDerived, InverseType, DefaultProduct>(diagonal.derived(), trPerm.derived());
+  }
+
+  /** \returns the dense matrix expression of the inverse permutation applied to the rows of the diagonal matrix
+   * \a diagonal.
+   */
+  template <typename DiagonalDerived>
+  EIGEN_DEVICE_FUNC const Product<InverseType, DiagonalDerived, DefaultProduct> operator*(
+      const DiagonalBase<DiagonalDerived>& diagonal) const {
+    return Product<InverseType, DiagonalDerived, DefaultProduct>(derived(), diagonal.derived());
   }
 };
 

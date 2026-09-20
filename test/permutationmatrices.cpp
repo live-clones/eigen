@@ -253,6 +253,66 @@ void permutation_left_transposition(Index size) {
   }
 }
 
+template <typename Scalar, int Size>
+void permutation_diagonal_products(Index size) {
+  using PermutationType = PermutationMatrix<Size>;
+  using DiagonalType = DiagonalMatrix<Scalar, Size>;
+  using MatrixType = Matrix<Scalar, Size, Size>;
+  using VectorType = Matrix<Scalar, Size, 1>;
+
+  Matrix<int, Size, 1> indices;
+  randomPermutationVector(indices, size);
+  const PermutationType perm(indices);
+  const DiagonalType diag(VectorType::Random(size));
+  const MatrixType permDense = perm.toDenseMatrix().template cast<Scalar>();
+  const MatrixType inverseDense = perm.inverse().toDenseMatrix().template cast<Scalar>();
+  const MatrixType diagDense = diag.toDenseMatrix();
+
+  // Every product below scatters exact copies of the diagonal, so the results are exact.
+  MatrixType result(size, size), expected(size, size);
+  VERIFY_EVALUATION_COUNT(result.noalias() = perm * diag, 0);
+  expected = permDense * diagDense;
+  VERIFY_IS_EQUAL(result, expected);
+  result = diag * perm;
+  expected = diagDense * permDense;
+  VERIFY_IS_EQUAL(result, expected);
+  result = perm.inverse() * diag;
+  expected = inverseDense * diagDense;
+  VERIFY_IS_EQUAL(result, expected);
+  result = perm.transpose() * diag;
+  VERIFY_IS_EQUAL(result, expected);
+  result = diag * perm.inverse();
+  expected = diagDense * inverseDense;
+  VERIFY_IS_EQUAL(result, expected);
+  result = diag * perm.transpose();
+  VERIFY_IS_EQUAL(result, expected);
+
+  // The wrapper and Map forms of both operands.
+  result = indices.asPermutation() * diag.diagonal().asDiagonal();
+  expected = permDense * diagDense;
+  VERIFY_IS_EQUAL(result, expected);
+  result = diag.diagonal().asDiagonal() * Map<PermutationType>(indices.data(), size);
+  expected = diagDense * permDense;
+  VERIFY_IS_EQUAL(result, expected);
+
+  result = MatrixType::Random(size, size);
+  expected = result;
+  result += perm * diag;
+  expected += permDense * diagDense;
+  VERIFY_IS_APPROX(result, expected);
+  result -= diag * perm.inverse();
+  expected -= diagDense * inverseDense;
+  VERIFY_IS_APPROX(result, expected);
+
+  // Nested products: the permutation-diagonal factor is materialized like any other inner product.
+  const VectorType x = VectorType::Random(size);
+  VERIFY_IS_APPROX((perm * diag) * x, perm * (diag * x));
+  VERIFY_IS_APPROX(x.transpose() * (diag * perm), (x.transpose() * diag) * perm);
+  result = perm * diag * perm.inverse();
+  expected = permDense * diagDense * inverseDense;
+  VERIFY_IS_APPROX(result, expected);
+}
+
 void permutation_inverse_product_temporaries() {
   PermutationMatrix<Dynamic> lhs(17), rhs(17), result(17);
   randomPermutationVector(lhs.indices(), lhs.size());
@@ -303,4 +363,13 @@ EIGEN_DECLARE_TEST(permutationmatrices) {
   }
   CALL_SUBTEST_5(bug890<double>());
   CALL_SUBTEST_4(test_aliasing());
+  CALL_SUBTEST_10((permutation_diagonal_products<float, 1>(1)));
+  CALL_SUBTEST_10((permutation_diagonal_products<double, 3>(3)));
+  CALL_SUBTEST_10((permutation_diagonal_products<std::complex<double>, 4>(4)));
+  for (int i = 0; i < g_repeat; i++) {
+    CALL_SUBTEST_10((permutation_diagonal_products<float, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_10((permutation_diagonal_products<double, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_10(
+        (permutation_diagonal_products<std::complex<double>, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+  }
 }
