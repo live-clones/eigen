@@ -63,11 +63,14 @@ struct adjoint_specific<false> {
     VERIFY_IS_APPROX((v1 * 0).normalized(), (v1 * 0));
 #if (!EIGEN_ARCH_i386) || defined(EIGEN_VECTORIZE)
     RealScalar very_small = (std::numeric_limits<RealScalar>::min)();
-    VERIFY(numext::is_exactly_zero((v1 * very_small).norm()));
-    VERIFY_IS_APPROX((v1 * very_small).normalized(), (v1 * very_small));
-    v3 = v1 * very_small;
+    // Materialized once: ARMv7 NEON flushes the subnormal products that a coefficient-wise read of the lazy
+    // expression keeps.
+    const Vec tiny = v1 * very_small;
+    VERIFY(numext::is_exactly_zero(tiny.norm()));
+    VERIFY_IS_APPROX(tiny.normalized(), tiny);
+    v3 = tiny;
     v3.normalize();
-    VERIFY_IS_APPROX(v3, (v1 * very_small));
+    VERIFY_IS_APPROX(v3, tiny);
 #endif
 
     // check compatibility of dot and adjoint
