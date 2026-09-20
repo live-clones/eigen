@@ -1506,8 +1506,9 @@ template <typename Scalar, typename ExponentScalar>
 struct functor_traits<scalar_unary_pow_op<Scalar, ExponentScalar>> {
   enum {
     GenPacketAccess = functor_traits<scalar_pow_op<Scalar, ExponentScalar>>::PacketAccess,
-    // Only the real-exponent specializations define packetOp. Complex bases square the interleaved real view of
-    // their packet, so they compare and select through the real scalar's packet.
+    // Only the real-exponent specializations define packetOp. Every path multiplies packets of the base type and
+    // divides them for a negative exponent unless the base is an integer; the compares and selects run on the
+    // real packet, which for a complex base is the component view of its packet.
     IntPacketAccess = !NumTraits<ExponentScalar>::IsComplex && packet_traits<Scalar>::HasMul &&
                       (packet_traits<Scalar>::HasDiv || NumTraits<Scalar>::IsInteger) &&
                       packet_traits<typename NumTraits<Scalar>::Real>::HasCmp,
