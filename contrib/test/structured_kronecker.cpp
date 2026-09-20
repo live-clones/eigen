@@ -1714,6 +1714,22 @@ void test_kron_sparse_determinant_subnormal(const Scalar& phase) {
     for (Index j = 0; j < 2; ++j) singular.coeffRef(1, j) = singular.coeff(0, j);
     VERIFY_IS_EQUAL(makeKroneckerOperator(singular, b).determinant(), Scalar(0));
   }
+
+  // Non-dyadic entries near tiny = min * 2^-(digits/2), which carry about
+  // digits/2 bits: eliminating there would lose the other half, the exact
+  // scale-up does not. The reference is the determinant of the stored data.
+  const Real tiny = std::ldexp(normalMin, -(std::numeric_limits<Real>::digits / 2));
+  const Real huge = std::ldexp(Real(1), std::numeric_limits<Real>::max_exponent - 1);
+  a << Real(4.1), Real(1.3), Real(1.1), Real(5.3);
+  a *= Scalar(tiny) * phase;
+  sparseA.setZero();
+  for (Index j = 0; j < 2; ++j)
+    for (Index i = 0; i < 2; ++i) sparseA.insert(i, j) = a(i, j);
+  const Mat stored = a / tiny;  // exact
+  const Scalar expectedStored = stored.determinant() * Scalar((tiny * huge) * (tiny * huge));
+  b << Scalar(huge);
+  const Scalar precise = makeKroneckerOperator(sparseA, b).determinant();
+  VERIFY(numext::abs(precise - expectedStored) <= tolerance * numext::abs(expectedStored));
 }
 
 template <typename ProductScalar, typename Lhs, typename Rhs>

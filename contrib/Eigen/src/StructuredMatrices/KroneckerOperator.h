@@ -295,7 +295,8 @@ struct kron_factor_ops<Factor, kKronSparseFactor> {
   // The dense contraction bound: a row holds at most n stored entries.
   static int growthBits(Index n) { return log2_floor(static_cast<numext::uint64_t>(n)) + 1; }
   static Scalar balancedDet(const Factor& M, Index& exponent) {
-    // SparseLU forms 1/pivot: scale small factors up to avoid reciprocal overflow.
+    // Scale small factors up, exactly, so that the elimination runs on normal
+    // numbers: a subnormal near 2^e carries only e - min_exponent + digits bits.
     // Scaling down could erase small pivots in factors with a wide exponent range.
     const int scaleExponent = numext::mini(exponentBound(M), 0);
     ColMajorFactor normalized(M);
@@ -481,7 +482,7 @@ class kron_factor_solver<Factor, kKronSparseFactor> {
  * back-substitutes per column, \ref transpose, \ref conjugate and \ref adjoint
  * stay sparse, and \ref determinant accumulates the SparseLU pivots in the same
  * balanced form as the dense LU path, scaling small factors up before
- * factorization to keep pivot reciprocals representable. Its \ref inverse is
+ * factorization to keep the elimination out of the subnormal range. Its \ref inverse is
  * dense (one SparseLU solve against the identity), and the decomposition family
  * densifies it like a diagonal factor. As in every sparse kernel, absent entries
  * are exact zeros: a structural zero annihilates the Inf or NaN it meets, where a stored zero
