@@ -419,6 +419,28 @@ class HouseholderSequence : public EigenBase<HouseholderSequence<VectorsType, Co
     return res;
   }
 
+  // Structured operands are evaluated into a dense matrix first, so these are `*this * other.toDenseMatrix()`
+  // with the same plain-matrix result as the dense product above. A permutation has no scalar type of its own
+  // and takes this sequence's.
+
+  /** \brief Computes the product of a Householder sequence with a diagonal matrix. */
+  template <typename OtherDerived>
+  auto operator*(const DiagonalBase<OtherDerived>& other) const {
+    return *this * other.toDenseMatrix();
+  }
+
+  /** \brief Computes the product of a Householder sequence with a triangular or self-adjoint view. */
+  template <typename OtherDerived>
+  auto operator*(const TriangularBase<OtherDerived>& other) const {
+    return *this * other.toDenseMatrix();
+  }
+
+  /** \brief Computes the product of a Householder sequence with a permutation matrix. */
+  template <typename OtherDerived>
+  auto operator*(const PermutationBase<OtherDerived>& other) const {
+    return *this * other.toDenseMatrix().template cast<Scalar>();
+  }
+
   template <typename VectorsType_, typename CoeffsType_, int Side_>
   friend struct internal::hseq_side_dependent_impl;
 
@@ -506,6 +528,27 @@ typename internal::matrix_type_times_scalar_type<typename VectorsType::Scalar, O
                                                                            OtherDerived>::ResultScalar>());
   h.applyThisOnTheRight(res);
   return res;
+}
+
+// Structured left operands are evaluated into a dense matrix first: `other.toDenseMatrix() * h`.
+
+/** \brief Computes the product of a diagonal matrix with a Householder sequence. */
+template <typename OtherDerived, typename VectorsType, typename CoeffsType, int Side>
+auto operator*(const DiagonalBase<OtherDerived>& other, const HouseholderSequence<VectorsType, CoeffsType, Side>& h) {
+  return other.toDenseMatrix() * h;
+}
+
+/** \brief Computes the product of a triangular or self-adjoint view with a Householder sequence. */
+template <typename OtherDerived, typename VectorsType, typename CoeffsType, int Side>
+auto operator*(const TriangularBase<OtherDerived>& other, const HouseholderSequence<VectorsType, CoeffsType, Side>& h) {
+  return other.toDenseMatrix() * h;
+}
+
+/** \brief Computes the product of a permutation matrix with a Householder sequence. */
+template <typename OtherDerived, typename VectorsType, typename CoeffsType, int Side>
+auto operator*(const PermutationBase<OtherDerived>& other,
+               const HouseholderSequence<VectorsType, CoeffsType, Side>& h) {
+  return other.toDenseMatrix().template cast<typename VectorsType::Scalar>() * h;
 }
 
 /** \ingroup Householder_Module
