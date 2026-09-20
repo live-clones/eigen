@@ -71,15 +71,16 @@ void check_real_pow(const std::vector<Scalar>& bases, const std::vector<long>& e
 
 template <typename Scalar>
 void real_pow_test() {
-  // Exponents on both sides of the squaring cutoffs: the plain-squaring range [-3, 7] of other scalar types and
-  // the fallback to generic_pow above 4096, and integer exponents beyond the significand, which generic_pow
-  // could not represent.
-  const std::vector<long> exponents = {2,  3,  4,  5,  7,  8,  9,  15,  16,   17,   31,    100,  127,  1000,
-                                       -2, -3, -4, -5, -7, -8, -9, -15, -100, -127, -1000, 4096, -4096};
-  const std::vector<long> huge_exponents = {4097,
-                                            -4097,
-                                            1 << 20,
-                                            -(1 << 20),
+  // Exponents on both sides of the squaring cutoffs: the plain-squaring range [-3, 7] of other scalar types, the
+  // fallback to generic_pow above 2^12 (float) or 2^20 (double), and integer exponents beyond the significand,
+  // which generic_pow could not represent.
+  long cutoff = long(internal::unary_pow::max_squaring_exponent<Scalar>());
+  const std::vector<long> exponents = {2,  3,  4,  5,  7,  8,  9,  15,  16,   17,   31,    100,  127,    1000,
+                                       -2, -3, -4, -5, -7, -8, -9, -15, -100, -127, -1000, 4096, cutoff, -cutoff};
+  const std::vector<long> huge_exponents = {cutoff + 1,
+                                            -cutoff - 1,
+                                            1 << 24,
+                                            -(1 << 24),
                                             (1 << 24) + 1,
                                             -((1 << 24) + 1),
                                             (std::numeric_limits<int>::max)(),
