@@ -772,16 +772,34 @@ struct repeated_squaring_ops<Packet, true> {
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool any_nan(const Packet& r) { return Components::any_nan(r); }
 };
 
+// 1/x, dividing real packets only: a complex x goes through its components as conj(x) / |x|^2.
+template <typename Packet>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet plain_reciprocal(const Packet& x, false_type) {
+  return pdiv(pset1<Packet>(typename unpacket_traits<Packet>::type(1)), x);
+}
+template <typename Packet>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet plain_reciprocal(const Packet& x, true_type) {
+  using Components = complex_components<Packet>;
+  using R = typename Components::R;
+  R re, im;
+  Components::split(x, re, im);
+  R inv = plain_reciprocal(pmadd(re, re, pmul(im, im)), false_type());
+  return Components::join(pmul(re, inv), pnegate(pmul(im, inv)));
+}
+template <typename Packet>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet plain_reciprocal(const Packet& x) {
+  return plain_reciprocal(x, bool_constant<NumTraits<typename unpacket_traits<Packet>::type>::IsComplex>());
+}
+
 // Plain repeated squaring for the remaining floating-point bases.
 template <typename Packet, typename ScalarExponent>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet int_pow_plain(const Packet& x, const ScalarExponent& exponent) {
   using Scalar = typename unpacket_traits<Packet>::type;
   using ExponentHelper = exponent_helper<ScalarExponent>;
   using AbsExponentType = typename ExponentHelper::safe_abs_type;
-  Packet cst_pos_one = pset1<Packet>(Scalar(1));
-  if (exponent == ScalarExponent(0)) return cst_pos_one;
+  if (exponent == ScalarExponent(0)) return pset1<Packet>(Scalar(1));
 
-  Packet base = exponent_is_negative<ScalarExponent>::run(exponent) ? pdiv(cst_pos_one, x) : x;
+  Packet base = exponent_is_negative<ScalarExponent>::run(exponent) ? plain_reciprocal(x) : x;
   AbsExponentType m = ExponentHelper::safe_abs(exponent);
   Packet y = base;
   for (AbsExponentType bit = highest_set_bit(m) >> 1; bit != 0; bit >>= 1) {
