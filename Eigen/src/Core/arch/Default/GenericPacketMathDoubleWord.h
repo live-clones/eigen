@@ -155,6 +155,17 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void twosum(const Packet& x_hi, const Pack
   fast_twosum(s, padd(err, padd(x_lo, y_lo)), s_hi, s_lo);
 }
 
+// The difference {x_hi, x_lo} - {y_hi, y_lo} of two double word numbers,
+// the same algorithm as twosum with the sign of y folded into the operations.
+template <typename Packet>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void twodiff(const Packet& x_hi, const Packet& x_lo, const Packet& y_hi,
+                                                   const Packet& y_lo, Packet& s_hi, Packet& s_lo) {
+  Packet s = psub(x_hi, y_hi);
+  Packet y_part = psub(x_hi, s);
+  Packet err = psub(psub(x_hi, padd(s, y_part)), psub(y_hi, y_part));
+  fast_twosum(s, padd(err, psub(x_lo, y_lo)), s_hi, s_lo);
+}
+
 // This is a version of twosum for double word numbers,
 // which assumes that |x_hi| >= |y_hi|.
 template <typename Packet>
