@@ -150,7 +150,7 @@ if(EIGEN_ENABLE_LAPACK_TESTS AND EXISTS ${eigen_full_path_to_testing_lapack})
   set(BUILD_SINGLE      true)
   set(BUILD_DOUBLE      true)
   set(BUILD_COMPLEX     true)
-  set(BUILD_COMPLEX16E  true)
+  set(BUILD_COMPLEX16   true)
 
   if(MSVC_VERSION)
 #  string(REPLACE "/STACK:10000000" "/STACK:900000000000000000"
