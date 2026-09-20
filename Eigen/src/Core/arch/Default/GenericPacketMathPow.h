@@ -527,11 +527,11 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet int_pow_wrapping(const Packet& x, c
   using Scalar = typename unpacket_traits<Packet>::type;
   using ExponentHelper = exponent_helper<ScalarExponent>;
   using AbsExponentType = typename ExponentHelper::safe_abs_type;
-  const Packet cst_pos_one = pset1<Packet>(Scalar(1));
+  Packet cst_pos_one = pset1<Packet>(Scalar(1));
   if (exponent == ScalarExponent(0)) return cst_pos_one;
   eigen_assert(!exponent_is_negative<ScalarExponent>::run(exponent));
 
-  const AbsExponentType m = ExponentHelper::safe_abs(exponent);
+  AbsExponentType m = ExponentHelper::safe_abs(exponent);
   Packet y = x;
   for (AbsExponentType bit = highest_set_bit(m) >> 1; bit != 0; bit >>= 1) {
     y = pmul(y, y);
@@ -567,20 +567,19 @@ struct binary_exponent_scaling {
   // For a normal x = m * 2^e with 2 <= |m| < 4, returns 2^-e and sets e (as a floating-point value). The
   // target [2, 4) rather than [1, 2) keeps 2^-e a normal number for every x.
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet inverse_scale(const Packet& x, Packet& e) {
-    const Packet exponent_bits = pand(x, pset1frombits<Packet>(kExponentMask));
-    const PacketI biased = plogical_shift_right<kMantissaBits>(preinterpret<PacketI>(exponent_bits));
-    const Packet magic = pset1frombits<Packet>(kMagicBits);
+    Packet exponent_bits = pand(x, pset1frombits<Packet>(kExponentMask));
+    PacketI biased = plogical_shift_right<kMantissaBits>(preinterpret<PacketI>(exponent_bits));
+    Packet magic = pset1frombits<Packet>(kMagicBits);
     e = psub(por(preinterpret<Packet>(biased), magic), padd(magic, pset1<Packet>(Scalar(kBias + 1))));
     // 2^(bias + 1 - E) has biased exponent 2 * bias + 1 - E, in [1, 2 * bias] for a normal x.
-    const PacketI two_bias_plus_one =
-        preinterpret<PacketI>(pset1frombits<Packet>(Bits(2 * kBias + 1) << kMantissaBits));
+    PacketI two_bias_plus_one = preinterpret<PacketI>(pset1frombits<Packet>(Bits(2 * kBias + 1) << kMantissaBits));
     return preinterpret<Packet>(psub(two_bias_plus_one, preinterpret<PacketI>(exponent_bits)));
   }
 
   // x * 2^e for the scaled power, whose |x| lies within 2^(+-62): beyond the clamp the result is infinite or zero
   // either way, and the scalar pldexp converts the exponent to int.
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet scale_result(const Packet& x, const Packet& e) {
-    const Packet limit = pset1<Packet>(Scalar(4 * numext::numeric_limits<Scalar>::max_exponent));
+    Packet limit = pset1<Packet>(Scalar(4 * numext::numeric_limits<Scalar>::max_exponent));
     return pldexp(x, pmin(pmax(e, pnegate(limit)), limit));
   }
 
@@ -590,14 +589,14 @@ struct binary_exponent_scaling {
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void input_scale(const Packet& x, Packet& lift, Packet& scale,
                                                                 Packet& e) {
     constexpr int kDigits = numext::numeric_limits<Scalar>::digits;
-    const Packet zero = pzero(x);
-    const Packet one = pset1<Packet>(Scalar(1));
-    const Packet abs_x = pabs(x);
-    const Packet is_subnormal = pcmp_lt(abs_x, pset1<Packet>((numext::numeric_limits<Scalar>::min)()));
+    Packet zero = pzero(x);
+    Packet one = pset1<Packet>(Scalar(1));
+    Packet abs_x = pabs(x);
+    Packet is_subnormal = pcmp_lt(abs_x, pset1<Packet>((numext::numeric_limits<Scalar>::min)()));
     lift = pselect(is_subnormal, pset1<Packet>(Scalar(Bits(1) << kDigits)), one);
     scale = inverse_scale(pmul(x, lift), e);
     e = psub(e, pselect(is_subnormal, pset1<Packet>(Scalar(kDigits)), zero));
-    const Packet is_special = por(por(pcmp_eq(x, zero), pcmp_eq(abs_x, pinf<Packet>())), pisnan(x));
+    Packet is_special = por(por(pcmp_eq(x, zero), pcmp_eq(abs_x, pinf<Packet>())), pisnan(x));
     scale = pselect(is_special, one, scale);
     lift = pselect(is_special, one, lift);
   }
@@ -619,7 +618,7 @@ struct repeated_squaring_ops {
     State b;
     Packet lift, scale;
     Scaling::input_scale(x, lift, scale, b.exponent);
-    const Packet m = pmul(pmul(x, lift), scale);
+    Packet m = pmul(pmul(x, lift), scale);
     if (!reciprocal) {
       b.hi = m;
       b.lo = pzero(x);
@@ -630,7 +629,7 @@ struct repeated_squaring_ops {
     // as p_hi is within rounding of 1); renormalizing makes hi the correctly rounded reciprocal. For a zero or
     // non-finite x, m is x and q is 1/x.
     const Packet cst_pos_one = pset1<Packet>(Scalar(1));
-    const Packet q = pdiv(cst_pos_one, m);
+    Packet q = pdiv(cst_pos_one, m);
     Packet p_hi, p_lo;
     twoprod(q, m, p_hi, p_lo);
     fast_twosum(q, pdiv(psub(psub(cst_pos_one, p_hi), p_lo), m), b.hi, b.lo);
@@ -645,13 +644,13 @@ struct repeated_squaring_ops {
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void square(State& y) { multiply(y, y); }
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void renormalize(State& y) {
     Packet e;
-    const Packet scale = Scaling::inverse_scale(y.hi, e);
+    Packet scale = Scaling::inverse_scale(y.hi, e);
     y.hi = pmul(y.hi, scale);
     y.lo = pmul(y.lo, scale);
     y.exponent = padd(y.exponent, e);
   }
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet result(const State& y, const State& b, bool odd) {
-    const Packet use_special = por(pisnan(y.hi), pcmp_eq(y.hi, pzero(y.hi)));
+    Packet use_special = por(pisnan(y.hi), pcmp_eq(y.hi, pzero(y.hi)));
     return pselect(use_special, odd ? b.special : pabs(b.special), Scaling::scale_result(y.hi, y.exponent));
   }
   // A NaN result here comes from a NaN base and needs no recomputation.
@@ -671,7 +670,7 @@ struct complex_components {
     return pcmp_eq(pset1<Packet>(Scalar(0, 1)).v, pset1<R>(RealScalar(1)));
   }
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void split(const Packet& z, R& re, R& im) {
-    const R odd = odd_lanes();
+    R odd = odd_lanes();
     re = pselect(odd, flip(z.v), z.v);
     im = pselect(odd, z.v, flip(z.v));
   }
@@ -718,7 +717,7 @@ struct repeated_squaring_ops<Packet, true> {
     R re, im, lift, scale;
     Components::split(x, re, im);
     Scaling::input_scale(pmax(pabs(re), pabs(im)), lift, scale, b.exponent);
-    const R wr = pmul(pmul(re, lift), scale), wi = pmul(pmul(im, lift), scale);
+    R wr = pmul(pmul(re, lift), scale), wi = pmul(pmul(im, lift), scale);
     b.re_lo = b.im_lo = pzero(wr);
     if (!reciprocal) {
       b.re_hi = wr;
@@ -735,8 +734,8 @@ struct repeated_squaring_ops<Packet, true> {
     twoprod(qr, wi, a_hi, a_lo);
     twoprod(qi, wr, c_hi, c_lo);
     twosum(a_hi, a_lo, c_hi, c_lo, t_hi, t_lo);
-    const R er = psub(psub(pset1<R>(typename NumTraits<Scalar>::Real(1)), s_hi), s_lo);
-    const R ei = pnegate(padd(t_hi, t_lo));
+    R er = psub(psub(pset1<R>(typename NumTraits<Scalar>::Real(1)), s_hi), s_lo);
+    R ei = pnegate(padd(t_hi, t_lo));
     fast_twosum(qr, psub(pmul(er, qr), pmul(ei, qi)), b.re_hi, b.re_lo);
     fast_twosum(qi, padd(pmul(er, qi), pmul(ei, qr)), b.im_hi, b.im_lo);
     b.exponent = pnegate(b.exponent);
@@ -764,7 +763,7 @@ struct repeated_squaring_ops<Packet, true> {
   }
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void renormalize(State& y) {
     R e;
-    const R scale = Scaling::inverse_scale(pmax(pabs(y.re_hi), pabs(y.im_hi)), e);
+    R scale = Scaling::inverse_scale(pmax(pabs(y.re_hi), pabs(y.im_hi)), e);
     y.re_hi = pmul(y.re_hi, scale);
     y.re_lo = pmul(y.re_lo, scale);
     y.im_hi = pmul(y.im_hi, scale);
@@ -783,11 +782,11 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet int_pow_plain(const Packet& x, cons
   using Scalar = typename unpacket_traits<Packet>::type;
   using ExponentHelper = exponent_helper<ScalarExponent>;
   using AbsExponentType = typename ExponentHelper::safe_abs_type;
-  const Packet cst_pos_one = pset1<Packet>(Scalar(1));
+  Packet cst_pos_one = pset1<Packet>(Scalar(1));
   if (exponent == ScalarExponent(0)) return cst_pos_one;
 
-  const Packet base = exponent_is_negative<ScalarExponent>::run(exponent) ? pdiv(cst_pos_one, x) : x;
-  const AbsExponentType m = ExponentHelper::safe_abs(exponent);
+  Packet base = exponent_is_negative<ScalarExponent>::run(exponent) ? pdiv(cst_pos_one, x) : x;
+  AbsExponentType m = ExponentHelper::safe_abs(exponent);
   Packet y = base;
   for (AbsExponentType bit = highest_set_bit(m) >> 1; bit != 0; bit >>= 1) {
     y = pmul(y, y);
@@ -810,16 +809,16 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet int_pow_double_word(const Packet& x
   using Ops = repeated_squaring_ops<Packet>;
   if (exponent == ScalarExponent(0)) return pset1<Packet>(Scalar(1));
 
-  const bool negative = exponent_is_negative<ScalarExponent>::run(exponent);
-  const AbsExponentType m = ExponentHelper::safe_abs(exponent);
-  const bool odd = (m & AbsExponentType(1)) != 0;
+  bool negative = exponent_is_negative<ScalarExponent>::run(exponent);
+  AbsExponentType m = ExponentHelper::safe_abs(exponent);
+  bool odd = (m & AbsExponentType(1)) != 0;
   if (m == AbsExponentType(1) && !negative) return x;
   // A real x^-1 and x^2 are a single correctly rounded operation, which is what the double word would produce.
   EIGEN_IF_CONSTEXPR (!NumTraits<Scalar>::IsComplex) {
     if (m == AbsExponentType(1)) return pdiv(pset1<Packet>(Scalar(1)), x);
     if (m == AbsExponentType(2) && !negative) return pmul(x, x);
   }
-  const typename Ops::State base = Ops::base(x, negative);
+  typename Ops::State base = Ops::base(x, negative);
   typename Ops::State y = base;
   // With |base| in [1/4, 4) a step at most cubes the magnitude bound, so four steps keep it within 2^(+-62) and
   // the residuals, u times smaller, normal.
@@ -832,7 +831,7 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet int_pow_double_word(const Packet& x
       steps_since_renormalization = 0;
     }
   }
-  const Packet r = Ops::result(y, base, odd);
+  Packet r = Ops::result(y, base, odd);
   if (Ops::any_nan(r)) return pselect(pisnan(r), int_pow_plain(x, exponent), r);
   return r;
 }
@@ -949,7 +948,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet handle_negative_exponent(const Pack
 
   // This routine handles negative exponents.
   // The return value is either 0, 1, or -1.
-  const Packet cst_pos_one = pset1<Packet>(Scalar(1));
+  Packet cst_pos_one = pset1<Packet>(Scalar(1));
   const bool exponent_is_odd = exponent % ScalarExponent(2) != ScalarExponent(0);
   const Packet exp_is_odd = exponent_is_odd ? ptrue<Packet>(x) : pzero<Packet>(x);
 

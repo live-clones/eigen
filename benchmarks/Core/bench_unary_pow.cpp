@@ -19,7 +19,7 @@ template <typename T>
 Array<T, Dynamic, 1> real_bases(Index size, int exponent, bool tiny) {
   Array<T, Dynamic, 1> x = Array<T, Dynamic, 1>::Random(size) * T(0.5) + T(1.25);  // [0.75, 1.75]
   if (tiny) {
-    const int target = -(std::numeric_limits<T>::max_exponent * 3) / 4;
+    int target = -(std::numeric_limits<T>::max_exponent * 3) / 4;
     x *= T(std::ldexp(1.0, target / std::abs(exponent)));
     if (exponent < 0) x = x.inverse();
   }
@@ -28,9 +28,9 @@ Array<T, Dynamic, 1> real_bases(Index size, int exponent, bool tiny) {
 
 template <typename T>
 static void BM_UnaryPowInt(benchmark::State& state) {
-  const Index size = 4097;
-  const int exponent = int(state.range(0));
-  const bool tiny = state.range(1) != 0;
+  Index size = 4097;
+  int exponent = int(state.range(0));
+  bool tiny = state.range(1) != 0;
   Array<T, Dynamic, 1> x = real_bases<T>(size, exponent, tiny), y(size);
   for (auto _ : state) {
     benchmark::DoNotOptimize(x.data());
@@ -44,9 +44,9 @@ static void BM_UnaryPowInt(benchmark::State& state) {
 
 template <typename T>
 static void BM_UnaryPowReal(benchmark::State& state) {
-  const Index size = 4097;
-  const int exponent = int(state.range(0));
-  const bool tiny = state.range(1) != 0;
+  Index size = 4097;
+  int exponent = int(state.range(0));
+  bool tiny = state.range(1) != 0;
   Array<T, Dynamic, 1> x = real_bases<T>(size, exponent, tiny), y(size);
   for (auto _ : state) {
     benchmark::DoNotOptimize(x.data());
@@ -63,11 +63,11 @@ template <typename T>
 static void BM_GenericPow(benchmark::State& state) {
   using Packet = typename internal::packet_traits<T>::type;
   constexpr Index kPacketSize = internal::unpacket_traits<Packet>::size;
-  const Index size = 4096;
-  const int exponent = int(state.range(0));
-  const bool tiny = state.range(1) != 0;
+  Index size = 4096;
+  int exponent = int(state.range(0));
+  bool tiny = state.range(1) != 0;
   Array<T, Dynamic, 1> x = real_bases<T>(size, exponent, tiny), y(size);
-  const Packet packet_exponent = internal::pset1<Packet>(T(exponent));
+  Packet packet_exponent = internal::pset1<Packet>(T(exponent));
   for (auto _ : state) {
     benchmark::DoNotOptimize(x.data());
     for (Index i = 0; i < size; i += kPacketSize)
@@ -88,8 +88,8 @@ Array<std::complex<T>, Dynamic, 1> complex_bases(Index size) {
 
 template <typename T>
 static void BM_ComplexPowInt(benchmark::State& state) {
-  const Index size = 4097;
-  const int exponent = int(state.range(0));
+  Index size = 4097;
+  int exponent = int(state.range(0));
   Array<std::complex<T>, Dynamic, 1> z = complex_bases<T>(size), y(size);
   for (auto _ : state) {
     benchmark::DoNotOptimize(z.data());
@@ -103,8 +103,8 @@ static void BM_ComplexPowInt(benchmark::State& state) {
 // Complex bases with a real exponent take the scalar path.
 template <typename T>
 static void BM_ComplexPowReal(benchmark::State& state) {
-  const Index size = 4097;
-  const int exponent = int(state.range(0));
+  Index size = 4097;
+  int exponent = int(state.range(0));
   Array<std::complex<T>, Dynamic, 1> z = complex_bases<T>(size), y(size);
   for (auto _ : state) {
     benchmark::DoNotOptimize(z.data());
@@ -117,8 +117,8 @@ static void BM_ComplexPowReal(benchmark::State& state) {
 
 template <typename T>
 static void BM_StdComplexPow(benchmark::State& state) {
-  const Index size = 4097;
-  const int exponent = int(state.range(0));
+  Index size = 4097;
+  int exponent = int(state.range(0));
   Array<std::complex<T>, Dynamic, 1> z = complex_bases<T>(size), y(size);
   for (auto _ : state) {
     benchmark::DoNotOptimize(z.data());

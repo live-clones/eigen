@@ -149,9 +149,9 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet twoprod_low(const Packet& x, const 
 template <typename Packet>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void twosum(const Packet& x_hi, const Packet& x_lo, const Packet& y_hi,
                                                   const Packet& y_lo, Packet& s_hi, Packet& s_lo) {
-  const Packet s = padd(x_hi, y_hi);
-  const Packet y_part = psub(s, x_hi);
-  const Packet err = padd(psub(x_hi, psub(s, y_part)), psub(y_hi, y_part));
+  Packet s = padd(x_hi, y_hi);
+  Packet y_part = psub(s, x_hi);
+  Packet err = padd(psub(x_hi, psub(s, y_part)), psub(y_hi, y_part));
   fast_twosum(s, padd(err, padd(x_lo, y_lo)), s_hi, s_lo);
 }
 
