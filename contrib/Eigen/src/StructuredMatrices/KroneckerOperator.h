@@ -193,7 +193,7 @@ struct kron_factor_ops<Factor, kKronDiagonalFactor> {
     for (Index k = 0; k < f.rows(); ++k) visit(k, k, f.diagonal().coeff(k));
   }
   static Matrix<Index, Dynamic, 1> innerNonZeros(const Factor& f, bool) {
-    return Matrix<Index, Dynamic, 1>::Constant(f.rows(), 1);
+    return Matrix<Index, Dynamic, 1>::Ones(f.rows());
   }
   static const Factor& transposed(const Factor& f) { return f; }
   static auto conjugated(const Factor& f) { return f.diagonal().conjugate().asDiagonal(); }
@@ -227,12 +227,11 @@ class kron_sparse_lu : public SparseLU<SparseType> {
   Scalar balancedDet(Index& exponent) const {
     eigen_assert(Base::info() == Success);
     Scalar m = Scalar(RealScalar(Base::m_detPermR * Base::m_detPermC));
-    for (Index j = 0; j < Base::cols(); ++j)
-      for (typename Base::SCMatrix::InnerIterator it(Base::m_Lstore, j); it; ++it)
-        if (it.index() == j) {
-          m = structured_balance(m * structured_balance(it.value(), exponent), exponent);
-          break;
-        }
+    for (Index j = 0; j < Base::cols(); ++j) {
+      typename Base::SCMatrix::InnerIterator it(Base::m_Lstore, j);
+      while (it && it.index() != j) ++it;
+      if (it) m = structured_balance(m * structured_balance(it.value(), exponent), exponent);
+    }
     return m;
   }
 };
@@ -404,10 +403,10 @@ class kron_factor_solver<Factor, kKronSparseFactor> {
   template <typename Xpr>
   DenseMatrix solveTransposedRight(const Xpr& M) const {
     if (!m_factorized) return kron_factor_ops<Factor>::nanMatrix(M.rows(), M.cols());
-    // SparseLU solves into column-major storage only, so the transposed
-    // right-hand side is evaluated first.
-    const DenseMatrix Mt = M.transpose();
-    return m_lu.solve(Mt).transpose();
+    // SparseLU solves into column-major storage only, which a transposed Solve
+    // expression would not evaluate into; the right-hand side stays a view.
+    const DenseMatrix Xt = m_lu.solve(M.transpose());
+    return Xt.transpose();
   }
 
  private:
