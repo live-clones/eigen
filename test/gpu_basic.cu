@@ -357,6 +357,39 @@ struct diagonal {
 };
 
 template <typename T>
+struct jacobi_rotations {
+  EIGEN_DEVICE_FUNC void operator()(int i, const typename T::Scalar* in, typename T::Scalar* out) const {
+    using Scalar = typename T::Scalar;
+    constexpr int size = T::SizeAtCompileTime;
+    const Eigen::JacobiRotation<Scalar> rotation(Scalar(3) / Scalar(5), Scalar(4) / Scalar(5));
+
+    T fixed(in + i);
+    fixed.applyOnTheLeft(0, 1, rotation);
+    fixed.applyOnTheRight(0, 1, rotation);
+    Eigen::Map<T>(out + 2 * i * size) = fixed;
+
+    using DynamicMatrix = Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic, T::Options>;
+    Eigen::Map<DynamicMatrix> dynamic(out + (2 * i + 1) * size, T::RowsAtCompileTime, T::ColsAtCompileTime);
+    dynamic = T(in + i);
+    dynamic.applyOnTheLeft(0, 1, rotation);
+    dynamic.applyOnTheRight(0, 1, rotation);
+  }
+};
+
+template <typename Scalar, int Options>
+void test_jacobi_rotations() {
+  constexpr int n = 4;
+  Eigen::Array<Scalar, Eigen::Dynamic, 1> in(n * 512), out(n * 512);
+  in.setRandom();
+  out.setZero();
+
+  // Sizes 3, 4 and 9 cover scalar fallback, aligned packets, and dynamic packets with a tail.
+  run_and_compare_to_gpu(jacobi_rotations<Eigen::Matrix<Scalar, 3, 3, Options>>(), n, in, out);
+  run_and_compare_to_gpu(jacobi_rotations<Eigen::Matrix<Scalar, 4, 4, Options>>(), n, in, out);
+  run_and_compare_to_gpu(jacobi_rotations<Eigen::Matrix<Scalar, 9, 9, Options>>(), n, in, out);
+}
+
+template <typename T>
 struct eigenvalues_direct {
   EIGEN_DEVICE_FUNC void operator()(int i, const typename T::Scalar* in, typename T::Scalar* out) const {
     using namespace Eigen;
@@ -672,6 +705,11 @@ EIGEN_DECLARE_TEST(gpu_basic) {
   CALL_SUBTEST(run_and_compare_to_gpu(matrix_inverse<Matrix2f>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(matrix_inverse<Matrix3f>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(matrix_inverse<Matrix4f>(), nthreads, in, out));
+
+  CALL_SUBTEST((test_jacobi_rotations<float, ColMajor>()));
+  CALL_SUBTEST((test_jacobi_rotations<float, RowMajor>()));
+  CALL_SUBTEST((test_jacobi_rotations<double, ColMajor>()));
+  CALL_SUBTEST((test_jacobi_rotations<double, RowMajor>()));
 
   CALL_SUBTEST(run_and_compare_to_gpu(eigenvalues_direct<Matrix3f>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(eigenvalues_direct<Matrix2f>(), nthreads, in, out));
