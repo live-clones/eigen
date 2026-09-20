@@ -147,16 +147,25 @@ struct test_relative_error_impl<Scalar, true> {
   }
 };
 
+template <typename Scalar>
+using test_difference_scalar_t =
+    std::conditional_t<NumTraits<Scalar>::IsInteger, typename NumTraits<Scalar>::NonInteger, Scalar>;
+
 // test_relative_error returns the relative difference between a and b as a real scalar as used in isApprox.
 template <typename T1, typename T2>
 typename NumTraits<typename T1::RealScalar>::NonInteger test_relative_error(const EigenBase<T1>& a,
                                                                             const EigenBase<T2>& b) {
-  // Promote before subtraction and squaring, avoiding Boolean subtraction and integer overflow.
-  using DiffScalar1 = typename NumTraits<typename T1::Scalar>::NonInteger;
-  using DiffScalar2 = typename NumTraits<typename T2::Scalar>::NonInteger;
+  // Promote integers before subtraction and squaring, avoiding Boolean subtraction and integer overflow. Other
+  // scalars keep their type: a custom complex scalar can inherit a real NonInteger from NumTraits<Real>.
+  using DiffScalar1 = test_difference_scalar_t<typename T1::Scalar>;
+  using DiffScalar2 = test_difference_scalar_t<typename T2::Scalar>;
   typename internal::nested_eval<T1, 2>::type ea(a.derived());
   typename internal::nested_eval<T2, 2>::type eb(b.derived());
-  return test_relative_error_impl<DiffScalar1>::run(ea.template cast<DiffScalar1>(), eb.template cast<DiffScalar2>());
+  // Exponent scaling needs binary floating-point on both sides.
+  constexpr bool kScaled =
+      internal::use_scaled_comparison<DiffScalar1>::value && internal::use_scaled_comparison<DiffScalar2>::value;
+  return test_relative_error_impl<DiffScalar1, kScaled>::run(ea.template cast<DiffScalar1>(),
+                                                             eb.template cast<DiffScalar2>());
 }
 
 template <typename T1, typename T2>

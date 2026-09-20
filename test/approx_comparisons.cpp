@@ -4,6 +4,7 @@
 #define EIGEN_RUNTIME_NO_MALLOC
 #include "main.h"
 #include <Eigen/Core>
+#include <Eigen/Geometry>
 #include "fp_control.h"
 #define EIGEN_TEST_ANNOYING_SCALAR_DONT_THROW
 #include "AnnoyingScalar.h"
@@ -178,6 +179,41 @@ void approx_comparisons_complex_components() {
   VERIFY(!x.isMuchSmallerThan(big, Real(1)));
 }
 
+// nested_eval keeps these cheap expressions lazy, so they reach the scaled path without direct access.
+template <typename Real>
+void approx_comparisons_lazy_operands() {
+  using Complex = std::complex<Real>;
+  using Vector3 = Matrix<Real, 3, 1>;
+  using Vector4 = Matrix<Real, 4, 1>;
+  using Array4 = Array<Real, 4, 1>;
+  const Real precision = Real(0.125);
+  for (int exponent : {0, NumTraits<Real>::min_exponent() + 4, NumTraits<Real>::max_exponent() - 8}) {
+    const Real scale = numext::ldexp(Real(1), exponent);
+    const Vector3 x = Vector3::Constant(scale);
+    Vector4 y;
+    y << x, Real(1);
+    VERIFY(x.homogeneous().isApprox(y, precision));
+    VERIFY(y.isApprox(x.homogeneous(), precision));
+    VERIFY_IS_EQUAL(test_relative_error(x.homogeneous(), y), Real(0));
+    VERIFY(!x.homogeneous().isMuchSmallerThan(y, precision));
+    y *= Real(2);
+    VERIFY(!x.homogeneous().isApprox(y, precision));
+    VERIFY(!y.isApprox(x.homogeneous(), precision));
+    VERIFY(test_relative_error(x.homogeneous(), y) > precision);
+
+    const Array4 base = Array4::LinSpaced(Real(1), Real(2));
+    const Array4 a = base * scale;
+    VERIFY((a + a).isApprox(a * Real(2), precision));
+    VERIFY(!(a + a).isApprox(a, precision));
+    VERIFY_IS_EQUAL(test_relative_error(a + a, a * Real(2)), Real(0));
+  }
+  // A unary functor whose result is complex but whose argument is real.
+  const Array4 base = Array4::LinSpaced(Real(1), Real(2));
+  const Complex power(Real(2), Real(1));
+  VERIFY(base.pow(power).isApprox(base.template cast<Complex>().pow(power), precision));
+  VERIFY(test_relative_error(base.pow(power), base.template cast<Complex>().pow(power)) <= precision);
+}
+
 template <typename Real>
 void approx_comparisons_scale_invariance() {
   using Vector = Matrix<Real, 17, 1>;
@@ -219,6 +255,8 @@ EIGEN_DECLARE_TEST(approx_comparisons) {
   CALL_SUBTEST_2((approx_comparisons_floating<std::complex<double>, ColMajor>()));
   CALL_SUBTEST_2(approx_comparisons_complex_components<float>());
   CALL_SUBTEST_2(approx_comparisons_complex_components<double>());
+  CALL_SUBTEST_2(approx_comparisons_lazy_operands<float>());
+  CALL_SUBTEST_2(approx_comparisons_lazy_operands<double>());
   CALL_SUBTEST_3((approx_comparisons_floating<half, ColMajor>()));
   CALL_SUBTEST_3((approx_comparisons_floating<bfloat16, RowMajor>()));
   CALL_SUBTEST_3((approx_comparisons_floating<long double, ColMajor>()));
