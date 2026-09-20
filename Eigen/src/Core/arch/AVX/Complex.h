@@ -69,6 +69,9 @@ struct unpacket_traits<Packet4cf> {
 };
 
 template <>
+struct packet_supports_mixed_complex_product<Packet4cf> : std::true_type {};
+
+template <>
 EIGEN_STRONG_INLINE Packet4cf padd<Packet4cf>(const Packet4cf& a, const Packet4cf& b) {
   return Packet4cf(_mm256_add_ps(a.v, b.v));
 }
@@ -290,6 +293,9 @@ struct unpacket_traits<Packet2cd> {
     masked_store_available = false
   };
 };
+
+template <>
+struct packet_supports_mixed_complex_product<Packet2cd> : std::true_type {};
 
 template <>
 EIGEN_STRONG_INLINE Packet2cd padd<Packet2cd>(const Packet2cd& a, const Packet2cd& b) {

@@ -348,6 +348,128 @@ void EIGEN_DEVICE_FUNC outer_product_selector_run_small(Dst& dst, const Lhs& lhs
   }
 }
 
+template <typename Dst, typename Lhs, typename Rhs, typename = void>
+struct mixed_outer_product_packet_traits : std::false_type {};
+
+template <typename Dst, typename Lhs, typename Rhs>
+struct mixed_outer_product_packet_traits<Dst, Lhs, Rhs,
+                                         void_t<std::enable_if_t<packet_supports_mixed_complex_product<
+                                             typename packet_traits<typename Dst::Scalar>::type>::value>>> {
+  using Scalar = typename Dst::Scalar;
+  using Real = typename NumTraits<Scalar>::Real;
+  using Packet = typename packet_traits<Scalar>::type;
+  using RealPacket = typename unpacket_traits<Packet>::as_real;
+  using Inner = std::conditional_t<bool(Dst::Flags& RowMajorBit), Rhs, Lhs>;
+  // Duplicating real inputs into narrow complex packets can cost more than the scalar loop.
+  static constexpr bool value =
+      EIGEN_UNALIGNED_VECTORIZE && std::is_floating_point<Real>::value &&
+      std::is_same<Scalar, std::complex<Real>>::value &&
+      ((std::is_same<typename Lhs::Scalar, Scalar>::value && std::is_same<typename Rhs::Scalar, Real>::value) ||
+       (std::is_same<typename Rhs::Scalar, Scalar>::value && std::is_same<typename Lhs::Scalar, Real>::value)) &&
+      packet_traits<Scalar>::Vectorizable && packet_traits<Real>::HasMul &&
+      std::is_same<RealPacket, typename packet_traits<Real>::type>::value &&
+      unpacket_traits<RealPacket>::size == 2 * unpacket_traits<Packet>::size &&
+      (std::is_same<typename Inner::Scalar, Scalar>::value || unpacket_traits<Packet>::size >= 4) &&
+      (Dst::Flags & DirectAccessBit) && (Inner::Flags & DirectAccessBit) && Dst::InnerStrideAtCompileTime == 1 &&
+      Inner::InnerStrideAtCompileTime == 1;
+};
+
+template <typename Packet, typename Real>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename unpacket_traits<Packet>::as_real mixed_outer_product_broadcast(
+    const std::complex<Real>& factor) {
+  using RealPacket = typename unpacket_traits<Packet>::as_real;
+  return preinterpret<RealPacket>(pset1<Packet>(factor));
+}
+
+template <typename Packet, typename Real, std::enable_if_t<std::is_floating_point<Real>::value, int> = 0>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename unpacket_traits<Packet>::as_real mixed_outer_product_broadcast(
+    const Real& factor) {
+  using RealPacket = typename unpacket_traits<Packet>::as_real;
+  return pset1<RealPacket>(factor);
+}
+
+template <typename Packet, typename Real, std::enable_if_t<std::is_floating_point<Real>::value, int> = 0>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet
+mixed_outer_product_packet(const typename unpacket_traits<Packet>::as_real& factor, const Real* input) {
+  using RealPacket = typename unpacket_traits<Packet>::as_real;
+  return preinterpret<Packet>(pmul(factor, ploaddup<RealPacket>(input)));
+}
+
+template <typename Packet, typename Real>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet
+mixed_outer_product_packet(const typename unpacket_traits<Packet>::as_real& factor, const std::complex<Real>* input) {
+  using RealPacket = typename unpacket_traits<Packet>::as_real;
+  return preinterpret<Packet>(pmul(factor, preinterpret<RealPacket>(ploadu<Packet>(input))));
+}
+
+template <bool Enabled>
+struct mixed_outer_product_packet_selector {
+  template <typename Dst, typename Lhs, typename Rhs, typename Func>
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Dst&, const Lhs&, const Rhs&, const Func&) {}
+};
+
+template <>
+struct mixed_outer_product_packet_selector<true> {
+  template <typename Dst, typename Outer, typename Inner, typename Func>
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void assign(Dst& dst, const Outer& outer, const Inner& inner,
+                                                           const Func& func) {
+    using Scalar = typename Dst::Scalar;
+    using Packet = typename packet_traits<Scalar>::type;
+    constexpr int PacketSize = unpacket_traits<Packet>::size;
+    const Index innerSize = dst.innerSize();
+    const Index outerSize = dst.outerSize();
+    const Index outerStride = dst.outerStride();
+    if (innerSize <= 0 || outerSize <= 0) return;
+    const Index packetEnd = innerSize - innerSize % PacketSize;
+    const Index unrolledEnd = innerSize - innerSize % (4 * PacketSize);
+    const auto* input = inner.data();
+    Scalar* const outputBase = dst.data();
+    const evaluator<Outer> outerEvaluator(outer);
+    for (Index i = 0; i < outerSize; ++i) {
+      Scalar* output = outputBase + i * outerStride;
+      // A complex copy can turn the broadcast into two stores followed by a wider reload.
+      const typename Outer::Scalar& factor = outerEvaluator.coeff(i);
+      if (packetEnd != 0) {
+        const auto factorPacket = mixed_outer_product_broadcast<Packet>(factor);
+        for (Index j = 0; j < unrolledEnd; j += 4 * PacketSize) {
+          func.template assignPacket<Unaligned>(output + j,
+                                                mixed_outer_product_packet<Packet>(factorPacket, input + j));
+          func.template assignPacket<Unaligned>(
+              output + j + PacketSize, mixed_outer_product_packet<Packet>(factorPacket, input + j + PacketSize));
+          func.template assignPacket<Unaligned>(
+              output + j + 2 * PacketSize,
+              mixed_outer_product_packet<Packet>(factorPacket, input + j + 2 * PacketSize));
+          func.template assignPacket<Unaligned>(
+              output + j + 3 * PacketSize,
+              mixed_outer_product_packet<Packet>(factorPacket, input + j + 3 * PacketSize));
+        }
+        for (Index j = unrolledEnd; j < packetEnd; j += PacketSize) {
+          func.template assignPacket<Unaligned>(output + j,
+                                                mixed_outer_product_packet<Packet>(factorPacket, input + j));
+        }
+      }
+      // Keep the remainder bound independent of the packet-loop induction variables.
+      for (Index j = packetEnd; j < innerSize; ++j) func.assignCoeff(output[j], factor * input[j]);
+    }
+  }
+
+  template <typename Dst, typename Lhs, typename Rhs, typename Func>
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_order(Dst& dst, const Lhs& lhs, const Rhs& rhs,
+                                                              const Func& func, const std::true_type&) {
+    assign(dst, lhs, rhs, func);
+  }
+
+  template <typename Dst, typename Lhs, typename Rhs, typename Func>
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_order(Dst& dst, const Lhs& lhs, const Rhs& rhs,
+                                                              const Func& func, const std::false_type&) {
+    assign(dst, rhs, lhs, func);
+  }
+
+  template <typename Dst, typename Lhs, typename Rhs, typename Func>
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Dst& dst, const Lhs& lhs, const Rhs& rhs, const Func& func) {
+    run_order(dst, lhs, rhs, func, bool_constant<bool(Dst::Flags & RowMajorBit)>());
+  }
+};
 template <typename Lhs, typename Rhs>
 struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, OuterProduct> {
   template <typename T>
@@ -391,6 +513,14 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, OuterProduct> {
 
   template <typename Dst>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void evalTo(Dst& dst, const Lhs& lhs, const Rhs& rhs) {
+    using AssignmentFunc = internal::assign_op<typename Dst::Scalar, Scalar>;
+    constexpr bool UsePackets =
+        mixed_outer_product_packet_traits<Dst, Lhs, Rhs>::value && functor_traits<AssignmentFunc>::PacketAccess;
+    constexpr int PacketSize = unpacket_traits<typename packet_traits<typename Dst::Scalar>::type>::size;
+    if (UsePackets && dst.innerSize() >= 2 * PacketSize) {
+      mixed_outer_product_packet_selector<UsePackets>::run(dst, lhs, rhs, AssignmentFunc());
+      return;
+    }
     if (internal::outer_product_use_small_assignment(dst)) {
       internal::outer_product_selector_run_small(dst, lhs, rhs, internal::assign_op<typename Dst::Scalar, Scalar>(),
                                                  UnitScalar(1), is_row_major<Dst>());
@@ -401,6 +531,14 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, OuterProduct> {
 
   template <typename Dst>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void addTo(Dst& dst, const Lhs& lhs, const Rhs& rhs) {
+    using AssignmentFunc = internal::add_assign_op<typename Dst::Scalar, Scalar>;
+    constexpr bool UsePackets =
+        mixed_outer_product_packet_traits<Dst, Lhs, Rhs>::value && functor_traits<AssignmentFunc>::PacketAccess;
+    constexpr int PacketSize = unpacket_traits<typename packet_traits<typename Dst::Scalar>::type>::size;
+    if (UsePackets && dst.innerSize() >= 2 * PacketSize) {
+      mixed_outer_product_packet_selector<UsePackets>::run(dst, lhs, rhs, AssignmentFunc());
+      return;
+    }
     if (internal::outer_product_use_small_assignment(dst)) {
       internal::outer_product_selector_run_small(dst, lhs, rhs, internal::add_assign_op<typename Dst::Scalar, Scalar>(),
                                                  UnitScalar(1), is_row_major<Dst>());
@@ -411,6 +549,14 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, OuterProduct> {
 
   template <typename Dst>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void subTo(Dst& dst, const Lhs& lhs, const Rhs& rhs) {
+    using AssignmentFunc = internal::sub_assign_op<typename Dst::Scalar, Scalar>;
+    constexpr bool UsePackets =
+        mixed_outer_product_packet_traits<Dst, Lhs, Rhs>::value && functor_traits<AssignmentFunc>::PacketAccess;
+    constexpr int PacketSize = unpacket_traits<typename packet_traits<typename Dst::Scalar>::type>::size;
+    if (UsePackets && dst.innerSize() >= 2 * PacketSize) {
+      mixed_outer_product_packet_selector<UsePackets>::run(dst, lhs, rhs, AssignmentFunc());
+      return;
+    }
     if (internal::outer_product_use_small_assignment(dst)) {
       internal::outer_product_selector_run_small(dst, lhs, rhs, internal::sub_assign_op<typename Dst::Scalar, Scalar>(),
                                                  UnitScalar(1), is_row_major<Dst>());

@@ -86,6 +86,9 @@ struct unpacket_traits<Packet2cf> : neon_unpacket_default<Packet2cf, std::comple
 };
 
 template <>
+struct packet_supports_mixed_complex_product<Packet2cf> : std::true_type {};
+
+template <>
 EIGEN_STRONG_INLINE Packet1cf pcast<float, Packet1cf>(const float& a) {
   return Packet1cf(vset_lane_f32(a, vdup_n_f32(0.f), 0));
 }
@@ -489,6 +492,9 @@ template <>
 struct unpacket_traits<Packet1cd> : neon_unpacket_default<Packet1cd, std::complex<double>> {
   using as_real = Packet2d;
 };
+
+template <>
+struct packet_supports_mixed_complex_product<Packet1cd> : std::true_type {};
 
 template <>
 EIGEN_STRONG_INLINE Packet1cd pload<Packet1cd>(const std::complex<double>* from) {

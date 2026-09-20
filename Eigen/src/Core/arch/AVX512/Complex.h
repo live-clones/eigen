@@ -67,6 +67,9 @@ struct unpacket_traits<Packet8cf> {
 };
 
 template <>
+struct packet_supports_mixed_complex_product<Packet8cf> : std::true_type {};
+
+template <>
 EIGEN_STRONG_INLINE Packet8cf ptrue<Packet8cf>(const Packet8cf& a) {
   return Packet8cf(ptrue(Packet16f(a.v)));
 }
@@ -251,6 +254,9 @@ struct unpacket_traits<Packet4cd> {
     masked_store_available = false
   };
 };
+
+template <>
+struct packet_supports_mixed_complex_product<Packet4cd> : std::true_type {};
 
 template <>
 EIGEN_STRONG_INLINE Packet4cd padd<Packet4cd>(const Packet4cd& a, const Packet4cd& b) {
