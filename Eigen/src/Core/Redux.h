@@ -518,80 +518,6 @@ struct redux_impl<Func, Evaluator, SliceVectorizedTraversal, Unrolling> {
     return eval.template packetByOuterInner<Unaligned, PacketType>(j, i);
   }
 
-  // Reduce every whole packet of the sliced range into a single packet. A single accumulator would
-  // put one packetOp latency between consecutive iterations, so carry four of them across the whole
-  // (j, i) traversal and merge once, here rather than in the caller.
-  EIGEN_DEVICE_FUNC static PacketType packetRedux(const Evaluator& eval, const Func& func, Index outerSize,
-                                                  Index packetedInnerSize, Index quadInnerSize) {
-    if (quadInnerSize) {
-      // Four packets or more per panel: each accumulator takes one packet of every group of four.
-      PacketType packet_res0 = packetAt(eval, 0, 0);
-      PacketType packet_res1 = packetAt(eval, 0, PacketSize);
-      PacketType packet_res2 = packetAt(eval, 0, 2 * PacketSize);
-      PacketType packet_res3 = packetAt(eval, 0, 3 * PacketSize);
-      for (Index j = 0; j < outerSize; ++j) {
-        Index i = (j == 0) ? 4 * PacketSize : 0;
-        for (; i < quadInnerSize; i += 4 * PacketSize) {
-          packet_res0 = func.packetOp(packet_res0, packetAt(eval, j, i));
-          packet_res1 = func.packetOp(packet_res1, packetAt(eval, j, i + PacketSize));
-          packet_res2 = func.packetOp(packet_res2, packetAt(eval, j, i + 2 * PacketSize));
-          packet_res3 = func.packetOp(packet_res3, packetAt(eval, j, i + 3 * PacketSize));
-        }
-        // The one to three packets this panel has left over, into accumulators that are still
-        // independent of each other.
-        if (i < packetedInnerSize) {
-          packet_res0 = func.packetOp(packet_res0, packetAt(eval, j, i));
-          i += PacketSize;
-          if (i < packetedInnerSize) {
-            packet_res1 = func.packetOp(packet_res1, packetAt(eval, j, i));
-            i += PacketSize;
-            if (i < packetedInnerSize) packet_res2 = func.packetOp(packet_res2, packetAt(eval, j, i));
-          }
-        }
-      }
-      packet_res0 = func.packetOp(packet_res0, packet_res1);
-      packet_res2 = func.packetOp(packet_res2, packet_res3);
-      return func.packetOp(packet_res0, packet_res2);
-    }
-
-    if (outerSize >= 4) {
-      // Panels of one to three packets: the independence has to come from the outer dimension
-      // instead, so give each accumulator its own panel.
-      PacketType packet_res0 = packetAt(eval, 0, 0);
-      PacketType packet_res1 = packetAt(eval, 1, 0);
-      PacketType packet_res2 = packetAt(eval, 2, 0);
-      PacketType packet_res3 = packetAt(eval, 3, 0);
-      for (Index i = PacketSize; i < packetedInnerSize; i += PacketSize) {
-        packet_res0 = func.packetOp(packet_res0, packetAt(eval, 0, i));
-        packet_res1 = func.packetOp(packet_res1, packetAt(eval, 1, i));
-        packet_res2 = func.packetOp(packet_res2, packetAt(eval, 2, i));
-        packet_res3 = func.packetOp(packet_res3, packetAt(eval, 3, i));
-      }
-      Index j = 4;
-      for (; j + 4 <= outerSize; j += 4)
-        for (Index i = 0; i < packetedInnerSize; i += PacketSize) {
-          packet_res0 = func.packetOp(packet_res0, packetAt(eval, j, i));
-          packet_res1 = func.packetOp(packet_res1, packetAt(eval, j + 1, i));
-          packet_res2 = func.packetOp(packet_res2, packetAt(eval, j + 2, i));
-          packet_res3 = func.packetOp(packet_res3, packetAt(eval, j + 3, i));
-        }
-      for (; j < outerSize; ++j)
-        for (Index i = 0; i < packetedInnerSize; i += PacketSize)
-          packet_res0 = func.packetOp(packet_res0, packetAt(eval, j, i));
-
-      packet_res0 = func.packetOp(packet_res0, packet_res1);
-      packet_res2 = func.packetOp(packet_res2, packet_res3);
-      return func.packetOp(packet_res0, packet_res2);
-    }
-
-    // Fewer than four narrow panels: at most nine packets in total, not worth a merge.
-    PacketType packet_res = packetAt(eval, 0, 0);
-    for (Index j = 0; j < outerSize; ++j)
-      for (Index i = (j == 0 ? PacketSize : 0); i < packetedInnerSize; i += PacketSize)
-        packet_res = func.packetOp(packet_res, packetAt(eval, j, i));
-    return packet_res;
-  }
-
   template <typename XprType>
   EIGEN_DEVICE_FUNC static Scalar run(const Evaluator& eval, const Func& func, const XprType& xpr) {
     eigen_assert(xpr.rows() > 0 && xpr.cols() > 0 && "you are using an empty matrix");
@@ -601,7 +527,74 @@ struct redux_impl<Func, Evaluator, SliceVectorizedTraversal, Unrolling> {
     const Index quadInnerSize = numext::round_down(innerSize, 4 * PacketSize);
     Scalar res;
     if (packetedInnerSize) {
-      res = func.predux(packetRedux(eval, func, outerSize, packetedInnerSize, quadInnerSize));
+      // A single accumulator leaves one packetOp latency between consecutive iterations, so carry
+      // four of them across the whole (j, i) traversal and merge them once.
+      PacketType packet_res0 = packetAt(eval, 0, 0);
+      if (quadInnerSize) {
+        // Four packets or more per panel: each accumulator takes one packet of every group of four.
+        PacketType packet_res1 = packetAt(eval, 0, PacketSize);
+        PacketType packet_res2 = packetAt(eval, 0, 2 * PacketSize);
+        PacketType packet_res3 = packetAt(eval, 0, 3 * PacketSize);
+        // Every panel has the same number of packets left over, so this is loop-invariant and the
+        // branches on it do not wait on the packet loop below.
+        const Index remSize = packetedInnerSize - quadInnerSize;
+        for (Index j = 0; j < outerSize; ++j) {
+          for (Index i = (j == 0) ? 4 * PacketSize : 0; i < quadInnerSize; i += 4 * PacketSize) {
+            packet_res0 = func.packetOp(packet_res0, packetAt(eval, j, i));
+            packet_res1 = func.packetOp(packet_res1, packetAt(eval, j, i + PacketSize));
+            packet_res2 = func.packetOp(packet_res2, packetAt(eval, j, i + 2 * PacketSize));
+            packet_res3 = func.packetOp(packet_res3, packetAt(eval, j, i + 3 * PacketSize));
+          }
+          // This panel's one to three leftover packets, into accumulators that are still
+          // independent of each other.
+          if (remSize >= PacketSize) {
+            packet_res0 = func.packetOp(packet_res0, packetAt(eval, j, quadInnerSize));
+            if (remSize >= 2 * PacketSize) {
+              packet_res1 = func.packetOp(packet_res1, packetAt(eval, j, quadInnerSize + PacketSize));
+              if (remSize == 3 * PacketSize)
+                packet_res2 = func.packetOp(packet_res2, packetAt(eval, j, quadInnerSize + 2 * PacketSize));
+            }
+          }
+        }
+        // Merge as (res0 + res1) + (res2 + res3): two packetOp latencies deep instead of three.
+        packet_res0 = func.packetOp(packet_res0, packet_res1);
+        packet_res2 = func.packetOp(packet_res2, packet_res3);
+        packet_res0 = func.packetOp(packet_res0, packet_res2);
+      } else if (outerSize >= 4) {
+        // Panels of one to three packets cannot supply four independent packets, so the
+        // independence comes from the outer dimension: each accumulator takes its own panel.
+        PacketType packet_res1 = packetAt(eval, 1, 0);
+        PacketType packet_res2 = packetAt(eval, 2, 0);
+        PacketType packet_res3 = packetAt(eval, 3, 0);
+        for (Index i = PacketSize; i < packetedInnerSize; i += PacketSize) {
+          packet_res0 = func.packetOp(packet_res0, packetAt(eval, 0, i));
+          packet_res1 = func.packetOp(packet_res1, packetAt(eval, 1, i));
+          packet_res2 = func.packetOp(packet_res2, packetAt(eval, 2, i));
+          packet_res3 = func.packetOp(packet_res3, packetAt(eval, 3, i));
+        }
+        Index j = 4;
+        for (; j + 4 <= outerSize; j += 4)
+          for (Index i = 0; i < packetedInnerSize; i += PacketSize) {
+            packet_res0 = func.packetOp(packet_res0, packetAt(eval, j, i));
+            packet_res1 = func.packetOp(packet_res1, packetAt(eval, j + 1, i));
+            packet_res2 = func.packetOp(packet_res2, packetAt(eval, j + 2, i));
+            packet_res3 = func.packetOp(packet_res3, packetAt(eval, j + 3, i));
+          }
+        for (; j < outerSize; ++j)
+          for (Index i = 0; i < packetedInnerSize; i += PacketSize)
+            packet_res0 = func.packetOp(packet_res0, packetAt(eval, j, i));
+
+        packet_res0 = func.packetOp(packet_res0, packet_res1);
+        packet_res2 = func.packetOp(packet_res2, packet_res3);
+        packet_res0 = func.packetOp(packet_res0, packet_res2);
+      } else {
+        // Fewer than four narrow panels: at most nine packets in total, not worth a merge.
+        for (Index j = 0; j < outerSize; ++j)
+          for (Index i = (j == 0 ? PacketSize : 0); i < packetedInnerSize; i += PacketSize)
+            packet_res0 = func.packetOp(packet_res0, packetAt(eval, j, i));
+      }
+
+      res = func.predux(packet_res0);
       for (Index j = 0; j < outerSize; ++j)
         for (Index i = packetedInnerSize; i < innerSize; ++i) res = func(res, eval.coeffByOuterInner(j, i));
     } else  // too small to vectorize anything.
