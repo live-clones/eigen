@@ -1455,7 +1455,7 @@ struct scalar_unary_pow_op<Scalar, ExponentScalar, false, false, false, false> {
     return static_cast<Scalar>(pow(a, m_exponent));
   }
   template <typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a) const {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet packetOp(const Packet& a) const {
     return unary_pow_impl<Packet, Scalar>::run(a, m_exponent);
   }
 
@@ -1493,7 +1493,7 @@ struct scalar_unary_pow_op<Scalar, ExponentScalar, BaseIsInteger, true, BaseIsCo
     return unary_pow_impl<Scalar, ExponentScalar>::run(a, m_exponent);
   }
   template <typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a) const {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet packetOp(const Packet& a) const {
     return unary_pow_impl<Packet, ExponentScalar>::run(a, m_exponent);
   }
 
