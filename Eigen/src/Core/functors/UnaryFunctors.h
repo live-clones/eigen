@@ -1506,12 +1506,15 @@ template <typename Scalar, typename ExponentScalar>
 struct functor_traits<scalar_unary_pow_op<Scalar, ExponentScalar>> {
   enum {
     GenPacketAccess = functor_traits<scalar_pow_op<Scalar, ExponentScalar>>::PacketAccess,
-    // Only the real-exponent specializations define packetOp. Every path multiplies packets of the base type; the
-    // divisions, compares and selects run on the real packet, which for a complex base is the component view of
-    // its packet, and an integer base needs no division.
-    IntPacketAccess = !NumTraits<ExponentScalar>::IsComplex && packet_traits<Scalar>::HasMul &&
-                      (packet_traits<typename NumTraits<Scalar>::Real>::HasDiv || NumTraits<Scalar>::IsInteger) &&
-                      packet_traits<typename NumTraits<Scalar>::Real>::HasCmp,
+    // Only the real-exponent specializations define packetOp. Every path multiplies packets of the base type and
+    // divides them for a negative exponent unless the base is an integer; the compares and selects run on the
+    // real packet, which for a complex base is the component view of its packet. A complex base is vectorized
+    // only through the double-word path, so it also needs that path's packet support.
+    IntPacketAccess =
+        !NumTraits<ExponentScalar>::IsComplex && packet_traits<Scalar>::HasMul &&
+        (packet_traits<Scalar>::HasDiv || NumTraits<Scalar>::IsInteger) &&
+        packet_traits<typename NumTraits<Scalar>::Real>::HasCmp &&
+        (!NumTraits<Scalar>::IsComplex || unary_pow::use_double_word<typename packet_traits<Scalar>::type>::value),
     PacketAccess = NumTraits<ExponentScalar>::IsInteger ? IntPacketAccess : (IntPacketAccess && GenPacketAccess),
     Cost = functor_traits<scalar_pow_op<Scalar, ExponentScalar>>::Cost
   };
