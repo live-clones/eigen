@@ -323,10 +323,11 @@ inline bool test_isUnitary(const MatrixBase<Derived>& m) {
   return m.isUnitary(test_precision<typename internal::traits<Derived>::Scalar>());
 }
 
-// Checks component-wise, works with infs and nans.
-template <typename Scalar, std::enable_if_t<!std::is_base_of<EigenBase<Scalar>, Scalar>::value &&
-                                                !internal::is_arithmetic<typename NumTraits<Scalar>::Real>::value,
-                                            int> = 0>
+// Checks component-wise, works with infs and nans. A scalar without a dedicated overload above, such as a custom
+// complex type over a built-in real, delegates to its own test_isApprox.
+template <typename Scalar,
+          std::enable_if_t<
+              !std::is_base_of<EigenBase<Scalar>, Scalar>::value && !internal::is_arithmetic<Scalar>::value, int> = 0>
 bool test_isCwiseApprox(const Scalar& a, const Scalar& b, bool exact) {
   return numext::equal_strict(a, b) || ((numext::isnan)(a) && (numext::isnan)(b)) || (!exact && test_isApprox(a, b));
 }
