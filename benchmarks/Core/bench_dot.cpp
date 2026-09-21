@@ -48,7 +48,7 @@ static void BM_Dot(benchmark::State& state) {
 }
 
 // clang-format off
-#define DOT_SIZES ->Arg(64)->Arg(256)->Arg(1024)->Arg(2048)->Arg(4096)->Arg(8192)->Arg(16384)->Arg(65536)->Arg(262144)->Arg(524288)->Arg(1048576)->Arg(2097152)
+#define DOT_SIZES ->Arg(1)->Arg(4)->Arg(16)->Arg(32)->Arg(64)->Arg(128)->Arg(256)->Arg(512)->Arg(1024)->Arg(2048)->Arg(4096)->Arg(8192)->Arg(16384)->Arg(32768)->Arg(65536)->Arg(262144)->Arg(524288)->Arg(1048576)->Arg(2097152)
 BENCHMARK(BM_Dot<float>) DOT_SIZES ->Arg(16777216) ->Name("Dot_float");
 BENCHMARK(BM_Dot<double>) DOT_SIZES ->Arg(16777216) ->Name("Dot_double");
 BENCHMARK(BM_Dot<std::complex<float>>) DOT_SIZES ->Name("Dot_cfloat");
@@ -130,7 +130,7 @@ static void BM_DotLayout(benchmark::State& state) {
 }
 
 // clang-format off
-#define DOT_LAYOUT_SIZES ->ArgsProduct({{4096, 8192, 16384, 32768, 65536}, {0, 16, 32, 48}, {0, 16}})
+#define DOT_LAYOUT_SIZES ->ArgsProduct({{64, 256, 1024, 4096, 8192, 16384, 32768, 65536}, {0, 16, 32, 48}, {0, 16}})
 BENCHMARK_TEMPLATE(BM_DotLayout, float, false) DOT_LAYOUT_SIZES ->Name("DotLayout_float");
 BENCHMARK_TEMPLATE(BM_DotLayout, double, false) DOT_LAYOUT_SIZES ->Name("DotLayout_double");
 BENCHMARK_TEMPLATE(BM_DotLayout, float, true) DOT_LAYOUT_SIZES ->Name("DotProduced_float");

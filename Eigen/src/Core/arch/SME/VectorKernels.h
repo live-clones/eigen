@@ -172,8 +172,9 @@ template <typename Lhs, typename Rhs>
 struct sme_dot_supported : bool_constant<sme_vector_access<Lhs>::value && sme_vector_access<Rhs>::value &&
                                          is_same<typename traits<Lhs>::Scalar, typename traits<Rhs>::Scalar>::value> {};
 
+// Keep cache queries out of callers so the small vector fallback can inline.
 template <typename Scalar, int L1Divisor = 1>
-EIGEN_STRONG_INLINE bool sme_vector_size_suitable(Index size) {
+EIGEN_DONT_INLINE bool sme_vector_size_suitable(Index size) {
   // M4's NEON/SME memory handoff penalizes small vectors. Use Core's L1/L2 estimates
   // as lower/upper per-operand crossovers, including setCpuCacheSizes overrides.
   std::ptrdiff_t l1, l2, l3;
