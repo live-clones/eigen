@@ -289,6 +289,43 @@ void permutation_dense_sums(Index size) {
   result = a + perm + diag;
   VERIFY_IS_EQUAL(result, MatrixType(a + permDense + diagDense));
   VERIFY_IS_APPROX((a + perm) * a, (a + permDense) * a);
+
+  // Direct assignment assigns the other operand with its own kernel and scatters the ones: compound assignment,
+  // the negated forms, self-assignment, and a product operand on either side.
+  MatrixType expected = a;
+  result = a;
+  result += a + perm;
+  expected += a + permDense;
+  VERIFY_IS_EQUAL(result, expected);
+  result -= perm - diag;
+  expected -= permDense - diagDense;
+  VERIFY_IS_EQUAL(result, expected);
+  result -= a - perm;
+  expected -= a - permDense;
+  VERIFY_IS_EQUAL(result, expected);
+  result = a;
+  result = perm - result;
+  VERIFY_IS_EQUAL(result, MatrixType(permDense - a));
+  VERIFY_IS_APPROX(result = a * a + perm, MatrixType(a * a + permDense));
+  VERIFY_IS_APPROX(result = perm + a * a, MatrixType(permDense + a * a));
+  VERIFY_IS_APPROX(result = perm - a * a, MatrixType(permDense - a * a));
+  VERIFY_IS_APPROX(result = a * a - perm, MatrixType(a * a - permDense));
+
+  // The inverse (transpose) of a permutation sums the same way.
+  const MatrixType permInverseDense = permDense.transpose();
+  VERIFY_EVALUATION_COUNT(result.noalias() = a + perm.inverse(), 0);
+  VERIFY_IS_EQUAL(result, MatrixType(a + permInverseDense));
+  result = perm.transpose() - a;
+  VERIFY_IS_EQUAL(result, MatrixType(permInverseDense - a));
+  result = perm.inverse() + diag;
+  VERIFY_IS_EQUAL(result, MatrixType(permInverseDense + diagDense));
+  result = diag - perm.inverse();
+  VERIFY_IS_EQUAL(result, MatrixType(diagDense - permInverseDense));
+  result = a;
+  result += perm.inverse() + a;
+  VERIFY_IS_EQUAL(result, MatrixType(a + permInverseDense + a));
+  VERIFY_IS_APPROX(result = perm.inverse() - a * a, MatrixType(permInverseDense - a * a));
+  VERIFY_IS_APPROX((a - perm.inverse()) * a, (a - permInverseDense) * a);
 }
 
 void permutation_inverse_product_temporaries() {
