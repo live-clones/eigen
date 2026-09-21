@@ -40,9 +40,11 @@ void sme_vectors() {
   std::vector<Index> sizes;
   for (Index n = 0; n <= 260; ++n) {
     sizes.push_back(n);
-    sizes.push_back(4096 + n);
+    sizes.push_back(32768 + n);
   }
-  for (Index n : {511, 512, 513, 1023, 1024, 1025, 2047, 2048, 2049, 4095, 4096, 4097, 16385}) sizes.push_back(n);
+  for (Index n : {511,  512,  513,  1023, 1024,  1025,  2047,  2048,  2049,  4095, 4096,
+                  4097, 8191, 8192, 8193, 16383, 16384, 16385, 32767, 32768, 32769})
+    sizes.push_back(n);
   for (Index n : sizes) {
     Vec x = Vec::Ones(n), storage = Vec::Ones(n + 2);
     VERIFY_IS_EQUAL(x.dot(storage.head(n)), Scalar(n));
@@ -78,7 +80,7 @@ void sme_vectors() {
     Strided contiguous(x.data(), n, InnerStride<Dynamic>(1));
     sme_check_dot(contiguous, y);
   }
-  Vec x = Vec::Random(16386), y = Vec::Random(8193), expected = x;
+  Vec x = Vec::Random(65538), y = Vec::Random(32769), expected = x;
   Strided strided(x.data(), y.size(), InnerStride<Dynamic>(2));
   Strided negative(x.data() + x.size() - 2, y.size(), InnerStride<Dynamic>(-2));
   sme_check_dot(strided, y);
@@ -117,14 +119,14 @@ template <typename Scalar>
 void sme_vector_cache_sizes() {
   using Vec = Vector<Scalar, Dynamic>;
   const std::ptrdiff_t old_l1 = l1CacheSize(), old_l2 = l2CacheSize(), old_l3 = l3CacheSize();
-  const Index n = 4097;
+  const Index n = 32769;
   const std::ptrdiff_t bytes = n * sizeof(Scalar);
   const Vec x = Vec::Ones(n);
   Vec y(n);
   for (std::ptrdiff_t l2 : {bytes, bytes - 1, std::ptrdiff_t(0), std::ptrdiff_t(-1), bytes + 1}) {
     setCpuCacheSizes(old_l1, l2, old_l3);
-    VERIFY_IS_EQUAL(internal::sme_vector_fits_budget<Scalar>(n), l2 >= bytes);
-    VERIFY(!internal::sme_vector_fits_budget<Scalar>((std::numeric_limits<Index>::max)()));
+    VERIFY_IS_EQUAL(internal::sme_vector_size_suitable<Scalar>(n), l2 >= bytes);
+    VERIFY(!internal::sme_vector_size_suitable<Scalar>((std::numeric_limits<Index>::max)()));
     VERIFY_IS_EQUAL(x.dot(x), Scalar(n));
     y.setOnes();
     y += Scalar(0.75) * x;
@@ -133,13 +135,35 @@ void sme_vector_cache_sizes() {
     y += x * Scalar(0.75);
     VERIFY((y.array() == Scalar(1.75)).all());
   }
+  for (std::ptrdiff_t l1 : {bytes, bytes - 1, std::ptrdiff_t(0), std::ptrdiff_t(-1), bytes + 1}) {
+    setCpuCacheSizes(l1, bytes, old_l3);
+    const bool suitable = l1 > 0 && l1 <= bytes;
+    VERIFY_IS_EQUAL(internal::sme_vector_size_suitable<Scalar>(n), suitable);
+    y.setOnes();
+    VERIFY_IS_EQUAL(internal::sme_try_axpy(y, x, Scalar(0.75)), suitable);
+    VERIFY((y.array() == (suitable ? Scalar(1.75) : Scalar(1))).all());
+    VERIFY_IS_EQUAL(x.dot(x), Scalar(n));
+  }
+  for (std::ptrdiff_t l1 : {2 * bytes - 1, 2 * bytes, 2 * bytes + 1}) {
+    setCpuCacheSizes(l1, bytes, old_l3);
+    VERIFY_IS_EQUAL((internal::sme_vector_size_suitable<Scalar, 2>(n)), l1 <= 2 * bytes);
+    VERIFY_IS_EQUAL(x.dot(x), Scalar(n));
+  }
+#ifndef EIGEN_USE_BLAS
+  const std::ptrdiff_t matrix_bytes = 128 * 4 * sizeof(Scalar);
+  for (std::ptrdiff_t l1 : {matrix_bytes - 1, matrix_bytes, matrix_bytes + 1, std::ptrdiff_t(0)}) {
+    setCpuCacheSizes(l1, old_l2, old_l3);
+    VERIFY_IS_EQUAL(internal::sme_gemv_size_suitable<Scalar>(Index(128), Index(4)), l1 > 0 && l1 <= matrix_bytes);
+    VERIFY(!internal::sme_gemv_size_suitable<Scalar>(Index(0), Index(4)));
+  }
+#endif
   setCpuCacheSizes(old_l1, old_l2, old_l3);
 }
 
 template <typename Scalar>
 void sme_vector_scalar_factors() {
   using Vec = Vector<Scalar, Dynamic>;
-  const Index n = 8193;
+  const Index n = 32769;
   Vec x = Vec::Constant(n, Scalar(0.25)), y = Vec::Zero(n);
   y += x.cwiseProduct(x);
   VERIFY((y.array() == Scalar(0.0625)).all());
@@ -169,7 +193,7 @@ void sme_matrix_vectors() {
   using Vec = Vector<Scalar, Dynamic>;
   using Mat = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
   for (Index rows : {127, 128, 129, 255, 256, 257, 513}) {
-    for (Index cols : {3, 4, 5, 17, 65, 129}) {
+    for (Index cols : {3, 4, 5, 15, 16, 17, 31, 32, 33, 63, 64, 65, 129}) {
       for (Index padding : {0, 3}) {
         Mat storage = Mat::Random(rows + padding, cols);
         auto a = storage.topRows(rows);
@@ -204,13 +228,50 @@ void sme_matrix_vectors() {
 }
 
 template <typename Scalar>
+void sme_vector_alignment() {
+  using Vec = Vector<Scalar, Dynamic>;
+  const Index padding = 64 / sizeof(Scalar);
+  for (Index tail : {0, 1, 15, 31, 63, 127, 255, 256}) {
+    const Index n = 32768 + tail;
+    Vec x_storage = Vec::Ones(n + padding), y_storage(n + 2 * padding);
+    for (Index offset = 0; offset < padding; ++offset) {
+      y_storage.setConstant(Scalar(2));
+      const auto x = x_storage.segment(offset, n);
+      auto y = y_storage.segment(padding + offset, n);
+      VERIFY(internal::sme_try_axpy(y, x, Scalar(0.75)));
+      VERIFY((y.array() == Scalar(2.75)).all());
+      VERIFY((y_storage.head(padding + offset).array() == Scalar(2)).all());
+      VERIFY((y_storage.tail(padding - offset).array() == Scalar(2)).all());
+      VERIFY_IS_EQUAL(x.dot(y), Scalar(2.75) * Scalar(n));
+    }
+  }
+}
+
+template <typename Scalar>
+void sme_gemv_tails() {
+  using Vec = Vector<Scalar, Dynamic>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  // Every four-vector predicate remainder, including at the largest architectural SVL.
+  for (Index rows = 128; rows <= 388; ++rows) {
+    const Mat a = Mat::Ones(rows, 65);
+    const Vec x = Vec::Ones(65);
+    Vec storage = Vec::Ones(rows + 2);
+    auto y = storage.segment(1, rows);
+    y.noalias() += Scalar(0.75) * a * x;
+    VERIFY((y.array() == Scalar(49.75)).all());
+    VERIFY_IS_EQUAL(storage[0], Scalar(1));
+    VERIFY_IS_EQUAL(storage[rows + 1], Scalar(1));
+  }
+}
+
+template <typename Scalar>
 void sme_vector_special_values() {
   using Vec = Vector<Scalar, Dynamic>;
   using Mat = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
   const Scalar inf = NumTraits<Scalar>::infinity(), nan = NumTraits<Scalar>::quiet_NaN();
   const Scalar tiny = (std::numeric_limits<Scalar>::denorm_min)();
-  for (Index pos : {0, 7, 31, 63, 127, 255, 256, 4096}) {
-    Vec x = Vec::Zero(4097), y = Vec::Ones(4097), result(4097);
+  for (Index pos : {0, 7, 31, 63, 127, 255, 256, 32768}) {
+    Vec x = Vec::Zero(32769), y = Vec::Ones(32769), result(32769);
     for (Scalar special : {inf, -inf, nan, tiny, -tiny, Scalar(-0.0)}) {
       x[pos] = special;
       const Scalar actual = x.dot(y);
@@ -232,9 +293,9 @@ void sme_vector_special_values() {
     }
   }
   for (Scalar special : {inf, -inf, nan, tiny, -tiny}) {
-    Mat a = Mat::Zero(257, 4);
-    Vec x = Vec::Ones(4), y = Vec::Zero(257);
-    a(0, 0) = a(256, 3) = special;
+    Mat a = Mat::Zero(257, 65);
+    Vec x = Vec::Ones(65), y = Vec::Zero(257);
+    a(0, 0) = a(256, 64) = special;
     y.noalias() += a * x;
     for (Index i = 0; i < y.size(); ++i) {
       const Scalar expected = i == 0 || i == 256 ? special : Scalar(0);
@@ -247,22 +308,29 @@ void sme_vector_special_values() {
     y.noalias() += Scalar(0) * a * x;
     VERIFY((y.array() == Scalar(1)).all());
   }
-  Vec x = Vec::Zero(4097), y = Vec::Zero(4097);
+  Vec x = Vec::Zero(32769), y = Vec::Zero(32769);
   x[0] = inf;
   VERIFY((numext::isnan)(x.dot(y)));
 }
 
 EIGEN_DECLARE_TEST(vector_sme) {
+  const std::ptrdiff_t l1 = l1CacheSize(), l2 = l2CacheSize(), l3 = l3CacheSize();
+  setCpuCacheSizes(128 * 1024, 4 * 1024 * 1024, l3);
   CALL_SUBTEST_1(sme_vector_cache_sizes<float>());
   CALL_SUBTEST_1(sme_vector_scalar_factors<float>());
   CALL_SUBTEST_1(sme_vectors<float>());
   CALL_SUBTEST_1(sme_matrix_vectors<float>());
+  CALL_SUBTEST_1(sme_vector_alignment<float>());
+  CALL_SUBTEST_1(sme_gemv_tails<float>());
   CALL_SUBTEST_1(sme_vector_special_values<float>());
 #ifdef EIGEN_VECTORIZE_SME_F64F64
   CALL_SUBTEST_2(sme_vector_cache_sizes<double>());
   CALL_SUBTEST_2(sme_vector_scalar_factors<double>());
   CALL_SUBTEST_2(sme_vectors<double>());
   CALL_SUBTEST_2(sme_matrix_vectors<double>());
+  CALL_SUBTEST_2(sme_vector_alignment<double>());
+  CALL_SUBTEST_2(sme_gemv_tails<double>());
   CALL_SUBTEST_2(sme_vector_special_values<double>());
 #endif
+  setCpuCacheSizes(l1, l2, l3);
 }
