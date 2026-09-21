@@ -62,6 +62,69 @@ inline int nbThreads() {
  * \sa nbThreads */
 inline void setNbThreads(int v) { internal::manage_multi_threading(SetAction, &v); }
 
+#ifdef EIGEN_VECTORIZE_SME
+namespace internal {
+// SME units are shared by a cluster of cores, so a GEMM on the SME kernel gains
+// nothing from more threads than units and loses to contention: on Apple M4 Pro
+// (two units) float 2048^3 runs at 2.45 TFLOPS on 2 threads and 1.76 on 12.
+inline int detect_sme_units() {
+#if defined(EIGEN_SME_UNITS)
+  return EIGEN_SME_UNITS;
+#elif EIGEN_OS_MAC
+  // One unit per performance cluster; a cluster is the set of cores sharing an L2.
+  int64_t cores = 0, per_l2 = 0;
+  size_t sz = sizeof(int64_t);
+  if (sysctlbyname("hw.perflevel0.physicalcpu", &cores, &sz, nullptr, 0) == 0 && cores > 0) {
+    sz = sizeof(int64_t);
+    if (sysctlbyname("hw.perflevel0.cpusperl2", &per_l2, &sz, nullptr, 0) == 0 && per_l2 > 0)
+      return static_cast<int>(numext::maxi<int64_t>(1, cores / per_l2));
+  }
+  return 1;
+#elif EIGEN_OS_LINUX
+  // One unit per cluster: count the distinct cluster ids of the online CPUs.
+  int units = 0;
+  int last = -1;
+  for (int cpu = 0; cpu < 1024; ++cpu) {
+    char path[96];
+    std::snprintf(path, sizeof(path), "/sys/devices/system/cpu/cpu%d/topology/cluster_id", cpu);
+    std::FILE* f = std::fopen(path, "r");
+    if (f == nullptr) break;
+    int id = -1;
+    if (std::fscanf(f, "%d", &id) != 1) id = -1;
+    std::fclose(f);
+    if (id >= 0 && id != last) ++units;
+    last = id;
+  }
+  return units > 0 ? units : 0;
+#else
+  return 0;
+#endif
+}
+inline void manage_sme_units(Action action, int* v) {
+  static int m_units = -1;
+  if (action == SetAction) {
+    m_units = *v;
+  } else {
+    if (m_units < 0) m_units = detect_sme_units();
+    *v = m_units;
+  }
+}
+}  // namespace internal
+
+/** \returns the number of SME units the GEMM kernels on the ARM SME backend spread over, or 0 when
+ * unknown (then \c nbThreads() applies). Detected once from the core topology; see setNbSmeUnits().
+ * \sa setNbSmeUnits */
+inline int nbSmeUnits() {
+  int ret;
+  internal::manage_sme_units(GetAction, &ret);
+  return ret;
+}
+/** Sets the number of SME units, which caps the threads a product on the SME GEMM kernel uses;
+ * 0 removes the cap. \c EIGEN_SME_UNITS sets it at compile time.
+ * \sa nbSmeUnits */
+inline void setNbSmeUnits(int v) { internal::manage_sme_units(SetAction, &v); }
+#endif
+
 #ifdef EIGEN_GEMM_THREADPOOL
 // Sets the ThreadPool used by Eigen parallel Gemm.
 //
@@ -214,6 +277,14 @@ EIGEN_STRONG_INLINE void parallelize_gemm(const Functor& func, Index rows, Index
 
   // compute the number of threads we are going to use
   int threads = std::min<int>(nbThreads(), static_cast<int>(pb_max_threads));
+#ifdef EIGEN_VECTORIZE_SME
+  // The SME kernels share one unit per cluster; more threads than units only contend.
+  EIGEN_IF_CONSTEXPR ((sme_has_gebp_kernel<typename Functor::Traits::LhsScalar,
+                                           typename Functor::Traits::RhsScalar>::value)) {
+    const int units = nbSmeUnits();
+    if (units > 0) threads = std::min<int>(threads, units);
+  }
+#endif
 
   // if multi-threading is explicitly disabled, not useful, or if we already are
   // inside a parallel session, then abort multi-threading
