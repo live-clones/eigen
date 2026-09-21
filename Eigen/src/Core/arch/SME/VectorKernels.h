@@ -16,35 +16,30 @@ static EIGEN_ALWAYS_INLINE void sme_vector_madd(unsigned int slice, svfloat32x4_
                                                 svfloat32_t y) __arm_streaming __arm_inout("za") {
   svmla_single_za32_f32_vg1x4(slice, x, y);
 }
+static EIGEN_ALWAYS_INLINE void sme_vector_madd(unsigned int slice, svfloat32x4_t x,
+                                                svfloat32x4_t y) __arm_streaming __arm_inout("za") {
+  svmla_za32_f32_vg1x4(slice, x, y);
+}
+static EIGEN_ALWAYS_INLINE svfloat32x4_t sme_vector_read(unsigned int slice, float) __arm_streaming __arm_in("za") {
+  return svread_za32_f32_vg1x4(slice);
+}
+static EIGEN_ALWAYS_INLINE void sme_vector_write(unsigned int slice,
+                                                 svfloat32x4_t x) __arm_streaming __arm_inout("za") {
+  svwrite_za32_f32_vg1x4(slice, x);
+}
+
 #ifdef EIGEN_VECTORIZE_SME_F64F64
 static EIGEN_ALWAYS_INLINE void sme_vector_madd(unsigned int slice, svfloat64x4_t x,
                                                 svfloat64_t y) __arm_streaming __arm_inout("za") {
   svmla_single_za64_f64_vg1x4(slice, x, y);
 }
-#endif
-static EIGEN_ALWAYS_INLINE void sme_vector_madd(unsigned int slice, svfloat32x4_t x,
-                                                svfloat32x4_t y) __arm_streaming __arm_inout("za") {
-  svmla_za32_f32_vg1x4(slice, x, y);
-}
-#ifdef EIGEN_VECTORIZE_SME_F64F64
 static EIGEN_ALWAYS_INLINE void sme_vector_madd(unsigned int slice, svfloat64x4_t x,
                                                 svfloat64x4_t y) __arm_streaming __arm_inout("za") {
   svmla_za64_f64_vg1x4(slice, x, y);
 }
-#endif
-static EIGEN_ALWAYS_INLINE svfloat32x4_t sme_vector_read(unsigned int slice, float) __arm_streaming __arm_in("za") {
-  return svread_za32_f32_vg1x4(slice);
-}
-#ifdef EIGEN_VECTORIZE_SME_F64F64
 static EIGEN_ALWAYS_INLINE svfloat64x4_t sme_vector_read(unsigned int slice, double) __arm_streaming __arm_in("za") {
   return svread_za64_f64_vg1x4(slice);
 }
-#endif
-static EIGEN_ALWAYS_INLINE void sme_vector_write(unsigned int slice,
-                                                 svfloat32x4_t x) __arm_streaming __arm_inout("za") {
-  svwrite_za32_f32_vg1x4(slice, x);
-}
-#ifdef EIGEN_VECTORIZE_SME_F64F64
 static EIGEN_ALWAYS_INLINE void sme_vector_write(unsigned int slice,
                                                  svfloat64x4_t x) __arm_streaming __arm_inout("za") {
   svwrite_za64_f64_vg1x4(slice, x);
@@ -61,7 +56,7 @@ __arm_new("za") __arm_locally_streaming
   Index i = 0;
   for (; i < prefix; i += prefix - i < lanes ? prefix - i : lanes) {
     auto active = Traits::whilelt(i, prefix);
-    sme_st1(active, y + i, sme_mla(active, sme_ld1(active, y + i), sme_ld1(active, x + i), a));
+    sme_st1(active, y + i, svmla_x(active, sme_ld1(active, y + i), sme_ld1(active, x + i), alpha));
   }
   for (; i <= n - 16 * lanes; i += 16 * lanes) {
 #pragma unroll
@@ -81,7 +76,7 @@ __arm_new("za") __arm_locally_streaming
   }
   for (; i < n; i += n - i < lanes ? n - i : lanes) {
     auto tail = Traits::whilelt(i, n);
-    sme_st1(tail, y + i, sme_mla(tail, sme_ld1(tail, y + i), sme_ld1(tail, x + i), a));
+    sme_st1(tail, y + i, svmla_x(tail, sme_ld1(tail, y + i), sme_ld1(tail, x + i), alpha));
   }
 }
 
@@ -138,6 +133,7 @@ __arm_new("za") __arm_locally_streaming
       svst1(pn, y + i + k * 4 * lanes, sme_vector_read(k, Scalar(0)));
     }
   }
+  // Bound the final increment to avoid signed overflow with a 32-bit Index near its maximum.
   for (; i < rows; i += rows - i < 4 * lanes ? rows - i : 4 * lanes) {
     const auto active = Traits::whilelt_c4(i, rows);
     svzero_za();
@@ -159,9 +155,8 @@ struct sme_vector_scalar<double> : true_type {};
 #endif
 
 template <typename Xpr>
-struct sme_vector_access
-    : bool_constant<sme_vector_scalar<typename traits<Xpr>::Scalar>::value&& bool(Xpr::IsVectorAtCompileTime) &&
-                    has_direct_access<Xpr>::value> {};
+struct sme_vector_access : bool_constant<(sme_vector_scalar<typename traits<Xpr>::Scalar>::value &&
+                                          bool(Xpr::IsVectorAtCompileTime) && has_direct_access<Xpr>::value)> {};
 
 template <typename Lhs, typename Rhs>
 struct sme_dot_supported : bool_constant<sme_vector_access<Lhs>::value && sme_vector_access<Rhs>::value &&
