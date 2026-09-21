@@ -226,16 +226,19 @@ class Array : public PlainObjectBase<Array<Scalar_, Rows_, Cols_, Options_, MaxR
   struct PrivateType {};
 
  public:
-  /** \sa MatrixBase::operator=(const EigenBase<OtherDerived>&) */
+  /** Constructs an array from an expression with compatible scalar types.
+   * Use \c .cast<NewScalar>() to convert between scalar types.
+   * \sa MatrixBase::operator=(const EigenBase<OtherDerived>&)
+   */
   template <typename OtherDerived,
-            std::enable_if_t<std::is_convertible<typename OtherDerived::Scalar, Scalar>::value, int> = 0>
+            std::enable_if_t<internal::is_valid_dense_conversion<Scalar, OtherDerived>::value, int> = 0>
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Array(const EigenBase<OtherDerived>& other) : Base(other.derived()) {}
 
   template <typename OtherDerived>
   EIGEN_DEPRECATED_WITH_REASON("Omit the implementation-only second argument.")
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Array(
       const EigenBase<OtherDerived>& other,
-      std::enable_if_t<std::is_convertible<typename OtherDerived::Scalar, Scalar>::value, PrivateType>)
+      std::enable_if_t<internal::is_valid_dense_conversion<Scalar, OtherDerived>::value, PrivateType>)
       : Array(other) {}
 
   EIGEN_DEVICE_FUNC constexpr Index innerStride() const noexcept { return 1; }
