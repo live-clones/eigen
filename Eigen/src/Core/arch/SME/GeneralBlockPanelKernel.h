@@ -818,19 +818,11 @@ void sme_pack_rhs_fallback(Scalar* dst_base, const DataMapper& rhs, Index depth,
   }
 }
 
-// Panels no deeper than sme_neon_max_depth are packed with NEON packets, and a
-// block of such panels no wider than sme_neon_max_width on either side, or no
-// wider than sme_neon_thin_dim on one, runs sme_gebp_neon instead of the ZA
-// kernel. Fitted on Apple M4 (SVL 512).
-//
-// Crossing modes on the packed panels is what costs: streaming-mode stores read
-// back by NEON stall ~100 ns plus a per-byte penalty, NEON stores read by the
-// SME unit ~40 ns per KB. The packers see one side and the drivers may pack a
-// wide panel and run the kernel on sub-blocks of it, so the packers go by the
-// depth alone and a NEON kernel then never reads a streaming-packed panel. The
-// kernel adds the width test because a wide shallow block is bound by the
-// result store, where the ZA slice stores win by 2-4x even after the per-KB
-// cost of reading NEON-packed panels.
+// NEON dispatch (fitted on Apple M4, SVL 512), an invariant on the packed panels:
+//   packers: depth <= sme_neon_max_depth && width <= sme_neon_max_panel
+//   kernel:  both sides pass the packer test && (max(rows, cols) <= w(depth) || min(rows, cols) <= sme_neon_thin_dim)
+// so a NEON kernel reads NEON-packed panels; ZA over NEON-packed panels (~40 ns/KB) is bounded by
+// sme_neon_max_panel. Exception: SYRK packs B at the full size but runs 32x32 diagonal blocks.
 #ifndef EIGEN_SME_NEON_MAX_DEPTH
 template <typename Scalar>
 struct sme_neon_max_depth : std::integral_constant<int, 16> {};
@@ -878,9 +870,10 @@ struct sme_neon_shallow_width<std::complex<double>> : std::integral_constant<int
 template <typename Scalar>
 struct sme_neon_shallow_width : std::integral_constant<int, EIGEN_SME_NEON_SHALLOW_WIDTH> {};
 #endif
-// No panel wider than this is packed with NEON, whatever its depth, and so no
-// wider block runs the NEON kernel: the triangular solvers slice a tall panel
-// into depth-8 pieces, and a NEON-packed panel read by ZA costs ~40 ns per KB.
+// No panel wider than this is packed with NEON at any depth: the triangular solvers slice a tall
+// panel into depth-8 pieces for ZA. The packers cannot mirror the kernel's width rule, or a thin
+// block's wide side would be streaming-packed and read by NEON, the costly direction; the price is
+// a shallow panel in (w, this] read by ZA, 1.4x the streaming-packed time at 128x128x16 float.
 #ifndef EIGEN_SME_NEON_MAX_PANEL
 template <typename Scalar>
 struct sme_neon_max_panel : std::integral_constant<int, 256> {};
@@ -1875,15 +1868,9 @@ EIGEN_DONT_INLINE __arm_locally_streaming __arm_new("za") void sme_gebp_impl(
   }
 }
 
-// ---------------------------------------------------------------------------
-// NEON path for small blocks.
-//
-// A shallow block pays the ZA enable and a dependent FMOPA chain per tile for
-// little work, so up to sme_neon_max_depth the packed panels are consumed with
-// NEON instead. The panels keep the SME layout (one depth step is pw contiguous
-// scalars, complex ones as pw reals then pw imaginaries), so blocking and the
-// panel format are unchanged; only the packers switch to their NEON copy.
-// ---------------------------------------------------------------------------
+// NEON path for small blocks: a shallow block pays the ZA enable and a dependent FMOPA chain per
+// tile for little work, so its panels are consumed with NEON in the SME layout (one depth step is
+// pw contiguous scalars, complex ones as pw reals then pw imaginaries).
 // The NCol columns of one depth step, loaded once; each column is then an
 // immediate lane of a fused multiply-add (nmadd: acc - a * b[lane]).
 template <typename Scalar, int NCol>
@@ -2135,7 +2122,7 @@ struct sme_neon_ctile {
           acc_re, acc_im, are, aim, Cols::load(b), Cols::load(b + cw));
     }
     const RealScalar ar = numext::real(alpha), ai = numext::imag(alpha);
-    const Packet var = pset1<Packet>(ar), vai = pset1<Packet>(ai);
+    const Packet valpha_re = pset1<Packet>(ar), valpha_im = pset1<Packet>(ai);
     for (int c = 0; c < NCol; ++c) {
       for (int p = 0; p < NPack; ++p) {
         RealScalar* pc = reinterpret_cast<RealScalar*>(C + Index(p * PS) * rs + Index(c) * cs);
@@ -2143,8 +2130,8 @@ struct sme_neon_ctile {
           // Unit row stride: the column is PS interleaved (re, im) pairs.
           Packet cre, cim;
           sme_neon_ld2(pc, cre, cim);
-          cre = pnmadd(vai, acc_im[p][c], pmadd(var, acc_re[p][c], cre));
-          cim = pmadd(vai, acc_re[p][c], pmadd(var, acc_im[p][c], cim));
+          cre = pnmadd(valpha_im, acc_im[p][c], pmadd(valpha_re, acc_re[p][c], cre));
+          cim = pmadd(valpha_im, acc_re[p][c], pmadd(valpha_re, acc_im[p][c], cim));
           sme_neon_st2(pc, cre, cim);
         } else {
           RealScalar re[PS], im[PS];
@@ -2302,16 +2289,10 @@ struct sme_gebp_kernel {
     const Index C_stride_col = &res(0, 1) - &res(0, 0);
 
     if (sme_kernel_with_neon<Scalar>(rows, cols, depth)) {
-#ifdef EIGEN_SME_NEON_TRACE
-      EIGEN_SME_NEON_TRACE(rows, cols, depth, true);
-#endif
       sme_gebp_neon<Scalar, ConjugateLhs, ConjugateRhs>(C_base, C_stride_row, C_stride_col, blockA, blockB, rows, depth,
                                                         cols, alpha, strideA, strideB, offsetA, offsetB);
       return;
     }
-#ifdef EIGEN_SME_NEON_TRACE
-    EIGEN_SME_NEON_TRACE(rows, cols, depth, false);
-#endif
 
     sme_gebp_impl<Scalar, ConjugateLhs, ConjugateRhs>(C_base, C_stride_row, C_stride_col, blockA, blockB, rows, depth,
                                                       cols, alpha, strideA, strideB, offsetA, offsetB);

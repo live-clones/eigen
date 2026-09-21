@@ -248,15 +248,9 @@ static Scalar pack_sentinel() {
 }
 
 // ---------------------------------------------------------------------------
-// NEON small-block path.
-//
-// sme_gebp_kernel routes blocks no deeper than sme_neon_max_depth and no wider
-// than sme_neon_max_width on either side to
-// sme_gebp_neon, which reads the SME packed panels with NEON packets. The
-// product tests only reach it for the shapes the dispatch picks, so this calls
-// it directly on hand-packed panels for every row, column and depth tail the
-// tile ladder has, both conjugation flags, a non-trivial alpha, panel-mode
-// stride/offset and a general-stride C.
+// NEON small-block path: sme_gebp_neon called directly on hand-packed panels,
+// over every row, column and depth tail of the tile ladder, both conjugation
+// flags, a non-trivial alpha, panel-mode stride/offset and a general-stride C.
 // ---------------------------------------------------------------------------
 template <typename Scalar, bool ConjLhs, bool ConjRhs>
 static void verify_neon_small_block(Index rows, Index cols, Index depth, bool panel_mode, bool strided_c) {
@@ -691,7 +685,9 @@ static void test_pack_direct() {
   // Widths around the tile side and both panel widths, which differ for
   // complex scalars.
   const int widths[] = {1, TILE - 1, TILE, TILE + 1, MR, MR + 1, NR, NR + 1, 2 * NR + 1};
-  const int depths[] = {1, 3, 8, 35};
+  // Depths up to sme_neon_max_depth (24 / 16 / 16 / 8 by scalar) reach pack_neon,
+  // the deeper ones the streaming pack_direct and its predicated tails.
+  const int depths[] = {1, 3, 8, 9, 17, 25, 27, 35};
   for (int d : depths) {
     for (int n : widths) {
       sweep_pack_direct<Scalar, ColMajor>(n, d);

@@ -463,10 +463,8 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, GemmProduct>
 
   template <typename Dst>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool outputAreaBelowThreshold(const Dst& dst) {
-    // The rows bound first, so the product cannot overflow Index; no division on
-    // the path every small product takes.
-    return dst.rows() > 1 && dst.cols() > 1 && dst.rows() <= kCoeffBasedOutputArea &&
-           dst.rows() * dst.cols() <= kCoeffBasedOutputArea;
+    // rows * cols is dst.size(), which fits Index by construction.
+    return dst.rows() > 1 && dst.cols() > 1 && dst.size() <= kCoeffBasedOutputArea;
   }
 #endif
 

@@ -101,25 +101,15 @@ struct sme_has_gebp_kernel;
 // value, which is what such a sweep wants. The primary template answers with the
 // generic threshold: sme_has_gebp_kernel gates the dispatch, so a scalar pair
 // without an SME kernel never reads the table.
+// With the NEON small-block path (arch/SME/GeneralBlockPanelKernel.h) the SME
+// kernels take the generic crossover: below it the small products run the NEON
+// packers and kernel, so the SME build matches a NEON build there.
 #ifdef EIGEN_SME_GEMM_TO_COEFFBASED_THRESHOLD
 template <typename Scalar>
 struct sme_gemm_to_coeffbased_threshold : std::integral_constant<int, EIGEN_SME_GEMM_TO_COEFFBASED_THRESHOLD> {};
 #else
 template <typename Scalar>
 struct sme_gemm_to_coeffbased_threshold : std::integral_constant<int, EIGEN_GEMM_TO_COEFFBASED_THRESHOLD> {};
-// With the NEON small-block path (arch/SME/GeneralBlockPanelKernel.h) the SME
-// kernels take the generic crossover: below it the small products run the NEON
-// packers and kernel, so the SME build matches a NEON build there.
-template <>
-struct sme_gemm_to_coeffbased_threshold<float> : std::integral_constant<int, EIGEN_GEMM_TO_COEFFBASED_THRESHOLD> {};
-template <>
-struct sme_gemm_to_coeffbased_threshold<double> : std::integral_constant<int, EIGEN_GEMM_TO_COEFFBASED_THRESHOLD> {};
-template <>
-struct sme_gemm_to_coeffbased_threshold<std::complex<float> >
-    : std::integral_constant<int, EIGEN_GEMM_TO_COEFFBASED_THRESHOLD> {};
-template <>
-struct sme_gemm_to_coeffbased_threshold<std::complex<double> >
-    : std::integral_constant<int, EIGEN_GEMM_TO_COEFFBASED_THRESHOLD> {};
 #endif
 #endif
 
