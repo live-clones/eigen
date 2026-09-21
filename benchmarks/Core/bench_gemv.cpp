@@ -64,6 +64,23 @@ static void BM_Gemv(benchmark::State& state) {
   Mat A = Mat::Random(m, n);
   Vec x = Vec::Random(n);
   Vec y = Vec::Random(m);
+  Vec actual = y;
+  actual.noalias() += A * x;
+  using WideScalar = std::conditional_t<NumTraits<Scalar>::IsComplex, std::complex<long double>, long double>;
+  for (Index i = 0; i < m; ++i) {
+    WideScalar expected(y[i]);
+    long double magnitude = numext::abs(expected);
+    for (Index j = 0; j < n; ++j) {
+      const WideScalar term = WideScalar(A(i, j)) * WideScalar(x[j]);
+      expected += term;
+      magnitude += numext::abs(term);
+    }
+    const long double bound = 8 * (n + 1) * NumTraits<typename NumTraits<Scalar>::Real>::epsilon() * magnitude;
+    if (!((numext::isfinite)(bound) && numext::abs(WideScalar(actual[i]) - expected) <= bound)) {
+      state.SkipWithError("GEMV differs from the scalar reference");
+      return;
+    }
+  }
   for (auto _ : state) {
     y.noalias() += A * x;
     benchmark::DoNotOptimize(y.data());
@@ -143,11 +160,12 @@ static void BM_GemvAdj(benchmark::State& state) {
 // The 4096..32768-row x 1..3-col cases straddle the run_small_cols
 // "stride*sizeof > L1" threshold where the 8-row inner unroll flips off.
 #define GEMV_SIZES \
-    ->Args({8, 8})->Args({32, 32})->Args({128, 128})->Args({512, 512})->Args({1024, 1024}) \
+    ->Args({8, 8})->Args({32, 32})->Args({127, 127})->Args({128, 128})->Args({129, 129})->Args({255, 255})->Args({256, 256})->Args({257, 257})->Args({512, 512})->Args({1024, 1024})->Args({4096, 4096}) \
     ->Args({256, 1})->Args({1024, 1})->Args({256, 16})->Args({1024, 16}) \
     ->Args({1, 256})->Args({1, 1024})->Args({16, 256})->Args({16, 1024}) \
     ->Args({4096, 1})->Args({8192, 1})->Args({16384, 1})->Args({32768, 1}) \
-    ->Args({4096, 2})->Args({8192, 2})->Args({16384, 2})
+    ->Args({4096, 2})->Args({8192, 2})->Args({16384, 2}) \
+    ->Args({10000, 8})->Args({10000, 100})->Args({100, 10000})->Args({1000, 10000})
 
 // Real types: Gemv and GemvTrans exercise the two kernel specializations.
 // Conjugation is a no-op for real scalars.

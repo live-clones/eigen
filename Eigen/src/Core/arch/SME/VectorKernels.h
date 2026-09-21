@@ -1,0 +1,259 @@
+// SPDX-FileCopyrightText: The Eigen Authors
+// SPDX-License-Identifier: MPL-2.0
+#ifndef EIGEN_SME_VECTOR_KERNELS_H
+#define EIGEN_SME_VECTOR_KERNELS_H
+
+// IWYU pragma: private
+#include "../../InternalHeaderCheck.h"
+
+namespace Eigen {
+namespace internal {
+
+// SME2 multi-vector FMLA updates four streaming vectors per ZA group. Four independent groups
+// hide accumulator latency. ACLE: https://arm-software.github.io/acle/main/acle.html
+
+static EIGEN_ALWAYS_INLINE void sme_vector_madd(unsigned int slice, svfloat32x4_t x,
+                                                svfloat32_t y) __arm_streaming __arm_inout("za") {
+  svmla_single_za32_f32_vg1x4(slice, x, y);
+}
+#ifdef EIGEN_VECTORIZE_SME_F64F64
+static EIGEN_ALWAYS_INLINE void sme_vector_madd(unsigned int slice, svfloat64x4_t x,
+                                                svfloat64_t y) __arm_streaming __arm_inout("za") {
+  svmla_single_za64_f64_vg1x4(slice, x, y);
+}
+#endif
+static EIGEN_ALWAYS_INLINE void sme_vector_madd(unsigned int slice, svfloat32x4_t x,
+                                                svfloat32x4_t y) __arm_streaming __arm_inout("za") {
+  svmla_za32_f32_vg1x4(slice, x, y);
+}
+#ifdef EIGEN_VECTORIZE_SME_F64F64
+static EIGEN_ALWAYS_INLINE void sme_vector_madd(unsigned int slice, svfloat64x4_t x,
+                                                svfloat64x4_t y) __arm_streaming __arm_inout("za") {
+  svmla_za64_f64_vg1x4(slice, x, y);
+}
+#endif
+static EIGEN_ALWAYS_INLINE svfloat32x4_t sme_vector_read(unsigned int slice, float) __arm_streaming __arm_in("za") {
+  return svread_za32_f32_vg1x4(slice);
+}
+#ifdef EIGEN_VECTORIZE_SME_F64F64
+static EIGEN_ALWAYS_INLINE svfloat64x4_t sme_vector_read(unsigned int slice, double) __arm_streaming __arm_in("za") {
+  return svread_za64_f64_vg1x4(slice);
+}
+#endif
+static EIGEN_ALWAYS_INLINE void sme_vector_write(unsigned int slice,
+                                                 svfloat32x4_t x) __arm_streaming __arm_inout("za") {
+  svwrite_za32_f32_vg1x4(slice, x);
+}
+#ifdef EIGEN_VECTORIZE_SME_F64F64
+static EIGEN_ALWAYS_INLINE void sme_vector_write(unsigned int slice,
+                                                 svfloat64x4_t x) __arm_streaming __arm_inout("za") {
+  svwrite_za64_f64_vg1x4(slice, x);
+}
+#endif
+
+template <typename Scalar, typename Index>
+__arm_new("za") __arm_locally_streaming
+    EIGEN_DONT_INLINE void sme_axpy(Index n, const Scalar* x, Scalar* y, Scalar alpha) {
+  using Traits = sme_traits<Scalar>;
+  const Index lanes = Traits::svl();
+  const auto pn = Traits::ptrue_c();
+  const auto a = Traits::dup(alpha);
+  Index i = 0;
+  for (; i <= n - 16 * lanes; i += 16 * lanes) {
+#pragma unroll
+    for (int k = 0; k < 4; ++k) {
+      auto xv = sme_ld1_x4(pn, x + i + k * 4 * lanes);
+      sme_vector_write(k, sme_ld1_x4(pn, y + i + k * 4 * lanes));
+      sme_vector_madd(k, xv, a);
+    }
+#pragma unroll
+    for (int k = 0; k < 4; ++k) svst1(pn, y + i + k * 4 * lanes, sme_vector_read(k, Scalar(0)));
+  }
+  for (; i <= n - 4 * lanes; i += 4 * lanes) {
+    auto xv = sme_ld1_x4(pn, x + i);
+    sme_vector_write(0, sme_ld1_x4(pn, y + i));
+    sme_vector_madd(0, xv, a);
+    svst1(pn, y + i, sme_vector_read(0, Scalar(0)));
+  }
+  for (; i < n; i += n - i < lanes ? n - i : lanes) {
+    auto tail = Traits::whilelt(i, n);
+    sme_st1(tail, y + i, sme_mla(tail, sme_ld1(tail, y + i), sme_ld1(tail, x + i), a));
+  }
+}
+
+template <typename Scalar, typename Index>
+__arm_new("za") __arm_locally_streaming EIGEN_DONT_INLINE Scalar sme_dot(Index n, const Scalar* x, const Scalar* y) {
+  using Traits = sme_traits<Scalar>;
+  const Index lanes = Traits::svl();
+  const auto pg = Traits::ptrue();
+  const auto pn = Traits::ptrue_c();
+  svzero_za();
+  Index i = 0;
+  for (; i <= n - 16 * lanes; i += 16 * lanes) {
+#pragma unroll
+    for (int k = 0; k < 4; ++k)
+      sme_vector_madd(k, sme_ld1_x4(pn, x + i + k * 4 * lanes), sme_ld1_x4(pn, y + i + k * 4 * lanes));
+  }
+  for (; i <= n - 4 * lanes; i += 4 * lanes) sme_vector_madd(0, sme_ld1_x4(pn, x + i), sme_ld1_x4(pn, y + i));
+  auto tail_accumulator = Traits::dup(Scalar(0));
+  for (; i < n; i += n - i < lanes ? n - i : lanes) {
+    auto tail = Traits::whilelt(i, n);
+    tail_accumulator = svmla_m(tail, tail_accumulator, sme_ld1(tail, x + i), sme_ld1(tail, y + i));
+  }
+  auto sum = tail_accumulator;
+#pragma unroll
+  for (int k = 0; k < 4; ++k) {
+    auto v = sme_vector_read(k, Scalar(0));
+    sum = svadd_x(pg, sum,
+                  svadd_x(pg, svadd_x(pg, sme_get<0>(v), sme_get<1>(v)), svadd_x(pg, sme_get<2>(v), sme_get<3>(v))));
+  }
+  return svaddv(pg, sum);
+}
+
+template <typename Scalar, typename Index>
+__arm_new("za") __arm_locally_streaming
+    EIGEN_DONT_INLINE void sme_gemv(Index rows, Index cols, const Scalar* a, Index stride, const Scalar* x, Scalar* y,
+                                    Scalar alpha) {
+  if (alpha == Scalar(0) || rows == 0 || cols == 0) return;
+  using Traits = sme_traits<Scalar>;
+  const Index lanes = Traits::svl();
+  const auto pg = Traits::ptrue();
+  const auto pn = Traits::ptrue_c();
+  Index i = 0;
+  for (; i <= rows - 16 * lanes; i += 16 * lanes) {
+    svzero_za();
+    for (Index j = 0; j < cols; ++j) {
+      auto b = Traits::dup(x[j]);
+#pragma unroll
+      for (int k = 0; k < 4; ++k) sme_vector_madd(k, sme_ld1_x4(pn, a + i + k * 4 * lanes + j * stride), b);
+    }
+#pragma unroll
+    for (int k = 0; k < 4; ++k) {
+      auto v = sme_vector_read(k, Scalar(0)), yv = sme_ld1_x4(pn, y + i + k * 4 * lanes);
+      svst1(pn, y + i + k * 4 * lanes,
+            svcreate4(sme_mla(pg, sme_get<0>(yv), sme_get<0>(v), Traits::dup(alpha)),
+                      sme_mla(pg, sme_get<1>(yv), sme_get<1>(v), Traits::dup(alpha)),
+                      sme_mla(pg, sme_get<2>(yv), sme_get<2>(v), Traits::dup(alpha)),
+                      sme_mla(pg, sme_get<3>(yv), sme_get<3>(v), Traits::dup(alpha))));
+    }
+  }
+  for (; i <= rows - 4 * lanes; i += 4 * lanes) {
+    svzero_za();
+    for (Index j = 0; j < cols; ++j) sme_vector_madd(0, sme_ld1_x4(pn, a + i + j * stride), Traits::dup(x[j]));
+    auto v = sme_vector_read(0, Scalar(0)), yv = sme_ld1_x4(pn, y + i);
+    svst1(pn, y + i,
+          svcreate4(sme_mla(pg, sme_get<0>(yv), sme_get<0>(v), Traits::dup(alpha)),
+                    sme_mla(pg, sme_get<1>(yv), sme_get<1>(v), Traits::dup(alpha)),
+                    sme_mla(pg, sme_get<2>(yv), sme_get<2>(v), Traits::dup(alpha)),
+                    sme_mla(pg, sme_get<3>(yv), sme_get<3>(v), Traits::dup(alpha))));
+  }
+  for (; i < rows; i += rows - i < lanes ? rows - i : lanes) {
+    auto tail = Traits::whilelt(i, rows);
+    auto v = Traits::dup(Scalar(0));
+    for (Index j = 0; j < cols; ++j) v = sme_mla(tail, v, sme_ld1(tail, a + i + j * stride), Traits::dup(x[j]));
+    sme_st1(tail, y + i, sme_mla(tail, sme_ld1(tail, y + i), v, Traits::dup(alpha)));
+  }
+}
+
+template <typename Scalar>
+struct sme_vector_scalar : false_type {};
+template <>
+struct sme_vector_scalar<float> : true_type {};
+#ifdef EIGEN_VECTORIZE_SME_F64F64
+template <>
+struct sme_vector_scalar<double> : true_type {};
+#endif
+
+template <typename Xpr>
+struct sme_vector_access
+    : bool_constant<sme_vector_scalar<typename traits<Xpr>::Scalar>::value&& bool(Xpr::IsVectorAtCompileTime) &&
+                    has_direct_access<Xpr>::value> {};
+
+template <typename Lhs, typename Rhs>
+struct sme_dot_supported : bool_constant<sme_vector_access<Lhs>::value && sme_vector_access<Rhs>::value &&
+                                         is_same<typename traits<Lhs>::Scalar, typename traits<Rhs>::Scalar>::value> {};
+
+template <typename Scalar>
+EIGEN_STRONG_INLINE bool sme_vector_fits_budget(Index size) {
+  // One L2 estimate per operand preserves the measured M4 range with Core's conservative cache estimate.
+  const std::ptrdiff_t l2 = l2CacheSize();
+  return l2 > 0 && static_cast<std::size_t>(size) <= static_cast<std::size_t>(l2) / sizeof(Scalar);
+}
+
+template <typename Lhs, typename Rhs>
+struct default_inner_product_impl<Lhs, Rhs, true, std::enable_if_t<sme_dot_supported<Lhs, Rhs>::value>>
+    : default_inner_product_impl<Lhs, Rhs, true, false_type> {
+  using Base = default_inner_product_impl<Lhs, Rhs, true, false_type>;
+  using Scalar = typename traits<Lhs>::Scalar;
+  static EIGEN_STRONG_INLINE Scalar run(const MatrixBase<Lhs>& lhs, const MatrixBase<Rhs>& rhs) {
+    inner_product_assert<Lhs, Rhs>::run(lhs.derived(), rhs.derived());
+    // Amortize the streaming-mode transition and the ZA horizontal reduction.
+    if (lhs.size() >= Index(16384 / sizeof(Scalar)) && sme_vector_fits_budget<Scalar>(lhs.size()) &&
+        lhs.innerStride() == 1 && rhs.innerStride() == 1)
+      return sme_dot(lhs.size(), lhs.derived().data(), rhs.derived().data());
+    return Base::run(lhs, rhs);
+  }
+};
+
+template <typename Dst, typename Src>
+EIGEN_STRONG_INLINE bool sme_try_axpy(Dst& dst, const Src& src, typename traits<Src>::Scalar alpha) {
+  using Scalar = typename traits<Src>::Scalar;
+  eigen_assert(dst.rows() == src.rows() && dst.cols() == src.cols());
+  if (dst.size() < Index(4096 / sizeof(Scalar)) || !sme_vector_fits_budget<Scalar>(dst.size()) ||
+      dst.innerStride() != 1 || src.innerStride() != 1)
+    return false;
+  const std::uintptr_t dst_address = reinterpret_cast<std::uintptr_t>(dst.data());
+  const std::uintptr_t src_address = reinterpret_cast<std::uintptr_t>(src.data());
+  const std::uintptr_t distance = dst_address > src_address ? dst_address - src_address : src_address - dst_address;
+  // Exact aliasing is coefficient-wise; partial overlap must retain the default traversal.
+  if (distance != 0 && distance / sizeof(Scalar) < static_cast<std::uintptr_t>(dst.size())) return false;
+  sme_axpy(dst.size(), src.data(), dst.data(), alpha);
+  return true;
+}
+
+template <typename Dst, typename Scalar, typename Lhs, typename Rhs>
+struct Assignment<
+    Dst, CwiseBinaryOp<scalar_product_op<Scalar, Scalar>, Lhs, Rhs>, add_assign_op<Scalar, Scalar>, Dense2Dense,
+    std::enable_if_t<sme_vector_access<Dst>::value &&
+                     (sme_vector_access<Lhs>::value || sme_vector_access<Rhs>::value) &&
+                     blas_traits<CwiseBinaryOp<scalar_product_op<Scalar, Scalar>, Lhs, Rhs>>::HasScalarFactor &&
+                     is_same<Scalar, typename traits<Dst>::Scalar>::value>> {
+  using Source = CwiseBinaryOp<scalar_product_op<Scalar, Scalar>, Lhs, Rhs>;
+  using BlasTraits = blas_traits<Source>;
+  static EIGEN_STRONG_INLINE void run(Dst& dst, const Source& src, const add_assign_op<Scalar, Scalar>& func) {
+    // A direct operand restricts extraction to one scale, preserving nested products' evaluation order.
+    if (!sme_try_axpy(dst, BlasTraits::extract(src), BlasTraits::extractScalarFactor(src)))
+      Assignment<Dst, Source, add_assign_op<Scalar, Scalar>, Dense2Dense, false_type>::run(dst, src, func);
+  }
+};
+
+#ifndef EIGEN_USE_BLAS
+#define EIGEN_SME_GEMV_SPECIALIZATION(Scalar)                                                                    \
+  template <typename Index, bool ConjugateLhs, bool ConjugateRhs>                                                \
+  struct general_matrix_vector_product<Index, Scalar, const_blas_data_mapper<Scalar, Index, ColMajor>, ColMajor, \
+                                       ConjugateLhs, Scalar, const_blas_data_mapper<Scalar, Index, RowMajor>,    \
+                                       ConjugateRhs, Specialized> {                                              \
+    static EIGEN_STRONG_INLINE void run(Index rows, Index cols,                                                  \
+                                        const const_blas_data_mapper<Scalar, Index, ColMajor>& lhs,              \
+                                        const const_blas_data_mapper<Scalar, Index, RowMajor>& rhs, Scalar* res, \
+                                        Index resIncr, Scalar alpha) {                                           \
+      if (rows >= Index(128) && cols >= Index(4) && rhs.stride() == 1 && resIncr == 1) {                         \
+        sme_gemv(rows, cols, lhs.data(), lhs.stride(), rhs.data(), res, alpha);                                  \
+      } else {                                                                                                   \
+        general_matrix_vector_product<Index, Scalar, const_blas_data_mapper<Scalar, Index, ColMajor>, ColMajor,  \
+                                      ConjugateLhs, Scalar, const_blas_data_mapper<Scalar, Index, RowMajor>,     \
+                                      ConjugateRhs, BuiltIn>::run(rows, cols, lhs, rhs, res, resIncr, alpha);    \
+      }                                                                                                          \
+    }                                                                                                            \
+  };
+EIGEN_SME_GEMV_SPECIALIZATION(float)
+#ifdef EIGEN_VECTORIZE_SME_F64F64
+EIGEN_SME_GEMV_SPECIALIZATION(double)
+#endif
+#undef EIGEN_SME_GEMV_SPECIALIZATION
+#endif
+
+}  // namespace internal
+}  // namespace Eigen
+
+#endif
