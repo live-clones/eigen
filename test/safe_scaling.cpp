@@ -571,7 +571,7 @@ void check_scale_binary_by_exponent() {
       const Scalar value = numext::bit_cast<Scalar>(c.value);
       VERIFY_IS_EQUAL(Binary::bits(internal::ldexp_preserving_subnormals(value, c.exponent)), c.expected);
       const Bits magnitude = c.value & ~Binary::kSignBit;
-      VERIFY_IS_EQUAL(internal::is_exactly_zero_preserving_subnormals(value), magnitude == 0);
+      VERIFY_IS_EQUAL(numext::is_exactly_zero_no_flush(value), magnitude == 0);
       VERIFY_IS_EQUAL(internal::is_subnormal_magnitude(value), magnitude != 0 && magnitude < Binary::kExponentUnit);
       if (magnitude == c.value &&
           (numext::isfinite)(value)) {  // non-negative: the maximum against every larger power of two
@@ -621,7 +621,7 @@ void check_preserving_subnormals_fallbacks() {
   VERIFY_IS_EQUAL(internal::frexp_preserving_subnormals(-12.0L, exponent), -0.75L);
   VERIFY_IS_EQUAL(exponent, 4);
   VERIFY_IS_EQUAL(internal::frexp_exponent_preserving_subnormals(0.0L), 0);
-  VERIFY(internal::is_exactly_zero_preserving_subnormals(0.0L));
+  VERIFY(numext::is_exactly_zero_no_flush(0.0L));
   VERIFY(!internal::is_subnormal_magnitude(1.0L));
   VERIFY(internal::is_subnormal_magnitude(std::numeric_limits<long double>::denorm_min()));
   VERIFY_IS_EQUAL(internal::max_preserving_subnormals(1.5L, 2.5L), 2.5L);

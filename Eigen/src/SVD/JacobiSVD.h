@@ -936,7 +936,7 @@ JacobiSVD<MatrixType, Options>& JacobiSVD<MatrixType, Options>::compute_impl(con
   internal::safe_scaling<RealScalar>::unscale_in_place(m_singularValues, maxCoeff, factors);
   m_nonzeroSingularValues = diagSize();
   for (Index i = 0; i < diagSize(); i++) {
-    if (internal::is_exactly_zero_preserving_subnormals(m_singularValues.coeff(i))) {
+    if (numext::is_exactly_zero_no_flush(m_singularValues.coeff(i))) {
       m_nonzeroSingularValues = i;
       break;
     }
