@@ -494,7 +494,143 @@ void check_recover_flushed_max_coeff() {
   VERIFY(same_bits(Scaling::recover_flushed_max_coeff(Matrix<Scalar, 2, 2>::Zero(), RealScalar(0)), RealScalar(0)));
 }
 
+// value * 2^exponent through integer significands agrees bit for bit with the correctly rounded ldexp for every input
+// class and every exponent that changes the result, and keeps doing so under FTZ/DAZ, where the references are taken
+// beforehand. Beyond the exponent range it saturates to the signed zero or infinity ldexp returns.
+template <typename Scalar>
+void check_scale_binary_by_exponent() {
+  using Binary = internal::binary_floating_point_traits<Scalar>;
+  using Bits = typename Binary::Bits;
+  using Scaling = internal::safe_scaling<Scalar>;
+  // 2^recovery is the min / eps threshold check_unscale_recovery_threshold() exercises.
+  VERIFY_IS_EQUAL(numext::ldexp(Scalar(1), Scaling::subnormal_recovery_exponent()),
+                  (std::numeric_limits<Scalar>::min)() / NumTraits<Scalar>::epsilon());
+
+  // Subnormals down to denorm_min, the normal boundary, full fractions, and the largest finite value.
+  const Bits magnitudes[] = {Bits(1),
+                             Bits(3),
+                             Binary::kExponentUnit >> 1,
+                             Binary::kFractionMask,
+                             Binary::kExponentUnit,
+                             Binary::kExponentUnit | Bits(1),
+                             Binary::kExponentUnit + (Binary::kExponentUnit >> 1),
+                             (Binary::kExponentUnit << 1) - Bits(1),
+                             Binary::bits(Scalar(0.75)),
+                             Binary::bits(Scalar(1)),
+                             Binary::bits(Scalar(1.5)),
+                             Binary::bits((std::numeric_limits<Scalar>::max)())};
+  // Every exponent from full underflow to full overflow, then values that only the clamp can handle.
+  const int span = std::numeric_limits<Scalar>::max_exponent - std::numeric_limits<Scalar>::min_exponent +
+                   std::numeric_limits<Scalar>::digits + 3;
+  std::vector<int> exponents;
+  for (int e = -span; e <= span; ++e) exponents.push_back(e);
+  for (int e : {1 << 24, 1 << 30, (std::numeric_limits<int>::max)()}) {
+    exponents.push_back(e);
+    exponents.push_back(-e);
+  }
+  exponents.push_back((std::numeric_limits<int>::min)());
+
+  struct Case {
+    Bits value;
+    int exponent;
+    Bits expected;
+    Bits expectedUnit;  // ldexp(1, exponent)
+    int frexpExponent;  // of value
+    Bits frexpSignificand;
+  };
+  std::vector<Case> cases;
+  for (Bits magnitude : magnitudes) {
+    for (int e : exponents) {
+      for (Bits sign : {Bits(0), Bits(Binary::kSignBit)}) {
+        const Scalar value = numext::bit_cast<Scalar>(sign | magnitude);
+        int frexpExponent = 0;
+        EIGEN_USING_STD(frexp);
+        const Scalar frexpSignificand = frexp(value, &frexpExponent);
+        cases.push_back(Case{sign | magnitude, e, Binary::bits(numext::ldexp(value, e)),
+                             Binary::bits(numext::ldexp(Scalar(1), e)), frexpExponent, Binary::bits(frexpSignificand)});
+      }
+    }
+  }
+  for (const Scalar special : {Scalar(0), -Scalar(0), std::numeric_limits<Scalar>::infinity(),
+                               -std::numeric_limits<Scalar>::infinity(), std::numeric_limits<Scalar>::quiet_NaN()}) {
+    for (int e : {-1000, -1, 0, 1, 1000}) {
+      cases.push_back(Case{Binary::bits(special), e, Binary::bits(special), Binary::bits(numext::ldexp(Scalar(1), e)),
+                           0, Binary::bits(special)});
+    }
+  }
+
+  const auto check = [&]() {
+    for (const Case& c : cases) {
+      const Scalar actual = internal::scale_binary_by_exponent(numext::bit_cast<Scalar>(c.value), c.exponent);
+      VERIFY_IS_EQUAL(Binary::bits(actual), c.expected);
+      const std::complex<Scalar> complexActual = internal::scale_binary_by_exponent(
+          std::complex<Scalar>(numext::bit_cast<Scalar>(c.value), Scalar(1)), c.exponent);
+      VERIFY_IS_EQUAL(Binary::bits(complexActual.real()), c.expected);
+      VERIFY_IS_EQUAL(Binary::bits(complexActual.imag()), c.expectedUnit);
+      // The representation-based classifiers agree with the IEEE ones on every value.
+      const Scalar value = numext::bit_cast<Scalar>(c.value);
+      VERIFY_IS_EQUAL(Binary::bits(internal::ldexp_preserving_subnormals(value, c.exponent)), c.expected);
+      const Bits magnitude = c.value & ~Binary::kSignBit;
+      VERIFY_IS_EQUAL(internal::is_exactly_zero_preserving_subnormals(value), magnitude == 0);
+      VERIFY_IS_EQUAL(internal::is_subnormal_magnitude(value), magnitude != 0 && magnitude < Binary::kExponentUnit);
+      if (magnitude == c.value &&
+          (numext::isfinite)(value)) {  // non-negative: the maximum against every larger power of two
+        VERIFY_IS_EQUAL(Binary::bits(internal::max_preserving_subnormals(value, numext::bit_cast<Scalar>(Bits(1)))),
+                        magnitude == 0 ? Bits(1) : magnitude);
+      }
+      // frexp from the representation agrees with frexp on every finite value; zeros give exponent 0.
+      if ((numext::isfinite)(value)) {
+        int frexpExponent = 0;
+        const Scalar significand = internal::binary_frexp(value, frexpExponent);
+        VERIFY_IS_EQUAL(frexpExponent, c.frexpExponent);
+        VERIFY_IS_EQUAL(Binary::bits(significand), c.frexpSignificand);
+        VERIFY_IS_EQUAL(internal::binary_frexp_exponent(value), c.frexpExponent);
+      }
+    }
+    // A normal power-of-two factor is the exponent form of the same scaling.
+    for (int e = std::numeric_limits<Scalar>::min_exponent - 1; e < std::numeric_limits<Scalar>::max_exponent; ++e) {
+      const Scalar factor = numext::bit_cast<Scalar>(Bits(e + Binary::kExponentBias) << Binary::kFractionBits);
+      for (Bits magnitude : magnitudes) {
+        const Scalar value = numext::bit_cast<Scalar>(magnitude);
+        VERIFY_IS_EQUAL(Binary::bits(internal::scale_binary_by_power_of_two(value, factor)),
+                        Binary::bits(internal::scale_binary_by_exponent(value, e)));
+      }
+    }
+    // The functor is the coefficient-wise scalar form, complex components included.
+    Matrix<std::complex<Scalar>, 3, 1> input;
+    input << std::complex<Scalar>(numext::bit_cast<Scalar>(Bits(3)), numext::bit_cast<Scalar>(Binary::kFractionMask)),
+        std::complex<Scalar>(Scalar(1.5), -Scalar(0.75)),
+        std::complex<Scalar>((std::numeric_limits<Scalar>::max)(), numext::bit_cast<Scalar>(Bits(1)));
+    for (int e : {-(std::numeric_limits<Scalar>::digits + 1), -3, 5, std::numeric_limits<Scalar>::max_exponent}) {
+      const Matrix<std::complex<Scalar>, 3, 1> scaled = input.unaryExpr(internal::scale_by_exponent_op<Scalar>(e));
+      for (Index i = 0; i < input.size(); ++i) {
+        VERIFY(same_bits(scaled(i), internal::scale_binary_by_exponent(input(i), e)));
+      }
+    }
+  };
+  check();
+  ScopedFlushToZero flushToZero;
+  check();
+}
+
+// The scalars without a representation path take the C library.
+void check_preserving_subnormals_fallbacks() {
+  VERIFY_IS_EQUAL(internal::ldexp_preserving_subnormals(1.5L, 3), 12.0L);
+  VERIFY_IS_EQUAL(internal::frexp_exponent_preserving_subnormals(12.0L), 4);
+  int exponent = 0;
+  VERIFY_IS_EQUAL(internal::frexp_preserving_subnormals(-12.0L, exponent), -0.75L);
+  VERIFY_IS_EQUAL(exponent, 4);
+  VERIFY_IS_EQUAL(internal::frexp_exponent_preserving_subnormals(0.0L), 0);
+  VERIFY(internal::is_exactly_zero_preserving_subnormals(0.0L));
+  VERIFY(!internal::is_subnormal_magnitude(1.0L));
+  VERIFY(internal::is_subnormal_magnitude(std::numeric_limits<long double>::denorm_min()));
+  VERIFY_IS_EQUAL(internal::max_preserving_subnormals(1.5L, 2.5L), 2.5L);
+}
+
 EIGEN_DECLARE_TEST(safe_scaling) {
+  CALL_SUBTEST(check_scale_binary_by_exponent<float>());
+  CALL_SUBTEST(check_scale_binary_by_exponent<double>());
+  CALL_SUBTEST(check_preserving_subnormals_fallbacks());
   CALL_SUBTEST(check_identity_scaling<float>());
   CALL_SUBTEST(check_identity_scaling<double>());
   CALL_SUBTEST(check_identity_scaling<std::complex<float>>());
