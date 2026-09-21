@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MPL-2.0
 #include "main.h"
 #include <Eigen/Core>
+#include <cfenv>
 
 #ifndef EIGEN_VECTORIZE_SME
 #error "vector_sme requires an SME2 target"
@@ -313,6 +314,100 @@ void sme_vector_special_values() {
   VERIFY((numext::isnan)(x.dot(y)));
 }
 
+template <typename Scalar>
+void sme_gemv_scaled_range() {
+  using Mat = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
+  using Vec = Vector<Scalar, Dynamic>;
+  const Scalar largest = (std::numeric_limits<Scalar>::max)();
+  const std::ptrdiff_t l1 = l1CacheSize(), l2 = l2CacheSize(), l3 = l3CacheSize();
+  for (std::ptrdiff_t cache : {l1, std::ptrdiff_t(0)}) {
+    setCpuCacheSizes(cache, l2, l3);
+    for (Index rows : {256, 257}) {
+      for (Index cols : {128, 129}) {
+        Mat matrix = Mat::Constant(rows, cols, largest / Scalar(64));
+        Vec rhs = Vec::Ones(cols), result = Vec::Zero(rows);
+        result.noalias() += Scalar(0.25) * matrix * rhs;
+        const Scalar expected = (largest / Scalar(256)) * Scalar(cols);
+        const Scalar bound = Scalar(4 * cols) * NumTraits<Scalar>::epsilon();
+        for (Index i = 0; i < rows; ++i) {
+          VERIFY((numext::isfinite)(result[i]));
+          VERIFY(numext::abs(result[i] / expected - Scalar(1)) <= bound);
+        }
+      }
+    }
+  }
+  setCpuCacheSizes(l1, l2, l3);
+}
+
+template <typename Scalar>
+void sme_dot_signed_zero() {
+  using Vec = Vector<Scalar, Dynamic>;
+  for (Index n : {32768, 32769, 32799}) {
+    Vec x = Vec::Constant(n, Scalar(-0.0)), y = Vec::Ones(n);
+    const Scalar negative = x.dot(y);
+    VERIFY_IS_EQUAL(negative, Scalar(0));
+    VERIFY((numext::signbit)(negative));
+    x.setZero();
+    const Scalar positive = x.dot(y);
+    VERIFY_IS_EQUAL(positive, Scalar(0));
+    VERIFY(!(numext::signbit)(positive));
+  }
+}
+
+template <typename Scalar>
+void sme_vector_exception_state() {
+#if EIGEN_COMP_CLANG
+#pragma STDC FENV_ACCESS ON
+#endif
+  using Vec = Vector<Scalar, Dynamic>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
+  std::fenv_t saved;
+  std::fegetenv(&saved);
+  Vec x = Vec::Ones(32769), y = Vec::Ones(32769);
+  Mat matrix = Mat::Ones(257, 128);
+  Vec rhs = Vec::Ones(128), result = Vec::Zero(257);
+  for (int prior : {0, FE_DIVBYZERO}) {
+    for (int operation = 0; operation < 3; ++operation) {
+      y.setOnes();
+      result.setZero();
+      std::feclearexcept(FE_ALL_EXCEPT);
+      std::feraiseexcept(prior);
+      Scalar dot = Scalar(0);
+      if (operation == 0) {
+        dot = x.dot(y);
+      } else if (operation == 1) {
+        y += Scalar(0.75) * x;
+      } else {
+        result.noalias() += matrix * rhs;
+      }
+      const int flags = std::fetestexcept(FE_ALL_EXCEPT);
+      VERIFY_IS_EQUAL(flags, prior);
+      if (operation == 0) VERIFY_IS_EQUAL(dot, Scalar(32769));
+    }
+  }
+  // ZA instructions suppress exceptions; DOT/AXPY's SVE tails do set FPSR.
+  for (int exception : {FE_INVALID, FE_OVERFLOW}) {
+    for (int operation = 0; operation < 2; ++operation) {
+      const Scalar input =
+          exception == FE_INVALID ? NumTraits<Scalar>::infinity() : (std::numeric_limits<Scalar>::max)();
+      const Scalar factor = exception == FE_INVALID ? Scalar(0) : Scalar(2);
+      x.setConstant(input);
+      y.setConstant(factor);
+      std::feclearexcept(FE_ALL_EXCEPT);
+      if (operation == 0) {
+        volatile Scalar dot = x.dot(y);
+        EIGEN_UNUSED_VARIABLE(dot);
+      } else {
+        y += factor * x;
+      }
+      const int flags = std::fetestexcept(FE_ALL_EXCEPT);
+      VERIFY((flags & exception) != 0);
+      VERIFY((flags & (FE_DIVBYZERO | FE_UNDERFLOW)) == 0);
+    }
+  }
+  std::fesetenv(&saved);
+}
+
 EIGEN_DECLARE_TEST(vector_sme) {
   const std::ptrdiff_t l1 = l1CacheSize(), l2 = l2CacheSize(), l3 = l3CacheSize();
   setCpuCacheSizes(128 * 1024, 4 * 1024 * 1024, l3);
@@ -323,6 +418,9 @@ EIGEN_DECLARE_TEST(vector_sme) {
   CALL_SUBTEST_1(sme_vector_alignment<float>());
   CALL_SUBTEST_1(sme_gemv_tails<float>());
   CALL_SUBTEST_1(sme_vector_special_values<float>());
+  CALL_SUBTEST_3(sme_gemv_scaled_range<float>());
+  CALL_SUBTEST_3(sme_dot_signed_zero<float>());
+  CALL_SUBTEST_3(sme_vector_exception_state<float>());
 #ifdef EIGEN_VECTORIZE_SME_F64F64
   CALL_SUBTEST_2(sme_vector_cache_sizes<double>());
   CALL_SUBTEST_2(sme_vector_scalar_factors<double>());
@@ -331,6 +429,9 @@ EIGEN_DECLARE_TEST(vector_sme) {
   CALL_SUBTEST_2(sme_vector_alignment<double>());
   CALL_SUBTEST_2(sme_gemv_tails<double>());
   CALL_SUBTEST_2(sme_vector_special_values<double>());
+  CALL_SUBTEST_4(sme_gemv_scaled_range<double>());
+  CALL_SUBTEST_4(sme_dot_signed_zero<double>());
+  CALL_SUBTEST_4(sme_vector_exception_state<double>());
 #endif
   setCpuCacheSizes(l1, l2, l3);
 }
