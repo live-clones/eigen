@@ -76,3 +76,49 @@ BENCHMARK(BM_Axpy<double>)
     ->Arg(524288)
     ->Arg(2097152)
     ->UseRealTime();
+
+template <typename Scalar, bool Mixed>
+static void BM_AxpyLayout(benchmark::State& state) {
+  using Vec = Vector<Scalar, Dynamic>;
+  const Index n = state.range(0), padding = 128 / sizeof(Scalar);
+  Vec x_storage(n + padding), y_storage(n + padding), source = Vec::Random(n);
+  Map<Vec> x(x_storage.data() + internal::first_aligned<64>(x_storage.data(), x_storage.size()) +
+                 state.range(1) / sizeof(Scalar),
+             n);
+  Map<Vec> y(y_storage.data() + internal::first_aligned<64>(y_storage.data(), y_storage.size()) +
+                 state.range(2) / sizeof(Scalar),
+             n);
+  x.setRandom();
+  y = source.array() + Scalar(0.25);
+  const Vec initial = y;
+  y += Scalar(0.75) * x;
+  for (Index i = 0; i < n; ++i) {
+    const long double expected = static_cast<long double>(initial[i]) + 0.75L * static_cast<long double>(x[i]);
+    const long double magnitude =
+        numext::abs(static_cast<long double>(initial[i])) + 0.75L * numext::abs(static_cast<long double>(x[i]));
+    if (!(numext::abs(static_cast<long double>(y[i]) - expected) <= 4 * NumTraits<Scalar>::epsilon() * magnitude)) {
+      state.SkipWithError("AXPY layout differs from the scalar reference");
+      return;
+    }
+  }
+  for (auto _ : state) {
+    EIGEN_IF_CONSTEXPR (Mixed) y = source.array() + Scalar(0.25);
+    benchmark::ClobberMemory();
+    y += Scalar(0.75) * x;
+    benchmark::ClobberMemory();
+    EIGEN_IF_CONSTEXPR (Mixed) {
+      Scalar sum = y.sum();
+      benchmark::DoNotOptimize(sum);
+    }
+    benchmark::DoNotOptimize(y.data());
+  }
+}
+
+// clang-format off
+#define AXPY_LAYOUT_SIZES ->ArgsProduct({{1024, 8192, 16384, 32768, 65536}, {0, 16}, {0, 16}}) ->UseRealTime()
+BENCHMARK_TEMPLATE(BM_AxpyLayout, float, false) AXPY_LAYOUT_SIZES ->Name("AxpyLayout_float");
+BENCHMARK_TEMPLATE(BM_AxpyLayout, double, false) AXPY_LAYOUT_SIZES ->Name("AxpyLayout_double");
+BENCHMARK_TEMPLATE(BM_AxpyLayout, float, true) AXPY_LAYOUT_SIZES ->Name("AxpyMixed_float");
+BENCHMARK_TEMPLATE(BM_AxpyLayout, double, true) AXPY_LAYOUT_SIZES ->Name("AxpyMixed_double");
+#undef AXPY_LAYOUT_SIZES
+// clang-format on
