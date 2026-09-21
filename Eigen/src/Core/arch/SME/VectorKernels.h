@@ -53,12 +53,16 @@ static EIGEN_ALWAYS_INLINE void sme_vector_write(unsigned int slice,
 
 template <typename Scalar, typename Index>
 __arm_new("za") __arm_locally_streaming
-    EIGEN_DONT_INLINE void sme_axpy(Index n, const Scalar* x, Scalar* y, Scalar alpha) {
+    EIGEN_DONT_INLINE void sme_axpy(Index n, const Scalar* x, Scalar* y, Scalar alpha, Index prefix) {
   using Traits = sme_traits<Scalar>;
   const Index lanes = Traits::svl();
   const auto pn = Traits::ptrue_c();
   const auto a = Traits::dup(alpha);
   Index i = 0;
+  for (; i < prefix; i += prefix - i < lanes ? prefix - i : lanes) {
+    auto active = Traits::whilelt(i, prefix);
+    sme_st1(active, y + i, sme_mla(active, sme_ld1(active, y + i), sme_ld1(active, x + i), a));
+  }
   for (; i <= n - 16 * lanes; i += 16 * lanes) {
 #pragma unroll
     for (int k = 0; k < 4; ++k) {
@@ -117,7 +121,6 @@ __arm_new("za") __arm_locally_streaming
   if (alpha == Scalar(0) || rows == 0 || cols == 0) return;
   using Traits = sme_traits<Scalar>;
   const Index lanes = Traits::svl();
-  const auto pg = Traits::ptrue();
   const auto pn = Traits::ptrue_c();
   Index i = 0;
   for (; i <= rows - 16 * lanes; i += 16 * lanes) {
@@ -129,29 +132,20 @@ __arm_new("za") __arm_locally_streaming
     }
 #pragma unroll
     for (int k = 0; k < 4; ++k) {
-      auto v = sme_vector_read(k, Scalar(0)), yv = sme_ld1_x4(pn, y + i + k * 4 * lanes);
-      svst1(pn, y + i + k * 4 * lanes,
-            svcreate4(sme_mla(pg, sme_get<0>(yv), sme_get<0>(v), Traits::dup(alpha)),
-                      sme_mla(pg, sme_get<1>(yv), sme_get<1>(v), Traits::dup(alpha)),
-                      sme_mla(pg, sme_get<2>(yv), sme_get<2>(v), Traits::dup(alpha)),
-                      sme_mla(pg, sme_get<3>(yv), sme_get<3>(v), Traits::dup(alpha))));
+      auto v = sme_vector_read(k, Scalar(0));
+      sme_vector_write(k, sme_ld1_x4(pn, y + i + k * 4 * lanes));
+      sme_vector_madd(k, v, Traits::dup(alpha));
+      svst1(pn, y + i + k * 4 * lanes, sme_vector_read(k, Scalar(0)));
     }
   }
-  for (; i <= rows - 4 * lanes; i += 4 * lanes) {
+  for (; i < rows; i += rows - i < 4 * lanes ? rows - i : 4 * lanes) {
+    const auto active = Traits::whilelt_c4(i, rows);
     svzero_za();
-    for (Index j = 0; j < cols; ++j) sme_vector_madd(0, sme_ld1_x4(pn, a + i + j * stride), Traits::dup(x[j]));
-    auto v = sme_vector_read(0, Scalar(0)), yv = sme_ld1_x4(pn, y + i);
-    svst1(pn, y + i,
-          svcreate4(sme_mla(pg, sme_get<0>(yv), sme_get<0>(v), Traits::dup(alpha)),
-                    sme_mla(pg, sme_get<1>(yv), sme_get<1>(v), Traits::dup(alpha)),
-                    sme_mla(pg, sme_get<2>(yv), sme_get<2>(v), Traits::dup(alpha)),
-                    sme_mla(pg, sme_get<3>(yv), sme_get<3>(v), Traits::dup(alpha))));
-  }
-  for (; i < rows; i += rows - i < lanes ? rows - i : lanes) {
-    auto tail = Traits::whilelt(i, rows);
-    auto v = Traits::dup(Scalar(0));
-    for (Index j = 0; j < cols; ++j) v = sme_mla(tail, v, sme_ld1(tail, a + i + j * stride), Traits::dup(x[j]));
-    sme_st1(tail, y + i, sme_mla(tail, sme_ld1(tail, y + i), v, Traits::dup(alpha)));
+    for (Index j = 0; j < cols; ++j) sme_vector_madd(0, sme_ld1_x4(active, a + i + j * stride), Traits::dup(x[j]));
+    auto v = sme_vector_read(0, Scalar(0));
+    sme_vector_write(0, sme_ld1_x4(active, y + i));
+    sme_vector_madd(0, v, Traits::dup(alpha));
+    svst1(active, y + i, sme_vector_read(0, Scalar(0)));
   }
 }
 
@@ -173,11 +167,15 @@ template <typename Lhs, typename Rhs>
 struct sme_dot_supported : bool_constant<sme_vector_access<Lhs>::value && sme_vector_access<Rhs>::value &&
                                          is_same<typename traits<Lhs>::Scalar, typename traits<Rhs>::Scalar>::value> {};
 
-template <typename Scalar>
-EIGEN_STRONG_INLINE bool sme_vector_fits_budget(Index size) {
-  // One L2 estimate per operand preserves the measured M4 range with Core's conservative cache estimate.
-  const std::ptrdiff_t l2 = l2CacheSize();
-  return l2 > 0 && static_cast<std::size_t>(size) <= static_cast<std::size_t>(l2) / sizeof(Scalar);
+template <typename Scalar, int L1Divisor = 1>
+EIGEN_STRONG_INLINE bool sme_vector_size_suitable(Index size) {
+  // M4's NEON/SME memory handoff penalizes small vectors. Use Core's L1/L2 estimates
+  // as lower/upper per-operand crossovers, including setCpuCacheSizes overrides.
+  std::ptrdiff_t l1, l2, l3;
+  manage_caching_sizes(GetAction, &l1, &l2, &l3);
+  return l1 > 0 && l2 > 0 && size >= 0 &&
+         static_cast<std::size_t>(size) >= (static_cast<std::size_t>(l1) - 1) / (L1Divisor * sizeof(Scalar)) + 1 &&
+         static_cast<std::size_t>(size) <= static_cast<std::size_t>(l2) / sizeof(Scalar);
 }
 
 template <typename Lhs, typename Rhs>
@@ -187,8 +185,8 @@ struct default_inner_product_impl<Lhs, Rhs, true, std::enable_if_t<sme_dot_suppo
   using Scalar = typename traits<Lhs>::Scalar;
   static EIGEN_STRONG_INLINE Scalar run(const MatrixBase<Lhs>& lhs, const MatrixBase<Rhs>& rhs) {
     inner_product_assert<Lhs, Rhs>::run(lhs.derived(), rhs.derived());
-    // Amortize the streaming-mode transition and the ZA horizontal reduction.
-    if (lhs.size() >= Index(16384 / sizeof(Scalar)) && sme_vector_fits_budget<Scalar>(lhs.size()) &&
+    // DOT has no streaming stores for a following NEON consumer: half L1 per operand suffices.
+    if (lhs.size() >= Index(16384 / sizeof(Scalar)) && sme_vector_size_suitable<Scalar, 2>(lhs.size()) &&
         lhs.innerStride() == 1 && rhs.innerStride() == 1)
       return sme_dot(lhs.size(), lhs.derived().data(), rhs.derived().data());
     return Base::run(lhs, rhs);
@@ -199,7 +197,7 @@ template <typename Dst, typename Src>
 EIGEN_STRONG_INLINE bool sme_try_axpy(Dst& dst, const Src& src, typename traits<Src>::Scalar alpha) {
   using Scalar = typename traits<Src>::Scalar;
   eigen_assert(dst.rows() == src.rows() && dst.cols() == src.cols());
-  if (dst.size() < Index(4096 / sizeof(Scalar)) || !sme_vector_fits_budget<Scalar>(dst.size()) ||
+  if (dst.size() < Index(4096 / sizeof(Scalar)) || !sme_vector_size_suitable<Scalar>(dst.size()) ||
       dst.innerStride() != 1 || src.innerStride() != 1)
     return false;
   const std::uintptr_t dst_address = reinterpret_cast<std::uintptr_t>(dst.data());
@@ -207,7 +205,8 @@ EIGEN_STRONG_INLINE bool sme_try_axpy(Dst& dst, const Src& src, typename traits<
   const std::uintptr_t distance = dst_address > src_address ? dst_address - src_address : src_address - dst_address;
   // Exact aliasing is coefficient-wise; partial overlap must retain the default traversal.
   if (distance != 0 && distance / sizeof(Scalar) < static_cast<std::uintptr_t>(dst.size())) return false;
-  sme_axpy(dst.size(), src.data(), dst.data(), alpha);
+  // Align streaming stores to 64 bytes without changing Eigen's allocation alignment.
+  sme_axpy(dst.size(), src.data(), dst.data(), alpha, first_aligned<64>(dst.data(), dst.size()));
   return true;
 }
 
@@ -228,6 +227,16 @@ struct Assignment<
 };
 
 #ifndef EIGEN_USE_BLAS
+template <typename Scalar, typename Index>
+EIGEN_STRONG_INLINE bool sme_gemv_size_suitable(Index rows, Index cols) {
+  if (rows < Index(128) || cols < Index(4)) return false;
+  if (cols >= Index(128 / sizeof(Scalar)) && cols > Index(32768 / sizeof(Scalar) - 1) / rows) return true;
+  // Thin products amortize the NEON/SME handoff once the matrix reaches Core's L1 estimate.
+  const std::ptrdiff_t l1 = l1CacheSize();
+  return l1 > 0 && static_cast<std::size_t>(cols) >
+                       (static_cast<std::size_t>(l1) - 1) / sizeof(Scalar) / static_cast<std::size_t>(rows);
+}
+
 #define EIGEN_SME_GEMV_SPECIALIZATION(Scalar)                                                                    \
   template <typename Index, bool ConjugateLhs, bool ConjugateRhs>                                                \
   struct general_matrix_vector_product<Index, Scalar, const_blas_data_mapper<Scalar, Index, ColMajor>, ColMajor, \
@@ -237,7 +246,7 @@ struct Assignment<
                                         const const_blas_data_mapper<Scalar, Index, ColMajor>& lhs,              \
                                         const const_blas_data_mapper<Scalar, Index, RowMajor>& rhs, Scalar* res, \
                                         Index resIncr, Scalar alpha) {                                           \
-      if (rows >= Index(128) && cols >= Index(4) && rhs.stride() == 1 && resIncr == 1) {                         \
+      if (sme_gemv_size_suitable<Scalar>(rows, cols) && rhs.stride() == 1 && resIncr == 1) {                     \
         sme_gemv(rows, cols, lhs.data(), lhs.stride(), rhs.data(), res, alpha);                                  \
       } else {                                                                                                   \
         general_matrix_vector_product<Index, Scalar, const_blas_data_mapper<Scalar, Index, ColMajor>, ColMajor,  \
