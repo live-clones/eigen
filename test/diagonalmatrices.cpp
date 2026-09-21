@@ -164,6 +164,33 @@ void diagonalmatrices(const MatrixType& m) {
   VERIFY_IS_APPROX((sq_m1 + ldm1) * v2, (sq_m1 + ldm1Dense) * v2);
   VERIFY_IS_APPROX((sq_m1 + ldm1).sum(), (sq_m1 + ldm1Dense).sum());
   VERIFY_IS_APPROX((s1 * (sq_m1 - ldm1)).eval(), s1 * (sq_m1 - ldm1Dense));
+
+  // Direct assignment runs the dense operand's own kernel and then updates the diagonal: compound
+  // assignment, the negated forms, self-assignment of the dense operand, and a product operand on either
+  // side (the right one keeps the "xpr + product" rule).
+  sq_m2 = random_for_arithmetic<SquareMatrixType>(rows, rows);
+  sq_m3 = sq_m2;
+  sq_m2 += sq_m1 + ldm1;
+  sq_m3 += sq_m1 + ldm1Dense;
+  VERIFY_IS_EQUAL(sq_m2, sq_m3);
+  sq_m2 -= ldm1 - sq_m1;
+  sq_m3 -= ldm1Dense - sq_m1;
+  VERIFY_IS_EQUAL(sq_m2, sq_m3);
+  sq_m2 -= sq_m1 - ldm1;
+  sq_m3 -= sq_m1 - ldm1Dense;
+  VERIFY_IS_EQUAL(sq_m2, sq_m3);
+  sq_m2 = sq_m1;
+  sq_m2 = sq_m2 + ldm1;
+  VERIFY_IS_EQUAL(sq_m2, SquareMatrixType(sq_m1 + ldm1Dense));
+  sq_m2 = sq_m1;
+  sq_m2 = ldm1 - sq_m2;
+  VERIFY_IS_EQUAL(sq_m2, SquareMatrixType(ldm1Dense - sq_m1));
+  VERIFY_IS_APPROX(sq_m2 = sq_m1 * sq_m1 + ldm1, SquareMatrixType(sq_m1 * sq_m1 + ldm1Dense));
+  VERIFY_IS_APPROX(sq_m2 = ldm1 + sq_m1 * sq_m1, SquareMatrixType(ldm1Dense + sq_m1 * sq_m1));
+  VERIFY_IS_APPROX(sq_m2 = ldm1 - sq_m1 * sq_m1, SquareMatrixType(ldm1Dense - sq_m1 * sq_m1));
+  VERIFY_IS_APPROX(sq_m2 = sq_m1 * sq_m1 - ldm1, SquareMatrixType(sq_m1 * sq_m1 - ldm1Dense));
+  sq_m2 = sq_m1;
+  VERIFY_IS_APPROX(sq_m2 = sq_m2 * sq_m2 + ldm1, SquareMatrixType(sq_m1 * sq_m1 + ldm1Dense));
 }
 
 template <typename MatrixType>

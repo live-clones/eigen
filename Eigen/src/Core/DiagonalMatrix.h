@@ -564,6 +564,109 @@ struct Assignment<DstXprType, SrcXprType, Functor, Diagonal2Dense> {
   }
 };
 
+/***************************************************************************
+ * Dense ?= dense +/- structured operand, in either order: the lazy CwiseBinaryOp keeps its type, but a direct
+ * assignment first assigns the dense operand with its own (vectorized) kernel and then applies the structured
+ * term along its nonzeros, instead of evaluating the sum coefficient by coefficient without packets.
+ ***************************************************************************/
+
+// The three functors such an assignment can carry, and the sign with which they add the source.
+template <typename Functor>
+struct additive_assign_sign : std::integral_constant<int, 0> {};
+template <typename Scalar>
+struct additive_assign_sign<assign_op<Scalar, Scalar>> : std::integral_constant<int, 1> {};
+template <typename Scalar>
+struct additive_assign_sign<add_assign_op<Scalar, Scalar>> : std::integral_constant<int, 1> {};
+template <typename Scalar>
+struct additive_assign_sign<sub_assign_op<Scalar, Scalar>> : std::integral_constant<int, -1> {};
+
+template <typename T>
+struct is_dense_shape : std::is_same<typename evaluator_traits<T>::Shape, DenseShape> {};
+template <typename T>
+struct is_diagonal_shape : std::is_same<typename evaluator_traits<T>::Shape, DiagonalShape> {};
+template <typename T>
+struct is_default_product : std::false_type {};
+template <typename Lhs, typename Rhs>
+struct is_default_product<Product<Lhs, Rhs, DefaultProduct>> : std::true_type {};
+// Specialized in PermutationMatrix.h: a permutation's dense expression counts as the structured operand of a sum
+// with a diagonal matrix, not as its dense one.
+template <typename T>
+struct is_permutation_dense_xpr : std::false_type {};
+
+// Mixed scalar types and functors other than =, += and -= stay on the generic coefficient-wise path.
+template <typename Dst, typename DenseXpr, typename DiagonalXpr, typename Functor>
+struct dense_diagonal_sum_fast_path
+    : bool_constant<is_dense_shape<DenseXpr>::value && !is_permutation_dense_xpr<DenseXpr>::value &&
+                    is_diagonal_shape<DiagonalXpr>::value && additive_assign_sign<Functor>::value != 0 &&
+                    std::is_same<typename Dst::Scalar, typename DenseXpr::Scalar>::value &&
+                    std::is_same<typename DenseXpr::Scalar, typename DiagonalXpr::Scalar>::value> {};
+
+// dst ?= (NegateDense ? -dense : dense), then dst.diagonal() +/-= diagonal. call_assignment keeps the aliasing
+// protection a product operand needs.
+template <bool NegateDense, bool SubtractDiagonal>
+struct dense_diagonal_sum_assignment {
+  template <typename Dst, typename DenseXpr, typename DiagonalXpr, typename Functor>
+  static void run(Dst& dst, const DenseXpr& dense, const DiagonalXpr& diagonal, const Functor& func) {
+    EIGEN_IF_CONSTEXPR (NegateDense) {
+      call_assignment(dst, -dense, func);
+    } else {
+      call_assignment(dst, dense, func);
+    }
+    EIGEN_IF_CONSTEXPR ((additive_assign_sign<Functor>::value > 0) != SubtractDiagonal) {
+      dst.diagonal() += diagonal.diagonal();
+    } else {
+      dst.diagonal() -= diagonal.diagonal();
+    }
+  }
+};
+
+template <typename DstXprType, typename Lhs, typename Rhs, typename Functor>
+struct Assignment<
+    DstXprType, CwiseBinaryOp<scalar_sum_op<typename Lhs::Scalar, typename Rhs::Scalar>, const Lhs, const Rhs>, Functor,
+    Dense2Dense, std::enable_if_t<dense_diagonal_sum_fast_path<DstXprType, Lhs, Rhs, Functor>::value>> {
+  using SrcXprType = CwiseBinaryOp<scalar_sum_op<typename Lhs::Scalar, typename Rhs::Scalar>, const Lhs, const Rhs>;
+  static void run(DstXprType& dst, const SrcXprType& src, const Functor& func) {
+    dense_diagonal_sum_assignment<false, false>::run(dst, src.lhs(), src.rhs(), func);
+  }
+};
+
+// A dense product on the right is left to the "xpr + product" rule above.
+template <typename DstXprType, typename Lhs, typename Rhs, typename Functor>
+struct Assignment<DstXprType,
+                  CwiseBinaryOp<scalar_sum_op<typename Lhs::Scalar, typename Rhs::Scalar>, const Lhs, const Rhs>,
+                  Functor, Dense2Dense,
+                  std::enable_if_t<dense_diagonal_sum_fast_path<DstXprType, Rhs, Lhs, Functor>::value &&
+                                   !is_default_product<Rhs>::value>> {
+  using SrcXprType = CwiseBinaryOp<scalar_sum_op<typename Lhs::Scalar, typename Rhs::Scalar>, const Lhs, const Rhs>;
+  static void run(DstXprType& dst, const SrcXprType& src, const Functor& func) {
+    dense_diagonal_sum_assignment<false, false>::run(dst, src.rhs(), src.lhs(), func);
+  }
+};
+
+template <typename DstXprType, typename Lhs, typename Rhs, typename Functor>
+struct Assignment<
+    DstXprType, CwiseBinaryOp<scalar_difference_op<typename Lhs::Scalar, typename Rhs::Scalar>, const Lhs, const Rhs>,
+    Functor, Dense2Dense, std::enable_if_t<dense_diagonal_sum_fast_path<DstXprType, Lhs, Rhs, Functor>::value>> {
+  using SrcXprType =
+      CwiseBinaryOp<scalar_difference_op<typename Lhs::Scalar, typename Rhs::Scalar>, const Lhs, const Rhs>;
+  static void run(DstXprType& dst, const SrcXprType& src, const Functor& func) {
+    dense_diagonal_sum_assignment<false, true>::run(dst, src.lhs(), src.rhs(), func);
+  }
+};
+
+template <typename DstXprType, typename Lhs, typename Rhs, typename Functor>
+struct Assignment<DstXprType,
+                  CwiseBinaryOp<scalar_difference_op<typename Lhs::Scalar, typename Rhs::Scalar>, const Lhs, const Rhs>,
+                  Functor, Dense2Dense,
+                  std::enable_if_t<dense_diagonal_sum_fast_path<DstXprType, Rhs, Lhs, Functor>::value &&
+                                   !is_default_product<Rhs>::value>> {
+  using SrcXprType =
+      CwiseBinaryOp<scalar_difference_op<typename Lhs::Scalar, typename Rhs::Scalar>, const Lhs, const Rhs>;
+  static void run(DstXprType& dst, const SrcXprType& src, const Functor& func) {
+    dense_diagonal_sum_assignment<true, false>::run(dst, src.rhs(), src.lhs(), func);
+  }
+};
+
 }  // namespace internal
 
 }  // end namespace Eigen
