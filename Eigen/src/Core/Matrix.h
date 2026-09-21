@@ -18,6 +18,20 @@
 namespace Eigen {
 
 namespace internal {
+// Dense coefficient assignment requires scalar compatibility; evalTo expressions may
+// implement their own conversion instead.
+template <typename Scalar, typename OtherDerived, bool = std::is_base_of<DenseBase<OtherDerived>, OtherDerived>::value>
+struct is_valid_matrix_conversion : std::true_type {};
+
+template <typename Scalar, typename OtherDerived>
+struct is_valid_matrix_conversion<Scalar, OtherDerived, true>
+    : bool_constant<has_ReturnType<ScalarBinaryOpTraits<Scalar, typename OtherDerived::Scalar,
+                                                        assign_op<Scalar, typename OtherDerived::Scalar>>>::value &&
+                    std::is_assignable<Scalar&, const typename OtherDerived::Scalar&>::value> {};
+
+template <typename Scalar, typename OtherDerived>
+struct is_valid_matrix_conversion<Scalar, ReturnByValue<OtherDerived>, true> : std::true_type {};
+
 template <typename Scalar_, int Rows_, int Cols_, int Options_, int MaxRows_, int MaxCols_>
 struct traits<Matrix<Scalar_, Rows_, Cols_, Options_, MaxRows_, MaxCols_>> {
  private:
@@ -389,9 +403,11 @@ class Matrix : public PlainObjectBase<Matrix<Scalar_, Rows_, Cols_, Options_, Ma
   EIGEN_DEVICE_FUNC constexpr Matrix(const Matrix&) = default;
 
   /** \brief Copy constructor for generic expressions.
+   * For coefficient-wise dense expressions, implicit conversion requires compatible scalar types.
    * \sa MatrixBase::operator=(const EigenBase<OtherDerived>&)
    */
-  template <typename OtherDerived>
+  template <typename OtherDerived,
+            std::enable_if_t<internal::is_valid_matrix_conversion<Scalar, OtherDerived>::value, int> = 0>
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Matrix(const EigenBase<OtherDerived>& other)
       : Base(other.derived()) {}
 
