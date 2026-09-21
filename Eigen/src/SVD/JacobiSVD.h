@@ -826,8 +826,10 @@ JacobiSVD<MatrixType, Options>& JacobiSVD<MatrixType, Options>::compute_impl(con
   // limit for denormal numbers to be considered zero in order to avoid infinite loops (see bug 286)
   const RealScalar considerAsZero = (std::numeric_limits<RealScalar>::min)();
 
-  // Scaling factor to reduce over/under-flows
-  const RealScalar maxCoeff = matrix.cwiseAbs().template maxCoeff<PropagateNaN>();
+  // Scaling factor to reduce over/under-flows. A SIMD unit that flushes subnormal inputs reads an all-subnormal matrix
+  // as zero; recover its maximum from the representation so that the scaling still brings it into the normal range.
+  const RealScalar maxCoeff = internal::safe_scaling<RealScalar>::recover_flushed_max_coeff(
+      matrix.derived(), matrix.cwiseAbs().template maxCoeff<PropagateNaN>());
   if (!(numext::isfinite)(maxCoeff)) {
     m_isInitialized = true;
     m_info = InvalidInput;
@@ -913,23 +915,29 @@ JacobiSVD<MatrixType, Options>& JacobiSVD<MatrixType, Options>::compute_impl(con
     }
   }
 
-  internal::safe_scaling<RealScalar>::unscale_in_place(m_singularValues, factors);
-
   /*** step 4. Sort singular values in descending order and compute the number of nonzero singular values ***/
 
-  m_nonzeroSingularValues = diagSize();
+  // Sort in the scaled frame, where the values are normal: unscaled they can be subnormal, which FTZ/DAZ hardware
+  // compares as zero.
   for (Index i = 0; i < diagSize(); i++) {
     Index pos;
     RealScalar maxRemainingSingularValue = m_singularValues.tail(diagSize() - i).maxCoeff(&pos);
-    if (numext::is_exactly_zero(maxRemainingSingularValue)) {
-      m_nonzeroSingularValues = i;
-      break;
-    }
+    if (numext::is_exactly_zero(maxRemainingSingularValue)) break;
     if (pos) {
       pos += i;
       std::swap(m_singularValues.coeffRef(i), m_singularValues.coeffRef(pos));
       if (computeU()) m_matrixU.col(pos).swap(m_matrixU.col(i));
       if (computeV()) m_matrixV.col(pos).swap(m_matrixV.col(i));
+    }
+  }
+  // Unscaling with maxCoeff keeps singular values that land in the subnormal range under FTZ; the count then reads
+  // them from the representation.
+  internal::safe_scaling<RealScalar>::unscale_in_place(m_singularValues, maxCoeff, factors);
+  m_nonzeroSingularValues = diagSize();
+  for (Index i = 0; i < diagSize(); i++) {
+    if (internal::is_exactly_zero_preserving_subnormals(m_singularValues.coeff(i))) {
+      m_nonzeroSingularValues = i;
+      break;
     }
   }
 
