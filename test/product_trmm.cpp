@@ -123,6 +123,20 @@ void trmm(int rows = get_random_size<Scalar>(), int cols = get_random_size<Scala
     res_save = res;
     VERIFY_IS_APPROX(res.noalias() -= mat3.template selfadjointView<Upper>() * mat.template triangularView<Mode>(),
                      res_save - sa3 * tri);
+
+    // s1 cannot fold into a unit diagonal, so s1 * (UnitTri * V) evaluates the product first and scales it afterwards.
+    const MatrixX unit3 = mat3.template triangularView<UnitLower>();
+    VERIFY_IS_APPROX(res = s1 * (mat3.template triangularView<UnitLower>() * mat.template triangularView<Mode>()),
+                     s1 * (unit3 * tri));
+    ResXX res3(rows, rows);
+    VERIFY_IS_APPROX(
+        res3.noalias() = s1 * (mat3.template triangularView<UnitLower>() * mat3.template selfadjointView<Upper>()),
+        s1 * (unit3 * sa3));
+    res.setRandom(rows, cols);
+    res_save = res;
+    VERIFY_IS_APPROX(
+        res.noalias() -= s1 * (mat3.template triangularView<UnitLower>() * mat.template triangularView<Mode>()),
+        res_save - s1 * (unit3 * tri));
   }
 
   // destination with a non-default inner-stride

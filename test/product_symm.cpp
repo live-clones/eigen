@@ -125,6 +125,9 @@ void symm(int size = Size, int othersize = OtherSize) {
                      m7 = (s1 * m1) * tri4);
     VERIFY_IS_APPROX(m6 = m2.template selfadjointView<Lower>() * (s1 * m5.template selfadjointView<Upper>()),
                      m7 = m1 * (s1 * m4));
+    // s1 cannot fold into the unit diagonal, so s1 * (UnitTri * SA) evaluates the product first and scales it.
+    VERIFY_IS_APPROX(m6 = s1 * (m4.template triangularView<UnitLower>() * m2.template selfadjointView<Lower>()),
+                     m7 = s1 * (tri4 * m1));
   }
 
   // destination with a non-default inner-stride
