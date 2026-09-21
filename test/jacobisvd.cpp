@@ -148,6 +148,24 @@ void jacobisvd_large_tau_regression() {
   svd_check_full(m, svd);
 }
 
+// An all-subnormal matrix, which a SIMD unit that flushes subnormal inputs (ARMv7 NEON, Arm FZ, DAZ) reads as zero in
+// the maxCoeff() selecting the scale: recovering the maximum from the representation and scaling through integer
+// significands keeps the decomposition, and the singular values come back through the subnormal range exactly.
+template <typename MatrixType>
+void jacobisvd_flushed_subnormal_matrix(Index rows, Index cols) {
+  using RealScalar = typename MatrixType::RealScalar;
+  const MatrixType m = svd_subnormal_fixture<MatrixType>(rows, cols);
+  const int k = 60;
+  const MatrixType ms = m.unaryExpr(internal::scale_by_exponent_op<RealScalar>(k));
+  const auto check = [&]() {
+    const JacobiSVD<MatrixType, ComputeFullU | ComputeFullV> svd(m), scaled(ms);
+    svd_check_flushed_subnormal(svd, scaled, ms, k);
+  };
+  check();
+  ScopedFlushToZero flushToZero;
+  check();
+}
+
 void jacobisvd_power_of_two_scaling() {
   // Reciprocal scaling rounds the smaller singular value up by one ULP.
   Matrix2f matrix = Matrix2f::Zero();
@@ -280,6 +298,10 @@ EIGEN_DECLARE_TEST(jacobisvd) {
 
   CALL_SUBTEST_56(svd_underoverflow<void>());
   CALL_SUBTEST_56(jacobisvd_power_of_two_scaling());
+  CALL_SUBTEST_56((jacobisvd_flushed_subnormal_matrix<MatrixXf>(5, 4)));
+  CALL_SUBTEST_56((jacobisvd_flushed_subnormal_matrix<MatrixXd>(4, 5)));
+  CALL_SUBTEST_56((jacobisvd_flushed_subnormal_matrix<MatrixXcf>(4, 4)));
+  CALL_SUBTEST_56((jacobisvd_flushed_subnormal_matrix<MatrixXcd>(3, 5)));
 
   // Check that the TriangularBase constructor works
   CALL_SUBTEST_57((svd_triangular_matrix<Matrix3d>()));
