@@ -229,6 +229,25 @@ void complex_pow_test() {
     VERIFY((z.pow(-4) == Complex(Real(-0.25), 0)).all());
     VERIFY((z.pow(0) == Complex(1, 0)).all());
     VERIFY((z.pow(1) == Complex(1, 1)).all());
+    // (1+i)^(8k+7) = 2^(4k+3) (1 - i): exact, with a magnitude of sqrt(2) times a finite component. The unscaled
+    // loop must not admit it once the exponent budget is exhausted, or its intermediates overflow.
+    constexpr int k = (std::numeric_limits<Real>::max_exponent - 8) / 4;
+    Real big = Real(std::ldexp(1.0, 4 * k + 3));
+    VERIFY((z.pow(8 * k + 7) == Complex(big, -big)).all());
+    VERIFY((z.pow(Real(8 * k + 7)) == Complex(big, -big)).all());
+  }
+  // Components so far apart that the smaller one underflows when both take the larger one's scale, while the
+  // power's imaginary part, 2ab, is normal: each component is checked on its own, as the magnitude-relative check
+  // would not notice the imaginary part missing.
+  {
+    Real big = Real(std::ldexp(1.0, std::numeric_limits<Real>::max_exponent / 2 - 2));
+    Real tiny = Real(std::ldexp(1.0, std::numeric_limits<Real>::min_exponent + std::numeric_limits<Real>::digits));
+    ArrayX<Complex> z = ArrayX<Complex>::Constant(size, Complex(big, tiny));
+    ArrayX<Complex> y = z.pow(2);
+    for (Index k = 0; k < size; ++k) {
+      VERIFY(within_ulps(numext::real(y(k)), big * big, 1.0));
+      VERIFY(within_ulps(numext::imag(y(k)), Real(2) * big * tiny, 1.0));
+    }
   }
   // Random bases at magnitudes where the reference cannot under- or overflow; the exponent runs past the
   // renormalization interval of the implementation.
@@ -321,6 +340,27 @@ void narrow_pow_test() {
   }
 }
 
+// complex<long double> keeps plain squaring; its reciprocal must stay range-safe, as the double-word path's
+// conj(z)/|z|^2 would not be for long double's wider exponent range.
+void complex_long_double_range_test() {
+  using Complex = std::complex<long double>;
+  if (std::numeric_limits<long double>::max_exponent <= std::numeric_limits<double>::max_exponent) return;
+  ArrayX<Complex> z(9), y(9);
+  auto close = [](const Complex& a, const Complex& b, long double ulps) {
+    return std::abs(a - b) <= ulps * std::numeric_limits<long double>::epsilon() * std::abs(b);
+  };
+  for (long double magnitude : {1e3000L, 1e-3000L, 3e4000L, 1e2000L, 1e-2000L}) {
+    z.setConstant(Complex(magnitude, magnitude / 3));
+    y = z.pow(-1);
+    Complex expected = Complex(1) / z(0);
+    for (Index k = 0; k < 9; ++k) VERIFY(close(y(k), expected, 4.0L));
+    if (magnitude > 1e2500L || magnitude < 1e-2500L) continue;  // the square would leave the range
+    y = z.pow(-2);
+    expected = Complex(1) / (z(0) * z(0));
+    for (Index k = 0; k < 9; ++k) VERIFY(close(y(k), expected, 8.0L));
+  }
+}
+
 EIGEN_DECLARE_TEST(unary_pow) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(real_pow_test<float>());
@@ -329,5 +369,6 @@ EIGEN_DECLARE_TEST(unary_pow) {
     CALL_SUBTEST_4(complex_pow_test<double>());
     CALL_SUBTEST_5(narrow_pow_test<half>());
     CALL_SUBTEST_6(narrow_pow_test<bfloat16>());
+    CALL_SUBTEST_7(complex_long_double_range_test());
   }
 }
