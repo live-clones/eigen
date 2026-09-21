@@ -2536,9 +2536,9 @@ inline std::ptrdiff_t l3CacheSize() {
   return l3;
 }
 
-/** Set the cpu L1 and L2 cache sizes (in bytes).
- * These values are use to adjust the size of the blocks
- * for the algorithms working per blocks.
+/** Set the cpu L1, L2 and L3 cache sizes (in bytes).
+ * These values are used to adjust blocking sizes and cache-dependent kernel selection,
+ * including the per-operand L2 size limit for SME dot products and scaled vector additions.
  *
  * \sa computeProductBlockingSizes */
 inline void setCpuCacheSizes(std::ptrdiff_t l1, std::ptrdiff_t l2, std::ptrdiff_t l3) {

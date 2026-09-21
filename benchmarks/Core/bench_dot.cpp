@@ -20,7 +20,26 @@ static void BM_Dot(benchmark::State& state) {
   using Vec = Matrix<Scalar, Dynamic, 1>;
   Vec a = Vec::Random(n);
   Vec b = Vec::Random(n);
+  using WideScalar = std::conditional_t<NumTraits<Scalar>::IsComplex, std::complex<long double>, long double>;
+  WideScalar expected(0);
+  long double magnitude = 0;
+  for (Index i = 0; i < n; ++i) {
+    const WideScalar term = numext::conj(WideScalar(a[i])) * WideScalar(b[i]);
+    expected += term;
+    magnitude += numext::abs(term);
+  }
+  // exp(k*eps)-1 bounds (1+eps)^k-1 even when k*eps >= 1 in a large scalar-only run.
+  // Four packet accumulators in the baseline; also account for the scalar reference's rounding.
+  const long double depth = n / (4 * internal::packet_traits<Scalar>::size) + 32;
+  const long double rounding =
+      4 * depth * NumTraits<typename NumTraits<Scalar>::Real>::epsilon() + 4 * n * NumTraits<long double>::epsilon();
+  const long double bound = numext::expm1(rounding) * magnitude;
+  if (!((numext::isfinite)(bound) && numext::abs(WideScalar(a.dot(b)) - expected) <= bound)) {
+    state.SkipWithError("DOT differs from the scalar reference");
+    return;
+  }
   for (auto _ : state) {
+    benchmark::ClobberMemory();
     Scalar d = a.dot(b);
     benchmark::DoNotOptimize(d);
   }
@@ -29,9 +48,9 @@ static void BM_Dot(benchmark::State& state) {
 }
 
 // clang-format off
-#define DOT_SIZES ->Arg(64)->Arg(256)->Arg(1024)->Arg(4096)->Arg(16384)->Arg(65536)->Arg(262144)->Arg(1048576)
-BENCHMARK(BM_Dot<float>) DOT_SIZES ->Name("Dot_float");
-BENCHMARK(BM_Dot<double>) DOT_SIZES ->Name("Dot_double");
+#define DOT_SIZES ->Arg(64)->Arg(256)->Arg(1024)->Arg(2048)->Arg(4096)->Arg(8192)->Arg(16384)->Arg(65536)->Arg(262144)->Arg(524288)->Arg(1048576)->Arg(2097152)
+BENCHMARK(BM_Dot<float>) DOT_SIZES ->Arg(16777216) ->Name("Dot_float");
+BENCHMARK(BM_Dot<double>) DOT_SIZES ->Arg(16777216) ->Name("Dot_double");
 BENCHMARK(BM_Dot<std::complex<float>>) DOT_SIZES ->Name("Dot_cfloat");
 BENCHMARK(BM_Dot<std::complex<double>>) DOT_SIZES ->Name("Dot_cdouble");
 #undef DOT_SIZES
