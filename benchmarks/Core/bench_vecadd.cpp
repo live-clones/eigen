@@ -56,23 +56,33 @@ static void BM_Axpy(benchmark::State& state) {
 }
 BENCHMARK(BM_Axpy<float>)
     ->RangeMultiplier(4)
-    ->Range(64, 1 << 24)
+    ->Range(1, 1 << 24)
+    ->Arg(32)
+    ->Arg(128)
     ->Arg(511)
     ->Arg(512)
     ->Arg(513)
     ->Arg(1023)
     ->Arg(1025)
+    ->Arg(2048)
+    ->Arg(8192)
+    ->Arg(32768)
     ->Arg(524288)
     ->Arg(2097152)
     ->UseRealTime();
 BENCHMARK(BM_Axpy<double>)
     ->RangeMultiplier(4)
-    ->Range(64, 1 << 24)
+    ->Range(1, 1 << 24)
+    ->Arg(32)
+    ->Arg(128)
     ->Arg(511)
     ->Arg(512)
     ->Arg(513)
     ->Arg(1023)
     ->Arg(1025)
+    ->Arg(2048)
+    ->Arg(8192)
+    ->Arg(32768)
     ->Arg(524288)
     ->Arg(2097152)
     ->UseRealTime();
@@ -115,7 +125,7 @@ static void BM_AxpyLayout(benchmark::State& state) {
 }
 
 // clang-format off
-#define AXPY_LAYOUT_SIZES ->ArgsProduct({{1024, 8192, 16384, 32768, 65536}, {0, 16}, {0, 16}}) ->UseRealTime()
+#define AXPY_LAYOUT_SIZES ->ArgsProduct({{64, 256, 1024, 8192, 16384, 32768, 65536}, {0, 16}, {0, 16}}) ->UseRealTime()
 BENCHMARK_TEMPLATE(BM_AxpyLayout, float, false) AXPY_LAYOUT_SIZES ->Name("AxpyLayout_float");
 BENCHMARK_TEMPLATE(BM_AxpyLayout, double, false) AXPY_LAYOUT_SIZES ->Name("AxpyLayout_double");
 BENCHMARK_TEMPLATE(BM_AxpyLayout, float, true) AXPY_LAYOUT_SIZES ->Name("AxpyMixed_float");
