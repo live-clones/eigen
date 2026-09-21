@@ -772,10 +772,12 @@ struct local_nested_eval_wrapper<Xpr, NbEvaluations, true> {
 // streaming vector at a time and runs 35-50% slower when they straddle
 // 64-byte lines, so SME builds align them to that rather than to the ABI's
 // EIGEN_DEFAULT_ALIGN_BYTES.
+#ifndef EIGEN_STACK_ALIGN_BYTES
 #if defined(EIGEN_VECTORIZE_SME) && EIGEN_DEFAULT_ALIGN_BYTES < 64
 #define EIGEN_STACK_ALIGN_BYTES 64
 #else
 #define EIGEN_STACK_ALIGN_BYTES EIGEN_DEFAULT_ALIGN_BYTES
+#endif
 #endif
 
 #if EIGEN_STACK_ALIGN_BYTES > 0
