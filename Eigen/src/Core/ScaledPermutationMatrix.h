@@ -43,6 +43,15 @@ struct scaled_permutation_result {
   using type = ScaledPermutationMatrix<Scalar, Size, MaxSize, StorageIndex>;
 };
 
+template <typename Lhs, typename Rhs, typename StorageIndex>
+struct scaled_permutation_product_result {
+  using LhsScalar = typename traits<Lhs>::Scalar;
+  using RhsScalar = typename traits<Rhs>::Scalar;
+  using Scalar =
+      typename ScalarBinaryOpTraits<LhsScalar, RhsScalar, scalar_product_op<LhsScalar, RhsScalar>>::ReturnType;
+  using type = typename scaled_permutation_result<Scalar, Lhs, Rhs, StorageIndex>::type;
+};
+
 /** \internal indices of the inverse permutation: result(indices(k)) = k. */
 template <typename IndicesType, typename Result>
 EIGEN_DEVICE_FUNC void invert_permutation_indices(const IndicesType& indices, Result& result) {
@@ -83,17 +92,15 @@ class ScaledPermutationBase : public EigenBase<Derived> {
   using PermutationType = typename Traits::PermutationType;
   using ScalesType = typename Traits::ScalesType;
   using IndicesType = typename PermutationType::IndicesType;
-  // Public compile-time constants keep the enum form of DiagonalBase and PermutationBase.
-  enum {
-    RowsAtCompileTime = Traits::RowsAtCompileTime,
-    ColsAtCompileTime = Traits::ColsAtCompileTime,
-    MaxRowsAtCompileTime = Traits::MaxRowsAtCompileTime,
-    MaxColsAtCompileTime = Traits::MaxColsAtCompileTime,
-    SizeAtCompileTime = internal::size_at_compile_time(RowsAtCompileTime, ColsAtCompileTime),
-    MaxSizeAtCompileTime = internal::size_at_compile_time(MaxRowsAtCompileTime, MaxColsAtCompileTime),
-    IsVectorAtCompileTime = 0,
-    Flags = Traits::Flags
-  };
+  static constexpr int RowsAtCompileTime = Traits::RowsAtCompileTime;
+  static constexpr int ColsAtCompileTime = Traits::ColsAtCompileTime;
+  static constexpr int MaxRowsAtCompileTime = Traits::MaxRowsAtCompileTime;
+  static constexpr int MaxColsAtCompileTime = Traits::MaxColsAtCompileTime;
+  static constexpr int SizeAtCompileTime = internal::size_at_compile_time(RowsAtCompileTime, ColsAtCompileTime);
+  static constexpr int MaxSizeAtCompileTime =
+      internal::size_at_compile_time(MaxRowsAtCompileTime, MaxColsAtCompileTime);
+  static constexpr bool IsVectorAtCompileTime = false;
+  static constexpr unsigned int Flags = Traits::Flags;
   using DenseMatrixType =
       Matrix<Scalar, RowsAtCompileTime, ColsAtCompileTime, 0, MaxRowsAtCompileTime, MaxColsAtCompileTime>;
   using PlainObject = ScaledPermutationMatrix<Scalar, RowsAtCompileTime, MaxRowsAtCompileTime, StorageIndex>;
@@ -102,14 +109,14 @@ class ScaledPermutationBase : public EigenBase<Derived> {
 #endif
 
   /** \returns the number of rows */
-  EIGEN_DEVICE_FUNC Index rows() const { return indices().size(); }
+  EIGEN_DEVICE_FUNC constexpr Index rows() const { return indices().size(); }
   /** \returns the number of columns */
-  EIGEN_DEVICE_FUNC Index cols() const { return indices().size(); }
+  EIGEN_DEVICE_FUNC constexpr Index cols() const { return indices().size(); }
 
   /** \returns the permutation factor $ P $ */
   EIGEN_DEVICE_FUNC const PermutationType& permutation() const { return derived().permutation(); }
   /** \returns the permutation's indices: column \c k has its nonzero in row `indices()(k)` */
-  EIGEN_DEVICE_FUNC const IndicesType& indices() const { return derived().indices(); }
+  EIGEN_DEVICE_FUNC constexpr const IndicesType& indices() const { return derived().indices(); }
   /** \returns the scales: column \c k's nonzero equals `scales()(k)` */
   EIGEN_DEVICE_FUNC const ScalesType& scales() const { return derived().scales(); }
 
@@ -120,11 +127,11 @@ class ScaledPermutationBase : public EigenBase<Derived> {
   }
 
   /** \returns the represented matrix as a plain dense matrix */
-  DenseMatrixType toDenseMatrix() const { return derived(); }
+  EIGEN_DEVICE_FUNC DenseMatrixType toDenseMatrix() const { return derived(); }
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN
   template <typename DenseDerived>
-  void evalTo(MatrixBase<DenseDerived>& other) const {
+  EIGEN_DEVICE_FUNC void evalTo(MatrixBase<DenseDerived>& other) const {
     other.setZero();
     for (Index k = 0; k < rows(); ++k) other.coeffRef(indices().coeff(k), k) = scales().coeff(k);
   }
@@ -200,16 +207,20 @@ class ScaledPermutationBase : public EigenBase<Derived> {
 
   /** \returns the scaled permutation \c *this times the diagonal matrix \a other */
   template <typename OtherDerived>
-  PlainObject operator*(const DiagonalBase<OtherDerived>& other) const {
+  typename internal::scaled_permutation_product_result<Derived, OtherDerived, StorageIndex>::type operator*(
+      const DiagonalBase<OtherDerived>& other) const {
+    using Result = typename internal::scaled_permutation_product_result<Derived, OtherDerived, StorageIndex>::type;
     eigen_assert(rows() == other.rows());
-    return PlainObject(indices(), scales().cwiseProduct(other.diagonal()));
+    return Result(indices(), scales().cwiseProduct(other.diagonal()));
   }
 
   /** \returns the scaled permutation diagonal matrix \a other times \a scaled */
   template <typename OtherDerived>
-  friend PlainObject operator*(const DiagonalBase<OtherDerived>& other, const ScaledPermutationBase& scaled) {
+  friend typename internal::scaled_permutation_product_result<OtherDerived, Derived, StorageIndex>::type operator*(
+      const DiagonalBase<OtherDerived>& other, const ScaledPermutationBase& scaled) {
+    using Result = typename internal::scaled_permutation_product_result<OtherDerived, Derived, StorageIndex>::type;
     eigen_assert(other.rows() == scaled.rows());
-    PlainObject result(scaled.rows());
+    Result result(scaled.rows());
     result.indices() = scaled.indices();
     for (Index k = 0; k < scaled.rows(); ++k)
       result.scales().coeffRef(k) = other.diagonal().coeff(scaled.indices().coeff(k)) * scaled.scales().coeff(k);
@@ -270,9 +281,11 @@ class ScaledPermutationBase : public EigenBase<Derived> {
 
   /** \returns the scaled permutation \c *this times the scaled permutation \a other */
   template <typename OtherDerived>
-  PlainObject operator*(const ScaledPermutationBase<OtherDerived>& other) const {
+  typename internal::scaled_permutation_product_result<Derived, OtherDerived, StorageIndex>::type operator*(
+      const ScaledPermutationBase<OtherDerived>& other) const {
+    using Result = typename internal::scaled_permutation_product_result<Derived, OtherDerived, StorageIndex>::type;
     eigen_assert(rows() == other.rows());
-    PlainObject result(rows());
+    Result result(rows());
     for (Index k = 0; k < rows(); ++k) {
       const Index source = other.indices().coeff(k);
       result.indices().coeffRef(k) = indices().coeff(source);
@@ -357,46 +370,47 @@ class ScaledPermutationMatrix
 #endif
 
   /** Default constructor; the matrix is uninitialized. */
-  ScaledPermutationMatrix() = default;
+  EIGEN_DEVICE_FUNC ScaledPermutationMatrix() = default;
 
   /** Constructs an uninitialized scaled permutation of the given size. */
-  explicit ScaledPermutationMatrix(Index size) : m_permutation(size), m_scales(size) {}
+  EIGEN_DEVICE_FUNC explicit ScaledPermutationMatrix(Index size) : m_permutation(size), m_scales(size) {}
 
   /** Constructs the product \a permutation times \a diagonal. */
   template <typename PermutationDerived, typename DiagonalDerived>
-  ScaledPermutationMatrix(const PermutationBase<PermutationDerived>& permutation,
-                          const DiagonalBase<DiagonalDerived>& diagonal)
+  EIGEN_DEVICE_FUNC ScaledPermutationMatrix(const PermutationBase<PermutationDerived>& permutation,
+                                            const DiagonalBase<DiagonalDerived>& diagonal)
       : m_permutation(permutation), m_scales(diagonal.diagonal()) {
     eigen_assert(permutation.rows() == diagonal.rows());
   }
 
   /** Constructs the scaled permutation with the given \a indices and \a scales. */
   template <typename IndicesDerived, typename ScalesDerived>
-  ScaledPermutationMatrix(const MatrixBase<IndicesDerived>& indices, const MatrixBase<ScalesDerived>& scales)
+  EIGEN_DEVICE_FUNC ScaledPermutationMatrix(const MatrixBase<IndicesDerived>& indices,
+                                            const MatrixBase<ScalesDerived>& scales)
       : m_permutation(indices), m_scales(scales) {
     eigen_assert(indices.size() == scales.size());
   }
 
   /** Converts the permutation \a permutation, all scales being one. */
   template <typename OtherDerived>
-  explicit ScaledPermutationMatrix(const PermutationBase<OtherDerived>& permutation)
+  EIGEN_DEVICE_FUNC explicit ScaledPermutationMatrix(const PermutationBase<OtherDerived>& permutation)
       : m_permutation(permutation), m_scales(ScalesType::Ones(permutation.rows())) {}
 
   /** Converts the diagonal matrix \a diagonal, the permutation being the identity. */
   template <typename OtherDerived>
-  explicit ScaledPermutationMatrix(const DiagonalBase<OtherDerived>& diagonal)
+  EIGEN_DEVICE_FUNC explicit ScaledPermutationMatrix(const DiagonalBase<OtherDerived>& diagonal)
       : m_permutation(diagonal.rows()), m_scales(diagonal.diagonal()) {
     m_permutation.setIdentity();
   }
 
   /** Copies the scaled permutation \a other. */
   template <typename OtherDerived>
-  ScaledPermutationMatrix(const ScaledPermutationBase<OtherDerived>& other)
+  EIGEN_DEVICE_FUNC ScaledPermutationMatrix(const ScaledPermutationBase<OtherDerived>& other)
       : m_permutation(other.permutation()), m_scales(other.scales()) {}
 
   /** Copies the scaled permutation \a other. */
   template <typename OtherDerived>
-  ScaledPermutationMatrix& operator=(const ScaledPermutationBase<OtherDerived>& other) {
+  EIGEN_DEVICE_FUNC ScaledPermutationMatrix& operator=(const ScaledPermutationBase<OtherDerived>& other) {
     m_permutation = other.permutation();
     m_scales = other.scales();
     return *this;
@@ -407,28 +421,28 @@ class ScaledPermutationMatrix
   /** \returns a reference to the permutation factor */
   EIGEN_DEVICE_FUNC PermutationType& permutation() { return m_permutation; }
   /** \returns the permutation's indices */
-  EIGEN_DEVICE_FUNC const IndicesType& indices() const { return m_permutation.indices(); }
+  EIGEN_DEVICE_FUNC constexpr const IndicesType& indices() const { return m_permutation.indices(); }
   /** \returns a reference to the permutation's indices */
-  EIGEN_DEVICE_FUNC IndicesType& indices() { return m_permutation.indices(); }
+  EIGEN_DEVICE_FUNC constexpr IndicesType& indices() { return m_permutation.indices(); }
   /** \returns the scales */
   EIGEN_DEVICE_FUNC const ScalesType& scales() const { return m_scales; }
   /** \returns a reference to the scales */
   EIGEN_DEVICE_FUNC ScalesType& scales() { return m_scales; }
 
   /** Resizes to the given size, leaving the coefficients uninitialized. */
-  void resize(Index size) {
+  EIGEN_DEVICE_FUNC void resize(Index size) {
     m_permutation.resize(size);
     m_scales.resize(size);
   }
 
   /** Sets \c *this to the identity matrix. */
-  void setIdentity() {
+  EIGEN_DEVICE_FUNC void setIdentity() {
     m_permutation.setIdentity();
     m_scales.setOnes();
   }
 
   /** Sets \c *this to the identity matrix of the given size. */
-  void setIdentity(Index size) {
+  EIGEN_DEVICE_FUNC void setIdentity(Index size) {
     resize(size);
     setIdentity();
   }
@@ -556,21 +570,24 @@ struct AssignmentKind<DenseShape, ScaledPermutationShape> {
 // Scaled permutation to dense assignment: zero fill plus one scatter of n coefficients.
 template <typename DstXprType, typename SrcXprType, typename Functor>
 struct Assignment<DstXprType, SrcXprType, Functor, ScaledPermutation2Dense> {
-  static void run(DstXprType& dst, const SrcXprType& src,
-                  const internal::assign_op<typename DstXprType::Scalar, typename SrcXprType::Scalar>&) {
+  static EIGEN_DEVICE_FUNC void run(
+      DstXprType& dst, const SrcXprType& src,
+      const internal::assign_op<typename DstXprType::Scalar, typename SrcXprType::Scalar>&) {
     if ((dst.rows() != src.rows()) || (dst.cols() != src.cols())) dst.resize(src.rows(), src.cols());
     dst.setZero();
     for (Index k = 0; k < src.rows(); ++k) dst.coeffRef(src.indices().coeff(k), k) = src.scales().coeff(k);
   }
 
-  static void run(DstXprType& dst, const SrcXprType& src,
-                  const internal::add_assign_op<typename DstXprType::Scalar, typename SrcXprType::Scalar>&) {
+  static EIGEN_DEVICE_FUNC void run(
+      DstXprType& dst, const SrcXprType& src,
+      const internal::add_assign_op<typename DstXprType::Scalar, typename SrcXprType::Scalar>&) {
     eigen_assert(dst.rows() == src.rows() && dst.cols() == src.cols());
     for (Index k = 0; k < src.rows(); ++k) dst.coeffRef(src.indices().coeff(k), k) += src.scales().coeff(k);
   }
 
-  static void run(DstXprType& dst, const SrcXprType& src,
-                  const internal::sub_assign_op<typename DstXprType::Scalar, typename SrcXprType::Scalar>&) {
+  static EIGEN_DEVICE_FUNC void run(
+      DstXprType& dst, const SrcXprType& src,
+      const internal::sub_assign_op<typename DstXprType::Scalar, typename SrcXprType::Scalar>&) {
     eigen_assert(dst.rows() == src.rows() && dst.cols() == src.cols());
     for (Index k = 0; k < src.rows(); ++k) dst.coeffRef(src.indices().coeff(k), k) -= src.scales().coeff(k);
   }
@@ -589,13 +606,16 @@ struct generic_product_impl<Lhs, Rhs, ScaledPermutationShape, DenseShape, Produc
   using Scalar = typename Product<Lhs, Rhs>::Scalar;
 
   template <typename Dest>
-  static void evalTo(Dest& dst, const Lhs& lhs, const Rhs& rhs) {
+  static EIGEN_DEVICE_FUNC void evalTo(Dest& dst, const Lhs& lhs, const Rhs& rhs) {
     permutation_matrix_product<Rhs, OnTheLeft, false, DenseShape>::run(dst, lhs.permutation(), rhs);
-    for (Index k = 0; k < lhs.rows(); ++k) dst.row(lhs.indices().coeff(k)) *= lhs.scales().coeff(k);
+    for (Index k = 0; k < lhs.rows(); ++k) {
+      auto row = dst.row(lhs.indices().coeff(k));
+      row = lhs.scales().coeff(k) * row;
+    }
   }
 
   template <typename Dest>
-  static void scaleAndAddTo(Dest& dst, const Lhs& lhs, const Rhs& rhs, const Scalar& alpha) {
+  static EIGEN_DEVICE_FUNC void scaleAndAddTo(Dest& dst, const Lhs& lhs, const Rhs& rhs, const Scalar& alpha) {
     typename nested_eval<Rhs, 1>::type rhsNested(rhs);
     for (Index k = 0; k < lhs.rows(); ++k)
       dst.row(lhs.indices().coeff(k)) += (alpha * lhs.scales().coeff(k)) * rhsNested.row(k);
@@ -609,16 +629,16 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, ScaledPermutationShape, Produc
   using Scalar = typename Product<Lhs, Rhs>::Scalar;
 
   template <typename Dest>
-  static void evalTo(Dest& dst, const Lhs& lhs, const Rhs& rhs) {
+  static EIGEN_DEVICE_FUNC void evalTo(Dest& dst, const Lhs& lhs, const Rhs& rhs) {
     permutation_matrix_product<Lhs, OnTheRight, false, DenseShape>::run(dst, rhs.permutation(), lhs);
     for (Index k = 0; k < rhs.rows(); ++k) dst.col(k) *= rhs.scales().coeff(k);
   }
 
   template <typename Dest>
-  static void scaleAndAddTo(Dest& dst, const Lhs& lhs, const Rhs& rhs, const Scalar& alpha) {
+  static EIGEN_DEVICE_FUNC void scaleAndAddTo(Dest& dst, const Lhs& lhs, const Rhs& rhs, const Scalar& alpha) {
     typename nested_eval<Lhs, 1>::type lhsNested(lhs);
     for (Index k = 0; k < rhs.rows(); ++k)
-      dst.col(k) += (alpha * rhs.scales().coeff(k)) * lhsNested.col(rhs.indices().coeff(k));
+      dst.col(k) += alpha * (lhsNested.col(rhs.indices().coeff(k)) * rhs.scales().coeff(k));
   }
 };
 
@@ -634,12 +654,12 @@ struct scaled_permutation_view_product_impl<Lhs, Rhs, ProductTag, true>
   using DenseImpl = generic_product_impl<Lhs, DenseType, ScaledPermutationShape, DenseShape, ProductTag>;
 
   template <typename Dest>
-  static void evalTo(Dest& dst, const Lhs& lhs, const Rhs& rhs) {
+  static EIGEN_DEVICE_FUNC void evalTo(Dest& dst, const Lhs& lhs, const Rhs& rhs) {
     const DenseType dense(rhs);
     DenseImpl::evalTo(dst, lhs, dense);
   }
   template <typename Dest>
-  static void scaleAndAddTo(Dest& dst, const Lhs& lhs, const Rhs& rhs, const Scalar& alpha) {
+  static EIGEN_DEVICE_FUNC void scaleAndAddTo(Dest& dst, const Lhs& lhs, const Rhs& rhs, const Scalar& alpha) {
     const DenseType dense(rhs);
     DenseImpl::scaleAndAddTo(dst, lhs, dense, alpha);
   }
@@ -653,12 +673,12 @@ struct scaled_permutation_view_product_impl<Lhs, Rhs, ProductTag, false>
   using DenseImpl = generic_product_impl<DenseType, Rhs, DenseShape, ScaledPermutationShape, ProductTag>;
 
   template <typename Dest>
-  static void evalTo(Dest& dst, const Lhs& lhs, const Rhs& rhs) {
+  static EIGEN_DEVICE_FUNC void evalTo(Dest& dst, const Lhs& lhs, const Rhs& rhs) {
     const DenseType dense(lhs);
     DenseImpl::evalTo(dst, dense, rhs);
   }
   template <typename Dest>
-  static void scaleAndAddTo(Dest& dst, const Lhs& lhs, const Rhs& rhs, const Scalar& alpha) {
+  static EIGEN_DEVICE_FUNC void scaleAndAddTo(Dest& dst, const Lhs& lhs, const Rhs& rhs, const Scalar& alpha) {
     const DenseType dense(lhs);
     DenseImpl::scaleAndAddTo(dst, dense, rhs, alpha);
   }

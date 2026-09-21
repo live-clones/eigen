@@ -11,6 +11,7 @@
 
 #include "main.h"
 #include <Eigen/Core>
+#include "NonCommutativeScalar.h"
 
 // The scaled permutation P * D of a permutation and a diagonal matrix. Every closed-form operation below moves
 // or multiplies single coefficients, so the comparisons with the dense references are exact.
@@ -156,10 +157,90 @@ void scaled_permutation(Index size) {
   VERIFY_IS_EQUAL(MatrixType(copy), scaled2.toDenseMatrix());
 }
 
+template <typename Real>
+void scaled_permutation_mixed_scalars() {
+  using Complex = std::complex<Real>;
+  using Dense = Matrix<Complex, 3, 3>;
+  ScaledPermutationMatrix<Real, 3> real;
+  ScaledPermutationMatrix<Complex, Dynamic> complex(3);
+  real.indices() << 1, 2, 0;
+  real.scales() << 2, 3, 5;
+  complex.indices() << 2, 0, 1;
+  complex.scales() << Complex(1, 2), Complex(3, -1), Complex(-2, 4);
+  const DiagonalMatrix<Real, 3> realDiagonal(real.scales());
+  const DiagonalMatrix<Complex, 3> complexDiagonal(complex.scales());
+  const Dense realDense = real.toDenseMatrix().template cast<Complex>();
+  const Dense complexDense = complex.toDenseMatrix();
+  const Dense realDiagonalDense = realDiagonal.toDenseMatrix().template cast<Complex>();
+  const Dense complexDiagonalDense = complexDiagonal.toDenseMatrix();
+  const auto product = real * complex;
+  STATIC_CHECK((internal::is_same<typename decltype(product)::Scalar, Complex>::value));
+  STATIC_CHECK(decltype(product)::RowsAtCompileTime == 3);
+  VERIFY_IS_EQUAL(Dense(product), Dense(realDense * complexDense));
+  VERIFY_IS_EQUAL(Dense(complex * real), Dense(complexDense * realDense));
+  VERIFY_IS_EQUAL(Dense(real * complexDiagonal), Dense(realDense * complexDiagonalDense));
+  VERIFY_IS_EQUAL(Dense(complexDiagonal * real), Dense(complexDiagonalDense * realDense));
+  VERIFY_IS_EQUAL(Dense(complex * realDiagonal), Dense(complexDense * realDiagonalDense));
+  VERIFY_IS_EQUAL(Dense(realDiagonal * complex), Dense(realDiagonalDense * complexDense));
+  VERIFY_IS_EQUAL(Dense(real * complexDense), Dense(realDense * complexDense));
+  VERIFY_IS_EQUAL(Dense(complexDense * real), Dense(complexDense * realDense));
+  Dense accumulated = Dense::Zero();
+  accumulated.noalias() += real * complexDense;
+  VERIFY_IS_EQUAL(accumulated, Dense(realDense * complexDense));
+  accumulated.setZero();
+  accumulated.noalias() += complexDense * real;
+  VERIFY_IS_EQUAL(accumulated, Dense(complexDense * realDense));
+}
+
+template <int Order>
+void scaled_permutation_noncommutative() {
+  using Scalar = noncommutative_scalar::Quaternion;
+  using Dense = Matrix<Scalar, 3, 3, Order>;
+  ScaledPermutationMatrix<Scalar, 3> scaled;
+  scaled.indices() << 1, 2, 0;
+  scaled.scales() << Scalar(1, 2, 0, -1), Scalar(2, -1, 3, 0), Scalar(-1, 0, 2, 1);
+  Dense matrix, left, right;
+  for (Index i = 0; i < 3; ++i)
+    for (Index j = 0; j < 3; ++j) matrix(i, j) = Scalar(i + 1, j + 1, i - j, i + j);
+  for (Index k = 0; k < 3; ++k) {
+    for (Index j = 0; j < 3; ++j) left(scaled.indices()(k), j) = scaled.scales()(k) * matrix(k, j);
+    for (Index i = 0; i < 3; ++i) right(i, k) = matrix(i, scaled.indices()(k)) * scaled.scales()(k);
+  }
+  Dense result = scaled * matrix;
+  VERIFY((result.array() == left.array()).all());
+  result = matrix * scaled;
+  VERIFY((result.array() == right.array()).all());
+  result = matrix;
+  result = scaled * result;
+  VERIFY((result.array() == left.array()).all());
+  result = matrix;
+  result = result * scaled;
+  VERIFY((result.array() == right.array()).all());
+  result.setZero();
+  result.noalias() += scaled * matrix;
+  VERIFY((result.array() == left.array()).all());
+  result.setZero();
+  result.noalias() += matrix * scaled;
+  VERIFY((result.array() == right.array()).all());
+  const Scalar alpha(1, -2, 3, 1);
+  result.setZero();
+  result.noalias() += alpha * (scaled * matrix);
+  for (Index i = 0; i < 3; ++i)
+    for (Index j = 0; j < 3; ++j) VERIFY(result(i, j) == alpha * left(i, j));
+  result.setZero();
+  result.noalias() -= alpha * (matrix * scaled);
+  for (Index i = 0; i < 3; ++i)
+    for (Index j = 0; j < 3; ++j) VERIFY(result(i, j) == -(alpha * right(i, j)));
+}
+
 EIGEN_DECLARE_TEST(scaled_permutation) {
   CALL_SUBTEST_1((scaled_permutation<float, 1>(1)));
   CALL_SUBTEST_1((scaled_permutation<double, 3>(3)));
   CALL_SUBTEST_1((scaled_permutation<std::complex<double>, 4>(4)));
+  CALL_SUBTEST_4(scaled_permutation_mixed_scalars<float>());
+  CALL_SUBTEST_4(scaled_permutation_mixed_scalars<double>());
+  CALL_SUBTEST_5(scaled_permutation_noncommutative<ColMajor>());
+  CALL_SUBTEST_5(scaled_permutation_noncommutative<RowMajor>());
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_2((scaled_permutation<float, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_2((scaled_permutation<double, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
