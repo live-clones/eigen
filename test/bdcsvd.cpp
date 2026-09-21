@@ -261,6 +261,54 @@ void bdcsvd_fast_math_regression_1588() {
 }
 #endif
 
+// An all-subnormal matrix, which a SIMD unit that flushes subnormal inputs (ARMv7 NEON, Arm FZ, DAZ) reads as zero in
+// the maxCoeff() selecting the scale: recovering the maximum from the representation and scaling through integer
+// significands keeps the decomposition, and the singular values come back through the subnormal range exactly. The
+// switch size below the dimensions keeps the divide-and-conquer path rather than the JacobiSVD fallback.
+template <typename MatrixType>
+void bdcsvd_flushed_subnormal_matrix(Index rows, Index cols) {
+  using RealScalar = typename MatrixType::RealScalar;
+  const MatrixType m = svd_subnormal_fixture<MatrixType>(rows, cols);
+  const int k = 60;
+  const MatrixType ms = m.unaryExpr(internal::scale_by_exponent_op<RealScalar>(k));
+  const auto check = [&]() {
+    BDCSVD<MatrixType, ComputeFullU | ComputeFullV> svd, scaled;
+    svd.setSwitchSize(8);
+    scaled.setSwitchSize(8);
+    svd.compute(m);
+    scaled.compute(ms);
+    svd_check_flushed_subnormal(svd, scaled, ms, k);
+  };
+  check();
+  ScopedFlushToZero flushToZero;
+  check();
+}
+
+// The bidiagonal entry point, on both sides of the switch size: divide and conquer above it, JacobiSVD below.
+template <typename RealScalar>
+void bdcsvd_flushed_subnormal_bidiagonal(Index n, int switchSize) {
+  using Vec = Matrix<RealScalar, Dynamic, 1>;
+  using Mat = Matrix<RealScalar, Dynamic, Dynamic>;
+  const Vec diagonal = svd_subnormal_fixture<Vec>(n, 1), superdiagonal = svd_subnormal_fixture<Vec>(n - 1, 1);
+  const int k = 60;
+  const Vec ds = diagonal.unaryExpr(internal::scale_by_exponent_op<RealScalar>(k));
+  const Vec ss = superdiagonal.unaryExpr(internal::scale_by_exponent_op<RealScalar>(k));
+  Mat Bs = Mat::Zero(n, n);
+  Bs.diagonal() = ds;
+  Bs.diagonal(1) = ss;
+  const auto check = [&]() {
+    BDCSVD<Mat, ComputeFullU | ComputeFullV> svd, scaled;
+    svd.setSwitchSize(switchSize);
+    scaled.setSwitchSize(switchSize);
+    svd.compute(diagonal, superdiagonal);
+    scaled.compute(ds, ss);
+    svd_check_flushed_subnormal(svd, scaled, Bs, k);
+  };
+  check();
+  ScopedFlushToZero flushToZero;
+  check();
+}
+
 void bdcsvd_power_of_two_scaling() {
   // Reciprocal scaling rounds the smaller singular value down by one ULP in both entry paths.
   const Index size = 20;
@@ -462,4 +510,10 @@ EIGEN_DECLARE_TEST(bdcsvd) {
   CALL_SUBTEST_57((bdcsvd_qr_crossover<float, ColMajor>()));
   CALL_SUBTEST_58((bdcsvd_qr_crossover<double, RowMajor>()));
   CALL_SUBTEST_59((bdcsvd_qr_crossover<std::complex<double>, ColMajor>()));
+  CALL_SUBTEST_60((bdcsvd_flushed_subnormal_matrix<MatrixXf>(12, 10)));
+  CALL_SUBTEST_60((bdcsvd_flushed_subnormal_matrix<MatrixXd>(10, 12)));
+  CALL_SUBTEST_60((bdcsvd_flushed_subnormal_matrix<MatrixXcd>(10, 10)));
+  CALL_SUBTEST_60((bdcsvd_flushed_subnormal_bidiagonal<float>(12, 8)));
+  CALL_SUBTEST_60((bdcsvd_flushed_subnormal_bidiagonal<double>(16, 8)));
+  CALL_SUBTEST_60((bdcsvd_flushed_subnormal_bidiagonal<double>(6, 8)));
 }
