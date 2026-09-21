@@ -1039,8 +1039,44 @@ void householder_structured_products(Index size) {
   VERIFY_IS_APPROX(result, q * pDense);
   result = p * qr.householderQ();
   VERIFY_IS_APPROX(result, pDense * q);
+  result = qr.householderQ() * p.inverse();
+  VERIFY_IS_APPROX(result, q * pDense.transpose());
+  result = p.transpose() * qr.householderQ();
+  VERIFY_IS_APPROX(result, pDense.transpose() * q);
   result = qr.householderQ().adjoint() * d;
   VERIFY_IS_APPROX(result, q.adjoint() * dDense);
+  result = qr.householderQ().adjoint() * p;
+  VERIFY_IS_APPROX(result, q.adjoint() * pDense);
+
+  // Upper triangular operands on the left take the identity path of the dense product; the other triangular modes
+  // and the tall (non-square) case take the full path.
+  result = qr.householderQ() * qr.matrixQR().template triangularView<Upper>();
+  VERIFY_IS_APPROX(result, a);
+  result = qr.householderQ() * a.template triangularView<StrictlyUpper>();
+  VERIFY_IS_APPROX(result, q * MatrixType(a.template triangularView<StrictlyUpper>()));
+  result = qr.householderQ() * a.template triangularView<UnitUpper>();
+  VERIFY_IS_APPROX(result, q * MatrixType(a.template triangularView<UnitUpper>()));
+  result = qr.householderQ() * a.template triangularView<Lower>();
+  VERIFY_IS_APPROX(result, q * MatrixType(a.template triangularView<Lower>()));
+  const MatrixType tall = MatrixType::Random(2 * size, size);
+  const HouseholderQR<MatrixType> qrTall(tall);
+  result = qrTall.householderQ() * qrTall.matrixQR().template triangularView<Upper>();
+  VERIFY_IS_APPROX(result, tall);
+
+  // Real operands of a complex sequence promote to the sequence's scalar type.
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using RealMatrixType = Matrix<RealScalar, Dynamic, Dynamic>;
+  const DiagonalMatrix<RealScalar, Dynamic> dReal(Matrix<RealScalar, Dynamic, 1>::Random(size));
+  const RealMatrixType aReal = RealMatrixType::Random(size, size);
+  STATIC_CHECK((internal::is_same<decltype(qr.householderQ() * dReal), MatrixType>::value));
+  result = qr.householderQ() * dReal;
+  VERIFY_IS_APPROX(result, q * dReal.toDenseMatrix());
+  result = dReal * qr.householderQ();
+  VERIFY_IS_APPROX(result, dReal.toDenseMatrix() * q);
+  result = qr.householderQ() * aReal.template triangularView<Upper>();
+  VERIFY_IS_APPROX(result, q * RealMatrixType(aReal.template triangularView<Upper>()));
+  result = aReal.template triangularView<Lower>() * qr.householderQ();
+  VERIFY_IS_APPROX(result, RealMatrixType(aReal.template triangularView<Lower>()) * q);
 }
 
 EIGEN_DECLARE_TEST(householder) {
