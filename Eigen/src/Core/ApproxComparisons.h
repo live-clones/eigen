@@ -28,11 +28,12 @@ struct use_scaled_comparison
 template <typename RealScalar>
 struct use_scaled_comparison<std::complex<RealScalar>> : use_scaled_comparison<RealScalar> {};
 
-// A nonnegative magnitude fraction * 2^exponent, including norms larger than the scalar range.
+// A nonnegative magnitude fraction * 2^exponent, including norms larger than the scalar range. Positive finite
+// magnitudes order lexicographically by (exponent, fraction), the member order.
 template <typename RealScalar>
 struct comparison_magnitude {
-  RealScalar fraction;
   int exponent = 0;
+  RealScalar fraction;
 
   EIGEN_DEVICE_FUNC explicit comparison_magnitude(const RealScalar& value) : fraction(value) {
     if (value > RealScalar(0) && value <= NumTraits<RealScalar>::highest()) {
@@ -43,7 +44,7 @@ struct comparison_magnitude {
 
   template <typename OtherRealScalar>
   EIGEN_DEVICE_FUNC explicit comparison_magnitude(const comparison_magnitude<OtherRealScalar>& value)
-      : fraction(RealScalar(value.fraction)), exponent(value.exponent) {}
+      : exponent(value.exponent), fraction(RealScalar(value.fraction)) {}
 
   EIGEN_DEVICE_FUNC void multiply(const RealScalar& value) {
     const comparison_magnitude factor(value);
@@ -55,15 +56,20 @@ struct comparison_magnitude {
   EIGEN_DEVICE_FUNC bool isFinite() const { return fraction <= RealScalar(1); }
 };
 
+template <typename RealScalar>
+EIGEN_DEVICE_FUNC bool operator<=(const comparison_magnitude<RealScalar>& x,
+                                  const comparison_magnitude<RealScalar>& y) {
+  if (!x.isFinite()) return false;
+  // Zero and non-finite magnitudes carry no exponent.
+  if (!y.isFinite() || x.fraction == RealScalar(0) || y.fraction == RealScalar(0)) return x.fraction <= y.fraction;
+  return x.exponent < y.exponent || (x.exponent == y.exponent && x.fraction <= y.fraction);
+}
+
 template <typename RealScalar, typename OtherRealScalar>
 EIGEN_DEVICE_FUNC bool operator<=(const comparison_magnitude<RealScalar>& x,
                                   const comparison_magnitude<OtherRealScalar>& y) {
   using Common = std::common_type_t<RealScalar, OtherRealScalar>;
-  if (!x.isFinite()) return false;
-  // Zero and non-finite magnitudes carry no exponent.
-  if (!y.isFinite() || x.fraction == RealScalar(0) || y.fraction == OtherRealScalar(0))
-    return Common(x.fraction) <= Common(y.fraction);
-  return x.exponent < y.exponent || (x.exponent == y.exponent && Common(x.fraction) <= Common(y.fraction));
+  return comparison_magnitude<Common>(x) <= comparison_magnitude<Common>(y);
 }
 
 // The scaled path rescales its operands with operator*(Scalar). Dense-shaped expressions stay lazy, so nothing is
