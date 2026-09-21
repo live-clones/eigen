@@ -46,6 +46,14 @@ static EIGEN_ALWAYS_INLINE void sme_vector_write(unsigned int slice,
 }
 #endif
 
+#if EIGEN_COMP_CLANG
+#define EIGEN_SME_VECTOR_UNROLL4 _Pragma("unroll")
+#elif EIGEN_COMP_GNUC
+#define EIGEN_SME_VECTOR_UNROLL4 _Pragma("GCC unroll 4")
+#else
+#define EIGEN_SME_VECTOR_UNROLL4
+#endif
+
 template <typename Scalar, typename Index>
 __arm_new("za") __arm_locally_streaming
     EIGEN_DONT_INLINE void sme_axpy(Index n, const Scalar* x, Scalar* y, Scalar alpha, Index prefix) {
@@ -59,13 +67,13 @@ __arm_new("za") __arm_locally_streaming
     sme_st1(active, y + i, svmla_x(active, sme_ld1(active, y + i), sme_ld1(active, x + i), alpha));
   }
   for (; i <= n - 16 * lanes; i += 16 * lanes) {
-#pragma unroll
+    EIGEN_SME_VECTOR_UNROLL4
     for (int k = 0; k < 4; ++k) {
       auto xv = sme_ld1_x4(pn, x + i + k * 4 * lanes);
       sme_vector_write(k, sme_ld1_x4(pn, y + i + k * 4 * lanes));
       sme_vector_madd(k, xv, a);
     }
-#pragma unroll
+    EIGEN_SME_VECTOR_UNROLL4
     for (int k = 0; k < 4; ++k) svst1(pn, y + i + k * 4 * lanes, sme_vector_read(k, Scalar(0)));
   }
   for (; i <= n - 4 * lanes; i += 4 * lanes) {
@@ -89,7 +97,7 @@ __arm_new("za") __arm_locally_streaming EIGEN_DONT_INLINE Scalar sme_dot(Index n
   svzero_za();
   Index i = 0;
   for (; i <= n - 16 * lanes; i += 16 * lanes) {
-#pragma unroll
+    EIGEN_SME_VECTOR_UNROLL4
     for (int k = 0; k < 4; ++k)
       sme_vector_madd(k, sme_ld1_x4(pn, x + i + k * 4 * lanes), sme_ld1_x4(pn, y + i + k * 4 * lanes));
   }
@@ -100,7 +108,7 @@ __arm_new("za") __arm_locally_streaming EIGEN_DONT_INLINE Scalar sme_dot(Index n
     tail_accumulator = svmla_m(tail, tail_accumulator, sme_ld1(tail, x + i), sme_ld1(tail, y + i));
   }
   auto sum = tail_accumulator;
-#pragma unroll
+  EIGEN_SME_VECTOR_UNROLL4
   for (int k = 0; k < 4; ++k) {
     auto v = sme_vector_read(k, Scalar(0));
     sum = svadd_x(pg, sum,
@@ -122,10 +130,10 @@ __arm_new("za") __arm_locally_streaming
     svzero_za();
     for (Index j = 0; j < cols; ++j) {
       auto b = Traits::dup(x[j]);
-#pragma unroll
+      EIGEN_SME_VECTOR_UNROLL4
       for (int k = 0; k < 4; ++k) sme_vector_madd(k, sme_ld1_x4(pn, a + i + k * 4 * lanes + j * stride), b);
     }
-#pragma unroll
+    EIGEN_SME_VECTOR_UNROLL4
     for (int k = 0; k < 4; ++k) {
       auto v = sme_vector_read(k, Scalar(0));
       sme_vector_write(k, sme_ld1_x4(pn, y + i + k * 4 * lanes));
@@ -144,6 +152,8 @@ __arm_new("za") __arm_locally_streaming
     svst1(active, y + i, sme_vector_read(0, Scalar(0)));
   }
 }
+
+#undef EIGEN_SME_VECTOR_UNROLL4
 
 template <typename Scalar>
 struct sme_vector_scalar : false_type {};
