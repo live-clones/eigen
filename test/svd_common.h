@@ -261,6 +261,13 @@ void svd_test_solvers(const MatrixType& m, const SolverType& solver) {
   } else {
     cols2 = cols;
   }
+  // rank() truncates below max(threshold() * sigma_0, numeric_limits::min()). A singular value dropped by the second
+  // bound alone need not be negligible against sigma_0, so m * solve(m * x) cannot reproduce m * x as
+  // check_solverbase requires; svd_least_square covers those inputs through the normal equations.
+  const Index rank = solver.rank();
+  if (rank < solver.singularValues().size() &&
+      solver.singularValues()(rank) >= solver.threshold() * solver.singularValues()(0))
+    return;
   typedef Matrix<typename MatrixType::Scalar, MatrixType::ColsAtCompileTime, MatrixType::ColsAtCompileTime> CMatrixType;
   check_solverbase<CMatrixType, MatrixType>(m, solver, rows, cols, cols2);
 }
