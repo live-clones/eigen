@@ -114,8 +114,9 @@ void triangular_structured_sum(const MatrixType& m) {
 // densified view are only moved, so the products are exact.
 template <typename ViewType, typename PermutationType>
 void triangular_permutation_products_check(const TriangularBase<ViewType>& view, const PermutationType& perm) {
-  typedef typename ViewType::Scalar Scalar;
-  typedef typename ViewType::DenseMatrixType MatrixType;
+  using Scalar = typename ViewType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using MatrixType = typename ViewType::DenseMatrixType;
 
   const MatrixType dense = view.derived().toDenseMatrix();
   const MatrixType permDense = perm.toDenseMatrix().template cast<Scalar>();
@@ -131,6 +132,17 @@ void triangular_permutation_products_check(const TriangularBase<ViewType>& view,
   VERIFY_IS_EQUAL(result, MatrixType(dense * inverseDense));
   result = perm * view.derived() * perm.inverse();
   VERIFY_IS_APPROX(result, MatrixType(permDense * dense * inverseDense));
+
+  // alpha cannot fold into P or into a unit diagonal, so alpha * (P * V) and alpha * (UnitTri * P^-1) evaluate the
+  // product first and scale it afterwards. A real alpha keeps the scaling exact on every evaluation path.
+  const Scalar alpha(internal::random<RealScalar>(1, 2));
+  result = alpha * (perm * view.derived());
+  VERIFY_IS_EQUAL(result, MatrixType(alpha * MatrixType(permDense * dense)));
+  result = alpha * (view.derived() * perm.inverse());
+  VERIFY_IS_EQUAL(result, MatrixType(alpha * MatrixType(dense * inverseDense)));
+  result.setZero();
+  result.noalias() += alpha * (perm.inverse() * view.derived());
+  VERIFY_IS_EQUAL(result, MatrixType(alpha * MatrixType(inverseDense * dense)));
 }
 
 template <typename MatrixType>
