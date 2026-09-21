@@ -117,6 +117,14 @@ void symm(int size = Size, int othersize = OtherSize) {
                      m7 += m1 * m4);
     VERIFY_IS_APPROX(m6.noalias() -= s1 * (m2.template selfadjointView<Lower>() * m5.template selfadjointView<Upper>()),
                      m7 -= s1 * (m1 * m4));
+    // A scalar folded into the densified self-adjoint factor multiplies the mirrored triangle too, as the SYMM
+    // kernel does for the structured factor; plain evaluation of the view would conjugate it for complex s1.
+    VERIFY_IS_APPROX(m6 = m4.template triangularView<UnitLower>() * (s1 * m2.template selfadjointView<Lower>()),
+                     m7 = tri4 * (s1 * m1));
+    VERIFY_IS_APPROX(m6 = (s1 * m2.template selfadjointView<Lower>()) * m4.template triangularView<UnitLower>(),
+                     m7 = (s1 * m1) * tri4);
+    VERIFY_IS_APPROX(m6 = m2.template selfadjointView<Lower>() * (s1 * m5.template selfadjointView<Upper>()),
+                     m7 = m1 * (s1 * m4));
   }
 
   // destination with a non-default inner-stride
