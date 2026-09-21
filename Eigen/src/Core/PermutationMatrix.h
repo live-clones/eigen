@@ -42,7 +42,8 @@ enum PermPermProduct_t { PermPermProduct };
  *
  * Notice that in addition to the member functions and operators listed here, there also are non-member
  * operator* to multiply any kind of permutation object with any kind of matrix expression (MatrixBase)
- * on either side.
+ * on either side, and with a diagonal matrix (DiagonalBase) on either side, which yields a
+ * ScaledPermutationMatrix.
  *
  * \sa class PermutationMatrix, class PermutationWrapper
  */
