@@ -8,6 +8,7 @@
 #include "fp_control.h"
 #define EIGEN_TEST_ANNOYING_SCALAR_DONT_THROW
 #include "AnnoyingScalar.h"
+#include "CustomComplex.h"
 
 template <typename Scalar, int Options>
 void approx_comparisons_floating() {
@@ -163,6 +164,15 @@ void approx_comparisons_expressions() {
   const Matrix<AnnoyingScalar, 2, 2> custom = Matrix<AnnoyingScalar, 2, 2>::Ones();
   VERIFY(test_isCwiseApprox(custom, custom, false));
   VERIFY(test_relative_error(custom, custom) == AnnoyingScalar(0));
+  // A custom complex scalar over a built-in real has no dedicated coefficient overload.
+  using CustomComplexScalar = CustomComplex<double>;
+  STATIC_CHECK(!internal::use_scaled_comparison<CustomComplexScalar>::value);
+  const Matrix<CustomComplexScalar, 2, 2> customComplex =
+      Matrix<CustomComplexScalar, 2, 2>::Constant(CustomComplexScalar(1, 2));
+  VERIFY(test_isCwiseApprox(customComplex, customComplex, true));
+  VERIFY(test_isCwiseApprox(customComplex, customComplex, false));
+  VERIFY(!test_isCwiseApprox(customComplex, (customComplex * CustomComplexScalar(2)).eval(), false));
+  VERIFY_IS_EQUAL(test_relative_error(customComplex, customComplex), 0.0);
 }
 
 template <typename Real>
