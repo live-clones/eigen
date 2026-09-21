@@ -96,3 +96,44 @@ BENCHMARK_TEMPLATE(BM_StridedInnerProduct, std::complex<float>, true) STRIDED_IN
 BENCHMARK_TEMPLATE(BM_StridedInnerProduct, std::complex<double>, true) STRIDED_INNER_PRODUCT_SIZES ->Name("StridedProduct_cdouble");
 #undef STRIDED_INNER_PRODUCT_SIZES
 // clang-format on
+
+template <typename Scalar, bool Produce>
+static void BM_DotLayout(benchmark::State& state) {
+  using Vec = Vector<Scalar, Dynamic>;
+  const Index n = state.range(0), padding = 128 / sizeof(Scalar);
+  Vec a_storage(n + padding), b_storage(n + padding), source = Vec::Random(n);
+  Map<Vec> a(a_storage.data() + internal::first_aligned<64>(a_storage.data(), a_storage.size()) +
+                 state.range(1) / sizeof(Scalar),
+             n);
+  Map<Vec> b(b_storage.data() + internal::first_aligned<64>(b_storage.data(), b_storage.size()) +
+                 state.range(2) / sizeof(Scalar),
+             n);
+  a = source.array() + Scalar(0.25);
+  b.setRandom();
+  long double expected = 0, magnitude = 0;
+  for (Index i = 0; i < n; ++i) {
+    const long double term = static_cast<long double>(a[i]) * static_cast<long double>(b[i]);
+    expected += term;
+    magnitude += numext::abs(term);
+  }
+  const long double bound = 8 * n * NumTraits<Scalar>::epsilon() * magnitude;
+  if (!(numext::abs(static_cast<long double>(a.dot(b)) - expected) <= bound)) {
+    state.SkipWithError("DOT layout differs from the scalar reference");
+    return;
+  }
+  for (auto _ : state) {
+    EIGEN_IF_CONSTEXPR (Produce) a = source.array() + Scalar(0.25);
+    benchmark::ClobberMemory();
+    Scalar result = a.dot(b);
+    benchmark::DoNotOptimize(result);
+  }
+}
+
+// clang-format off
+#define DOT_LAYOUT_SIZES ->ArgsProduct({{4096, 8192, 16384, 32768, 65536}, {0, 16, 32, 48}, {0, 16}})
+BENCHMARK_TEMPLATE(BM_DotLayout, float, false) DOT_LAYOUT_SIZES ->Name("DotLayout_float");
+BENCHMARK_TEMPLATE(BM_DotLayout, double, false) DOT_LAYOUT_SIZES ->Name("DotLayout_double");
+BENCHMARK_TEMPLATE(BM_DotLayout, float, true) DOT_LAYOUT_SIZES ->Name("DotProduced_float");
+BENCHMARK_TEMPLATE(BM_DotLayout, double, true) DOT_LAYOUT_SIZES ->Name("DotProduced_double");
+#undef DOT_LAYOUT_SIZES
+// clang-format on
