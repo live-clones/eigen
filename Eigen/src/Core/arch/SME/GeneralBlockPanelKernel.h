@@ -120,6 +120,9 @@ static EIGEN_ALWAYS_INLINE void sme_st1(svbool_t pg, float* p, svfloat32_t v) __
 static EIGEN_ALWAYS_INLINE svfloat32x2_t sme_ld1_x2(svcount_t pn, const float* p) __arm_streaming {
   return svld1_f32_x2(pn, p);
 }
+static EIGEN_ALWAYS_INLINE void sme_st1_x2(svcount_t pn, float* p, svfloat32x2_t v) __arm_streaming {
+  svst1_f32_x2(pn, p, v);
+}
 static EIGEN_ALWAYS_INLINE svfloat32x4_t sme_ld1_x4(svcount_t pn, const float* p) __arm_streaming {
   return svld1_f32_x4(pn, p);
 }
@@ -199,6 +202,9 @@ static EIGEN_ALWAYS_INLINE svfloat64_t sme_ld1(svbool_t pg, const double* p) __a
 static EIGEN_ALWAYS_INLINE void sme_st1(svbool_t pg, double* p, svfloat64_t v) __arm_streaming { svst1_f64(pg, p, v); }
 static EIGEN_ALWAYS_INLINE svfloat64x2_t sme_ld1_x2(svcount_t pn, const double* p) __arm_streaming {
   return svld1_f64_x2(pn, p);
+}
+static EIGEN_ALWAYS_INLINE void sme_st1_x2(svcount_t pn, double* p, svfloat64x2_t v) __arm_streaming {
+  svst1_f64_x2(pn, p, v);
 }
 static EIGEN_ALWAYS_INLINE svfloat64x4_t sme_ld1_x4(svcount_t pn, const double* p) __arm_streaming {
   return svld1_f64_x4(pn, p);
@@ -366,7 +372,26 @@ static EIGEN_ALWAYS_INLINE T* sme_offset(T* p, Index n) __arm_streaming_compatib
 template <bool Conjugate, typename Scalar, typename Index>
 static EIGEN_ALWAYS_INLINE void sve_copy_panel_range(Scalar* EIGEN_RESTRICT dst, const Scalar* EIGEN_RESTRICT src,
                                                      Index src_stride, Index k0, Index k1, int width) __arm_streaming {
-  const int svl = sme_traits<Scalar>::svl();
+  using Traits = sme_traits<Scalar>;
+  const int svl = Traits::svl();
+  if (width == 2 * svl) {
+    // Full panel: one two-vector load and store per depth step, four steps in
+    // flight, instead of two single-vector passes over the source.
+    const svcount_t pn = Traits::ptrue_c();
+    Index k = k0;
+    for (; k + 4 <= k1; k += 4) {
+      const auto v0 = sme_ld1_x2(pn, &src[k * src_stride]);
+      const auto v1 = sme_ld1_x2(pn, &src[(k + 1) * src_stride]);
+      const auto v2 = sme_ld1_x2(pn, &src[(k + 2) * src_stride]);
+      const auto v3 = sme_ld1_x2(pn, &src[(k + 3) * src_stride]);
+      sme_st1_x2(pn, &dst[k * width], v0);
+      sme_st1_x2(pn, &dst[(k + 1) * width], v1);
+      sme_st1_x2(pn, &dst[(k + 2) * width], v2);
+      sme_st1_x2(pn, &dst[(k + 3) * width], v3);
+    }
+    for (; k < k1; ++k) sme_st1_x2(pn, &dst[k * width], sme_ld1_x2(pn, &src[k * src_stride]));
+    return;
+  }
   for (int off = 0; off < width; off += svl) {
     const svbool_t pred = sme_traits<Scalar>::whilelt(off, width);
     for (Index k = k0; k < k1; ++k) {
@@ -1665,9 +1690,11 @@ struct sme_complex_cell<Scalar, R, C, ConjLhs, ConjRhs, false> {
 template <bool ConjLhs, bool ConjRhs, typename Scalar, typename Index>
 EIGEN_ALWAYS_INLINE void sme_process(Scalar* EIGEN_RESTRICT C, Index C_stride_row, Index C_stride_col,
                                      const Scalar* EIGEN_RESTRICT blA, const Scalar* EIGEN_RESTRICT blB, Index depth,
-                                     Scalar alpha, Index row_start, int pw, Index col_start,
-                                     int cw) __arm_streaming __arm_inout("za") {
+                                     Scalar alpha, Index row_start, int pw, Index col_start, int cw,
+                                     Index a_step) __arm_streaming __arm_inout("za") {
   // Conjugation is the identity on real scalars, so this overload ignores it.
+  // a_step is the distance between A's depth steps: pw for a packed panel, the
+  // column stride for a ColMajor source read in place.
   using Traits = sme_traits<Scalar>;
   using Vec = typename Traits::Vec;
   const int svl = Traits::svl();
@@ -1695,35 +1722,51 @@ EIGEN_ALWAYS_INLINE void sme_process(Scalar* EIGEN_RESTRICT C, Index C_stride_ro
         const svcount_t pn = Traits::ptrue_c();
         const Index depth_4 = (depth / 4) * 4;
         Index k = 0;
-        for (; k < depth_4; k += 4) {
-          typename Traits::Vec4 va_01 = sme_ld1_x4(pn, &blA[k * pw]);
-          typename Traits::Vec4 vb_01 = sme_ld1_x4(pn, &blB[k * cw]);
+        if (a_step == Index(pw)) {
+          for (; k < depth_4; k += 4) {
+            typename Traits::Vec4 va_01 = sme_ld1_x4(pn, &blA[k * pw]);
+            typename Traits::Vec4 vb_01 = sme_ld1_x4(pn, &blB[k * cw]);
 
-          // d0
-          outer_product_2x2<Scalar>(sme_get<0>(va_01), sme_get<1>(va_01), sme_get<0>(vb_01), sme_get<1>(vb_01));
-          // d1
-          outer_product_2x2<Scalar>(sme_get<2>(va_01), sme_get<3>(va_01), sme_get<2>(vb_01), sme_get<3>(vb_01));
+            // d0
+            outer_product_2x2<Scalar>(sme_get<0>(va_01), sme_get<1>(va_01), sme_get<0>(vb_01), sme_get<1>(vb_01));
+            // d1
+            outer_product_2x2<Scalar>(sme_get<2>(va_01), sme_get<3>(va_01), sme_get<2>(vb_01), sme_get<3>(vb_01));
 
-          typename Traits::Vec4 va_23 = sme_ld1_x4(pn, &blA[(k + 2) * pw]);
-          typename Traits::Vec4 vb_23 = sme_ld1_x4(pn, &blB[(k + 2) * cw]);
+            typename Traits::Vec4 va_23 = sme_ld1_x4(pn, &blA[(k + 2) * pw]);
+            typename Traits::Vec4 vb_23 = sme_ld1_x4(pn, &blB[(k + 2) * cw]);
 
-          // d2
-          outer_product_2x2<Scalar>(sme_get<0>(va_23), sme_get<1>(va_23), sme_get<0>(vb_23), sme_get<1>(vb_23));
-          // d3
-          outer_product_2x2<Scalar>(sme_get<2>(va_23), sme_get<3>(va_23), sme_get<2>(vb_23), sme_get<3>(vb_23));
+            // d2
+            outer_product_2x2<Scalar>(sme_get<0>(va_23), sme_get<1>(va_23), sme_get<0>(vb_23), sme_get<1>(vb_23));
+            // d3
+            outer_product_2x2<Scalar>(sme_get<2>(va_23), sme_get<3>(va_23), sme_get<2>(vb_23), sme_get<3>(vb_23));
+          }
+        } else {
+          // A read in place: its depth steps are a_step apart, one x2 load each.
+          for (; k < depth_4; k += 4) {
+            typename Traits::Vec2 va_0 = sme_ld1_x2(pn, &blA[k * a_step]);
+            typename Traits::Vec2 va_1 = sme_ld1_x2(pn, &blA[(k + 1) * a_step]);
+            typename Traits::Vec4 vb_01 = sme_ld1_x4(pn, &blB[k * cw]);
+            outer_product_2x2<Scalar>(sme_get<0>(va_0), sme_get<1>(va_0), sme_get<0>(vb_01), sme_get<1>(vb_01));
+            outer_product_2x2<Scalar>(sme_get<0>(va_1), sme_get<1>(va_1), sme_get<2>(vb_01), sme_get<3>(vb_01));
+            typename Traits::Vec2 va_2 = sme_ld1_x2(pn, &blA[(k + 2) * a_step]);
+            typename Traits::Vec2 va_3 = sme_ld1_x2(pn, &blA[(k + 3) * a_step]);
+            typename Traits::Vec4 vb_23 = sme_ld1_x4(pn, &blB[(k + 2) * cw]);
+            outer_product_2x2<Scalar>(sme_get<0>(va_2), sme_get<1>(va_2), sme_get<0>(vb_23), sme_get<1>(vb_23));
+            outer_product_2x2<Scalar>(sme_get<0>(va_3), sme_get<1>(va_3), sme_get<2>(vb_23), sme_get<3>(vb_23));
+          }
         }
         // Depth tail: one x2 load per side per step.
         for (; k < depth; ++k) {
-          typename Traits::Vec2 va = sme_ld1_x2(pn, &blA[k * pw]);
+          typename Traits::Vec2 va = sme_ld1_x2(pn, &blA[k * a_step]);
           typename Traits::Vec2 vb = sme_ld1_x2(pn, &blB[k * cw]);
           outer_product_2x2<Scalar>(sme_get<0>(va), sme_get<1>(va), sme_get<0>(vb), sme_get<1>(vb));
         }
       } else {
         for (Index k = 0; k < depth; ++k) {
-          Vec a_lo = sme_ld1(pg_rlo, &blA[k * pw + rt]);
+          Vec a_lo = sme_ld1(pg_rlo, &blA[k * a_step + rt]);
           Vec b_lo = sme_ld1(pg_clo, &blB[k * cw + ct]);
 
-          Vec a_hi = sme_ld1(pg_rhi, sme_offset(blA, k * pw + rt + svl));
+          Vec a_hi = sme_ld1(pg_rhi, sme_offset(blA, k * a_step + rt + svl));
           Vec b_hi = sme_ld1(pg_chi, sme_offset(blB, k * cw + ct + svl));
 
           sme_mopa<0>(pg_rlo, pg_clo, a_lo, b_lo);
@@ -1781,8 +1824,10 @@ template <bool ConjLhs, bool ConjRhs, typename RealScalar, typename Index>
 EIGEN_ALWAYS_INLINE void sme_process(std::complex<RealScalar>* EIGEN_RESTRICT C, Index C_stride_row, Index C_stride_col,
                                      const std::complex<RealScalar>* EIGEN_RESTRICT blA,
                                      const std::complex<RealScalar>* EIGEN_RESTRICT blB, Index depth,
-                                     std::complex<RealScalar> alpha, Index row_start, int pw, Index col_start,
-                                     int cw) __arm_streaming __arm_inout("za") {
+                                     std::complex<RealScalar> alpha, Index row_start, int pw, Index col_start, int cw,
+                                     Index lhs_step) __arm_streaming __arm_inout("za") {
+  // Complex panels are always packed (split real/imaginary halves): lhs_step is pw.
+  EIGEN_UNUSED_VARIABLE(lhs_step);
   using Scalar = std::complex<RealScalar>;
   using Traits = sme_traits<RealScalar>;
   using Vec = typename Traits::Vec;
@@ -1869,9 +1914,44 @@ EIGEN_DONT_INLINE __arm_locally_streaming __arm_new("za") void sme_gebp_impl(
     for (Index i = 0; i < rows; i += MR) {
       const int pw = static_cast<int>(sme_min(rows - i, Index(MR)));
       const Scalar* blA = blockA + i * strideA + offsetA * pw;
-      sme_process<ConjLhs, ConjRhs>(C, C_stride_row, C_stride_col, blA, blB, depth, alpha, i, pw, j, cw);
+      sme_process<ConjLhs, ConjRhs>(C, C_stride_row, C_stride_col, blA, blB, depth, alpha, i, pw, j, cw, Index(pw));
     }
   }
+}
+
+// gebp with the LHS read from a ColMajor source: rows i..i+pw of column k are
+// at lhs + i + k * lda, the packed layout with a_step = lda. Real scalars only.
+template <typename Scalar, typename Index>
+EIGEN_DONT_INLINE __arm_locally_streaming __arm_new("za") void sme_gebp_impl_direct_lhs(
+    Scalar* C, Index C_stride_row, Index C_stride_col, const Scalar* lhs, Index lda, const Scalar* blockB, Index rows,
+    Index depth, Index cols, Scalar alpha, Index strideB, Index offsetB) {
+  constexpr int MR = sme_block<Scalar>::mr;
+  constexpr int NR = sme_block<Scalar>::nr;
+  for (Index j = 0; j < cols; j += NR) {
+    const int cw = static_cast<int>(sme_min(cols - j, Index(NR)));
+    const Scalar* blB = blockB + j * strideB + offsetB * cw;
+    for (Index i = 0; i < rows; i += MR) {
+      const int pw = static_cast<int>(sme_min(rows - i, Index(MR)));
+      sme_process<false, false>(C, C_stride_row, C_stride_col, lhs + i, blB, depth, alpha, i, pw, j, cw, lda);
+    }
+  }
+}
+
+// Whether the driver may hand the SME kernel a ColMajor LHS block in place:
+// 64-byte aligned columns (the packed panels' alignment), deep enough for the
+// ZA kernel, and a column stride that is not a multiple of 4 KB: the depth loop
+// then walks one L1 set (1024x1024x1024 float: 1671 GFLOPS at a 4096-byte
+// stride, 1811 at 4160, 720 at 16384; Apple M4), which a packed panel avoids.
+#ifndef EIGEN_SME_DIRECT_LHS_MAX_STRIDE_BYTES
+#define EIGEN_SME_DIRECT_LHS_MAX_STRIDE_BYTES 16384
+#endif
+template <typename Scalar, typename Index>
+bool sme_direct_lhs_ok(const Scalar* lhs, Index lhsStride, Index depth) {
+  const std::size_t stride_bytes = std::size_t(lhsStride) * sizeof(Scalar);
+  return !NumTraits<Scalar>::IsComplex && depth > Index(sme_neon_max_depth<Scalar>::value) && stride_bytes % 64 == 0 &&
+         (stride_bytes % 4096 != 0 || stride_bytes <= 2048) &&
+         stride_bytes <= std::size_t(EIGEN_SME_DIRECT_LHS_MAX_STRIDE_BYTES) &&
+         (reinterpret_cast<std::uintptr_t>(lhs) & 63) == 0;
 }
 
 // NEON path for small blocks: a shallow block pays the ZA enable and a dependent FMOPA chain per
@@ -2302,6 +2382,20 @@ struct sme_gebp_kernel {
 
     sme_gebp_impl<Scalar, ConjugateLhs, ConjugateRhs>(C_base, C_stride_row, C_stride_col, blockA, blockB, rows, depth,
                                                       cols, alpha, strideA, strideB, offsetA, offsetB);
+  }
+
+  // The LHS block read from its ColMajor source (see sme_direct_lhs_ok); only
+  // instantiated for real scalars.
+  EIGEN_DONT_INLINE void run_direct_lhs(const DataMapper& res, const Scalar* lhs, Index lhsStride, const Scalar* blockB,
+                                        Index rows, Index depth, Index cols, ResScalar alpha, Index strideB = -1,
+                                        Index offsetB = 0) {
+    if (strideB == -1) strideB = depth;
+    if (rows <= 0 || cols <= 0 || depth <= 0) return;
+    Scalar* C_base = const_cast<Scalar*>(&res(0, 0));
+    const Index C_stride_row = &res(1, 0) - &res(0, 0);
+    const Index C_stride_col = &res(0, 1) - &res(0, 0);
+    sme_gebp_impl_direct_lhs<Scalar, Index>(C_base, C_stride_row, C_stride_col, lhs, lhsStride, blockB, rows, depth,
+                                            cols, alpha, strideB, offsetB);
   }
 };
 

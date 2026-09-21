@@ -217,6 +217,43 @@ static void test_deep_k_split() {
   VERIFY_IS_APPROX(C, c_before + (A.lazyProduct(B)).eval());
 }
 
+// LHS read in place: strides on either side of the 4 KB-multiple rule (packed
+// versus in place), 64-byte aligned columns, a sub-block at a row offset, and a
+// depth tail, each checked against lazyProduct through the public product.
+template <typename Scalar>
+static void test_direct_lhs() {
+  const Index kAlign = 64 / Index(sizeof(Scalar));
+  const Index strides[] = {kAlign * 3, 4096 / Index(sizeof(Scalar)), 4096 / Index(sizeof(Scalar)) + kAlign,
+                           2 * 4096 / Index(sizeof(Scalar)) + kAlign};
+  const Index rows = 97, depth = 101, cols = 70;
+  for (Index lda : strides) {
+    if (lda < rows + 32) continue;
+    // 64-byte aligned storage: allocate with slack and round the base up.
+    SmeVector<Scalar> storage = SmeVector<Scalar>::Zero(lda * depth + kAlign);
+    Scalar* base = storage.data();
+    while ((reinterpret_cast<std::uintptr_t>(base) & 63) != 0) ++base;
+    Map<SmeColMajorMat<Scalar>, 0, OuterStride<>> A(base, rows + 32, depth, OuterStride<>(lda));
+    A.setRandom();
+    const SmeColMajorMat<Scalar> B = SmeColMajorMat<Scalar>::Random(depth, cols);
+    const SmeColMajorMat<Scalar> C0 = SmeColMajorMat<Scalar>::Random(rows + 32, cols);
+    SmeColMajorMat<Scalar> C = C0;
+    C.noalias() += A * B;
+    VERIFY_IS_APPROX(C, C0 + A.lazyProduct(B));
+    // A sub-block whose first row keeps the 64-byte alignment.
+    SmeColMajorMat<Scalar> D = C0.middleRows(32, rows);
+    D.noalias() += A.middleRows(32, rows) * B;
+    VERIFY_IS_APPROX(D, C0.middleRows(32, rows) + A.middleRows(32, rows).lazyProduct(B));
+  }
+#ifdef EIGEN_VECTORIZE_SME
+  const int units = nbSmeUnits();
+  VERIFY(units >= 0);
+  setNbSmeUnits(1);
+  VERIFY_IS_EQUAL(nbSmeUnits(), 1);
+  setNbSmeUnits(units);
+  VERIFY_IS_EQUAL(nbSmeUnits(), units);
+#endif
+}
+
 // ---------------------------------------------------------------------------
 // Raw packed-buffer tests.
 //
@@ -858,6 +895,7 @@ EIGEN_DECLARE_TEST(product_sme) {
   CALL_SUBTEST_1(test_pack_direct<float>());
   CALL_SUBTEST_1(test_mapper_fallback<float>());
   CALL_SUBTEST_1(test_neon_small_blocks<float>());
+  CALL_SUBTEST_1(test_direct_lhs<float>());
 
   // double reaches the SME kernel and packers only with FEAT_SME_F64F64; the
   // product sweep is meaningful either way, but the packed-layout tests name
@@ -870,6 +908,7 @@ EIGEN_DECLARE_TEST(product_sme) {
   CALL_SUBTEST_2(test_pack_direct<double>());
   CALL_SUBTEST_2(test_mapper_fallback<double>());
   CALL_SUBTEST_2(test_neon_small_blocks<double>());
+  CALL_SUBTEST_2(test_direct_lhs<double>());
 #endif
 
   CALL_SUBTEST_3(test_products<std::complex<float>>());

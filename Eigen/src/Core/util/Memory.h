@@ -662,6 +662,36 @@ struct smart_memmove_helper<T, false> {
 
 // This helper class construct the allocated memory, and takes care of destructing and freeing the handled data
 // at destruction time. In practice this helper class is mainly useful to avoid memory leak in case of exceptions.
+// Internal temporaries hold the GEMM packed panels. The SME kernel loads them a
+// streaming vector at a time and runs 35-50% slower when they straddle 64-byte
+// lines, so SME builds align them to that rather than to the ABI's
+// EIGEN_DEFAULT_ALIGN_BYTES, on the stack and on the heap alike.
+#ifndef EIGEN_STACK_ALIGN_BYTES
+#if defined(EIGEN_VECTORIZE_SME) && EIGEN_DEFAULT_ALIGN_BYTES < 64
+#define EIGEN_STACK_ALIGN_BYTES 64
+#else
+#define EIGEN_STACK_ALIGN_BYTES EIGEN_DEFAULT_ALIGN_BYTES
+#endif
+#endif
+
+/** \internal Allocates a temporary buffer aligned to EIGEN_STACK_ALIGN_BYTES; release with stack_buffer_free. */
+EIGEN_DEVICE_FUNC inline void* stack_buffer_malloc(std::size_t size) {
+#if EIGEN_STACK_ALIGN_BYTES > EIGEN_DEFAULT_ALIGN_BYTES
+  void* result = handmade_aligned_malloc(size, EIGEN_STACK_ALIGN_BYTES);
+  if (!result && size) throw_std_bad_alloc();
+  return result;
+#else
+  return aligned_malloc(size);
+#endif
+}
+EIGEN_DEVICE_FUNC inline void stack_buffer_free(void* ptr) {
+#if EIGEN_STACK_ALIGN_BYTES > EIGEN_DEFAULT_ALIGN_BYTES
+  handmade_aligned_free(ptr);
+#else
+  aligned_free(ptr);
+#endif
+}
+
 template <typename T>
 class aligned_stack_memory_handler {
  public:
@@ -684,7 +714,7 @@ class aligned_stack_memory_handler {
     EIGEN_IF_CONSTEXPR (NumTraits<T>::RequireInitialization) {
       if (m_ptr) Eigen::internal::destruct_elements_of_array<T>(m_ptr, m_size);
     }
-    if (m_deallocate) Eigen::internal::aligned_free(m_ptr);
+    if (m_deallocate) Eigen::internal::stack_buffer_free(m_ptr);
   }
 
  protected:
@@ -768,18 +798,6 @@ struct local_nested_eval_wrapper<Xpr, NbEvaluations, true> {
  */
 #if defined(EIGEN_ALLOCA) && !defined(EIGEN_NO_ALLOCA)
 
-// Stack temporaries hold the GEMM packed panels. The SME kernel loads them a
-// streaming vector at a time and runs 35-50% slower when they straddle
-// 64-byte lines, so SME builds align them to that rather than to the ABI's
-// EIGEN_DEFAULT_ALIGN_BYTES.
-#ifndef EIGEN_STACK_ALIGN_BYTES
-#if defined(EIGEN_VECTORIZE_SME) && EIGEN_DEFAULT_ALIGN_BYTES < 64
-#define EIGEN_STACK_ALIGN_BYTES 64
-#else
-#define EIGEN_STACK_ALIGN_BYTES EIGEN_DEFAULT_ALIGN_BYTES
-#endif
-#endif
-
 #if EIGEN_STACK_ALIGN_BYTES > 0
 // We always manually re-align the result of EIGEN_ALLOCA.
 // If alloca is already aligned, the compiler should be smart enough to optimize away the re-alignment.
@@ -801,13 +819,14 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void* eigen_aligned_alloca_helper(void* pt
 #define EIGEN_ALIGNED_ALLOCA(SIZE) EIGEN_ALLOCA(SIZE)
 #endif
 
-#define ei_declare_aligned_stack_constructed_variable(TYPE, NAME, SIZE, BUFFER)                                       \
-  Eigen::internal::check_size_for_overflow<TYPE>(SIZE);                                                               \
-  TYPE* NAME = (BUFFER) != 0 ? (BUFFER)                                                                               \
-                             : reinterpret_cast<TYPE*>((sizeof(TYPE) * (SIZE) <= EIGEN_STACK_ALLOCATION_LIMIT)        \
-                                                           ? EIGEN_ALIGNED_ALLOCA(sizeof(TYPE) * (SIZE))              \
-                                                           : Eigen::internal::aligned_malloc(sizeof(TYPE) * (SIZE))); \
-  Eigen::internal::aligned_stack_memory_handler<TYPE> EIGEN_CAT(NAME, _stack_memory_destructor)(                      \
+#define ei_declare_aligned_stack_constructed_variable(TYPE, NAME, SIZE, BUFFER)                                  \
+  Eigen::internal::check_size_for_overflow<TYPE>(SIZE);                                                          \
+  TYPE* NAME = (BUFFER) != 0                                                                                     \
+                   ? (BUFFER)                                                                                    \
+                   : reinterpret_cast<TYPE*>((sizeof(TYPE) * (SIZE) <= EIGEN_STACK_ALLOCATION_LIMIT)             \
+                                                 ? EIGEN_ALIGNED_ALLOCA(sizeof(TYPE) * (SIZE))                   \
+                                                 : Eigen::internal::stack_buffer_malloc(sizeof(TYPE) * (SIZE))); \
+  Eigen::internal::aligned_stack_memory_handler<TYPE> EIGEN_CAT(NAME, _stack_memory_destructor)(                 \
       (BUFFER) == 0 ? NAME : 0, SIZE, sizeof(TYPE) * (SIZE) > EIGEN_STACK_ALLOCATION_LIMIT)
 
 #define ei_declare_local_nested_eval(XPR_T, XPR, N, NAME)                                        \
@@ -821,11 +840,11 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void* eigen_aligned_alloca_helper(void* pt
 
 #else
 
-#define ei_declare_aligned_stack_constructed_variable(TYPE, NAME, SIZE, BUFFER)                                 \
-  Eigen::internal::check_size_for_overflow<TYPE>(SIZE);                                                         \
-  TYPE* NAME =                                                                                                  \
-      (BUFFER) != 0 ? BUFFER : reinterpret_cast<TYPE*>(Eigen::internal::aligned_malloc(sizeof(TYPE) * (SIZE))); \
-  Eigen::internal::aligned_stack_memory_handler<TYPE> EIGEN_CAT(NAME, _stack_memory_destructor)(                \
+#define ei_declare_aligned_stack_constructed_variable(TYPE, NAME, SIZE, BUFFER)                                      \
+  Eigen::internal::check_size_for_overflow<TYPE>(SIZE);                                                              \
+  TYPE* NAME =                                                                                                       \
+      (BUFFER) != 0 ? BUFFER : reinterpret_cast<TYPE*>(Eigen::internal::stack_buffer_malloc(sizeof(TYPE) * (SIZE))); \
+  Eigen::internal::aligned_stack_memory_handler<TYPE> EIGEN_CAT(NAME, _stack_memory_destructor)(                     \
       (BUFFER) == 0 ? NAME : 0, SIZE, true)
 
 #define ei_declare_local_nested_eval(XPR_T, XPR, N, NAME) \

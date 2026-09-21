@@ -62,8 +62,38 @@ struct gemm_pack_lhs_first_loop_policy {
   }
 };
 
+#ifdef EIGEN_VECTORIZE_SME
+// Defined in arch/SME/GeneralBlockPanelKernel.h, included after this header:
+// whether the SME kernel can read this ColMajor LHS block straight from its
+// source instead of a packed panel.
+template <typename Scalar, typename Index>
+bool sme_direct_lhs_ok(const Scalar* lhs, Index lhsStride, Index depth);
+// True for the unit-stride ColMajor mapper the GEMM driver hands the packers.
+template <typename Mapper>
+struct sme_direct_lhs_mapper : std::false_type {};
+template <typename Scalar, typename Index>
+struct sme_direct_lhs_mapper<const_blas_data_mapper<Scalar, Index, ColMajor>>
+    : bool_constant<!NumTraits<Scalar>::IsComplex> {};
+// Runs the block on the in-place LHS when the kernel can take it; the false
+// overload keeps the call out of every other instantiation.
+template <typename Gebp, typename ResMapper, typename LhsMapper, typename Scalar, typename ResScalar, typename Index>
+EIGEN_ALWAYS_INLINE bool sme_run_direct_lhs(std::true_type, Gebp& gebp, const ResMapper& res, const LhsMapper& lhs,
+                                            Index i2, Index k2, const Scalar* blockB, Index mc, Index kc, Index nc,
+                                            ResScalar alpha) {
+  if (!sme_direct_lhs_ok(&lhs(i2, k2), lhs.stride(), kc)) return false;
+  gebp.run_direct_lhs(res, &lhs(i2, k2), lhs.stride(), blockB, mc, kc, nc, alpha);
+  return true;
+}
+template <typename Gebp, typename ResMapper, typename LhsMapper, typename Scalar, typename ResScalar, typename Index>
+EIGEN_ALWAYS_INLINE bool sme_run_direct_lhs(std::false_type, Gebp&, const ResMapper&, const LhsMapper&, Index, Index,
+                                            const Scalar*, Index, Index, Index, ResScalar) {
+  return false;
+}
+#endif
+
 // RHS-first loop order: nc -> kc -> mc. Used by SME to stream ColMajor result
-// stores through adjacent row panels.
+// stores through adjacent row panels; a ColMajor LHS whose 32-row slices are
+// already contiguous per depth step is read from its source (no LHS packing).
 struct gemm_pack_rhs_first_loop_policy {
   template <typename Index, typename LhsScalar, typename RhsScalar, typename ResScalar, typename LhsMapper,
             typename RhsMapper, typename ResMapper, typename PackLhs, typename PackRhs, typename Gebp>
@@ -85,7 +115,11 @@ struct gemm_pack_rhs_first_loop_policy {
 
         for (Index i2 = 0; i2 < rows; i2 += mc) {
           const Index actual_mc = (std::min)(i2 + mc, rows) - i2;
-
+#ifdef EIGEN_VECTORIZE_SME
+          if (sme_run_direct_lhs(bool_constant<sme_direct_lhs_mapper<LhsMapper>::value>(), gebp,
+                                 res.getSubMapper(i2, j2), lhs, i2, k2, blockB, actual_mc, actual_kc, actual_nc, alpha))
+            continue;
+#endif
           if ((!pack_lhs_once) || j2 == 0) pack_lhs(blockA, lhs.getSubMapper(i2, k2), actual_kc, actual_mc);
           gebp(res.getSubMapper(i2, j2), blockA, blockB, actual_mc, actual_kc, actual_nc, alpha);
         }
@@ -396,12 +430,16 @@ class gemm_blocking_space<StorageOrder, LhsScalar_, RhsScalar_, MaxRows, MaxCols
     m_sizeB = this->m_kc * this->m_nc;
   }
 
+  // The packed panels are plain scalars, so the buffers take the temporaries'
+  // alignment (64 bytes in SME builds, see EIGEN_STACK_ALIGN_BYTES) and skip
+  // element construction; aligned_new's default alignment could leave an
+  // mmap'd block at 16 mod 64.
   void allocateA() {
-    if (this->m_blockA == 0) this->m_blockA = aligned_new<LhsScalar>(m_sizeA);
+    if (this->m_blockA == 0) this->m_blockA = static_cast<LhsScalar*>(stack_buffer_malloc(sizeof(LhsScalar) * m_sizeA));
   }
 
   void allocateB() {
-    if (this->m_blockB == 0) this->m_blockB = aligned_new<RhsScalar>(m_sizeB);
+    if (this->m_blockB == 0) this->m_blockB = static_cast<RhsScalar*>(stack_buffer_malloc(sizeof(RhsScalar) * m_sizeB));
   }
 
   void allocateAll() {
@@ -410,8 +448,8 @@ class gemm_blocking_space<StorageOrder, LhsScalar_, RhsScalar_, MaxRows, MaxCols
   }
 
   ~gemm_blocking_space() {
-    aligned_delete(this->m_blockA, m_sizeA);
-    aligned_delete(this->m_blockB, m_sizeB);
+    stack_buffer_free(this->m_blockA);
+    stack_buffer_free(this->m_blockB);
   }
 };
 
