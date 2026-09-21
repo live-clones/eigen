@@ -137,13 +137,6 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE int binary_frexp_exponent(const Scalar& va
   return binary_frexp_exponent_of_magnitude<Scalar>(binary_floating_point_traits<Scalar>::magnitude(value));
 }
 
-// Whether a magnitude bit pattern is zero, out of line for the same reason.
-template <typename Scalar>
-EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE bool magnitude_bits_are_zero(
-    const typename binary_floating_point_traits<Scalar>::Bits magnitude) {
-  return magnitude == 0;
-}
-
 // The larger of two magnitude bit patterns, out of line for the same reason.
 template <typename Scalar>
 EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE typename binary_floating_point_traits<Scalar>::Bits larger_magnitude_bits(
@@ -227,22 +220,8 @@ struct use_subnormal_preserving_scaling
           (std::is_same<FactorScalar, double>::value &&
            (std::is_same<CoeffScalar, double>::value || std::is_same<CoeffScalar, std::complex<double>>::value))> {};
 
-// Zero and subnormal-magnitude tests that read the representation for float and double, where a comparison under DAZ
+// Subnormal-magnitude tests read the representation for float and double, where a comparison under DAZ
 // reads a subnormal as zero as well; the other scalars compare arithmetically.
-template <typename Scalar>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool is_exactly_zero_preserving_subnormals_impl(const Scalar& value, true_type) {
-  return magnitude_bits_are_zero<Scalar>(binary_floating_point_traits<Scalar>::magnitude(value));
-}
-template <typename Scalar>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool is_exactly_zero_preserving_subnormals_impl(const Scalar& value, false_type) {
-  return numext::is_exactly_zero(value);
-}
-template <typename Scalar>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool is_exactly_zero_preserving_subnormals(const Scalar& value) {
-  return is_exactly_zero_preserving_subnormals_impl(
-      value, bool_constant<use_subnormal_preserving_scaling<Scalar, Scalar>::value>());
-}
-
 template <typename Scalar>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool is_subnormal_magnitude_impl(const Scalar& value, true_type) {
   // The smallest normal, 2^(min_exponent - 1), has frexp exponent min_exponent.

@@ -76,7 +76,7 @@ typename NumTraits<Scalar>::Real structured_component_magnitude(const Scalar& z)
  * exponent into \a exponent. The rescaling is exact, so no roundoff is
  * introduced; zeros and non-finite values, which must propagate exactly, are
  * returned untouched. The tests and the scalings read the representation for
- * float and double (internal::is_exactly_zero_preserving_subnormals(),
+ * float and double (numext::is_exactly_zero_no_flush(),
  * internal::frexp_exponent_preserving_subnormals(),
  * internal::ldexp_preserving_subnormals()): under flush-to-zero a comparison
  * or a frexp on a subnormal recovered from a flushed reduction would read it as
@@ -87,7 +87,7 @@ struct structured_balance_impl {
   template <typename Exponent>
   static Scalar run(const Scalar& z, Exponent& exponent) {
     const RealScalar mag = structured_component_magnitude(z);
-    if (is_exactly_zero_preserving_subnormals(mag) || !(numext::isfinite)(mag)) return z;
+    if (numext::is_exactly_zero_no_flush(mag) || !(numext::isfinite)(mag)) return z;
     const int e = frexp_exponent_preserving_subnormals(mag);
     exponent += e;
     return apply_exponent(z, -e);
@@ -101,7 +101,7 @@ template <typename Scalar>
 struct structured_balance_impl<Scalar, false> {
   template <typename Exponent>
   static Scalar run(const Scalar& x, Exponent& exponent) {
-    if (is_exactly_zero_preserving_subnormals(x) || !(numext::isfinite)(x)) return x;
+    if (numext::is_exactly_zero_no_flush(x) || !(numext::isfinite)(x)) return x;
     const int e = frexp_exponent_preserving_subnormals(x);
     exponent += e;
     return apply_exponent(x, -e);
@@ -374,7 +374,7 @@ bool structured_exponent_bound_finite(const Xpr& x, int& e) {
   m = safe_scaling<RealScalar>::recover_flushed_max_coeff(x, m);
   e = 0;
   if (!(numext::isfinite)(m)) return false;
-  if (!is_exactly_zero_preserving_subnormals(m)) {
+  if (!numext::is_exactly_zero_no_flush(m)) {
     e = frexp_exponent_preserving_subnormals(m);
     if (ScalarTraits::IsComplex) ++e;
   }
