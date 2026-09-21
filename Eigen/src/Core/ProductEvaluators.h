@@ -1757,8 +1757,8 @@ template <typename ExpressionType, int Side, bool Transposed, typename Expressio
 struct permutation_matrix_product {
   template <typename Dest, typename PermutationType>
   static EIGEN_DEVICE_FUNC void run(Dest&, const PermutationType&, const ExpressionType&) {
-    EIGEN_STATIC_ASSERT((std::is_same<ExpressionShape, DenseShape>::value),
-                        PERMUTATION_PRODUCTS_ARE_NOT_IMPLEMENTED_FOR_THIS_OPERAND_SHAPE);
+    static_assert(std::is_same<ExpressionShape, DenseShape>::value,
+                  "PERMUTATION_PRODUCTS_ARE_NOT_IMPLEMENTED_FOR_THIS_OPERAND_SHAPE");
   }
 };
 
@@ -1868,8 +1868,8 @@ struct transposition_matrix_product {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Dest& dst, const TranspositionType& tr,
                                                         const ExpressionType& xpr) {
     // The in-place row/column swaps below need a dense operand.
-    EIGEN_STATIC_ASSERT((std::is_same<ExpressionShape, DenseShape>::value),
-                        TRANSPOSITIONS_PRODUCTS_ARE_ONLY_IMPLEMENTED_FOR_DENSE_OPERANDS);
+    static_assert(std::is_same<ExpressionShape, DenseShape>::value,
+                  "TRANSPOSITIONS_PRODUCTS_ARE_ONLY_IMPLEMENTED_FOR_DENSE_OPERANDS");
     MatrixType mat(xpr);
     using StorageIndex = typename TranspositionType::StorageIndex;
     const Index size = tr.size();
