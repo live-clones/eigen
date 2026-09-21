@@ -545,6 +545,47 @@ void test_dpr1_ftz_mode() {
   if (flushToZeroSupported) VERIFY_IS_EQUAL(underflowProbe<double>(), underflowBefore);
 }
 
+// The normalized secular problem depends only on the scaling exponent, so for
+// an all-subnormal d: eig(D + z z^T) == 2^-k eig(2^k D + (2^(k/2) z)(2^(k/2) z)^T)
+// bit for bit, with the same eigenvectors, plainly and under flush-to-zero.
+// ||z||^2 ~ |d| keeps the update undeflated.
+template <typename RealScalar>
+void test_dpr1_flushed_subnormal_diagonal() {
+  using Binary = internal::binary_floating_point_traits<RealScalar>;
+  using Bits = typename Binary::Bits;
+  using Vec = Matrix<RealScalar, Dynamic, 1>;
+  constexpr int digits = std::numeric_limits<RealScalar>::digits;
+  constexpr int minExponent = std::numeric_limits<RealScalar>::min_exponent;
+  const Index n = 6;
+  Vec d(n), z(n);
+  for (Index i = 0; i < n; ++i) {
+    // Distinct significands of digits - 2 bits, d in [2^(min_exponent - 3), 2^(min_exponent - 2)), stored out of
+    // order: the pole sort compares them, and a flushing comparison would leave them unsorted.
+    const Index slot = (5 * i + 2) % n;
+    d(slot) = numext::bit_cast<RealScalar>((Bits(1) << (digits - 3)) + Bits(i) * (Bits(1) << (digits - 6)));
+    z(slot) = numext::ldexp(RealScalar(1) + RealScalar(i) / RealScalar(8), (minExponent - 3) / 2);
+  }
+  // (D + z z^T) 2^k = D 2^k + (z 2^(k/2)) (z 2^(k/2))^T, with k even and D 2^k normal.
+  const int k = 2 * ((digits + 8) / 2);
+  const Vec ds = d.unaryExpr(internal::scale_by_exponent_op<RealScalar>(k));
+  const Vec zs = z.unaryExpr(internal::scale_by_exponent_op<RealScalar>(k / 2));
+
+  const auto check = [&]() {
+    const DPR1EigenSolver<RealScalar> solver(d, RealScalar(1), z);
+    const DPR1EigenSolver<RealScalar> scaled(ds, RealScalar(1), zs);
+    VERIFY(solver.info() == Success);
+    VERIFY(scaled.info() == Success);
+    for (Index i = 0; i < n; ++i) {
+      VERIFY_IS_EQUAL(Binary::bits(solver.eigenvalues()(i)),
+                      Binary::bits(internal::scale_binary_by_exponent(scaled.eigenvalues()(i), -k)));
+    }
+    VERIFY_IS_EQUAL(solver.eigenvectors(), scaled.eigenvectors());
+  };
+  check();
+  ScopedFlushToZero flushToZero;
+  check();
+}
+
 // A huge diagonal spread makes every z entry individually negligible even though
 // rho itself is not: the whole update deflates and m == 0.
 void test_dpr1_all_deflated() {
@@ -610,5 +651,7 @@ EIGEN_DECLARE_TEST(structured_dpr1) {
     CALL_SUBTEST_5(test_dpr1_huge_representable_spectrum());
     CALL_SUBTEST_5(test_dpr1_tiny_scale());
     CALL_SUBTEST_5(test_dpr1_ftz_mode());
+    CALL_SUBTEST_5(test_dpr1_flushed_subnormal_diagonal<float>());
+    CALL_SUBTEST_5(test_dpr1_flushed_subnormal_diagonal<double>());
   }
 }
