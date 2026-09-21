@@ -597,7 +597,7 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
         directColumn(k);
         continue;
       }
-      if (internal::is_exactly_zero_preserving_subnormals(m)) {
+      if (numext::is_exactly_zero_no_flush(m)) {
         // The fast max cannot hide an Inf (those comparisons are ordered), but
         // it can miss a NaN among zeros: recheck exactly before shortcutting.
         if ((xc.array() == ProductScalar(0)).all()) {
@@ -614,7 +614,7 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
         }
       }
       int ex = 0;  // stays 0 for an all-zero column: no scaling
-      if (!internal::is_exactly_zero_preserving_subnormals(m)) {
+      if (!numext::is_exactly_zero_no_flush(m)) {
         ex = internal::frexp_exponent_preserving_subnormals(m);
         EIGEN_IF_CONSTEXPR (NumTraits<ProductScalar>::IsComplex) ++ex;
       }
