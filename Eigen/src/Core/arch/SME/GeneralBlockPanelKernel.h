@@ -818,11 +818,11 @@ void sme_pack_rhs_fallback(Scalar* dst_base, const DataMapper& rhs, Index depth,
   }
 }
 
-// NEON dispatch (fitted on Apple M4, SVL 512), an invariant on the packed panels:
-//   packers: depth <= sme_neon_max_depth && width <= sme_neon_max_panel
-//   kernel:  both sides pass the packer test && (max(rows, cols) <= w(depth) || min(rows, cols) <= sme_neon_thin_dim)
-// so a NEON kernel reads NEON-packed panels; ZA over NEON-packed panels (~40 ns/KB) is bounded by
-// sme_neon_max_panel. Exception: SYRK packs B at the full size but runs 32x32 diagonal blocks.
+// NEON dispatch invariant, constants fitted on Apple M4 (SVL 512). Packers: panel depth (the stride in
+// panel mode) <= sme_neon_max_depth && width <= sme_neon_max_panel. Kernel: both sides pass the packer
+// test with strideA / strideB as the panel depths && (max(rows, cols) <= w(depth) || min <= thin_dim).
+// So a NEON kernel reads NEON-packed panels, and ZA over NEON-packed panels (~40 ns/KB) is bounded by
+// sme_neon_max_panel; the exception is SYRK, which packs B at the full size but runs 32x32 diagonal blocks.
 #ifndef EIGEN_SME_NEON_MAX_DEPTH
 template <typename Scalar>
 struct sme_neon_max_depth : std::integral_constant<int, 16> {};
@@ -913,15 +913,18 @@ EIGEN_ALWAYS_INLINE bool sme_pack_with_neon(Index depth, Index width) {
 #endif
 }
 
+// strideA / strideB are the packed panels' depths, which exceed `depth` when
+// the caller packed them in panel mode and runs the kernel on a slice.
 template <typename Scalar, typename Index>
-EIGEN_ALWAYS_INLINE bool sme_kernel_with_neon(Index rows, Index cols, Index depth) {
+EIGEN_ALWAYS_INLINE bool sme_kernel_with_neon(Index rows, Index cols, Index depth, Index strideA, Index strideB) {
 #if defined(EIGEN_SME_NO_NEON_SMALL_BLOCKS) || defined(EIGEN_SME_FORCE_NEON_SMALL_BLOCKS)
-  return sme_pack_with_neon<Scalar>(depth, rows) && sme_pack_with_neon<Scalar>(depth, cols);
+  EIGEN_UNUSED_VARIABLE(depth);
+  return sme_pack_with_neon<Scalar>(strideA, rows) && sme_pack_with_neon<Scalar>(strideB, cols);
 #else
   const Index wide = numext::maxi(rows, cols);
   const Index w = depth <= Index(sme_neon_shallow_depth<Scalar>::value) ? Index(sme_neon_shallow_width<Scalar>::value)
                                                                         : Index(sme_neon_max_width<Scalar>::value);
-  return sme_pack_with_neon<Scalar>(depth, rows) && sme_pack_with_neon<Scalar>(depth, cols) &&
+  return sme_pack_with_neon<Scalar>(strideA, rows) && sme_pack_with_neon<Scalar>(strideB, cols) &&
          (wide <= w || numext::mini(rows, cols) <= Index(sme_neon_thin_dim<Scalar>::value));
 #endif
 }
@@ -931,14 +934,17 @@ EIGEN_ALWAYS_INLINE bool sme_kernel_with_neon(Index rows, Index cols, Index dept
 // packet/element fallback. Tag-dispatched so &m(0,0) is only compiled for
 // lvalue mappers. UsePacketPath records whether the mapper's packets advance
 // the index the fallback needs, independently of its direct-access category.
-template <bool UsePacketPath, typename Scalar, typename Index, typename DataMapper, typename DirectFn, typename NeonFn,
-          typename FallbackFn>
+// In panel mode the call packs one depth slice of a panel `stride` deep that the
+// kernel consumes whole (the triangular solvers and TRMM), so the mode decision
+// uses the panel's depth, not the slice's.
+template <bool UsePacketPath, bool PanelMode, typename Scalar, typename Index, typename DataMapper, typename DirectFn,
+          typename NeonFn, typename FallbackFn>
 EIGEN_ALWAYS_INLINE void sme_dispatch_pack(DirectFn direct, NeonFn neon, FallbackFn fallback, Scalar* block,
                                            const DataMapper& m, Index depth, Index n, Index stride, Index offset,
                                            std::true_type /* direct access */) {
   if (sme_mapper_incr<Index>(m) == 1) {
     const Scalar* src = (n > 0 && depth > 0) ? &m(0, 0) : nullptr;
-    if (sme_pack_with_neon<Scalar>(depth, n)) {
+    if (sme_pack_with_neon<Scalar>(PanelMode ? stride : depth, n)) {
       neon(block, src, m.stride(), depth, n, stride, offset);
     } else {
       direct(block, src, m.stride(), depth, n, stride, offset);
@@ -947,8 +953,8 @@ EIGEN_ALWAYS_INLINE void sme_dispatch_pack(DirectFn direct, NeonFn neon, Fallbac
     fallback(block, m, depth, n, stride, offset, UsePacketPath);
   }
 }
-template <bool UsePacketPath, typename Scalar, typename Index, typename DataMapper, typename DirectFn, typename NeonFn,
-          typename FallbackFn>
+template <bool UsePacketPath, bool PanelMode, typename Scalar, typename Index, typename DataMapper, typename DirectFn,
+          typename NeonFn, typename FallbackFn>
 EIGEN_ALWAYS_INLINE void sme_dispatch_pack(DirectFn, NeonFn, FallbackFn fallback, Scalar* block, const DataMapper& m,
                                            Index depth, Index n, Index stride, Index offset,
                                            std::false_type /* no direct access */) {
@@ -1112,7 +1118,7 @@ struct sme_pack_lhs_colmajor {
     }
     // Inner-strided ColMajor blas mappers' packets advance the row index, so
     // the fallback may use them.
-    sme_dispatch_pack<true>(
+    sme_dispatch_pack<true, PanelMode>(
         &pack_direct, &pack_neon, &sme_pack_lhs_fallback<Scalar, MR, Index, DataMapper, Conjugate, PanelMode>, blockA,
         lhs, depth, rows, stride, offset, bool_constant<sme_mapper_has_direct_access<DataMapper, Index>::value>{});
   }
@@ -1178,7 +1184,7 @@ struct sme_pack_lhs_rowmajor {
     // Inner-strided RowMajor blas mappers' packets advance the depth index, not
     // the row index, so the fallback must stay scalar (see
     // sme_pack_lhs_fallback).
-    sme_dispatch_pack<false>(
+    sme_dispatch_pack<false, PanelMode>(
         &pack_direct, &pack_neon, &sme_pack_lhs_fallback<Scalar, MR, Index, DataMapper, Conjugate, PanelMode>, blockA,
         lhs, depth, rows, stride, offset, bool_constant<sme_mapper_has_direct_access<DataMapper, Index>::value>{});
   }
@@ -1243,7 +1249,7 @@ struct sme_pack_rhs_colmajor {
     }
     // Inner-strided ColMajor blas mappers' LinearMapper packets advance the
     // depth index, which is what the fallback transposes.
-    sme_dispatch_pack<true>(
+    sme_dispatch_pack<true, PanelMode>(
         &pack_direct, &pack_neon, &sme_pack_rhs_fallback<Scalar, NR, Index, DataMapper, Conjugate, PanelMode>, blockB,
         rhs, depth, cols, stride, offset, bool_constant<sme_mapper_has_direct_access<DataMapper, Index>::value>{});
   }
@@ -1289,7 +1295,7 @@ struct sme_pack_rhs_rowmajor {
     // Inner-strided RowMajor blas mappers' LinearMapper packets advance the
     // column index, not depth, so the fallback must stay scalar (see
     // sme_pack_rhs_fallback).
-    sme_dispatch_pack<false>(
+    sme_dispatch_pack<false, PanelMode>(
         &pack_direct, &pack_neon, &sme_pack_rhs_fallback<Scalar, NR, Index, DataMapper, Conjugate, PanelMode>, blockB,
         rhs, depth, cols, stride, offset, bool_constant<sme_mapper_has_direct_access<DataMapper, Index>::value>{});
   }
@@ -2288,7 +2294,7 @@ struct sme_gebp_kernel {
     const Index C_stride_row = &res(1, 0) - &res(0, 0);
     const Index C_stride_col = &res(0, 1) - &res(0, 0);
 
-    if (sme_kernel_with_neon<Scalar>(rows, cols, depth)) {
+    if (sme_kernel_with_neon<Scalar>(rows, cols, depth, strideA, strideB)) {
       sme_gebp_neon<Scalar, ConjugateLhs, ConjugateRhs>(C_base, C_stride_row, C_stride_col, blockA, blockB, rows, depth,
                                                         cols, alpha, strideA, strideB, offsetA, offsetB);
       return;
