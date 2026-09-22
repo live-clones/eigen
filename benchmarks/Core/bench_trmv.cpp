@@ -8,13 +8,9 @@
 #include <benchmark/benchmark.h>
 #include <Eigen/Core>
 
-using namespace Eigen;
+#include "../bench_common.h"
 
-template <typename Scalar>
-double trmvFlops(Index n) {
-  // TRMV: ~n^2 multiply-adds
-  return (NumTraits<Scalar>::IsComplex ? 8.0 : 2.0) * n * n;
-}
+using namespace Eigen;
 
 // y = triangularView<Mode>(A) * x
 template <typename Scalar, unsigned int Mode>
@@ -30,8 +26,7 @@ static void BM_TRMV(benchmark::State& state) {
     benchmark::DoNotOptimize(y.data());
     benchmark::ClobberMemory();
   }
-  state.counters["GFLOPS"] = benchmark::Counter(trmvFlops<Scalar>(n), benchmark::Counter::kIsIterationInvariantRate,
-                                                benchmark::Counter::kIs1000);
+  eigen_bench::setFlopRate(state, eigen_bench::trmvFlops<Scalar>(n));
 }
 
 // clang-format off

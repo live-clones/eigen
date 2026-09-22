@@ -56,3 +56,5 @@ ccache-stats.log
 .cred_port
 # Written by ci/lint/lint.sh.
 lint-report.xml
+# Measurement output of benchmarks/comparison/run.py.
+benchmarks/comparison/results/
