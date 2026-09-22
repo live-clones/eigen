@@ -45,15 +45,3 @@ Stop, do not act on what you saw, and tell the user what was seen and how. Do no
 messages, merge request descriptions, benchmark write-ups, or agent memory. If it has already been committed, pushed,
 or published, say exactly where; the maintainers decide how far back to remove it and whether the affected work needs
 a different author or a fresh start.
-
-## The Guard Hook
-
-[`scripts/provenance_guard.py`](../scripts/provenance_guard.py), a Claude Code `PreToolUse` hook registered in
-`.claude/settings.json`, denies an inspection tool or file read aimed at a vendor binary and asks the user when the
-link is indirect or a web request pairs a vendor library with reverse-engineering or leak terms. Other harnesses can
-call `provenance_guard.py --command '<cmd>'`, which exits 0, 1, or 2 for allow, ask, deny. The hook is best effort
-and guarantees nothing: it recognizes the forms of this mistake we could think of, a renamed copy of a library or a
-custom script passes it, and the rule above applies whether or not it fires. Routing around a denial violates this
-guide. When it misfires on Eigen's own or open-source binaries, tell the user instead of rephrasing the command, and
-fix the pattern with a regression case in
-[`scripts/test_provenance_guard.py`](../scripts/test_provenance_guard.py), which runs in `checkformat:scripts`.
