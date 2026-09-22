@@ -189,6 +189,12 @@ tests, [`scripts/test_check_style.py`](../scripts/test_check_style.py) and
 [`scripts/test_clang_tidy_hook.py`](../scripts/test_clang_tidy_hook.py), run in `checkformat:scripts`; run them after
 changing either script.
 
+The same file registers [`scripts/provenance_guard.py`](../scripts/provenance_guard.py) as a `PreToolUse` hook. Unlike
+the two advisory checks it blocks: it refuses a tool call that would look inside a proprietary library, as
+[`provenance.md`](provenance.md) describes. It is best effort, recognizing known command shapes, and the rule holds
+whether or not it fires. Its unit test,
+[`scripts/test_provenance_guard.py`](../scripts/test_provenance_guard.py), also runs in `checkformat:scripts`.
+
 The whole-tree codespell invocation used by CI can expose pre-existing findings. Do not modify unrelated files merely
 to make a local broad scan clean. In the current CI configuration, clang-format, codespell, and clang-tidy jobs are
 `allow_failure`; treat their diagnostics as review findings anyway. The REUSE job is blocking.
