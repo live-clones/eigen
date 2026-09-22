@@ -67,7 +67,7 @@ struct gemm_pack_lhs_first_loop_policy {
 // whether the SME kernel can read this ColMajor LHS block straight from its
 // source instead of a packed panel.
 template <typename Scalar, typename Index>
-bool sme_direct_lhs_ok(const Scalar* lhs, Index lhsStride, Index depth);
+bool sme_direct_lhs_ok(Index lhsStride, Index rows, Index depth);
 // True for the unit-stride ColMajor mapper the GEMM driver hands the packers.
 template <typename Mapper>
 struct sme_direct_lhs_mapper : std::false_type {};
@@ -80,7 +80,7 @@ template <typename Gebp, typename ResMapper, typename LhsMapper, typename Scalar
 EIGEN_ALWAYS_INLINE bool sme_run_direct_lhs(std::true_type, Gebp& gebp, const ResMapper& res, const LhsMapper& lhs,
                                             Index i2, Index k2, const Scalar* blockB, Index mc, Index kc, Index nc,
                                             ResScalar alpha) {
-  if (!sme_direct_lhs_ok(&lhs(i2, k2), lhs.stride(), kc)) return false;
+  if (!sme_direct_lhs_ok<Scalar>(lhs.stride(), mc, kc)) return false;
   gebp.run_direct_lhs(res, &lhs(i2, k2), lhs.stride(), blockB, mc, kc, nc, alpha);
   return true;
 }
@@ -430,16 +430,14 @@ class gemm_blocking_space<StorageOrder, LhsScalar_, RhsScalar_, MaxRows, MaxCols
     m_sizeB = this->m_kc * this->m_nc;
   }
 
-  // The packed panels are plain scalars, so the buffers take the temporaries'
-  // alignment (64 bytes in SME builds, see EIGEN_STACK_ALIGN_BYTES) and skip
-  // element construction; aligned_new's default alignment could leave an
-  // mmap'd block at 16 mod 64.
+  // The blocking buffers get the temporaries' alignment (64 bytes in SME builds, EIGEN_STACK_ALIGN_BYTES),
+  // which aligned_new does not give them.
   void allocateA() {
-    if (this->m_blockA == 0) this->m_blockA = static_cast<LhsScalar*>(stack_buffer_malloc(sizeof(LhsScalar) * m_sizeA));
+    if (this->m_blockA == 0) this->m_blockA = scratch_new<LhsScalar>(m_sizeA);
   }
 
   void allocateB() {
-    if (this->m_blockB == 0) this->m_blockB = static_cast<RhsScalar*>(stack_buffer_malloc(sizeof(RhsScalar) * m_sizeB));
+    if (this->m_blockB == 0) this->m_blockB = scratch_new<RhsScalar>(m_sizeB);
   }
 
   void allocateAll() {
@@ -448,8 +446,8 @@ class gemm_blocking_space<StorageOrder, LhsScalar_, RhsScalar_, MaxRows, MaxCols
   }
 
   ~gemm_blocking_space() {
-    stack_buffer_free(this->m_blockA);
-    stack_buffer_free(this->m_blockB);
+    scratch_delete(this->m_blockA, m_sizeA);
+    scratch_delete(this->m_blockB, m_sizeB);
   }
 };
 
