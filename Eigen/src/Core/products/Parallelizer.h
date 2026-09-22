@@ -64,38 +64,52 @@ inline void setNbThreads(int v) { internal::manage_multi_threading(SetAction, &v
 
 #ifdef EIGEN_VECTORIZE_SME
 namespace internal {
-// SME units are shared by a cluster of cores, so a GEMM on the SME kernel gains
-// nothing from more threads than units and loses to contention: on Apple M4 Pro
-// (two units) float 2048^3 runs at 2.45 TFLOPS on 2 threads and 1.76 on 12.
+#if EIGEN_OS_LINUX
+// Whether the CPU implementer is Apple (0x61), the one vendor known to share an SME unit per cluster.
+inline bool sme_cpu_is_apple() {
+  std::FILE* f = std::fopen("/proc/cpuinfo", "r");
+  if (f == nullptr) return false;
+  bool apple = false;
+  char line[256];
+  while (!apple && std::fgets(line, sizeof(line), f) != nullptr)
+    apple = std::strncmp(line, "CPU implementer", 15) == 0 && std::strstr(line, "0x61") != nullptr;
+  std::fclose(f);
+  return apple;
+}
+#endif
+// Apple silicon shares one SME unit per core cluster (M4 Pro: float 2048^3 at 2.45 TFLOPS on 2 threads, 1.76 on
+// 12); other SME implementations may have one per core, so the count is 0 (no cap) unless the topology implies it.
 inline int detect_sme_units() {
 #if defined(EIGEN_SME_UNITS)
   return EIGEN_SME_UNITS;
 #elif EIGEN_OS_MAC
-  // One unit per performance cluster; a cluster is the set of cores sharing an L2.
-  int64_t cores = 0, per_l2 = 0;
-  size_t sz = sizeof(int64_t);
-  if (sysctlbyname("hw.perflevel0.physicalcpu", &cores, &sz, nullptr, 0) == 0 && cores > 0) {
-    sz = sizeof(int64_t);
-    if (sysctlbyname("hw.perflevel0.cpusperl2", &per_l2, &sz, nullptr, 0) == 0 && per_l2 > 0)
-      return static_cast<int>(numext::maxi<int64_t>(1, cores / per_l2));
-  }
-  return 1;
+  // Performance clusters only (a cluster shares one L2): the work is split evenly over the threads,
+  // so a thread on the efficiency cluster's slower unit would set the finishing time.
+  int32_t cores = 0, per_l2 = 0;
+  size_t sz = sizeof(cores);
+  if (sysctlbyname("hw.perflevel0.physicalcpu", &cores, &sz, nullptr, 0) != 0 || cores <= 0) return 0;
+  sz = sizeof(per_l2);
+  if (sysctlbyname("hw.perflevel0.cpusperl2", &per_l2, &sz, nullptr, 0) != 0 || per_l2 <= 0) return 0;
+  return numext::maxi<int32_t>(1, cores / per_l2);
 #elif EIGEN_OS_LINUX
-  // One unit per cluster: count the distinct cluster ids of the online CPUs.
+  if (!sme_cpu_is_apple()) return 0;
+  // One unit per cluster: the number of distinct cluster ids. Offline CPUs have no topology entry.
   int units = 0;
-  int last = -1;
+  int seen[64];
   for (int cpu = 0; cpu < 1024; ++cpu) {
     char path[96];
     std::snprintf(path, sizeof(path), "/sys/devices/system/cpu/cpu%d/topology/cluster_id", cpu);
     std::FILE* f = std::fopen(path, "r");
-    if (f == nullptr) break;
+    if (f == nullptr) continue;
     int id = -1;
     if (std::fscanf(f, "%d", &id) != 1) id = -1;
     std::fclose(f);
-    if (id >= 0 && id != last) ++units;
-    last = id;
+    if (id < 0) continue;
+    int k = 0;
+    while (k < units && seen[k] != id) ++k;
+    if (k == units && units < 64) seen[units++] = id;
   }
-  return units > 0 ? units : 0;
+  return units;
 #else
   return 0;
 #endif
@@ -110,20 +124,30 @@ inline void manage_sme_units(Action action, int* v) {
   }
 }
 }  // namespace internal
+#endif
 
-/** \returns the number of SME units the GEMM kernels on the ARM SME backend spread over, or 0 when
- * unknown (then \c nbThreads() applies). Detected once from the core topology; see setNbSmeUnits().
+/** \returns the number of ARM SME units a product on the SME GEMM kernel spreads over, or 0 when it is unknown or
+ * the SME backend is not in use (then \c nbThreads() applies). Detected once from the core topology.
  * \sa setNbSmeUnits */
 inline int nbSmeUnits() {
+#ifdef EIGEN_VECTORIZE_SME
   int ret;
   internal::manage_sme_units(GetAction, &ret);
   return ret;
-}
-/** Sets the number of SME units, which caps the threads a product on the SME GEMM kernel uses;
- * 0 removes the cap. \c EIGEN_SME_UNITS sets it at compile time.
- * \sa nbSmeUnits */
-inline void setNbSmeUnits(int v) { internal::manage_sme_units(SetAction, &v); }
+#else
+  return 0;
 #endif
+}
+/** Sets the number of SME units, which caps the threads a product on the SME GEMM kernel uses; 0 removes the cap.
+ * \c EIGEN_SME_UNITS sets it at compile time. Does nothing when the SME backend is not in use.
+ * \sa nbSmeUnits */
+inline void setNbSmeUnits(int v) {
+#ifdef EIGEN_VECTORIZE_SME
+  internal::manage_sme_units(SetAction, &v);
+#else
+  EIGEN_UNUSED_VARIABLE(v);
+#endif
+}
 
 #ifdef EIGEN_GEMM_THREADPOOL
 // Sets the ThreadPool used by Eigen parallel Gemm.

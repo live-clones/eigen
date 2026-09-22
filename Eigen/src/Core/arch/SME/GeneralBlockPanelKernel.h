@@ -1937,21 +1937,20 @@ EIGEN_DONT_INLINE __arm_locally_streaming __arm_new("za") void sme_gebp_impl_dir
   }
 }
 
-// Whether the driver may hand the SME kernel a ColMajor LHS block in place:
-// 64-byte aligned columns (the packed panels' alignment), deep enough for the
-// ZA kernel, and a column stride that is not a multiple of 4 KB: the depth loop
-// then walks one L1 set (1024x1024x1024 float: 1671 GFLOPS at a 4096-byte
-// stride, 1811 at 4160, 720 at 16384; Apple M4), which a packed panel avoids.
+// In-place ColMajor LHS: deep enough for the ZA kernel, a stride that is not a 4 KB multiple (one L1 set: 1024^3
+// float 1671 vs 1811 GFLOPS) and a block of at most 4 MB, past which the strided re-reads lose to the packed panel.
 #ifndef EIGEN_SME_DIRECT_LHS_MAX_STRIDE_BYTES
 #define EIGEN_SME_DIRECT_LHS_MAX_STRIDE_BYTES 16384
 #endif
+#ifndef EIGEN_SME_DIRECT_LHS_MAX_BLOCK_BYTES
+#define EIGEN_SME_DIRECT_LHS_MAX_BLOCK_BYTES (4 << 20)
+#endif
 template <typename Scalar, typename Index>
-bool sme_direct_lhs_ok(const Scalar* lhs, Index lhsStride, Index depth) {
+bool sme_direct_lhs_ok(Index lhsStride, Index rows, Index depth) {
   const std::size_t stride_bytes = std::size_t(lhsStride) * sizeof(Scalar);
-  return !NumTraits<Scalar>::IsComplex && depth > Index(sme_neon_max_depth<Scalar>::value) && stride_bytes % 64 == 0 &&
-         (stride_bytes % 4096 != 0 || stride_bytes <= 2048) &&
-         stride_bytes <= std::size_t(EIGEN_SME_DIRECT_LHS_MAX_STRIDE_BYTES) &&
-         (reinterpret_cast<std::uintptr_t>(lhs) & 63) == 0;
+  return !NumTraits<Scalar>::IsComplex && depth > Index(sme_neon_max_depth<Scalar>::value) &&
+         stride_bytes % 4096 != 0 && stride_bytes <= std::size_t(EIGEN_SME_DIRECT_LHS_MAX_STRIDE_BYTES) &&
+         std::size_t(rows) * std::size_t(depth) * sizeof(Scalar) <= std::size_t(EIGEN_SME_DIRECT_LHS_MAX_BLOCK_BYTES);
 }
 
 // NEON path for small blocks: a shallow block pays the ZA enable and a dependent FMOPA chain per
