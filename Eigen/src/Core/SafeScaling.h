@@ -145,6 +145,13 @@ EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE typename binary_floating_point_traits<Scalar
   return a < b ? b : a;
 }
 
+// |value| < the smallest normal from the magnitude bits, out of line for the same reason.
+template <typename Scalar>
+EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE bool is_below_normal_magnitude_bits(
+    const typename binary_floating_point_traits<Scalar>::Bits magnitude) {
+  return magnitude < binary_floating_point_traits<Scalar>::kExponentUnit;
+}
+
 // frexp through the representation: the significand in [0.5, 1), with the sign of value, and its exponent.
 template <typename Scalar>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar binary_frexp(const Scalar& value, int& exponent) {
@@ -237,6 +244,24 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool is_subnormal_magnitude_impl(const Sca
 template <typename Scalar>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool is_subnormal_magnitude(const Scalar& value) {
   return is_subnormal_magnitude_impl(value, bool_constant<use_subnormal_preserving_scaling<Scalar, Scalar>::value>());
+}
+
+// |value| < the smallest normal, zero included: a maximum that a flushing comparison may have produced. A scalar
+// reduction under FTZ/DAZ does not always return a zero: where max(a, b) is a compare and a select (Arm FZ with
+// scalar VFP or fcsel, ARMv7's double, which has no packet), every comparison is false and the running maximum keeps
+// the bits of the first operand.
+template <typename Scalar>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool is_zero_or_subnormal_magnitude_impl(const Scalar& value, true_type) {
+  return is_below_normal_magnitude_bits<Scalar>(binary_floating_point_traits<Scalar>::magnitude(value));
+}
+template <typename Scalar>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool is_zero_or_subnormal_magnitude_impl(const Scalar& value, false_type) {
+  return numext::abs(value) < (std::numeric_limits<Scalar>::min)();
+}
+template <typename Scalar>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool is_zero_or_subnormal_magnitude(const Scalar& value) {
+  return is_zero_or_subnormal_magnitude_impl(value,
+                                             bool_constant<use_subnormal_preserving_scaling<Scalar, Scalar>::value>());
 }
 
 // The larger of two non-negative values, such as two recovered maxima, read from the representation for float and
@@ -445,7 +470,7 @@ struct safe_scaling_operations {
                                                                                      true_type) {
     using Binary = binary_floating_point_traits<Scalar>;
     using Bits = typename Binary::Bits;
-    if (Binary::magnitude(maxCoeff) != 0) return maxCoeff;
+    if (!is_zero_or_subnormal_magnitude(maxCoeff)) return maxCoeff;
     // A product expression has no coefficient access; its evaluator materializes it.
     const evaluator<Src> coeffs(src);
     Bits maxBits = 0;
@@ -461,13 +486,13 @@ struct safe_scaling_operations {
 
   template <typename Derived>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Index recover_flushed_max_coeff_index_impl(const DenseBase<Derived>&,
-                                                                                          false_type) {
-    return 0;
+                                                                                          Index position, false_type) {
+    return position;
   }
 
   template <typename Derived>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Index recover_flushed_max_coeff_index_impl(const DenseBase<Derived>& src,
-                                                                                          true_type) {
+                                                                                          Index, true_type) {
     return index_of_largest_magnitude<Scalar>(src);
   }
 
@@ -545,8 +570,9 @@ struct safe_scaling_operations {
   }
 
   // A SIMD unit that flushes subnormal inputs (ARMv7 NEON, Arm FZ, DAZ) reduces an all-subnormal matrix to a zero
-  // maximum, so rescan a zero maxCoeff from the representation. Any subnormal maximum, including the largest real or
-  // imaginary magnitude of a complex matrix, selects the same factors as the true one.
+  // maximum, and a flushed scalar reduction to whichever subnormal it held first, so rescan a zero or subnormal
+  // maxCoeff from the representation. Any subnormal maximum, including the largest real or imaginary magnitude of a
+  // complex matrix, selects the same factors as the true one.
   template <typename Src>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar recover_flushed_max_coeff(const Src& src,
                                                                                 const Scalar& maxCoeff) {
@@ -555,14 +581,15 @@ struct safe_scaling_operations {
     return recover_flushed_max_coeff_impl(src, maxCoeff, bool_constant<kPreserveSubnormalInputs>());
   }
 
-  // The position of the largest magnitude in a real vector whose maxCoeff() read zero, rescanned from the
-  // representation like recover_flushed_max_coeff(); 0, the position maxCoeff() reports for an all-zero vector, where
-  // there is no representation path.
+  // The position of the largest magnitude in a real vector whose maxCoeff(&position) read zero or subnormal,
+  // rescanned from the representation like recover_flushed_max_coeff(); the position maxCoeff() reported where there
+  // is no representation path.
   template <typename Derived>
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Index recover_flushed_max_coeff_index(const DenseBase<Derived>& src) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Index recover_flushed_max_coeff_index(const DenseBase<Derived>& src,
+                                                                                     Index position) {
     constexpr bool kPreserveSubnormalInputs =
         IsPowerOfTwo_ && use_subnormal_preserving_scaling<Scalar, typename Derived::Scalar>::value;
-    return recover_flushed_max_coeff_index_impl(src, bool_constant<kPreserveSubnormalInputs>());
+    return recover_flushed_max_coeff_index_impl(src, position, bool_constant<kPreserveSubnormalInputs>());
   }
 
   template <typename MatrixType>

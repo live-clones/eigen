@@ -494,6 +494,27 @@ void check_recover_flushed_max_coeff() {
   VERIFY(same_bits(Scaling::recover_flushed_max_coeff(Matrix<Scalar, 2, 2>::Zero(), RealScalar(0)), RealScalar(0)));
 }
 
+// A strided view reduces coefficient by coefficient, and under Arm FZ a scalar max(a, b) is a compare and a select
+// that keeps the first subnormal operand rather than producing a zero: the rescan must not trust a subnormal maximum.
+// Every flush-to-zero mode, with the largest magnitude last.
+template <typename Scalar>
+void check_recover_flushed_scalar_max_coeff() {
+  using Binary = internal::binary_floating_point_traits<Scalar>;
+  using Bits = typename Binary::Bits;
+  using Scaling = internal::safe_scaling<Scalar>;
+  using VectorType = Matrix<Scalar, Dynamic, 1>;
+  VectorType storage = VectorType::Zero(6);
+  const Bits significands[3] = {Bits(5), Bits(8), Bits(23)};
+  for (Index i = 0; i < 3; ++i) storage(2 * i) = numext::bit_cast<Scalar>(significands[i]);
+  const Map<const VectorType, 0, InnerStride<2>> strided(storage.data(), 3);
+  forEachFlushToZeroMode([&](FlushToZeroMode) {
+    const Scalar maxCoeff = strided.cwiseAbs().maxCoeff();
+    VERIFY(same_bits(Scaling::recover_flushed_max_coeff(strided, maxCoeff), numext::bit_cast<Scalar>(Bits(23))));
+    VERIFY_IS_EQUAL(internal::binary_frexp_exponent(Scaling::recover_flushed_max_coeff(strided, maxCoeff)),
+                    5 + std::numeric_limits<Scalar>::min_exponent - std::numeric_limits<Scalar>::digits);
+  });
+}
+
 // Each flush-to-zero mode the host selects does what its name says, read from the results of two probes through the
 // representation, since a comparison under DAZ reads any subnormal as zero; the modes restore the ambient state.
 template <typename Scalar>
@@ -658,6 +679,8 @@ void check_preserving_subnormals_fallbacks() {
 EIGEN_DECLARE_TEST(safe_scaling) {
   CALL_SUBTEST(check_flush_to_zero_modes<float>());
   CALL_SUBTEST(check_flush_to_zero_modes<double>());
+  CALL_SUBTEST(check_recover_flushed_scalar_max_coeff<float>());
+  CALL_SUBTEST(check_recover_flushed_scalar_max_coeff<double>());
   CALL_SUBTEST(check_scale_binary_by_exponent<float>());
   CALL_SUBTEST(check_scale_binary_by_exponent<double>());
   CALL_SUBTEST(check_preserving_subnormals_fallbacks());

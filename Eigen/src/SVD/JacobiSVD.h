@@ -918,13 +918,14 @@ JacobiSVD<MatrixType, Options>& JacobiSVD<MatrixType, Options>::compute_impl(con
 
   /*** step 4. Sort singular values in descending order and compute the number of nonzero singular values ***/
 
-  // Sort in the scaled frame, where the largest values are normal. A tail whose maximum reads zero holds zeros and
-  // subnormals, which FTZ/DAZ hardware compares as zero: order it from the representation.
+  // Sort in the scaled frame, where the largest values are normal. A tail whose maximum reads zero or subnormal
+  // holds zeros and subnormals, which FTZ/DAZ hardware compares as zero: order it from the representation.
   for (Index i = 0; i < diagSize(); i++) {
     Index pos;
     RealScalar maxRemainingSingularValue = m_singularValues.tail(diagSize() - i).maxCoeff(&pos);
-    if (numext::is_exactly_zero(maxRemainingSingularValue)) {
-      pos = internal::safe_scaling<RealScalar>::recover_flushed_max_coeff_index(m_singularValues.tail(diagSize() - i));
+    if (internal::is_zero_or_subnormal_magnitude(maxRemainingSingularValue)) {
+      pos = internal::safe_scaling<RealScalar>::recover_flushed_max_coeff_index(m_singularValues.tail(diagSize() - i),
+                                                                                pos);
       if (numext::is_exactly_zero_no_flush(m_singularValues.coeff(i + pos))) break;
     }
     if (pos) {
