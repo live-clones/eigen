@@ -1125,6 +1125,22 @@ struct unary_pow_impl<Packet, ScalarExponent, false, true, ExponentIsSigned> {
                : generic_pow(x, pset1<Packet>(static_cast<Scalar>(exponent)));
   }
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet run(const Packet& x, const ScalarExponent& exponent, false_type) {
+    // A real float/double packet that merely lacks integer_packet support (so double-word squaring is
+    // unavailable, e.g. Packet4d under plain AVX without AVX2) still has a working generic_pow, so gate on
+    // exponent magnitude the same way the floating-point-exponent path does instead of falling through to
+    // uncompensated plain squaring for every exponent. Complex, half/bfloat16, and GPU packets have no packet
+    // generic_pow, so they keep plain squaring unconditionally.
+    return run_no_double_word(
+        x, exponent, bool_constant < unary_pow::is_double_word_base<Scalar>::value && !NumTraits<Scalar>::IsComplex > ());
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet run_no_double_word(const Packet& x,
+                                                                         const ScalarExponent& exponent, true_type) {
+    return unary_pow::use_repeated_squaring<Packet>(exponent)
+               ? unary_pow::int_pow(x, exponent)
+               : generic_pow(x, pset1<Packet>(static_cast<Scalar>(exponent)));
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet run_no_double_word(const Packet& x,
+                                                                         const ScalarExponent& exponent, false_type) {
     return unary_pow::int_pow(x, exponent);
   }
 };
