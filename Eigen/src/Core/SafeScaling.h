@@ -257,6 +257,57 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar max_preserving_subnormals(const Sca
   return max_preserving_subnormals_impl(a, b, bool_constant<use_subnormal_preserving_scaling<Scalar, Scalar>::value>());
 }
 
+// |value| and value < 0 of a finite real scalar, from the representation for float and double: a comparison reads a
+// negative subnormal as zero under DAZ, and an abs() that widens (MSVC 19.29 takes abs(float) through double) flushes
+// a subnormal result under FTZ when it narrows back.
+template <typename Scalar>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar abs_preserving_subnormals_impl(const Scalar& value, true_type) {
+  return numext::bit_cast<Scalar>(binary_floating_point_traits<Scalar>::magnitude(value));
+}
+template <typename Scalar>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar abs_preserving_subnormals_impl(const Scalar& value, false_type) {
+  return numext::abs(value);
+}
+template <typename Scalar>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar abs_preserving_subnormals(const Scalar& value) {
+  return abs_preserving_subnormals_impl(value,
+                                        bool_constant<use_subnormal_preserving_scaling<Scalar, Scalar>::value>());
+}
+
+template <typename Scalar>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool is_negative_preserving_subnormals_impl(const Scalar& value, true_type) {
+  using Binary = binary_floating_point_traits<Scalar>;
+  return (Binary::bits(value) & Binary::kSignBit) != 0 && !is_zero_magnitude_bits<Scalar>(Binary::magnitude(value));
+}
+template <typename Scalar>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool is_negative_preserving_subnormals_impl(const Scalar& value, false_type) {
+  return value < Scalar(0);
+}
+template <typename Scalar>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool is_negative_preserving_subnormals(const Scalar& value) {
+  return is_negative_preserving_subnormals_impl(
+      value, bool_constant<use_subnormal_preserving_scaling<Scalar, Scalar>::value>());
+}
+
+// The position of the largest magnitude of a real vector with at least one coefficient, read from the representation
+// and out of line like the other bit classifications.
+template <typename Scalar, typename Derived>
+EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE Index index_of_largest_magnitude(const DenseBase<Derived>& src) {
+  using Binary = binary_floating_point_traits<Scalar>;
+  using Bits = typename Binary::Bits;
+  const evaluator<Derived> coeffs(src.derived());
+  Index position = 0;
+  Bits largest = Binary::magnitude(coeffs.coeff(0));
+  for (Index i = 1; i < src.size(); ++i) {
+    const Bits magnitude = Binary::magnitude(coeffs.coeff(i));
+    if (magnitude > largest) {
+      largest = magnitude;
+      position = i;
+    }
+  }
+  return position;
+}
+
 // ldexp and frexp's exponent for a real scalar: float and double through the representation, which FTZ/DAZ cannot
 // reach, the other scalars through the C library. frexp's exponent is e with 2^(e - 1) <= |value| < 2^e, 0 for a
 // zero.
@@ -408,6 +459,18 @@ struct safe_scaling_operations {
     return numext::bit_cast<Scalar>(maxBits);
   }
 
+  template <typename Derived>
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Index recover_flushed_max_coeff_index_impl(const DenseBase<Derived>&,
+                                                                                          false_type) {
+    return 0;
+  }
+
+  template <typename Derived>
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Index recover_flushed_max_coeff_index_impl(const DenseBase<Derived>& src,
+                                                                                          true_type) {
+    return index_of_largest_magnitude<Scalar>(src);
+  }
+
  public:
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Factors
   compute_ceiling_factors_with_normal_reciprocal(const Scalar& value) {
@@ -490,6 +553,16 @@ struct safe_scaling_operations {
     constexpr bool kPreserveSubnormalInputs =
         IsPowerOfTwo_ && use_subnormal_preserving_scaling<Scalar, typename Src::Scalar>::value;
     return recover_flushed_max_coeff_impl(src, maxCoeff, bool_constant<kPreserveSubnormalInputs>());
+  }
+
+  // The position of the largest magnitude in a real vector whose maxCoeff() read zero, rescanned from the
+  // representation like recover_flushed_max_coeff(); 0, the position maxCoeff() reports for an all-zero vector, where
+  // there is no representation path.
+  template <typename Derived>
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Index recover_flushed_max_coeff_index(const DenseBase<Derived>& src) {
+    constexpr bool kPreserveSubnormalInputs =
+        IsPowerOfTwo_ && use_subnormal_preserving_scaling<Scalar, typename Derived::Scalar>::value;
+    return recover_flushed_max_coeff_index_impl(src, bool_constant<kPreserveSubnormalInputs>());
   }
 
   template <typename MatrixType>

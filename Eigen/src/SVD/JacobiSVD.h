@@ -909,21 +909,25 @@ JacobiSVD<MatrixType, Options>& JacobiSVD<MatrixType, Options>::compute_impl(con
       m_singularValues.coeffRef(i) = abs(a);
       if (computeU()) m_matrixU.col(i) *= m_workMatrix.coeff(i, i) / a;
     } else {
-      // m_workMatrix.coeff(i,i) is already real, no difficulty:
+      // m_workMatrix.coeff(i,i) is already real. Its magnitude and sign are read from the representation for float
+      // and double: a subnormal entry compares as zero under DAZ, and an abs() that widens flushes it under FTZ.
       RealScalar a = numext::real(m_workMatrix.coeff(i, i));
-      m_singularValues.coeffRef(i) = abs(a);
-      if (computeU() && (a < RealScalar(0))) m_matrixU.col(i) = -m_matrixU.col(i);
+      m_singularValues.coeffRef(i) = internal::abs_preserving_subnormals(a);
+      if (computeU() && internal::is_negative_preserving_subnormals(a)) m_matrixU.col(i) = -m_matrixU.col(i);
     }
   }
 
   /*** step 4. Sort singular values in descending order and compute the number of nonzero singular values ***/
 
-  // Sort in the scaled frame, where the values are normal: unscaled they can be subnormal, which FTZ/DAZ hardware
-  // compares as zero.
+  // Sort in the scaled frame, where the largest values are normal. A tail whose maximum reads zero holds zeros and
+  // subnormals, which FTZ/DAZ hardware compares as zero: order it from the representation.
   for (Index i = 0; i < diagSize(); i++) {
     Index pos;
     RealScalar maxRemainingSingularValue = m_singularValues.tail(diagSize() - i).maxCoeff(&pos);
-    if (numext::is_exactly_zero(maxRemainingSingularValue)) break;
+    if (numext::is_exactly_zero(maxRemainingSingularValue)) {
+      pos = internal::safe_scaling<RealScalar>::recover_flushed_max_coeff_index(m_singularValues.tail(diagSize() - i));
+      if (numext::is_exactly_zero_no_flush(m_singularValues.coeff(i + pos))) break;
+    }
     if (pos) {
       pos += i;
       std::swap(m_singularValues.coeffRef(i), m_singularValues.coeffRef(pos));
