@@ -54,3 +54,5 @@ CLAUDE.md
 .sccache/
 ccache-stats.log
 .cred_port
+# Measurement output of benchmarks/comparison/run.py.
+benchmarks/comparison/results/
