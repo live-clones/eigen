@@ -573,7 +573,7 @@ struct Assignment<DstXprType, SrcXprType, Functor, ScaledPermutation2Dense> {
   static EIGEN_DEVICE_FUNC void run(
       DstXprType& dst, const SrcXprType& src,
       const internal::assign_op<typename DstXprType::Scalar, typename SrcXprType::Scalar>&) {
-    if ((dst.rows() != src.rows()) || (dst.cols() != src.cols())) dst.resize(src.rows(), src.cols());
+    if (dst.rows() != src.rows() || dst.cols() != src.cols()) dst.resize(src.rows(), src.cols());
     dst.setZero();
     for (Index k = 0; k < src.rows(); ++k) dst.coeffRef(src.indices().coeff(k), k) = src.scales().coeff(k);
   }
@@ -597,6 +597,10 @@ struct Assignment<DstXprType, SrcXprType, Functor, ScaledPermutation2Dense> {
  * Products with a dense matrix: rows (S * X) or columns (X * S) are scaled and permuted, O(n m).
  * evalTo reuses the dense permutation kernel, which handles X aliasing dst, and scales in place afterwards;
  * the accumulating form works on the nested (evaluated once) operand.
+ * scaleAndAddTo evaluates dst += alpha * (lhs * rhs) with alpha a left factor of the product. Scalar
+ * multiplication need not commute, so both kernels keep that operand order: S * X regroups it as
+ * (alpha * v_c) * X(c, j) by associativity; X * S keeps alpha * (X(i, tau(c)) * v_c), as folding alpha into
+ * v_c would move it past the dense coefficient.
  ***************************************************************************/
 
 template <typename Lhs, typename Rhs, int ProductTag>
