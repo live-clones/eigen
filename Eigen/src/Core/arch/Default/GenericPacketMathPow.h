@@ -581,6 +581,13 @@ template <typename Packet>
 struct use_double_word : bool_constant<is_double_word_base<typename unpacket_traits<Packet>::type>::value &&
                                        has_integer_packet<typename real_view<Packet>::type>::value> {};
 
+// packet_traits::HasPow, not is_double_word_base<Scalar>, since a GPU packet's Scalar is plain float/double too
+// and would otherwise wrongly qualify for a generic_pow GPU has no packet implementation of.
+template <typename Packet>
+struct has_generic_pow
+    : bool_constant<packet_traits<typename NumTraits<typename unpacket_traits<Packet>::type>::Real>::HasPow &&
+                    !NumTraits<typename unpacket_traits<Packet>::type>::IsComplex> {};
+
 // Power-of-two scaling of a real packet through its exponent bits. A finite value's magnitude is never let far
 // from one, so the residuals of the double-word arithmetic stay normal (a subnormal residual costs a microcode
 // assist on x86 for every operation that touches it) and no intermediate overflows or underflows.
@@ -1130,8 +1137,7 @@ struct unary_pow_impl<Packet, ScalarExponent, false, true, ExponentIsSigned> {
     // exponent magnitude the same way the floating-point-exponent path does instead of falling through to
     // uncompensated plain squaring for every exponent. Complex, half/bfloat16, and GPU packets have no packet
     // generic_pow, so they keep plain squaring unconditionally.
-    return run_no_double_word(
-        x, exponent, bool_constant < unary_pow::is_double_word_base<Scalar>::value && !NumTraits<Scalar>::IsComplex > ());
+    return run_no_double_word(x, exponent, unary_pow::has_generic_pow<Packet>());
   }
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet run_no_double_word(const Packet& x,
                                                                          const ScalarExponent& exponent, true_type) {
