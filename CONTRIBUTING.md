@@ -146,8 +146,11 @@ This is non-negotiable.
 
 - Eigen code must be **original**, or derived from publicly published **MPL-2.0-compatible** material.
 - **Do not copy** — verbatim, paraphrased, or "translated" to another syntax — from incompatibly-licensed sources (proprietary, NDA-encumbered, prior-employer internal, GPL/AGPL). Paraphrasing is still a derivative work. The same discipline applies to AI-suggested code: cite the source, or rewrite from a known reference and cite that, or drop it. Ideas aren't copyrightable; specific expressions are — learn from the source, write your own, and credit it.
+- **Do not reverse engineer.** Proprietary libraries (Intel oneMKL, NVIDIA's CUDA libraries, Arm Performance Libraries, Apple Accelerate, vendor binaries in general) are black boxes: use their documented interface and measure them as shipped. An idea obtained by looking inside taints the code it informs even when nothing is copied. See [`.agents/provenance.md`](.agents/provenance.md).
 - **Cite published references inline** when they inform an implementation: LAPACK / LAWN, ACM TOMS / SIAM papers, Higham, Golub & van Loan, textbook algorithms, Boost components, vendor application notes — by name (author, year, identifier). A comment or Doxygen `\note` block is enough.
 - When copying permissively-licensed code into an MPL-2.0 file, follow Mozilla's [Guidelines for Developers](https://www.mozilla.org/MPL/2.0/permissive-code-into-mpl.html).
+
+**Link the public documentation behind a change.** We encourage you to link, in the merge request description, the publicly available sources that support your code: the ISA or architecture manual, the vendor's optimization guide or intrinsics reference, the paper or standard an algorithm follows, the documented API a backend relies on. This helps most with hardware-specific optimizations and new features, where the links let a reviewer check the change against its source and see that everything it relies on is public.
 
 ### Copyright and credit
 
