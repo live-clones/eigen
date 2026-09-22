@@ -88,12 +88,16 @@ void real_pow_test() {
   constexpr int min_exponent = std::numeric_limits<Scalar>::min_exponent;
   constexpr int max_exponent = std::numeric_limits<Scalar>::max_exponent;
 
-  // Results in the normal range: correctly rounded against a reference within 1 ulp.
-  for (long n : exponents) {
-    int limit = numext::mini((max_exponent - 2) / int(numext::abs(n)), max_exponent - 2);
-    const std::vector<Scalar> bases = log_uniform_bases<Scalar>(-limit, limit, 64);
-    check_real_pow<Scalar, int>(bases, {n}, 2.0);
-    check_real_pow<Scalar, Scalar>(bases, {n}, 2.0);
+  // Correctly rounded within 2 ulps only holds for double-word repeated squaring; without it, both fallbacks
+  // (plain squaring for small |n|, generic_pow otherwise) are just "a few ulps", exercised elsewhere instead.
+  using Packet = typename internal::packet_traits<Scalar>::type;
+  if (internal::unary_pow::use_double_word<Packet>::value) {
+    for (long n : exponents) {
+      int limit = numext::mini((max_exponent - 2) / int(numext::abs(n)), max_exponent - 2);
+      const std::vector<Scalar> bases = log_uniform_bases<Scalar>(-limit, limit, 64);
+      check_real_pow<Scalar, int>(bases, {n}, 2.0);
+      check_real_pow<Scalar, Scalar>(bases, {n}, 2.0);
+    }
   }
   // Results near the underflow and overflow thresholds: the final scaling rounds once more into the subnormal
   // range, and the reference rounds too.
