@@ -10,14 +10,16 @@
 #include <benchmark/benchmark.h>
 #include <Eigen/Core>
 #include <Eigen/ThreadPool>
+#include <initializer_list>
+#include <thread>
 
 using namespace Eigen;
 
 #ifndef SCALAR
 #define SCALAR float
 #endif
-typedef SCALAR Scalar;
-typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+using Scalar = SCALAR;
+using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
 template <typename A, typename B, typename C>
 EIGEN_DONT_INLINE void gemm(const A& a, const B& b, C& c) {
@@ -30,10 +32,8 @@ static void BM_GemmThreads(benchmark::State& state) {
   const int threads = static_cast<int>(state.range(1));
   ThreadPool pool(threads);
   setGemmThreadPool(&pool);
-#ifdef EIGEN_VECTORIZE_SME
   const int units = nbSmeUnits();
   if (Uncapped) setNbSmeUnits(0);
-#endif
   Mat a = Mat::Random(n, n), b = Mat::Random(n, n), c = Mat::Zero(n, n);
   for (auto _ : state) {
     gemm(a, b, c);
@@ -42,14 +42,26 @@ static void BM_GemmThreads(benchmark::State& state) {
   }
   state.counters["GFLOPS"] =
       benchmark::Counter(2.0 * n * n * n, benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
-#ifdef EIGEN_VECTORIZE_SME
   setNbSmeUnits(units);
-#endif
 }
 
-// clang-format off
-BENCHMARK(BM_GemmThreads<false>)->Name("BM_GemmThreads")
-    ->ArgsProduct({{1024, 2048}, {1, 2, 4, 8, 12}})->UseRealTime();
-BENCHMARK(BM_GemmThreads<true>)->Name("BM_GemmThreads_uncapped")
-    ->ArgsProduct({{1024, 2048}, {4, 8, 12}})->UseRealTime();
-// clang-format on
+// Pool sizes up to the core count: a larger pool only oversubscribes the host.
+static void ThreadArgs(::benchmark::Benchmark* b, std::initializer_list<int> threads) {
+  const int cores = static_cast<int>(std::thread::hardware_concurrency());
+  for (int n : {1024, 2048})
+    for (int t : threads)
+      if (t <= cores || t == 1) b->Args({n, t});
+}
+
+BENCHMARK(BM_GemmThreads<false>)
+    ->Name("BM_GemmThreads")
+    ->Apply([](::benchmark::Benchmark* b) {
+      ThreadArgs(b, {1, 2, 4, 8, 12});
+    })
+    ->UseRealTime();
+BENCHMARK(BM_GemmThreads<true>)
+    ->Name("BM_GemmThreads_uncapped")
+    ->Apply([](::benchmark::Benchmark* b) {
+      ThreadArgs(b, {4, 8, 12});
+    })
+    ->UseRealTime();
