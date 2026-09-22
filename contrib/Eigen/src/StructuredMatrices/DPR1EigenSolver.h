@@ -196,14 +196,15 @@ typename DPR1EigenSolver<RealScalar_>::SpectrumRange DPR1EigenSolver<RealScalar_
   // from the original data, not the normalized secular problem, which has already rounded rho*||z||^2.
   // Double-word arithmetic and its O(u^2) bounds follow Joldes, Muller and Popescu, "Tight and
   // rigorous error bounds for basic building blocks of double-word arithmetic", ACM TOMS 44(2), 2017.
-  if (rho == RealScalar(0)) return SpectrumRange::Representable;
+  if (numext::is_exactly_zero_no_flush(rho)) return SpectrumRange::Representable;
 
   EIGEN_USING_STD(frexp)
   EIGEN_USING_STD(ldexp)
   const RealScalar highest = (std::numeric_limits<RealScalar>::max)();
   const RealScalar highestHalf = highest / RealScalar(2);
+  // A subnormal rho reaches this classification with a huge z; read its exponent from the representation.
   int rhoExponent = 0;
-  const RealScalar rhoFraction = frexp(rho, &rhoExponent);
+  const RealScalar rhoFraction = internal::frexp_preserving_subnormals(rho, rhoExponent);
   DoubleWord sum{RealScalar(0), RealScalar(0)};
   bool exactSumValid = true;
   Index active = 0;
@@ -325,9 +326,14 @@ DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const Vector
     return *this;
   }
 
-  const bool negated = rho < RealScalar(0);
+  // rho's sign and exponent come from its representation: a comparison reads a negative subnormal as zero under DAZ,
+  // and the C library's frexp can flush it. rhoFrac is in [0.5, 1) or 0, and rhoW = |rho| is rebuilt exactly.
+  int rhoExp = 0;
+  RealScalar rhoFrac = internal::frexp_preserving_subnormals(rho, rhoExp);
+  const bool negated = rhoFrac < RealScalar(0);
+  if (negated) rhoFrac = -rhoFrac;
   VectorType dW = negated ? VectorType(-d) : d;
-  RealScalar rhoW = negated ? -rho : rho;
+  RealScalar rhoW = internal::ldexp_preserving_subnormals(rhoFrac, rhoExp);
 
   // pi maps each sorted working index to its input row. A comparison reads a
   // subnormal pole as zero under flush-to-zero, so a diagonal below the recovery
@@ -363,8 +369,6 @@ DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const Vector
   if (znorm > RealScalar(0)) zs /= znorm;
   // Store rho ||z||^2 = rhoMant * 2^rhoTotExp without materializing a possibly
   // overflowing product; each mantissa factor lies in [1/4,1).
-  int rhoExp = 0;
-  const RealScalar rhoFrac = frexp(rhoW, &rhoExp);
   int rhoAdj = 0;
   const RealScalar rhoMant = frexp((rhoFrac * znormFrac) * znormFrac, &rhoAdj);  // in [0.5, 1), or 0
   // Each frexp exponent is bounded by the scalar's exponent range, but their
