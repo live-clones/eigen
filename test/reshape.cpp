@@ -346,6 +346,17 @@ void reshape_vector_order(RowsType rows, ColsType cols) {
   VERIFY_IS_EQUAL(destination, vector);
   destination.template reshaped<Order>(rows, cols) += rowExpected;
   VERIFY_IS_EQUAL(destination, 2 * vector);
+  auto reversed = destination.reverse().template reshaped<Order>(rows, cols);
+  using AssignmentTraits =
+      internal::copy_using_evaluator_traits<internal::evaluator<decltype(reversed)>, internal::evaluator<RowMatrix>,
+                                            internal::assign_op<Scalar, Scalar>>;
+  VERIFY(!AssignmentTraits::Vectorized);
+  reversed = rowExpected;
+  VERIFY_IS_EQUAL(destination, vector.reverse());
+  reversed += rowExpected;
+  VERIFY_IS_EQUAL(destination, 2 * vector.reverse());
+  reversed -= rowExpected;
+  VERIFY_IS_EQUAL(destination, vector.reverse());
 }
 
 template <typename Scalar, int Order>
@@ -372,6 +383,37 @@ void reshape_block(const BlockType& M) {
   for (Index j = 0; j < cols; ++j) {
     VERIFY_IS_EQUAL(dense.reshaped(rows, cols).col(j), M.reshaped(rows, cols).col(j));
   }
+}
+
+void reshape_reversed_swap() {
+  constexpr int packet_size = internal::packet_traits<double>::size;
+  using VectorType = Matrix<double, 1, 3 * packet_size>;
+  using MatrixType = Matrix<double, 3, packet_size, packet_size == 1 ? ColMajor : RowMajor>;
+  VectorType destination;
+  MatrixType source;
+  for (Index i = 0; i < destination.size(); ++i) {
+    destination(i) = double(i + 1);
+    source.data()[i] = double(i + 101);
+  }
+  const VectorType original = destination;
+  const MatrixType originalSource = source;
+  auto view = destination.reverse().reshaped<RowMajor>(fix<3>, fix<packet_size>);
+  using SwapTraits =
+      internal::copy_using_evaluator_traits<internal::evaluator<decltype(view)>, internal::evaluator<MatrixType>,
+                                            internal::swap_assign_op<double>>;
+  using AssignTraits =
+      internal::copy_using_evaluator_traits<internal::evaluator<decltype(view)>, internal::evaluator<MatrixType>,
+                                            internal::assign_op<double, double>>;
+  VERIFY(!AssignTraits::Vectorized);
+  if (internal::packet_traits<double>::Vectorizable && EIGEN_UNALIGNED_VECTORIZE) VERIFY(SwapTraits::Vectorized);
+  view.swap(source);
+  for (Index i = 0; i < destination.size(); ++i) {
+    VERIFY_IS_EQUAL(destination(i), originalSource.data()[destination.size() - 1 - i]);
+    VERIFY_IS_EQUAL(source.data()[i], original(destination.size() - 1 - i));
+  }
+  source.swap(view);
+  VERIFY_IS_EQUAL(destination, original);
+  VERIFY_IS_EQUAL(source, originalSource);
 }
 
 EIGEN_DECLARE_TEST(reshape) {
@@ -402,6 +444,7 @@ EIGEN_DECLARE_TEST(reshape) {
   CALL_SUBTEST_8((reshape_vector_orders<double, AutoOrder>()));
   CALL_SUBTEST_8((reshape_vector_orders<int, ColMajor>()));
   CALL_SUBTEST_8((reshape_vector_orders<int, RowMajor>()));
+  CALL_SUBTEST_8(reshape_reversed_swap());
 
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_7(reshape_copies<float>(17, 13));
