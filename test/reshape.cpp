@@ -225,10 +225,17 @@ void check_reshaped_evaluator_flags() {
                LinearAccessBit);
   STATIC_CHECK(int(internal::evaluator<Reshaped<Sum, Dynamic, Dynamic, ColMajor> >::Alignment) ==
                int(internal::evaluator<Sum>::Alignment));
-  // A vector-shaped expression source forwards in either enumeration order.
+  // A vector source does not make a matrix-shaped result's storage order immaterial.
   typedef CwiseBinaryOp<internal::scalar_sum_op<Scalar, Scalar>, const Vec, const Vec> VecSum;
-  STATIC_CHECK((int(internal::evaluator<Reshaped<VecSum, Dynamic, Dynamic, RowMajor> >::Flags) & PacketAccessBit) ==
+  STATIC_CHECK((int(internal::evaluator<Reshaped<VecSum, Dynamic, Dynamic, RowMajor>>::Flags) & PacketAccessBit) == 0);
+  STATIC_CHECK((int(internal::evaluator<Reshaped<VecSum, Dynamic, Dynamic, RowMajor>>::Flags) & LinearAccessBit) == 0);
+  STATIC_CHECK((int(internal::evaluator<Reshaped<VecSum, Dynamic, Dynamic, ColMajor>>::Flags) & PacketAccessBit) ==
                int(BasePacket));
+  STATIC_CHECK((int(internal::evaluator<Reshaped<VecSum, 1, Dynamic, ColMajor>>::Flags) & PacketAccessBit) ==
+               int(BasePacket));
+  using RowVec = Matrix<Scalar, 1, Dynamic, RowMajor>;
+  STATIC_CHECK((int(internal::evaluator<Reshaped<RowVec, Dynamic, Dynamic, ColMajor>>::Flags) &
+                (LinearAccessBit | PacketAccessBit)) == 0);
 
   // No packet access: cross-order reshape (no direct access),
   STATIC_CHECK((int(internal::evaluator<Reshaped<Mat, Dynamic, Dynamic, RowMajor> >::Flags) & PacketAccessBit) == 0);
@@ -299,6 +306,58 @@ void reshape_copies(Index rows, Index cols) {
   }
 }
 
+template <int Order, typename VectorType, typename RowsType, typename ColsType>
+void reshape_vector_order(RowsType rows, ColsType cols) {
+  using Scalar = typename VectorType::Scalar;
+  using ColMatrix = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
+  using RowMatrix = Matrix<Scalar, Dynamic, Dynamic, RowMajor>;
+  const Index nrows = internal::get_runtime_value(rows), ncols = internal::get_runtime_value(cols);
+  VectorType vector(nrows * ncols);
+  for (Index k = 0; k < vector.size(); ++k) vector(k) = Scalar(k + 1);
+  ColMatrix expected(nrows, ncols);
+  const bool rowOrder = Order == RowMajor || (Order == AutoOrder && VectorType::IsRowMajor);
+  for (Index j = 0; j < ncols; ++j)
+    for (Index i = 0; i < nrows; ++i) expected(i, j) = Scalar(1 + (rowOrder ? i * ncols + j : j * nrows + i));
+
+  const VectorType& source = vector;
+  const auto view = source.template reshaped<Order>(rows, cols);
+  VERIFY_IS_EQUAL(ColMatrix(view), expected);
+  VERIFY_IS_EQUAL(RowMatrix(view), expected);
+  VERIFY_IS_EQUAL(ColMatrix(view.transpose()), expected.transpose());
+  VERIFY_IS_EQUAL(RowMatrix(view.transpose()), expected.transpose());
+  if (Order != AutoOrder) {
+    VERIFY_IS_EQUAL(ColMatrix(source.transpose().template reshaped<Order>(rows, cols).transpose()),
+                    expected.transpose());
+    VERIFY_IS_EQUAL(RowMatrix(source.transpose().template reshaped<Order>(rows, cols).transpose()),
+                    expected.transpose());
+  }
+  VERIFY_IS_EQUAL(ColMatrix((source + source).template reshaped<Order>(rows, cols)), 2 * expected);
+  VERIFY_IS_EQUAL(RowMatrix((source + source).template reshaped<Order>(rows, cols)), 2 * expected);
+  for (Index j = 0; j < ncols; ++j)
+    for (Index i = 0; i < nrows; ++i) VERIFY_IS_EQUAL(view.coeff(i, j), expected(i, j));
+  if (Order == ColMajor) VERIFY_IS_EQUAL(ColMatrix(source.reshaped(rows, cols).transpose()), expected.transpose());
+
+  VectorType destination(vector.size());
+  destination.template reshaped<Order>(rows, cols) = expected;
+  VERIFY_IS_EQUAL(destination, vector);
+  const RowMatrix rowExpected = expected;
+  destination.setZero();
+  destination.template reshaped<Order>(rows, cols) = rowExpected;
+  VERIFY_IS_EQUAL(destination, vector);
+  destination.template reshaped<Order>(rows, cols) += rowExpected;
+  VERIFY_IS_EQUAL(destination, 2 * vector);
+}
+
+template <typename Scalar, int Order>
+void reshape_vector_orders() {
+  reshape_vector_order<Order, Matrix<Scalar, Dynamic, 1>>(3, 2);
+  reshape_vector_order<Order, Matrix<Scalar, 1, Dynamic>>(3, 2);
+  reshape_vector_order<Order, Matrix<Scalar, Dynamic, 1>>(5, 7);
+  reshape_vector_order<Order, Matrix<Scalar, 1, Dynamic>>(5, 7);
+  reshape_vector_order<Order, Matrix<Scalar, 6, 1>>(fix<3>, fix<2>);
+  reshape_vector_order<Order, Matrix<Scalar, 1, 6>>(fix<3>, fix<2>);
+}
+
 template <typename BlockType>
 void reshape_block(const BlockType& M) {
   auto dense = M.eval();
@@ -335,6 +394,14 @@ EIGEN_DECLARE_TEST(reshape) {
   CALL_SUBTEST_6(check_reshaped_evaluator_flags<float>());
   CALL_SUBTEST_6(check_reshaped_evaluator_flags<double>());
   CALL_SUBTEST_6(check_reshaped_evaluator_flags<int>());
+
+  CALL_SUBTEST_8((reshape_vector_orders<float, ColMajor>()));
+  CALL_SUBTEST_8((reshape_vector_orders<float, RowMajor>()));
+  CALL_SUBTEST_8((reshape_vector_orders<double, ColMajor>()));
+  CALL_SUBTEST_8((reshape_vector_orders<double, RowMajor>()));
+  CALL_SUBTEST_8((reshape_vector_orders<double, AutoOrder>()));
+  CALL_SUBTEST_8((reshape_vector_orders<int, ColMajor>()));
+  CALL_SUBTEST_8((reshape_vector_orders<int, RowMajor>()));
 
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_7(reshape_copies<float>(17, 13));
