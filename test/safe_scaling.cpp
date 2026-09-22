@@ -494,9 +494,39 @@ void check_recover_flushed_max_coeff() {
   VERIFY(same_bits(Scaling::recover_flushed_max_coeff(Matrix<Scalar, 2, 2>::Zero(), RealScalar(0)), RealScalar(0)));
 }
 
+// Each flush-to-zero mode the host selects does what its name says, read from the results of two probes through the
+// representation, since a comparison under DAZ reads any subnormal as zero; the modes restore the ambient state.
+template <typename Scalar>
+void check_flush_to_zero_modes() {
+  using Binary = internal::binary_floating_point_traits<Scalar>;
+  const auto resultsFlushed = []() { return Binary::bits(underflowProbe<Scalar>()) == 0; };
+  const auto inputsFlushed = []() { return Binary::bits(subnormalInputProbe<Scalar>()) == 0; };
+  const bool resultsBefore = resultsFlushed(), inputsBefore = inputsFlushed();
+  int modes = 0;
+  forEachFlushToZeroMode([&](FlushToZeroMode mode) {
+    ++modes;
+    VERIFY_IS_EQUAL(resultsFlushed(), flushToZeroModeIncludes(mode, FlushToZeroMode::Results));
+    VERIFY_IS_EQUAL(inputsFlushed(), flushToZeroModeIncludes(mode, FlushToZeroMode::Inputs));
+    VERIFY_IS_EQUAL(ScopedFlushToZero::hardwareFlushesSubnormalInputs(),
+                    flushToZeroModeIncludes(mode, FlushToZeroMode::Inputs));
+  });
+  VERIFY(modes >= 1);
+  VERIFY_IS_EQUAL(resultsFlushed(), resultsBefore);
+  VERIFY_IS_EQUAL(inputsFlushed(), inputsBefore);
+  // The default request flushes at least results, as it always did.
+  {
+    const ScopedFlushToZero flushToZero;
+    if (flushToZero.isSupported()) {
+      VERIFY(flushToZeroModeIncludes(flushToZero.mode(), FlushToZeroMode::Results));
+      VERIFY(resultsFlushed());
+    }
+  }
+  VERIFY_IS_EQUAL(resultsFlushed(), resultsBefore);
+}
+
 // value * 2^exponent through integer significands agrees bit for bit with the correctly rounded ldexp for every input
-// class and every exponent that changes the result, and keeps doing so under FTZ/DAZ, where the references are taken
-// beforehand. Beyond the exponent range it saturates to the signed zero or infinity ldexp returns.
+// class and every exponent that changes the result, and keeps doing so in every flush-to-zero mode, where the
+// references are taken beforehand. Beyond the exponent range it saturates to the signed zero or infinity ldexp returns.
 template <typename Scalar>
 void check_scale_binary_by_exponent() {
   using Binary = internal::binary_floating_point_traits<Scalar>;
@@ -608,9 +638,7 @@ void check_scale_binary_by_exponent() {
       }
     }
   };
-  check();
-  ScopedFlushToZero flushToZero;
-  check();
+  forEachFlushToZeroMode([&](FlushToZeroMode) { check(); });
 }
 
 // The scalars without a representation path take the C library.
@@ -628,6 +656,8 @@ void check_preserving_subnormals_fallbacks() {
 }
 
 EIGEN_DECLARE_TEST(safe_scaling) {
+  CALL_SUBTEST(check_flush_to_zero_modes<float>());
+  CALL_SUBTEST(check_flush_to_zero_modes<double>());
   CALL_SUBTEST(check_scale_binary_by_exponent<float>());
   CALL_SUBTEST(check_scale_binary_by_exponent<double>());
   CALL_SUBTEST(check_preserving_subnormals_fallbacks());

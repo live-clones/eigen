@@ -743,16 +743,14 @@ void test_bccb_flushed_subnormal_rhs(Index n2, Index n1) {
   for (Index i = 0; i < N; ++i) x(i) = bccb_subnormal_entry<Scalar>::run(significand(), significand());
   const int k = 40;
   const Vec xs = x.unaryExpr(internal::scale_by_exponent_op<Real>(k));
+  const Vec ys = C * xs;
+  const Vec expected = ys.unaryExpr(internal::scale_by_exponent_op<Real>(-k));
+  VERIFY(expected.allFinite());
 
-  const auto check = [&]() {
+  forEachFlushToZeroMode([&](FlushToZeroMode) {
     const Vec y = C * x;
-    VERIFY(y.allFinite());
-    const Vec ys = C * xs;
-    VERIFY_IS_EQUAL(y, Vec(ys.unaryExpr(internal::scale_by_exponent_op<Real>(-k))));
-  };
-  check();
-  ScopedFlushToZero flushToZero;
-  check();
+    VERIFY_IS_EQUAL(y, expected);
+  });
 }
 
 // A single 2^-e frame factor is itself subnormal once the frame exceeds the
