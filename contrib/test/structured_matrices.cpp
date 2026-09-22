@@ -1720,7 +1720,7 @@ struct structured_test_entry<std::complex<Real>> {
 
 // structured_exponent_bound() of an all-subnormal vector and
 // structured_ldexp_entries() into and out of the subnormal range agree with
-// frexp and ldexp bit for bit, plainly and under flush-to-zero; the references
+// frexp and ldexp bit for bit, in every flush-to-zero mode; the references
 // are taken beforehand, where ldexp itself would flush.
 template <typename Scalar>
 void test_structured_flushed_subnormal_scaling() {
@@ -1775,9 +1775,7 @@ void test_structured_flushed_subnormal_scaling() {
     internal::structured_ldexp_entries(shrunk, down, normalBound);
     for (Index i = 0; i < n; ++i) VERIFY(structured_same_bits(shrunk(i), expectedDown(i)));
   };
-  check();
-  ScopedFlushToZero flushToZero;
-  check();
+  forEachFlushToZeroMode([&](FlushToZeroMode) { check(); });
 }
 
 EIGEN_DECLARE_TEST(structured_matrices) {

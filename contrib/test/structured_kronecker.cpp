@@ -1796,9 +1796,7 @@ void test_kron_determinant_flushed_subnormal() {
     close(makeKroneckerOperator(diagonalA, b).determinant(), expectedDiagonal);
     close(makeKroneckerOperator(b, diagonalA).determinant(), expectedDiagonal);
   };
-  check();
-  ScopedFlushToZero flushToZero;
-  check();
+  forEachFlushToZeroMode([&](FlushToZeroMode) { check(); });
 }
 
 // Every entry of m is a signed subnormal significand * denorm_min. A factor gets
@@ -1855,9 +1853,7 @@ void test_kron_determinant_flushed_pivot() {
     close(makeKroneckerOperator(sparseA, bMat).determinant());
     close(makeKroneckerOperator(diagonalA, bMat).determinant());
   };
-  check();
-  ScopedFlushToZero flushToZero;
-  check();
+  forEachFlushToZeroMode([&](FlushToZeroMode) { check(); });
 }
 
 // solve() runs on data normalized by exponent bounds, so an all-subnormal
@@ -1886,20 +1882,17 @@ void test_kron_solve_flushed_subnormal() {
       sparseAs.insert(i, j) = As(i, j);
     }
   const DiagonalMatrix<Scalar, Dynamic> diagonalB(B.diagonal()), diagonalBs(Bs.diagonal());
+  const Mat expectedX = makeKroneckerOperator(As, Bs).solve(rhss).unaryExpr(up);
+  const Mat expectedY = makeKroneckerOperator(sparseAs, diagonalBs).solve(rhss).unaryExpr(up);
+  VERIFY(expectedX.allFinite());
+  VERIFY(expectedY.allFinite());
 
-  const auto check = [&]() {
+  forEachFlushToZeroMode([&](FlushToZeroMode) {
     const Mat x = makeKroneckerOperator(A, B).solve(rhs);
-    const Mat xs = makeKroneckerOperator(As, Bs).solve(rhss);
-    VERIFY(x.allFinite());
-    VERIFY_IS_EQUAL(x, Mat(xs.unaryExpr(up)));
+    VERIFY_IS_EQUAL(x, expectedX);
     const Mat y = makeKroneckerOperator(sparseA, diagonalB).solve(rhs);
-    const Mat ys = makeKroneckerOperator(sparseAs, diagonalBs).solve(rhss);
-    VERIFY(y.allFinite());
-    VERIFY_IS_EQUAL(y, Mat(ys.unaryExpr(up)));
-  };
-  check();
-  ScopedFlushToZero flushToZero;
-  check();
+    VERIFY_IS_EQUAL(y, expectedY);
+  });
 }
 
 template <typename ProductScalar, typename Lhs, typename Rhs>

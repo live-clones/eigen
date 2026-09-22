@@ -271,17 +271,15 @@ void bdcsvd_flushed_subnormal_matrix(Index rows, Index cols) {
   const MatrixType m = svd_subnormal_fixture<MatrixType>(rows, cols);
   const int k = 60;
   const MatrixType ms = m.unaryExpr(internal::scale_by_exponent_op<RealScalar>(k));
-  const auto check = [&]() {
-    BDCSVD<MatrixType, ComputeFullU | ComputeFullV> svd, scaled;
+  BDCSVD<MatrixType, ComputeFullU | ComputeFullV> scaled;
+  scaled.setSwitchSize(8);
+  scaled.compute(ms);
+  forEachFlushToZeroMode([&](FlushToZeroMode) {
+    BDCSVD<MatrixType, ComputeFullU | ComputeFullV> svd;
     svd.setSwitchSize(8);
-    scaled.setSwitchSize(8);
     svd.compute(m);
-    scaled.compute(ms);
-    svd_check_flushed_subnormal(svd, scaled, ms, k);
-  };
-  check();
-  ScopedFlushToZero flushToZero;
-  check();
+    svd_check_flushed_subnormal(svd, scaled, m, k);
+  });
 }
 
 // The bidiagonal entry point, on both sides of the switch size: divide and conquer above it, JacobiSVD below.
@@ -293,20 +291,18 @@ void bdcsvd_flushed_subnormal_bidiagonal(Index n, int switchSize) {
   const int k = 60;
   const Vec ds = diagonal.unaryExpr(internal::scale_by_exponent_op<RealScalar>(k));
   const Vec ss = superdiagonal.unaryExpr(internal::scale_by_exponent_op<RealScalar>(k));
-  Mat Bs = Mat::Zero(n, n);
-  Bs.diagonal() = ds;
-  Bs.diagonal(1) = ss;
-  const auto check = [&]() {
-    BDCSVD<Mat, ComputeFullU | ComputeFullV> svd, scaled;
+  Mat B = Mat::Zero(n, n);
+  B.diagonal() = diagonal;
+  B.diagonal(1) = superdiagonal;
+  BDCSVD<Mat, ComputeFullU | ComputeFullV> scaled;
+  scaled.setSwitchSize(switchSize);
+  scaled.compute(ds, ss);
+  forEachFlushToZeroMode([&](FlushToZeroMode) {
+    BDCSVD<Mat, ComputeFullU | ComputeFullV> svd;
     svd.setSwitchSize(switchSize);
-    scaled.setSwitchSize(switchSize);
     svd.compute(diagonal, superdiagonal);
-    scaled.compute(ds, ss);
-    svd_check_flushed_subnormal(svd, scaled, Bs, k);
-  };
-  check();
-  ScopedFlushToZero flushToZero;
-  check();
+    svd_check_flushed_subnormal(svd, scaled, B, k);
+  });
 }
 
 void bdcsvd_power_of_two_scaling() {

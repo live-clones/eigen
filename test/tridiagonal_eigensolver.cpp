@@ -741,9 +741,9 @@ void tridiagonal_eigensolver_subnormal_staged() {
   }
 }
 
-// d and e against their power-of-two scaled copies, plainly and under flush-to-zero: eigenvalues to the bisection
-// error plus the quantization of the range they are stored in, eigenvectors (invariant under the scaling) against
-// the scaled residual.
+// d and e against their power-of-two scaled copies, computed beforehand, in every flush-to-zero mode: eigenvalues to
+// the bisection error plus the quantization of the range they are stored in, eigenvectors (invariant under the
+// scaling) against the scaled residual.
 template <typename RealScalar>
 void tridiagonal_check_scaled_pair(const Matrix<RealScalar, Dynamic, 1>& d, const Matrix<RealScalar, Dynamic, 1>& e,
                                    int k) {
@@ -755,12 +755,13 @@ void tridiagonal_check_scaled_pair(const Matrix<RealScalar, Dynamic, 1>& d, cons
   const VectorType ds = d.unaryExpr(internal::scale_by_exponent_op<RealScalar>(k));
   const VectorType es = e.unaryExpr(internal::scale_by_exponent_op<RealScalar>(k));
   const MatrixType Ts = dense_symmetric_tridiag(ds, es);
+  TridiagonalEigenSolver<RealScalar> ref;
+  ref.compute(ds, es);
+  VERIFY_IS_EQUAL(ref.info(), Success);
 
-  const auto check = [&]() {
-    TridiagonalEigenSolver<RealScalar> sub, ref;
-    ref.compute(ds, es);
+  forEachFlushToZeroMode([&](FlushToZeroMode) {
+    TridiagonalEigenSolver<RealScalar> sub;
     sub.compute(d, e);
-    VERIFY_IS_EQUAL(ref.info(), Success);
     VERIFY_IS_EQUAL(sub.info(), Success);
     const VectorType up = sub.eigenvalues().unaryExpr(internal::scale_by_exponent_op<RealScalar>(k));
     const RealScalar radius = ref.eigenvalues().cwiseAbs().maxCoeff();
@@ -773,10 +774,7 @@ void tridiagonal_check_scaled_pair(const Matrix<RealScalar, Dynamic, 1>& d, cons
     VERIFY_IS_UNITARY(V);
     VERIFY((Ts * V - V * ref.eigenvalues().asDiagonal()).cwiseAbs().maxCoeff() <=
            RealScalar(64) * RealScalar(n) * eps * radius);
-  };
-  check();
-  ScopedFlushToZero flushToZero;
-  check();
+  });
 }
 
 // All-subnormal d and e, assembled from significands without floating-point arithmetic, which a SIMD unit that
