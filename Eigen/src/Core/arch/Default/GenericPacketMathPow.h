@@ -554,14 +554,12 @@ struct is_double_word_base
 template <typename RealScalar>
 struct is_double_word_base<std::complex<RealScalar>> : is_double_word_base<RealScalar> {};
 
-// It also needs the operations of a full floating-point packet implementation: scaling through the exponent bits
-// (an integer packet, shifts, reinterpretation), pldexp, ordered comparisons and predux_any. The integer_packet
-// typedef marks the packet types that provide them; scalars have one, the GPU packets do not. A complex packet
-// is judged by its real view, a complex scalar by its real type.
+// Whether exponent_bits_shift_right/exponent_bits_sub below are available, not whether integer_packet itself
+// is: Packet4d overrides those two operations for AVX without AVX2 further down without one.
 template <typename Packet, typename = void>
-struct has_integer_packet : false_type {};
+struct has_exponent_bit_ops : false_type {};
 template <typename Packet>
-struct has_integer_packet<Packet, void_t<typename unpacket_traits<Packet>::integer_packet>> : true_type {};
+struct has_exponent_bit_ops<Packet, void_t<typename unpacket_traits<Packet>::integer_packet>> : true_type {};
 
 template <typename Packet, bool IsComplex = NumTraits<typename unpacket_traits<Packet>::type>::IsComplex,
           bool IsScalar = is_scalar<Packet>::value>
@@ -579,7 +577,47 @@ struct real_view<Scalar, true, true> {
 
 template <typename Packet>
 struct use_double_word : bool_constant<is_double_word_base<typename unpacket_traits<Packet>::type>::value &&
-                                       has_integer_packet<typename real_view<Packet>::type>::value> {};
+                                       has_exponent_bit_ops<typename real_view<Packet>::type>::value> {};
+
+// The two integer_packet operations binary_exponent_scaling::inverse_scale needs on a packet's raw bits: a
+// fixed-amount right shift and a lane-wise subtraction. Swappable per Packet so a type can supply them without
+// a real integer_packet, the way Packet4d does below for AVX without AVX2.
+template <typename Packet>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet exponent_bits_shift_right(const Packet& bits) {
+  using PacketI = typename unpacket_traits<Packet>::integer_packet;
+  constexpr int kMantissaBits = numext::numeric_limits<typename unpacket_traits<Packet>::type>::digits - 1;
+  return preinterpret<Packet>(plogical_shift_right<kMantissaBits>(preinterpret<PacketI>(bits)));
+}
+template <typename Packet>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet exponent_bits_sub(const Packet& a_bits, const Packet& b_bits) {
+  using PacketI = typename unpacket_traits<Packet>::integer_packet;
+  return preinterpret<Packet>(psub(preinterpret<PacketI>(a_bits), preinterpret<PacketI>(b_bits)));
+}
+
+#if defined(EIGEN_VECTORIZE_AVX) && !defined(EIGEN_VECTORIZE_AVX2)
+// AVX has no 256-bit integer shift or subtract -- those need AVX2 -- but SSE2's 128-bit ones, present on every
+// x86-64 target, suffice: split the bit pattern into its two 128-bit halves, operate on each with SSE2, and
+// reassemble. These are the only two integer_packet operations binary_exponent_scaling<Packet4d> needs, so
+// Packet4d gets double-word pow accuracy here without a real Packet4l.
+template <>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet4d exponent_bits_shift_right<Packet4d>(const Packet4d& bits) {
+  __m256i i = _mm256_castpd_si256(bits);
+  __m128i lo = _mm_srli_epi64(_mm256_extractf128_si256(i, 0), 52);
+  __m128i hi = _mm_srli_epi64(_mm256_extractf128_si256(i, 1), 52);
+  return _mm256_castsi256_pd(_mm256_insertf128_si256(_mm256_castsi128_si256(lo), hi, 1));
+}
+template <>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet4d exponent_bits_sub<Packet4d>(const Packet4d& a_bits,
+                                                                           const Packet4d& b_bits) {
+  __m256i ai = _mm256_castpd_si256(a_bits);
+  __m256i bi = _mm256_castpd_si256(b_bits);
+  __m128i lo = _mm_sub_epi64(_mm256_extractf128_si256(ai, 0), _mm256_extractf128_si256(bi, 0));
+  __m128i hi = _mm_sub_epi64(_mm256_extractf128_si256(ai, 1), _mm256_extractf128_si256(bi, 1));
+  return _mm256_castsi256_pd(_mm256_insertf128_si256(_mm256_castsi128_si256(lo), hi, 1));
+}
+template <>
+struct has_exponent_bit_ops<Packet4d> : true_type {};
+#endif
 
 // packet_traits::HasPow, not is_double_word_base<Scalar>, since a GPU packet's Scalar is plain float/double too
 // and would otherwise wrongly qualify for a generic_pow GPU has no packet implementation of.
@@ -594,7 +632,6 @@ struct has_generic_pow
 template <typename Packet>
 struct binary_exponent_scaling {
   using Scalar = typename unpacket_traits<Packet>::type;
-  using PacketI = typename unpacket_traits<Packet>::integer_packet;
   using Bits = std::make_unsigned_t<typename make_integer<Scalar>::type>;
   static constexpr int kMantissaBits = numext::numeric_limits<Scalar>::digits - 1;
   static constexpr int kBias = numext::numeric_limits<Scalar>::max_exponent - 1;
@@ -607,12 +644,12 @@ struct binary_exponent_scaling {
   // target [2, 4) rather than [1, 2) keeps 2^-e a normal number for every x.
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet inverse_scale(const Packet& x, Packet& e) {
     Packet exponent_bits = pand(x, pset1frombits<Packet>(kExponentMask));
-    PacketI biased = plogical_shift_right<kMantissaBits>(preinterpret<PacketI>(exponent_bits));
+    Packet biased = exponent_bits_shift_right(exponent_bits);
     Packet magic = pset1frombits<Packet>(kMagicBits);
-    e = psub(por(preinterpret<Packet>(biased), magic), padd(magic, pset1<Packet>(Scalar(kBias + 1))));
+    e = psub(por(biased, magic), padd(magic, pset1<Packet>(Scalar(kBias + 1))));
     // 2^(bias + 1 - E) has biased exponent 2 * bias + 1 - E, in [1, 2 * bias] for a normal x.
-    PacketI two_bias_plus_one = preinterpret<PacketI>(pset1frombits<Packet>(Bits(2 * kBias + 1) << kMantissaBits));
-    return preinterpret<Packet>(psub(two_bias_plus_one, preinterpret<PacketI>(exponent_bits)));
+    Packet two_bias_plus_one = pset1frombits<Packet>(Bits(2 * kBias + 1) << kMantissaBits);
+    return exponent_bits_sub(two_bias_plus_one, exponent_bits);
   }
 
   // x * 2^e for the scaled power, whose |x| lies within 2^(+-62): beyond the clamp the result is infinite or zero
