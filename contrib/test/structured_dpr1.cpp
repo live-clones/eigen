@@ -569,21 +569,67 @@ void test_dpr1_flushed_subnormal_diagonal() {
   const int k = 2 * ((digits + 8) / 2);
   const Vec ds = d.unaryExpr(internal::scale_by_exponent_op<RealScalar>(k));
   const Vec zs = z.unaryExpr(internal::scale_by_exponent_op<RealScalar>(k / 2));
+  const DPR1EigenSolver<RealScalar> scaled(ds, RealScalar(1), zs);
+  VERIFY(scaled.info() == Success);
 
-  const auto check = [&]() {
+  forEachFlushToZeroMode([&](FlushToZeroMode) {
     const DPR1EigenSolver<RealScalar> solver(d, RealScalar(1), z);
-    const DPR1EigenSolver<RealScalar> scaled(ds, RealScalar(1), zs);
     VERIFY(solver.info() == Success);
-    VERIFY(scaled.info() == Success);
     for (Index i = 0; i < n; ++i) {
       VERIFY_IS_EQUAL(Binary::bits(solver.eigenvalues()(i)),
                       Binary::bits(internal::scale_binary_by_exponent(scaled.eigenvalues()(i), -k)));
     }
     VERIFY_IS_EQUAL(solver.eigenvectors(), scaled.eigenvectors());
-  };
-  check();
-  ScopedFlushToZero flushToZero;
-  check();
+  });
+}
+
+// A subnormal rho, whose sign a comparison reads as zero under DAZ and whose exponent the C library's frexp can
+// flush. With d = 0 and z = 2^E, the eigenvalue is rho 2^(2E) exactly; with E = (digits - min_exponent) / 2 that is
+// +-2^(2E + min_exponent - digits) for rho = +-denorm_min. A subnormal rho of several bits then compares against the
+// same problem with rho 2^(2E) and z 2^-E, which the normalization by powers of two maps to the same secular
+// equation, bit for bit.
+template <typename RealScalar>
+void test_dpr1_subnormal_rho() {
+  using Binary = internal::binary_floating_point_traits<RealScalar>;
+  using Bits = typename Binary::Bits;
+  using Vec = Matrix<RealScalar, Dynamic, 1>;
+  constexpr int digits = std::numeric_limits<RealScalar>::digits;
+  constexpr int minExponent = std::numeric_limits<RealScalar>::min_exponent;
+  constexpr int E = (digits - minExponent) / 2;
+  const RealScalar denormMin = numext::bit_cast<RealScalar>(Bits(1));
+  const RealScalar expected = numext::ldexp(RealScalar(1), 2 * E + minExponent - digits);
+  Vec d1(1), z1(1);
+  d1 << RealScalar(0);
+  z1 << numext::ldexp(RealScalar(1), E);
+
+  const Index n = 3;
+  Vec d(n), z(n);
+  d << RealScalar(-1), RealScalar(0.5), RealScalar(2);
+  z << numext::ldexp(RealScalar(1.25), E), -numext::ldexp(RealScalar(0.75), E), numext::ldexp(RealScalar(1.5), E);
+  const RealScalar rho = numext::bit_cast<RealScalar>(Bits(0x5a) << (digits - 10));
+  const Vec zDown = z.unaryExpr(internal::scale_by_exponent_op<RealScalar>(-E));
+  const RealScalar rhoUp = internal::scale_binary_by_exponent(rho, 2 * E);
+  VERIFY(rhoUp >= (std::numeric_limits<RealScalar>::min)());
+  const DPR1EigenSolver<RealScalar> positive(d, rhoUp, zDown), negative(d, -rhoUp, zDown);
+  VERIFY(positive.info() == Success);
+  VERIFY(negative.info() == Success);
+
+  forEachFlushToZeroMode([&](FlushToZeroMode) {
+    for (const bool negated : {false, true}) {
+      const DPR1EigenSolver<RealScalar> single(d1, negated ? -denormMin : denormMin, z1);
+      VERIFY(single.info() == Success);
+      VERIFY_IS_EQUAL(Binary::bits(single.eigenvalues()(0)), Binary::bits(negated ? -expected : expected));
+      VERIFY_IS_EQUAL(numext::abs(single.eigenvectors()(0, 0)), RealScalar(1));
+
+      const DPR1EigenSolver<RealScalar> solver(d, negated ? -rho : rho, z);
+      const DPR1EigenSolver<RealScalar>& reference = negated ? negative : positive;
+      VERIFY(solver.info() == Success);
+      for (Index i = 0; i < n; ++i) {
+        VERIFY_IS_EQUAL(Binary::bits(solver.eigenvalues()(i)), Binary::bits(reference.eigenvalues()(i)));
+      }
+      VERIFY_IS_EQUAL(solver.eigenvectors(), reference.eigenvectors());
+    }
+  });
 }
 
 // A huge diagonal spread makes every z entry individually negligible even though
@@ -653,5 +699,7 @@ EIGEN_DECLARE_TEST(structured_dpr1) {
     CALL_SUBTEST_5(test_dpr1_ftz_mode());
     CALL_SUBTEST_5(test_dpr1_flushed_subnormal_diagonal<float>());
     CALL_SUBTEST_5(test_dpr1_flushed_subnormal_diagonal<double>());
+    CALL_SUBTEST_5(test_dpr1_subnormal_rho<float>());
+    CALL_SUBTEST_5(test_dpr1_subnormal_rho<double>());
   }
 }
