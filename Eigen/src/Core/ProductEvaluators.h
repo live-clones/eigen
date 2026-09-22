@@ -328,7 +328,7 @@ void EIGEN_DEVICE_FUNC outer_product_selector_run_small(Dst& dst, const Lhs& lhs
   const Index rows = dst.rows();
   const Index cols = dst.cols();
   for (Index j = 0; j < cols; ++j) {
-    const Scalar rhs_j = rhsEval.coeff(Index(0), j);
+    const typename Rhs::Scalar rhs_j = rhsEval.coeff(Index(0), j);
     for (Index i = 0; i < rows; ++i) {
       func.assignCoeff(dst.coeffRef(i, j), alpha * (rhs_j * actual_lhs.coeff(i, Index(0))));
     }
@@ -343,7 +343,7 @@ void EIGEN_DEVICE_FUNC outer_product_selector_run_small(Dst& dst, const Lhs& lhs
   const Index rows = dst.rows();
   const Index cols = dst.cols();
   for (Index i = 0; i < rows; ++i) {
-    const Scalar lhs_i = lhsEval.coeff(i, Index(0));
+    const typename Lhs::Scalar lhs_i = lhsEval.coeff(i, Index(0));
     for (Index j = 0; j < cols; ++j) {
       func.assignCoeff(dst.coeffRef(i, j), alpha * (lhs_i * actual_rhs.coeff(Index(0), j)));
     }
@@ -355,6 +355,13 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, OuterProduct> {
   template <typename T>
   struct is_row_major : bool_constant<(int(T::Flags) & RowMajorBit)> {};
   using Scalar = typename Product<Lhs, Rhs>::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  static constexpr bool IsMixedRealComplex = (std::is_same<typename Lhs::Scalar, RealScalar>::value &&
+                                              std::is_same<typename Rhs::Scalar, std::complex<RealScalar>>::value) ||
+                                             (std::is_same<typename Rhs::Scalar, RealScalar>::value &&
+                                              std::is_same<typename Lhs::Scalar, std::complex<RealScalar>>::value);
+  // Complex(1) introduces 0*inf terms that are absent from a real/complex product.
+  using UnitScalar = std::conditional_t<IsMixedRealComplex, RealScalar, Scalar>;
 
   // TODO: it would be nice to be able to exploit our *_assign_op functors for that purpose
   struct set {
@@ -392,7 +399,7 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, OuterProduct> {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void evalTo(Dst& dst, const Lhs& lhs, const Rhs& rhs) {
     if (internal::outer_product_use_small_assignment(dst)) {
       internal::outer_product_selector_run_small(dst, lhs, rhs, internal::assign_op<typename Dst::Scalar, Scalar>(),
-                                                 Scalar(1), is_row_major<Dst>());
+                                                 UnitScalar(1), is_row_major<Dst>());
     } else {
       internal::outer_product_selector_run(dst, lhs, rhs, set(), is_row_major<Dst>());
     }
@@ -402,7 +409,7 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, OuterProduct> {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void addTo(Dst& dst, const Lhs& lhs, const Rhs& rhs) {
     if (internal::outer_product_use_small_assignment(dst)) {
       internal::outer_product_selector_run_small(dst, lhs, rhs, internal::add_assign_op<typename Dst::Scalar, Scalar>(),
-                                                 Scalar(1), is_row_major<Dst>());
+                                                 UnitScalar(1), is_row_major<Dst>());
     } else {
       internal::outer_product_selector_run(dst, lhs, rhs, add(), is_row_major<Dst>());
     }
@@ -412,7 +419,7 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, OuterProduct> {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void subTo(Dst& dst, const Lhs& lhs, const Rhs& rhs) {
     if (internal::outer_product_use_small_assignment(dst)) {
       internal::outer_product_selector_run_small(dst, lhs, rhs, internal::sub_assign_op<typename Dst::Scalar, Scalar>(),
-                                                 Scalar(1), is_row_major<Dst>());
+                                                 UnitScalar(1), is_row_major<Dst>());
     } else {
       internal::outer_product_selector_run(dst, lhs, rhs, sub(), is_row_major<Dst>());
     }
@@ -1812,8 +1819,10 @@ struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DiagonalSha
 
 // Dense SelfAdjointView statically rejects the Upper|Lower mode (only one half is stored), so the
 // off-stored coefficient is always reconstructed by conjugating its mirror.
-template <int Mode, int ProductOrder, typename MatrixType, typename DiagonalType, typename Derived>
-struct selfadjoint_diagonal_product_lazy_evaluator_base : evaluator_base<Derived> {
+template <int Mode, int ProductOrder, typename MatrixType, typename DiagonalType, typename XprType,
+          bool Materialize =
+              NumTraits<typename MatrixType::Scalar>::IsComplex && blas_traits<MatrixType>::HasScalarFactor>
+struct selfadjoint_diagonal_product_lazy_evaluator_base : evaluator_base<XprType> {
   using Scalar = typename ScalarBinaryOpTraits<typename MatrixType::Scalar, typename DiagonalType::Scalar>::ReturnType;
 
   enum {
@@ -1823,7 +1832,8 @@ struct selfadjoint_diagonal_product_lazy_evaluator_base : evaluator_base<Derived
     Alignment = 0
   };
 
-  EIGEN_DEVICE_FUNC selfadjoint_diagonal_product_lazy_evaluator_base(const MatrixType& mat, const DiagonalType& diag)
+  EIGEN_DEVICE_FUNC selfadjoint_diagonal_product_lazy_evaluator_base(const XprType&, const MatrixType& mat,
+                                                                     const DiagonalType& diag)
       : m_diagImpl(diag), m_matImpl(mat) {}
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar coeff(Index row, Index col) const {
@@ -1839,34 +1849,43 @@ struct selfadjoint_diagonal_product_lazy_evaluator_base : evaluator_base<Derived
   evaluator<MatrixType> m_matImpl;
 };
 
+// Extract complex factors before conjugating mirrored entries; the temporary also protects nested aliases.
+template <int Mode, int ProductOrder, typename MatrixType, typename DiagonalType, typename XprType>
+struct selfadjoint_diagonal_product_lazy_evaluator_base<Mode, ProductOrder, MatrixType, DiagonalType, XprType, true>
+    : evaluator<EvalToTemp<Product<typename XprType::Lhs, typename XprType::Rhs, DefaultProduct>>> {
+  using DefaultProductType = Product<typename XprType::Lhs, typename XprType::Rhs, DefaultProduct>;
+  using Base = evaluator<EvalToTemp<DefaultProductType>>;
+  EIGEN_DEVICE_FUNC selfadjoint_diagonal_product_lazy_evaluator_base(const XprType& xpr, const MatrixType&,
+                                                                     const DiagonalType&)
+      : Base(DefaultProductType(xpr.lhs(), xpr.rhs())) {}
+};
+
 // SelfAdjoint × Diagonal
 template <typename Lhs, typename Rhs, int ProductKind, int ProductTag>
 struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, SelfAdjointShape, DiagonalShape>
-    : selfadjoint_diagonal_product_lazy_evaluator_base<
-          Lhs::Mode, OnTheRight, typename Lhs::MatrixType, typename Rhs::DiagonalVectorType,
-          product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, SelfAdjointShape, DiagonalShape>> {
+    : selfadjoint_diagonal_product_lazy_evaluator_base<Lhs::Mode, OnTheRight, typename Lhs::MatrixType,
+                                                       typename Rhs::DiagonalVectorType,
+                                                       Product<Lhs, Rhs, ProductKind>> {
   using XprType = Product<Lhs, Rhs, ProductKind>;
-  using Base = selfadjoint_diagonal_product_lazy_evaluator_base<
-      Lhs::Mode, OnTheRight, typename Lhs::MatrixType, typename Rhs::DiagonalVectorType,
-      product_evaluator<XprType, ProductTag, SelfAdjointShape, DiagonalShape>>;
+  using Base = selfadjoint_diagonal_product_lazy_evaluator_base<Lhs::Mode, OnTheRight, typename Lhs::MatrixType,
+                                                                typename Rhs::DiagonalVectorType, XprType>;
 
   EIGEN_DEVICE_FUNC explicit product_evaluator(const XprType& xpr)
-      : Base(xpr.lhs().nestedExpression(), xpr.rhs().diagonal()) {}
+      : Base(xpr, xpr.lhs().nestedExpression(), xpr.rhs().diagonal()) {}
 };
 
 // Diagonal × SelfAdjoint
 template <typename Lhs, typename Rhs, int ProductKind, int ProductTag>
 struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DiagonalShape, SelfAdjointShape>
-    : selfadjoint_diagonal_product_lazy_evaluator_base<
-          Rhs::Mode, OnTheLeft, typename Rhs::MatrixType, typename Lhs::DiagonalVectorType,
-          product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DiagonalShape, SelfAdjointShape>> {
+    : selfadjoint_diagonal_product_lazy_evaluator_base<Rhs::Mode, OnTheLeft, typename Rhs::MatrixType,
+                                                       typename Lhs::DiagonalVectorType,
+                                                       Product<Lhs, Rhs, ProductKind>> {
   using XprType = Product<Lhs, Rhs, ProductKind>;
-  using Base = selfadjoint_diagonal_product_lazy_evaluator_base<
-      Rhs::Mode, OnTheLeft, typename Rhs::MatrixType, typename Lhs::DiagonalVectorType,
-      product_evaluator<XprType, ProductTag, DiagonalShape, SelfAdjointShape>>;
+  using Base = selfadjoint_diagonal_product_lazy_evaluator_base<Rhs::Mode, OnTheLeft, typename Rhs::MatrixType,
+                                                                typename Lhs::DiagonalVectorType, XprType>;
 
   EIGEN_DEVICE_FUNC explicit product_evaluator(const XprType& xpr)
-      : Base(xpr.rhs().nestedExpression(), xpr.lhs().diagonal()) {}
+      : Base(xpr, xpr.rhs().nestedExpression(), xpr.lhs().diagonal()) {}
 };
 
 /***************************************************************************
