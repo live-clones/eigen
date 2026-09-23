@@ -681,7 +681,8 @@ struct repeated_squaring_ops {
     twoprod(q, m, p_hi, p_lo);
     fast_twosum(q, pdiv(psub(psub(cst_pos_one, p_hi), p_lo), m), hi, lo);
   }
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE State base(const Packet& x, bool reciprocal, bool scaled) {
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE State base(const Packet& x, bool reciprocal, bool scaled,
+                                                          const Scalar&) {
     State b;
     if (!scaled) {
       power_base(x, reciprocal, b.hi, b.lo);
@@ -746,6 +747,11 @@ struct complex_components {
     R abs_z = pabs(z.v);
     return pmax(abs_z, flip(abs_z));
   }
+  // min(|re|, |im|) in both lanes of each pair.
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE R minor_magnitude(const Packet& z) {
+    R abs_z = pabs(z.v);
+    return pmin(abs_z, flip(abs_z));
+  }
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool any_nan(const Packet& z) { return predux_any(pisnan(z).v); }
 };
 
@@ -760,6 +766,9 @@ struct complex_components<Scalar, true> {
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE R magnitude(const Scalar& z) {
     return numext::maxi(numext::abs(numext::real(z)), numext::abs(numext::imag(z)));
   }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE R minor_magnitude(const Scalar& z) {
+    return numext::mini(numext::abs(numext::real(z)), numext::abs(numext::imag(z)));
+  }
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool any_nan(const Scalar& z) {
     return (numext::isnan)(numext::real(z)) || (numext::isnan)(numext::imag(z));
   }
@@ -772,23 +781,32 @@ struct complex_components<Scalar, true> {
 template <typename Packet>
 struct repeated_squaring_ops<Packet, true> {
   using Scalar = typename unpacket_traits<Packet>::type;
+  using Real = typename NumTraits<Scalar>::Real;
   using Components = complex_components<Packet>;
   using R = typename Components::R;
   using Scaling = binary_exponent_scaling<R>;
   using Bound = R;
+  // Lanes marked `separated` hold only the larger component L (a, or bi) of z = L (1 + delta); the power is
+  // L^n (1 + i c) with i c = n delta, c = coefficient * 2^coefficient_exponent (see base()).
   struct State {
     R re_hi, re_lo, im_hi, im_lo, exponent;
+    R separated, coefficient, coefficient_exponent;
+    bool any_separated;
   };
-  // Whether every lane's max(|re|, |im|) lies within [1/bound, bound], where the power and its residuals stay
-  // normal without scaling.
+  // Whether every lane's max(|re|, |im|), and min(|re|, |im|) unless zero, lie within [1/bound, bound], where the
+  // power and its residuals stay normal without scaling. A zero component stays exactly zero in every power.
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool in_range(const Packet& x, const R& bound) {
     R magnitude = Components::magnitude(x);
-    R out = por(pcmp_lt(pmul(magnitude, bound), pset1<R>(typename NumTraits<Scalar>::Real(1))),
-                pcmp_lt_or_nan(bound, magnitude));
+    R minor = Components::minor_magnitude(x);
+    R one = pset1<R>(Real(1));
+    R out = por(pcmp_lt(pmul(magnitude, bound), one), pcmp_lt_or_nan(bound, magnitude));
+    out = por(out, pandnot(pcmp_lt(pmul(minor, bound), one), pcmp_eq(minor, pzero(minor))));
     return predux_any(out) == false;
   }
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE State base(const Packet& x, bool reciprocal, bool scaled) {
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE State base(const Packet& x, bool reciprocal, bool scaled,
+                                                          const Real& count) {
     State b;
+    b.any_separated = false;
     R re, im;
     Components::split(x, re, im);
     if (!scaled) {
@@ -798,15 +816,32 @@ struct repeated_squaring_ops<Packet, true> {
     }
     R lift, scale;
     Scaling::input_scale(Components::magnitude(x), lift, scale, b.exponent);
-    // Both components take the larger one's scale, which can push a nonzero smaller component below the normal
-    // range although its contribution to the power, such as 2ab in z^2, is representable. Mark it NaN so that
-    // the lane is recomputed by the plain product, which keeps such components.
     R wr = pmul(pmul(re, lift), scale), wi = pmul(pmul(im, lift), scale);
-    R min_normal = pset1<R>((numext::numeric_limits<typename NumTraits<Scalar>::Real>::min)());
+    // Both components take the larger one's scale, which can push a nonzero smaller component s below the normal
+    // range although its contribution to the power, n s L^(n-1), is representable. Then
+    // |delta| = |s / L| < 2^min_exponent, so z^n = L^n (1 + n delta) to working precision for any n below 2^64:
+    // the next term, n^2 delta^2 / 2, is below u n |delta|. The power runs on L alone and result() adds
+    // L^n n delta, with delta = i b/a, or a/(bi) = -i a/b, and -delta for the reciprocal base.
+    R min_normal = pset1<R>((numext::numeric_limits<Real>::min)());
     R zero = pzero(wr);
-    R nan = pnan<R>();
-    wr = pselect(pandnot(pcmp_lt(pabs(wr), min_normal), pcmp_eq(re, zero)), nan, wr);
-    wi = pselect(pandnot(pcmp_lt(pabs(wi), min_normal), pcmp_eq(im, zero)), nan, wi);
+    R re_separated = pandnot(pcmp_lt(pabs(wr), min_normal), pcmp_eq(re, zero));
+    R im_separated = pandnot(pcmp_lt(pabs(wi), min_normal), pcmp_eq(im, zero));
+    b.separated = por(re_separated, im_separated);
+    b.any_separated = predux_any(b.separated);
+    if (b.any_separated) {
+      R s_lift, s_scale, s_exponent, count_exponent;
+      Scaling::input_scale(pselect(im_separated, im, re), s_lift, s_scale, s_exponent);
+      R s = pmul(pmul(pselect(im_separated, im, re), s_lift), s_scale);
+      R count_scale = Scaling::inverse_scale(pset1<R>(count), count_exponent);
+      // The scaled |s / L| is in (1/2, 2) and the scaled count in [2, 4); an eighth keeps |c hi| within 2^62.
+      R ratio = pdiv(s, pselect(im_separated, wr, wi));
+      R c = pmul(pmul(ratio, pmul(pset1<R>(count), count_scale)), pset1<R>(Real(0.125)));
+      R sign = pselect(im_separated, pset1<R>(Real(reciprocal ? -1 : 1)), pset1<R>(Real(reciprocal ? 1 : -1)));
+      b.coefficient = pmul(c, sign);
+      b.coefficient_exponent = padd(padd(psub(s_exponent, b.exponent), count_exponent), pset1<R>(Real(3)));
+      wr = pselect(re_separated, zero, wr);
+      wi = pselect(im_separated, zero, wi);
+    }
     power_base(wr, wi, reciprocal, b);
     if (reciprocal) b.exponent = pnegate(b.exponent);
     return b;
@@ -865,9 +900,20 @@ struct repeated_squaring_ops<Packet, true> {
     y.im_lo = pmul(y.im_lo, scale);
     y.exponent = padd(y.exponent, e);
   }
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet result(const State& y, const State&, bool, bool scaled) {
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet result(const State& y, const State& b, bool, bool scaled) {
     if (!scaled) return Components::join(y.re_hi, y.im_hi);
-    return Components::join(Scaling::scale_result(y.re_hi, y.exponent), Scaling::scale_result(y.im_hi, y.exponent));
+    R re = Scaling::scale_result(y.re_hi, y.exponent);
+    R im = Scaling::scale_result(y.im_hi, y.exponent);
+    if (b.any_separated) {
+      // L^n is real or imaginary, and i c L^n fills the component it leaves exactly zero.
+      R e = padd(y.exponent, b.coefficient_exponent);
+      R zero = pzero(re);
+      re = pselect(pand(b.separated, pcmp_eq(y.re_hi, zero)),
+                   Scaling::scale_result(pnegate(pmul(b.coefficient, y.im_hi)), e), re);
+      im = pselect(pand(b.separated, pcmp_eq(y.im_hi, zero)), Scaling::scale_result(pmul(b.coefficient, y.re_hi), e),
+                   im);
+    }
+    return Components::join(re, im);
   }
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool any_nan(const Packet& r) { return Components::any_nan(r); }
 };
@@ -917,10 +963,10 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet int_pow_double_word(const Packet& x
 
   // Bases whose magnitude lies within 2^(+-B) for B = budget / |n| keep every power up to x^n and its residuals
   // normal: |x^n| <= 2^budget < max and u * |x^n| >= 2^(min_exponent - 1), the smallest normal, so the loop
-  // needs neither scaling nor exponents and the result is hi itself. A complex base is tested on its larger
-  // component, which its magnitude exceeds by up to sqrt(2), so B is one less to absorb sqrt(2)^n (an exhausted
-  // budget therefore admits nothing), and its reciprocal forms |w|^2, which bounds B by half the exponent range.
-  // Zero, infinity and NaN fail the test.
+  // needs neither scaling nor exponents and the result is hi itself. A complex base is tested on both nonzero
+  // components, as every term a^k b^(n-k) of its power must stay normal too; its magnitude exceeds the larger one
+  // by up to sqrt(2), so B is one less to absorb sqrt(2)^n (an exhausted budget therefore admits nothing), and its
+  // reciprocal forms |w|^2, which bounds B by half the exponent range. Zero, infinity and NaN fail the test.
   using Real = typename NumTraits<Scalar>::Real;
   using RealBits = std::make_unsigned_t<typename make_integer<Real>::type>;
   constexpr int kBudget = -(numext::numeric_limits<Real>::min_exponent + numext::numeric_limits<Real>::digits);
@@ -933,7 +979,7 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet int_pow_double_word(const Packet& x
       pset1frombits<typename Ops::Bound>(RealBits(kBiasBits + RealBits(b < 0 ? 0 : b)) << kMantissaBits);
   bool scaled = b < 0 || !Ops::in_range(x, bound);
 
-  typename Ops::State base = Ops::base(x, negative, scaled);
+  typename Ops::State base = Ops::base(x, negative, scaled, Real(m));
   typename Ops::State y = base;
   // With a scaled |base| in [1/4, 4) a step at most cubes the magnitude bound, so four steps keep it within
   // 2^(+-62) and the residuals, u times smaller, normal.
