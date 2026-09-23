@@ -270,6 +270,8 @@ EIGEN_DECLARE_TEST(approx_comparisons) {
   CALL_SUBTEST_3((approx_comparisons_floating<half, ColMajor>()));
   CALL_SUBTEST_3((approx_comparisons_floating<bfloat16, RowMajor>()));
   CALL_SUBTEST_3((approx_comparisons_floating<long double, ColMajor>()));
+  CALL_SUBTEST_3(approx_comparisons_rounding_boundary<half>());
+  CALL_SUBTEST_3(approx_comparisons_rounding_boundary<bfloat16>());
   CALL_SUBTEST_4(approx_comparisons_exact<int>());
   CALL_SUBTEST_4(approx_comparisons_exact<unsigned int>());
   CALL_SUBTEST_4(approx_comparisons_exact<bool>());
