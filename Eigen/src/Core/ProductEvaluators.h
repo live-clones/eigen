@@ -165,10 +165,8 @@ struct Assignment<DstXprType, Product<Lhs, Rhs, Options>, internal::assign_op<Sc
                   std::enable_if_t<(Options == DefaultProduct || Options == AliasFreeProduct)>> {
   using SrcXprType = Product<Lhs, Rhs, Options>;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(DstXprType& dst, const SrcXprType& src,
-                                                        const internal::assign_op<Scalar, Scalar>&) {
-    Index dstRows = src.rows();
-    Index dstCols = src.cols();
-    if ((dst.rows() != dstRows) || (dst.cols() != dstCols)) dst.resize(dstRows, dstCols);
+                                                        const internal::assign_op<Scalar, Scalar>& func) {
+    resize_if_allowed(dst, src, func);
     // FIXME shall we handle nested_eval here?
     generic_product_impl<Lhs, Rhs>::evalTo(dst, src.lhs(), src.rhs());
   }
