@@ -258,12 +258,14 @@ void complex_pow_test() {
       VERIFY(within_ulps(numext::imag(y(k)), Real(2) * big * tiny, 1.0));
     }
   }
-  // The same separation near |z| = 1, with a large |n|: (a + bi)^n = a^n (1 + i n b/a) and
-  // (b + ai)^n = i^n a^n (1 - i n b/a) to working precision, both components to double-word accuracy.
-  {
+  // Separated components near |z| = 1, with a large |n|: (a + bi)^n = a^n (1 + i n b/a) and
+  // (b + ai)^n = i^n a^n (1 - i n b/a) to working precision, both components to double-word accuracy. The smaller
+  // component is subnormal, or normal but small enough that a negative power, which shrinks between
+  // renormalizations, would take its residuals below the normal range.
+  const Complex i_powers[4] = {Complex(1, 0), Complex(0, 1), Complex(-1, 0), Complex(0, -1)};
+  for (int b_exponent : {std::numeric_limits<Real>::min_exponent - 6, std::numeric_limits<Real>::min_exponent + 4}) {
     Real a = Real(1) + Real(std::ldexp(1.0, -10));
-    Real b = Real(std::ldexp(1.0, std::numeric_limits<Real>::min_exponent - 6));
-    const Complex i_powers[4] = {Complex(1, 0), Complex(0, 1), Complex(-1, 0), Complex(0, -1)};
+    Real b = Real(std::ldexp(1.0, b_exponent));
     for (long n : {100L, 101L, 1000L, 1003L, -99L, -100L, -1000L, -1001L}) {
       Real power = numext::real(reference_complex_pow(Complex(a), n));
       Real term = Real(n) * numext::real(reference_complex_pow(Complex(a), n - 1)) * b;
@@ -276,6 +278,25 @@ void complex_pow_test() {
           VERIFY(within_ulps(numext::imag(y(k)), numext::imag(expected), 2.0));
         }
       }
+    }
+  }
+  // (1 + 2^-40 i)^n with n = 2^30 + 1, where n r = 2^-10 makes first order 8 ulp off for float: such an n
+  // renormalizes at every step instead. The reference is the binomial series in double, whose terms
+  // C(n, k) r^k fall by 2^-10 each.
+  EIGEN_IF_CONSTEXPR (std::is_same<Real, float>::value) {
+    const long n = (1L << 30) + 1;
+    const double r = std::ldexp(1.0, -40);
+    double re = 0, im = 0, term = 1;
+    for (int k = 0; k < 12; ++k) {
+      if (k > 0) term *= double(n - k + 1) / k * r;
+      double signed_term = (k / 2) % 2 == 0 ? term : -term;
+      (k % 2 == 0 ? re : im) += signed_term;
+    }
+    ArrayX<Complex> z = ArrayX<Complex>::Constant(size, Complex(1, Real(r)));
+    ArrayX<Complex> y = z.pow(int(n));
+    for (Index k = 0; k < size; ++k) {
+      VERIFY(within_ulps(numext::real(y(k)), Real(re), 1.0));
+      VERIFY(within_ulps(numext::imag(y(k)), Real(im), 1.0));
     }
   }
   // An element's power does not depend on its packet neighbours, one of which here forces the scaled loop: the
