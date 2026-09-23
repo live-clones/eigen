@@ -726,6 +726,13 @@ static void test_pack_direct() {
       sweep_pack_direct<Scalar, RowMajor>(n, d);
     }
   }
+  // Four-panel LHS copies with leftover panels and tails, over several transposing depth chunks.
+  for (int d : {35, 67, 97}) {
+    for (int n : {4 * MR, 5 * MR + 1, 8 * MR + 3}) {
+      sweep_pack_direct<Scalar, ColMajor>(n, d);
+      sweep_pack_direct<Scalar, RowMajor>(n, d);
+    }
+  }
 }
 
 template <typename Scalar>
