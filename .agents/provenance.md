@@ -4,9 +4,16 @@ Use this guide when comparing Eigen against, benchmarking against, or integratin
 and whenever a task would involve looking at how such software works. [`AGENTS.md`](../AGENTS.md) rule 2 is the
 contract; [`numerics.md`](numerics.md#provenance) covers citing the literature an implementation is built on.
 
-Eigen aims to be the best library it can be, in speed, accuracy and everything else, by legal and ethical means from
-publicly available information, and by no other. An idea learned by disassembling a vendor kernel taints the Eigen
-code it informs, even when no instruction is copied.
+Eigen aims to be the best library it can be, in speed, accuracy and everything else, by legal and ethical means, from
+original research and publicly available information, and by no other. An idea learned by disassembling a vendor
+kernel taints the Eigen code it informs, even when no instruction is copied.
+
+## Original Research Is Encouraged
+
+Measure the hardware with your own microbenchmarks, measure other libraries from outside, run numerical experiments,
+design new algorithms, and derive new bounds: what you find is yours to build on. The rest of this guide limits how you
+learn about software Eigen does not own, not what you discover yourself. The one condition is that you can publish it
+with the change; a result you are bound to keep confidential, by an NDA or an employer's terms, stays out.
 
 ## Proprietary Software Is A Black Box
 
@@ -39,12 +46,14 @@ fine. Two cautions:
 - AMD publishes the AOCL sources under permissive licenses, but its binary packages carry a no-disassembly EULA. Read the
   published source, not the installed binary.
 
-## Link The Public Sources
+## Show Where The Change Comes From
 
 A merge request description should link the publicly available documentation that supports the change: the ISA or
 architecture manual, the vendor's optimization guide or intrinsics reference, the paper or standard an algorithm
-follows, the documented API a backend relies on. This helps most with hardware-specific optimizations and new features,
-where the links let a reviewer check the change against its source and see that everything it relies on is public.
+follows, the documented API a backend relies on. Where the change rests on original research, include the evidence
+instead: the reproducer, the method and results of a measurement, or the derivation. This helps most with
+hardware-specific optimizations and new features, where it lets a reviewer check the change against its sources and
+see that everything it relies on is public or published with it.
 
 ## If You Are Exposed Anyway
 
