@@ -51,6 +51,13 @@ void approx_comparisons_floating() {
   VERIFY(!x.isApprox(y, Real(1)));
   VERIFY(x.isApprox(y, Real(2)));
   VERIFY(!x.isMuchSmallerThan(x, precision));
+  // The squared difference, but not the bound, can overflow the accumulator here.
+  const Real root = numext::ldexp(Real(1), (NumTraits<Real>::max_exponent() - 1) / 2);
+  x.setZero();
+  x(0, 0) = Scalar(root);
+  y = -x;
+  VERIFY(!x.isApprox(y, Real(1.9)));
+  VERIFY(x.isApprox(y, Real(2)));
 
   // Squaring either the difference or the tolerance would underflow.
   const Real tiny = (numext::numeric_limits<Real>::min)() * Real(16);
@@ -88,6 +95,20 @@ void approx_comparisons_rounding_boundary() {
     VERIFY(x.isApprox(y, Real(8) * eps));
     VERIFY(x.isApprox(y, Real(9) * eps));
   }
+}
+
+template <typename Real>
+void approx_comparisons_flush_to_zero() {
+  ScopedFlushToZero flushToZero;
+  using Vector = Matrix<Real, 2, 1>;
+  // The difference of these normal operands is subnormal.
+  const Real normalMin = (numext::numeric_limits<Real>::min)();
+  const Vector x(Real(1.5) * normalMin, Real(0)), y(normalMin, Real(0));
+  VERIFY(!x.isApprox(y, Real(0.25)));
+  VERIFY(!x.isApprox(y, Real(0)));
+  VERIFY(x.isApprox(y, Real(0.5)));
+  VERIFY_IS_EQUAL(test_relative_error(x, y), Real(0.5));
+  approx_comparisons_rounding_boundary<Real>();
 }
 
 template <typename Real>
@@ -260,6 +281,8 @@ EIGEN_DECLARE_TEST(approx_comparisons) {
   CALL_SUBTEST_1(approx_comparisons_rounding_boundary<double>());
   CALL_SUBTEST_1(approx_comparisons_scale_invariance<float>());
   CALL_SUBTEST_1(approx_comparisons_scale_invariance<double>());
+  CALL_SUBTEST_1(approx_comparisons_flush_to_zero<float>());
+  CALL_SUBTEST_1(approx_comparisons_flush_to_zero<double>());
   CALL_SUBTEST_2((approx_comparisons_floating<std::complex<float>, RowMajor>()));
   CALL_SUBTEST_2((approx_comparisons_floating<std::complex<double>, ColMajor>()));
   CALL_SUBTEST_2(approx_comparisons_complex_components<float>());
@@ -271,6 +294,7 @@ EIGEN_DECLARE_TEST(approx_comparisons) {
   CALL_SUBTEST_3((approx_comparisons_floating<long double, ColMajor>()));
   CALL_SUBTEST_3(approx_comparisons_rounding_boundary<half>());
   CALL_SUBTEST_3(approx_comparisons_rounding_boundary<bfloat16>());
+  CALL_SUBTEST_3(approx_comparisons_flush_to_zero<bfloat16>());
   CALL_SUBTEST_4(approx_comparisons_exact<int>());
   CALL_SUBTEST_4(approx_comparisons_exact<unsigned int>());
   CALL_SUBTEST_4(approx_comparisons_exact<bool>());
