@@ -835,6 +835,9 @@ struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape,
   using RhsPacketEtorType =
       std::conditional_t<bool(int(Flags) & PacketAccessBit), RhsEtorType, product_empty_packet_evaluator>;
 
+  static constexpr bool SingleTermCoeff = InnerSize == 1 && std::is_same<LhsPacketEtorType, LhsEtorType>::value &&
+                                          std::is_same<RhsPacketEtorType, RhsEtorType>::value;
+
   static constexpr int LhsOuterStrideBytes =
       int(LhsNestedCleaned::OuterStrideAtCompileTime) * int(sizeof(typename LhsNestedCleaned::Scalar));
   static constexpr int RhsOuterStrideBytes =
@@ -861,6 +864,16 @@ struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape,
                                             (int(InnerSize) % packet_traits<Scalar>::size == 0);
 
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const CoeffReturnType coeff(Index row, Index col) const {
+    return coeff_impl(row, col, bool_constant<SingleTermCoeff>());
+  }
+
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE CoeffReturnType coeff_impl(Index row, Index col,
+                                                                             std::true_type) const {
+    return fast_mult_op<LhsScalar, RhsScalar>()(m_lhsImpl.coeff(row, Index(0)), m_rhsImpl.coeff(Index(0), col));
+  }
+
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE CoeffReturnType coeff_impl(Index row, Index col,
+                                                                             std::false_type) const {
     // fast_mult_op is cwiseProduct's scalar_product_op with a pmul-based scalar path, so the
     // reduction (and its precision) is unchanged but complex scalars avoid std::complex::operator*
     // (the slow libgcc __mul?c3). See fast_mult_op.
@@ -874,7 +887,7 @@ struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape,
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const CoeffReturnType coeff(Index index) const {
     const Index row = (RowsAtCompileTime == 1 || MaxRowsAtCompileTime == 1) ? 0 : index;
     const Index col = (RowsAtCompileTime == 1 || MaxRowsAtCompileTime == 1) ? index : 0;
-    return m_lhs.row(row).transpose().binaryExpr(m_rhs.col(col), fast_mult_op<LhsScalar, RhsScalar>()).sum();
+    return coeff(row, col);
   }
 
   template <int LoadMode, typename PacketType>
