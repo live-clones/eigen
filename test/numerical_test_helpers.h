@@ -124,7 +124,7 @@ EIGEN_TEST_COMPLEX_TEST_OVERLOAD(long double)
 #undef EIGEN_TEST_COMPLEX_TEST_OVERLOAD
 #endif
 
-template <typename Scalar, bool = internal::use_scaled_comparison<Scalar>::value>
+template <typename Scalar, bool Scaled>
 struct test_relative_error_impl {
   template <typename X, typename Y>
   static typename NumTraits<Scalar>::Real run(const X& a, const Y& b) {
@@ -147,6 +147,8 @@ struct test_relative_error_impl<Scalar, true> {
   }
 };
 
+// Promote integers before subtraction and squaring, avoiding Boolean subtraction and integer overflow. Other
+// scalars keep their type: a custom complex scalar can inherit a real NonInteger from NumTraits<Real>.
 template <typename Scalar>
 using test_difference_scalar_t =
     std::conditional_t<NumTraits<Scalar>::IsInteger, typename NumTraits<Scalar>::NonInteger, Scalar>;
@@ -155,8 +157,6 @@ using test_difference_scalar_t =
 template <typename T1, typename T2>
 typename NumTraits<typename T1::RealScalar>::NonInteger test_relative_error(const EigenBase<T1>& a,
                                                                             const EigenBase<T2>& b) {
-  // Promote integers before subtraction and squaring, avoiding Boolean subtraction and integer overflow. Other
-  // scalars keep their type: a custom complex scalar can inherit a real NonInteger from NumTraits<Real>.
   using DiffScalar1 = test_difference_scalar_t<typename T1::Scalar>;
   using DiffScalar2 = test_difference_scalar_t<typename T2::Scalar>;
   typename internal::nested_eval<T1, 2>::type ea(a.derived());

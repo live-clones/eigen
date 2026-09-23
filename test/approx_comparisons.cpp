@@ -197,6 +197,7 @@ void approx_comparisons_lazy_operands() {
   using Vector4 = Matrix<Real, 4, 1>;
   using Array4 = Array<Real, 4, 1>;
   const Real precision = Real(0.125);
+  const Array4 base = Array4::LinSpaced(Real(1), Real(2));
   for (int exponent : {0, NumTraits<Real>::min_exponent() + 4, NumTraits<Real>::max_exponent() - 8}) {
     const Real scale = numext::ldexp(Real(1), exponent);
     const Vector3 x = Vector3::Constant(scale);
@@ -211,14 +212,12 @@ void approx_comparisons_lazy_operands() {
     VERIFY(!y.isApprox(x.homogeneous(), precision));
     VERIFY(test_relative_error(x.homogeneous(), y) > precision);
 
-    const Array4 base = Array4::LinSpaced(Real(1), Real(2));
     const Array4 a = base * scale;
     VERIFY((a + a).isApprox(a * Real(2), precision));
     VERIFY(!(a + a).isApprox(a, precision));
     VERIFY_IS_EQUAL(test_relative_error(a + a, a * Real(2)), Real(0));
   }
   // A unary functor whose result is complex but whose argument is real.
-  const Array4 base = Array4::LinSpaced(Real(1), Real(2));
   const Complex power(Real(2), Real(1));
   VERIFY(base.pow(power).isApprox(base.template cast<Complex>().pow(power), precision));
   VERIFY(test_relative_error(base.pow(power), base.template cast<Complex>().pow(power)) <= precision);
