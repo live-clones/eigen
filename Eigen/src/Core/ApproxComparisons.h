@@ -181,7 +181,7 @@ struct approx_comparison_impl<Scalar, true> {
     using ValueAccumulator = typename stable_norm_accumulator<ValueScalar>::type;
     // Squares accumulate in ValueAccumulator; below n * min / epsilon, flushed squares can affect the comparison.
     return stable_normalization_normal_min<ValueAccumulator, ValueAccumulator>::run() /
-           ValueAccumulator(NumTraits<ValueScalar>::epsilon()) * ValueAccumulator(size);
+           NumTraits<ValueAccumulator>::epsilon() * ValueAccumulator(size);
   }
 
   template <typename BoundScalar>
