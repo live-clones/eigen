@@ -822,6 +822,26 @@ void complex_outer_product_overflow() {
   }
 }
 
+template <int Order>
+void single_term_nullary_product() {
+  const Vector4d lhs = Vector4d::LinSpaced(1, 4);
+  const RowVector4d rhs = RowVector4d::LinSpaced(5, 8);
+  auto check = [&](const auto& left, const auto& right) {
+    const auto product = left.lazyProduct(right);
+    Matrix<double, 4, 4, Order> dst = product;
+    for (Index j = 0; j < 4; ++j) {
+      for (Index i = 0; i < 4; ++i) {
+        const double expected = left.coeff(i) * right.coeff(j);
+        VERIFY_IS_EQUAL(product.coeff(i, j), expected);
+        VERIFY_IS_EQUAL(dst(i, j), expected);
+      }
+    }
+  };
+  check(Vector4d::Ones(), rhs);
+  check(lhs, RowVector4d::Ones());
+  check(Vector4d::Ones(), RowVector4d::Ones());
+}
+
 namespace outer_product_count {
 struct Scalar {
   double value;
@@ -882,6 +902,8 @@ void small_outer_product_unscaled() {
 EIGEN_DECLARE_TEST(product_extra) {
   CALL_SUBTEST_14(complex_outer_product_overflow<ColMajor>());
   CALL_SUBTEST_14(complex_outer_product_overflow<RowMajor>());
+  CALL_SUBTEST_14(single_term_nullary_product<ColMajor>());
+  CALL_SUBTEST_14(single_term_nullary_product<RowMajor>());
   CALL_SUBTEST_14(small_outer_product_unscaled<ColMajor>());
   CALL_SUBTEST_14(small_outer_product_unscaled<RowMajor>());
   CALL_SUBTEST_13((complex_gemm_scalar_accumulation<float, ColMajor>()));
