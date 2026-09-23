@@ -1947,10 +1947,17 @@ EIGEN_DONT_INLINE __arm_locally_streaming __arm_new("za") void sme_gebp_impl_dir
 #endif
 template <typename Scalar, typename Index>
 bool sme_direct_lhs_ok(Index lhsStride, Index rows, Index depth) {
+#ifdef EIGEN_SME_FORCE_NEON_SMALL_BLOCKS
+  EIGEN_UNUSED_VARIABLE(lhsStride);
+  EIGEN_UNUSED_VARIABLE(rows);
+  EIGEN_UNUSED_VARIABLE(depth);
+  return false;
+#else
   const std::size_t stride_bytes = std::size_t(lhsStride) * sizeof(Scalar);
   return !NumTraits<Scalar>::IsComplex && depth > Index(sme_neon_max_depth<Scalar>::value) &&
          stride_bytes % 4096 != 0 && stride_bytes <= std::size_t(EIGEN_SME_DIRECT_LHS_MAX_STRIDE_BYTES) &&
          std::size_t(rows) * std::size_t(depth) * sizeof(Scalar) <= std::size_t(EIGEN_SME_DIRECT_LHS_MAX_BLOCK_BYTES);
+#endif
 }
 
 // NEON path for small blocks: a shallow block pays the ZA enable and a dependent FMOPA chain per

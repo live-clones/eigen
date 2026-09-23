@@ -45,12 +45,12 @@ static void BM_GemmThreads(benchmark::State& state) {
   setNbSmeUnits(units);
 }
 
-// Pool sizes up to the core count: a larger pool only oversubscribes the host.
+// Pool sizes up to the core count (a larger pool only oversubscribes), keeping the smallest of each list.
 static void ThreadArgs(::benchmark::Benchmark* b, std::initializer_list<int> threads) {
   const int cores = static_cast<int>(std::thread::hardware_concurrency());
   for (int n : {1024, 2048})
     for (int t : threads)
-      if (t <= cores || t == 1) b->Args({n, t});
+      if (t <= cores || t == *threads.begin()) b->Args({n, t});
 }
 
 BENCHMARK(BM_GemmThreads<false>)
