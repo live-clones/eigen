@@ -81,14 +81,15 @@ using scaled_comparison_operand_t =
 
 template <typename Derived>
 EIGEN_DEVICE_FUNC comparison_magnitude<typename stable_norm_accumulator<typename Derived::RealScalar>::type>
-scaled_comparison_norm_impl(const Derived& x) {
+scaled_comparison_norm(const Derived& xExpr) {
   using RealScalar = typename stable_norm_accumulator<typename Derived::RealScalar>::type;
+  scaled_comparison_operand_t<Derived> x(xExpr);
   if (x.size() == 0) return comparison_magnitude<RealScalar>(RealScalar(0));
   const auto& matrix = x.matrix();
   const auto& realComponents = matrix.realView();
   const auto& components = realComponents.template cast<RealScalar>();
-  RealScalar scale = components.cwiseAbs().template maxCoeff<PropagateNaN>();
-  scale = safe_scaling<RealScalar>::recover_flushed_max_coeff(components, scale);
+  const RealScalar scale = safe_scaling<RealScalar>::recover_flushed_max_coeff(
+      components, components.cwiseAbs().template maxCoeff<PropagateNaN>());
   // Classify first so NaNs do not reach the ordered comparison.
   if (!(numext::isfinite)(scale) || !(scale > RealScalar(0))) return comparison_magnitude<RealScalar>(scale);
   RealScalar squaredNorm = RealScalar(0);
@@ -97,13 +98,6 @@ scaled_comparison_norm_impl(const Derived& x) {
   comparison_magnitude<RealScalar> result(numext::sqrt(squaredNorm));
   result.multiply(factors.scale);
   return result;
-}
-
-template <typename Derived>
-EIGEN_DEVICE_FUNC comparison_magnitude<typename stable_norm_accumulator<typename Derived::RealScalar>::type>
-scaled_comparison_norm(const Derived& xExpr) {
-  scaled_comparison_operand_t<Derived> x(xExpr);
-  return scaled_comparison_norm_impl(x);
 }
 
 template <typename X, typename Y>
@@ -119,10 +113,10 @@ scaled_comparison_distance(const X& xExpr, const Y& yExpr) {
   const auto& matrixY = y.matrix();
   const auto& wideX = matrixX.template cast<WideScalar>();
   const auto& wideY = matrixY.template cast<WideScalar>();
-  auto difference = scaled_comparison_norm_impl(wideX - wideY);
+  auto difference = scaled_comparison_norm(wideX - wideY);
   if (!difference.isFinite()) {
     // Finite operands can overflow on subtraction; halving first keeps every component representable.
-    difference = scaled_comparison_norm_impl(wideX * Accumulator(0.5) - wideY * Accumulator(0.5));
+    difference = scaled_comparison_norm(wideX * Accumulator(0.5) - wideY * Accumulator(0.5));
     difference.multiply(Accumulator(2));
   }
   return difference;
