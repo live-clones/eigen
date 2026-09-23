@@ -258,6 +258,41 @@ void complex_pow_test() {
       VERIFY(within_ulps(numext::imag(y(k)), Real(2) * big * tiny, 1.0));
     }
   }
+  // The same separation near |z| = 1, with a large |n|: (a + bi)^n = a^n (1 + i n b/a) and
+  // (b + ai)^n = i^n a^n (1 - i n b/a) to working precision, both components to double-word accuracy.
+  {
+    Real a = Real(1) + Real(std::ldexp(1.0, -10));
+    Real b = Real(std::ldexp(1.0, std::numeric_limits<Real>::min_exponent - 6));
+    const Complex i_powers[4] = {Complex(1, 0), Complex(0, 1), Complex(-1, 0), Complex(0, -1)};
+    for (long n : {100L, 101L, 1000L, 1003L, -99L, -100L, -1000L, -1001L}) {
+      Real power = numext::real(reference_complex_pow(Complex(a), n));
+      Real term = Real(n) * numext::real(reference_complex_pow(Complex(a), n - 1)) * b;
+      for (bool swapped : {false, true}) {
+        Complex expected = swapped ? i_powers[((n % 4) + 4) % 4] * Complex(power, -term) : Complex(power, term);
+        ArrayX<Complex> z = ArrayX<Complex>::Constant(size, swapped ? Complex(b, a) : Complex(a, b));
+        ArrayX<Complex> y = z.pow(int(n));
+        for (Index k = 0; k < size; ++k) {
+          VERIFY(within_ulps(numext::real(y(k)), numext::real(expected), 2.0));
+          VERIFY(within_ulps(numext::imag(y(k)), numext::imag(expected), 2.0));
+        }
+      }
+    }
+  }
+  // An element's power does not depend on its packet neighbours, one of which here forces the scaled loop: the
+  // unscaled loop, whose residuals would underflow in the smaller component (here 8 a b^7, subnormal), requires
+  // both components in range, so this base takes the scaled loop either way.
+  {
+    constexpr int min_exponent = std::numeric_limits<Real>::min_exponent;
+    constexpr int e = min_exponent / 9;
+    for (int i = 0; i < 16; ++i) {
+      Real a = std::ldexp(internal::random<Real>(Real(1), Real(2)), min_exponent - 20 - 7 * e);
+      Real b = std::ldexp(internal::random<Real>(Real(-2), Real(-1)), e);
+      ArrayX<Complex> alone = ArrayX<Complex>::Constant(size, Complex(a, b)), mixed = alone;
+      for (Index k = 1; k < size; k += 2) mixed(k) = Complex((std::numeric_limits<Real>::max)() / 4, 1);
+      ArrayX<Complex> y_alone = alone.pow(8), y_mixed = mixed.pow(8);
+      for (Index k = 0; k < size; k += 2) VERIFY(y_alone(k) == y_mixed(k));
+    }
+  }
   // Random bases at magnitudes where the reference cannot under- or overflow; the exponent runs past the
   // renormalization interval of the implementation.
   {
