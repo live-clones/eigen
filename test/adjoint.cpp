@@ -40,11 +40,11 @@ struct adjoint_specific<false> {
 
     const long double eps = static_cast<long double>(NumTraits<RealScalar>::epsilon());
     const long double absS1 = wide_abs(s1), absS2 = wide_abs(s2);
-    long double scale = 0;
+    long double linearityScale = 0;
     for (Index i = 0; i < v1.size(); ++i)
-      scale += (absS1 * wide_abs(v1(i)) + absS2 * wide_abs(v2(i))) * wide_abs(v3(i));
+      linearityScale += (absS1 * wide_abs(v1(i)) + absS2 * wide_abs(v2(i))) * wide_abs(v3(i));
     // Two evaluation orders, including complex multiply-adds and scalar-vector products.
-    const long double linearityBound = 8 * (v1.size() + 4) * eps * scale;
+    const long double linearityBound = 8 * (v1.size() + 4) * eps * linearityScale;
     VERIFY((numext::isfinite)(linearityBound));
     VERIFY(wide_abs((s1 * v1 + s2 * v2).dot(v3) - (numext::conj(s1) * v1.dot(v3) + numext::conj(s2) * v2.dot(v3))) <=
            linearityBound);
@@ -74,11 +74,12 @@ struct adjoint_specific<false> {
 #endif
 
     // check compatibility of dot and adjoint
-    scale = 0;
+    long double adjointScale = 0;
     for (Index i = 0; i < square.rows(); ++i)
-      for (Index j = 0; j < square.cols(); ++j) scale += wide_abs(v1(i)) * wide_abs(square(i, j)) * wide_abs(v2(j));
+      for (Index j = 0; j < square.cols(); ++j)
+        adjointScale += wide_abs(v1(i)) * wide_abs(square(i, j)) * wide_abs(v2(j));
     // Each order has two reductions; allow 8*n*eps per complex product and its accumulation.
-    const long double adjointBound = 16 * (v1.size() + 1) * eps * scale;
+    const long double adjointBound = 16 * (v1.size() + 1) * eps * adjointScale;
     VERIFY((numext::isfinite)(adjointBound));
     VERIFY(wide_abs(v1.dot(square * v2) - (square.adjoint() * v1).dot(v2)) <= adjointBound);
 
