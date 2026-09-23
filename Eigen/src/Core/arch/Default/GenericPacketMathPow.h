@@ -718,6 +718,9 @@ struct repeated_squaring_ops {
     Packet use_special = por(pisnan(y.hi), pcmp_eq(y.hi, pzero(y.hi)));
     return pselect(use_special, odd ? b.special : pabs(b.special), Scaling::scale_result(y.hi, y.exponent));
   }
+  // With a scaled |base| in [1/4, 4) a step at most cubes the magnitude bound, so four steps keep it within 2^(+-62)
+  // and the residuals, u times smaller, normal.
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE int renormalization_steps(const Scalar&) { return 4; }
   // A NaN result here comes from a NaN base and needs no recomputation.
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool any_nan(const Packet&) { return false; }
 };
@@ -787,12 +790,29 @@ struct repeated_squaring_ops<Packet, true> {
   using Scaling = binary_exponent_scaling<R>;
   using Bound = R;
   // Lanes marked `separated` hold only the larger component L (a, or bi) of z = L (1 + delta); the power is
-  // L^n (1 + i c) with i c = n delta, c = coefficient * 2^coefficient_exponent (see base()).
+  // L^n (1 + i c) with i c = n delta, c = (coefficient_hi + coefficient_lo) 2^coefficient_exponent (see base()).
   struct State {
     R re_hi, re_lo, im_hi, im_lo, exponent;
-    R separated, coefficient, coefficient_exponent;
+    R separated, coefficient_hi, coefficient_lo, coefficient_exponent;
     bool any_separated;
   };
+  // Four steps between renormalizations let the power fall to 2^-62 of the scale when the base is a reciprocal in
+  // [1/4, 1/2), and the smaller component, of order r = |s/L| times the power, keeps normal residuals only for
+  // r >= 2^(min_exponent - 1 + digits + 62). Below that the base is separated (see base()), and first order is
+  // exact to within (n r)^2 / 2 <= u/4 for |n| <= 2^kFirstOrderLog2Limit: every n for double, 2^25 for float.
+  // Larger n renormalize at every step instead, which keeps the power above 2^-6 (a step from [2, 4), or from the
+  // base itself) and lets the separation drop 56 binades, where first order holds for any n.
+  static constexpr int kMinExponent = numext::numeric_limits<Real>::min_exponent;
+  static constexpr int kDigits = numext::numeric_limits<Real>::digits;
+  static constexpr int kSeparationExponent = kMinExponent + kDigits + 64;
+  static constexpr int kFirstOrderLog2Limit = (1 - kDigits - 2 * kSeparationExponent) / 2;
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool every_step(const Real& count) {
+    return kFirstOrderLog2Limit < 64 &&
+           count > Real(numext::uint64_t(1) << (kFirstOrderLog2Limit < 64 ? kFirstOrderLog2Limit : 0));
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE int renormalization_steps(const Real& count) {
+    return every_step(count) ? 1 : 4;
+  }
   // Whether every lane's max(|re|, |im|), and min(|re|, |im|) unless zero, lie within [1/bound, bound], where the
   // power and its residuals stay normal without scaling. A zero component stays exactly zero in every power.
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool in_range(const Packet& x, const R& bound) {
@@ -817,15 +837,16 @@ struct repeated_squaring_ops<Packet, true> {
     R lift, scale;
     Scaling::input_scale(Components::magnitude(x), lift, scale, b.exponent);
     R wr = pmul(pmul(re, lift), scale), wi = pmul(pmul(im, lift), scale);
-    // Both components take the larger one's scale, which can push a nonzero smaller component s below the normal
-    // range although its contribution to the power, n s L^(n-1), is representable. Then
-    // |delta| = |s / L| < 2^min_exponent, so z^n = L^n (1 + n delta) to working precision for any n below 2^64:
-    // the next term, n^2 delta^2 / 2, is below u n |delta|. The power runs on L alone and result() adds
-    // L^n n delta, with delta = i b/a, or a/(bi) = -i a/b, and -delta for the reciprocal base.
-    R min_normal = pset1<R>((numext::numeric_limits<Real>::min)());
+    // Both components take the larger one's scale, under which a nonzero smaller component s far below the larger
+    // one L would lose its residuals (see kSeparationExponent). Then z = L (1 + delta) with |delta| tiny and
+    // z^n = L^n (1 + n delta) to working precision: the power runs on L alone and result() adds L^n n delta, with
+    // delta = i b/a, or a/(bi) = -i a/b, and -delta for the reciprocal base.
+    int separation_exponent = every_step(count) ? kSeparationExponent - 56 : kSeparationExponent;
+    R separation =
+        pset1frombits<R>(typename Scaling::Bits(Scaling::kBias + separation_exponent) << Scaling::kMantissaBits);
     R zero = pzero(wr);
-    R re_separated = pandnot(pcmp_lt(pabs(wr), min_normal), pcmp_eq(re, zero));
-    R im_separated = pandnot(pcmp_lt(pabs(wi), min_normal), pcmp_eq(im, zero));
+    R re_separated = pandnot(pcmp_lt(pabs(wr), separation), pcmp_eq(re, zero));
+    R im_separated = pandnot(pcmp_lt(pabs(wi), separation), pcmp_eq(im, zero));
     b.separated = por(re_separated, im_separated);
     b.any_separated = predux_any(b.separated);
     if (b.any_separated) {
@@ -833,11 +854,21 @@ struct repeated_squaring_ops<Packet, true> {
       Scaling::input_scale(pselect(im_separated, im, re), s_lift, s_scale, s_exponent);
       R s = pmul(pmul(pselect(im_separated, im, re), s_lift), s_scale);
       R count_scale = Scaling::inverse_scale(pset1<R>(count), count_exponent);
-      // The scaled |s / L| is in (1/2, 2) and the scaled count in [2, 4); an eighth keeps |c hi| within 2^62.
-      R ratio = pdiv(s, pselect(im_separated, wr, wi));
-      R c = pmul(pmul(ratio, pmul(pset1<R>(count), count_scale)), pset1<R>(Real(0.125)));
-      R sign = pselect(im_separated, pset1<R>(Real(reciprocal ? -1 : 1)), pset1<R>(Real(reciprocal ? 1 : -1)));
-      b.coefficient = pmul(c, sign);
+      // The coefficient n s / L is a double word so that result() rounds the added component once: the ratio
+      // q + (s - q L) / L, where s - q L = (s - p_hi) - p_lo is exact, times the count. The scaled |s / L| is in
+      // (1/2, 2) and the scaled count in [2, 4); an eighth keeps |c hi| within 2^62.
+      R l = pselect(im_separated, wr, wi);
+      R q = pdiv(s, l);
+      R p_hi, p_lo, c_hi, c_lo;
+      twoprod(q, l, p_hi, p_lo);
+      R q_lo = pdiv(psub(psub(s, p_hi), p_lo), l);
+      R scaled_count = pmul(pset1<R>(count), count_scale);
+      twoprod(scaled_count, q, c_hi, c_lo);
+      fast_twosum(c_hi, pmadd(scaled_count, q_lo, c_lo), p_hi, p_lo);
+      R sign = pselect(im_separated, pset1<R>(Real(reciprocal ? -0.125 : 0.125)),
+                       pset1<R>(Real(reciprocal ? 0.125 : -0.125)));
+      b.coefficient_hi = pmul(p_hi, sign);
+      b.coefficient_lo = pmul(p_lo, sign);
       b.coefficient_exponent = padd(padd(psub(s_exponent, b.exponent), count_exponent), pset1<R>(Real(3)));
       wr = pselect(re_separated, zero, wr);
       wi = pselect(im_separated, zero, wi);
@@ -908,10 +939,11 @@ struct repeated_squaring_ops<Packet, true> {
       // L^n is real or imaginary, and i c L^n fills the component it leaves exactly zero.
       R e = padd(y.exponent, b.coefficient_exponent);
       R zero = pzero(re);
-      re = pselect(pand(b.separated, pcmp_eq(y.re_hi, zero)),
-                   Scaling::scale_result(pnegate(pmul(b.coefficient, y.im_hi)), e), re);
-      im = pselect(pand(b.separated, pcmp_eq(y.im_hi, zero)), Scaling::scale_result(pmul(b.coefficient, y.re_hi), e),
-                   im);
+      R re_hi, re_lo, im_hi, im_lo;
+      fast_twoprod(b.coefficient_hi, b.coefficient_lo, y.im_hi, y.im_lo, re_hi, re_lo);
+      fast_twoprod(b.coefficient_hi, b.coefficient_lo, y.re_hi, y.re_lo, im_hi, im_lo);
+      re = pselect(pand(b.separated, pcmp_eq(y.re_hi, zero)), Scaling::scale_result(pnegate(re_hi), e), re);
+      im = pselect(pand(b.separated, pcmp_eq(y.im_hi, zero)), Scaling::scale_result(im_hi, e), im);
     }
     return Components::join(re, im);
   }
@@ -981,13 +1013,12 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet int_pow_double_word(const Packet& x
 
   typename Ops::State base = Ops::base(x, negative, scaled, Real(m));
   typename Ops::State y = base;
-  // With a scaled |base| in [1/4, 4) a step at most cubes the magnitude bound, so four steps keep it within
-  // 2^(+-62) and the residuals, u times smaller, normal.
+  int renormalization_steps = Ops::renormalization_steps(Real(m));
   int steps_since_renormalization = 0;
   for (AbsExponentType bit = top >> 1; bit != 0; bit >>= 1) {
     Ops::square(y);
     if ((m & bit) != 0) Ops::multiply(y, base);
-    if (scaled && ++steps_since_renormalization == 4) {
+    if (scaled && ++steps_since_renormalization == renormalization_steps) {
       Ops::renormalize(y);
       steps_since_renormalization = 0;
     }
