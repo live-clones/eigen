@@ -380,7 +380,6 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS std::enable_if_t<!is_scalar<
   const Packet cst_inf = pinf<Packet>();
   const Packet cst_zero = pset1<Packet>(Scalar(0));
   const Packet cst_one = pset1<Packet>(Scalar(1));
-  const Packet cst_nan = pnan<Packet>();
 
   const Packet x_abs = pabs(x);
   Packet result = generic_pow_impl(x_abs, y);
@@ -414,7 +413,9 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS std::enable_if_t<!is_scalar<
 
   // *  pow(base, exp) returns NaN if base is finite and negative
   //    and exp is finite and non-integer.
-  result = pselect(pandnot(x_is_negative, y_is_int), cst_nan, result);
+  // A packet comparison mask is all ones, a NaN bit pattern, so por selects NaN and pand selects a constant
+  // against zero. Scalar masks hold the value one instead, but this overload takes packets only.
+  result = por(pandnot(x_is_negative, y_is_int), result);
 
   // * pow(±0, exp), where exp is negative, finite, and is an even integer or
   // a non-integer, returns +∞
@@ -425,7 +426,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS std::enable_if_t<!is_scalar<
   // * pow(+0, exp), where exp is a positive odd integer, returns +0
   // * pow(-0, exp), where exp is a positive odd integer, returns -0
   // Sign is flipped by the rule below.
-  result = pselect(x_is_zero, pselect(y_is_negative, cst_inf, cst_zero), result);
+  result = pselect(x_is_zero, pand(y_is_negative, cst_inf), result);
 
   // pow(base, exp) returns -pow(abs(base), exp) if base has the sign bit set,
   // and exp is an odd integer exponent.
@@ -437,7 +438,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS std::enable_if_t<!is_scalar<
   // * pow(base, +∞) returns +∞ for any |base|>1
   // * pow(±0, -∞) returns +∞
   // * pow(-1, +-∞) = 1
-  Packet inf_y_val = pselect(pxor(y_is_negative, x_abs_gt_one), cst_inf, cst_zero);
+  Packet inf_y_val = pand(pxor(y_is_negative, x_abs_gt_one), cst_inf);
   inf_y_val = pselect(pcmp_eq(x, pset1<Packet>(Scalar(-1.0))), cst_one, inf_y_val);
   result = pselect(y_abs_is_huge, inf_y_val, result);
 
@@ -449,12 +450,12 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS std::enable_if_t<!is_scalar<
   // * pow(-∞, exp) returns -∞ if exp is a positive odd integer.
   // * pow(-∞, exp) returns +∞ if exp is a positive non-integer or positive
   //     even integer.
-  auto x_pos_inf_value = pselect(y_is_negative, cst_zero, cst_inf);
+  auto x_pos_inf_value = pandnot(cst_inf, y_is_negative);
   auto x_neg_inf_value = pselect(y_is_odd_int, pnegate(x_pos_inf_value), x_pos_inf_value);
   result = pselect(x_abs_is_inf, pselect(x_is_negative, x_neg_inf_value, x_pos_inf_value), result);
 
   // All cases of NaN inputs return NaN, except the two below.
-  result = pselect(por(pisnan(x), pisnan(y)), cst_nan, result);
+  result = por(por(pisnan(x), pisnan(y)), result);
 
   // * pow(base, 1) returns base.
   // * pow(base, +/-0) returns 1, regardless of base, even NaN.
@@ -1035,6 +1036,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::enable_if_t<is_scalar<Scalar>::value,
 // Handle special cases for pow(x, exponent) where both base and exponent are
 // floating point and the exponent is a non-integer scalar (uniform across all
 // SIMD lanes). This allows us to use scalar branches on exponent properties.
+// Reached from packetOp only, so the comparison masks are all ones and select a NaN or an infinity bitwise.
 template <typename Packet, typename ScalarExponent>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet handle_nonint_nonint_errors(const Packet& x, const Packet& powx,
                                                                          const ScalarExponent& exponent) {
@@ -1047,7 +1049,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet handle_nonint_nonint_errors(const P
   const Packet abs_x = pabs(x);
 
   // x < 0 with non-integer exponent -> NaN.
-  Packet result = pselect(pcmp_lt(x, cst_zero), cst_nan, powx);
+  Packet result = por(pcmp_lt(x, cst_zero), powx);
 
   if (!(numext::isfinite)(exponent)) {
     if (exponent != exponent) {
@@ -1058,10 +1060,10 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet handle_nonint_nonint_errors(const P
       const Packet abs_x_is_one = pcmp_eq(abs_x, cst_one);
       if (exponent > ScalarExponent(0)) {
         // pow(x, +inf): |x| > 1 -> +inf, |x| < 1 -> 0, |x| == 1 -> 1.
-        result = pselect(pcmp_lt(cst_one, abs_x), cst_inf, cst_zero);
+        result = pand(pcmp_lt(cst_one, abs_x), cst_inf);
       } else {
         // pow(x, -inf): |x| < 1 -> +inf, |x| > 1 -> 0, |x| == 1 -> 1.
-        result = pselect(pcmp_lt(abs_x, cst_one), cst_inf, cst_zero);
+        result = pand(pcmp_lt(abs_x, cst_one), cst_inf);
       }
       // pow(+-1, +-inf) = 1.
       result = pselect(abs_x_is_one, cst_one, result);
@@ -1084,7 +1086,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet handle_nonint_nonint_errors(const P
   // NaN base produces NaN. This overrides all cases above, but pow(NaN, 0) = 1
   // and pow(NaN, integer) are handled by the integer exponent path and never
   // reach this function.
-  result = pselect(pisnan(x), cst_nan, result);
+  result = por(pisnan(x), result);
 
   return result;
 }
