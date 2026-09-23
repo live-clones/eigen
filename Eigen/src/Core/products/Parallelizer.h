@@ -64,7 +64,7 @@ inline void setNbThreads(int v) { internal::manage_multi_threading(SetAction, &v
 
 #ifdef EIGEN_VECTORIZE_SME
 namespace internal {
-#if EIGEN_OS_LINUX
+#ifdef EIGEN_CPU_CACHE_SYSFS
 // Whether the CPU implementer is Apple (0x61), the one vendor known to share an SME unit per cluster.
 inline bool sme_cpu_is_apple() {
   std::FILE* f = std::fopen("/proc/cpuinfo", "r");
@@ -91,7 +91,7 @@ inline int detect_sme_units() {
   sz = sizeof(per_l2);
   if (sysctlbyname("hw.perflevel0.cpusperl2", &per_l2, &sz, nullptr, 0) != 0 || per_l2 <= 0) return 0;
   return numext::maxi<int32_t>(1, cores / per_l2);
-#elif EIGEN_OS_LINUX
+#elif defined(EIGEN_CPU_CACHE_SYSFS)
   if (!sme_cpu_is_apple()) return 0;
   // One unit per cluster: the number of distinct cluster ids. Offline CPUs have no topology entry.
   int units = 0;
@@ -115,13 +115,11 @@ inline int detect_sme_units() {
 #endif
 }
 inline void manage_sme_units(Action action, int* v) {
-  static int m_units = -1;
-  if (action == SetAction) {
+  static int m_units = detect_sme_units();
+  if (action == SetAction)
     m_units = *v;
-  } else {
-    if (m_units < 0) m_units = detect_sme_units();
+  else
     *v = m_units;
-  }
 }
 }  // namespace internal
 #endif
@@ -139,7 +137,8 @@ inline int nbSmeUnits() {
 #endif
 }
 /** Sets the number of SME units, which caps the threads a product on the SME GEMM kernel uses; 0 removes the cap.
- * \c EIGEN_SME_UNITS sets it at compile time. Does nothing when the SME backend is not in use.
+ * \c EIGEN_SME_UNITS sets it at compile time. Does nothing when the SME backend is not in use. Like setNbThreads(),
+ * it must not be called while a product runs on another thread.
  * \sa nbSmeUnits */
 inline void setNbSmeUnits(int v) {
 #ifdef EIGEN_VECTORIZE_SME
