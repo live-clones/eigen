@@ -98,9 +98,8 @@ template <typename Real>
 void scaled_comparison_helpers() {
   using MatrixType = Matrix<Real, 2, 2>;
   const MatrixType zero = MatrixType::Zero();
-  MatrixType value = zero;
-  for (Index i = 0; i < value.size(); ++i) {
-    value = zero;
+  for (Index i = 0; i < zero.size(); ++i) {
+    MatrixType value = zero;
     value(i) = NumTraits<Real>::quiet_NaN();
     VERIFY(!verifyIsApproxScaled(value, zero, Real(1)));
     VERIFY(!verifyIsApproxScaled(value.array(), zero.array(), Real(1)));
