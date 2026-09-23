@@ -152,6 +152,9 @@ run time. However, these assertions do cost time and can thus be turned off.
    The default (32 MB) is empirically tuned for Apple M4.
  - \b \c EIGEN_SME_LHS_WORKING_SET_BUDGET_BYTES - Byte budget for the LHS working set in the ARM SME GEMM kernel.
    The default (7 MB) is empirically tuned for Apple M4.
+ - \b \c EIGEN_SME_SINGLE_PASS_RHS_BUDGET_BYTES - Byte budget for the packed RHS panel in the ARM SME GEMM kernel when
+   all rows of the product fit one LHS block, so that each packed panel is read once and should stay in L2 between
+   packing and the kernel. The default (4 MB) is empirically tuned for Apple M4 (16 MB L2 per cluster).
 
  - \b \c EIGEN_DONT_ALIGN - Deprecated, it is a synonym for \c EIGEN_MAX_ALIGN_BYTES=0. It disables alignment completely. %Eigen will not try to align its objects and does not expect that any objects passed to it are aligned. This will turn off vectorization if \b \c EIGEN_UNALIGNED_VECTORIZE=1. Not defined by default.
  - \b \c EIGEN_DONT_ALIGN_STATICALLY - Deprecated, it is a synonym for \c EIGEN_MAX_STATIC_ALIGN_BYTES=0. It disables alignment of arrays on the stack. Not defined by default, unless \c EIGEN_DONT_ALIGN is defined.
