@@ -79,17 +79,23 @@ using scaled_comparison_operand_t =
     std::conditional_t<std::is_same<typename evaluator_traits<X>::Shape, DenseShape>::value, const X&,
                        typename plain_object_eval<X>::type>;
 
+template <typename Components>
+EIGEN_DEVICE_FUNC typename Components::Scalar scaled_comparison_max_coeff(const Components& components) {
+  using RealScalar = typename Components::Scalar;
+  if (components.size() == 0) return RealScalar(0);
+  return safe_scaling<RealScalar>::recover_flushed_max_coeff(components,
+                                                             components.cwiseAbs().template maxCoeff<PropagateNaN>());
+}
+
 template <typename Derived>
 EIGEN_DEVICE_FUNC comparison_magnitude<typename stable_norm_accumulator<typename Derived::RealScalar>::type>
 scaled_comparison_norm(const Derived& xExpr) {
   using RealScalar = typename stable_norm_accumulator<typename Derived::RealScalar>::type;
   scaled_comparison_operand_t<Derived> x(xExpr);
-  if (x.size() == 0) return comparison_magnitude<RealScalar>(RealScalar(0));
   const auto& matrix = x.matrix();
   const auto& realComponents = matrix.realView();
   const auto& components = realComponents.template cast<RealScalar>();
-  const RealScalar scale = safe_scaling<RealScalar>::recover_flushed_max_coeff(
-      components, components.cwiseAbs().template maxCoeff<PropagateNaN>());
+  const RealScalar scale = scaled_comparison_max_coeff(components);
   // Classify first so NaNs do not reach the ordered comparison.
   if (!(numext::isfinite)(scale) || !(scale > RealScalar(0))) return comparison_magnitude<RealScalar>(scale);
   RealScalar squaredNorm = RealScalar(0);
@@ -113,12 +119,23 @@ scaled_comparison_distance(const X& xExpr, const Y& yExpr) {
   const auto& matrixY = y.matrix();
   const auto& wideX = matrixX.template cast<WideScalar>();
   const auto& wideY = matrixY.template cast<WideScalar>();
-  auto difference = scaled_comparison_norm(wideX - wideY);
+  // FTZ flushes a subnormal difference of normal operands. Scaling a maximum M < 1 up by a power of two first loses
+  // only differences below M * min; scaling larger operands down could underflow their small components.
+  const Accumulator maxCoeff = numext::mini(
+      Accumulator(1),
+      numext::maxi(scaled_comparison_max_coeff(wideX.realView()), scaled_comparison_max_coeff(wideY.realView())));
+  const safe_scaling_factors<Accumulator> factors = supports_power_of_two_scaling<Accumulator>::value
+                                                        ? safe_scaling<Accumulator>::compute_floor_factors(maxCoeff)
+                                                        : safe_scaling_factors<Accumulator>();
+  // Both calls share one expression type, so scaled_comparison_norm is instantiated once.
+  auto difference = scaled_comparison_norm(wideX * factors.invScale - wideY * factors.invScale);
   if (!difference.isFinite()) {
     // Finite operands can overflow on subtraction; halving first keeps every component representable.
-    difference = scaled_comparison_norm(wideX * Accumulator(0.5) - wideY * Accumulator(0.5));
+    const Accumulator halfInvScale = factors.invScale * Accumulator(0.5);
+    difference = scaled_comparison_norm(wideX * halfInvScale - wideY * halfInvScale);
     difference.multiply(Accumulator(2));
   }
+  difference.multiply(factors.scale);
   return difference;
 }
 
