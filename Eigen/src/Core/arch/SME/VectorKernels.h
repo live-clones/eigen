@@ -76,6 +76,13 @@ struct sme_vector_fpsr {
   std::uint64_t value;
 };
 
+// FPCR.RMode == 0b10 (roundTowardNegative), the one mode where (+0) + (-0) is -0.
+static EIGEN_ALWAYS_INLINE bool sme_rounds_toward_negative() {
+  std::uint64_t fpcr;
+  asm volatile("mrs %0, fpcr" : "=r"(fpcr));
+  return ((fpcr >> 22) & 3) == 2;
+}
+
 template <typename Scalar, typename Index>
 __arm_new("za") __arm_locally_streaming
     EIGEN_DONT_INLINE void sme_axpy(Index n, const Scalar* x, Scalar* y, Scalar alpha, Index prefix,
@@ -121,7 +128,11 @@ __arm_new("za") __arm_locally_streaming EIGEN_DONT_INLINE Scalar
   const Index lanes = Traits::svl();
   const auto pg = Traits::ptrue();
   const auto pn = Traits::ptrue_c();
-  svzero_za();
+  // -0 is the additive identity except under roundTowardNegative, so a zero sum gets the IEEE sign.
+  const auto negative_zero = Traits::dup(Scalar(-0.0));
+  EIGEN_SME_VECTOR_UNROLL4
+  for (int k = 0; k < 4; ++k)
+    sme_vector_write(k, svcreate4(negative_zero, negative_zero, negative_zero, negative_zero));
   Index i = 0;
   for (; i <= n - 16 * lanes; i += 16 * lanes) {
     EIGEN_SME_VECTOR_UNROLL4
@@ -129,7 +140,7 @@ __arm_new("za") __arm_locally_streaming EIGEN_DONT_INLINE Scalar
       sme_vector_madd(k, sme_ld1_x4(pn, x + i + k * 4 * lanes), sme_ld1_x4(pn, y + i + k * 4 * lanes));
   }
   for (; i <= n - 4 * lanes; i += 4 * lanes) sme_vector_madd(0, sme_ld1_x4(pn, x + i), sme_ld1_x4(pn, y + i));
-  auto tail_accumulator = Traits::dup(Scalar(0));
+  auto tail_accumulator = negative_zero;
   for (; i < n; i += n - i < lanes ? n - i : lanes) {
     auto tail = Traits::whilelt(i, n);
     tail_accumulator = svmla_m(tail, tail_accumulator, sme_ld1(tail, x + i), sme_ld1(tail, y + i));
@@ -239,8 +250,8 @@ struct default_inner_product_impl<Lhs, Rhs, true, std::enable_if_t<sme_dot_suppo
         lhs.innerStride() == 1 && rhs.innerStride() == 1) {
       sme_vector_fpsr status;
       const Scalar result = sme_dot(lhs.size(), lhs.derived().data(), rhs.derived().data(), status);
-      // ZA's positive-zero seed loses the sign of an all-negative-zero dot product.
-      if (result != Scalar(0)) return result;
+      // Under roundTowardNegative the -0 seeds turn +0 sums into -0.
+      if (result != Scalar(0) || !sme_rounds_toward_negative()) return result;
     }
     return Base::run(lhs, rhs);
   }

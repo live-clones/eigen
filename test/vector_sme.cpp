@@ -252,8 +252,8 @@ template <typename Scalar>
 void sme_gemv_tails() {
   using Vec = Vector<Scalar, Dynamic>;
   using Mat = Matrix<Scalar, Dynamic, Dynamic>;
-  // Every four-vector predicate remainder, including at the largest architectural SVL.
-  for (Index rows = 128; rows <= 388; ++rows) {
+  // Every predicated chunk pattern of a row block, including at the largest architectural SVL.
+  for (Index rows = 128; rows <= 1100; ++rows) {
     const Mat a = Mat::Ones(rows, 65);
     const Vec x = Vec::Ones(65);
     Vec storage = Vec::Ones(rows + 2);
@@ -342,7 +342,8 @@ void sme_gemv_scaled_range() {
 template <typename Scalar>
 void sme_dot_signed_zero() {
   using Vec = Vector<Scalar, Dynamic>;
-  for (Index n : {32768, 32769, 32799}) {
+  const Scalar tiny = (std::numeric_limits<Scalar>::denorm_min)();
+  for (Index n : {32768, 32769, 32799, 33791}) {
     Vec x = Vec::Constant(n, Scalar(-0.0)), y = Vec::Ones(n);
     const Scalar negative = x.dot(y);
     VERIFY_IS_EQUAL(negative, Scalar(0));
@@ -351,6 +352,56 @@ void sme_dot_signed_zero() {
     const Scalar positive = x.dot(y);
     VERIFY_IS_EQUAL(positive, Scalar(0));
     VERIFY(!(numext::signbit)(positive));
+    // A single positive-zero product, in the first group or the last element, gives +0.
+    for (Index pos : {Index(0), n - 1}) {
+      x.setConstant(Scalar(-0.0));
+      x[pos] = Scalar(0);
+      const Scalar mixed = x.dot(y);
+      VERIFY_IS_EQUAL(mixed, Scalar(0));
+      VERIFY(!(numext::signbit)(mixed));
+    }
+    // Exact cancellation, across lanes (adjacent terms) or within a fused lane (halves), rounds to +0.
+    for (int within_lane = 0; within_lane < 2; ++within_lane) {
+      x.setConstant(Scalar(-0.0));
+      const Index half = n / 2;
+      for (Index i = 0; i < half; ++i) {
+        x[within_lane ? i : 2 * i] = Scalar(1);
+        x[within_lane ? half + i : 2 * i + 1] = Scalar(-1);
+      }
+      const Scalar cancelled = x.dot(y);
+      VERIFY_IS_EQUAL(cancelled, Scalar(0));
+      VERIFY(!(numext::signbit)(cancelled));
+    }
+    // Products that underflow to -0 keep the sign of every fused partial sum.
+    x.setConstant(-tiny);
+    const Scalar underflow = x.dot(Vec::Constant(n, Scalar(0.25)));
+    VERIFY_IS_EQUAL(underflow, Scalar(0));
+    VERIFY((numext::signbit)(underflow));
+  }
+}
+
+template <typename Scalar>
+void sme_dot_directed_rounding() {
+#if EIGEN_COMP_CLANG
+#pragma STDC FENV_ACCESS ON
+#endif
+  using Vec = Vector<Scalar, Dynamic>;
+  const int saved = std::fegetround();
+  const Index n = 32769;
+  const Vec y = Vec::Ones(n);
+  for (int mode : {FE_TONEAREST, FE_UPWARD, FE_DOWNWARD, FE_TOWARDZERO}) {
+    VERIFY_IS_EQUAL(std::fesetround(mode), 0);
+    // IEEE 754 6.3: x + x keeps the sign of x; an exact zero sum of opposite signs is -0 only when rounding down.
+    Vec x = Vec::Zero(n);
+    const Scalar positive = x.dot(y);
+    x.setConstant(Scalar(-0.0));
+    const Scalar negative = x.dot(y);
+    x[0] = Scalar(0);
+    const Scalar mixed = x.dot(y);
+    std::fesetround(saved);
+    VERIFY(positive == Scalar(0) && !std::signbit(positive));
+    VERIFY(negative == Scalar(0) && std::signbit(negative));
+    VERIFY(mixed == Scalar(0) && std::signbit(mixed) == (mode == FE_DOWNWARD));
   }
 }
 
@@ -420,6 +471,7 @@ EIGEN_DECLARE_TEST(vector_sme) {
   CALL_SUBTEST_1(sme_vector_special_values<float>());
   CALL_SUBTEST_3(sme_gemv_scaled_range<float>());
   CALL_SUBTEST_3(sme_dot_signed_zero<float>());
+  CALL_SUBTEST_3(sme_dot_directed_rounding<float>());
   CALL_SUBTEST_3(sme_vector_exception_state<float>());
 #ifdef EIGEN_VECTORIZE_SME_F64F64
   CALL_SUBTEST_2(sme_vector_cache_sizes<double>());
@@ -431,6 +483,7 @@ EIGEN_DECLARE_TEST(vector_sme) {
   CALL_SUBTEST_2(sme_vector_special_values<double>());
   CALL_SUBTEST_4(sme_gemv_scaled_range<double>());
   CALL_SUBTEST_4(sme_dot_signed_zero<double>());
+  CALL_SUBTEST_4(sme_dot_directed_rounding<double>());
   CALL_SUBTEST_4(sme_vector_exception_state<double>());
 #endif
   setCpuCacheSizes(l1, l2, l3);

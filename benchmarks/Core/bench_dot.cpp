@@ -137,3 +137,29 @@ BENCHMARK_TEMPLATE(BM_DotLayout, float, true) DOT_LAYOUT_SIZES ->Name("DotProduc
 BENCHMARK_TEMPLATE(BM_DotLayout, double, true) DOT_LAYOUT_SIZES ->Name("DotProduced_double");
 #undef DOT_LAYOUT_SIZES
 // clang-format on
+
+// Disjoint supports give an exactly zero dot product.
+template <typename Scalar>
+static void BM_DotOrthogonal(benchmark::State& state) {
+  using Vec = Vector<Scalar, Dynamic>;
+  const Index n = state.range(0);
+  Vec a = Vec::Zero(n), b = Vec::Zero(n);
+  for (Index i = 0; i + 1 < n; i += 2) {
+    a[i] = Scalar(1);
+    b[i + 1] = Scalar(1);
+  }
+  if (a.dot(b) != Scalar(0)) {
+    state.SkipWithError("DOT of disjoint supports is not zero");
+    return;
+  }
+  for (auto _ : state) {
+    benchmark::ClobberMemory();
+    Scalar result = a.dot(b);
+    benchmark::DoNotOptimize(result);
+  }
+}
+
+// clang-format off
+BENCHMARK_TEMPLATE(BM_DotOrthogonal, float) ->Arg(4096)->Arg(16384)->Arg(65536) ->Name("DotOrthogonal_float");
+BENCHMARK_TEMPLATE(BM_DotOrthogonal, double) ->Arg(4096)->Arg(16384)->Arg(65536) ->Name("DotOrthogonal_double");
+// clang-format on
