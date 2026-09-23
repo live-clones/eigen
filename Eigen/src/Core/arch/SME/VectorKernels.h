@@ -146,50 +146,54 @@ __arm_new("za") __arm_locally_streaming EIGEN_DONT_INLINE Scalar
   return result;
 }
 
+// y += alpha * ZA group k. Like the accumulation, the update stays in ZA, which suppresses exceptions.
+template <typename Scalar, typename Vec>
+static EIGEN_ALWAYS_INLINE void sme_gemv_update(unsigned int k, svcount_t active, Scalar* y,
+                                                Vec alpha) __arm_streaming __arm_inout("za") {
+  const auto sum = sme_vector_read(k, Scalar(0));
+  sme_vector_write(k, sme_ld1_x4(active, y));
+  sme_vector_madd(k, sum, alpha);
+  svst1(active, y, sme_vector_read(k, Scalar(0)));
+}
+
+// Only ZA arithmetic: the caller's status guard suffices, without costly FPSR access while streaming.
 template <typename Scalar, typename Index>
 __arm_new("za") __arm_locally_streaming
     EIGEN_DONT_INLINE void sme_gemv(Index rows, Index cols, const Scalar* a, Index stride, const Scalar* x, Scalar* y,
-                                    Scalar alpha, Index block_cols, sme_vector_fpsr& status) {
-  status.restore();
-  if (alpha == Scalar(0) || rows == 0 || cols == 0) {
-    status.save();
-    return;
-  }
+                                    Scalar alpha, Index block_cols) {
   using Traits = sme_traits<Scalar>;
   const Index lanes = Traits::svl();
-  const auto pn = Traits::ptrue_c();
+  const auto scale = Traits::dup(alpha);
   // Match the generic GEMV's scaled column batches to bound the unscaled sums.
   for (Index first = 0; first < cols;) {
     const Index end = first + (cols - first < block_cols ? cols - first : block_cols);
-    Index i = 0;
-    for (; i <= rows - 16 * lanes; i += 16 * lanes) {
+    // Four predicated chunks per row block keep four independent FMLA chains, also in the final partial block.
+    // An inactive chunk addresses the block start and accesses no memory.
+    for (Index i = 0; i < rows;) {
+      const Index remaining = rows - i;
+      const auto p0 = Traits::whilelt_c4(i, rows), p1 = Traits::whilelt_c4(i + std::int64_t(4) * lanes, rows),
+                 p2 = Traits::whilelt_c4(i + std::int64_t(8) * lanes, rows),
+                 p3 = Traits::whilelt_c4(i + std::int64_t(12) * lanes, rows);
+      const Index o1 = remaining > 4 * lanes ? 4 * lanes : 0, o2 = remaining > 8 * lanes ? 8 * lanes : 0,
+                  o3 = remaining > 12 * lanes ? 12 * lanes : 0;
       svzero_za();
       for (Index j = first; j < end; ++j) {
-        auto b = Traits::dup(x[j]);
-        EIGEN_SME_VECTOR_UNROLL4
-        for (int k = 0; k < 4; ++k) sme_vector_madd(k, sme_ld1_x4(pn, a + i + k * 4 * lanes + j * stride), b);
+        const auto b = Traits::dup(x[j]);
+        const Scalar* column = a + i + j * stride;
+        sme_vector_madd(0, sme_ld1_x4(p0, column), b);
+        sme_vector_madd(1, sme_ld1_x4(p1, column + o1), b);
+        sme_vector_madd(2, sme_ld1_x4(p2, column + o2), b);
+        sme_vector_madd(3, sme_ld1_x4(p3, column + o3), b);
       }
-      EIGEN_SME_VECTOR_UNROLL4
-      for (int k = 0; k < 4; ++k) {
-        auto v = sme_vector_read(k, Scalar(0));
-        sme_vector_write(k, sme_ld1_x4(pn, y + i + k * 4 * lanes));
-        sme_vector_madd(k, v, Traits::dup(alpha));
-        svst1(pn, y + i + k * 4 * lanes, sme_vector_read(k, Scalar(0)));
-      }
-    }
-    // Bound the final increment to avoid signed overflow with a 32-bit Index near its maximum.
-    for (; i < rows; i += rows - i < 4 * lanes ? rows - i : 4 * lanes) {
-      const auto active = Traits::whilelt_c4(i, rows);
-      svzero_za();
-      for (Index j = first; j < end; ++j) sme_vector_madd(0, sme_ld1_x4(active, a + i + j * stride), Traits::dup(x[j]));
-      auto v = sme_vector_read(0, Scalar(0));
-      sme_vector_write(0, sme_ld1_x4(active, y + i));
-      sme_vector_madd(0, v, Traits::dup(alpha));
-      svst1(active, y + i, sme_vector_read(0, Scalar(0)));
+      sme_gemv_update(0, p0, y + i, scale);
+      sme_gemv_update(1, p1, y + i + o1, scale);
+      sme_gemv_update(2, p2, y + i + o2, scale);
+      sme_gemv_update(3, p3, y + i + o3, scale);
+      // Bound the final increment to avoid signed overflow with a 32-bit Index near its maximum.
+      i += remaining < 16 * lanes ? remaining : 16 * lanes;
     }
     first = end;
   }
-  status.save();
 }
 
 #undef EIGEN_SME_VECTOR_UNROLL4
@@ -303,8 +307,10 @@ EIGEN_STRONG_INLINE bool sme_gemv_size_suitable(Index rows, Index cols) {
                                                              (static_cast<std::size_t>(l1) - 1) / sizeof(Scalar) \
                                                    ? Index(16)                                                   \
                                                    : Index(4));                                                  \
+        /* BLAS contract: alpha == 0 leaves the result unchanged. */                                             \
+        if (alpha == Scalar(0)) return;                                                                          \
         sme_vector_fpsr status;                                                                                  \
-        sme_gemv(rows, cols, lhs.data(), lhs.stride(), rhs.data(), res, alpha, block_cols, status);              \
+        sme_gemv(rows, cols, lhs.data(), lhs.stride(), rhs.data(), res, alpha, block_cols);                      \
       } else {                                                                                                   \
         general_matrix_vector_product<Index, Scalar, const_blas_data_mapper<Scalar, Index, ColMajor>, ColMajor,  \
                                       ConjugateLhs, Scalar, const_blas_data_mapper<Scalar, Index, RowMajor>,     \
