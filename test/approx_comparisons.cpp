@@ -111,6 +111,17 @@ void approx_comparisons_flush_to_zero() {
   approx_comparisons_rounding_boundary<Real>();
 }
 
+// The squared differences, 2^-118 and just below 2^-126, accumulate in float, where FTZ flushes the second.
+void approx_comparisons_flush_to_zero_bfloat16() {
+  ScopedFlushToZero flushToZero;
+  using Vector = Matrix<bfloat16, 2, 1>;
+  // Opaque, so the compiler cannot square it with IEEE subnormals at compile time.
+  volatile float tail = numext::ldexp(1.9921875f, -64);
+  const Vector x(bfloat16(numext::ldexp(1.0f, -52)), bfloat16(0.0f));
+  const Vector y(bfloat16(numext::ldexp(1.0f + 1.0f / 128, -52)), bfloat16(float(tail)));
+  VERIFY(!x.isApprox(y, bfloat16(1.0f / 128)));
+}
+
 template <typename Real>
 void approx_comparisons_special_values() {
   using Vector = Matrix<Real, 2, 1>;
@@ -295,6 +306,7 @@ EIGEN_DECLARE_TEST(approx_comparisons) {
   CALL_SUBTEST_3(approx_comparisons_rounding_boundary<half>());
   CALL_SUBTEST_3(approx_comparisons_rounding_boundary<bfloat16>());
   CALL_SUBTEST_3(approx_comparisons_flush_to_zero<bfloat16>());
+  CALL_SUBTEST_3(approx_comparisons_flush_to_zero_bfloat16());
   CALL_SUBTEST_4(approx_comparisons_exact<int>());
   CALL_SUBTEST_4(approx_comparisons_exact<unsigned int>());
   CALL_SUBTEST_4(approx_comparisons_exact<bool>());
