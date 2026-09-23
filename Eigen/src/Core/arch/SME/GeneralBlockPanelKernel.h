@@ -596,7 +596,8 @@ static EIGEN_ALWAYS_INLINE void sme_transpose_pack_real(RealScalar* EIGEN_RESTRI
 
   Index k = k0;
   EIGEN_IF_CONSTEXPR (!NegateOddRows) {
-    if (width == 2 * svl) k = sme_transpose_pack_pair(dst, src, src_stride, k0, k1);
+    // Short ranges keep the single-tile path: the four-slice moves only pay off over several fills.
+    if (width == 2 * svl && k1 - k0 >= Index(8 * svl)) k = sme_transpose_pack_pair(dst, src, src_stride, k0, k1);
   }
   for (; k < k1; k += svl) {
     const int dk = static_cast<int>(sme_min(k1 - k, Index(svl)));
@@ -2080,6 +2081,8 @@ EIGEN_DONT_INLINE __arm_locally_streaming __arm_new("za") void sme_gebp_impl(
   // for full panels, the tail width otherwise), so that width is passed as
   // both the logical block size and the load stride to sme_process; partial
   // blocks are tiled and predicated inside the generic path.
+  // A C block that stays in L1 gains nothing from the prefetch and pays its instructions on every call.
+  const bool prefetch_c = rows * cols * Index(sizeof(Scalar)) > Index(256 * 1024);
   for (Index j = 0; j < cols; j += NR) {
     const int cw = static_cast<int>(sme_min(cols - j, Index(NR)));
     const Scalar* blB = blockB + j * strideB + offsetB * cw;
@@ -2087,8 +2090,9 @@ EIGEN_DONT_INLINE __arm_locally_streaming __arm_new("za") void sme_gebp_impl(
     for (Index i = 0; i < rows; i += MR) {
       const int pw = static_cast<int>(sme_min(rows - i, Index(MR)));
       const Scalar* blA = blockA + i * strideA + offsetA * pw;
-      sme_prefetch_next_c(C, C_stride_row, C_stride_col, i + MR < rows ? i + MR : Index(0), i + MR < rows ? j : j + NR,
-                          rows, cols, MR, NR);
+      if (prefetch_c)
+        sme_prefetch_next_c(C, C_stride_row, C_stride_col, i + MR < rows ? i + MR : Index(0),
+                            i + MR < rows ? j : j + NR, rows, cols, MR, NR);
       sme_process<ConjLhs, ConjRhs>(C, C_stride_row, C_stride_col, blA, blB, depth, alpha, i, pw, j, cw, Index(pw));
     }
   }
