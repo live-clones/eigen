@@ -330,7 +330,7 @@ void EIGEN_DEVICE_FUNC outer_product_selector_run_small(Dst& dst, const Lhs& lhs
   for (Index j = 0; j < cols; ++j) {
     const typename Rhs::Scalar rhs_j = rhsEval.coeff(Index(0), j);
     for (Index i = 0; i < rows; ++i) {
-      func.assignCoeff(dst.coeffRef(i, j), alpha * (rhs_j * actual_lhs.coeff(i, Index(0))));
+      func.assignCoeff(dst.coeffRef(i, j), internal::mul(alpha, internal::mul(rhs_j, actual_lhs.coeff(i, Index(0)))));
     }
   }
 }
@@ -345,7 +345,7 @@ void EIGEN_DEVICE_FUNC outer_product_selector_run_small(Dst& dst, const Lhs& lhs
   for (Index i = 0; i < rows; ++i) {
     const typename Lhs::Scalar lhs_i = lhsEval.coeff(i, Index(0));
     for (Index j = 0; j < cols; ++j) {
-      func.assignCoeff(dst.coeffRef(i, j), alpha * (lhs_i * actual_rhs.coeff(Index(0), j)));
+      func.assignCoeff(dst.coeffRef(i, j), internal::mul(alpha, internal::mul(lhs_i, actual_rhs.coeff(Index(0), j))));
     }
   }
 }
@@ -1380,14 +1380,16 @@ struct generic_product_impl<Lhs, Rhs, SelfAdjointShape, DiagonalShape, ProductTa
   // off-triangle. Strip the scalar factor with blas_traits and re-fold it into
   // the kernel's alpha so the same scalar multiplies every output entry.
   using LhsBlasTraits = blas_traits<typename Lhs::MatrixType>;
-  using ActualLhsMatrix = decltype(LhsBlasTraits::extract(std::declval<const typename Lhs::MatrixType&>())
-                                       .template conjugateIf<bool(LhsBlasTraits::NeedToConjugate)>());
+  // A named constant, not bool(...): nvcc's front end re-emits that cast as a function type MSVC rejects.
+  static constexpr bool ConjLhs = LhsBlasTraits::NeedToConjugate;
+  using ActualLhsMatrix =
+      decltype(LhsBlasTraits::extract(std::declval<const typename Lhs::MatrixType&>()).template conjugateIf<ConjLhs>());
   using ActualLhsMatrixType = remove_all_t<ActualLhsMatrix>;
   using Kernel =
       selfadjoint_diagonal_product_impl<Lhs::Mode, OnTheRight, ActualLhsMatrixType, typename Rhs::DiagonalVectorType>;
 
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ActualLhsMatrix actualLhsMatrix(const typename Lhs::MatrixType& matrix) {
-    return LhsBlasTraits::extract(matrix).template conjugateIf<bool(LhsBlasTraits::NeedToConjugate)>();
+    return LhsBlasTraits::extract(matrix).template conjugateIf<ConjLhs>();
   }
 
   template <typename Dest>
@@ -1418,14 +1420,15 @@ struct generic_product_impl<Lhs, Rhs, DiagonalShape, SelfAdjointShape, ProductTa
   // See note on the SelfAdjointShape, DiagonalShape specialization above for why
   // we extract the scalar factor with blas_traits.
   using RhsBlasTraits = blas_traits<typename Rhs::MatrixType>;
-  using ActualRhsMatrix = decltype(RhsBlasTraits::extract(std::declval<const typename Rhs::MatrixType&>())
-                                       .template conjugateIf<bool(RhsBlasTraits::NeedToConjugate)>());
+  static constexpr bool ConjRhs = RhsBlasTraits::NeedToConjugate;
+  using ActualRhsMatrix =
+      decltype(RhsBlasTraits::extract(std::declval<const typename Rhs::MatrixType&>()).template conjugateIf<ConjRhs>());
   using ActualRhsMatrixType = remove_all_t<ActualRhsMatrix>;
   using Kernel =
       selfadjoint_diagonal_product_impl<Rhs::Mode, OnTheLeft, ActualRhsMatrixType, typename Lhs::DiagonalVectorType>;
 
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ActualRhsMatrix actualRhsMatrix(const typename Rhs::MatrixType& matrix) {
-    return RhsBlasTraits::extract(matrix).template conjugateIf<bool(RhsBlasTraits::NeedToConjugate)>();
+    return RhsBlasTraits::extract(matrix).template conjugateIf<ConjRhs>();
   }
 
   template <typename Dest>
@@ -1819,10 +1822,10 @@ struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DiagonalSha
 
 // Dense SelfAdjointView statically rejects the Upper|Lower mode (only one half is stored), so the
 // off-stored coefficient is always reconstructed by conjugating its mirror.
-template <int Mode, int ProductOrder, typename MatrixType, typename DiagonalType, typename XprType,
+template <int Mode, int ProductOrder, typename MatrixType, typename DiagonalType, typename ProductXpr,
           bool Materialize =
               NumTraits<typename MatrixType::Scalar>::IsComplex && blas_traits<MatrixType>::HasScalarFactor>
-struct selfadjoint_diagonal_product_lazy_evaluator_base : evaluator_base<XprType> {
+struct selfadjoint_diagonal_product_lazy_evaluator_base : evaluator_base<ProductXpr> {
   using Scalar = typename ScalarBinaryOpTraits<typename MatrixType::Scalar, typename DiagonalType::Scalar>::ReturnType;
 
   enum {
@@ -1832,7 +1835,7 @@ struct selfadjoint_diagonal_product_lazy_evaluator_base : evaluator_base<XprType
     Alignment = 0
   };
 
-  EIGEN_DEVICE_FUNC selfadjoint_diagonal_product_lazy_evaluator_base(const XprType&, const MatrixType& mat,
+  EIGEN_DEVICE_FUNC selfadjoint_diagonal_product_lazy_evaluator_base(const ProductXpr&, const MatrixType& mat,
                                                                      const DiagonalType& diag)
       : m_diagImpl(diag), m_matImpl(mat) {}
 
@@ -1850,12 +1853,13 @@ struct selfadjoint_diagonal_product_lazy_evaluator_base : evaluator_base<XprType
 };
 
 // Extract complex factors before conjugating mirrored entries; the temporary also protects nested aliases.
-template <int Mode, int ProductOrder, typename MatrixType, typename DiagonalType, typename XprType>
-struct selfadjoint_diagonal_product_lazy_evaluator_base<Mode, ProductOrder, MatrixType, DiagonalType, XprType, true>
-    : evaluator<EvalToTemp<Product<typename XprType::Lhs, typename XprType::Rhs, DefaultProduct>>> {
-  using DefaultProductType = Product<typename XprType::Lhs, typename XprType::Rhs, DefaultProduct>;
+// The parameter is not named XprType: MSVC lets the dependent base's XprType (an EvalToTemp) hide it.
+template <int Mode, int ProductOrder, typename MatrixType, typename DiagonalType, typename ProductXpr>
+struct selfadjoint_diagonal_product_lazy_evaluator_base<Mode, ProductOrder, MatrixType, DiagonalType, ProductXpr, true>
+    : evaluator<EvalToTemp<Product<typename ProductXpr::Lhs, typename ProductXpr::Rhs, DefaultProduct>>> {
+  using DefaultProductType = Product<typename ProductXpr::Lhs, typename ProductXpr::Rhs, DefaultProduct>;
   using Base = evaluator<EvalToTemp<DefaultProductType>>;
-  EIGEN_DEVICE_FUNC selfadjoint_diagonal_product_lazy_evaluator_base(const XprType& xpr, const MatrixType&,
+  EIGEN_DEVICE_FUNC selfadjoint_diagonal_product_lazy_evaluator_base(const ProductXpr& xpr, const MatrixType&,
                                                                      const DiagonalType&)
       : Base(DefaultProductType(xpr.lhs(), xpr.rhs())) {}
 };
