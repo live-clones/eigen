@@ -88,10 +88,15 @@ void real_pow_test() {
   constexpr int min_exponent = std::numeric_limits<Scalar>::min_exponent;
   constexpr int max_exponent = std::numeric_limits<Scalar>::max_exponent;
 
-  // Correctly rounded within 2 ulps only holds for double-word repeated squaring; without it, both fallbacks
-  // (plain squaring for small |n|, generic_pow otherwise) are just "a few ulps", exercised elsewhere instead.
+  // Correctly rounded within 2 ulps only holds for double-word repeated squaring, whose fallback -- plain
+  // squaring -- is just "a few ulps" and exercised elsewhere. Only the MSA and HVX packets lack the path, so
+  // require it everywhere else rather than skipping on the trait that selects it: losing it has to fail here.
   using Packet = typename internal::packet_traits<Scalar>::type;
-  if (internal::unary_pow::use_double_word<Packet>::value) {
+  constexpr bool has_double_word = internal::unary_pow::use_double_word<Packet>::value;
+#if !defined(EIGEN_VECTORIZE_MSA) && !defined(EIGEN_VECTORIZE_HVX)
+  VERIFY(has_double_word);
+#endif
+  if (has_double_word) {
     for (long n : exponents) {
       int limit = numext::mini((max_exponent - 2) / int(numext::abs(n)), max_exponent - 2);
       const std::vector<Scalar> bases = log_uniform_bases<Scalar>(-limit, limit, 64);
