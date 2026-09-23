@@ -555,9 +555,9 @@ struct is_double_word_base
 template <typename RealScalar>
 struct is_double_word_base<std::complex<RealScalar>> : is_double_word_base<RealScalar> {};
 
-// Whether exponent_bits_shift_right/exponent_bits_sub below are available, not whether integer_packet itself
-// is: Packet4d overrides those two operations for AVX without AVX2 further down without one.
-template <typename Packet, typename = void>
+// Whether exponent_bits_shift_right/exponent_bits_sub are available, not whether integer_packet itself is:
+// AVX/PacketMath.h supplies all three for Packet4d without AVX2, where there is no Packet4l.
+template <typename Packet, typename>
 struct has_exponent_bit_ops : false_type {};
 template <typename Packet>
 struct has_exponent_bit_ops<Packet, void_t<typename unpacket_traits<Packet>::integer_packet>> : true_type {};
@@ -580,9 +580,7 @@ template <typename Packet>
 struct use_double_word : bool_constant<is_double_word_base<typename unpacket_traits<Packet>::type>::value &&
                                        has_exponent_bit_ops<typename real_view<Packet>::type>::value> {};
 
-// The two integer_packet operations binary_exponent_scaling::inverse_scale needs on a packet's raw bits: a
-// fixed-amount right shift and a lane-wise subtraction. Swappable per Packet so a type can supply them without
-// a real integer_packet, the way Packet4d does below for AVX without AVX2.
+// Declared in GenericPacketMathFunctionsFwd.h so that a backend header can override them.
 template <typename Packet>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet exponent_bits_shift_right(const Packet& bits) {
   using PacketI = typename unpacket_traits<Packet>::integer_packet;
@@ -594,31 +592,6 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet exponent_bits_sub(const Packet& a_b
   using PacketI = typename unpacket_traits<Packet>::integer_packet;
   return preinterpret<Packet>(psub(preinterpret<PacketI>(a_bits), preinterpret<PacketI>(b_bits)));
 }
-
-#if defined(EIGEN_VECTORIZE_AVX) && !defined(EIGEN_VECTORIZE_AVX2)
-// AVX has no 256-bit integer shift or subtract -- those need AVX2 -- but SSE2's 128-bit ones, present on every
-// x86-64 target, suffice: split the bit pattern into its two 128-bit halves, operate on each with SSE2, and
-// reassemble. These are the only two integer_packet operations binary_exponent_scaling<Packet4d> needs, so
-// Packet4d gets double-word pow accuracy here without a real Packet4l.
-template <>
-EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet4d exponent_bits_shift_right<Packet4d>(const Packet4d& bits) {
-  __m256i i = _mm256_castpd_si256(bits);
-  __m128i lo = _mm_srli_epi64(_mm256_extractf128_si256(i, 0), 52);
-  __m128i hi = _mm_srli_epi64(_mm256_extractf128_si256(i, 1), 52);
-  return _mm256_castsi256_pd(_mm256_insertf128_si256(_mm256_castsi128_si256(lo), hi, 1));
-}
-template <>
-EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet4d exponent_bits_sub<Packet4d>(const Packet4d& a_bits,
-                                                                           const Packet4d& b_bits) {
-  __m256i ai = _mm256_castpd_si256(a_bits);
-  __m256i bi = _mm256_castpd_si256(b_bits);
-  __m128i lo = _mm_sub_epi64(_mm256_extractf128_si256(ai, 0), _mm256_extractf128_si256(bi, 0));
-  __m128i hi = _mm_sub_epi64(_mm256_extractf128_si256(ai, 1), _mm256_extractf128_si256(bi, 1));
-  return _mm256_castsi256_pd(_mm256_insertf128_si256(_mm256_castsi128_si256(lo), hi, 1));
-}
-template <>
-struct has_exponent_bit_ops<Packet4d> : true_type {};
-#endif
 
 // packet_traits::HasPow, not is_double_word_base<Scalar>, since a GPU packet's Scalar is plain float/double too
 // and would otherwise wrongly qualify for a generic_pow GPU has no packet implementation of.
