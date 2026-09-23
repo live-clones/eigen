@@ -128,6 +128,14 @@ scaled_comparison_distance(const X& xExpr, const Y& yExpr) {
   return difference;
 }
 
+// Coefficients widened to the stable-norm accumulator, in which ordinary comparisons square and sum. The cast is the
+// identity for float and double; half and bfloat16 widen exactly to float, where no half square underflows.
+template <typename X>
+using approx_comparison_wide_t =
+    std::conditional_t<NumTraits<typename X::Scalar>::IsComplex,
+                       std::complex<typename stable_norm_accumulator<typename X::RealScalar>::type>,
+                       typename stable_norm_accumulator<typename X::RealScalar>::type>;
+
 template <typename Scalar, bool = use_scaled_comparison<Scalar>::value>
 struct approx_comparison_impl {
   using RealScalar = typename NumTraits<Scalar>::Real;
@@ -160,8 +168,8 @@ struct approx_comparison_impl<Scalar, true> {
   template <typename ValueScalar>
   EIGEN_DEVICE_FUNC static typename stable_norm_accumulator<ValueScalar>::type squared_norm_lower_bound(Index size) {
     using ValueAccumulator = typename stable_norm_accumulator<ValueScalar>::type;
-    // Below n * min / epsilon, flushed component squares can affect the comparison.
-    return stable_normalization_normal_min<ValueScalar, ValueAccumulator>::run() /
+    // Squares accumulate in ValueAccumulator; below n * min / epsilon, flushed squares can affect the comparison.
+    return stable_normalization_normal_min<ValueAccumulator, ValueAccumulator>::run() /
            ValueAccumulator(NumTraits<ValueScalar>::epsilon()) * ValueAccumulator(size);
   }
 
@@ -169,20 +177,25 @@ struct approx_comparison_impl<Scalar, true> {
   EIGEN_DEVICE_FUNC static bool safe_squared_norm(const BoundScalar& value, Index size) {
     using Common = std::common_type_t<Accumulator, BoundScalar>;
     return Common(value) >= Common(squared_norm_lower_bound<RealScalar>(size)) &&
-           Common(value) <= Common(NumTraits<RealScalar>::highest());
+           Common(value) <= Common(NumTraits<Accumulator>::highest());
   }
 
   template <typename X, typename Y>
   EIGEN_DEVICE_FUNC static bool isApprox(const X& x, const Y& y, const RealScalar& prec) {
-    const RealScalar x2 = x.cwiseAbs2().sum();
-    const RealScalar y2 = y.cwiseAbs2().sum();
-    const RealScalar minimum = numext::mini(x2, y2);
-    const RealScalar precision2 = prec * prec;
-    const RealScalar bound = precision2 * minimum;
+    // Widening must not admit operands that cannot be subtracted, such as half and float.
+    EIGEN_CHECK_BINARY_COMPATIBILITY(scalar_difference_op<typename X::Scalar EIGEN_COMMA typename Y::Scalar>,
+                                     typename X::Scalar, typename Y::Scalar)
+    const auto& wideX = x.template cast<approx_comparison_wide_t<X>>();
+    const auto& wideY = y.template cast<approx_comparison_wide_t<Y>>();
+    const Accumulator x2 = wideX.cwiseAbs2().sum();
+    const Accumulator y2 = wideY.cwiseAbs2().sum();
+    const Accumulator minimum = numext::mini(x2, y2);
+    const Accumulator precision2 = Accumulator(prec) * Accumulator(prec);
+    const Accumulator bound = precision2 * minimum;
     // Only the smaller norm enters the bound; overflow of the larger norm is harmless.
-    if (safe_squared_norm(bound, x.size()) && Accumulator(minimum) >= squared_norm_lower_bound<RealScalar>(x.size()) &&
-        Accumulator(precision2) >= squared_norm_lower_bound<RealScalar>(1))
-      return (x.matrix() - y.matrix()).cwiseAbs2().sum() <= bound;
+    if (safe_squared_norm(bound, x.size()) && minimum >= squared_norm_lower_bound<RealScalar>(x.size()) &&
+        precision2 >= squared_norm_lower_bound<RealScalar>(1))
+      return (wideX.matrix() - wideY.matrix()).cwiseAbs2().sum() <= bound;
 
     return isApprox_scaled(x, y, prec);
   }
@@ -192,14 +205,14 @@ struct approx_comparison_impl<Scalar, true> {
     using Common = CommonAccumulator<Y>;
     typename nested_eval<X, 2>::type nested(x);
     typename nested_eval<Y, 2>::type otherNested(y);
-    const RealScalar x2 = nested.cwiseAbs2().sum();
-    const auto y2 = otherNested.cwiseAbs2().sum();
-    const RealScalar precision2 = numext::abs2(prec);
+    const Accumulator x2 = nested.template cast<approx_comparison_wide_t<X>>().cwiseAbs2().sum();
+    const auto y2 = otherNested.template cast<approx_comparison_wide_t<Y>>().cwiseAbs2().sum();
+    const Accumulator precision2 = numext::abs2(Accumulator(prec));
     const Common bound = Common(precision2) * Common(y2);
     // A finite bound above the flushing error makes overflow/underflow of x2 harmless.
     if (safe_squared_norm(bound, x.size()) &&
         Common(y2) >= Common(squared_norm_lower_bound<typename Y::RealScalar>(y.size())) &&
-        Accumulator(precision2) >= squared_norm_lower_bound<RealScalar>(1))
+        precision2 >= squared_norm_lower_bound<RealScalar>(1))
       return Common(x2) <= bound;
     return isMuchSmallerThan_scaled(nested, otherNested, prec);
   }
@@ -207,8 +220,8 @@ struct approx_comparison_impl<Scalar, true> {
   template <typename X>
   EIGEN_DEVICE_FUNC static bool isMuchSmallerThan(const X& x, const RealScalar& y, const RealScalar& prec) {
     typename nested_eval<X, 2>::type nested(x);
-    const RealScalar x2 = nested.cwiseAbs2().sum();
-    const RealScalar bound = numext::abs2(prec * y);
+    const Accumulator x2 = nested.template cast<approx_comparison_wide_t<X>>().cwiseAbs2().sum();
+    const Accumulator bound = numext::abs2(Accumulator(prec) * Accumulator(y));
     if (safe_squared_norm(bound, x.size())) return x2 <= bound;
     return isMuchSmallerThan_scaled(nested, y, prec);
   }
