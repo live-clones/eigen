@@ -854,15 +854,6 @@ struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape,
                  : RhsAlignment)
           : 0;
 
-  /* CanVectorizeInner deserves special explanation. It does not affect the product flags. It is not used outside
-   * of Product. If the Product itself is not a packet-access expression, there is still a chance that the inner
-   * loop of the product might be vectorized. This is the meaning of CanVectorizeInner. Since it doesn't affect
-   * the Flags, it is safe to make this value depend on ActualPacketAccessBit, that doesn't affect the ABI.
-   */
-  static constexpr bool CanVectorizeInner = SameType && LhsRowMajor && (!RhsRowMajor) &&
-                                            (int(LhsFlags) & int(RhsFlags) & ActualPacketAccessBit) &&
-                                            (int(InnerSize) % packet_traits<Scalar>::size == 0);
-
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const CoeffReturnType coeff(Index row, Index col) const {
     return coeff_impl(row, col, bool_constant<SingleTermCoeff>());
   }
