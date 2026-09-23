@@ -353,17 +353,21 @@ void narrow_pow_test() {
 // conj(z)/|z|^2 would not be for long double's wider exponent range.
 void complex_long_double_range_test() {
   using Complex = std::complex<long double>;
-  if (std::numeric_limits<long double>::max_exponent <= std::numeric_limits<double>::max_exponent) return;
+  constexpr int max_exponent = std::numeric_limits<long double>::max_exponent;
+  if (max_exponent <= std::numeric_limits<double>::max_exponent) return;
   ArrayX<Complex> z(9), y(9);
   auto close = [](const Complex& a, const Complex& b, long double ulps) {
     return std::abs(a - b) <= ulps * std::numeric_limits<long double>::epsilon() * std::abs(b);
   };
-  for (long double magnitude : {1e3000L, 1e-3000L, 3e4000L, 1e2000L, 1e-2000L}) {
+  // Built with ldexp rather than written as literals: 1e3000L and the like are out of range, and so a
+  // compile-time error, wherever long double is binary64, which the run-time guard above cannot prevent.
+  for (int e : {(4 * max_exponent) / 5, -(4 * max_exponent) / 5, (2 * max_exponent) / 5, -(2 * max_exponent) / 5}) {
+    long double magnitude = std::ldexp(1.0L, e);
     z.setConstant(Complex(magnitude, magnitude / 3));
     y = z.pow(-1);
     Complex expected = Complex(1) / z(0);
     for (Index k = 0; k < 9; ++k) VERIFY(close(y(k), expected, 4.0L));
-    if (magnitude > 1e2500L || magnitude < 1e-2500L) continue;  // the square would leave the range
+    if (2 * numext::abs(e) >= max_exponent) continue;  // the square would leave the range
     y = z.pow(-2);
     expected = Complex(1) / (z(0) * z(0));
     for (Index k = 0; k < 9; ++k) VERIFY(close(y(k), expected, 8.0L));
