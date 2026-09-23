@@ -1569,11 +1569,47 @@ EIGEN_ALWAYS_INLINE void sme_store_za_tile(Scalar* EIGEN_RESTRICT C, Index C_str
  * pattern repeats across blocks).
  *****************************************************************************/
 
+// Full 2*svl x 2*svl block into column-major C: four columns per vertical four-slice read of the two tiles that
+// share them, each column loaded and stored whole with two-vector accesses, all four loaded before any is stored.
+template <int TileLo, int TileHi, typename Scalar, typename Index>
+EIGEN_ALWAYS_INLINE void sme_store_tile_pair_colmajor(Scalar* EIGEN_RESTRICT C, Index ldc, Scalar alpha,
+                                                      int svl) __arm_streaming __arm_inout("za") {
+  using Traits = sme_traits<Scalar>;
+  const svcount_t pn = Traits::ptrue_c();
+  const svbool_t pg = Traits::ptrue();
+  const typename Traits::Vec valpha = Traits::dup(alpha);
+  for (int c = 0; c < svl; c += 4) {
+    const auto lo = sme_read_ver_za_vg4<TileLo>(C, uint32_t(c));
+    const auto hi = sme_read_ver_za_vg4<TileHi>(C, uint32_t(c));
+    Scalar* p = C + Index(c) * ldc;
+    const auto c0 = sme_ld1_x2(pn, p), c1 = sme_ld1_x2(pn, p + ldc), c2 = sme_ld1_x2(pn, p + 2 * ldc),
+               c3 = sme_ld1_x2(pn, p + 3 * ldc);
+    sme_st1_x2(pn, p,
+               sme_create2(sme_mla(pg, sme_get<0>(c0), sme_get<0>(lo), valpha),
+                           sme_mla(pg, sme_get<1>(c0), sme_get<0>(hi), valpha)));
+    sme_st1_x2(pn, p + ldc,
+               sme_create2(sme_mla(pg, sme_get<0>(c1), sme_get<1>(lo), valpha),
+                           sme_mla(pg, sme_get<1>(c1), sme_get<1>(hi), valpha)));
+    sme_st1_x2(pn, p + 2 * ldc,
+               sme_create2(sme_mla(pg, sme_get<0>(c2), sme_get<2>(lo), valpha),
+                           sme_mla(pg, sme_get<1>(c2), sme_get<2>(hi), valpha)));
+    sme_st1_x2(pn, p + 3 * ldc,
+               sme_create2(sme_mla(pg, sme_get<0>(c3), sme_get<3>(lo), valpha),
+                           sme_mla(pg, sme_get<1>(c3), sme_get<3>(hi), valpha)));
+  }
+}
+
 template <typename Scalar, typename Index>
 EIGEN_ALWAYS_INLINE void sme_store_2x2_grid(Scalar* EIGEN_RESTRICT C, Index C_stride_row, Index C_stride_col,
                                             Scalar alpha, Index row_start, int rlo, int rhi, Index col_start, int clo,
                                             int chi) __arm_streaming __arm_inout("za") {
   const int svl = sme_traits<Scalar>::svl();
+  if (C_stride_row == 1 && rlo == svl && rhi == svl && clo == svl && chi == svl) {
+    Scalar* c0 = C + row_start + col_start * C_stride_col;
+    sme_store_tile_pair_colmajor<0, 2>(c0, C_stride_col, alpha, svl);
+    sme_store_tile_pair_colmajor<1, 3>(c0 + Index(svl) * C_stride_col, C_stride_col, alpha, svl);
+    return;
+  }
   sme_store_za_tile<Scalar, 0>(C, C_stride_row, C_stride_col, alpha, row_start, rlo, col_start, clo);
   if (chi > 0) {
     sme_store_za_tile<Scalar, 1>(C, C_stride_row, C_stride_col, alpha, row_start, rlo, col_start + svl, chi);
@@ -2017,6 +2053,19 @@ EIGEN_ALWAYS_INLINE void sme_process(std::complex<RealScalar>* EIGEN_RESTRICT C,
   }
 }
 
+// Core-side prefetch into L2 of the column-major C block the next sme_process call reads and writes.
+template <typename Scalar, typename Index>
+static EIGEN_ALWAYS_INLINE void sme_prefetch_next_c(const Scalar* C, Index C_stride_row, Index C_stride_col, Index i,
+                                                    Index j, Index rows, Index cols, int mr,
+                                                    int nr) __arm_streaming_compatible {
+  if (C_stride_row != 1 || j >= cols) return;
+  const Index h = sme_min(rows - i, Index(mr)), w = sme_min(cols - j, Index(nr));
+  const Index bytes = h * Index(sizeof(Scalar));
+  for (Index c = 0; c < w; ++c)
+    for (Index b = 0; b < bytes; b += 128)
+      __builtin_prefetch(reinterpret_cast<const char*>(C + i + (j + c) * C_stride_col) + b, 1, 2);
+}
+
 template <typename Scalar, bool ConjLhs, bool ConjRhs, typename Index>
 EIGEN_DONT_INLINE __arm_locally_streaming __arm_new("za") void sme_gebp_impl(
     Scalar* C, Index C_stride_row, Index C_stride_col, const Scalar* blockA, const Scalar* blockB, Index rows,
@@ -2038,6 +2087,8 @@ EIGEN_DONT_INLINE __arm_locally_streaming __arm_new("za") void sme_gebp_impl(
     for (Index i = 0; i < rows; i += MR) {
       const int pw = static_cast<int>(sme_min(rows - i, Index(MR)));
       const Scalar* blA = blockA + i * strideA + offsetA * pw;
+      sme_prefetch_next_c(C, C_stride_row, C_stride_col, i + MR < rows ? i + MR : Index(0), i + MR < rows ? j : j + NR,
+                          rows, cols, MR, NR);
       sme_process<ConjLhs, ConjRhs>(C, C_stride_row, C_stride_col, blA, blB, depth, alpha, i, pw, j, cw, Index(pw));
     }
   }
