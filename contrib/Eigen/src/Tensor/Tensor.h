@@ -97,7 +97,15 @@ class Tensor : public TensorBase<Tensor<Scalar_, NumIndices_, Options_, IndexTyp
  public:
   // Metadata
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index rank() const { return NumIndices; }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index dimension(std::size_t n) const { return m_storage.dimensions()[n]; }
+  template <std::size_t D>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index dimension() const {
+    EIGEN_STATIC_ASSERT(D < NumIndices, INVALID_DIMENSION)
+    return m_storage.dimensions()[D];
+  }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index dimension(std::size_t n) const {
+    eigen_assert(n < NumIndices);
+    return m_storage.dimensions()[n];
+  }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_storage.dimensions(); }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index size() const { return m_storage.size(); }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar* data() { return m_storage.data(); }
