@@ -44,10 +44,10 @@ void svd_check_scaled_residual(const MatrixType& m, const SvdType& svd, int k) {
       RealScalar(1), std::numeric_limits<RealScalar>::min_exponent - std::numeric_limits<RealScalar>::digits + k);
   const DenseMatrix reconstruction =
       svd.matrixU().leftCols(diagSize) * scaledSigma.asDiagonal() * svd.matrixV().leftCols(diagSize).adjoint();
-  const RealScalar residual = (reconstruction - scaledInput).cwiseAbs().maxCoeff();
+  const RealScalar residual = (reconstruction - scaledInput).cwiseAbs().template maxCoeff<PropagateNaN>();
   const RealScalar tolerance = RealScalar(64) * n * eps * scaledInput.cwiseAbs().maxCoeff() + n * granularity;
   VERIFY((numext::isfinite)(tolerance));
-  VERIFY(!(residual > tolerance));
+  VERIFY(residual <= tolerance);
 }
 
 // Check that the matrix m is properly reconstructed and that the U and V factors are unitary
@@ -408,7 +408,7 @@ void svd_check_flushed_subnormal(const SvdType& svd, const SvdType& scaled, cons
   VERIFY(scaled.singularValues()(0) > RealScalar(0));
   const RealScalar halfGranularity = numext::ldexp(
       RealScalar(1), std::numeric_limits<RealScalar>::min_exponent - std::numeric_limits<RealScalar>::digits + k - 1);
-  VERIFY((sigmaUp - scaled.singularValues()).cwiseAbs().maxCoeff() <= halfGranularity);
+  VERIFY((sigmaUp - scaled.singularValues()).cwiseAbs().template maxCoeff<PropagateNaN>() <= halfGranularity);
   VERIFY_IS_UNITARY(svd.matrixU());
   VERIFY_IS_UNITARY(svd.matrixV());
   svd_check_scaled_residual(m, svd, k);
