@@ -327,11 +327,39 @@ static void test_tiny_results() {
   test_tiny_results_order<Scalar, ColMajor, RowMajor, ColMajor>();
   test_tiny_results_order<Scalar, RowMajor, RowMajor, ColMajor>();
   test_tiny_results_order<Scalar, ColMajor, ColMajor, RowMajor>();
+  test_tiny_results_order<Scalar, RowMajor, ColMajor, RowMajor>();
+  test_tiny_results_order<Scalar, ColMajor, RowMajor, RowMajor>();
   test_tiny_results_order<Scalar, RowMajor, RowMajor, RowMajor>();
+  // Sub-blocks of larger operands, a result with an inner stride, and a Hankel view (outer stride 1 < rows): the
+  // kernel reads only the rows and columns of the result.
+  for (Index m : {Index(3), Index(16 / sizeof(Scalar)) + 1})
+    for (Index n : {3, 7})
+      for (Index k : {16, 19}) {
+        const SmeColMajorMat<Scalar> Abig = SmeColMajorMat<Scalar>::Random(m + 5, k + 2);
+        const SmeRowMajorMat<Scalar> Bbig = SmeRowMajorMat<Scalar>::Random(k + 3, n + 4);
+        const auto A = Abig.block(2, 1, m, k);
+        const auto B = Bbig.block(1, 2, k, n);
+        SmeColMajorMat<Scalar> Cbig = SmeColMajorMat<Scalar>::Random(2 * m, n);
+        const SmeColMajorMat<Scalar> Cbig0 = Cbig;
+        Map<SmeColMajorMat<Scalar>, 0, Stride<Dynamic, 2>> C(Cbig.data(), m, n, Stride<Dynamic, 2>(2 * m, 2));
+        C.noalias() += Scalar(3) * A * B;
+        SmeColMajorMat<Scalar> ref = Cbig0;
+        Map<SmeColMajorMat<Scalar>, 0, Stride<Dynamic, 2>>(ref.data(), m, n, Stride<Dynamic, 2>(2 * m, 2)) +=
+            Scalar(3) * A.lazyProduct(B);
+        VERIFY_IS_APPROX(Cbig, ref);
+        std::vector<Scalar> h(std::size_t(k - 1 + m)), g(std::size_t(k - 1 + n));
+        for (auto& x : h) x = internal::random<Scalar>();
+        for (auto& x : g) x = internal::random<Scalar>();
+        Map<const SmeColMajorMat<Scalar>, 0, OuterStride<>> H(h.data(), m, k, OuterStride<>(1));
+        Map<const SmeRowMajorMat<Scalar>, 0, OuterStride<>> G(g.data(), k, n, OuterStride<>(1));
+        SmeColMajorMat<Scalar> D(m, n);
+        D.noalias() = H * G;
+        VERIFY_IS_APPROX(D, H.lazyProduct(G));
+      }
   // Operands packed tight at the end of their buffer, so a read past the last row or column leaves it.
   const Index ps = Index(16 / sizeof(Scalar));
   for (Index m : {Index(2), Index(3), ps + 1, 2 * ps})
-    for (Index n : {2, 3, 7})
+    for (Index n : {2, 3, 5, 7})
       for (Index k : {16, 17, 18, 19}) {
         std::vector<Scalar> a(std::size_t(m * k)), b(std::size_t(k * n));
         Map<SmeColMajorMat<Scalar>> A(a.data(), m, k);
