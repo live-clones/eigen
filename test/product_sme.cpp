@@ -291,6 +291,31 @@ static void test_small_k_and_single_panel_rhs() {
   VERIFY_IS_APPROX(C, A.lazyProduct(B));
 }
 
+// Every tail width of a deep block, which the ZA transposer packs: a ColMajor RHS tail and, through a RowMajor
+// product, a transposed LHS tail.
+template <typename Scalar>
+static void test_deep_tail_panels() {
+  const Index MR = sme_mr<Scalar>(), NR = sme_nr<Scalar>();
+  for (Index depth : {4 * NR, 6 * NR + 3}) {
+    for (Index tail = 1; tail < NR; ++tail) {
+      for (Index n : {tail, NR + tail}) {
+        const SmeColMajorMat<Scalar> A = SmeColMajorMat<Scalar>::Random(MR + 3, depth);
+        const SmeColMajorMat<Scalar> B = SmeColMajorMat<Scalar>::Random(depth, n);
+        SmeColMajorMat<Scalar> C = SmeColMajorMat<Scalar>::Random(MR + 3, n);
+        const SmeColMajorMat<Scalar> C0 = C;
+        C.noalias() += A * B;
+        VERIFY_IS_APPROX(C, C0 + A.lazyProduct(B));
+        const SmeRowMajorMat<Scalar> Ar = SmeRowMajorMat<Scalar>::Random(n, depth);
+        const SmeRowMajorMat<Scalar> Br = SmeRowMajorMat<Scalar>::Random(depth, MR + 3);
+        SmeRowMajorMat<Scalar> Cr = SmeRowMajorMat<Scalar>::Random(n, MR + 3);
+        const SmeRowMajorMat<Scalar> Cr0 = Cr;
+        Cr.noalias() += Ar * Br;
+        VERIFY_IS_APPROX(Cr, Cr0 + Ar.lazyProduct(Br));
+      }
+    }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Raw packed-buffer tests.
 //
@@ -941,6 +966,7 @@ EIGEN_DECLARE_TEST(product_sme) {
   CALL_SUBTEST_1(test_neon_small_blocks<float>());
   CALL_SUBTEST_1(test_direct_lhs<float>());
   CALL_SUBTEST_1(test_small_k_and_single_panel_rhs<float>());
+  CALL_SUBTEST_1(test_deep_tail_panels<float>());
 
   // double reaches the SME kernel and packers only with FEAT_SME_F64F64; the
   // product sweep is meaningful either way, but the packed-layout tests name
@@ -955,6 +981,7 @@ EIGEN_DECLARE_TEST(product_sme) {
   CALL_SUBTEST_2(test_neon_small_blocks<double>());
   CALL_SUBTEST_2(test_direct_lhs<double>());
   CALL_SUBTEST_2(test_small_k_and_single_panel_rhs<double>());
+  CALL_SUBTEST_2(test_deep_tail_panels<double>());
 #endif
 
   CALL_SUBTEST_3(test_products<std::complex<float>>());
