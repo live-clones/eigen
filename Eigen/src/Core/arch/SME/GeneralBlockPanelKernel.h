@@ -832,8 +832,8 @@ static void tail_transpose_pack(std::complex<RealScalar>* EIGEN_RESTRICT dst_pan
                                       tail);
 }
 
-// Tail panel of a deep block through the ZA transposer (sme_transpose_pack_partial); shallow or 4-wide ones keep the
-// NEON tail_transpose_pack, which is faster there (K 2048: 4 wide 0.3 vs 3.5 us, 16 wide 6.2 vs 1.0 us).
+// Tail panel of a deep block through the ZA transposer (sme_transpose_pack_partial); shallow ones and those of at
+// most 4 columns keep the NEON tail_transpose_pack, which is faster there.
 template <bool Conjugate, typename Scalar, typename Index>
 __arm_locally_streaming __arm_new("za") static void sme_tail_pack_streaming(Scalar* dst_panel, const Scalar* src,
                                                                             Index src_stride, Index depth, int tail) {
@@ -842,10 +842,13 @@ __arm_locally_streaming __arm_new("za") static void sme_tail_pack_streaming(Scal
 template <bool Conjugate, typename Scalar, typename Index>
 static EIGEN_ALWAYS_INLINE void tail_pack(Scalar* dst_panel, const Scalar* src, Index src_stride, Index depth,
                                           Index tail) {
-  if (!NumTraits<Scalar>::IsComplex && tail > 4 && depth >= Index(4 * sme_block<Scalar>::nr))
-    sme_tail_pack_streaming<Conjugate>(dst_panel, src, src_stride, depth, static_cast<int>(tail));
-  else
-    tail_transpose_pack<Conjugate>(dst_panel, src, src_stride, depth, tail);
+  EIGEN_IF_CONSTEXPR (!NumTraits<Scalar>::IsComplex) {
+    if (tail > 4 && depth >= Index(4 * sme_block<Scalar>::nr)) {
+      sme_tail_pack_streaming<Conjugate>(dst_panel, src, src_stride, depth, static_cast<int>(tail));
+      return;
+    }
+  }
+  tail_transpose_pack<Conjugate>(dst_panel, src, src_stride, depth, tail);
 }
 
 // De-interleaving load and interleaving store of PS complex values.
@@ -1424,11 +1427,7 @@ struct sme_pack_lhs_rowmajor {
       pack_full_panels(dst_base, src, src_stride, depth, peeled_rows, dst_stride, dst_offset);
     }
 
-    // Row tail (rows - peeled_rows in [1, MR-1]).  This branch runs at most
-    // once per pack_lhs call with < MR rows and would need a partial-ZA-tile
-    // dance to vectorise; total copies are < MR * depth per call, which is
-    // noise vs the main packer's workload, so scalar is the simple choice --
-    // taken outside the streaming region above (see tail_transpose_pack).
+    // Row tail (rows - peeled_rows in [1, MR-1]), at most once per call: see tail_pack.
     if (peeled_rows < rows) {
       const Index tail = rows - peeled_rows;
       Scalar* dst_panel =
@@ -1491,10 +1490,7 @@ struct sme_pack_rhs_colmajor {
       pack_full_panels(dst_base, src, src_stride, depth, peeled_cols, dst_stride, dst_offset);
     }
 
-    // Col tail (cols - peeled_cols in [1, NR-1]).  Same reasoning as the LHS
-    // RowMajor packer's row tail: runs at most once per call, < NR cols, not
-    // worth the partial-ZA-tile handling, and taken outside the streaming
-    // region above (see tail_transpose_pack).
+    // Col tail (cols - peeled_cols in [1, NR-1]), at most once per call: see tail_pack.
     if (peeled_cols < cols) {
       const Index tail = cols - peeled_cols;
       Scalar* dst_panel =
@@ -2346,7 +2342,7 @@ EIGEN_DONT_INLINE __arm_locally_streaming __arm_new("za") void sme_gebp_impl(
   // for full panels, the tail width otherwise), so that width is passed as
   // both the logical block size and the load stride to sme_process; partial
   // blocks are tiled and predicated inside the generic path.
-  // A C block that stays in L1 gains nothing from the prefetch and pays its instructions on every call.
+  // A small C block (256 KB or less) gains nothing from the prefetch and pays its instructions on every call.
   const bool prefetch_c = rows * cols * Index(sizeof(Scalar)) > Index(256 * 1024);
   for (Index j = 0; j < cols; j += NR) {
     const int cw = static_cast<int>(sme_min(cols - j, Index(NR)));
@@ -2418,12 +2414,14 @@ bool sme_direct_lhs_ok(Index lhsStride, Index rows, Index depth, Index cols) {
   return false;
 #else
   if (NumTraits<Scalar>::IsComplex || depth <= Index(sme_neon_max_depth<Scalar>::value)) return false;
-  // A RHS of one panel reads each LHS element once, so packing it only adds a copy: always for the narrow kernel
-  // (4096 x 16 x 512 float: 450 -> 1058 GFLOPS), and for the 2 x 2 one while a panel spans few enough pages.
+  // A RHS of one panel reads each LHS element once, so packing it only adds a copy: always for the narrow kernel,
+  // and for the 2 x 2 one while a panel spans few enough pages.
   const std::size_t stride_bytes = std::size_t(lhsStride) * sizeof(Scalar);
-  if (cols <= Index(sme_block<Scalar>::nr / 2)) return true;
-  if (cols <= Index(sme_block<Scalar>::nr))
-    return std::size_t(depth) * stride_bytes <= std::size_t(EIGEN_SME_DIRECT_LHS_MAX_SPAN_BYTES);
+  if (cols <= Index(sme_block<Scalar>::nr)) {
+    const std::size_t span_limit = std::size_t(EIGEN_SME_DIRECT_LHS_MAX_SPAN_BYTES);
+    if (span_limit == 0) return false;
+    return cols <= Index(sme_block<Scalar>::nr / 2) || std::size_t(depth) * stride_bytes <= span_limit;
+  }
   return stride_bytes % 4096 != 0 && stride_bytes <= std::size_t(EIGEN_SME_DIRECT_LHS_MAX_STRIDE_BYTES) &&
          std::size_t(rows) * std::size_t(depth) * sizeof(Scalar) <= std::size_t(EIGEN_SME_DIRECT_LHS_MAX_BLOCK_BYTES);
 #endif
@@ -3103,6 +3101,17 @@ struct sme_tiny_neon<float> {
   static constexpr int PS = 4;
   static EIGEN_ALWAYS_INLINE V ld(const float* p) { return vld1q_f32(p); }
   static EIGEN_ALWAYS_INLINE V zero() { return vdupq_n_f32(0.f); }
+  // The first n (< PS) scalars at p, zeros after them.
+  static EIGEN_ALWAYS_INLINE V ld_part(const float* p, int n) {
+    if (n <= 0) return zero();
+    if (n == 1) return vld1q_lane_f32(p, zero(), 0);
+    const V v = vcombine_f32(vld1_f32(p), vdup_n_f32(0.f));
+    return n == 2 ? v : vld1q_lane_f32(p + 2, v, 2);
+  }
+  // A full load permuted by byte indices; indices of 16 or more give zeros.
+  static EIGEN_ALWAYS_INLINE V ld_tbl(const float* p, uint8x16_t idx) {
+    return vreinterpretq_f32_u8(vqtbl1q_u8(vreinterpretq_u8_f32(vld1q_f32(p)), idx));
+  }
   template <int L>
   static EIGEN_ALWAYS_INLINE V fma_lane(V c, V a, V b) {
     return vfmaq_laneq_f32(c, a, b, L);
@@ -3128,6 +3137,10 @@ struct sme_tiny_neon<double> {
   static constexpr int PS = 2;
   static EIGEN_ALWAYS_INLINE V ld(const double* p) { return vld1q_f64(p); }
   static EIGEN_ALWAYS_INLINE V zero() { return vdupq_n_f64(0.); }
+  static EIGEN_ALWAYS_INLINE V ld_part(const double* p, int n) { return n > 0 ? vld1q_lane_f64(p, zero(), 0) : zero(); }
+  static EIGEN_ALWAYS_INLINE V ld_tbl(const double* p, uint8x16_t idx) {
+    return vreinterpretq_f64_u8(vqtbl1q_u8(vreinterpretq_u8_f64(vld1q_f64(p)), idx));
+  }
   template <int L>
   static EIGEN_ALWAYS_INLINE V fma_lane(V c, V a, V b) {
     return vfmaq_laneq_f64(c, a, b, L);
@@ -3173,8 +3186,8 @@ struct sme_tiny_step {
                                       std::integral_constant<int, NC>) {}
 };
 
-// C (m x n, m <= RV * PS, n <= NC) += alpha * A * B. Rows and columns past the result read the last valid one or,
-// within a vector, run on into the operand; chunks stop before the last depth step, so such reads stay inside it.
+// C (m x n, m <= RV * PS, n <= NC) += alpha * A * B, reading only A's m rows and B's n columns: rows and columns
+// past the result repeat the last valid one or load as zeros, and their sums are dropped.
 template <typename Scalar, int RV, int NC, int LhsOrder, int RhsOrder, typename Index>
 EIGEN_DONT_INLINE void sme_tiny_gemm_kernel(Index m, Index n, Index depth, const Scalar* A, Index lda, const Scalar* B,
                                             Index ldb, Scalar* C, Index incr, Index ldc, Scalar alpha) {
@@ -3195,14 +3208,39 @@ EIGEN_DONT_INLINE void sme_tiny_gemm_kernel(Index m, Index n, Index depth, const
   for (int i = 0; i < MR; ++i) a_row[i] = A + numext::mini(Index(i), m - 1) * lda;
   const Scalar* b_col[NC];
   for (int j = 0; j < NC; ++j) b_col[j] = B + numext::mini(Index(j), n - 1) * ldb;
-  const Index kmain = ((depth - 1) / PS) * PS;
+  // A column (B row) vector r holds cnt valid scalars. Once m (n) >= PS, each is one full load ending at its last
+  // valid scalar, shifted down by a byte table with zeros after; below that, a partial load.
+  int a_cnt[RV], b_cnt[NC / PS];
+  Index a_off[RV], b_off[NC / PS];
+  uint8x16_t a_idx[RV], b_idx[NC / PS];
+  const auto shift_table = [](int cnt) {
+    EIGEN_ALIGN16 uint8_t t[16];
+    for (int b = 0; b < 16; ++b)
+      t[b] = b < cnt * int(sizeof(Scalar)) ? uint8_t(b + (PS - cnt) * int(sizeof(Scalar))) : 0xff;
+    return vld1q_u8(t);
+  };
+  for (int r = 0; r < RV; ++r) {
+    a_cnt[r] = int(numext::mini(Index(PS), m - r * PS));
+    a_off[r] = r * PS + a_cnt[r] - PS;
+    a_idx[r] = shift_table(a_cnt[r]);
+  }
+  for (int c = 0; c < NC / PS; ++c) {
+    b_cnt[c] = int(numext::maxi(Index(0), numext::mini(Index(PS), n - c * PS)));
+    b_off[c] = numext::maxi(Index(0), Index(c * PS + b_cnt[c] - PS));
+    b_idx[c] = shift_table(b_cnt[c]);
+  }
+  const bool a_full = m >= PS, b_full = n >= PS;
+  const Index kmain = (depth / PS) * PS;
   for (Index k = 0; k < kmain; k += PS) {
     V a[PS][RV];
     EIGEN_IF_CONSTEXPR (LhsOrder == ColMajor) {
       EIGEN_UNROLL_LOOP
       for (int u = 0; u < PS; ++u) {
         EIGEN_UNROLL_LOOP
-        for (int r = 0; r < RV; ++r) a[u][r] = T::ld(A + (k + u) * lda + r * PS);
+        for (int r = 0; r < RV; ++r)
+          a[u][r] = a_cnt[r] == PS ? T::ld(A + (k + u) * lda + r * PS)
+                    : a_full       ? T::ld_tbl(A + (k + u) * lda + a_off[r], a_idx[r])
+                                   : T::ld_part(A + (k + u) * lda + r * PS, a_cnt[r]);
       }
     } else {
       EIGEN_UNROLL_LOOP
@@ -3225,7 +3263,11 @@ EIGEN_DONT_INLINE void sme_tiny_gemm_kernel(Index m, Index n, Index depth, const
       for (int u = 0; u < PS; ++u) {
         V b[NC / PS];
         EIGEN_UNROLL_LOOP
-        for (int c = 0; c < NC / PS; ++c) b[c] = T::ld(B + (k + u) * ldb + c * PS);
+        for (int c = 0; c < NC / PS; ++c)
+          b[c] = b_cnt[c] == PS  ? T::ld(B + (k + u) * ldb + c * PS)
+                 : b_cnt[c] == 0 ? T::zero()
+                 : b_full        ? T::ld_tbl(B + (k + u) * ldb + b_off[c], b_idx[c])
+                                 : T::ld_part(B + (k + u) * ldb + c * PS, b_cnt[c]);
         Step::row(acc[u % S], a[u], b, std::integral_constant<int, 0>());
       }
     }

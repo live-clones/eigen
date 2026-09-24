@@ -87,20 +87,30 @@ EIGEN_ALWAYS_INLINE bool sme_run_direct_lhs(std::true_type, Gebp& gebp, const Re
 template <typename Scalar, int LhsOrder, int RhsOrder, typename Index>
 bool sme_tiny_gemm(Index rows, Index cols, Index depth, const Scalar* lhs, Index lhsStride, const Scalar* rhs,
                    Index rhsStride, Scalar* res, Index resIncr, Index resStride, Scalar alpha);
-// Where the tiny-result kernel beats both the coeff-based product and the packed paths (M4 Pro, float and double):
-// short depths keep the coeff-based product, and a full 2 * PS x 8 result over a long depth the SME kernel.
+// Where the tiny-result kernel beats both the coeff-based product and the packed paths, as tuned on Apple M4: short
+// depths keep the coeff-based product, and a full 2 * ps x 8 result over a long depth the SME kernel. The NEON
+// small-block switches pin the paths they select, so they turn it off.
 template <typename Scalar, typename Index>
 EIGEN_ALWAYS_INLINE bool sme_tiny_gemm_wins(Index rows, Index cols, Index depth) {
-  const Index ps = Index(16 / sizeof(Scalar));
+#if defined(EIGEN_SME_NO_NEON_SMALL_BLOCKS) || defined(EIGEN_SME_FORCE_NEON_SMALL_BLOCKS) || defined(EIGEN_USE_BLAS)
+  EIGEN_UNUSED_VARIABLE(rows);
+  EIGEN_UNUSED_VARIABLE(cols);
+  EIGEN_UNUSED_VARIABLE(depth);
+  return false;
+#else
+  const Index ps = Index(16 / sizeof(Scalar));  // scalars per NEON vector
   if (rows < 2 || cols < 2 || rows > 2 * ps || cols > 8) return false;
   if (depth < 16 && (depth < 6 || rows * cols < 24)) return false;
   return !(cols == 8 && rows > ps && depth >= 2048);
+#endif
 }
-// Real float and double take the tiny-result kernel; the false overload keeps it out of every other pair.
+// Real float and double on the SME kernel take the tiny-result kernel; the false overload keeps it out of every
+// other pair, including double without FEAT_SME_F64F64.
 template <typename LhsScalar, typename RhsScalar>
 struct sme_tiny_gemm_pair
     : bool_constant<std::is_same<LhsScalar, RhsScalar>::value &&
-                    (std::is_same<LhsScalar, float>::value || std::is_same<LhsScalar, double>::value)> {};
+                    (std::is_same<LhsScalar, float>::value || std::is_same<LhsScalar, double>::value) &&
+                    sme_has_gebp_kernel<LhsScalar, RhsScalar>::value> {};
 template <int LhsOrder, int RhsOrder, typename Scalar, typename Index>
 EIGEN_ALWAYS_INLINE bool sme_run_tiny_gemm(std::true_type, Index rows, Index cols, Index depth, const Scalar* lhs,
                                            Index lhsStride, const Scalar* rhs, Index rhsStride, Scalar* res,
@@ -192,9 +202,10 @@ struct general_matrix_matrix_product<Index, LhsScalar, LhsStorageOrder, Conjugat
     // BLAS contract: if alpha == 0, the result is unchanged (and lhs/rhs need not be read).
     if (numext::is_exactly_zero(alpha)) return;
 #ifdef EIGEN_VECTORIZE_SME
-    if (sme_run_tiny_gemm<LhsStorageOrder, RhsStorageOrder>(
-            bool_constant<sme_tiny_gemm_pair<LhsScalar, RhsScalar>::value>(), rows, cols, depth, lhs_, lhsStride, rhs_,
-            rhsStride, res_, resIncr, resStride, alpha))
+    // A parallel session needs every thread to take the packed path; scaleAndAddTo runs tiny results on one thread.
+    if (info == nullptr && sme_run_tiny_gemm<LhsStorageOrder, RhsStorageOrder>(
+                               bool_constant<sme_tiny_gemm_pair<LhsScalar, RhsScalar>::value>(), rows, cols, depth,
+                               lhs_, lhsStride, rhs_, rhsStride, res_, resIncr, resStride, alpha))
       return;
 #endif
 
@@ -641,6 +652,12 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, GemmProduct>
         ActualLhsTypeCleaned, ActualRhsTypeCleaned, Dest, BlockingType>;
 
     BlockingType blocking(dst.rows(), dst.cols(), lhs.cols(), 1, true);
+#ifdef EIGEN_VECTORIZE_SME
+    // A result the tiny-result kernel takes is never worth a parallel session.
+    if (tinyKernelWins(dst, a_rhs))
+      return internal::parallelize_gemm<false>(GemmFunctor(lhs, rhs, dst, actualAlpha, blocking), a_lhs.rows(),
+                                               a_rhs.cols(), a_lhs.cols(), Dest::Flags & RowMajorBit);
+#endif
     internal::parallelize_gemm<(Dest::MaxRowsAtCompileTime > 32 || Dest::MaxRowsAtCompileTime == Dynamic)>(
         GemmFunctor(lhs, rhs, dst, actualAlpha, blocking), a_lhs.rows(), a_rhs.cols(), a_lhs.cols(),
         Dest::Flags & RowMajorBit);

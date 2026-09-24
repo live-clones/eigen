@@ -136,7 +136,8 @@ run time. However, these assertions do cost time and can thus be turned off.
    and multiplies a block with NEON instead of the ZA tiles (panels no deeper than the depth bound and no wider than
    the panel bound; a block of such panels no wider than the width bound, or the shallow width up to the shallow
    depth, or narrower than the thin bound on one side). One value overrides the per-scalar defaults, which are fitted
-   for Apple M4. \c EIGEN_SME_NO_NEON_SMALL_BLOCKS and \c EIGEN_SME_FORCE_NEON_SMALL_BLOCKS pin the path for A/B runs.
+   for Apple M4. \c EIGEN_SME_NO_NEON_SMALL_BLOCKS and \c EIGEN_SME_FORCE_NEON_SMALL_BLOCKS pin the path for A/B runs;
+   both also turn off the NEON kernel for results of at most 8 x 8 (float) or 4 x 8 (double).
  - \b \c EIGEN_SME_UNITS - Number of ARM SME units a product on the SME GEMM kernel spreads over; more threads than
    units only contend for them. Detected from the core topology by default (see \c Eigen::nbSmeUnits() and
    \c Eigen::setNbSmeUnits()): on macOS from the performance clusters, on Linux on Apple silicon from sysfs unless
@@ -145,9 +146,11 @@ run time. However, these assertions do cost time and can thus be turned off.
    and largest block (rows times depth, both in bytes) at which the ARM SME GEMM kernel reads a column-major real LHS
    block from its source instead of a packed panel, whatever its alignment. The defaults are 16 KB and 4 MB; strides
    that are a multiple of 4 KB always pack, since they alias in L1. 0 for either disables the in-place read. These
-   limits do not apply when the RHS is a single panel, since each LHS element is then read once: up to half a panel
-   wide the LHS is always read in place, up to a full panel while depth times stride stays within
-   \c EIGEN_SME_DIRECT_LHS_MAX_SPAN_BYTES (16 MB), past which the panel spans more pages than the TLB covers.
+   limits do not apply when the RHS is a single panel (see \c EIGEN_SME_DIRECT_LHS_MAX_SPAN_BYTES).
+ - \b \c EIGEN_SME_DIRECT_LHS_MAX_SPAN_BYTES - When the RHS is a single panel, each LHS element is read once, so the
+   ARM SME GEMM kernel reads a column-major real LHS in place: always up to half a panel wide, and up to a full panel
+   while depth times column stride (in bytes) stays within this limit, past which the panel spans more pages than
+   the TLB covers. The default is 16 MB; 0 disables the in-place read for single-panel products.
  - \b \c EIGEN_ARM64_NO_SME_F64F64 - Disables the double-precision ARM SME GEMM kernel, which needs the optional
    FEAT_SME_F64F64 extension. %Eigen enables it whenever the compiler reports that extension; define this macro when
    the build target is wider than the run target, so that \c double keeps the generic kernel.

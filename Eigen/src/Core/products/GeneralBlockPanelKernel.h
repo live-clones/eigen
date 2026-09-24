@@ -206,7 +206,7 @@ void evaluateProductBlockingSizesHeuristicForSme(Index& k, Index& m, Index& n) {
   mc = (mc / mr) * mr;
 
   // Bound the packed RHS strip so very wide matrices do not allocate an unbounded blockB panel. When all rows fit
-  // one LHS block, each packed RHS block is read once, so it stays L2-sized (64x4096x4096 float: 625 -> 923 GFLOPS).
+  // one LHS block, each packed RHS block is read once, so it stays L2-sized.
   const Index rhs_budget = m <= mc ? (numext::mini)(sme_packed_rhs_budget_bytes, sme_single_pass_rhs_budget_bytes)
                                    : sme_packed_rhs_budget_bytes;
   Index nc = rhs_budget / (numext::maxi)(Index(1), k * Index(sizeof(RhsScalar)));
