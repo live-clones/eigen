@@ -77,7 +77,7 @@ Selection follows the textual `#include` graph, ignoring preprocessor guards, so
 compile dependency and never drops an affected test. Because Eigen is header-only and the umbrella headers are hubs,
 a change under `Eigen/src/Core` typically reaches every test and the selector degrades to the full suite — that is the
 correct answer, not a failure. Changes to CMake, `ci/scripts/`, `ci/docker/`, or the BLAS/LAPACK shims also force the
-full suite; the `ci/*.gitlab-ci.yml` files select nothing.
+full suite; the `ci/*.gitlab-ci.yml` files and the lint image under `ci/lint/` select nothing.
 
 ### Platform-Triggered Configurations
 

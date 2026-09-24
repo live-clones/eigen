@@ -48,3 +48,5 @@ CLAUDE.md
 .claude/*
 !.claude/settings.json
 .DS_Store
+# Written by ci/lint/lint.sh.
+lint-report.xml
