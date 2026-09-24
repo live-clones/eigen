@@ -6,6 +6,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include <benchmark/benchmark.h>
+#include <cstdint>
 #include <Eigen/Core>
 #include <contrib/Eigen/SpecialFunctions>
 
@@ -41,6 +42,35 @@ BENCH_CWISE_UNARY(Log2, a.log2(), 0.01, 100)
 BENCH_CWISE_UNARY(Exp2, a.exp2(), -10, 10)
 BENCH_CWISE_UNARY(Expm1, a.expm1(), -2, 2)
 BENCH_CWISE_UNARY(Cbrt, a.cbrt(), -100, 100)
+
+// mode: 0 = ordinary inputs, 1 = subnormal inputs, 2 = one subnormal per 64 coefficients.
+static void BM_Sign(benchmark::State& state) {
+  const Index n = state.range(0);
+  const int mode = int(state.range(1));
+  ArrayXf a(n), b(n);
+  for (Index i = 0; i < n; ++i) {
+    a(i) = float(i % 257 - 128) / 32.0f;
+    if (mode == 1 || (mode == 2 && i % 64 == 0)) {
+      const std::uint32_t magnitude = std::uint32_t(1 + (i * 37) % 0x7fffff);
+      a(i) = numext::bit_cast<float>(magnitude | (i % 2 ? 0x80000000u : 0u));
+    }
+  }
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(a.data());
+    b = a.sign();
+    benchmark::DoNotOptimize(b.data());
+    benchmark::ClobberMemory();
+  }
+  for (Index i = 0; i < n; ++i) {
+    const std::uint32_t bits = numext::bit_cast<std::uint32_t>(a(i));
+    const std::uint32_t expected = (bits & 0x7fffffffu) == 0 ? 0u : (bits & 0x80000000u) | 0x3f800000u;
+    if (numext::bit_cast<std::uint32_t>(b(i)) != expected) {
+      state.SkipWithError("sign output does not match the bitwise reference");
+      break;
+    }
+  }
+  state.SetBytesProcessed(state.iterations() * n * sizeof(float) * 2);
+}
 
 // Trigonometric functions
 BENCH_CWISE_UNARY(Sin, a.sin(), -3.14, 3.14)
@@ -210,6 +240,7 @@ BENCHMARK(BM_Erf<float>)->ArgsProduct({{1024, 4096, 16384, 65536, 262144, 104857
     ->ArgNames({"size", "mode"})->Name("Erf_float");
 BENCHMARK(BM_Erf<bfloat16>)->ArgsProduct({{1024, 4096, 16384, 65536, 262144, 1048576}, {0, 1, 2}})
     ->ArgNames({"size", "mode"})->Name("Erf_bfloat16");
+BENCHMARK(BM_Sign)->ArgsProduct({{1024, 16384, 262144}, {0, 1, 2}})->ArgNames({"size", "mode"})->Name("Sign_float");
 BENCHMARK(BM_Abs<float>) CWISE_SIZES ->Name("Abs_float");
 BENCHMARK(BM_Square<float>) CWISE_SIZES ->Name("Square_float");
 BENCHMARK(BM_Cube<float>) CWISE_SIZES ->Name("Cube_float");
