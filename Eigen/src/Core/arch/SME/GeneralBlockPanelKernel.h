@@ -412,8 +412,7 @@ static EIGEN_ALWAYS_INLINE void sve_copy_panel_range(Scalar* EIGEN_RESTRICT dst,
   using Traits = sme_traits<Scalar>;
   const int svl = Traits::svl();
   if (width == 2 * svl) {
-    // Full panel: one two-vector load and store per depth step, four steps in
-    // flight, instead of two single-vector passes over the source.
+    // Full panel: one two-vector load and store per depth step, four steps in flight.
     const svcount_t pn = Traits::ptrue_c();
     Index k = k0;
     for (; k + 4 <= k1; k += 4) {
@@ -438,7 +437,7 @@ static EIGEN_ALWAYS_INLINE void sve_copy_panel_range(Scalar* EIGEN_RESTRICT dst,
 }
 
 // Four full 2*svl-wide panels from one 8*svl-wide source strip (panel p at dst + p * panel_stride): two four-vector
-// loads per depth step instead of four panel passes, and the core prefetches the strip into L2 four steps ahead.
+// loads per depth step, and the core prefetches the strip into L2 four steps ahead.
 template <typename Scalar, typename Index>
 static EIGEN_ALWAYS_INLINE void sve_copy_panel_quad(Scalar* EIGEN_RESTRICT dst, Index panel_stride,
                                                     const Scalar* EIGEN_RESTRICT src, Index src_stride,
@@ -2393,8 +2392,8 @@ EIGEN_DONT_INLINE __arm_locally_streaming __arm_new("za") void sme_gebp_impl_dir
   }
 }
 
-// In-place ColMajor LHS: deep enough for the ZA kernel, a stride that is not a 4 KB multiple (one L1 set: 1024^3
-// float 1671 vs 1811 GFLOPS) and a block of at most 4 MB, past which the strided re-reads lose to the packed panel.
+// In-place ColMajor LHS: deep enough for the ZA kernel, a stride that is not a 4 KB multiple (such columns map to one
+// L1 set) and a block of at most 4 MB, past which the strided re-reads lose to the packed panel.
 #ifndef EIGEN_SME_DIRECT_LHS_MAX_STRIDE_BYTES
 #define EIGEN_SME_DIRECT_LHS_MAX_STRIDE_BYTES 16384
 #endif
