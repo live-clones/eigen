@@ -140,8 +140,8 @@ run time. However, these assertions do cost time and can thus be turned off.
    both also turn off the NEON kernel for results of at most 8 x 8 (float) or 4 x 8 (double).
  - \b \c EIGEN_SME_UNITS - Number of ARM SME units a product on the SME GEMM kernel spreads over; more threads than
    units only contend for them. Detected from the core topology by default (see \c Eigen::nbSmeUnits() and
-   \c Eigen::setNbSmeUnits()): on macOS from the performance clusters, on Linux on Apple silicon from sysfs unless
-   \c EIGEN_NO_CPU_CACHE_SYSFS is defined, and 0 (no cap) elsewhere. Define it when the detection has no answer.
+   \c Eigen::setNbSmeUnits()): on macOS from the performance clusters, and 0 (no cap) elsewhere. Define it on other
+   systems whose SME units are shared by a cluster of cores, such as Linux on Apple silicon.
  - \b \c EIGEN_SME_DIRECT_LHS_MAX_STRIDE_BYTES and \b \c EIGEN_SME_DIRECT_LHS_MAX_BLOCK_BYTES - Largest column stride
    and largest block (rows times depth, both in bytes) at which the ARM SME GEMM kernel reads a column-major real LHS
    block from its source instead of a packed panel, whatever its alignment. The defaults are 16 KB and 4 MB; strides
