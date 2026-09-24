@@ -249,6 +249,48 @@ static void test_direct_lhs() {
 #endif
 }
 
+// Small K against large M and N (NEON depths and just past them), and a RHS of one panel read in place: up to
+// half a panel wide always, up to a full panel within the span limit, with 4 KB-multiple strides.
+template <typename Scalar>
+static void test_small_k_and_single_panel_rhs() {
+  const Index MR = sme_mr<Scalar>(), NR = sme_nr<Scalar>();
+  for (Index k : {1, 2, 3, 5, 8, 17, 24, 25, 40}) {
+    for (Index mn : {Index(130), 4 * MR + 3}) {
+      const SmeColMajorMat<Scalar> A = SmeColMajorMat<Scalar>::Random(mn, k), B = SmeColMajorMat<Scalar>::Random(k, mn);
+      SmeColMajorMat<Scalar> C = SmeColMajorMat<Scalar>::Random(mn, mn);
+      const SmeColMajorMat<Scalar> C0 = C;
+      C.noalias() += A * B;
+      VERIFY_IS_APPROX(C, C0 + A.lazyProduct(B));
+    }
+  }
+  const Index page = 4096 / Index(sizeof(Scalar));
+  for (Index n : {Index(1), NR / 2 - 1, NR / 2, NR / 2 + 1, NR}) {
+    for (Index lda : {5 * MR + 3, page, 2 * page + 1}) {
+      for (Index depth : {Index(40), Index(301)}) {
+        const Index rows = numext::mini(lda, 5 * MR + 3);
+        SmeVector<Scalar> storage = SmeVector<Scalar>::Zero(lda * depth);
+        Map<SmeColMajorMat<Scalar>, 0, OuterStride<>> A(storage.data(), rows, depth, OuterStride<>(lda));
+        A.setRandom();
+        const SmeColMajorMat<Scalar> B = SmeColMajorMat<Scalar>::Random(depth, n);
+        SmeColMajorMat<Scalar> C = SmeColMajorMat<Scalar>::Random(rows, n);
+        const SmeColMajorMat<Scalar> C0 = C;
+        C.noalias() += A * B;
+        VERIFY_IS_APPROX(C, C0 + A.lazyProduct(B));
+      }
+    }
+  }
+  // A single-panel RHS whose depth block spans more than EIGEN_SME_DIRECT_LHS_MAX_SPAN_BYTES packs the LHS.
+  const Index kc = Index(EIGEN_SME_MAX_KC) * Index(sizeof(float)) / Index(sizeof(Scalar));
+  const Index wide = page * Index(std::size_t(EIGEN_SME_DIRECT_LHS_MAX_SPAN_BYTES) / (std::size_t(kc) * 4096) + 1);
+  SmeVector<Scalar> storage = SmeVector<Scalar>::Zero(wide * kc);
+  Map<SmeColMajorMat<Scalar>, 0, OuterStride<>> A(storage.data(), 2 * MR + 5, kc, OuterStride<>(wide));
+  A.setRandom();
+  const SmeColMajorMat<Scalar> B = SmeColMajorMat<Scalar>::Random(kc, NR);
+  SmeColMajorMat<Scalar> C = SmeColMajorMat<Scalar>::Zero(2 * MR + 5, NR);
+  C.noalias() += A * B;
+  VERIFY_IS_APPROX(C, A.lazyProduct(B));
+}
+
 // ---------------------------------------------------------------------------
 // Raw packed-buffer tests.
 //
@@ -898,6 +940,7 @@ EIGEN_DECLARE_TEST(product_sme) {
   CALL_SUBTEST_1(test_mapper_fallback<float>());
   CALL_SUBTEST_1(test_neon_small_blocks<float>());
   CALL_SUBTEST_1(test_direct_lhs<float>());
+  CALL_SUBTEST_1(test_small_k_and_single_panel_rhs<float>());
 
   // double reaches the SME kernel and packers only with FEAT_SME_F64F64; the
   // product sweep is meaningful either way, but the packed-layout tests name
@@ -911,6 +954,7 @@ EIGEN_DECLARE_TEST(product_sme) {
   CALL_SUBTEST_2(test_mapper_fallback<double>());
   CALL_SUBTEST_2(test_neon_small_blocks<double>());
   CALL_SUBTEST_2(test_direct_lhs<double>());
+  CALL_SUBTEST_2(test_small_k_and_single_panel_rhs<double>());
 #endif
 
   CALL_SUBTEST_3(test_products<std::complex<float>>());
