@@ -84,6 +84,35 @@ EIGEN_ALWAYS_INLINE bool sme_run_direct_lhs(std::true_type, Gebp& gebp, const Re
   gebp.run_direct_lhs(res, &lhs(i2, k2), lhs.stride(), blockB, mc, kc, nc, alpha);
   return true;
 }
+template <typename Scalar, int LhsOrder, int RhsOrder, typename Index>
+bool sme_tiny_gemm(Index rows, Index cols, Index depth, const Scalar* lhs, Index lhsStride, const Scalar* rhs,
+                   Index rhsStride, Scalar* res, Index resIncr, Index resStride, Scalar alpha);
+// Where the tiny-result kernel beats both the coeff-based product and the packed paths (M4 Pro, float and double):
+// short depths keep the coeff-based product, and a full 2 * PS x 8 result over a long depth the SME kernel.
+template <typename Scalar, typename Index>
+EIGEN_ALWAYS_INLINE bool sme_tiny_gemm_wins(Index rows, Index cols, Index depth) {
+  const Index ps = Index(16 / sizeof(Scalar));
+  if (rows < 2 || cols < 2 || rows > 2 * ps || cols > 8) return false;
+  if (depth < 16 && (depth < 6 || rows * cols < 24)) return false;
+  return !(cols == 8 && rows > ps && depth >= 2048);
+}
+// Real float and double take the tiny-result kernel; the false overload keeps it out of every other pair.
+template <typename LhsScalar, typename RhsScalar>
+struct sme_tiny_gemm_pair
+    : bool_constant<std::is_same<LhsScalar, RhsScalar>::value &&
+                    (std::is_same<LhsScalar, float>::value || std::is_same<LhsScalar, double>::value)> {};
+template <int LhsOrder, int RhsOrder, typename Scalar, typename Index>
+EIGEN_ALWAYS_INLINE bool sme_run_tiny_gemm(std::true_type, Index rows, Index cols, Index depth, const Scalar* lhs,
+                                           Index lhsStride, const Scalar* rhs, Index rhsStride, Scalar* res,
+                                           Index resIncr, Index resStride, Scalar alpha) {
+  return sme_tiny_gemm<Scalar, LhsOrder, RhsOrder>(rows, cols, depth, lhs, lhsStride, rhs, rhsStride, res, resIncr,
+                                                   resStride, alpha);
+}
+template <int LhsOrder, int RhsOrder, typename LhsScalar, typename RhsScalar, typename ResScalar, typename Index>
+EIGEN_ALWAYS_INLINE bool sme_run_tiny_gemm(std::false_type, Index, Index, Index, const LhsScalar*, Index,
+                                           const RhsScalar*, Index, ResScalar*, Index, Index, ResScalar) {
+  return false;
+}
 template <typename Gebp, typename ResMapper, typename LhsMapper, typename Scalar, typename ResScalar, typename Index>
 EIGEN_ALWAYS_INLINE bool sme_run_direct_lhs(std::false_type, Gebp&, const ResMapper&, const LhsMapper&, Index, Index,
                                             const Scalar*, Index, Index, Index, ResScalar) {
@@ -162,6 +191,12 @@ struct general_matrix_matrix_product<Index, LhsScalar, LhsStorageOrder, Conjugat
                   level3_blocking<LhsScalar, RhsScalar>& blocking, GemmParallelInfo<Index>* info = 0) {
     // BLAS contract: if alpha == 0, the result is unchanged (and lhs/rhs need not be read).
     if (numext::is_exactly_zero(alpha)) return;
+#ifdef EIGEN_VECTORIZE_SME
+    if (sme_run_tiny_gemm<LhsStorageOrder, RhsStorageOrder>(
+            bool_constant<sme_tiny_gemm_pair<LhsScalar, RhsScalar>::value>(), rows, cols, depth, lhs_, lhsStride, rhs_,
+            rhsStride, res_, resIncr, resStride, alpha))
+      return;
+#endif
 
     using LhsMapper = const_blas_data_mapper<LhsScalar, Index, LhsStorageOrder>;
     using RhsMapper = const_blas_data_mapper<RhsScalar, Index, RhsStorageOrder>;
@@ -504,12 +539,26 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, GemmProduct>
   }
 #endif
 
+#ifdef EIGEN_VECTORIZE_SME
+  // Whether the tiny-result kernel takes a product the coeff-based one would; the GEMM driver sees a RowMajor
+  // result transposed.
+  template <typename Dst>
+  static EIGEN_STRONG_INLINE bool tinyKernelWins(const Dst& dst, const Rhs& rhs) {
+    constexpr bool row_major = (Dst::Flags & RowMajorBit) != 0;
+    return sme_tiny_gemm_pair<LhsScalar, RhsScalar>::value &&
+           sme_tiny_gemm_wins<Scalar>(row_major ? dst.cols() : dst.rows(), row_major ? dst.rows() : dst.cols(),
+                                      rhs.rows());
+  }
+#endif
+
   template <typename Dst>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool useRuntimeCoeffBasedProduct(const Dst& dst, const Rhs& rhs) {
     if (rhs.rows() <= 0) return false;
-    if ((rhs.rows() + dst.rows() + dst.cols()) < kCoeffBasedThreshold) return true;
 #ifdef EIGEN_VECTORIZE_SME
-    if (outputAreaBelowThreshold(dst)) return true;
+    if ((rhs.rows() + dst.rows() + dst.cols()) < kCoeffBasedThreshold || outputAreaBelowThreshold(dst))
+      return !tinyKernelWins(dst, rhs);
+#else
+    if ((rhs.rows() + dst.rows() + dst.cols()) < kCoeffBasedThreshold) return true;
 #endif
     return false;
   }

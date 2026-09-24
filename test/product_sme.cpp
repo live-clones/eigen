@@ -291,6 +291,63 @@ static void test_small_k_and_single_panel_rhs() {
   VERIFY_IS_APPROX(C, A.lazyProduct(B));
 }
 
+// Tiny results (the NEON kernel and both sides of its routing), every storage order of A, B and C.
+template <typename Scalar, int AO, int BO, int CO>
+static void test_tiny_results_order() {
+  using MA = Matrix<Scalar, Dynamic, Dynamic, AO>;
+  using MB = Matrix<Scalar, Dynamic, Dynamic, BO>;
+  using MC = Matrix<Scalar, Dynamic, Dynamic, CO>;
+  const Index ps = Index(16 / sizeof(Scalar));
+  for (Index m : {Index(1), Index(2), Index(3), ps, ps + 1, 2 * ps, 2 * ps + 1})
+    for (Index n : {1, 2, 3, 5, 8, 9})
+      for (Index k : {1, 5, 6, 7, 15, 16, 17, 64, 2049}) {
+        const MA A = MA::Random(m, k);
+        const MB B = MB::Random(k, n);
+        const MC ref = A.lazyProduct(B);
+        MC C = MC::Random(m, n);
+        const MC C0 = C;
+        C.noalias() = A * B;
+        VERIFY_IS_APPROX(C, ref);
+        C = C0;
+        C.noalias() += A * B;
+        VERIFY_IS_APPROX(C, C0 + ref);
+        C = C0;
+        C.noalias() -= Scalar(2) * A * B;
+        VERIFY_IS_APPROX(C, C0 - Scalar(2) * ref);
+        const MA At = A.transpose();
+        C.noalias() = At.transpose() * B;
+        VERIFY_IS_APPROX(C, ref);
+      }
+}
+
+template <typename Scalar>
+static void test_tiny_results() {
+  test_tiny_results_order<Scalar, ColMajor, ColMajor, ColMajor>();
+  test_tiny_results_order<Scalar, RowMajor, ColMajor, ColMajor>();
+  test_tiny_results_order<Scalar, ColMajor, RowMajor, ColMajor>();
+  test_tiny_results_order<Scalar, RowMajor, RowMajor, ColMajor>();
+  test_tiny_results_order<Scalar, ColMajor, ColMajor, RowMajor>();
+  test_tiny_results_order<Scalar, RowMajor, RowMajor, RowMajor>();
+  // Operands packed tight at the end of their buffer, so a read past the last row or column leaves it.
+  const Index ps = Index(16 / sizeof(Scalar));
+  for (Index m : {Index(2), Index(3), ps + 1, 2 * ps})
+    for (Index n : {2, 3, 7})
+      for (Index k : {16, 17, 18, 19}) {
+        std::vector<Scalar> a(std::size_t(m * k)), b(std::size_t(k * n));
+        Map<SmeColMajorMat<Scalar>> A(a.data(), m, k);
+        Map<SmeRowMajorMat<Scalar>> B(b.data(), k, n);
+        A.setRandom();
+        B.setRandom();
+        SmeColMajorMat<Scalar> C = SmeColMajorMat<Scalar>::Zero(m, n);
+        C.noalias() += A * B;
+        VERIFY_IS_APPROX(C, A.lazyProduct(B));
+        Map<SmeRowMajorMat<Scalar>> Ar(a.data(), m, k);
+        Map<SmeColMajorMat<Scalar>> Bc(b.data(), k, n);
+        C.noalias() = Ar * Bc;
+        VERIFY_IS_APPROX(C, Ar.lazyProduct(Bc));
+      }
+}
+
 // Every tail width of a deep block, which the ZA transposer packs: a ColMajor RHS tail and, through a RowMajor
 // product, a transposed LHS tail.
 template <typename Scalar>
@@ -967,6 +1024,7 @@ EIGEN_DECLARE_TEST(product_sme) {
   CALL_SUBTEST_1(test_direct_lhs<float>());
   CALL_SUBTEST_1(test_small_k_and_single_panel_rhs<float>());
   CALL_SUBTEST_1(test_deep_tail_panels<float>());
+  CALL_SUBTEST_1(test_tiny_results<float>());
 
   // double reaches the SME kernel and packers only with FEAT_SME_F64F64; the
   // product sweep is meaningful either way, but the packed-layout tests name
@@ -982,6 +1040,7 @@ EIGEN_DECLARE_TEST(product_sme) {
   CALL_SUBTEST_2(test_direct_lhs<double>());
   CALL_SUBTEST_2(test_small_k_and_single_panel_rhs<double>());
   CALL_SUBTEST_2(test_deep_tail_panels<double>());
+  CALL_SUBTEST_2(test_tiny_results<double>());
 #endif
 
   CALL_SUBTEST_3(test_products<std::complex<float>>());
