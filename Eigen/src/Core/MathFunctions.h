@@ -1055,6 +1055,20 @@ EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE bool is_zero_magnitude_bits(
   return magnitude == 0;
 }
 
+// Floating-point comparisons can treat subnormals as zero under DAZ/FTZ.
+// Classify float from its encoding so sign remains correct in those modes.
+template <>
+struct sign_impl<float, false, false> {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE float run(const float& a) {
+    using Binary = binary_floating_point_traits<float>;
+    const Binary::Bits bits = Binary::bits(a);
+    const Binary::Bits magnitude = bits & ~Binary::kSignBit;
+    if (magnitude > Binary::kExponentMask) return a;
+    if (is_zero_magnitude_bits<float>(magnitude)) return 0.0f;
+    return (bits & Binary::kSignBit) ? -1.0f : 1.0f;
+  }
+};
+
 template <typename Scalar>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool is_exactly_zero_no_flush_impl(const Scalar& value, true_type) {
   return is_zero_magnitude_bits<Scalar>(binary_floating_point_traits<Scalar>::magnitude(value));

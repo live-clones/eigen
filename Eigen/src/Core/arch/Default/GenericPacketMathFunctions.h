@@ -649,8 +649,43 @@ namespace internal {
 // Sign Function
 //----------------------------------------------------------------------
 
+template <typename Packet, bool HasIntegerPacket>
+struct psign_float_impl {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& a) {
+    // Some backends have no matching integer packet. Keep their packet path
+    // correct by classifying each lane with the scalar implementation.
+    EIGEN_ALIGN_MAX float lanes[unpacket_traits<Packet>::size];
+    pstoreu(lanes, a);
+    for (int i = 0; i < unpacket_traits<Packet>::size; ++i) lanes[i] = numext::sign(lanes[i]);
+    return ploadu<Packet>(lanes);
+  }
+};
+
+template <typename Packet>
+struct psign_float_impl<Packet, true> {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& a) {
+    using PacketI = typename unpacket_traits<Packet>::integer_packet;
+    const PacketI bits = preinterpret<PacketI>(a);
+    const PacketI magnitude = pand(bits, pset1<PacketI>(0x7fffffff));
+    const PacketI zero = pzero(magnitude);
+    const PacketI is_zero = pcmp_eq(magnitude, zero);
+    const PacketI is_nan = pcmp_lt(pset1<PacketI>(0x7f800000), magnitude);
+    const PacketI signed_one = por(pandnot(bits, magnitude), pset1<PacketI>(0x3f800000));
+    return preinterpret<Packet>(pselect(is_nan, bits, pselect(is_zero, zero, signed_one)));
+  }
+};
+
 template <typename Packet>
 struct psign_impl<Packet, std::enable_if_t<!is_scalar<Packet>::value &&
+                                           std::is_same<typename unpacket_traits<Packet>::type, float>::value>> {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& a) {
+    return psign_float_impl<Packet, packet_has_integer_packet<Packet>::value>::run(a);
+  }
+};
+
+template <typename Packet>
+struct psign_impl<Packet, std::enable_if_t<!is_scalar<Packet>::value &&
+                                           !std::is_same<typename unpacket_traits<Packet>::type, float>::value &&
                                            !NumTraits<typename unpacket_traits<Packet>::type>::IsComplex &&
                                            !NumTraits<typename unpacket_traits<Packet>::type>::IsInteger>> {
   static EIGEN_DEVICE_FUNC inline Packet run(const Packet& a) {

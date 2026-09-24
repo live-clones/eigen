@@ -2240,6 +2240,35 @@ void packetmath_bfloat16_abs_array() {
   }
 }
 
+void packetmath_float_sign_subnormals() {
+  using Packet = internal::packet_traits<float>::type;
+  using Bits = internal::binary_floating_point_traits<float>::Bits;
+  constexpr Index packet_size = internal::unpacket_traits<Packet>::size;
+  constexpr Index count = 12 * packet_size + 1;
+  const Bits samples[] = {0x00000000u, 0x80000000u, 0x00000001u, 0x80000001u, 0x007fffffu, 0x807fffffu,
+                          0x3f800000u, 0xbf800000u, 0x7f800000u, 0xff800000u, 0x7fc12345u, 0xffc12345u};
+  Array<float, Dynamic, 1> input(count), result(count);
+  for (Index i = 0; i < count; ++i) input(i) = numext::bit_cast<float>(samples[i % 12]);
+  input(count - 1) = numext::bit_cast<float>(Bits(0x80000001u));  // Exercise the scalar tail.
+  result = input.sign();
+  for (Index i = 0; i < count; ++i) {
+    const Bits bits = numext::bit_cast<Bits>(input(i));
+    const Bits magnitude = bits & 0x7fffffffu;
+    const Bits expected = magnitude > 0x7f800000u ? bits : magnitude == 0 ? 0u : (bits & 0x80000000u) | 0x3f800000u;
+    VERIFY_IS_EQUAL(numext::bit_cast<Bits>(result(i)), expected);
+  }
+
+  EIGEN_ALIGN_MAX float lanes[packet_size];
+  for (Index i = 0; i < packet_size; ++i) lanes[i] = numext::bit_cast<float>(samples[2 + (i % 4)]);
+  const Packet packet = internal::psign(internal::ploadu<Packet>(lanes));
+  internal::pstoreu(lanes, packet);
+  for (Index i = 0; i < packet_size; ++i) {
+    const Bits bits = samples[2 + (i % 4)];
+    const Bits expected = bits & 0x80000000u ? 0xbf800000u : 0x3f800000u;
+    VERIFY_IS_EQUAL(numext::bit_cast<Bits>(lanes[i]), expected);
+  }
+}
+
 namespace Eigen {
 namespace test {
 
@@ -2306,6 +2335,12 @@ EIGEN_DECLARE_TEST(packetmath) {
   CALL_SUBTEST_15({
     ScopedFlushToZero flush_to_zero;
     packetmath_bfloat16_abs_array();
+  });
+
+  CALL_SUBTEST_1(packetmath_float_sign_subnormals());
+  CALL_SUBTEST_1({
+    ScopedFlushToZero flush_to_zero;
+    if (flush_to_zero.isSupported()) packetmath_float_sign_subnormals();
   });
 
 #if defined(EIGEN_VECTORIZE_RVV10)
