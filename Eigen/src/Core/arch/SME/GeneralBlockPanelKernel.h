@@ -170,6 +170,11 @@ static EIGEN_ALWAYS_INLINE svfloat32x4_t sme_read_ver_za_vg4(const float*,
                                                              uint32_t slice) __arm_streaming __arm_inout("za") {
   return svread_ver_za32_f32_vg4(Tile, slice);
 }
+template <int Tile>
+static EIGEN_ALWAYS_INLINE void sme_write_ver_za_vg4(uint32_t slice,
+                                                     svfloat32x4_t v) __arm_streaming __arm_inout("za") {
+  svwrite_ver_za32_f32_vg4(Tile, slice, v);
+}
 static EIGEN_ALWAYS_INLINE svfloat32x2_t sme_create2(svfloat32_t a, svfloat32_t b) __arm_streaming {
   return svcreate2_f32(a, b);
 }
@@ -263,6 +268,11 @@ template <int Tile>
 static EIGEN_ALWAYS_INLINE svfloat64x4_t sme_read_ver_za_vg4(const double*,
                                                              uint32_t slice) __arm_streaming __arm_inout("za") {
   return svread_ver_za64_f64_vg4(Tile, slice);
+}
+template <int Tile>
+static EIGEN_ALWAYS_INLINE void sme_write_ver_za_vg4(uint32_t slice,
+                                                     svfloat64x4_t v) __arm_streaming __arm_inout("za") {
+  svwrite_ver_za64_f64_vg4(Tile, slice, v);
 }
 static EIGEN_ALWAYS_INLINE svfloat64x2_t sme_create2(svfloat64_t a, svfloat64_t b) __arm_streaming {
   return svcreate2_f64(a, b);
@@ -563,6 +573,89 @@ static EIGEN_ALWAYS_INLINE Index sme_transpose_pack_pair(RealScalar* EIGEN_RESTR
   return k;
 }
 
+// A row of a partial panel, or zeros past its last row (those slices are never stored).
+template <typename RealScalar, typename Index>
+static EIGEN_ALWAYS_INLINE typename sme_traits<RealScalar>::Vec2 sme_row_or_zero(
+    const RealScalar* p, bool valid, svcount_t pn, typename sme_traits<RealScalar>::Vec zero) __arm_streaming {
+  return valid ? sme_ld1_x2(pn, p) : sme_create2(zero, zero);
+}
+
+// Partial panel (width < 2*svl) through the tiles as sme_transpose_pack_pair does, rows past the width as zeros and
+// predicated stores of `width` scalars per depth step; returns the first depth index of the tail it leaves.
+template <typename RealScalar, typename Index>
+static EIGEN_ALWAYS_INLINE Index sme_transpose_pack_partial(RealScalar* EIGEN_RESTRICT dst,
+                                                            const RealScalar* EIGEN_RESTRICT src, Index src_stride,
+                                                            Index k0, Index k1,
+                                                            int width) __arm_streaming __arm_inout("za") {
+  using Traits = sme_traits<RealScalar>;
+  using Vec = typename Traits::Vec;
+  const int svl = Traits::svl(), w2 = 2 * svl;
+  const svcount_t pn = Traits::ptrue_c();
+  const Vec zero = Traits::dup(RealScalar(0));
+  const int rows_lo = sme_min(width, svl), rows_hi = width - rows_lo;
+  const svbool_t pg_lo = Traits::whilelt(0, rows_lo), pg_hi = Traits::whilelt(0, rows_hi);
+  const svbool_t pg_two = Traits::whilelt(0, 2 * width);
+  Index k = k0;
+  for (; k + w2 <= k1; k += w2) {
+    for (int r = 0; r < rows_lo; r += 4) {
+      const RealScalar* q = src + Index(r) * src_stride + k;
+      const auto a0 = sme_row_or_zero<RealScalar, Index>(q, r < rows_lo, pn, zero);
+      const auto a1 = sme_row_or_zero<RealScalar, Index>(q + src_stride, r + 1 < rows_lo, pn, zero);
+      const auto a2 = sme_row_or_zero<RealScalar, Index>(q + 2 * src_stride, r + 2 < rows_lo, pn, zero);
+      const auto a3 = sme_row_or_zero<RealScalar, Index>(q + 3 * src_stride, r + 3 < rows_lo, pn, zero);
+      sme_write_hor_za_vg4<0>(uint32_t(r), sme_get<0>(a0), sme_get<0>(a1), sme_get<0>(a2), sme_get<0>(a3));
+      sme_write_hor_za_vg4<1>(uint32_t(r), sme_get<1>(a0), sme_get<1>(a1), sme_get<1>(a2), sme_get<1>(a3));
+    }
+    for (int r = 0; r < rows_hi; r += 4) {
+      const RealScalar* q = src + Index(svl + r) * src_stride + k;
+      const auto a0 = sme_row_or_zero<RealScalar, Index>(q, r < rows_hi, pn, zero);
+      const auto a1 = sme_row_or_zero<RealScalar, Index>(q + src_stride, r + 1 < rows_hi, pn, zero);
+      const auto a2 = sme_row_or_zero<RealScalar, Index>(q + 2 * src_stride, r + 2 < rows_hi, pn, zero);
+      const auto a3 = sme_row_or_zero<RealScalar, Index>(q + 3 * src_stride, r + 3 < rows_hi, pn, zero);
+      sme_write_hor_za_vg4<2>(uint32_t(r), sme_get<0>(a0), sme_get<0>(a1), sme_get<0>(a2), sme_get<0>(a3));
+      sme_write_hor_za_vg4<3>(uint32_t(r), sme_get<1>(a0), sme_get<1>(a1), sme_get<1>(a2), sme_get<1>(a3));
+    }
+    if (2 * width <= svl) {
+      // Two depth steps per store: half as many stores, and full lines at width svl/2.
+      for (int c = 0; c < svl; c += 4) {
+        const auto t0 = sme_read_ver_za_vg4<0>(src, uint32_t(c)), t1 = sme_read_ver_za_vg4<1>(src, uint32_t(c));
+        RealScalar* d0 = dst + (k + c) * width;
+        RealScalar* d1 = d0 + Index(svl) * width;
+        sme_st1(pg_two, d0, svsplice(pg_lo, sme_get<0>(t0), sme_get<1>(t0)));
+        sme_st1(pg_two, d0 + 2 * width, svsplice(pg_lo, sme_get<2>(t0), sme_get<3>(t0)));
+        sme_st1(pg_two, d1, svsplice(pg_lo, sme_get<0>(t1), sme_get<1>(t1)));
+        sme_st1(pg_two, d1 + 2 * width, svsplice(pg_lo, sme_get<2>(t1), sme_get<3>(t1)));
+      }
+      continue;
+    }
+    for (int c = 0; c < svl; c += 4) {
+      const auto t0 = sme_read_ver_za_vg4<0>(src, uint32_t(c)), t1 = sme_read_ver_za_vg4<1>(src, uint32_t(c));
+      RealScalar* d0 = dst + (k + c) * width;
+      RealScalar* d1 = d0 + Index(svl) * width;
+      sme_st1(pg_lo, d0, sme_get<0>(t0));
+      sme_st1(pg_lo, d0 + width, sme_get<1>(t0));
+      sme_st1(pg_lo, d0 + 2 * width, sme_get<2>(t0));
+      sme_st1(pg_lo, d0 + 3 * width, sme_get<3>(t0));
+      sme_st1(pg_lo, d1, sme_get<0>(t1));
+      sme_st1(pg_lo, d1 + width, sme_get<1>(t1));
+      sme_st1(pg_lo, d1 + 2 * width, sme_get<2>(t1));
+      sme_st1(pg_lo, d1 + 3 * width, sme_get<3>(t1));
+      if (rows_hi > 0) {
+        const auto t2 = sme_read_ver_za_vg4<2>(src, uint32_t(c)), t3 = sme_read_ver_za_vg4<3>(src, uint32_t(c));
+        sme_st1(pg_hi, d0 + svl, sme_get<0>(t2));
+        sme_st1(pg_hi, d0 + width + svl, sme_get<1>(t2));
+        sme_st1(pg_hi, d0 + 2 * width + svl, sme_get<2>(t2));
+        sme_st1(pg_hi, d0 + 3 * width + svl, sme_get<3>(t2));
+        sme_st1(pg_hi, d1 + svl, sme_get<0>(t3));
+        sme_st1(pg_hi, d1 + width + svl, sme_get<1>(t3));
+        sme_st1(pg_hi, d1 + 2 * width + svl, sme_get<2>(t3));
+        sme_st1(pg_hi, d1 + 3 * width + svl, sme_get<3>(t3));
+      }
+    }
+  }
+  return k;
+}
+
 // Transpose-pack `width` source rows into depth-major packed output using ZA's
 // 2D store as a free transpose, for the depth sub-range [k0, k1): a svl x svl
 // block of source (svl rows x svl depth) is loaded as horizontal ZA slices,
@@ -598,6 +691,8 @@ static EIGEN_ALWAYS_INLINE void sme_transpose_pack_real(RealScalar* EIGEN_RESTRI
   EIGEN_IF_CONSTEXPR (!NegateOddRows) {
     // Short ranges keep the single-tile path: the four-slice moves only pay off over several fills.
     if (width == 2 * svl && k1 - k0 >= Index(8 * svl)) k = sme_transpose_pack_pair(dst, src, src_stride, k0, k1);
+    else if (width < 2 * svl && k1 - k0 >= Index(8 * svl))
+      k = sme_transpose_pack_partial(dst, src, src_stride, k0, k1, width);
   }
   for (; k < k1; k += svl) {
     const int dk = static_cast<int>(sme_min(k1 - k, Index(svl)));
@@ -735,6 +830,22 @@ static void tail_transpose_pack(std::complex<RealScalar>* EIGEN_RESTRICT dst_pan
   tail_transpose_pack_real<Conjugate>(reinterpret_cast<RealScalar*>(dst_panel),
                                       reinterpret_cast<const RealScalar*>(src), Index(2) * src_stride, Index(2) * depth,
                                       tail);
+}
+
+// Tail panel of a deep block through the ZA transposer (sme_transpose_pack_partial); shallow or 4-wide ones keep the
+// NEON tail_transpose_pack, which is faster there (K 2048: 4 wide 0.3 vs 3.5 us, 16 wide 6.2 vs 1.0 us).
+template <bool Conjugate, typename Scalar, typename Index>
+__arm_locally_streaming __arm_new("za") static void sme_tail_pack_streaming(Scalar* dst_panel, const Scalar* src,
+                                                                            Index src_stride, Index depth, int tail) {
+  sme_transpose_pack<Conjugate>(dst_panel, src, src_stride, depth, tail);
+}
+template <bool Conjugate, typename Scalar, typename Index>
+static EIGEN_ALWAYS_INLINE void tail_pack(Scalar* dst_panel, const Scalar* src, Index src_stride, Index depth,
+                                          Index tail) {
+  if (!NumTraits<Scalar>::IsComplex && tail > 4 && depth >= Index(4 * sme_block<Scalar>::nr))
+    sme_tail_pack_streaming<Conjugate>(dst_panel, src, src_stride, depth, static_cast<int>(tail));
+  else
+    tail_transpose_pack<Conjugate>(dst_panel, src, src_stride, depth, tail);
 }
 
 // De-interleaving load and interleaving store of PS complex values.
@@ -1322,7 +1433,7 @@ struct sme_pack_lhs_rowmajor {
       const Index tail = rows - peeled_rows;
       Scalar* dst_panel =
           PanelMode ? dst_base + peeled_rows * dst_stride + dst_offset * tail : dst_base + peeled_rows * depth;
-      tail_transpose_pack<Conjugate>(dst_panel, src + peeled_rows * src_stride, src_stride, depth, tail);
+      tail_pack<Conjugate>(dst_panel, src + peeled_rows * src_stride, src_stride, depth, tail);
     }
   }
 
@@ -1388,7 +1499,7 @@ struct sme_pack_rhs_colmajor {
       const Index tail = cols - peeled_cols;
       Scalar* dst_panel =
           PanelMode ? dst_base + peeled_cols * dst_stride + dst_offset * tail : dst_base + peeled_cols * depth;
-      tail_transpose_pack<Conjugate>(dst_panel, src + peeled_cols * src_stride, src_stride, depth, tail);
+      tail_pack<Conjugate>(dst_panel, src + peeled_cols * src_stride, src_stride, depth, tail);
     }
   }
 
@@ -2089,6 +2200,109 @@ EIGEN_ALWAYS_INLINE void sme_process_narrow(Scalar* EIGEN_RESTRICT C, Index C_st
     sme_store_za_tile<Scalar, 3>(C, C_stride_row, C_stride_col, alpha, row_start + 3 * svl, pw1 - svl, col_start, cw);
 }
 
+// Tile Dst += tile Src, four columns per step.
+template <int Dst, int Src, typename Scalar>
+EIGEN_ALWAYS_INLINE void sme_fold_tile() __arm_streaming __arm_inout("za") {
+  const svbool_t all = sme_traits<Scalar>::ptrue();
+  const Scalar* tag = nullptr;
+  for (int c = 0; c < sme_traits<Scalar>::svl(); c += 4) {
+    const auto d = sme_read_ver_za_vg4<Dst>(tag, uint32_t(c)), s = sme_read_ver_za_vg4<Src>(tag, uint32_t(c));
+    sme_write_ver_za_vg4<Dst>(
+        uint32_t(c), svcreate4(svadd_x(all, sme_get<0>(d), sme_get<0>(s)), svadd_x(all, sme_get<1>(d), sme_get<1>(s)),
+                               svadd_x(all, sme_get<2>(d), sme_get<2>(s)), svadd_x(all, sme_get<3>(d), sme_get<3>(s))));
+  }
+}
+
+// A block that fills one or two tiles (pw or cw <= svl): FMOPAs into one tile wait on each other, so consecutive
+// depth steps go to the spare tiles and the partial sums are folded before the store.
+template <typename Scalar, typename Index>
+EIGEN_ALWAYS_INLINE void sme_process_split(Scalar* EIGEN_RESTRICT C, Index C_stride_row, Index C_stride_col,
+                                           const Scalar* EIGEN_RESTRICT blA, const Scalar* EIGEN_RESTRICT blB,
+                                           Index depth, Scalar alpha, Index row_start, int pw, Index col_start, int cw,
+                                           Index a_step) __arm_streaming __arm_inout("za") {
+  using Traits = sme_traits<Scalar>;
+  using Vec = typename Traits::Vec;
+  const int svl = Traits::svl();
+  const svbool_t pr0 = Traits::whilelt(0, pw), pr1 = Traits::whilelt(svl, pw);
+  const svbool_t pc0 = Traits::whilelt(0, cw), pc1 = Traits::whilelt(svl, cw);
+  svzero_za();
+  Index k = 0;
+  if (pw <= svl && cw <= svl) {
+    for (; k + 4 <= depth; k += 4) {
+      const Vec a0 = sme_ld1(pr0, blA + k * a_step), a1 = sme_ld1(pr0, blA + (k + 1) * a_step);
+      const Vec a2 = sme_ld1(pr0, blA + (k + 2) * a_step), a3 = sme_ld1(pr0, blA + (k + 3) * a_step);
+      const Vec b0 = sme_ld1(pc0, blB + k * cw), b1 = sme_ld1(pc0, blB + (k + 1) * cw);
+      const Vec b2 = sme_ld1(pc0, blB + (k + 2) * cw), b3 = sme_ld1(pc0, blB + (k + 3) * cw);
+      sme_mopa<0>(pr0, pc0, a0, b0);
+      sme_mopa<1>(pr0, pc0, a1, b1);
+      sme_mopa<2>(pr0, pc0, a2, b2);
+      sme_mopa<3>(pr0, pc0, a3, b3);
+    }
+    for (; k < depth; ++k) sme_mopa<0>(pr0, pc0, sme_ld1(pr0, blA + k * a_step), sme_ld1(pc0, blB + k * cw));
+    sme_fold_tile<0, 1, Scalar>();
+    sme_fold_tile<2, 3, Scalar>();
+    sme_fold_tile<0, 2, Scalar>();
+    sme_store_za_tile<Scalar, 0>(C, C_stride_row, C_stride_col, alpha, row_start, pw, col_start, cw);
+  } else if (pw <= svl) {
+    // Tiles 0 and 1 take the even depth steps, 2 and 3 the odd ones.
+    for (; k + 2 <= depth; k += 2) {
+      const Vec a0 = sme_ld1(pr0, blA + k * a_step), a1 = sme_ld1(pr0, blA + (k + 1) * a_step);
+      const Vec b0 = sme_ld1(pc0, blB + k * cw), b0h = sme_ld1(pc1, blB + k * cw + svl);
+      const Vec b1 = sme_ld1(pc0, blB + (k + 1) * cw), b1h = sme_ld1(pc1, blB + (k + 1) * cw + svl);
+      sme_mopa<0>(pr0, pc0, a0, b0);
+      sme_mopa<1>(pr0, pc1, a0, b0h);
+      sme_mopa<2>(pr0, pc0, a1, b1);
+      sme_mopa<3>(pr0, pc1, a1, b1h);
+    }
+    if (k < depth) {
+      const Vec a0 = sme_ld1(pr0, blA + k * a_step);
+      sme_mopa<0>(pr0, pc0, a0, sme_ld1(pc0, blB + k * cw));
+      sme_mopa<1>(pr0, pc1, a0, sme_ld1(pc1, blB + k * cw + svl));
+    }
+    sme_fold_tile<0, 2, Scalar>();
+    sme_fold_tile<1, 3, Scalar>();
+    sme_store_2x2_grid(C, C_stride_row, C_stride_col, alpha, row_start, pw, 0, col_start, svl, cw - svl);
+  } else {
+    // cw <= svl < pw: tiles 0 and 2 take the even depth steps, 1 and 3 the odd ones.
+    for (; k + 2 <= depth; k += 2) {
+      const Vec a0 = sme_ld1(pr0, blA + k * a_step), a0h = sme_ld1(pr1, blA + k * a_step + svl);
+      const Vec a1 = sme_ld1(pr0, blA + (k + 1) * a_step), a1h = sme_ld1(pr1, blA + (k + 1) * a_step + svl);
+      const Vec b0 = sme_ld1(pc0, blB + k * cw), b1 = sme_ld1(pc0, blB + (k + 1) * cw);
+      sme_mopa<0>(pr0, pc0, a0, b0);
+      sme_mopa<2>(pr1, pc0, a0h, b0);
+      sme_mopa<1>(pr0, pc0, a1, b1);
+      sme_mopa<3>(pr1, pc0, a1h, b1);
+    }
+    if (k < depth) {
+      const Vec b0 = sme_ld1(pc0, blB + k * cw);
+      sme_mopa<0>(pr0, pc0, sme_ld1(pr0, blA + k * a_step), b0);
+      sme_mopa<2>(pr1, pc0, sme_ld1(pr1, blA + k * a_step + svl), b0);
+    }
+    sme_fold_tile<0, 1, Scalar>();
+    sme_fold_tile<2, 3, Scalar>();
+    sme_store_2x2_grid(C, C_stride_row, C_stride_col, alpha, row_start, svl, pw - svl, col_start, cw, 0);
+  }
+}
+
+// One pw x cw block: sme_process_split when it fills at most two tiles; complex blocks keep sme_process.
+template <bool ConjLhs, bool ConjRhs, typename Scalar, typename Index>
+EIGEN_ALWAYS_INLINE void sme_process_block(Scalar* C, Index rs, Index cs, const Scalar* blA, const Scalar* blB,
+                                           Index depth, Scalar alpha, Index row_start, int pw, Index col_start, int cw,
+                                           Index a_step) __arm_streaming __arm_inout("za") {
+  const int svl = sme_traits<Scalar>::svl();
+  if (pw <= svl || cw <= svl)
+    sme_process_split(C, rs, cs, blA, blB, depth, alpha, row_start, pw, col_start, cw, a_step);
+  else
+    sme_process<ConjLhs, ConjRhs>(C, rs, cs, blA, blB, depth, alpha, row_start, pw, col_start, cw, a_step);
+}
+template <bool ConjLhs, bool ConjRhs, typename RealScalar, typename Index>
+EIGEN_ALWAYS_INLINE void sme_process_block(std::complex<RealScalar>* C, Index rs, Index cs,
+                                           const std::complex<RealScalar>* blA, const std::complex<RealScalar>* blB,
+                                           Index depth, std::complex<RealScalar> alpha, Index row_start, int pw,
+                                           Index col_start, int cw, Index a_step) __arm_streaming __arm_inout("za") {
+  sme_process<ConjLhs, ConjRhs>(C, rs, cs, blA, blB, depth, alpha, row_start, pw, col_start, cw, a_step);
+}
+
 // sme_process_narrow for real scalars; complex panels keep the 2 x 2 path.
 template <typename Scalar, typename Index>
 EIGEN_ALWAYS_INLINE void sme_process_narrow_dispatch(Scalar* C, Index rs, Index cs, const Scalar* blA0, Index step0,
@@ -2154,7 +2368,8 @@ EIGEN_DONT_INLINE __arm_locally_streaming __arm_new("za") void sme_gebp_impl(
       if (prefetch_c)
         sme_prefetch_next_c(C, C_stride_row, C_stride_col, i + MR < rows ? i + MR : Index(0),
                             i + MR < rows ? j : j + NR, rows, cols, MR, NR);
-      sme_process<ConjLhs, ConjRhs>(C, C_stride_row, C_stride_col, blA, blB, depth, alpha, i, pw, j, cw, Index(pw));
+      sme_process_block<ConjLhs, ConjRhs>(C, C_stride_row, C_stride_col, blA, blB, depth, alpha, i, pw, j, cw,
+                                          Index(pw));
     }
   }
 }
@@ -2177,7 +2392,7 @@ EIGEN_DONT_INLINE __arm_locally_streaming __arm_new("za") void sme_gebp_impl_dir
                            static_cast<int>(sme_min(rows - i - MR, Index(MR))), blB, cw, depth, alpha, i, j);
     for (; i < rows; i += MR) {
       const int pw = static_cast<int>(sme_min(rows - i, Index(MR)));
-      sme_process<false, false>(C, C_stride_row, C_stride_col, lhs + i, blB, depth, alpha, i, pw, j, cw, lda);
+      sme_process_block<false, false>(C, C_stride_row, C_stride_col, lhs + i, blB, depth, alpha, i, pw, j, cw, lda);
     }
   }
 }
