@@ -3092,6 +3092,197 @@ EIGEN_SME_DECLARE_SYMM_PACKERS(std::complex<double>, kSmeMrCD, kSmeNrCD)
 
 #undef EIGEN_SME_DECLARE_SYMM_PACKERS
 
+// Tiny results (at most 2 * PS x 8): a NEON outer-product kernel with the whole result in registers, called before
+// any blocking or packing. Both the coeff-based product (one dependent FMA chain per result) and the packed paths
+// are several times slower there.
+template <typename Scalar>
+struct sme_tiny_neon;
+template <>
+struct sme_tiny_neon<float> {
+  using V = float32x4_t;
+  static constexpr int PS = 4;
+  static EIGEN_ALWAYS_INLINE V ld(const float* p) { return vld1q_f32(p); }
+  static EIGEN_ALWAYS_INLINE V zero() { return vdupq_n_f32(0.f); }
+  template <int L>
+  static EIGEN_ALWAYS_INLINE V fma_lane(V c, V a, V b) {
+    return vfmaq_laneq_f32(c, a, b, L);
+  }
+  static EIGEN_ALWAYS_INLINE V fma_n(V c, V a, float b) { return vfmaq_n_f32(c, a, b); }
+  static EIGEN_ALWAYS_INLINE void st(float* p, V v) { vst1q_f32(p, v); }
+  static EIGEN_ALWAYS_INLINE V add(V a, V b) { return vaddq_f32(a, b); }
+  // Rows in, columns out.
+  static EIGEN_ALWAYS_INLINE void transpose(V (&r)[PS]) {
+    const float64x2_t t0 = vreinterpretq_f64_f32(vtrn1q_f32(r[0], r[1]));
+    const float64x2_t t1 = vreinterpretq_f64_f32(vtrn2q_f32(r[0], r[1]));
+    const float64x2_t t2 = vreinterpretq_f64_f32(vtrn1q_f32(r[2], r[3]));
+    const float64x2_t t3 = vreinterpretq_f64_f32(vtrn2q_f32(r[2], r[3]));
+    r[0] = vreinterpretq_f32_f64(vtrn1q_f64(t0, t2));
+    r[1] = vreinterpretq_f32_f64(vtrn1q_f64(t1, t3));
+    r[2] = vreinterpretq_f32_f64(vtrn2q_f64(t0, t2));
+    r[3] = vreinterpretq_f32_f64(vtrn2q_f64(t1, t3));
+  }
+};
+template <>
+struct sme_tiny_neon<double> {
+  using V = float64x2_t;
+  static constexpr int PS = 2;
+  static EIGEN_ALWAYS_INLINE V ld(const double* p) { return vld1q_f64(p); }
+  static EIGEN_ALWAYS_INLINE V zero() { return vdupq_n_f64(0.); }
+  template <int L>
+  static EIGEN_ALWAYS_INLINE V fma_lane(V c, V a, V b) {
+    return vfmaq_laneq_f64(c, a, b, L);
+  }
+  static EIGEN_ALWAYS_INLINE V fma_n(V c, V a, double b) { return vfmaq_n_f64(c, a, b); }
+  static EIGEN_ALWAYS_INLINE void st(double* p, V v) { vst1q_f64(p, v); }
+  static EIGEN_ALWAYS_INLINE V add(V a, V b) { return vaddq_f64(a, b); }
+  static EIGEN_ALWAYS_INLINE void transpose(V (&r)[PS]) {
+    const V t0 = vtrn1q_f64(r[0], r[1]);
+    r[1] = vtrn2q_f64(r[0], r[1]);
+    r[0] = t0;
+  }
+};
+
+// One depth chunk of FMAs; the lane index must be a constant, hence the recursion over it. Depth step u of a chunk
+// accumulates into set u % S: four FMA pipes of latency four need about 16 independent chains.
+template <typename T, int RV, int NC, int S>
+struct sme_tiny_step {
+  using V = typename T::V;
+  static constexpr int PS = T::PS;
+  // ColMajor B: b[j] holds depth steps k .. k + PS - 1 of column j; lane U is step k + U.
+  template <int U>
+  static EIGEN_ALWAYS_INLINE void col(V (&acc)[S][NC][RV], const V (&a)[PS][RV], const V (&b)[NC],
+                                      std::integral_constant<int, U>) {
+    EIGEN_UNROLL_LOOP
+    for (int j = 0; j < NC; ++j) {
+      EIGEN_UNROLL_LOOP
+      for (int r = 0; r < RV; ++r) acc[U % S][j][r] = T::template fma_lane<U>(acc[U % S][j][r], a[U][r], b[j]);
+    }
+    col(acc, a, b, std::integral_constant<int, U + 1>());
+  }
+  static EIGEN_ALWAYS_INLINE void col(V (&)[S][NC][RV], const V (&)[PS][RV], const V (&)[NC],
+                                      std::integral_constant<int, PS>) {}
+  // RowMajor B: b[c] holds columns c * PS .. of one depth step.
+  template <int J>
+  static EIGEN_ALWAYS_INLINE void row(V (&acc)[NC][RV], const V (&a)[RV], const V (&b)[NC / PS],
+                                      std::integral_constant<int, J>) {
+    EIGEN_UNROLL_LOOP
+    for (int r = 0; r < RV; ++r) acc[J][r] = T::template fma_lane<J % PS>(acc[J][r], a[r], b[J / PS]);
+    row(acc, a, b, std::integral_constant<int, J + 1>());
+  }
+  static EIGEN_ALWAYS_INLINE void row(V (&)[NC][RV], const V (&)[RV], const V (&)[NC / PS],
+                                      std::integral_constant<int, NC>) {}
+};
+
+// C (m x n, m <= RV * PS, n <= NC) += alpha * A * B. Rows and columns past the result read the last valid one or,
+// within a vector, run on into the operand; chunks stop before the last depth step, so such reads stay inside it.
+template <typename Scalar, int RV, int NC, int LhsOrder, int RhsOrder, typename Index>
+EIGEN_DONT_INLINE void sme_tiny_gemm_kernel(Index m, Index n, Index depth, const Scalar* A, Index lda, const Scalar* B,
+                                            Index ldb, Scalar* C, Index incr, Index ldc, Scalar alpha) {
+  using T = sme_tiny_neon<Scalar>;
+  using V = typename T::V;
+  constexpr int PS = T::PS, MR = RV * PS, S = 16 / (RV * NC) < PS ? 16 / (RV * NC) : PS;
+  using Step = sme_tiny_step<T, RV, NC, S>;
+  V acc[S][NC][RV];
+  EIGEN_UNROLL_LOOP
+  for (int t = 0; t < S; ++t) {
+    EIGEN_UNROLL_LOOP
+    for (int j = 0; j < NC; ++j) {
+      EIGEN_UNROLL_LOOP
+      for (int r = 0; r < RV; ++r) acc[t][j][r] = T::zero();
+    }
+  }
+  const Scalar* a_row[MR];
+  for (int i = 0; i < MR; ++i) a_row[i] = A + numext::mini(Index(i), m - 1) * lda;
+  const Scalar* b_col[NC];
+  for (int j = 0; j < NC; ++j) b_col[j] = B + numext::mini(Index(j), n - 1) * ldb;
+  const Index kmain = ((depth - 1) / PS) * PS;
+  for (Index k = 0; k < kmain; k += PS) {
+    V a[PS][RV];
+    EIGEN_IF_CONSTEXPR (LhsOrder == ColMajor) {
+      EIGEN_UNROLL_LOOP
+      for (int u = 0; u < PS; ++u) {
+        EIGEN_UNROLL_LOOP
+        for (int r = 0; r < RV; ++r) a[u][r] = T::ld(A + (k + u) * lda + r * PS);
+      }
+    } else {
+      EIGEN_UNROLL_LOOP
+      for (int r = 0; r < RV; ++r) {
+        V blk[PS];
+        EIGEN_UNROLL_LOOP
+        for (int q = 0; q < PS; ++q) blk[q] = T::ld(a_row[r * PS + q] + k);
+        T::transpose(blk);
+        EIGEN_UNROLL_LOOP
+        for (int u = 0; u < PS; ++u) a[u][r] = blk[u];
+      }
+    }
+    EIGEN_IF_CONSTEXPR (RhsOrder == ColMajor) {
+      V b[NC];
+      EIGEN_UNROLL_LOOP
+      for (int j = 0; j < NC; ++j) b[j] = T::ld(b_col[j] + k);
+      Step::col(acc, a, b, std::integral_constant<int, 0>());
+    } else {
+      EIGEN_UNROLL_LOOP
+      for (int u = 0; u < PS; ++u) {
+        V b[NC / PS];
+        EIGEN_UNROLL_LOOP
+        for (int c = 0; c < NC / PS; ++c) b[c] = T::ld(B + (k + u) * ldb + c * PS);
+        Step::row(acc[u % S], a[u], b, std::integral_constant<int, 0>());
+      }
+    }
+  }
+  for (Index k = kmain; k < depth; ++k) {
+    EIGEN_ALIGN16 Scalar at[MR];
+    for (int i = 0; i < MR; ++i)
+      at[i] = LhsOrder == ColMajor ? A[k * lda + numext::mini(Index(i), m - 1)] : a_row[i][k];
+    V a[RV];
+    EIGEN_UNROLL_LOOP
+    for (int r = 0; r < RV; ++r) a[r] = T::ld(at + r * PS);
+    EIGEN_UNROLL_LOOP
+    for (int j = 0; j < NC; ++j) {
+      const Scalar b = RhsOrder == ColMajor ? b_col[j][k] : B[k * ldb + numext::mini(Index(j), n - 1)];
+      EIGEN_UNROLL_LOOP
+      for (int r = 0; r < RV; ++r) acc[0][j][r] = T::fma_n(acc[0][j][r], a[r], b);
+    }
+  }
+  EIGEN_UNROLL_LOOP
+  for (int t = 1; t < S; ++t) {
+    EIGEN_UNROLL_LOOP
+    for (int j = 0; j < NC; ++j) {
+      EIGEN_UNROLL_LOOP
+      for (int r = 0; r < RV; ++r) acc[0][j][r] = T::add(acc[0][j][r], acc[t][j][r]);
+    }
+  }
+  EIGEN_ALIGN16 Scalar out[NC][MR];
+  EIGEN_UNROLL_LOOP
+  for (int j = 0; j < NC; ++j) {
+    EIGEN_UNROLL_LOOP
+    for (int r = 0; r < RV; ++r) T::st(&out[j][r * PS], acc[0][j][r]);
+  }
+  for (Index j = 0; j < n; ++j)
+    for (Index i = 0; i < m; ++i) C[i * incr + j * ldc] += alpha * out[j][i];
+}
+
+template <typename Scalar, int LhsOrder, int RhsOrder, typename Index>
+bool sme_tiny_gemm(Index rows, Index cols, Index depth, const Scalar* lhs, Index lhsStride, const Scalar* rhs,
+                   Index rhsStride, Scalar* res, Index resIncr, Index resStride, Scalar alpha) {
+  constexpr int PS = sme_tiny_neon<Scalar>::PS;
+  if (!sme_tiny_gemm_wins<Scalar>(rows, cols, depth)) return false;
+  const bool one_vec = rows <= PS, four_cols = cols <= 4;
+  if (one_vec && four_cols)
+    sme_tiny_gemm_kernel<Scalar, 1, 4, LhsOrder, RhsOrder>(rows, cols, depth, lhs, lhsStride, rhs, rhsStride, res,
+                                                           resIncr, resStride, alpha);
+  else if (one_vec)
+    sme_tiny_gemm_kernel<Scalar, 1, 8, LhsOrder, RhsOrder>(rows, cols, depth, lhs, lhsStride, rhs, rhsStride, res,
+                                                           resIncr, resStride, alpha);
+  else if (four_cols)
+    sme_tiny_gemm_kernel<Scalar, 2, 4, LhsOrder, RhsOrder>(rows, cols, depth, lhs, lhsStride, rhs, rhsStride, res,
+                                                           resIncr, resStride, alpha);
+  else
+    sme_tiny_gemm_kernel<Scalar, 2, 8, LhsOrder, RhsOrder>(rows, cols, depth, lhs, lhsStride, rhs, rhsStride, res,
+                                                           resIncr, resStride, alpha);
+  return true;
+}
+
 }  // namespace internal
 }  // namespace Eigen
 
