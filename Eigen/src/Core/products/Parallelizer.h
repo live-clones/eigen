@@ -64,21 +64,9 @@ inline void setNbThreads(int v) { internal::manage_multi_threading(SetAction, &v
 
 #ifdef EIGEN_VECTORIZE_SME
 namespace internal {
-#ifdef EIGEN_CPU_CACHE_SYSFS
-// Whether the CPU implementer is Apple (0x61), the one vendor known to share an SME unit per cluster.
-inline bool sme_cpu_is_apple() {
-  std::FILE* f = std::fopen("/proc/cpuinfo", "r");
-  if (f == nullptr) return false;
-  bool apple = false;
-  char line[256];
-  while (!apple && std::fgets(line, sizeof(line), f) != nullptr)
-    apple = std::strncmp(line, "CPU implementer", 15) == 0 && std::strstr(line, "0x61") != nullptr;
-  std::fclose(f);
-  return apple;
-}
-#endif
-// Apple silicon shares one SME unit per core cluster (M4 Pro: float 2048^3 at 2.45 TFLOPS on 2 threads, 1.76 on
-// 12); other SME implementations may have one per core, so the count is 0 (no cap) unless the topology implies it.
+// Apple silicon shares one SME unit per core cluster, so more threads than clusters only contend for the units; other
+// SME implementations may have one per core. The count comes from macOS's performance-cluster topology and is 0 (no
+// cap) everywhere else, where EIGEN_SME_UNITS or setNbSmeUnits() supply it.
 inline int detect_sme_units() {
 #if defined(EIGEN_SME_UNITS)
   return EIGEN_SME_UNITS;
@@ -91,25 +79,6 @@ inline int detect_sme_units() {
   sz = sizeof(per_l2);
   if (sysctlbyname("hw.perflevel0.cpusperl2", &per_l2, &sz, nullptr, 0) != 0 || per_l2 <= 0) return 0;
   return numext::maxi<int32_t>(1, cores / per_l2);
-#elif defined(EIGEN_CPU_CACHE_SYSFS)
-  if (!sme_cpu_is_apple()) return 0;
-  // One unit per cluster: the number of distinct cluster ids. Offline CPUs have no topology entry.
-  int units = 0;
-  int seen[64];
-  for (int cpu = 0; cpu < 1024; ++cpu) {
-    char path[96];
-    std::snprintf(path, sizeof(path), "/sys/devices/system/cpu/cpu%d/topology/cluster_id", cpu);
-    std::FILE* f = std::fopen(path, "r");
-    if (f == nullptr) continue;
-    int id = -1;
-    if (std::fscanf(f, "%d", &id) != 1) id = -1;
-    std::fclose(f);
-    if (id < 0) continue;
-    int k = 0;
-    while (k < units && seen[k] != id) ++k;
-    if (k == units && units < 64) seen[units++] = id;
-  }
-  return units;
 #else
   return 0;
 #endif

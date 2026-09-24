@@ -660,8 +660,8 @@ struct smart_memmove_helper<T, false> {
 #undef EIGEN_ALLOCA
 #endif
 
-// The SME GEMM kernel reads its packed panels a streaming vector at a time and runs 35-50% slower when
-// they straddle 64-byte lines, so SME builds align the internal temporaries to 64 bytes, heap and stack alike.
+// The SME GEMM kernel reads its packed panels a streaming vector at a time and slows down when they straddle
+// 64-byte lines, so SME builds align the internal temporaries to 64 bytes, heap and stack alike.
 #ifndef EIGEN_STACK_ALIGN_BYTES
 #if defined(EIGEN_VECTORIZE_SME) && EIGEN_DEFAULT_ALIGN_BYTES < 64
 #define EIGEN_STACK_ALIGN_BYTES 64
