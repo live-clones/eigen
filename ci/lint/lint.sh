@@ -11,10 +11,11 @@
 # 0 otherwise.  Writes lint-report.xml, one JUnit test case per check, so the
 # merge request widget names the failing check.
 
-base=$1
+base=${1:?usage: lint.sh <base-sha>}
 blocking_failed=0
 advisory_failed=0
 cases=""
+summary=""
 nfail=0
 ncases=0
 

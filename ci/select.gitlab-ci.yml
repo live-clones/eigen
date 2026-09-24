@@ -16,6 +16,7 @@ select:tests:
     # contain.
     GIT_DEPTH: 0
   script:
+    - python3 scripts/test_affected_tests.py
     - python3 scripts/affected_tests.py
         --base-sha "${CI_MERGE_REQUEST_DIFF_BASE_SHA}"
         --output-dir affected
