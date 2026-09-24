@@ -212,7 +212,27 @@ void test_parallelize_gemm_require_initialization() {
   VERIFY_IS_APPROX(cd, ad * bd);
 }
 
+// Tiny results and thin column ranges on a pool: every thread of a parallel session must take the same path.
+template <typename Scalar>
+void test_parallelize_gemm_tiny() {
+  static ThreadPool pool(4);
+  Eigen::setGemmThreadPool(&pool);
+  Eigen::setNbThreads(4);
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  for (Index m : {2, 4, 8})
+    for (Index n : {3, 8, 17, 36})
+      for (Index k : {16, 2000, 4096}) {
+        const Mat a = Mat::Random(m, k), b = Mat::Random(k, n);
+        Mat c(m, n);
+        c.noalias() = a * b;
+        VERIFY_IS_APPROX(c, a.lazyProduct(b));
+      }
+  Eigen::setNbThreads(0);
+}
+
 EIGEN_DECLARE_TEST(product_threaded) {
+  CALL_SUBTEST_6(test_parallelize_gemm_tiny<float>());
+  CALL_SUBTEST_6(test_parallelize_gemm_tiny<double>());
   CALL_SUBTEST_1(test_parallelize_gemm());
   CALL_SUBTEST_2(test_parallelize_gemm_varied());
   CALL_SUBTEST_3(test_balanced_gemm_range());
