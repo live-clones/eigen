@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: MPL-2.0
 deploy:tag:weekly:
   stage: deploy
-  image: alpine:3.20
+  image: alpine:3.24
   dependencies: []
   before_script:
     - apk add git
