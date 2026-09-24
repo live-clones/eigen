@@ -67,7 +67,7 @@ struct gemm_pack_lhs_first_loop_policy {
 // whether the SME kernel can read this ColMajor LHS block straight from its
 // source instead of a packed panel.
 template <typename Scalar, typename Index>
-bool sme_direct_lhs_ok(Index lhsStride, Index rows, Index depth);
+bool sme_direct_lhs_ok(Index lhsStride, Index rows, Index depth, Index cols);
 // True for the unit-stride ColMajor mapper the GEMM driver hands the packers.
 template <typename Mapper>
 struct sme_direct_lhs_mapper : std::false_type {};
@@ -80,7 +80,7 @@ template <typename Gebp, typename ResMapper, typename LhsMapper, typename Scalar
 EIGEN_ALWAYS_INLINE bool sme_run_direct_lhs(std::true_type, Gebp& gebp, const ResMapper& res, const LhsMapper& lhs,
                                             Index i2, Index k2, const Scalar* blockB, Index mc, Index kc, Index nc,
                                             ResScalar alpha) {
-  if (!sme_direct_lhs_ok<Scalar>(lhs.stride(), mc, kc)) return false;
+  if (!sme_direct_lhs_ok<Scalar>(lhs.stride(), mc, kc, nc)) return false;
   gebp.run_direct_lhs(res, &lhs(i2, k2), lhs.stride(), blockB, mc, kc, nc, alpha);
   return true;
 }
