@@ -20,6 +20,7 @@
 
 namespace Eigen {
 
+#if defined(EIGEN_USE_GPU) && defined(EIGEN_GPUCC)
 // Forward declarations satisfy host pass symbol lookup during template parsing
 template <typename Scalar, typename Index, typename LhsMapper, typename RhsMapper, typename OutputMapper,
           bool needs_edge_check>
@@ -44,6 +45,7 @@ __device__ __forceinline__ void EigenFloatContractionKernelInternal16x16(const L
                                                                          float2 rhs_shmem2[][8], const Index m_size,
                                                                          const Index n_size, const Index k_size,
                                                                          const Index base_m, const Index base_n);
+#endif
 
 #if defined(EIGEN_GPU_COMPILE_PHASE)
 template <typename Scalar, typename Index, typename LhsMapper, typename RhsMapper, typename OutputMapper,

@@ -500,7 +500,9 @@ EIGEN_DEVICE_FUNC void inline apply_rotation_in_the_plane(DenseBase<VectorX>& xp
   OtherScalar s = j.s();
   if (numext::is_exactly_one(c) && numext::is_exactly_zero(s)) return;
 
-  constexpr int Alignment = (std::min)(int(evaluator<VectorX>::Alignment), int(evaluator<VectorY>::Alignment));
+  constexpr int Alignment = int(evaluator<VectorX>::Alignment) > int(evaluator<VectorY>::Alignment)
+                                ? int(evaluator<VectorX>::Alignment)
+                                : int(evaluator<VectorY>::Alignment);
   apply_rotation_in_the_plane_selector<Scalar, OtherScalar, VectorX::SizeAtCompileTime, Alignment, Vectorizable>::run(
       x, incrx, y, incry, size, c, s);
 }

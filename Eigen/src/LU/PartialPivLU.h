@@ -363,7 +363,8 @@ struct generic_partial_lu_impl {
   using BlockType = Ref<Matrix<Scalar, Dynamic, Dynamic, StorageOrder>>;
   using RealScalar = typename MatrixType::RealScalar;
 
-  static void apply_row_transpositions(BlockType& matrix, Index first, Index count, const PivIndex* transpositions) {
+  EIGEN_DEVICE_FUNC static void apply_row_transpositions(BlockType& matrix, Index first, Index count,
+                                                         const PivIndex* transpositions) {
     EIGEN_IF_CONSTEXPR (StorageOrder == ColMajor) {
       // Keep the pivot rows of one column in cache, even when the outer stride maps every column to the same set.
       for (Index j = 0; j < matrix.cols(); ++j)

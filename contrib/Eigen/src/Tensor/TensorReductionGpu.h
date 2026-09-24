@@ -17,15 +17,17 @@
 namespace Eigen {
 namespace internal {
 
+#if defined(EIGEN_USE_GPU) && defined(EIGEN_GPUCC)
 // Forward declarations satisfy host pass symbol lookup during template parsing
 template <typename Type>
-__device__ Type atomicExchCustom(Type* address, Type val);
+__device__ inline Type atomicExchCustom(Type* address, Type val);
 
 template <typename Type>
-__device__ Type reduction_shuffle_down(Type value, int offset);
+__device__ EIGEN_ALWAYS_INLINE Type reduction_shuffle_down(Type value, int offset);
 
 template <typename T, typename R>
-__device__ void atomicReduce(T* output, T accum, R& reducer);
+__device__ EIGEN_ALWAYS_INLINE void atomicReduce(T* output, T accum, R& reducer);
+#endif  // defined(EIGEN_USE_GPU) && defined(EIGEN_GPUCC)
 
 #if defined(EIGEN_GPU_COMPILE_PHASE)
 // Full reducers for GPU, don't vectorize for now
@@ -163,12 +165,13 @@ __device__ inline void atomicReduce(Packet4h2* output, Packet4h2 accum, R& reduc
     atomicReduce(houtput + i, *(haccum + i), reducer);
   }
 }
+#endif  // EIGEN_GPU_COMPILE_PHASE
 
+#if defined(EIGEN_USE_GPU) && defined(EIGEN_GPUCC)
 template <>
 __device__ inline void atomicReduce(float* output, float accum, SumReducer<float>&) {
   atomicAdd(output, accum);
 }
-#endif  // EIGEN_GPU_COMPILE_PHASE
 
 template <>
 __device__ inline void atomicReduce(double* output, double accum, SumReducer<double>&) {
