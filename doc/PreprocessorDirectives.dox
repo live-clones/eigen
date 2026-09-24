@@ -144,7 +144,10 @@ run time. However, these assertions do cost time and can thus be turned off.
  - \b \c EIGEN_SME_DIRECT_LHS_MAX_STRIDE_BYTES and \b \c EIGEN_SME_DIRECT_LHS_MAX_BLOCK_BYTES - Largest column stride
    and largest block (rows times depth, both in bytes) at which the ARM SME GEMM kernel reads a column-major real LHS
    block from its source instead of a packed panel, whatever its alignment. The defaults are 16 KB and 4 MB; strides
-   that are a multiple of 4 KB always pack, since they alias in L1. 0 for either disables the in-place read.
+   that are a multiple of 4 KB always pack, since they alias in L1. 0 for either disables the in-place read. These
+   limits do not apply when the RHS is a single panel, since each LHS element is then read once: up to half a panel
+   wide the LHS is always read in place, up to a full panel while depth times stride stays within
+   \c EIGEN_SME_DIRECT_LHS_MAX_SPAN_BYTES (16 MB), past which the panel spans more pages than the TLB covers.
  - \b \c EIGEN_ARM64_NO_SME_F64F64 - Disables the double-precision ARM SME GEMM kernel, which needs the optional
    FEAT_SME_F64F64 extension. %Eigen enables it whenever the compiler reports that extension; define this macro when
    the build target is wider than the run target, so that \c double keeps the generic kernel.

@@ -2054,6 +2054,57 @@ EIGEN_ALWAYS_INLINE void sme_process(std::complex<RealScalar>* EIGEN_RESTRICT C,
   }
 }
 
+// A RHS panel of at most svl columns fills only one tile column of the 2 x 2 grid, so the four tiles are stacked along
+// M instead: a full LHS panel (tiles 0 and 1) and the next one (tiles 2 and 3, pw1 rows) against the same B vector.
+template <typename Scalar, typename Index>
+EIGEN_ALWAYS_INLINE void sme_process_narrow(Scalar* EIGEN_RESTRICT C, Index C_stride_row, Index C_stride_col,
+                                            const Scalar* EIGEN_RESTRICT blA0, Index step0,
+                                            const Scalar* EIGEN_RESTRICT blA1, Index step1, int pw1,
+                                            const Scalar* EIGEN_RESTRICT blB, int cw, Index depth, Scalar alpha,
+                                            Index row_start, Index col_start) __arm_streaming __arm_inout("za") {
+  using Traits = sme_traits<Scalar>;
+  using Vec = typename Traits::Vec;
+  const int svl = Traits::svl();
+  const svcount_t pc = Traits::ptrue_c();
+  const svbool_t all = Traits::ptrue();
+  const svbool_t pn = Traits::whilelt(0, cw);
+  const svbool_t p1lo = Traits::whilelt(0, pw1);
+  const svbool_t p1hi = Traits::whilelt(svl, pw1);
+  svzero_za();
+  for (Index k = 0; k < depth; ++k) {
+    const auto a0 = sme_ld1_x2(pc, blA0 + k * step0);
+    const Vec a1lo = sme_ld1(p1lo, blA1 + k * step1);
+    const Vec a1hi = sme_ld1(p1hi, sme_offset(blA1, k * step1 + svl));
+    const Vec b = sme_ld1(pn, blB + k * cw);
+    sme_mopa<0>(all, pn, sme_get<0>(a0), b);
+    sme_mopa<1>(all, pn, sme_get<1>(a0), b);
+    sme_mopa<2>(p1lo, pn, a1lo, b);
+    sme_mopa<3>(p1hi, pn, a1hi, b);
+  }
+  sme_store_za_tile<Scalar, 0>(C, C_stride_row, C_stride_col, alpha, row_start, svl, col_start, cw);
+  sme_store_za_tile<Scalar, 1>(C, C_stride_row, C_stride_col, alpha, row_start + svl, svl, col_start, cw);
+  sme_store_za_tile<Scalar, 2>(C, C_stride_row, C_stride_col, alpha, row_start + 2 * svl, sme_min(pw1, svl), col_start,
+                               cw);
+  if (pw1 > svl)
+    sme_store_za_tile<Scalar, 3>(C, C_stride_row, C_stride_col, alpha, row_start + 3 * svl, pw1 - svl, col_start, cw);
+}
+
+// sme_process_narrow for real scalars; complex panels keep the 2 x 2 path.
+template <typename Scalar, typename Index>
+EIGEN_ALWAYS_INLINE void sme_process_narrow_dispatch(Scalar* C, Index rs, Index cs, const Scalar* blA0, Index step0,
+                                                     const Scalar* blA1, Index step1, int pw1, const Scalar* blB,
+                                                     int cw, Index depth, Scalar alpha, Index row_start,
+                                                     Index col_start) __arm_streaming __arm_inout("za") {
+  sme_process_narrow(C, rs, cs, blA0, step0, blA1, step1, pw1, blB, cw, depth, alpha, row_start, col_start);
+}
+template <typename RealScalar, typename Index>
+EIGEN_ALWAYS_INLINE void sme_process_narrow_dispatch(std::complex<RealScalar>*, Index, Index,
+                                                     const std::complex<RealScalar>*, Index,
+                                                     const std::complex<RealScalar>*, Index, int,
+                                                     const std::complex<RealScalar>*, int, Index,
+                                                     std::complex<RealScalar>, Index,
+                                                     Index) __arm_streaming __arm_inout("za") {}
+
 // Core-side prefetch into L2 of the column-major C block the next sme_process call reads and writes.
 template <typename Scalar, typename Index>
 static EIGEN_ALWAYS_INLINE void sme_prefetch_next_c(const Scalar* C, Index C_stride_row, Index C_stride_col, Index i,
@@ -2087,7 +2138,17 @@ EIGEN_DONT_INLINE __arm_locally_streaming __arm_new("za") void sme_gebp_impl(
     const int cw = static_cast<int>(sme_min(cols - j, Index(NR)));
     const Scalar* blB = blockB + j * strideB + offsetB * cw;
 
-    for (Index i = 0; i < rows; i += MR) {
+    Index i = 0;
+    EIGEN_IF_CONSTEXPR (!NumTraits<Scalar>::IsComplex) {
+      if (cw <= sme_traits<typename NumTraits<Scalar>::Real>::svl())
+        for (; i + MR < rows; i += 2 * MR) {
+          const int pw1 = static_cast<int>(sme_min(rows - i - MR, Index(MR)));
+          sme_process_narrow_dispatch(C, C_stride_row, C_stride_col, blockA + i * strideA + offsetA * MR, Index(MR),
+                                      blockA + (i + MR) * strideA + offsetA * pw1, Index(pw1), pw1, blB, cw, depth,
+                                      alpha, i, j);
+        }
+    }
+    for (; i < rows; i += MR) {
       const int pw = static_cast<int>(sme_min(rows - i, Index(MR)));
       const Scalar* blA = blockA + i * strideA + offsetA * pw;
       if (prefetch_c)
@@ -2109,7 +2170,12 @@ EIGEN_DONT_INLINE __arm_locally_streaming __arm_new("za") void sme_gebp_impl_dir
   for (Index j = 0; j < cols; j += NR) {
     const int cw = static_cast<int>(sme_min(cols - j, Index(NR)));
     const Scalar* blB = blockB + j * strideB + offsetB * cw;
-    for (Index i = 0; i < rows; i += MR) {
+    Index i = 0;
+    if (cw <= sme_traits<Scalar>::svl())
+      for (; i + MR < rows; i += 2 * MR)
+        sme_process_narrow(C, C_stride_row, C_stride_col, lhs + i, lda, lhs + i + MR, lda,
+                           static_cast<int>(sme_min(rows - i - MR, Index(MR))), blB, cw, depth, alpha, i, j);
+    for (; i < rows; i += MR) {
       const int pw = static_cast<int>(sme_min(rows - i, Index(MR)));
       sme_process<false, false>(C, C_stride_row, C_stride_col, lhs + i, blB, depth, alpha, i, pw, j, cw, lda);
     }
@@ -2124,17 +2190,26 @@ EIGEN_DONT_INLINE __arm_locally_streaming __arm_new("za") void sme_gebp_impl_dir
 #ifndef EIGEN_SME_DIRECT_LHS_MAX_BLOCK_BYTES
 #define EIGEN_SME_DIRECT_LHS_MAX_BLOCK_BYTES (4 << 20)
 #endif
+#ifndef EIGEN_SME_DIRECT_LHS_MAX_SPAN_BYTES
+#define EIGEN_SME_DIRECT_LHS_MAX_SPAN_BYTES (16 << 20)
+#endif
 template <typename Scalar, typename Index>
-bool sme_direct_lhs_ok(Index lhsStride, Index rows, Index depth) {
+bool sme_direct_lhs_ok(Index lhsStride, Index rows, Index depth, Index cols) {
 #ifdef EIGEN_SME_FORCE_NEON_SMALL_BLOCKS
   EIGEN_UNUSED_VARIABLE(lhsStride);
   EIGEN_UNUSED_VARIABLE(rows);
   EIGEN_UNUSED_VARIABLE(depth);
+  EIGEN_UNUSED_VARIABLE(cols);
   return false;
 #else
+  if (NumTraits<Scalar>::IsComplex || depth <= Index(sme_neon_max_depth<Scalar>::value)) return false;
+  // A RHS of one panel reads each LHS element once, so packing it only adds a copy: always for the narrow kernel
+  // (4096 x 16 x 512 float: 450 -> 1058 GFLOPS), and for the 2 x 2 one while a panel spans few enough pages.
   const std::size_t stride_bytes = std::size_t(lhsStride) * sizeof(Scalar);
-  return !NumTraits<Scalar>::IsComplex && depth > Index(sme_neon_max_depth<Scalar>::value) &&
-         stride_bytes % 4096 != 0 && stride_bytes <= std::size_t(EIGEN_SME_DIRECT_LHS_MAX_STRIDE_BYTES) &&
+  if (cols <= Index(sme_block<Scalar>::nr / 2)) return true;
+  if (cols <= Index(sme_block<Scalar>::nr))
+    return std::size_t(depth) * stride_bytes <= std::size_t(EIGEN_SME_DIRECT_LHS_MAX_SPAN_BYTES);
+  return stride_bytes % 4096 != 0 && stride_bytes <= std::size_t(EIGEN_SME_DIRECT_LHS_MAX_STRIDE_BYTES) &&
          std::size_t(rows) * std::size_t(depth) * sizeof(Scalar) <= std::size_t(EIGEN_SME_DIRECT_LHS_MAX_BLOCK_BYTES);
 #endif
 }
