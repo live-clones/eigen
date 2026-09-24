@@ -6,7 +6,7 @@ test selector [`scripts/affected_tests.py`](../scripts/affected_tests.py), the p
 consumer's view of the same machinery; the checked-out files are authoritative where the two disagree.
 
 Both selector scripts fail closed, but a wrong answer is silent — a job that skips too much still reports success — so
-their unit tests are blocking and run on every merge request in `checkformat:scripts`:
+their unit tests are blocking and run on every merge request in `checkformat:lint`:
 
 ```bash
 python3 scripts/test_affected_tests.py

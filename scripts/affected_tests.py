@@ -114,6 +114,8 @@ IGNORED_PATTERNS = (
     # and force the full suite anyway.
     "ci/*.gitlab-ci.yml",
     "ci/CTest2JUnit.xsl",
+    # The lint image runs no test; the build and test images are in ci/docker/.
+    "ci/lint/*",
     "debug/*",
     "demos/*",
     "doc/*",
