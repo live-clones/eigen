@@ -573,7 +573,7 @@ static EIGEN_ALWAYS_INLINE Index sme_transpose_pack_pair(RealScalar* EIGEN_RESTR
 }
 
 // A row of a partial panel, or zeros past its last row (those slices are never stored).
-template <typename RealScalar, typename Index>
+template <typename RealScalar>
 static EIGEN_ALWAYS_INLINE typename sme_traits<RealScalar>::Vec2 sme_row_or_zero(
     const RealScalar* p, bool valid, svcount_t pn, typename sme_traits<RealScalar>::Vec zero) __arm_streaming {
   return valid ? sme_ld1_x2(pn, p) : sme_create2(zero, zero);
@@ -598,19 +598,19 @@ static EIGEN_ALWAYS_INLINE Index sme_transpose_pack_partial(RealScalar* EIGEN_RE
   for (; k + w2 <= k1; k += w2) {
     for (int r = 0; r < rows_lo; r += 4) {
       const RealScalar* q = src + Index(r) * src_stride + k;
-      const auto a0 = sme_row_or_zero<RealScalar, Index>(q, r < rows_lo, pn, zero);
-      const auto a1 = sme_row_or_zero<RealScalar, Index>(q + src_stride, r + 1 < rows_lo, pn, zero);
-      const auto a2 = sme_row_or_zero<RealScalar, Index>(q + 2 * src_stride, r + 2 < rows_lo, pn, zero);
-      const auto a3 = sme_row_or_zero<RealScalar, Index>(q + 3 * src_stride, r + 3 < rows_lo, pn, zero);
+      const auto a0 = sme_row_or_zero<RealScalar>(q, r < rows_lo, pn, zero);
+      const auto a1 = sme_row_or_zero<RealScalar>(q + src_stride, r + 1 < rows_lo, pn, zero);
+      const auto a2 = sme_row_or_zero<RealScalar>(q + 2 * src_stride, r + 2 < rows_lo, pn, zero);
+      const auto a3 = sme_row_or_zero<RealScalar>(q + 3 * src_stride, r + 3 < rows_lo, pn, zero);
       sme_write_hor_za_vg4<0>(uint32_t(r), sme_get<0>(a0), sme_get<0>(a1), sme_get<0>(a2), sme_get<0>(a3));
       sme_write_hor_za_vg4<1>(uint32_t(r), sme_get<1>(a0), sme_get<1>(a1), sme_get<1>(a2), sme_get<1>(a3));
     }
     for (int r = 0; r < rows_hi; r += 4) {
       const RealScalar* q = src + Index(svl + r) * src_stride + k;
-      const auto a0 = sme_row_or_zero<RealScalar, Index>(q, r < rows_hi, pn, zero);
-      const auto a1 = sme_row_or_zero<RealScalar, Index>(q + src_stride, r + 1 < rows_hi, pn, zero);
-      const auto a2 = sme_row_or_zero<RealScalar, Index>(q + 2 * src_stride, r + 2 < rows_hi, pn, zero);
-      const auto a3 = sme_row_or_zero<RealScalar, Index>(q + 3 * src_stride, r + 3 < rows_hi, pn, zero);
+      const auto a0 = sme_row_or_zero<RealScalar>(q, r < rows_hi, pn, zero);
+      const auto a1 = sme_row_or_zero<RealScalar>(q + src_stride, r + 1 < rows_hi, pn, zero);
+      const auto a2 = sme_row_or_zero<RealScalar>(q + 2 * src_stride, r + 2 < rows_hi, pn, zero);
+      const auto a3 = sme_row_or_zero<RealScalar>(q + 3 * src_stride, r + 3 < rows_hi, pn, zero);
       sme_write_hor_za_vg4<2>(uint32_t(r), sme_get<0>(a0), sme_get<0>(a1), sme_get<0>(a2), sme_get<0>(a3));
       sme_write_hor_za_vg4<3>(uint32_t(r), sme_get<1>(a0), sme_get<1>(a1), sme_get<1>(a2), sme_get<1>(a3));
     }
@@ -688,10 +688,11 @@ static EIGEN_ALWAYS_INLINE void sme_transpose_pack_real(RealScalar* EIGEN_RESTRI
 
   Index k = k0;
   EIGEN_IF_CONSTEXPR (!NegateOddRows) {
-    // Short ranges keep the single-tile path: the four-slice moves only pay off over several fills.
-    if (width == 2 * svl && k1 - k0 >= Index(8 * svl))
+    // Short ranges keep the single-tile path: the four-slice moves only pay off over several fills, and need a tile
+    // of at least four slices.
+    if (svl >= 4 && width == 2 * svl && k1 - k0 >= Index(8 * svl))
       k = sme_transpose_pack_pair(dst, src, src_stride, k0, k1);
-    else if (width < 2 * svl && k1 - k0 >= Index(8 * svl))
+    else if (svl >= 4 && width < 2 * svl && k1 - k0 >= Index(8 * svl))
       k = sme_transpose_pack_partial(dst, src, src_stride, k0, k1, width);
   }
   for (; k < k1; k += svl) {
@@ -1712,7 +1713,7 @@ EIGEN_ALWAYS_INLINE void sme_store_2x2_grid(Scalar* EIGEN_RESTRICT C, Index C_st
                                             Scalar alpha, Index row_start, int rlo, int rhi, Index col_start, int clo,
                                             int chi) __arm_streaming __arm_inout("za") {
   const int svl = sme_traits<Scalar>::svl();
-  if (C_stride_row == 1 && rlo == svl && rhi == svl && clo == svl && chi == svl) {
+  if (svl >= 4 && C_stride_row == 1 && rlo == svl && rhi == svl && clo == svl && chi == svl) {
     Scalar* c0 = C + row_start + col_start * C_stride_col;
     sme_store_tile_pair_colmajor<0, 2>(c0, C_stride_col, alpha, svl);
     sme_store_tile_pair_colmajor<1, 3>(c0 + Index(svl) * C_stride_col, C_stride_col, alpha, svl);
@@ -2280,13 +2281,15 @@ EIGEN_ALWAYS_INLINE void sme_process_split(Scalar* EIGEN_RESTRICT C, Index C_str
   }
 }
 
-// One pw x cw block: sme_process_split when it fills at most two tiles; complex blocks keep sme_process.
+// One pw x cw block: sme_process_split when it fills at most two tiles of the 2 x 2 grid (the block fits in 2*svl
+// on both sides, which a vector length below MR does not guarantee, and its tile fold moves four slices at a time);
+// complex blocks keep sme_process.
 template <bool ConjLhs, bool ConjRhs, typename Scalar, typename Index>
 EIGEN_ALWAYS_INLINE void sme_process_block(Scalar* C, Index rs, Index cs, const Scalar* blA, const Scalar* blB,
                                            Index depth, Scalar alpha, Index row_start, int pw, Index col_start, int cw,
                                            Index a_step) __arm_streaming __arm_inout("za") {
   const int svl = sme_traits<Scalar>::svl();
-  if (pw <= svl || cw <= svl)
+  if (svl >= 4 && (pw <= svl || cw <= svl) && pw <= 2 * svl && cw <= 2 * svl)
     sme_process_split(C, rs, cs, blA, blB, depth, alpha, row_start, pw, col_start, cw, a_step);
   else
     sme_process<ConjLhs, ConjRhs>(C, rs, cs, blA, blB, depth, alpha, row_start, pw, col_start, cw, a_step);
@@ -2340,8 +2343,8 @@ EIGEN_DONT_INLINE __arm_locally_streaming __arm_new("za") void sme_gebp_impl(
   // GeneralMatrixMatrix.h ensures blockA fits in L2 via mc-blocking.  Each
   // packed panel is depth-major with depth-stride equal to its width (MR/NR
   // for full panels, the tail width otherwise), so that width is passed as
-  // both the logical block size and the load stride to sme_process; partial
-  // blocks are tiled and predicated inside the generic path.
+  // both the logical block size and the load stride to the block kernels.
+  // The narrow kernel stacks two LHS panels of exactly 2*svl rows.
   // A small C block (256 KB or less) gains nothing from the prefetch and pays its instructions on every call.
   const bool prefetch_c = rows * cols * Index(sizeof(Scalar)) > Index(256 * 1024);
   for (Index j = 0; j < cols; j += NR) {
@@ -2350,7 +2353,8 @@ EIGEN_DONT_INLINE __arm_locally_streaming __arm_new("za") void sme_gebp_impl(
 
     Index i = 0;
     EIGEN_IF_CONSTEXPR (!NumTraits<Scalar>::IsComplex) {
-      if (cw <= sme_traits<typename NumTraits<Scalar>::Real>::svl())
+      const int svl = sme_traits<typename NumTraits<Scalar>::Real>::svl();
+      if (MR == 2 * svl && cw <= svl)
         for (; i + MR < rows; i += 2 * MR) {
           const int pw1 = static_cast<int>(sme_min(rows - i - MR, Index(MR)));
           sme_process_narrow_dispatch(C, C_stride_row, C_stride_col, blockA + i * strideA + offsetA * MR, Index(MR),
@@ -2382,7 +2386,7 @@ EIGEN_DONT_INLINE __arm_locally_streaming __arm_new("za") void sme_gebp_impl_dir
     const int cw = static_cast<int>(sme_min(cols - j, Index(NR)));
     const Scalar* blB = blockB + j * strideB + offsetB * cw;
     Index i = 0;
-    if (cw <= sme_traits<Scalar>::svl())
+    if (MR == 2 * sme_traits<Scalar>::svl() && cw <= sme_traits<Scalar>::svl())
       for (; i + MR < rows; i += 2 * MR)
         sme_process_narrow(C, C_stride_row, C_stride_col, lhs + i, lda, lhs + i + MR, lda,
                            static_cast<int>(sme_min(rows - i - MR, Index(MR))), blB, cw, depth, alpha, i, j);
