@@ -967,8 +967,8 @@ void householder_noncommutative_scalar() {
   VERIFY(a == expected);
 }
 
-// Q times a diagonal, triangular, self-adjoint or permutation matrix, both orders: the structured operand is
-// densified, so the results match the products with the dense Q.
+// Q times a diagonal, triangular, self-adjoint or permutation matrix, both orders, against the products with the
+// dense Q.
 template <typename Scalar>
 void householder_structured_products(Index size) {
   typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
@@ -1044,6 +1044,42 @@ void householder_structured_products(Index size) {
   VERIFY_IS_APPROX(result, RealMatrixType(aReal.template triangularView<Lower>()) * q);
 }
 
+// D * H scales the rows of H from the left, D(i,i) * H(i,j), which only a noncommutative scalar tells apart from
+// scaling them on the right. Integer components keep every operation exact.
+void householder_structured_products_noncommutative() {
+  using Scalar = noncommutative_scalar::Quaternion;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  {
+    // H = 1 - tau = j and D = i: D * H = i * j = k, where scaling on the right gives j * i = -k.
+    const Scalar i(0, 1), j(0, 0, 1), k(0, 0, 0, 1);
+    DiagonalMatrix<Scalar, Dynamic> d(1);
+    d.diagonal()(0) = i;
+    const Mat result = d * householderSequence(Mat::Constant(1, 1, Scalar(0)), Vec::Constant(1, Scalar(1) - j));
+    VERIFY(result(0, 0) == k);
+  }
+  const auto randomScalar = [] {
+    return Scalar(internal::random<int>(-1, 1), internal::random<int>(-1, 1), internal::random<int>(-1, 1),
+                  internal::random<int>(-1, 1));
+  };
+  const Index size = internal::random<Index>(1, 7);
+  Mat vectors(size, size);
+  Vec coeffs(size);
+  DiagonalMatrix<Scalar, Dynamic> d(size);
+  for (Index c = 0; c < size; ++c) {
+    for (Index r = 0; r < size; ++r) vectors(r, c) = randomScalar();
+    coeffs(c) = randomScalar();
+    d.diagonal()(c) = randomScalar();
+  }
+  const HouseholderSequence<Mat, Vec> h(vectors, coeffs);
+  const Mat hDense = h;
+  Mat expected(size, size);
+  for (Index c = 0; c < size; ++c)
+    for (Index r = 0; r < size; ++r) expected(r, c) = d.diagonal()(r) * hDense(r, c);
+  const Mat result = d * h;
+  VERIFY(result == expected);
+}
+
 EIGEN_DECLARE_TEST(householder) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(householder(Matrix<double, 2, 2>()));
@@ -1090,6 +1126,7 @@ EIGEN_DECLARE_TEST(householder) {
     CALL_SUBTEST_23(householder_structured_products<double>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
     CALL_SUBTEST_23(
         householder_structured_products<std::complex<double>>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2)));
+    CALL_SUBTEST_23(householder_structured_products_noncommutative());
   }
   CALL_SUBTEST_23(householder_structured_products<double>(1));
 }

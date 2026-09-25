@@ -609,7 +609,9 @@ typename internal::matrix_type_times_scalar_type<typename VectorsType::Scalar, O
   eigen_assert(other.cols() == h.rows());
   ResultType res = ResultType::Identity(h.rows(), h.rows());
   h.applyThisOnTheLeft(res, true);
-  for (Index j = 0; j < res.cols(); ++j) res.col(j).array() *= other.diagonal().array();
+  // The lazy diagonal product multiplies from the left, D(i,i) * H(i,j), as a noncommutative scalar requires, and
+  // reads each coefficient only to overwrite it, so it runs in place.
+  res = other.derived() * res;
   return res;
 }
 
