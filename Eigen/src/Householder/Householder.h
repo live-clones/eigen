@@ -297,7 +297,8 @@ template <typename EssentialPart>
 EIGEN_DEVICE_FUNC void MatrixBase<Derived>::applyHouseholderOnTheLeft(const EssentialPart& essential, const Scalar& tau,
                                                                       Scalar* workspace) {
   if (rows() == 1) {
-    *this *= Scalar(1) - tau;
+    // H = 1 - tau multiplies from the left, which a noncommutative scalar distinguishes.
+    *this = (Scalar(1) - tau) * *this;
   } else if (!numext::is_exactly_zero(tau)) {
     internal::householder_apply_left_impl<Derived, EssentialPart>::run(*this, essential, tau, workspace);
   }

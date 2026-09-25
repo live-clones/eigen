@@ -950,6 +950,17 @@ void householder_noncommutative_scalar() {
     VERIFY(a(0, 0) == Scalar(0));
     VERIFY(a(1, 0) == -k);
   }
+  {
+    // A one-row block has no essential part, so H = 1 - tau = i: H * j = k on the left, j * H = -k on the right.
+    const Matrix<Scalar, 0, 1> none;
+    Scalar workspace[2];
+    Mat row = Mat::Constant(1, 2, j);
+    row.applyHouseholderOnTheLeft(none, Scalar(1) - i, workspace);
+    VERIFY(row == Mat::Constant(1, 2, k));
+    Mat column = Mat::Constant(2, 1, j);
+    column.applyHouseholderOnTheRight(none, Scalar(1) - i, workspace);
+    VERIFY(column == Mat::Constant(2, 1, -k));
+  }
   const Index cols = internal::random<Index>(1, 7);
   Mat a(Size, cols);
   for (Index c = 0; c < cols; ++c)
