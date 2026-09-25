@@ -1876,7 +1876,8 @@ struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DiagonalSha
 /** \internal
  * \class permutation_matrix_product
  * Internal helper class implementing the product between a permutation matrix and a matrix.
- * This class is specialized for DenseShape below and for SparseShape in SparseCore/SparsePermutation.h.
+ * This class is specialized for DenseShape, TriangularShape and SelfAdjointShape below and for SparseShape in
+ * SparseCore/SparsePermutation.h.
  * The generic_product_impl cells for PermutationShape accept any operand shape, so the primary template
  * turns a missing specialization into a static assertion instead of an incomplete-type error.
  */
