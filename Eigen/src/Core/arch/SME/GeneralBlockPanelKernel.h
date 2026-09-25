@@ -142,6 +142,19 @@ static EIGEN_ALWAYS_INLINE svfloat32_t sme_get(svfloat32x4_t v) __arm_streaming 
   return svget4_f32(v, Lane);
 }
 
+// Entering and leaving streaming mode sets FPSR's cumulative exception flags (Arm DDI0616, RMHTLZ), also when the OS
+// resumes a thread in streaming mode, and FP arithmetic into ZA raises none. So a call into streaming code keeps the
+// caller's flags and reports none of its own.
+struct sme_fpsr_guard {
+  EIGEN_ALWAYS_INLINE sme_fpsr_guard() { asm volatile("mrs %0, fpsr" : "=r"(value) : : "memory"); }
+  EIGEN_ALWAYS_INLINE ~sme_fpsr_guard() { asm volatile("msr fpsr, %0" : : "r"(value) : "memory"); }
+  sme_fpsr_guard(const sme_fpsr_guard&) = delete;
+  sme_fpsr_guard& operator=(const sme_fpsr_guard&) = delete;
+
+ private:
+  std::uint64_t value;
+};
+
 // ZA tile access. The tile number is an instruction immediate, hence a template
 // parameter; the slice number is a register operand and stays a value.
 template <int Tile>
@@ -845,6 +858,7 @@ static EIGEN_ALWAYS_INLINE void tail_pack(Scalar* dst_panel, const Scalar* src, 
                                           Index tail) {
   EIGEN_IF_CONSTEXPR (!NumTraits<Scalar>::IsComplex) {
     if (tail > 4 && depth >= Index(4 * sme_block<Scalar>::nr)) {
+      sme_fpsr_guard fpsr;
       sme_tail_pack_streaming<Conjugate>(dst_panel, src, src_stride, depth, static_cast<int>(tail));
       return;
     }
@@ -1210,6 +1224,7 @@ EIGEN_ALWAYS_INLINE void sme_dispatch_pack(DirectFn direct, NeonFn neon, Fallbac
     if (sme_pack_with_neon<Scalar>(PanelMode ? stride : depth, n)) {
       neon(block, src, m.stride(), depth, n, stride, offset);
     } else {
+      sme_fpsr_guard fpsr;
       direct(block, src, m.stride(), depth, n, stride, offset);
     }
   } else {
@@ -2857,6 +2872,7 @@ struct sme_gebp_kernel {
       return;
     }
 
+    sme_fpsr_guard fpsr;
     sme_gebp_impl<Scalar, ConjugateLhs, ConjugateRhs>(C_base, C_stride_row, C_stride_col, blockA, blockB, rows, depth,
                                                       cols, alpha, strideA, strideB, offsetA, offsetB);
   }
@@ -2871,6 +2887,7 @@ struct sme_gebp_kernel {
     Scalar* C_base = const_cast<Scalar*>(&res(0, 0));
     const Index C_stride_row = &res(1, 0) - &res(0, 0);
     const Index C_stride_col = &res(0, 1) - &res(0, 0);
+    sme_fpsr_guard fpsr;
     sme_gebp_impl_direct_lhs<Scalar, Index>(C_base, C_stride_row, C_stride_col, lhs, lhsStride, blockB, rows, depth,
                                             cols, alpha, strideB, offsetB);
   }
@@ -3053,7 +3070,10 @@ EIGEN_DONT_INLINE void sme_symm_pack_straddle(Scalar* block, const Scalar* EIGEN
 template <typename Scalar, int StorageOrder, bool IsLhs, typename Index>
 EIGEN_DONT_INLINE void sme_symm_pack_panels(Scalar* block, const Scalar* EIGEN_RESTRICT base, Index stride, Index depth,
                                             Index outer, Index k2) {
-  sme_symm_pack_dense_regions<Scalar, StorageOrder, IsLhs, Index>(block, base, stride, depth, outer, k2);
+  {
+    sme_fpsr_guard fpsr;
+    sme_symm_pack_dense_regions<Scalar, StorageOrder, IsLhs, Index>(block, base, stride, depth, outer, k2);
+  }
   sme_symm_pack_straddle<Scalar, StorageOrder, IsLhs, Index>(block, base, stride, depth, outer, k2);
 }
 
