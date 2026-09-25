@@ -2783,6 +2783,16 @@ EIGEN_STRONG_INLINE Packet16bf pisnan<Packet16bf>(const Packet16bf& a) {
 }
 
 template <>
+EIGEN_STRONG_INLINE Packet16bf psign<Packet16bf>(const Packet16bf& a) {
+  const __m256i magnitude = _mm256_and_si256(a, _mm256_set1_epi16(0x7fff));
+  const __m256i is_zero = _mm256_cmpeq_epi16(magnitude, _mm256_setzero_si256());
+  const __m256i is_nan = _mm256_cmpgt_epi16(magnitude, _mm256_set1_epi16(0x7f80));
+  const __m256i signed_one =
+      _mm256_or_si256(_mm256_and_si256(a, _mm256_set1_epi16(static_cast<short>(0x8000u))), _mm256_set1_epi16(0x3f80));
+  return _mm256_blendv_epi8(_mm256_andnot_si256(is_zero, signed_one), a, is_nan);
+}
+
+template <>
 EIGEN_STRONG_INLINE Packet16bf pisfinite<Packet16bf>(const Packet16bf& a) {
   constexpr uint16_t kInf = ((1 << 8) - 1) << 7;
   constexpr uint16_t kAbsMask = (1 << 15) - 1;

@@ -4858,6 +4858,15 @@ EIGEN_STRONG_INLINE Packet4bf pisnan<Packet4bf>(const Packet4bf& a) {
 }
 
 template <>
+EIGEN_STRONG_INLINE Packet4bf psign<Packet4bf>(const Packet4bf& a) {
+  const uint16x4_t magnitude = vand_u16(a, vdup_n_u16(0x7fff));
+  const uint16x4_t is_zero = vceq_u16(magnitude, vdup_n_u16(0));
+  const uint16x4_t is_nan = vcgt_u16(magnitude, vdup_n_u16(0x7f80));
+  const uint16x4_t signed_one = vorr_u16(vand_u16(a, vdup_n_u16(0x8000)), vdup_n_u16(0x3f80));
+  return vbsl_u16(is_nan, a, vbic_u16(signed_one, is_zero));
+}
+
+template <>
 EIGEN_STRONG_INLINE Packet4bf pisfinite<Packet4bf>(const Packet4bf& a) {
   constexpr uint16_t kInf = ((1 << 8) - 1) << 7;
   constexpr uint16_t kAbsMask = (1 << 15) - 1;
