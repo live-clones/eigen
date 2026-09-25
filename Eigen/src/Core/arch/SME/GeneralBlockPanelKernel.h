@@ -689,7 +689,8 @@ static EIGEN_ALWAYS_INLINE void sme_transpose_pack_real(RealScalar* EIGEN_RESTRI
   Index k = k0;
   EIGEN_IF_CONSTEXPR (!NegateOddRows) {
     // Short ranges keep the single-tile path: the four-slice moves only pay off over several fills.
-    if (width == 2 * svl && k1 - k0 >= Index(8 * svl)) k = sme_transpose_pack_pair(dst, src, src_stride, k0, k1);
+    if (width == 2 * svl && k1 - k0 >= Index(8 * svl))
+      k = sme_transpose_pack_pair(dst, src, src_stride, k0, k1);
     else if (width < 2 * svl && k1 - k0 >= Index(8 * svl))
       k = sme_transpose_pack_partial(dst, src, src_stride, k0, k1, width);
   }
