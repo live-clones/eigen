@@ -131,7 +131,7 @@ EIGEN_ALWAYS_INLINE bool sme_run_direct_lhs(std::false_type, Gebp&, const ResMap
 #endif
 
 // RHS-first loop order: nc -> kc -> mc. Used by SME to stream ColMajor result
-// stores through adjacent row panels; a ColMajor LHS whose 32-row slices are
+// stores through adjacent row panels; a ColMajor LHS whose MR-row slices are
 // already contiguous per depth step is read from its source (no LHS packing).
 struct gemm_pack_rhs_first_loop_policy {
   template <typename Index, typename LhsScalar, typename RhsScalar, typename ResScalar, typename LhsMapper,
@@ -140,8 +140,10 @@ struct gemm_pack_rhs_first_loop_policy {
                                       const LhsMapper& lhs, const RhsMapper& rhs, ResMapper& res, PackLhs& pack_lhs,
                                       PackRhs& pack_rhs, Gebp& gebp, LhsScalar* blockA, RhsScalar* blockB,
                                       ResScalar alpha) {
-    // Mirror of pack_rhs_once: reuse one full LHS panel across column blocks.
+    // Mirror of pack_rhs_once: reuse one full LHS panel across column blocks. The in-place read is decided per column
+    // block, so a block that falls back to packing packs unless an earlier one already did.
     const bool pack_lhs_once = nc != cols && kc == depth && mc == rows;
+    bool lhs_packed = false;
 
     for (Index j2 = 0; j2 < cols; j2 += nc) {
       const Index actual_nc = (std::min)(j2 + nc, cols) - j2;
@@ -159,7 +161,10 @@ struct gemm_pack_rhs_first_loop_policy {
                                  res.getSubMapper(i2, j2), lhs, i2, k2, blockB, actual_mc, actual_kc, actual_nc, alpha))
             continue;
 #endif
-          if ((!pack_lhs_once) || j2 == 0) pack_lhs(blockA, lhs.getSubMapper(i2, k2), actual_kc, actual_mc);
+          if (!pack_lhs_once || !lhs_packed) {
+            pack_lhs(blockA, lhs.getSubMapper(i2, k2), actual_kc, actual_mc);
+            lhs_packed = true;
+          }
           gebp(res.getSubMapper(i2, j2), blockA, blockB, actual_mc, actual_kc, actual_nc, alpha);
         }
       }
@@ -476,8 +481,7 @@ class gemm_blocking_space<StorageOrder, LhsScalar_, RhsScalar_, MaxRows, MaxCols
     m_sizeB = this->m_kc * this->m_nc;
   }
 
-  // The blocking buffers get the temporaries' alignment (64 bytes in SME builds, EIGEN_STACK_ALIGN_BYTES),
-  // which aligned_new does not give them.
+  // The blocking buffers get the temporaries' alignment (64 bytes in SME builds, EIGEN_STACK_ALIGN_BYTES).
   void allocateA() {
     if (this->m_blockA == 0) this->m_blockA = scratch_new<LhsScalar>(m_sizeA);
   }
