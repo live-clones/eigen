@@ -1056,18 +1056,27 @@ EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE bool is_zero_magnitude_bits(
 }
 
 // Floating-point comparisons can treat subnormals as zero under DAZ/FTZ.
-// Classify float from its encoding so sign remains correct in those modes.
-template <>
-struct sign_impl<float, false, false> {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE float run(const float& a) {
-    using Binary = binary_floating_point_traits<float>;
-    const Binary::Bits bits = Binary::bits(a);
-    const Binary::Bits magnitude = bits & ~Binary::kSignBit;
-    if (magnitude > Binary::kExponentMask) return a;
-    if (is_zero_magnitude_bits<float>(magnitude)) return 0.0f;
-    return (bits & Binary::kSignBit) ? -1.0f : 1.0f;
+template <typename Scalar>
+struct sign_impl_binary {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar run(const Scalar& a) {
+    using Binary = binary_floating_point_traits<Scalar>;
+    using Bits = typename Binary::Bits;
+    const Bits bits = Binary::bits(a);
+    const Bits magnitude = bits & ~Binary::kSignBit;
+    // magnitude | -magnitude has its high bit set iff magnitude is nonzero.
+    const Bits nonzero = (magnitude | (Bits(0) - magnitude)) >> (sizeof(Bits) * CHAR_BIT - 1);
+    const Bits nonzero_mask = Bits(0) - nonzero;
+    const Bits nan_mask = Bits(0) - Bits(magnitude > Binary::kExponentMask);
+    const Bits signed_one = (bits & Binary::kSignBit) | Binary::bits(Scalar(1));
+    return numext::bit_cast<Scalar>((bits & nan_mask) | (signed_one & nonzero_mask & ~nan_mask));
   }
 };
+
+template <>
+struct sign_impl<float, false, false> : sign_impl_binary<float> {};
+
+template <>
+struct sign_impl<double, false, false> : sign_impl_binary<double> {};
 
 template <typename Scalar>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool is_exactly_zero_no_flush_impl(const Scalar& value, true_type) {

@@ -669,28 +669,47 @@ void check_zero_no_flush() {
   }
 }
 
-EIGEN_DONT_INLINE void check_float_sign_no_flush_values() {
-  using Bits = internal::binary_floating_point_traits<float>::Bits;
-  const Bits input_bits[] = {0x00000000u, 0x80000000u, 0x00000001u, 0x80000001u, 0x007fffffu, 0x807fffffu, 0x00800000u,
-                             0x80800000u, 0x3f800000u, 0xbf800000u, 0x7f800000u, 0xff800000u, 0x7fc12345u, 0xffc12345u};
-  const Bits expected_bits[] = {0x00000000u, 0x00000000u, 0x3f800000u, 0xbf800000u, 0x3f800000u,
-                                0xbf800000u, 0x3f800000u, 0xbf800000u, 0x3f800000u, 0xbf800000u,
-                                0x3f800000u, 0xbf800000u, 0x7fc12345u, 0xffc12345u};
+template <typename Scalar>
+EIGEN_DONT_INLINE void check_binary_sign_no_flush_values() {
+  using Binary = internal::binary_floating_point_traits<Scalar>;
+  using Bits = typename Binary::Bits;
+  const Bits sign = Binary::kSignBit;
+  const Bits min_normal = Binary::kExponentUnit;
+  const Bits infinity = Binary::kExponentMask;
+  const Bits nan = infinity | (min_normal >> 1) | Bits(0x12345);
+  const Bits one = Binary::bits(Scalar(1));
+  const Bits input_bits[] = {Bits(0),
+                             sign,
+                             Bits(1),
+                             sign | Bits(1),
+                             min_normal - 1,
+                             sign | (min_normal - 1),
+                             min_normal,
+                             sign | min_normal,
+                             one,
+                             sign | one,
+                             infinity,
+                             sign | infinity,
+                             nan,
+                             sign | nan};
+  const Bits expected_bits[] = {Bits(0),    Bits(0), one,        sign | one, one,        sign | one, one,
+                                sign | one, one,     sign | one, one,        sign | one, nan,        sign | nan};
   for (int i = 0; i < int(sizeof(input_bits) / sizeof(input_bits[0])); ++i) {
-    const float input = numext::bit_cast<float>(input_bits[i]);
+    const Scalar input = numext::bit_cast<Scalar>(input_bits[i]);
     VERIFY_IS_EQUAL(numext::bit_cast<Bits>(numext::sign(input)), expected_bits[i]);
   }
 }
 
-void check_float_sign_no_flush() {
-  check_float_sign_no_flush_values();
+template <typename Scalar>
+void check_binary_sign_no_flush() {
+  check_binary_sign_no_flush_values<Scalar>();
   ScopedFlushToZero flush;
   if (!flush.isSupported()) return;
-  check_float_sign_no_flush_values();
+  check_binary_sign_no_flush_values<Scalar>();
 #if !defined(EIGEN_GPU_COMPILE_PHASE) && !defined(SYCL_DEVICE_ONLY) && EIGEN_ARCH_i386_OR_x86_64 && \
     defined(_MM_SET_DENORMALS_ZERO_MODE)
   _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
-  check_float_sign_no_flush_values();
+  check_binary_sign_no_flush_values<Scalar>();
 #endif
 }
 
@@ -857,7 +876,8 @@ EIGEN_DECLARE_TEST(numext) {
     CALL_SUBTEST(check_zero_no_flush<float>());
     CALL_SUBTEST(check_zero_no_flush<double>());
     CALL_SUBTEST(check_zero_no_flush_custom_scalar());
-    CALL_SUBTEST(check_float_sign_no_flush());
+    CALL_SUBTEST(check_binary_sign_no_flush<float>());
+    CALL_SUBTEST(check_binary_sign_no_flush<double>());
 
     CALL_SUBTEST(check_shift<int8_t>());
     CALL_SUBTEST(check_shift<int16_t>());
