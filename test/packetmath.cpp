@@ -2240,31 +2240,48 @@ void packetmath_bfloat16_abs_array() {
   }
 }
 
-void packetmath_float_sign_subnormals() {
-  using Packet = internal::packet_traits<float>::type;
-  using Bits = internal::binary_floating_point_traits<float>::Bits;
+template <typename Scalar>
+void packetmath_binary_sign_subnormals() {
+  using Packet = typename internal::packet_traits<Scalar>::type;
+  using Binary = internal::binary_floating_point_traits<Scalar>;
+  using Bits = typename Binary::Bits;
   constexpr Index packet_size = internal::unpacket_traits<Packet>::size;
   constexpr Index count = 12 * packet_size + 1;
-  const Bits samples[] = {0x00000000u, 0x80000000u, 0x00000001u, 0x80000001u, 0x007fffffu, 0x807fffffu,
-                          0x3f800000u, 0xbf800000u, 0x7f800000u, 0xff800000u, 0x7fc12345u, 0xffc12345u};
-  Array<float, Dynamic, 1> input(count), result(count);
-  for (Index i = 0; i < count; ++i) input(i) = numext::bit_cast<float>(samples[i % 12]);
-  input(count - 1) = numext::bit_cast<float>(Bits(0x80000001u));  // Exercise the scalar tail.
+  const Bits sign = Binary::kSignBit;
+  const Bits min_normal = Binary::kExponentUnit;
+  const Bits infinity = Binary::kExponentMask;
+  const Bits one = Binary::bits(Scalar(1));
+  const Bits nan = infinity | (min_normal >> 1) | Bits(0x12345);
+  const Bits samples[] = {Bits(0),
+                          sign,
+                          Bits(1),
+                          sign | Bits(1),
+                          min_normal - 1,
+                          sign | (min_normal - 1),
+                          one,
+                          sign | one,
+                          infinity,
+                          sign | infinity,
+                          nan,
+                          sign | nan};
+  Array<Scalar, Dynamic, 1> input(count), result(count);
+  for (Index i = 0; i < count; ++i) input(i) = numext::bit_cast<Scalar>(samples[i % 12]);
+  input(count - 1) = numext::bit_cast<Scalar>(sign | Bits(1));  // Exercise the scalar tail.
   result = input.sign();
   for (Index i = 0; i < count; ++i) {
     const Bits bits = numext::bit_cast<Bits>(input(i));
-    const Bits magnitude = bits & 0x7fffffffu;
-    const Bits expected = magnitude > 0x7f800000u ? bits : magnitude == 0 ? 0u : (bits & 0x80000000u) | 0x3f800000u;
+    const Bits magnitude = bits & ~sign;
+    const Bits expected = magnitude > infinity ? bits : magnitude == 0 ? Bits(0) : (bits & sign) | one;
     VERIFY_IS_EQUAL(numext::bit_cast<Bits>(result(i)), expected);
   }
 
-  EIGEN_ALIGN_MAX float lanes[packet_size];
-  for (Index i = 0; i < packet_size; ++i) lanes[i] = numext::bit_cast<float>(samples[2 + (i % 4)]);
+  EIGEN_ALIGN_MAX Scalar lanes[packet_size];
+  for (Index i = 0; i < packet_size; ++i) lanes[i] = numext::bit_cast<Scalar>(samples[2 + (i % 4)]);
   const Packet packet = internal::psign(internal::ploadu<Packet>(lanes));
   internal::pstoreu(lanes, packet);
   for (Index i = 0; i < packet_size; ++i) {
     const Bits bits = samples[2 + (i % 4)];
-    const Bits expected = bits & 0x80000000u ? 0xbf800000u : 0x3f800000u;
+    const Bits expected = bits & sign ? sign | one : one;
     VERIFY_IS_EQUAL(numext::bit_cast<Bits>(lanes[i]), expected);
   }
 }
@@ -2337,10 +2354,25 @@ EIGEN_DECLARE_TEST(packetmath) {
     packetmath_bfloat16_abs_array();
   });
 
-  CALL_SUBTEST_1(packetmath_float_sign_subnormals());
+  CALL_SUBTEST_1(packetmath_binary_sign_subnormals<float>());
+  CALL_SUBTEST_2(packetmath_binary_sign_subnormals<double>());
   CALL_SUBTEST_1({
     ScopedFlushToZero flush_to_zero;
-    if (flush_to_zero.isSupported()) packetmath_float_sign_subnormals();
+    if (flush_to_zero.isSupported()) {
+#if EIGEN_TEST_HAS_X86_FTZ && defined(_MM_SET_DENORMALS_ZERO_MODE)
+      _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
+#endif
+      packetmath_binary_sign_subnormals<float>();
+    }
+  });
+  CALL_SUBTEST_2({
+    ScopedFlushToZero flush_to_zero;
+    if (flush_to_zero.isSupported()) {
+#if EIGEN_TEST_HAS_X86_FTZ && defined(_MM_SET_DENORMALS_ZERO_MODE)
+      _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
+#endif
+      packetmath_binary_sign_subnormals<double>();
+    }
   });
 
 #if defined(EIGEN_VECTORIZE_RVV10)
