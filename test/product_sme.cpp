@@ -18,6 +18,8 @@
 
 #include "product.h"
 
+#include <cfenv>
+
 // Without the right -march flags, __ARM_FEATURE_SME is undefined and
 // EIGEN_VECTORIZE_SME never fires - the test would silently compile
 // against the NEON GEBP kernel and pass, making this a useless no-op.
@@ -300,6 +302,48 @@ static void test_small_k_and_single_panel_rhs() {
   SmeColMajorMat<Scalar> C = SmeColMajorMat<Scalar>::Zero(2 * MR + 5, NR);
   C.noalias() += A * B;
   VERIFY_IS_APPROX(C, A.lazyProduct(B));
+}
+
+// Streaming-mode entry and exit set every FP exception flag: products on each SME path, with exact results, must leave
+// the caller's flags as they were.
+template <typename Scalar, typename Product>
+static void verify_fp_flags_kept(Product product) {
+  std::feclearexcept(FE_ALL_EXCEPT);
+  product();
+  VERIFY_IS_EQUAL(std::fetestexcept(FE_ALL_EXCEPT), 0);
+  std::feraiseexcept(FE_INEXACT);
+  product();
+  VERIFY_IS_EQUAL(std::fetestexcept(FE_ALL_EXCEPT), FE_INEXACT);
+  std::feclearexcept(FE_ALL_EXCEPT);
+}
+
+template <typename Scalar>
+static void test_fp_flags() {
+  using Col = SmeColMajorMat<Scalar>;
+  using Row = SmeRowMajorMat<Scalar>;
+  const Index MR = sme_mr<Scalar>(), NR = sme_nr<Scalar>();
+  const Index m = 4 * MR + 3, n = 3 * NR + 5, k = 131;
+  // Small integers keep every product exact, so no flag is legitimately raised.
+  const Col A = Col::Random(m, k).unaryExpr([](const Scalar& x) { return Scalar(numext::round(numext::real(x) * 4)); });
+  const Col B = Col::Random(k, n).unaryExpr([](const Scalar& x) { return Scalar(numext::round(numext::real(x) * 4)); });
+  const Col S = Col::Identity(m, m) * Scalar(2) + Col::Ones(m, m), O = Col::Ones(m, n);
+  // I plus a subdiagonal of ones: the solution of L x = 1 is 1, 0, 1, 0, ..., exact.
+  Col L = Col::Identity(m, m);
+  L.diagonal(-1).setOnes();
+  const Col Tall = Col::Ones(1024, k), Thin = Col::Ones(k, NR / 2);
+  Col C(m, n), D(1024, NR / 2);
+  Row R(m, n);
+  verify_fp_flags_kept<Scalar>([&] { C.noalias() = A * B; });
+  verify_fp_flags_kept<Scalar>([&] { C.noalias() += A.conjugate() * B; });
+  verify_fp_flags_kept<Scalar>([&] { R.noalias() = A * B; });
+  verify_fp_flags_kept<Scalar>([&] { R.noalias() = Row(A) * Row(B); });
+  verify_fp_flags_kept<Scalar>([&] { D.noalias() = Tall * Thin; });
+  verify_fp_flags_kept<Scalar>([&] { C.noalias() = S.template selfadjointView<Lower>() * O; });
+  verify_fp_flags_kept<Scalar>([&] { C.noalias() = S.template triangularView<Upper>() * O; });
+  verify_fp_flags_kept<Scalar>([&] {
+    Col X = O;
+    L.template triangularView<Lower>().solveInPlace(X);
+  });
 }
 
 // Tiny results (the NEON kernel and both sides of its routing), every storage order of A, B and C.
@@ -1064,6 +1108,7 @@ EIGEN_DECLARE_TEST(product_sme) {
   CALL_SUBTEST_1(test_small_k_and_single_panel_rhs<float>());
   CALL_SUBTEST_1(test_deep_tail_panels<float>());
   CALL_SUBTEST_1(test_tiny_results<float>());
+  CALL_SUBTEST_1(test_fp_flags<float>());
 
   // double reaches the SME kernel and packers only with FEAT_SME_F64F64; the
   // product sweep is meaningful either way, but the packed-layout tests name
@@ -1080,6 +1125,7 @@ EIGEN_DECLARE_TEST(product_sme) {
   CALL_SUBTEST_2(test_small_k_and_single_panel_rhs<double>());
   CALL_SUBTEST_2(test_deep_tail_panels<double>());
   CALL_SUBTEST_2(test_tiny_results<double>());
+  CALL_SUBTEST_2(test_fp_flags<double>());
 #endif
 
   CALL_SUBTEST_3(test_products<std::complex<float>>());
@@ -1088,6 +1134,7 @@ EIGEN_DECLARE_TEST(product_sme) {
   CALL_SUBTEST_3(test_pack_direct<std::complex<float>>());
   CALL_SUBTEST_3(test_mapper_fallback<std::complex<float>>());
   CALL_SUBTEST_3(test_neon_small_blocks<std::complex<float>>());
+  CALL_SUBTEST_3(test_fp_flags<std::complex<float>>());
 
   // complex<double> accumulates into ZA.D tiles, so it needs FEAT_SME_F64F64
   // exactly as double does.
@@ -1098,6 +1145,7 @@ EIGEN_DECLARE_TEST(product_sme) {
   CALL_SUBTEST_4(test_pack_direct<std::complex<double>>());
   CALL_SUBTEST_4(test_mapper_fallback<std::complex<double>>());
   CALL_SUBTEST_4(test_neon_small_blocks<std::complex<double>>());
+  CALL_SUBTEST_4(test_fp_flags<std::complex<double>>());
 #endif
 
   // A scalar type SME does not specialize, proving it still routes through the
