@@ -2240,6 +2240,32 @@ void packetmath_bfloat16_abs_array() {
   }
 }
 
+#if defined(EIGEN_VECTORIZE_AVX) || defined(EIGEN_VECTORIZE_AVX512) || defined(EIGEN_VECTORIZE_NEON) || \
+    defined(EIGEN_VECTORIZE_ALTIVEC)
+void packetmath_bfloat16_sign_bits() {
+  using Packet = internal::packet_traits<bfloat16>::type;
+  constexpr int packet_size = internal::unpacket_traits<Packet>::size;
+  EIGEN_ALIGN_MAX bfloat16 input[packet_size], output[packet_size];
+  for (unsigned first = 0; first < 65536; first += packet_size) {
+    for (int i = 0; i < packet_size; ++i) {
+      input[i] = numext::bit_cast<bfloat16>(static_cast<numext::uint16_t>(first + i));
+    }
+    internal::pstoreu(output, internal::psign(internal::ploadu<Packet>(input)));
+    for (int i = 0; i < packet_size; ++i) {
+      const numext::uint16_t bits = static_cast<numext::uint16_t>(first + i);
+      const numext::uint16_t magnitude = bits & 0x7fff;
+      numext::uint16_t expected = 0;
+      if (magnitude > 0x7f80) {
+        expected = bits;
+      } else if (magnitude != 0) {
+        expected = static_cast<numext::uint16_t>((bits & 0x8000) | 0x3f80);
+      }
+      VERIFY_IS_EQUAL(numext::bit_cast<numext::uint16_t>(output[i]), expected);
+    }
+  }
+}
+#endif
+
 namespace Eigen {
 namespace test {
 
@@ -2307,6 +2333,20 @@ EIGEN_DECLARE_TEST(packetmath) {
     ScopedFlushToZero flush_to_zero;
     packetmath_bfloat16_abs_array();
   });
+
+#if defined(EIGEN_VECTORIZE_AVX) || defined(EIGEN_VECTORIZE_AVX512) || defined(EIGEN_VECTORIZE_NEON) || \
+    defined(EIGEN_VECTORIZE_ALTIVEC)
+  CALL_SUBTEST_15(packetmath_bfloat16_sign_bits());
+  CALL_SUBTEST_15({
+    ScopedFlushToZero flush_to_zero;
+    if (flush_to_zero.isSupported()) {
+#if EIGEN_TEST_HAS_X86_FTZ && defined(_MM_SET_DENORMALS_ZERO_MODE)
+      _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
+#endif
+      packetmath_bfloat16_sign_bits();
+    }
+  });
+#endif
 
 #if defined(EIGEN_VECTORIZE_RVV10)
   CALL_SUBTEST_1((packetmath_redux_infinities<float, internal::Packet1Xf>()));
