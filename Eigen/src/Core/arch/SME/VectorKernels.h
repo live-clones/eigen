@@ -54,23 +54,14 @@ static EIGEN_ALWAYS_INLINE void sme_vector_write(unsigned int slice,
 #define EIGEN_SME_VECTOR_UNROLL4
 #endif
 
-// SMSTART/SMSTOP set FPSR's cumulative flags (Arm DDI0616 A.a, RMHTLZ).
-// Carry the arithmetic status across both transitions. ZA instructions themselves suppress exceptions.
+// SMSTART/SMSTOP set FPSR's cumulative flags (Arm DDI0616 A.a, RMHTLZ), and so can resuming a thread preempted
+// in streaming mode, so no FPSR value read while streaming is reliable. ZA arithmetic raises no flags either.
+// Restoring the caller's FPSR around the streaming call is deterministic; the kernels report no exceptions.
 struct sme_vector_fpsr {
-  EIGEN_ALWAYS_INLINE sme_vector_fpsr() { save(); }
-  EIGEN_ALWAYS_INLINE ~sme_vector_fpsr() { restore(); }
-
-  EIGEN_ALWAYS_INLINE void restore() const __arm_streaming_compatible {
-    asm volatile("msr fpsr, %0" : : "r"(value) : "memory");
-  }
-  EIGEN_ALWAYS_INLINE void save() __arm_streaming_compatible {
-    asm volatile("mrs %0, fpsr" : "=r"(value) : : "memory");
-  }
-  template <typename Scalar>
-  EIGEN_ALWAYS_INLINE void save(Scalar result) __arm_streaming_compatible {
-    // The register dependency keeps the reduction before the status read.
-    asm volatile("mrs %0, fpsr" : "=r"(value) : "w"(result) : "memory");
-  }
+  EIGEN_ALWAYS_INLINE sme_vector_fpsr() { asm volatile("mrs %0, fpsr" : "=r"(value) : : "memory"); }
+  EIGEN_ALWAYS_INLINE ~sme_vector_fpsr() { asm volatile("msr fpsr, %0" : : "r"(value) : "memory"); }
+  sme_vector_fpsr(const sme_vector_fpsr&) = delete;
+  sme_vector_fpsr& operator=(const sme_vector_fpsr&) = delete;
 
  private:
   std::uint64_t value;
@@ -85,9 +76,7 @@ static EIGEN_ALWAYS_INLINE bool sme_rounds_toward_negative() {
 
 template <typename Scalar, typename Index>
 __arm_new("za") __arm_locally_streaming
-    EIGEN_DONT_INLINE void sme_axpy(Index n, const Scalar* x, Scalar* y, Scalar alpha, Index prefix,
-                                    sme_vector_fpsr& status) {
-  status.restore();
+    EIGEN_DONT_INLINE void sme_axpy(Index n, const Scalar* x, Scalar* y, Scalar alpha, Index prefix) {
   using Traits = sme_traits<Scalar>;
   const Index lanes = Traits::svl();
   const auto pn = Traits::ptrue_c();
@@ -117,13 +106,10 @@ __arm_new("za") __arm_locally_streaming
     auto tail = Traits::whilelt(i, n);
     sme_st1(tail, y + i, svmla_x(tail, sme_ld1(tail, y + i), sme_ld1(tail, x + i), alpha));
   }
-  status.save();
 }
 
 template <typename Scalar, typename Index>
-__arm_new("za") __arm_locally_streaming EIGEN_DONT_INLINE Scalar
-    sme_dot(Index n, const Scalar* x, const Scalar* y, sme_vector_fpsr& status) {
-  status.restore();
+__arm_new("za") __arm_locally_streaming EIGEN_DONT_INLINE Scalar sme_dot(Index n, const Scalar* x, const Scalar* y) {
   using Traits = sme_traits<Scalar>;
   const Index lanes = Traits::svl();
   const auto pg = Traits::ptrue();
@@ -152,12 +138,10 @@ __arm_new("za") __arm_locally_streaming EIGEN_DONT_INLINE Scalar
     sum = svadd_x(pg, sum,
                   svadd_x(pg, svadd_x(pg, sme_get<0>(v), sme_get<1>(v)), svadd_x(pg, sme_get<2>(v), sme_get<3>(v))));
   }
-  const Scalar result = svaddv(pg, sum);
-  status.save(result);
-  return result;
+  return svaddv(pg, sum);
 }
 
-// y += alpha * ZA group k. Like the accumulation, the update stays in ZA, which suppresses exceptions.
+// y += alpha * ZA group k, updated in ZA like the accumulation.
 template <typename Scalar, typename Vec>
 static EIGEN_ALWAYS_INLINE void sme_gemv_update(unsigned int k, svcount_t active, Scalar* y,
                                                 Vec alpha) __arm_streaming __arm_inout("za") {
@@ -167,7 +151,6 @@ static EIGEN_ALWAYS_INLINE void sme_gemv_update(unsigned int k, svcount_t active
   svst1(active, y, sme_vector_read(k, Scalar(0)));
 }
 
-// Only ZA arithmetic: the caller's status guard suffices, without costly FPSR access while streaming.
 template <typename Scalar, typename Index>
 __arm_new("za") __arm_locally_streaming
     EIGEN_DONT_INLINE void sme_gemv(Index rows, Index cols, const Scalar* a, Index stride, const Scalar* x, Scalar* y,
@@ -226,11 +209,20 @@ template <typename Lhs, typename Rhs>
 struct sme_dot_supported : bool_constant<sme_vector_access<Lhs>::value && sme_vector_access<Rhs>::value &&
                                          is_same<typename traits<Lhs>::Scalar, typename traits<Rhs>::Scalar>::value> {};
 
+// Fixed crossovers, fitted on Apple M4 (SVL 512): below them the NEON/SME memory handoff outweighs the
+// streaming kernels. Core's cache estimates, including setCpuCacheSizes overrides, supply the others.
+static constexpr std::size_t kSmeDotMinBytes = 16384;  // per operand
+static constexpr std::size_t kSmeAxpyMinBytes = 4096;  // per operand
+static constexpr Index kSmeGemvMinRows = 128;
+static constexpr Index kSmeGemvMinCols = 4;
+// A GEMV whose RHS reaches kSmeGemvWideRhsBytes needs only kSmeGemvWideMinBytes of matrix, not Core's L1 estimate.
+static constexpr std::size_t kSmeGemvWideRhsBytes = 128;
+static constexpr std::size_t kSmeGemvWideMinBytes = 32768;
+
 // Keep cache queries out of callers so the small vector fallback can inline.
+// Per operand, the L1 estimate (divided by L1Divisor) is the lower crossover and the L2 estimate the upper one.
 template <typename Scalar, int L1Divisor = 1>
 EIGEN_DONT_INLINE bool sme_vector_size_suitable(Index size) {
-  // M4's NEON/SME memory handoff penalizes small vectors. Use Core's L1/L2 estimates
-  // as lower/upper per-operand crossovers, including setCpuCacheSizes overrides.
   std::ptrdiff_t l1, l2, l3;
   manage_caching_sizes(GetAction, &l1, &l2, &l3);
   return l1 > 0 && l2 > 0 && size >= 0 &&
@@ -246,10 +238,10 @@ struct default_inner_product_impl<Lhs, Rhs, true, std::enable_if_t<sme_dot_suppo
   static EIGEN_STRONG_INLINE Scalar run(const MatrixBase<Lhs>& lhs, const MatrixBase<Rhs>& rhs) {
     inner_product_assert<Lhs, Rhs>::run(lhs.derived(), rhs.derived());
     // DOT has no streaming stores for a following NEON consumer: half L1 per operand suffices.
-    if (lhs.size() >= Index(16384 / sizeof(Scalar)) && sme_vector_size_suitable<Scalar, 2>(lhs.size()) &&
+    if (lhs.size() >= Index(kSmeDotMinBytes / sizeof(Scalar)) && sme_vector_size_suitable<Scalar, 2>(lhs.size()) &&
         lhs.innerStride() == 1 && rhs.innerStride() == 1) {
       sme_vector_fpsr status;
-      const Scalar result = sme_dot(lhs.size(), lhs.derived().data(), rhs.derived().data(), status);
+      const Scalar result = sme_dot(lhs.size(), lhs.derived().data(), rhs.derived().data());
       // Under roundTowardNegative the -0 seeds turn +0 sums into -0.
       if (result != Scalar(0) || !sme_rounds_toward_negative()) return result;
     }
@@ -261,7 +253,7 @@ template <typename Dst, typename Src>
 EIGEN_STRONG_INLINE bool sme_try_axpy(Dst& dst, const Src& src, typename traits<Src>::Scalar alpha) {
   using Scalar = typename traits<Src>::Scalar;
   eigen_assert(dst.rows() == src.rows() && dst.cols() == src.cols());
-  if (dst.size() < Index(4096 / sizeof(Scalar)) || !sme_vector_size_suitable<Scalar>(dst.size()) ||
+  if (dst.size() < Index(kSmeAxpyMinBytes / sizeof(Scalar)) || !sme_vector_size_suitable<Scalar>(dst.size()) ||
       dst.innerStride() != 1 || src.innerStride() != 1)
     return false;
   const std::uintptr_t dst_address = reinterpret_cast<std::uintptr_t>(dst.data());
@@ -271,7 +263,7 @@ EIGEN_STRONG_INLINE bool sme_try_axpy(Dst& dst, const Src& src, typename traits<
   if (distance != 0 && distance / sizeof(Scalar) < static_cast<std::uintptr_t>(dst.size())) return false;
   // Align streaming stores to 64 bytes without changing Eigen's allocation alignment.
   sme_vector_fpsr status;
-  sme_axpy(dst.size(), src.data(), dst.data(), alpha, first_aligned<64>(dst.data(), dst.size()), status);
+  sme_axpy(dst.size(), src.data(), dst.data(), alpha, first_aligned<64>(dst.data(), dst.size()));
   return true;
 }
 
@@ -294,8 +286,10 @@ struct Assignment<
 #ifndef EIGEN_USE_BLAS
 template <typename Scalar, typename Index>
 EIGEN_STRONG_INLINE bool sme_gemv_size_suitable(Index rows, Index cols) {
-  if (rows < Index(128) || cols < Index(4)) return false;
-  if (cols >= Index(128 / sizeof(Scalar)) && cols > Index(32768 / sizeof(Scalar) - 1) / rows) return true;
+  if (rows < Index(kSmeGemvMinRows) || cols < Index(kSmeGemvMinCols)) return false;
+  if (cols >= Index(kSmeGemvWideRhsBytes / sizeof(Scalar)) &&
+      cols > Index(kSmeGemvWideMinBytes / sizeof(Scalar) - 1) / rows)
+    return true;
   // Thin products amortize the NEON/SME handoff once the matrix reaches Core's L1 estimate.
   const std::ptrdiff_t l1 = l1CacheSize();
   return l1 > 0 && static_cast<std::size_t>(cols) >

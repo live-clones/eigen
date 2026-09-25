@@ -414,47 +414,56 @@ void sme_vector_exception_state() {
   using Mat = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
   std::fenv_t saved;
   std::fegetenv(&saved);
-  Vec x = Vec::Ones(32769), y = Vec::Ones(32769);
-  Mat matrix = Mat::Ones(257, 128);
-  Vec rhs = Vec::Ones(128), result = Vec::Zero(257);
-  for (int prior : {0, FE_DIVBYZERO}) {
-    for (int operation = 0; operation < 3; ++operation) {
-      y.setOnes();
-      result.setZero();
-      std::feclearexcept(FE_ALL_EXCEPT);
-      std::feraiseexcept(prior);
-      Scalar dot = Scalar(0);
-      if (operation == 0) {
-        dot = x.dot(y);
-      } else if (operation == 1) {
-        y += Scalar(0.75) * x;
-      } else {
-        result.noalias() += matrix * rhs;
+  const Scalar inf = NumTraits<Scalar>::infinity(), largest = (std::numeric_limits<Scalar>::max)();
+  // The kernels leave the caller's flags as they were, whether or not an SVE tail or row remainder follows the
+  // ZA loop: exact inputs, then inf * 0 (invalid), then max * 2 (overflow).
+  for (Index n : {32768, 32769}) {
+    Vec x(n), y(n);
+    Mat matrix(n == 32768 ? 256 : 257, 128);
+    Vec rhs(128), result(matrix.rows());
+    for (int input = 0; input < 3; ++input) {
+      const Scalar value = input == 0 ? Scalar(1) : input == 1 ? inf : largest;
+      const Scalar factor = input == 0 ? Scalar(1) : input == 1 ? Scalar(0) : Scalar(2);
+      for (int prior : {0, FE_DIVBYZERO}) {
+        for (int operation = 0; operation < 3; ++operation) {
+          x.setConstant(value);
+          y.setConstant(factor);
+          matrix.setConstant(value);
+          rhs.setConstant(factor);
+          result.setZero();
+          std::feclearexcept(FE_ALL_EXCEPT);
+          std::feraiseexcept(prior);
+          Scalar actual;
+          if (operation == 0) {
+            actual = x.dot(y);
+          } else if (operation == 1) {
+            y += factor * x;
+            actual = y[n - 1];
+          } else {
+            result.noalias() += matrix * rhs;
+            actual = result[result.size() - 1];
+          }
+          const int flags = std::fetestexcept(FE_ALL_EXCEPT);
+          VERIFY_IS_EQUAL(flags, prior);
+          if (input == 1) {
+            VERIFY((numext::isnan)(actual));
+          } else if (input == 2) {
+            VERIFY_IS_EQUAL(actual, inf);
+          } else {
+            VERIFY_IS_EQUAL(actual, operation == 0 ? Scalar(n) : operation == 1 ? Scalar(2) : Scalar(128));
+          }
+        }
       }
-      const int flags = std::fetestexcept(FE_ALL_EXCEPT);
-      VERIFY_IS_EQUAL(flags, prior);
-      if (operation == 0) VERIFY_IS_EQUAL(dot, Scalar(32769));
     }
   }
-  // ZA instructions suppress exceptions; DOT/AXPY's SVE tails do set FPSR.
-  for (int exception : {FE_INVALID, FE_OVERFLOW}) {
-    for (int operation = 0; operation < 2; ++operation) {
-      const Scalar input =
-          exception == FE_INVALID ? NumTraits<Scalar>::infinity() : (std::numeric_limits<Scalar>::max)();
-      const Scalar factor = exception == FE_INVALID ? Scalar(0) : Scalar(2);
-      x.setConstant(input);
-      y.setConstant(factor);
-      std::feclearexcept(FE_ALL_EXCEPT);
-      if (operation == 0) {
-        volatile Scalar dot = x.dot(y);
-        EIGEN_UNUSED_VARIABLE(dot);
-      } else {
-        y += factor * x;
-      }
-      const int flags = std::fetestexcept(FE_ALL_EXCEPT);
-      VERIFY((flags & exception) != 0);
-      VERIFY((flags & (FE_DIVBYZERO | FE_UNDERFLOW)) == 0);
-    }
+  // Longer calls are more likely to be preempted while streaming.
+  Vec x = Vec::Ones(Index(1) << 20), y = Vec::Ones(Index(1) << 20);
+  for (int repetition = 0; repetition < 64; ++repetition) {
+    std::feclearexcept(FE_ALL_EXCEPT);
+    const Scalar dot = x.dot(y);
+    y += Scalar(repetition % 2 ? -0.75 : 0.75) * x;
+    VERIFY_IS_EQUAL(std::fetestexcept(FE_ALL_EXCEPT), 0);
+    VERIFY_IS_EQUAL(dot, Scalar(repetition % 2 ? 1.75 : 1) * Scalar(x.size()));
   }
   std::fesetenv(&saved);
 }
