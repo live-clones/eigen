@@ -2438,6 +2438,17 @@ EIGEN_STRONG_INLINE Packet8bf pcmp_eq(const Packet8bf& a, const Packet8bf& b) {
 }
 
 template <>
+EIGEN_STRONG_INLINE Packet8bf psign<Packet8bf>(const Packet8bf& a) {
+  const Packet8us magnitude = vec_and(a.m_val, vec_splats(static_cast<unsigned short int>(0x7fff)));
+  const Packet8bi is_zero = vec_cmpeq(magnitude, vec_splats(static_cast<unsigned short int>(0)));
+  const Packet8bi is_nan = vec_cmpgt(magnitude, vec_splats(static_cast<unsigned short int>(0x7f80)));
+  const Packet8us signed_one = vec_or(vec_and(a.m_val, vec_splats(static_cast<unsigned short int>(0x8000))),
+                                      vec_splats(static_cast<unsigned short int>(0x3f80)));
+  const Packet8us value = vec_andc(signed_one, reinterpret_cast<Packet8us>(is_zero));
+  return Packet8bf(vec_sel(value, a.m_val, is_nan));
+}
+
+template <>
 EIGEN_STRONG_INLINE bfloat16 pfirst(const Packet8bf& a) {
   return Eigen::bfloat16_impl::raw_uint16_to_bfloat16((pfirst<Packet8us>(a)));
 }
