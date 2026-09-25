@@ -247,6 +247,17 @@ static void test_direct_lhs() {
   setNbSmeUnits(units);
   VERIFY_IS_EQUAL(nbSmeUnits(), units);
 #endif
+  // An LHS packed once for all column blocks, where the first block reads it in place and a narrower last one, whose
+  // panel spans more than EIGEN_SME_DIRECT_LHS_MAX_SPAN_BYTES, packs.
+  {
+    const Index big = Index(EIGEN_SME_DIRECT_LHS_MAX_SPAN_BYTES) / (2048 * Index(sizeof(Scalar))) + 2;
+    const SmeColMajorMat<Scalar> Abig = SmeColMajorMat<Scalar>::Random(big, 2048);
+    const auto A = Abig.topRows(256);
+    const SmeColMajorMat<Scalar> B = SmeColMajorMat<Scalar>::Random(2048, 532);
+    SmeColMajorMat<Scalar> C(256, 532);
+    C.noalias() = A * B;
+    VERIFY_IS_APPROX(C, A.lazyProduct(B));
+  }
 }
 
 // Small K against large M and N (NEON depths and just past them), and a RHS of one panel read in place: up to
