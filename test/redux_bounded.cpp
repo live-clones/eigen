@@ -129,6 +129,19 @@ void mixed_packet_reductions() {
     STATIC_CHECK(internal::redux_max_size<internal::remove_all_t<decltype(right)>>::Size == Capacity);
     VERIFY_IS_EQUAL(left.sum(), expected);
     VERIFY_IS_EQUAL(right.sum(), expected);
+    const auto squared = left.cwiseAbs2();
+    const auto negated = -squared;
+    STATIC_CHECK(decltype(squared)::MaxSizeAtCompileTime == Dynamic);
+    STATIC_CHECK(internal::redux_max_size<internal::remove_all_t<decltype(squared)>>::Size == Capacity);
+    STATIC_CHECK(internal::redux_max_size<internal::remove_all_t<decltype(negated)>>::Size == Capacity);
+    Scalar expectedSquared = 0;
+    for (Index i = 0; i < size; ++i) {
+      const Scalar value = bounded(i) * dynamic(i);
+      expectedSquared += value * value;
+    }
+    VERIFY_IS_EQUAL(squared.sum(), expectedSquared);
+    VERIFY_IS_EQUAL(negated.sum(), -expectedSquared);
+    VERIFY_IS_EQUAL(left.squaredNorm(), expectedSquared);
   }
 }
 
