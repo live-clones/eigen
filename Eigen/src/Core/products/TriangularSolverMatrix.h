@@ -43,8 +43,9 @@ struct trsmKernelR {
                      Index otherStride);
 };
 
-// The packet lanes are independent right-hand sides. Reserve registers for the
-// RHS packets and coefficient broadcasts in addition to the output accumulators.
+// The packet lanes are independent right-hand sides. Half the registers hold output accumulators,
+// enough independent multiply-add chains to cover the FMA latency on 16- and 32-register targets;
+// the rest hold the RHS packets and coefficient broadcasts.
 template <typename Scalar>
 struct triangular_solve_packet_traits {
   static constexpr bool Enabled = packet_traits<Scalar>::Vectorizable &&
@@ -52,8 +53,14 @@ struct triangular_solve_packet_traits {
                                   std::numeric_limits<Scalar>::is_iec559 && std::numeric_limits<Scalar>::radix == 2;
   static constexpr int PacketSize = packet_traits<Scalar>::size;
   static constexpr int RegisterRows = 4;
-  static constexpr int RhsPackets =
-      plain_enum_max(1, plain_enum_min(2, (gebp_traits<Scalar, Scalar>::NumberOfRegisters - 2) / (RegisterRows + 1)));
+  static constexpr int NumberOfRegisters = gebp_traits<Scalar, Scalar>::NumberOfRegisters;
+  static constexpr int RhsPackets = plain_enum_max(
+      1, plain_enum_min((NumberOfRegisters - 2) / (RegisterRows + 1), NumberOfRegisters / (2 * RegisterRows)));
+  // Rows solved per step for a tile of the given RHS packets: a single packet takes twice the rows
+  // where the registers allow, to keep as many independent multiply-add chains in flight.
+  static constexpr int tile_rows(int packets) {
+    return packets * 2 * RegisterRows <= RhsPackets * RegisterRows ? 2 * RegisterRows : RegisterRows;
+  }
   // Allocation bound, independent of the cache-dependent direct-solve cutoff.
   static constexpr int WorkspaceRows = 128;
 #if defined(EIGEN_VECTORIZE_AVX512) && EIGEN_USE_AVX512_TRSM_L_KERNELS
@@ -141,35 +148,21 @@ struct triangular_solve_packet_kernel {
     }
     // The braced expansion orders the dependent solves by row.
     int solve_rows[] = {
-        0,
-        (solve_row<Rows>(x, a, inverse, r0, step, std::make_index_sequence<Traits::RegisterRows - Rows - 1>{}), 0)...};
+        0, (solve_row<Rows>(x, a, inverse, r0, step, std::make_index_sequence<sizeof...(Rows) - Rows - 1>{}), 0)...};
     EIGEN_UNUSED_VARIABLE(solve_rows);
     int store_rows[] = {0, (work[r0 + Index(Rows) * step] = x[Rows], 0)...};
     EIGEN_UNUSED_VARIABLE(store_rows);
   }
 
-  template <int RhsPackets>
-  static EIGEN_STRONG_INLINE void solve(Index size, const TriMapper& a, const Scalar* inverse, Scalar* other,
-                                        Index otherStride) {
-    PacketBlock<Packet, RhsPackets> work[Traits::WorkspaceRows];
-    for (int p = 0; p < RhsPackets; ++p) {
-      Index row = 0;
-      for (; row + PacketSize <= size; row += PacketSize) {
-        PacketBlock<Packet, PacketSize> block;
-        for (int c = 0; c < PacketSize; ++c)
-          block.packet[c] = ploadu<Packet>(other + row + (p * PacketSize + c) * otherStride);
-        ptranspose(block);
-        for (int r = 0; r < PacketSize; ++r) work[row + r].packet[p] = block.packet[r];
-      }
-      for (; row < size; ++row)
-        work[row].packet[p] = pgather<Scalar, Packet>(other + row + p * PacketSize * otherStride, otherStride);
-    }
-    Index i = 0;
+  // Solves the rows from i in steps of Rows while a whole step remains; returns the first unsolved row.
+  template <int Rows, int RhsPackets>
+  static EIGEN_ALWAYS_INLINE Index solve_tiles(Index size, Index i, const TriMapper& a, const Scalar* inverse,
+                                               PacketBlock<Packet, RhsPackets>* work) {
     const Index step = IsLower ? 1 : -1;
-    for (; i + Traits::RegisterRows <= size; i += Traits::RegisterRows) {
+    for (; i + Rows <= size; i += Rows) {
       const Index r0 = IsLower ? i : size - i - 1;
       // Preserve the four-row schedule that keeps GCC and Clang's hot loops compact.
-      EIGEN_IF_CONSTEXPR (Traits::RegisterRows == 4) {
+      EIGEN_IF_CONSTEXPR (Rows == 4) {
         const Index r1 = r0 + step, r2 = r1 + step, r3 = r2 + step;
         PacketBlock<Packet, RhsPackets> x0 = work[r0], x1 = work[r1], x2 = work[r2], x3 = work[r3];
         for (Index k = 0; k < i; ++k) {
@@ -195,8 +188,32 @@ struct triangular_solve_packet_kernel {
         work[r2] = x2;
         work[r3] = x3;
       } else {
-        solve_block(i, a, inverse, work, r0, step, std::make_index_sequence<Traits::RegisterRows>{});
+        solve_block(i, a, inverse, work, r0, step, std::make_index_sequence<Rows>{});
       }
+    }
+    return i;
+  }
+
+  template <int RhsPackets>
+  static EIGEN_STRONG_INLINE void solve(Index size, const TriMapper& a, const Scalar* inverse, Scalar* other,
+                                        Index otherStride) {
+    PacketBlock<Packet, RhsPackets> work[Traits::WorkspaceRows];
+    for (int p = 0; p < RhsPackets; ++p) {
+      Index row = 0;
+      for (; row + PacketSize <= size; row += PacketSize) {
+        PacketBlock<Packet, PacketSize> block;
+        for (int c = 0; c < PacketSize; ++c)
+          block.packet[c] = ploadu<Packet>(other + row + (p * PacketSize + c) * otherStride);
+        ptranspose(block);
+        for (int r = 0; r < PacketSize; ++r) work[row + r].packet[p] = block.packet[r];
+      }
+      for (; row < size; ++row)
+        work[row].packet[p] = pgather<Scalar, Packet>(other + row + p * PacketSize * otherStride, otherStride);
+    }
+    constexpr int TileRows = Traits::tile_rows(RhsPackets);
+    Index i = solve_tiles<TileRows>(size, Index(0), a, inverse, work);
+    EIGEN_IF_CONSTEXPR (TileRows != Traits::RegisterRows) {
+      i = solve_tiles<Traits::RegisterRows>(size, i, a, inverse, work);
     }
     for (; i < size; ++i) {
       const Index r = IsLower ? i : size - i - 1;
@@ -254,6 +271,10 @@ struct triangular_solve_packet_kernel {
     EIGEN_IF_CONSTEXPR (Traits::RhsPackets > 1) {
       for (; j + Traits::RhsPackets * PacketSize <= cols; j += Traits::RhsPackets * PacketSize)
         solve<Traits::RhsPackets>(size, a, inverse, other + j * otherStride, otherStride);
+    }
+    EIGEN_IF_CONSTEXPR (Traits::RhsPackets > 2) {
+      for (; j + 2 * PacketSize <= cols; j += 2 * PacketSize)
+        solve<2>(size, a, inverse, other + j * otherStride, otherStride);
     }
     for (; j + PacketSize <= cols; j += PacketSize) solve<1>(size, a, inverse, other + j * otherStride, otherStride);
   }
@@ -515,7 +536,8 @@ EIGEN_DONT_INLINE void triangular_solve_matrix<Scalar, Index, OnTheLeft, Mode, C
   const std::ptrdiff_t budget = triangular_solve_budget<Scalar>(l2, l3);
   const Index nc = triangular_solve_panel_columns(size, otherSize, budget, Index(Traits::nr));
   const Index mc = (numext::mini)(size, blocking.mc());  // cache block size along the M direction
-  // The tr solve below packs up to SmallPanelWidth x kc entries of the triangle into blockA.
+  // The tr solve below packs up to panelWidth x kc entries of the triangle into blockA, where panelWidth is
+  // SmallPanelWidth or, with the packet kernel, at most blockARows.
   const Index blockARows = (numext::maxi)(mc, Index(SmallPanelWidth));
   // cache block size along the K direction
   const Index kc = triangular_solve_kc<Scalar>(size, otherSize, (numext::maxi)(blockARows, nc), budget,
@@ -536,7 +558,22 @@ EIGEN_DONT_INLINE void triangular_solve_matrix<Scalar, Index, OnTheLeft, Mode, C
   // the goal here is to subdivide the Rhs panels such that we keep some cache
   // coherence when accessing the rhs elements
   Index subcols = otherSize > 0 ? l2 / (4 * sizeof(Scalar) * numext::maxi<Index>(otherStride, size)) : 0;
-  subcols = numext::maxi<Index>((subcols / Traits::nr) * Traits::nr, Traits::nr);
+  Index colStep = Traits::nr;
+  // Width of the diagonal panels solved between gebp updates of their depth.
+  Index panelWidth = SmallPanelWidth;
+  EIGEN_IF_CONSTEXPR ((OtherInnerStride == 1 && triangular_solve_packet_traits<Scalar>::UseUnblocked)) {
+    // The packet kernel solves a whole diagonal block faster than narrow panels do, since those
+    // interleave slower rank-SmallPanelWidth gebp updates; a block deeper than its workspace is split
+    // evenly. The kernel then packs a chunk right after solving it, so a chunk of kc rows should stay
+    // in L2, and packet-aligned chunks keep the kernel's scalar tail out of every chunk.
+    using PacketTraits = triangular_solve_packet_traits<Scalar>;
+    const Index rows = Index(PacketTraits::RegisterRows), packet = Index(PacketTraits::PacketSize);
+    const Index panels = numext::div_ceil(kc, Index(PacketTraits::WorkspaceRows));
+    panelWidth = (numext::mini)(blockARows, rows * numext::div_ceil(numext::div_ceil(kc, panels), rows));
+    colStep = colStep % packet == 0 ? colStep : packet % colStep == 0 ? packet : colStep * packet;
+    subcols = otherSize > 0 ? Index(l2 / (2 * std::ptrdiff_t(sizeof(Scalar)) * kc)) : 0;
+  }
+  subcols = numext::maxi<Index>(numext::round_down(subcols, colStep), colStep);
 
   for (Index j0 = 0; j0 < otherSize; j0 += nc) {
     const Index cols = (numext::mini)(otherSize - j0, nc);
@@ -562,8 +599,8 @@ EIGEN_DONT_INLINE void triangular_solve_matrix<Scalar, Index, OnTheLeft, Mode, C
       for (Index j2 = 0; j2 < cols; j2 += subcols) {
         Index actual_cols = (numext::mini)(cols - j2, subcols);
         // for each small vertical panels [T1k^T, T2k^T]^T of lhs
-        for (Index k1 = 0; k1 < actual_kc; k1 += SmallPanelWidth) {
-          Index actualPanelWidth = numext::mini<Index>(actual_kc - k1, SmallPanelWidth);
+        for (Index k1 = 0; k1 < actual_kc; k1 += panelWidth) {
+          Index actualPanelWidth = numext::mini<Index>(actual_kc - k1, panelWidth);
           // tr solve
           {
             Index i = IsLower ? k2 + k1 : k2 - k1 - 1;
