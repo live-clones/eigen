@@ -4,6 +4,8 @@
 #include <Eigen/Core>
 #include <functional>
 
+// Scalar only: InnerProduct's packet-enabled unit-stride remap loses this product's bound.
+#ifdef EIGEN_DONT_VECTORIZE
 using BoundedVector4d = Eigen::Matrix<double, Eigen::Dynamic, 1, Eigen::ColMajor, 4, 1>;
 using BoundedMatrix4d = Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor, 4, 4>;
 
@@ -16,6 +18,7 @@ Eigen::MatrixXd bounded_transform(const Eigen::MatrixXd& vertices, const Bounded
   }
   return transformed;
 }
+#endif
 
 using BoundedVector3d = Eigen::Matrix<double, Eigen::Dynamic, 1, Eigen::ColMajor, 3, 1>;
 
