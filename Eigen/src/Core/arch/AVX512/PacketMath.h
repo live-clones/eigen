@@ -1485,17 +1485,18 @@ template <>
 EIGEN_STRONG_INLINE Packet8d pldexp<Packet8d>(const Packet8d& a, const Packet8d& exponent) {
   // Clamp exponent to [-2099, 2099]
   const Packet8d max_exponent = pset1<Packet8d>(2099.0);
-  const Packet8i e = _mm512_cvtpd_epi32(pmin(pmax(exponent, pnegate(max_exponent)), max_exponent));
+  const Packet8d clamped = pmin(pmax(exponent, pnegate(max_exponent)), max_exponent);
+  const Packet8i e = _mm512_cvtpd_epi32(clamped);
 
-  // Preserve the sequential 4-way split; see pldexp_generic.
-  // 2^b and 2^(e-3b) are built by widening the biased int32 exponent to int64
+  // The sequential 3-way split; see pldexp_generic.
+  // 2^b and 2^(e-2b) are built by widening the biased int32 exponent to int64
   // with vpmovsxdq and shifting into the double exponent field with vpsllq.
   const Packet8i bias = pset1<Packet8i>(1023);
-  const Packet8i b = parithmetic_shift_right<2>(e);           // floor(e/4)
-  const Packet8i b_remainder = psub(psub(e, b), padd(b, b));  // e - 3b (depth 2)
+  const Packet8i b = _mm512_cvttpd_epi32(pmul(clamped, pset1<Packet8d>(1.0 / 3.0)));                     // trunc(e/3)
+  const Packet8i b_remainder = psub(e, padd(b, b));                                                      // e - 2b
   const Packet8d c1 = _mm512_castsi512_pd(_mm512_slli_epi64(_mm512_cvtepi32_epi64(padd(b, bias)), 52));  // 2^b
   const Packet8d c2 =
-      _mm512_castsi512_pd(_mm512_slli_epi64(_mm512_cvtepi32_epi64(padd(b_remainder, bias)), 52));  // 2^(e-3b)
+      _mm512_castsi512_pd(_mm512_slli_epi64(_mm512_cvtepi32_epi64(padd(b_remainder, bias)), 52));  // 2^(e-2b)
 
   return pldexp_apply_factors(a, c1, c2);  // a * 2^e
 }

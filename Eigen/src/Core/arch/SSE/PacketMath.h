@@ -1725,15 +1725,15 @@ EIGEN_STRONG_INLINE Packet2d pldexp<Packet2d>(const Packet2d& a, const Packet2d&
   const Packet2d max_exponent = pset1<Packet2d>(2099.0);
   const Packet2d e = pmin(pmax(exponent, pnegate(max_exponent)), max_exponent);
 
-  // Convert e to integer and swizzle to low-order bits.
-  const Packet4i ei = vec4i_swizzle1(_mm_cvtpd_epi32(e), 0, 3, 1, 3);
+  // e and trunc(e/3) as int32 in the two low lanes.
+  const Packet4i ei = _mm_cvtpd_epi32(e);
+  const Packet4i b = _mm_cvttpd_epi32(pmul(e, pset1<Packet2d>(1.0 / 3.0)));
 
-  // Preserve the sequential 4-way split; see pldexp_generic.
-  const Packet4i bias = _mm_set_epi32(0, 1023, 0, 1023);
-  const Packet4i b = parithmetic_shift_right<2>(ei);                                  // floor(e/4)
-  const Packet4i b_remainder = psub(psub(ei, b), padd(b, b));                         // e - 3b (depth 2)
-  const Packet2d c1 = _mm_castsi128_pd(_mm_slli_epi64(padd(b, bias), 52));            // 2^b
-  const Packet2d c2 = _mm_castsi128_pd(_mm_slli_epi64(padd(b_remainder, bias), 52));  // 2^(e - 3b)
+  // The sequential 3-way split; see pldexp_generic. Interleaving b and e - 2b puts each biased pair in one 64-bit
+  // lane, b + bias low: shifting left by 52 drops the high half, and shifting right by 32 first selects it.
+  const Packet4i biased = padd(Packet4i(_mm_unpacklo_epi32(b, psub(ei, padd(b, b)))), pset1<Packet4i>(1023));
+  const Packet2d c1 = _mm_castsi128_pd(_mm_slli_epi64(biased, 52));                      // 2^b
+  const Packet2d c2 = _mm_castsi128_pd(_mm_slli_epi64(_mm_srli_epi64(biased, 32), 52));  // 2^(e - 2b)
   return pldexp_apply_factors(a, c1, c2);                                             // a * 2^e
 }
 
