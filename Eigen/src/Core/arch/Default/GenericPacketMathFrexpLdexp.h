@@ -88,13 +88,11 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Packet pfrexp_generic(const Packet& a, Pac
   return m;
 }
 
-// (((a * c1) * c1) * c1) * c2, with each partial product kept: -ffast-math would otherwise reassociate the factors,
-// whose products overflow or underflow where a * 2^e does not (see pldexp_generic).
+// ((a * c1) * c1) * c2, with each partial product kept: -ffast-math would otherwise reassociate the factors, whose
+// products overflow or underflow where a * 2^e does not (see pldexp_generic).
 template <typename Packet>
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Packet pldexp_apply_factors(const Packet& a, const Packet& c1, const Packet& c2) {
   Packet out = pmul(a, c1);
-  EIGEN_OPTIMIZATION_BARRIER(out)
-  out = pmul(out, c1);
   EIGEN_OPTIMIZATION_BARRIER(out)
   out = pmul(out, c1);
   EIGEN_OPTIMIZATION_BARRIER(out)
@@ -117,21 +115,26 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Packet pldexp_generic(const Packet& a, con
   // denormal.
   //
   // Unfortunately, 2^(278) cannot be represented using either one or two
-  // finite normal floats, so we must split the scale factor into at least
-  // three parts. It turns out to be faster to split 'exponent' into four
-  // factors, since [exponent>>2] is much faster to compute than [exponent/3].
+  // finite normal floats, so we must split the scale factor into three parts.
+  // e / 3 is formed in floating point, where it is one multiplication, and
+  // truncated by the conversion to integer.
   //
   // Set e = min(max(exponent, -278), 278);
-  //     b = floor(e/4);
+  //     b = trunc(e * (1/3));  |b| <= 92, |e - 2b| <= 94 for float
   //     c1 = 2^b
-  //     c2 = 2^(e - 3b)
-  //   out = (((a * c1) * c1) * c1) * c2  (= a * 2^e)
+  //     c2 = 2^(e - 2b)
+  //   out = ((a * c1) * c1) * c2  (= a * 2^e)
+  //
+  // b and e - 2b have the sign of e (or are zero) whether the conversion
+  // truncates or rounds, so the partial products move monotonically from a
+  // to the result.
   //
   // Every partial product must contain 'a'. Reassociating scale factors can
   // overflow (for example c1*c1 at e=256 for float), making pldexp(0, 256)
-  // NaN and finite denormal results infinite. Apply c1 before c2 because c2
-  // may exceed one for negative exponents (e.g. c2=4 for e=-1), overflowing
-  // values near max even when the final result is finite.
+  // NaN and finite denormal results infinite. In the four-factor split that
+  // half keeps (see below), apply c1 before c2 because c2 may exceed one for
+  // negative exponents (e.g. c2=4 for e=-1), overflowing values near max even
+  // when the final result is finite.
   using PacketI = typename unpacket_traits<Packet>::integer_packet;
   using Scalar = typename unpacket_traits<Packet>::type;
   using ScalarI = typename unpacket_traits<PacketI>::type;
@@ -142,12 +145,25 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Packet pldexp_generic(const Packet& a, con
   const Packet max_exponent = pset1<Packet>(Scalar(max_exp_value));
   const Packet neg_max_exponent = pset1<Packet>(Scalar(-max_exp_value));
   const PacketI bias = pset1<PacketI>((ScalarI(1) << (ExponentBits - 1)) - ScalarI(1));  // 127
-  const PacketI e = pcast<Packet, PacketI>(pmin(pmax(exponent, neg_max_exponent), max_exponent));
-  const PacketI b = parithmetic_shift_right<2>(e);                                                     // floor(e/4);
+  const Packet clamped = pmin(pmax(exponent, neg_max_exponent), max_exponent);
+  const PacketI e = pcast<Packet, PacketI>(clamped);
+  // With |b| <= |e|/3 + 1/2, |e - 2b| <= |e|/3 + 4/3: three factors stay normal when 3 (bias - 1) covers that. Not for
+  // half, whose 2^-15 is subnormal; it keeps four factors, b = floor(e/4).
+  constexpr bool kThreeFactors = int(max_exp_value) + 4 <= 3 * ((1 << (ExponentBits - 1)) - 2);
+  EIGEN_IF_CONSTEXPR (kThreeFactors) {
+    const PacketI b = pcast<Packet, PacketI>(pmul(clamped, pset1<Packet>(Scalar(1) / Scalar(3))));       // trunc(e/3)
+    const PacketI b_remainder = psub(e, padd(b, b));                                                     // e - 2b
+    const Packet c1 = preinterpret<Packet>(plogical_shift_left<MantissaBits>(padd(b, bias)));            // 2^b
+    const Packet c2 = preinterpret<Packet>(plogical_shift_left<MantissaBits>(padd(b_remainder, bias)));  // 2^(e-2b)
+    return pldexp_apply_factors(a, c1, c2);                                                              // a * 2^e
+  }
+  const PacketI b = parithmetic_shift_right<2>(e);                                                     // floor(e/4)
   const PacketI b_remainder = pnmadd(pset1<PacketI>(3), b, e);                                         // e - 3b
   const Packet c1 = preinterpret<Packet>(plogical_shift_left<MantissaBits>(padd(b, bias)));            // 2^b
-  const Packet c2 = preinterpret<Packet>(plogical_shift_left<MantissaBits>(padd(b_remainder, bias)));  // 2^(e-3*b)
-  return pldexp_apply_factors(a, c1, c2);                                                              // a * 2^e
+  const Packet c2 = preinterpret<Packet>(plogical_shift_left<MantissaBits>(padd(b_remainder, bias)));  // 2^(e-3b)
+  Packet out = pmul(a, c1);
+  EIGEN_OPTIMIZATION_BARRIER(out)
+  return pldexp_apply_factors(out, c1, c2);  // a * 2^e
 }
 
 // Explicitly multiplies
