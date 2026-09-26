@@ -58,9 +58,7 @@ struct triangular_solve_packet_traits {
       1, plain_enum_min((NumberOfRegisters - 2) / (RegisterRows + 1), NumberOfRegisters / (2 * RegisterRows)));
   // Rows solved per step for a tile of the given RHS packets: a narrow tile takes twice the rows while
   // the extra accumulators fit in a full tile's registers, keeping more multiply-add chains in flight.
-  static constexpr int tile_rows(int packets) {
-    return packets * 2 * RegisterRows <= RhsPackets * RegisterRows ? 2 * RegisterRows : RegisterRows;
-  }
+  static constexpr int tile_rows(int packets) { return packets * 2 <= RhsPackets ? 2 * RegisterRows : RegisterRows; }
   // Allocation bound, independent of the cache-dependent direct-solve cutoff.
   static constexpr int WorkspaceRows = 128;
 #if defined(EIGEN_VECTORIZE_AVX512) && EIGEN_USE_AVX512_TRSM_L_KERNELS
