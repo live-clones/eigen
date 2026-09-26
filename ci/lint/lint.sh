@@ -51,6 +51,10 @@ scripts() {
     echo "== $t"
     python3 "$t" || rc=1
   done
+  # The edit-time hooks run on developers' Python, e.g. Ubuntu 24.04's 3.12,
+  # not this image's.
+  echo "== vermin"
+  vermin -t=3.12- --violations --no-tips scripts ci/scripts || rc=1
   return $rc
 }
 
