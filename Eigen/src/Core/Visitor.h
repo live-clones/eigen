@@ -300,7 +300,7 @@ struct visitor_impl<Visitor, Derived, Dynamic, /*Vectorize=*/true, /*LinearAcces
     for (; k < packetEnd; k += PacketSize) {
       Packet p = mat.template packet<Packet>(k);
       visitor.packet(p, k);
-      if (AlreadyInitialized ? short_circuit::run(visitor) : EIGEN_PREDICT_FALSE(short_circuit::run(visitor))) return;
+      if EIGEN_PREDICT_FALSE (short_circuit::run(visitor)) return;
     }
     for (; k < size; k++) {
       visitor(mat.coeff(k), k);
@@ -357,9 +357,6 @@ struct visitor_has_linear_access : std::false_type {};
 template <typename T>
 struct visitor_has_linear_access<T, void_t<decltype(functor_traits<T>::LinearAccess)>>
     : bool_constant<static_cast<bool>(functor_traits<T>::LinearAccess)> {};
-
-template <typename Scalar, bool Approximate>
-struct visitor_has_linear_access<fuzzy_constant_visitor<Scalar, Approximate>> : std::true_type {};
 
 template <typename Derived, typename Visitor, bool ShortCircuitEvaluation>
 struct visit_impl {
@@ -429,6 +426,88 @@ EIGEN_DEVICE_FUNC void DenseBase<Derived>::visit(Visitor& visitor) const {
 }
 
 namespace internal {
+
+template <typename Scalar, bool Approximate>
+struct fuzzy_constant_visitor {
+  Scalar value;
+  typename NumTraits<Scalar>::Real precision;
+  bool result = true;
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void operator()(const Scalar& x, Index, Index = 0) {
+    result = result && (Approximate ? internal::isApprox(x, value, precision)
+                                    : internal::isMuchSmallerThan(x, Scalar(1), precision));
+  }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void init(const Scalar& x, Index r, Index c = 0) { (*this)(x, r, c); }
+  EIGEN_DEVICE_FUNC bool done() const { return !result; }
+  template <typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void packet(const Packet& x, Index, Index = 0) {
+    const Packet p = pset1<Packet>(precision);
+    Packet mask;
+    EIGEN_IF_CONSTEXPR (Approximate) {
+      const Packet v = pset1<Packet>(value);
+      mask = pcmp_le(pabs(psub(x, v)), pmul(pmin(pabs(x), pabs(v)), p));
+    } else {
+      mask = pcmp_le(pabs(x), p);
+    }
+    // Reduce the comparison mask directly, without comparing its lanes to zero again.
+    result = result && !predux_any(pandnot(ptrue(mask), mask));
+  }
+  template <typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void initpacket(const Packet& x, Index r, Index c = 0) {
+    packet(x, r, c);
+  }
+};
+
+template <typename Scalar, bool Approximate>
+struct functor_traits<fuzzy_constant_visitor<Scalar, Approximate>> {
+  static constexpr bool AlreadyInitialized = true;
+  static constexpr bool LinearAccess = true;
+  static constexpr int Cost = 4 * NumTraits<Scalar>::AddCost + NumTraits<Scalar>::MulCost;
+  // ARMv7 NEON flushes subnormal float operands and results; scalar VFP does not.
+  static constexpr bool PacketAccess =
+      (std::is_same<Scalar, float>::value || std::is_same<Scalar, double>::value) &&
+      !(EIGEN_ARCH_ARM && std::is_same<Scalar, float>::value) && packet_traits<Scalar>::HasAbs &&
+      packet_traits<Scalar>::HasCmp &&
+      (!Approximate ||
+       (packet_traits<Scalar>::HasSub && packet_traits<Scalar>::HasMin && packet_traits<Scalar>::HasMul));
+};
+
+template <typename Scalar>
+using use_fuzzy_constant_visitor =
+    bool_constant<std::is_same<Scalar, float>::value || std::is_same<Scalar, double>::value>;
+
+template <bool Approximate, typename Derived,
+          std::enable_if_t<use_fuzzy_constant_visitor<typename Derived::Scalar>::value, int> = 0>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool fuzzy_constant_all(const Derived& matrix,
+                                                              const typename Derived::Scalar& value,
+                                                              const typename Derived::RealScalar& precision) {
+  fuzzy_constant_visitor<typename Derived::Scalar, Approximate> visitor{value, precision};
+  visit_impl<Derived, decltype(visitor), true>::run(matrix, visitor);
+  return visitor.result;
+}
+
+// Separate overloads keep custom scalars from instantiating unused comparisons in C++14.
+template <bool Approximate, typename Derived,
+          std::enable_if_t<!use_fuzzy_constant_visitor<typename Derived::Scalar>::value && Approximate, int> = 0>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool fuzzy_constant_all(const Derived& matrix,
+                                                              const typename Derived::Scalar& value,
+                                                              const typename Derived::RealScalar& precision) {
+  for (Index j = 0; j < matrix.cols(); ++j)
+    for (Index i = 0; i < matrix.rows(); ++i)
+      if (!internal::isApprox(matrix.coeff(i, j), value, precision)) return false;
+  return true;
+}
+
+template <bool Approximate, typename Derived,
+          std::enable_if_t<!use_fuzzy_constant_visitor<typename Derived::Scalar>::value && !Approximate, int> = 0>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool fuzzy_constant_all(const Derived& matrix, const typename Derived::Scalar&,
+                                                              const typename Derived::RealScalar& precision) {
+  using Scalar = typename Derived::Scalar;
+  for (Index j = 0; j < matrix.cols(); ++j)
+    for (Index i = 0; i < matrix.rows(); ++i)
+      if (!internal::isMuchSmallerThan(matrix.coeff(i, j), Scalar(1), precision)) return false;
+  return true;
+}
 
 template <typename Scalar>
 struct all_visitor {
@@ -576,40 +655,27 @@ EIGEN_DEVICE_FUNC inline bool DenseBase<Derived>::allFinite() const {
   return internal::all_finite_impl<Derived>::run(derived());
 }
 
-namespace internal {
-template <bool Approximate, typename Derived,
-          std::enable_if_t<use_fuzzy_constant_visitor<typename Derived::Scalar>::value, int>>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool fuzzy_constant_all(const Derived& matrix,
-                                                              const typename Derived::Scalar& value,
-                                                              const typename Derived::RealScalar& precision) {
-  fuzzy_constant_visitor<typename Derived::Scalar, Approximate> visitor{value, precision};
-  visit_impl<Derived, decltype(visitor), true>::run(matrix, visitor);
-  return visitor.result;
+/** \returns true if all coefficients in this matrix are approximately equal to \a val, to within precision \a prec */
+template <typename Derived>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool DenseBase<Derived>::isApproxToConstant(const Scalar& val,
+                                                                                  const RealScalar& prec) const {
+  typename internal::nested_eval<Derived, 1>::type self(derived());
+  return internal::fuzzy_constant_all<true>(self, val, prec);
 }
 
-// Separate overloads keep custom scalars from instantiating unused comparisons in C++14.
-template <bool Approximate, typename Derived,
-          std::enable_if_t<!use_fuzzy_constant_visitor<typename Derived::Scalar>::value && Approximate, int>>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool fuzzy_constant_all(const Derived& matrix,
-                                                              const typename Derived::Scalar& value,
-                                                              const typename Derived::RealScalar& precision) {
-  for (Index j = 0; j < matrix.cols(); ++j)
-    for (Index i = 0; i < matrix.rows(); ++i)
-      if (!internal::isApprox(matrix.coeff(i, j), value, precision)) return false;
-  return true;
+/** \returns true if *this is approximately equal to the zero matrix,
+ *          within the precision given by \a prec.
+ *
+ * Example: \include MatrixBase_isZero.cpp
+ * Output: \verbinclude MatrixBase_isZero.out
+ *
+ * \sa class CwiseNullaryOp, Zero()
+ */
+template <typename Derived>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool DenseBase<Derived>::isZero(const RealScalar& prec) const {
+  typename internal::nested_eval<Derived, 1>::type self(derived());
+  return internal::fuzzy_constant_all<false>(self, Scalar(0), prec);
 }
-
-template <bool Approximate, typename Derived,
-          std::enable_if_t<!use_fuzzy_constant_visitor<typename Derived::Scalar>::value && !Approximate, int>>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool fuzzy_constant_all(const Derived& matrix, const typename Derived::Scalar&,
-                                                              const typename Derived::RealScalar& precision) {
-  using Scalar = typename Derived::Scalar;
-  for (Index j = 0; j < matrix.cols(); ++j)
-    for (Index i = 0; i < matrix.rows(); ++i)
-      if (!internal::isMuchSmallerThan(matrix.coeff(i, j), Scalar(1), precision)) return false;
-  return true;
-}
-}  // namespace internal
 
 }  // end namespace Eigen
 

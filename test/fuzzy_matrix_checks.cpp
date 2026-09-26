@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
+#include "fp_control.h"
 
 struct ZeroOnlyScalar {
   double value;
@@ -161,14 +162,55 @@ void check_fuzzy_boundaries() {
   VERIFY(!strided.isZero());
 }
 
+template <typename Scalar, int Order>
+void check_fuzzy_subnormals() {
+  const ScopedFlushToZero gradual(FlushToZeroMode::None);
+  // Require gradual scalar arithmetic, even if the packet unit flushes (ARMv7 NEON).
+  if (subnormalInputProbe<Scalar>() == Scalar(0) || underflowProbe<Scalar>() == Scalar(0)) return;
+  const Scalar subnormal = (std::numeric_limits<Scalar>::min)() / Scalar(4);
+  using Mat = Matrix<Scalar, Dynamic, Dynamic, Order>;
+  using Visitor = internal::fuzzy_constant_visitor<Scalar, false>;
+  STATIC_CHECK(
+      (!EIGEN_ARCH_ARM || !std::is_same<Scalar, float>::value || !internal::functor_traits<Visitor>::PacketAccess));
+  for (Index size : {1, 2, 4, 8, 9, 17}) {
+    Matrix<Scalar, Dynamic, 1> v = Matrix<Scalar, Dynamic, 1>::Zero(size);
+    for (Index k = 0; k < size; ++k) {
+      for (Scalar sign : {Scalar(1), Scalar(-1)}) {
+        v.setZero();
+        v(k) = sign * subnormal;
+        VERIFY(!v.isZero(Scalar(0)));
+        VERIFY(!v.isConstant(Scalar(0)));
+        VERIFY(v.isZero(subnormal));
+        VERIFY(!v.isZero(subnormal / Scalar(2)));
+      }
+    }
+  }
+  Mat c = Mat::Constant(4, 4, Scalar(2) * subnormal);
+  VERIFY(!c.isApproxToConstant(subnormal, Scalar(0)));
+  VERIFY(!c.isZero(subnormal));
+  VERIFY(c.isApproxToConstant(Scalar(2) * subnormal, Scalar(0)));
+  VERIFY(c.isZero(Scalar(2) * subnormal));
+  VERIFY(!c.block(0, 0, 3, 3).isZero(subnormal));
+  VERIFY(!c.block(0, 0, 3, 3).isApproxToConstant(subnormal, Scalar(0)));
+  Matrix<Scalar, 3, 3, Order> fixed = c.template topLeftCorner<3, 3>();
+  VERIFY(!fixed.isZero(subnormal));
+  VERIFY(!fixed.isApproxToConstant(subnormal, Scalar(0)));
+}
+
 EIGEN_DECLARE_TEST(fuzzy_matrix_checks) {
-  CALL_SUBTEST(check_fuzzy_custom_scalars());
-  check_fuzzy_boundaries<float, ColMajor>();
-  check_fuzzy_boundaries<double, ColMajor>();
-  check_fuzzy_boundaries<float, RowMajor>();
-  check_fuzzy_boundaries<double, RowMajor>();
-  check_fuzzy_loops<float, ColMajor>();
-  check_fuzzy_loops<double, ColMajor>();
-  check_fuzzy_loops<float, RowMajor>();
-  check_fuzzy_loops<double, RowMajor>();
+  for (int repeat = 0; repeat < g_repeat; ++repeat) {
+    CALL_SUBTEST_1((check_fuzzy_boundaries<float, ColMajor>()));
+    CALL_SUBTEST_1((check_fuzzy_loops<float, ColMajor>()));
+    CALL_SUBTEST_1((check_fuzzy_subnormals<float, ColMajor>()));
+    CALL_SUBTEST_2((check_fuzzy_boundaries<double, ColMajor>()));
+    CALL_SUBTEST_2((check_fuzzy_loops<double, ColMajor>()));
+    CALL_SUBTEST_2((check_fuzzy_subnormals<double, ColMajor>()));
+    CALL_SUBTEST_3((check_fuzzy_boundaries<float, RowMajor>()));
+    CALL_SUBTEST_3((check_fuzzy_loops<float, RowMajor>()));
+    CALL_SUBTEST_3((check_fuzzy_subnormals<float, RowMajor>()));
+    CALL_SUBTEST_4((check_fuzzy_boundaries<double, RowMajor>()));
+    CALL_SUBTEST_4((check_fuzzy_loops<double, RowMajor>()));
+    CALL_SUBTEST_4((check_fuzzy_subnormals<double, RowMajor>()));
+    CALL_SUBTEST_5(check_fuzzy_custom_scalars());
+  }
 }
