@@ -56,8 +56,8 @@ struct triangular_solve_packet_traits {
   static constexpr int NumberOfRegisters = gebp_traits<Scalar, Scalar>::NumberOfRegisters;
   static constexpr int RhsPackets = plain_enum_max(
       1, plain_enum_min((NumberOfRegisters - 2) / (RegisterRows + 1), NumberOfRegisters / (2 * RegisterRows)));
-  // Rows solved per step for a tile of the given RHS packets: a single packet takes twice the rows
-  // where the registers allow, to keep as many independent multiply-add chains in flight.
+  // Rows solved per step for a tile of the given RHS packets: a narrow tile takes twice the rows while
+  // the extra accumulators fit in a full tile's registers, keeping more multiply-add chains in flight.
   static constexpr int tile_rows(int packets) {
     return packets * 2 * RegisterRows <= RhsPackets * RegisterRows ? 2 * RegisterRows : RegisterRows;
   }
@@ -246,7 +246,8 @@ struct triangular_solve_packet_kernel {
 
   // The last cols < PacketSize columns, zero-padded to a packet in a copy. For a row-major triangle this costs
   // one packet solve instead of a scalar dot product per coefficient; a column-major triangle's scalar solve
-  // is a contiguous axpy per column, which compilers vectorize. Padded lanes are dropped.
+  // is a contiguous axpy per column, which compilers vectorize. Padded lanes are dropped. Inlined, its buffer
+  // and second solve<1> copy measured slower even for solves that never pad.
   static EIGEN_DONT_INLINE void solve_padded(Index size, const TriMapper& a, const Scalar* inverse, Scalar* other,
                                              Index otherStride, Index cols) {
     Map<Matrix<Scalar, Dynamic, Dynamic>, Unaligned, OuterStride<>> rest(other, size, cols, OuterStride<>(otherStride));
@@ -578,8 +579,8 @@ EIGEN_DONT_INLINE void triangular_solve_matrix<Scalar, Index, OnTheLeft, Mode, C
     // The packet kernel solves a whole diagonal block faster than narrow panels do, since those
     // interleave slower rank-SmallPanelWidth gebp updates; a block deeper than its workspace is split
     // evenly. That needs a tile of two packets of right-hand sides where the registers allow: a single
-    // packet measured slower. The kernel then packs a chunk right after solving it, so a chunk of kc
-    // rows should stay in L2, and packet-aligned chunks keep the kernel's scalar tail out of every chunk.
+    // packet measured slower. pack_rhs reads each kc x subcols chunk right after its solve, so a chunk should
+    // stay in L2; packet-aligned chunks confine any column tail to an Rhs panel's last chunk.
     using PacketTraits = triangular_solve_packet_traits<Scalar>;
     const Index rows = Index(PacketTraits::RegisterRows), packet = Index(PacketTraits::PacketSize);
     if (otherSize >= Index(plain_enum_min(2, PacketTraits::RhsPackets)) * packet) {
