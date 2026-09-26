@@ -2442,11 +2442,11 @@ template <>
 EIGEN_STRONG_INLINE Packet8bf psign<Packet8bf>(const Packet8bf& a) {
   const Packet8us magnitude = vec_and(a.m_val, vec_splats(static_cast<unsigned short int>(0x7fff)));
   const Packet8bi is_zero = vec_cmpeq(magnitude, vec_splats(static_cast<unsigned short int>(0)));
-  const Packet8bi is_nan = vec_cmpgt(magnitude, vec_splats(static_cast<unsigned short int>(0x7f80)));
-  const Packet8us signed_one = vec_or(vec_and(a.m_val, vec_splats(static_cast<unsigned short int>(0x8000))),
-                                      vec_splats(static_cast<unsigned short int>(0x3f80)));
-  const Packet8us value = vec_andc(signed_one, reinterpret_cast<Packet8us>(is_zero));
-  return Packet8bf(vec_sel(value, a.m_val, is_nan));
+  const Packet8us keep =
+      vec_or(reinterpret_cast<Packet8us>(vec_cmpgt(magnitude, vec_splats(static_cast<unsigned short int>(0x7f80)))),
+             vec_splats(static_cast<unsigned short int>(0x8000)));
+  const Packet8us value = vec_sel(vec_splats(static_cast<unsigned short int>(0x3f80)), a.m_val, keep);
+  return Packet8bf(vec_andc(value, reinterpret_cast<Packet8us>(is_zero)));
 }
 
 template <>
