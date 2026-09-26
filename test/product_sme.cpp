@@ -308,12 +308,18 @@ static void test_small_k_and_single_panel_rhs() {
 // the caller's flags as they were.
 template <typename Scalar, typename Product>
 static void verify_fp_flags_kept(Product product) {
+#if defined(EIGEN_HAS_OPENMP) || defined(EIGEN_GEMM_THREADPOOL)
+  // A threaded build's parallelize_gemm sizes the thread count in floating point, which can raise FE_INEXACT.
+  const int checked = FE_ALL_EXCEPT & ~FE_INEXACT;
+#else
+  const int checked = FE_ALL_EXCEPT;
+#endif
   std::feclearexcept(FE_ALL_EXCEPT);
   product();
-  VERIFY_IS_EQUAL(std::fetestexcept(FE_ALL_EXCEPT), 0);
-  std::feraiseexcept(FE_INEXACT);
+  VERIFY_IS_EQUAL(std::fetestexcept(checked), 0);
+  std::feraiseexcept(FE_INVALID);
   product();
-  VERIFY_IS_EQUAL(std::fetestexcept(FE_ALL_EXCEPT), FE_INEXACT);
+  VERIFY_IS_EQUAL(std::fetestexcept(checked), FE_INVALID);
   std::feclearexcept(FE_ALL_EXCEPT);
 }
 
