@@ -378,9 +378,11 @@ void complex_pow_test() {
       }
     }
   }
-  // A zero base gives +0 + 0i for n >= 2 and +inf + 0i for n < 0, whatever the signs of its zeros, where std::pow
-  // leaves the result to the implementation; infinite and NaN bases give what std::pow gives. Both in a packet, in
-  // the scalar tail, and next to ordinary bases in the same packet.
+  // Zero and infinite bases are the points 0 and infinity of the extended plane, any value with an infinite
+  // component being the infinity +inf + 0i of std::proj: a zero base gives +0 + 0i for n > 1 and +inf + 0i for n < 0,
+  // an infinite base the reverse, whatever the signs of their zeros; a NaN component without an infinite one gives
+  // NaN + NaN i. std::pow leaves all of these to the implementation. In a packet, in the scalar tail, and next to
+  // ordinary bases in the same packet, for integer and floating exponents; n = 1 returns the base.
   {
     Real inf = std::numeric_limits<Real>::infinity();
     Real nan = std::numeric_limits<Real>::quiet_NaN();
@@ -390,23 +392,23 @@ void complex_pow_test() {
       };
       return same_real(numext::real(a), numext::real(b)) && same_real(numext::imag(a), numext::imag(b));
     };
+    std::vector<Complex> zeros = {Complex(0, 0), Complex(-Real(0), 0), Complex(0, -Real(0)),
+                                  Complex(-Real(0), -Real(0))};
+    std::vector<Complex> infinities = {Complex(inf, 0),   Complex(-inf, 2),   Complex(0, inf),   Complex(-2, -inf),
+                                       Complex(inf, inf), Complex(-inf, inf), Complex(inf, nan), Complex(nan, -inf)};
+    std::vector<Complex> nans = {Complex(nan, 1), Complex(1, nan), Complex(nan, 0), Complex(nan, nan)};
     for (int n : {2, 3, 4, 5, -1, -2, -3, -4}) {
-      Complex zero_power = n > 0 ? Complex(0, 0) : Complex(inf, 0);
-      for (const Complex& base :
-           {Complex(0, 0), Complex(-Real(0), 0), Complex(0, -Real(0)), Complex(-Real(0), -Real(0))}) {
-        ArrayX<Complex> z = ArrayX<Complex>::Constant(size, base);
-        for (Index k = 1; k < size; k += 2) z(k) = Complex(Real(0.75), Real(-1.25));
-        ArrayX<Complex> y = z.pow(n), y_real = z.pow(Real(n)), ordinary = ArrayX<Complex>::Constant(1, z(1)).pow(n);
-        for (Index k = 0; k < size; k += 2) VERIFY(same(y(k), zero_power) && same(y_real(k), zero_power));
-        for (Index k = 1; k < size; k += 2) VERIFY(same(y(k), ordinary(0)));
-      }
-      for (const Complex& base :
-           {Complex(inf, 0), Complex(-inf, 2), Complex(0, inf), Complex(inf, inf), Complex(inf, nan), Complex(nan, inf),
-            Complex(nan, 1), Complex(1, nan), Complex(nan, nan)}) {
-        ArrayX<Complex> z = ArrayX<Complex>::Constant(size, base);
-        ArrayX<Complex> y = z.pow(n), y_real = z.pow(Real(n));
-        Complex expected = std::pow(base, n), expected_real = std::pow(base, Real(n));
-        for (Index k = 0; k < size; ++k) VERIFY(same(y(k), expected) && same(y_real(k), expected_real));
+      for (int kind = 0; kind < 3; ++kind) {
+        const std::vector<Complex>& bases = kind == 0 ? zeros : kind == 1 ? infinities : nans;
+        Complex expected = kind == 2 ? Complex(nan, nan) : (kind == 0) == (n > 0) ? Complex(0, 0) : Complex(inf, 0);
+        for (const Complex& base : bases) {
+          ArrayX<Complex> z = ArrayX<Complex>::Constant(size, base);
+          for (Index k = 1; k < size; k += 2) z(k) = Complex(Real(0.75), Real(-1.25));
+          ArrayX<Complex> y = z.pow(n), y_real = z.pow(Real(n)), ordinary = ArrayX<Complex>::Constant(1, z(1)).pow(n);
+          for (Index k = 0; k < size; k += 2) VERIFY(same(y(k), expected) && same(y_real(k), expected));
+          for (Index k = 1; k < size; k += 2) VERIFY(same(y(k), ordinary(0)));
+          VERIFY(same(ArrayX<Complex>::Constant(1, base).pow(1)(0), base));
+        }
       }
     }
   }

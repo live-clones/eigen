@@ -722,33 +722,20 @@ struct repeated_squaring_ops {
   // With a scaled |base| in [1/4, 4) a step at most cubes the magnitude bound, so four steps keep it within 2^(+-62)
   // and the residuals, u times smaller, normal.
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE int renormalization_steps(const Scalar&) { return 4; }
-  // A NaN result here comes from a NaN base and needs no recomputation.
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool any_nan(const Packet&) { return false; }
-  template <typename ScalarExponent>
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet nan_lanes(const Packet&, const Packet& r, const ScalarExponent&) {
-    return r;
-  }
-  // Zero bases are resolved by the special value in result().
-  struct ZeroBases {
+  // Zero, infinite and NaN bases are resolved by the special value in result().
+  struct SpecialBases {
     static constexpr bool any = false;
   };
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE ZeroBases zero_bases(const Packet&, bool) { return ZeroBases(); }
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet without_zero_bases(const Packet& x, const ZeroBases&) {
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE SpecialBases special_bases(const Packet&, bool) {
+    return SpecialBases();
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet without_special_bases(const Packet& x, const SpecialBases&) {
     return x;
   }
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet with_zero_bases(const Packet& r, const ZeroBases&, bool) {
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet with_special_bases(const Packet& r, const SpecialBases&, bool) {
     return r;
   }
 };
-
-// pow(x, exponent) as the standard library computes it, for a result r that is NaN: an infinite or NaN base.
-template <typename Scalar, typename ScalarExponent>
-EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar std_pow_if_nan(const Scalar& x, const Scalar& r,
-                                                            const ScalarExponent& exponent) {
-  if (!(numext::isnan)(numext::real(r)) && !(numext::isnan)(numext::imag(r))) return r;
-  EIGEN_USING_STD(pow);
-  return static_cast<Scalar>(pow(x, exponent));
-}
 
 // The real and imaginary parts of a complex value or packet as two values of a real representation R, on which
 // the complex algorithm below runs component-wise. For a complex packet R is its interleaved real view with both
@@ -784,27 +771,20 @@ struct complex_components {
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE R exceeds(const Packet& z, const R& bound) {
     return pcmp_lt_or_nan(bound, pabs(z.v));
   }
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool any_nan(const Packet& z) { return predux_any(pisnan(z).v); }
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool any_zero(const Packet& z) {
     return predux_any(pcmp_eq(z.v, pzero(z.v)));
   }
-  // Both components zero, in both lanes of each pair.
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE R zero_base_mask(const Packet& z) {
-    R zero = pcmp_eq(z.v, pzero(z.v));
-    return pand(zero, flip(zero));
+  // In both lanes of each pair: both components zero; a component infinite; a component NaN and none infinite.
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void special_masks(const Packet& z, R& zero, R& inf, R& nan) {
+    R zero_lane = pcmp_eq(z.v, pzero(z.v));
+    R inf_lane = pcmp_eq(pabs(z.v), pset1<R>(NumTraits<RealScalar>::infinity()));
+    R nan_lane = pisnan(z.v);
+    zero = pand(zero_lane, flip(zero_lane));
+    inf = por(inf_lane, flip(inf_lane));
+    nan = pandnot(por(nan_lane, flip(nan_lane)), inf);
   }
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet replace(const R& mask, const Scalar& value, const Packet& z) {
     return Packet(pselect(mask, pset1<Packet>(value).v, z.v));
-  }
-  template <typename ScalarExponent>
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet nan_lanes(const Packet& x, const Packet& r,
-                                                                const ScalarExponent& exponent) {
-    constexpr int kSize = unpacket_traits<Packet>::size;
-    Scalar xs[kSize], rs[kSize];
-    pstoreu(xs, x);
-    pstoreu(rs, r);
-    for (int i = 0; i < kSize; ++i) rs[i] = std_pow_if_nan(xs[i], rs[i], exponent);
-    return ploadu<Packet>(rs);
   }
 };
 
@@ -826,31 +806,29 @@ struct complex_components<Scalar, true> {
     return por(pcmp_lt_or_nan(bound, numext::abs(numext::real(z))),
                pcmp_lt_or_nan(bound, numext::abs(numext::imag(z))));
   }
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool any_nan(const Scalar& z) {
-    return (numext::isnan)(numext::real(z)) || (numext::isnan)(numext::imag(z));
-  }
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool any_zero(const Scalar& z) {
     return numext::real(z) == R(0) || numext::imag(z) == R(0);
   }
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE R zero_base_mask(const Scalar& z) {
-    return numext::real(z) == R(0) && numext::imag(z) == R(0) ? R(1) : R(0);
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void special_masks(const Scalar& z, R& zero, R& inf, R& nan) {
+    R re = numext::real(z), im = numext::imag(z);
+    bool is_inf = (numext::isinf)(re) || (numext::isinf)(im);
+    zero = re == R(0) && im == R(0) ? R(1) : R(0);
+    inf = is_inf ? R(1) : R(0);
+    nan = !is_inf && ((numext::isnan)(re) || (numext::isnan)(im)) ? R(1) : R(0);
   }
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar replace(const R& mask, const Scalar& value, const Scalar& z) {
     return mask != R(0) ? value : z;
-  }
-  template <typename ScalarExponent>
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar nan_lanes(const Scalar& x, const Scalar& r,
-                                                                const ScalarExponent& exponent) {
-    return std_pow_if_nan(x, r, exponent);
   }
 };
 
 // Complex bases keep the real and imaginary parts as separate double words sharing one exponent, scaled by the
 // larger component: z^2 = (a^2 - b^2) + 2ab i is three products and a product (a + bi)(c + di) four. Either
-// component may legitimately be zero. A zero base gives +0 + 0i for n > 0 and +inf + 0i for n < 0, the complex
-// infinity of std::proj: std::pow leaves the signs of these zeros and the other component of the infinity to the
-// implementation (libstdc++ gives inf + nan i for 1/0). Infinite and NaN bases make the double-word result NaN and
-// are taken from the standard library's pow, lane by lane.
+// component may legitimately be zero. Zero and infinite bases are the two points 0 and infinity of the extended
+// complex plane, as std::proj sees it: every value with an infinite component, a NaN one included, is the same
+// infinity, +inf + 0i. So a zero base gives +0 + 0i for n > 0 and +inf + 0i for n < 0, an infinite base the reverse,
+// whatever the signs of their zeros; a base with a NaN component and no infinite one gives NaN + NaN i. std::pow
+// leaves all of these to the implementation, and libstdc++'s follow its evaluation order: 1/0 = inf + nan i,
+// (-inf + 2i)^3 = nan + inf i.
 template <typename Packet>
 struct repeated_squaring_ops<Packet, true> {
   using Scalar = typename unpacket_traits<Packet>::type;
@@ -1034,34 +1012,42 @@ struct repeated_squaring_ops<Packet, true> {
     if (b.any_zero) zero_component_signs(x, b.negative, odd, re, im);
     return Components::join(re, im);
   }
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool any_nan(const Packet& r) { return Components::any_nan(r); }
-  template <typename ScalarExponent>
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet nan_lanes(const Packet& x, const Packet& r,
-                                                                const ScalarExponent& exponent) {
-    return Components::nan_lanes(x, r, exponent);
-  }
-  // Zero bases are replaced by 1 + i before the loop, so that they neither force the scaled loop on their packet nor
-  // come back NaN, and their result is set at the end. 1 + i has no zero component, which would take the packet
-  // through zero_component_signs.
-  // Only whether there are any is carried through the loop; the mask is recomputed from the base.
-  struct ZeroBases {
+  // Zero, infinite and NaN bases are replaced by 1 + i before the loop, so that they neither force the scaled loop on
+  // their packet nor come back NaN, and their results are set at the end (see the comment above the struct). 1 + i
+  // has no zero component, which would take the packet through zero_component_signs. Every one of them fails
+  // in_range, so only a packet bound for the scaled loop is checked, and only whether there are any is carried through
+  // the loop.
+  struct SpecialBases {
     Packet x;
     bool any;
   };
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE ZeroBases zero_bases(const Packet& x, bool scaled) {
-    ZeroBases z;
-    z.x = x;
-    z.any = scaled && Components::any_zero(x) && predux_any(Components::zero_base_mask(x));
-    return z;
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE SpecialBases special_bases(const Packet& x, bool scaled) {
+    SpecialBases special;
+    special.x = x;
+    special.any = false;
+    if (scaled) {
+      R zero, inf, nan;
+      Components::special_masks(x, zero, inf, nan);
+      special.any = predux_any(por(por(zero, inf), nan));
+    }
+    return special;
   }
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet without_zero_bases(const Packet& x, const ZeroBases& z) {
-    return z.any ? Components::replace(Components::zero_base_mask(x), Scalar(1, 1), x) : x;
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet without_special_bases(const Packet& x,
+                                                                            const SpecialBases& special) {
+    if (!special.any) return x;
+    R zero, inf, nan;
+    Components::special_masks(x, zero, inf, nan);
+    return Components::replace(por(por(zero, inf), nan), Scalar(1, 1), x);
   }
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet with_zero_bases(const Packet& r, const ZeroBases& z,
-                                                                      bool negative) {
-    if (!z.any) return r;
-    return Components::replace(Components::zero_base_mask(z.x),
-                               negative ? Scalar(NumTraits<Real>::infinity(), Real(0)) : Scalar(0), r);
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet with_special_bases(const Packet& r, const SpecialBases& special,
+                                                                         bool negative) {
+    if (!special.any) return r;
+    R zero, inf, nan;
+    Components::special_masks(special.x, zero, inf, nan);
+    Real real_inf = NumTraits<Real>::infinity(), real_nan = NumTraits<Real>::quiet_NaN();
+    Packet out = Components::replace(negative ? zero : inf, Scalar(real_inf, Real(0)), r);
+    out = Components::replace(negative ? inf : zero, Scalar(0), out);
+    return Components::replace(nan, Scalar(real_nan, real_nan), out);
   }
   // A base with one component s = +-0 is the limit of L (1 + i t), with t = s/L for a real L and -s/b for L = bi,
   // so z^n = L^n (1 + i n t): the zero component of the power has the sign of i n t L^n, which the double-word sums
@@ -1147,12 +1133,12 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet int_pow_double_word(const Packet& x
   typename Ops::Bound bound =
       pset1frombits<typename Ops::Bound>(RealBits(kBiasBits + RealBits(b < 0 ? 0 : b)) << kMantissaBits);
   bool scaled = b < 0 || !Ops::in_range(x, bound);
-  // A zero base is never in range, so only a packet bound for the scaled loop can hold one.
-  typename Ops::ZeroBases zeros = Ops::zero_bases(x, scaled);
-  Packet x_nonzero = Ops::without_zero_bases(x, zeros);
-  if (zeros.any) scaled = b < 0 || !Ops::in_range(x_nonzero, bound);
+  // Zero, infinite and NaN bases are never in range, so only a packet bound for the scaled loop can hold one.
+  typename Ops::SpecialBases special = Ops::special_bases(x, scaled);
+  Packet x_regular = Ops::without_special_bases(x, special);
+  if (special.any) scaled = b < 0 || !Ops::in_range(x_regular, bound);
 
-  typename Ops::State base = Ops::base(x_nonzero, negative, scaled, m);
+  typename Ops::State base = Ops::base(x_regular, negative, scaled, m);
   typename Ops::State y = base;
   int renormalization_steps = Ops::renormalization_steps(Real(m));
   int steps_since_renormalization = 0;
@@ -1164,8 +1150,7 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet int_pow_double_word(const Packet& x
       steps_since_renormalization = 0;
     }
   }
-  Packet r = Ops::with_zero_bases(Ops::result(x_nonzero, y, base, odd, scaled), zeros, negative);
-  return scaled && Ops::any_nan(r) ? Ops::nan_lanes(x, r, exponent) : r;
+  return Ops::with_special_bases(Ops::result(x_regular, y, base, odd, scaled), special, negative);
 }
 
 template <typename Packet, typename ScalarExponent>
