@@ -4857,6 +4857,7 @@ EIGEN_STRONG_INLINE Packet4bf pisnan<Packet4bf>(const Packet4bf& a) {
   return vcgt_u16(vand_u16(a, vdup_n_u16(kAbsMask)), vdup_n_u16(kInf));
 }
 
+// Compare encoded lanes: widening bf16 subnormals to float loses them under DAZ/FZ.
 template <>
 EIGEN_STRONG_INLINE Packet4bf psign<Packet4bf>(const Packet4bf& a) {
   const uint16x4_t magnitude = vand_u16(a, vdup_n_u16(0x7fff));

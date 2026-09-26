@@ -2782,6 +2782,7 @@ EIGEN_STRONG_INLINE Packet16bf pisnan<Packet16bf>(const Packet16bf& a) {
   return _mm256_cmpgt_epi16(_mm256_and_si256(a, _mm256_set1_epi16(kAbsMask)), _mm256_set1_epi16(kInf));
 }
 
+// Compare encoded lanes: widening bf16 subnormals to float loses them under DAZ/FZ.
 template <>
 EIGEN_STRONG_INLINE Packet16bf psign<Packet16bf>(const Packet16bf& a) {
   const __m256i magnitude = _mm256_and_si256(a, _mm256_set1_epi16(0x7fff));

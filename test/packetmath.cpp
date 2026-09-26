@@ -2264,6 +2264,17 @@ void packetmath_bfloat16_sign_bits() {
     }
   }
 }
+
+void packetmath_bfloat16_sign_bits_flushed() {
+  ScopedFlushToZero flush_to_zero;
+  if (!flush_to_zero.isSupported()) return;
+#if EIGEN_ARCH_i386_OR_x86_64 && defined(_MM_SET_DENORMALS_ZERO_MODE)
+  // FTZ flushes results; DAZ makes float comparisons read subnormal inputs as zero.
+  _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
+#endif
+  VERIFY(ScopedFlushToZero::hardwareFlushesSubnormalInputs());
+  packetmath_bfloat16_sign_bits();
+}
 #endif
 
 namespace Eigen {
@@ -2337,15 +2348,7 @@ EIGEN_DECLARE_TEST(packetmath) {
 #if defined(EIGEN_VECTORIZE_AVX) || defined(EIGEN_VECTORIZE_AVX512) || defined(EIGEN_VECTORIZE_NEON) || \
     defined(EIGEN_VECTORIZE_ALTIVEC)
   CALL_SUBTEST_15(packetmath_bfloat16_sign_bits());
-  CALL_SUBTEST_15({
-    ScopedFlushToZero flush_to_zero;
-    if (flush_to_zero.isSupported()) {
-#if EIGEN_TEST_HAS_X86_FTZ && defined(_MM_SET_DENORMALS_ZERO_MODE)
-      _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
-#endif
-      packetmath_bfloat16_sign_bits();
-    }
-  });
+  CALL_SUBTEST_15(packetmath_bfloat16_sign_bits_flushed());
 #endif
 
 #if defined(EIGEN_VECTORIZE_RVV10)
