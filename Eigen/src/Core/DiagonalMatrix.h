@@ -44,6 +44,8 @@ class DiagonalBase : public EigenBase<Derived> {
     ColsAtCompileTime = DiagonalVectorType::SizeAtCompileTime,
     MaxRowsAtCompileTime = DiagonalVectorType::MaxSizeAtCompileTime,
     MaxColsAtCompileTime = DiagonalVectorType::MaxSizeAtCompileTime,
+    SizeAtCompileTime = internal::size_at_compile_time(RowsAtCompileTime, ColsAtCompileTime),
+    MaxSizeAtCompileTime = internal::size_at_compile_time(MaxRowsAtCompileTime, MaxColsAtCompileTime),
     IsVectorAtCompileTime = 0,
     Flags = NoPreferredStorageOrderBit
   };
@@ -144,6 +146,39 @@ class DiagonalBase : public EigenBase<Derived> {
   EIGEN_DEVICE_FUNC inline const DiagonalDifferenceReturnType<OtherDerived> operator-(
       const DiagonalBase<OtherDerived>& other) const {
     return (diagonal() - other.diagonal()).asDiagonal();
+  }
+
+  // Sums with a dense matrix are lazy: the diagonal is read through its index-based evaluator and no dense
+  // copy of it is formed, so `A + D` composes with the enclosing expression like `A + B` does.
+
+  /** \returns the lazy sum of the dense matrix \a lhs and the diagonal matrix \a rhs */
+  template <typename OtherDerived>
+  EIGEN_DEVICE_FUNC friend const EIGEN_CWISE_BINARY_RETURN_TYPE(OtherDerived, Derived, internal::scalar_sum_op)
+  operator+(const MatrixBase<OtherDerived>& lhs, const DiagonalBase & rhs) {
+    return EIGEN_CWISE_BINARY_RETURN_TYPE(OtherDerived, Derived, internal::scalar_sum_op)(lhs.derived(), rhs.derived());
+  }
+
+  /** \returns the lazy sum of the diagonal matrix \a lhs and the dense matrix \a rhs */
+  template <typename OtherDerived>
+  EIGEN_DEVICE_FUNC friend const EIGEN_CWISE_BINARY_RETURN_TYPE(Derived, OtherDerived, internal::scalar_sum_op)
+  operator+(const DiagonalBase & lhs, const MatrixBase<OtherDerived>& rhs) {
+    return EIGEN_CWISE_BINARY_RETURN_TYPE(Derived, OtherDerived, internal::scalar_sum_op)(lhs.derived(), rhs.derived());
+  }
+
+  /** \returns the lazy difference of the dense matrix \a lhs and the diagonal matrix \a rhs */
+  template <typename OtherDerived>
+  EIGEN_DEVICE_FUNC friend const EIGEN_CWISE_BINARY_RETURN_TYPE(OtherDerived, Derived, internal::scalar_difference_op)
+  operator-(const MatrixBase<OtherDerived>& lhs, const DiagonalBase & rhs) {
+    return EIGEN_CWISE_BINARY_RETURN_TYPE(OtherDerived, Derived, internal::scalar_difference_op)(lhs.derived(),
+                                                                                                 rhs.derived());
+  }
+
+  /** \returns the lazy difference of the diagonal matrix \a lhs and the dense matrix \a rhs */
+  template <typename OtherDerived>
+  EIGEN_DEVICE_FUNC friend const EIGEN_CWISE_BINARY_RETURN_TYPE(Derived, OtherDerived, internal::scalar_difference_op)
+  operator-(const DiagonalBase & lhs, const MatrixBase<OtherDerived>& rhs) {
+    return EIGEN_CWISE_BINARY_RETURN_TYPE(Derived, OtherDerived, internal::scalar_difference_op)(lhs.derived(),
+                                                                                                 rhs.derived());
   }
 };
 
@@ -449,6 +484,52 @@ struct storage_kind_to_shape<DiagonalShape> {
   using Shape = DiagonalShape;
 };
 
+/** \internal
+ * Index-based evaluator of a diagonal matrix, for coefficient-wise expressions that mix it with a dense
+ * operand. Off-diagonal coefficients are synthesized, so there is no linear, packet or direct access.
+ * Products with a diagonal matrix have dedicated evaluators and do not use this one.
+ */
+template <typename XprType>
+struct diagonal_matrix_evaluator : evaluator_base<XprType> {
+  using DiagonalVectorType = typename XprType::DiagonalVectorType;
+  using Scalar = typename XprType::Scalar;
+  using CoeffReturnType = Scalar;
+
+  static constexpr int CoeffReadCost =
+      int(evaluator<DiagonalVectorType>::CoeffReadCost) + int(NumTraits<Scalar>::AddCost);
+  static constexpr unsigned int Flags = 0;
+  static constexpr int Alignment = 0;
+
+  EIGEN_DEVICE_FUNC explicit diagonal_matrix_evaluator(const XprType& xpr) : m_diagonal(xpr.diagonal()) {
+    EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost);
+  }
+
+  EIGEN_DEVICE_FUNC Scalar coeff(Index row, Index col) const { return row == col ? m_diagonal.coeff(row) : Scalar(0); }
+
+  // Linear access is requested only for vector-shaped operands (inner products), i.e. a 1x1 diagonal.
+  EIGEN_DEVICE_FUNC Scalar coeff(Index index) const {
+    eigen_assert(index == 0);
+    return m_diagonal.coeff(index);
+  }
+
+ protected:
+  evaluator<DiagonalVectorType> m_diagonal;
+};
+
+template <typename Scalar_, int SizeAtCompileTime, int MaxSizeAtCompileTime>
+struct evaluator<DiagonalMatrix<Scalar_, SizeAtCompileTime, MaxSizeAtCompileTime>>
+    : diagonal_matrix_evaluator<DiagonalMatrix<Scalar_, SizeAtCompileTime, MaxSizeAtCompileTime>> {
+  using XprType = DiagonalMatrix<Scalar_, SizeAtCompileTime, MaxSizeAtCompileTime>;
+  EIGEN_DEVICE_FUNC explicit evaluator(const XprType& xpr) : diagonal_matrix_evaluator<XprType>(xpr) {}
+};
+
+template <typename DiagonalVectorType_>
+struct evaluator<DiagonalWrapper<DiagonalVectorType_>>
+    : diagonal_matrix_evaluator<DiagonalWrapper<DiagonalVectorType_>> {
+  using XprType = DiagonalWrapper<DiagonalVectorType_>;
+  EIGEN_DEVICE_FUNC explicit evaluator(const XprType& xpr) : diagonal_matrix_evaluator<XprType>(xpr) {}
+};
+
 struct Diagonal2Dense {};
 
 template <>
@@ -480,6 +561,109 @@ struct Assignment<DstXprType, SrcXprType, Functor, Diagonal2Dense> {
       DstXprType& dst, const SrcXprType& src,
       const internal::sub_assign_op<typename DstXprType::Scalar, typename SrcXprType::Scalar>& /*func*/) {
     dst.diagonal() -= src.diagonal();
+  }
+};
+
+/***************************************************************************
+ * Dense ?= dense +/- structured operand, in either order: the lazy CwiseBinaryOp keeps its type, but a direct
+ * assignment first assigns the dense operand with its own (vectorized) kernel and then applies the structured
+ * term along its nonzeros, instead of evaluating the sum coefficient by coefficient without packets.
+ ***************************************************************************/
+
+// The three functors such an assignment can carry, and the sign with which they add the source.
+template <typename Functor>
+struct additive_assign_sign : std::integral_constant<int, 0> {};
+template <typename Scalar>
+struct additive_assign_sign<assign_op<Scalar, Scalar>> : std::integral_constant<int, 1> {};
+template <typename Scalar>
+struct additive_assign_sign<add_assign_op<Scalar, Scalar>> : std::integral_constant<int, 1> {};
+template <typename Scalar>
+struct additive_assign_sign<sub_assign_op<Scalar, Scalar>> : std::integral_constant<int, -1> {};
+
+template <typename T>
+struct is_dense_shape : std::is_same<typename evaluator_traits<T>::Shape, DenseShape> {};
+template <typename T>
+struct is_diagonal_shape : std::is_same<typename evaluator_traits<T>::Shape, DiagonalShape> {};
+template <typename T>
+struct is_default_product : std::false_type {};
+template <typename Lhs, typename Rhs>
+struct is_default_product<Product<Lhs, Rhs, DefaultProduct>> : std::true_type {};
+// Specialized in PermutationMatrix.h: a permutation's dense expression counts as the structured operand of a sum
+// with a diagonal matrix, not as its dense one.
+template <typename T>
+struct is_permutation_dense_xpr : std::false_type {};
+
+// Mixed scalar types and functors other than =, += and -= stay on the generic coefficient-wise path.
+template <typename Dst, typename DenseXpr, typename DiagonalXpr, typename Functor>
+struct dense_diagonal_sum_fast_path
+    : bool_constant<is_dense_shape<DenseXpr>::value && !is_permutation_dense_xpr<DenseXpr>::value &&
+                    is_diagonal_shape<DiagonalXpr>::value && additive_assign_sign<Functor>::value != 0 &&
+                    std::is_same<typename Dst::Scalar, typename DenseXpr::Scalar>::value &&
+                    std::is_same<typename DenseXpr::Scalar, typename DiagonalXpr::Scalar>::value> {};
+
+// dst ?= (NegateDense ? -dense : dense), then dst.diagonal() +/-= diagonal. call_assignment keeps the aliasing
+// protection a product operand needs.
+template <bool NegateDense, bool SubtractDiagonal>
+struct dense_diagonal_sum_assignment {
+  template <typename Dst, typename DenseXpr, typename DiagonalXpr, typename Functor>
+  static void run(Dst& dst, const DenseXpr& dense, const DiagonalXpr& diagonal, const Functor& func) {
+    EIGEN_IF_CONSTEXPR (NegateDense) {
+      call_assignment(dst, -dense, func);
+    } else {
+      call_assignment(dst, dense, func);
+    }
+    EIGEN_IF_CONSTEXPR ((additive_assign_sign<Functor>::value > 0) != SubtractDiagonal) {
+      dst.diagonal() += diagonal.diagonal();
+    } else {
+      dst.diagonal() -= diagonal.diagonal();
+    }
+  }
+};
+
+template <typename DstXprType, typename Lhs, typename Rhs, typename Functor>
+struct Assignment<
+    DstXprType, CwiseBinaryOp<scalar_sum_op<typename Lhs::Scalar, typename Rhs::Scalar>, const Lhs, const Rhs>, Functor,
+    Dense2Dense, std::enable_if_t<dense_diagonal_sum_fast_path<DstXprType, Lhs, Rhs, Functor>::value>> {
+  using SrcXprType = CwiseBinaryOp<scalar_sum_op<typename Lhs::Scalar, typename Rhs::Scalar>, const Lhs, const Rhs>;
+  static void run(DstXprType& dst, const SrcXprType& src, const Functor& func) {
+    dense_diagonal_sum_assignment<false, false>::run(dst, src.lhs(), src.rhs(), func);
+  }
+};
+
+// A dense product on the right is left to the "xpr + product" rule above.
+template <typename DstXprType, typename Lhs, typename Rhs, typename Functor>
+struct Assignment<DstXprType,
+                  CwiseBinaryOp<scalar_sum_op<typename Lhs::Scalar, typename Rhs::Scalar>, const Lhs, const Rhs>,
+                  Functor, Dense2Dense,
+                  std::enable_if_t<dense_diagonal_sum_fast_path<DstXprType, Rhs, Lhs, Functor>::value &&
+                                   !is_default_product<Rhs>::value>> {
+  using SrcXprType = CwiseBinaryOp<scalar_sum_op<typename Lhs::Scalar, typename Rhs::Scalar>, const Lhs, const Rhs>;
+  static void run(DstXprType& dst, const SrcXprType& src, const Functor& func) {
+    dense_diagonal_sum_assignment<false, false>::run(dst, src.rhs(), src.lhs(), func);
+  }
+};
+
+template <typename DstXprType, typename Lhs, typename Rhs, typename Functor>
+struct Assignment<
+    DstXprType, CwiseBinaryOp<scalar_difference_op<typename Lhs::Scalar, typename Rhs::Scalar>, const Lhs, const Rhs>,
+    Functor, Dense2Dense, std::enable_if_t<dense_diagonal_sum_fast_path<DstXprType, Lhs, Rhs, Functor>::value>> {
+  using SrcXprType =
+      CwiseBinaryOp<scalar_difference_op<typename Lhs::Scalar, typename Rhs::Scalar>, const Lhs, const Rhs>;
+  static void run(DstXprType& dst, const SrcXprType& src, const Functor& func) {
+    dense_diagonal_sum_assignment<false, true>::run(dst, src.lhs(), src.rhs(), func);
+  }
+};
+
+template <typename DstXprType, typename Lhs, typename Rhs, typename Functor>
+struct Assignment<DstXprType,
+                  CwiseBinaryOp<scalar_difference_op<typename Lhs::Scalar, typename Rhs::Scalar>, const Lhs, const Rhs>,
+                  Functor, Dense2Dense,
+                  std::enable_if_t<dense_diagonal_sum_fast_path<DstXprType, Rhs, Lhs, Functor>::value &&
+                                   !is_default_product<Rhs>::value>> {
+  using SrcXprType =
+      CwiseBinaryOp<scalar_difference_op<typename Lhs::Scalar, typename Rhs::Scalar>, const Lhs, const Rhs>;
+  static void run(DstXprType& dst, const SrcXprType& src, const Functor& func) {
+    dense_diagonal_sum_assignment<true, false>::run(dst, src.rhs(), src.lhs(), func);
   }
 };
 

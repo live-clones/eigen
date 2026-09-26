@@ -253,6 +253,81 @@ void permutation_left_transposition(Index size) {
   }
 }
 
+// Sums with a dense or diagonal matrix are lazy: the permutation is read as a 0/1 matrix of the other
+// operand's scalar type, so no temporary is formed and the results are bit-exact.
+template <typename Scalar, int Size>
+void permutation_dense_sums(Index size) {
+  using PermutationType = PermutationMatrix<Size>;
+  using MatrixType = Matrix<Scalar, Size, Size>;
+  using VectorType = Matrix<Scalar, Size, 1>;
+
+  Matrix<int, Size, 1> indices;
+  randomPermutationVector(indices, size);
+  const PermutationType perm(indices);
+  const MatrixType permDense = perm.toDenseMatrix().template cast<Scalar>();
+  const MatrixType a = MatrixType::Random(size, size);
+  const DiagonalMatrix<Scalar, Size> diag(VectorType::Random(size));
+  const MatrixType diagDense = diag.toDenseMatrix();
+
+  MatrixType result(size, size);
+  VERIFY_EVALUATION_COUNT(result.noalias() = a + perm, 0);
+  VERIFY_IS_EQUAL(result, MatrixType(a + permDense));
+  VERIFY_EVALUATION_COUNT(result.noalias() = perm - a, 0);
+  VERIFY_IS_EQUAL(result, MatrixType(permDense - a));
+  result = perm + a;
+  VERIFY_IS_EQUAL(result, MatrixType(permDense + a));
+  result = a - indices.asPermutation();
+  VERIFY_IS_EQUAL(result, MatrixType(a - permDense));
+  result = diag + perm;
+  VERIFY_IS_EQUAL(result, MatrixType(diagDense + permDense));
+  result = perm - diag;
+  VERIFY_IS_EQUAL(result, MatrixType(permDense - diagDense));
+  result = perm + diag.diagonal().asDiagonal();
+  VERIFY_IS_EQUAL(result, MatrixType(permDense + diagDense));
+  result = diag - Map<PermutationType>(indices.data(), size);
+  VERIFY_IS_EQUAL(result, MatrixType(diagDense - permDense));
+  result = a + perm + diag;
+  VERIFY_IS_EQUAL(result, MatrixType(a + permDense + diagDense));
+  VERIFY_IS_APPROX((a + perm) * a, (a + permDense) * a);
+
+  // Direct assignment assigns the other operand with its own kernel and scatters the ones: compound assignment,
+  // the negated forms, self-assignment, and a product operand on either side.
+  MatrixType expected = a;
+  result = a;
+  result += a + perm;
+  expected += a + permDense;
+  VERIFY_IS_EQUAL(result, expected);
+  result -= perm - diag;
+  expected -= permDense - diagDense;
+  VERIFY_IS_EQUAL(result, expected);
+  result -= a - perm;
+  expected -= a - permDense;
+  VERIFY_IS_EQUAL(result, expected);
+  result = a;
+  result = perm - result;
+  VERIFY_IS_EQUAL(result, MatrixType(permDense - a));
+  VERIFY_IS_APPROX(result = a * a + perm, MatrixType(a * a + permDense));
+  VERIFY_IS_APPROX(result = perm + a * a, MatrixType(permDense + a * a));
+  VERIFY_IS_APPROX(result = perm - a * a, MatrixType(permDense - a * a));
+  VERIFY_IS_APPROX(result = a * a - perm, MatrixType(a * a - permDense));
+
+  // The inverse (transpose) of a permutation sums the same way.
+  const MatrixType permInverseDense = permDense.transpose();
+  VERIFY_EVALUATION_COUNT(result.noalias() = a + perm.inverse(), 0);
+  VERIFY_IS_EQUAL(result, MatrixType(a + permInverseDense));
+  result = perm.transpose() - a;
+  VERIFY_IS_EQUAL(result, MatrixType(permInverseDense - a));
+  result = perm.inverse() + diag;
+  VERIFY_IS_EQUAL(result, MatrixType(permInverseDense + diagDense));
+  result = diag - perm.inverse();
+  VERIFY_IS_EQUAL(result, MatrixType(diagDense - permInverseDense));
+  result = a;
+  result += perm.inverse() + a;
+  VERIFY_IS_EQUAL(result, MatrixType(a + permInverseDense + a));
+  VERIFY_IS_APPROX(result = perm.inverse() - a * a, MatrixType(permInverseDense - a * a));
+  VERIFY_IS_APPROX((a - perm.inverse()) * a, (a - permInverseDense) * a);
+}
+
 void permutation_inverse_product_temporaries() {
   PermutationMatrix<Dynamic> lhs(17), rhs(17), result(17);
   randomPermutationVector(lhs.indices(), lhs.size());
@@ -303,4 +378,13 @@ EIGEN_DECLARE_TEST(permutationmatrices) {
   }
   CALL_SUBTEST_5(bug890<double>());
   CALL_SUBTEST_4(test_aliasing());
+  CALL_SUBTEST_10((permutation_dense_sums<float, 1>(1)));
+  CALL_SUBTEST_10((permutation_dense_sums<double, 3>(3)));
+  CALL_SUBTEST_10((permutation_dense_sums<std::complex<double>, 4>(4)));
+  for (int i = 0; i < g_repeat; i++) {
+    CALL_SUBTEST_10((permutation_dense_sums<float, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_10((permutation_dense_sums<double, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_10(
+        (permutation_dense_sums<std::complex<double>, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+  }
 }
