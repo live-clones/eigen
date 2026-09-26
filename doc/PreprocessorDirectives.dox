@@ -167,8 +167,8 @@ run time. However, these assertions do cost time and can thus be turned off.
  - \b \c EIGEN_SME_SINGLE_PASS_RHS_BUDGET_BYTES - Byte budget for the packed RHS panel in the ARM SME GEMM kernel when
    all rows of the product fit one LHS block, so that each packed panel is read once and should stay in L2 between
    packing and the kernel. The default (4 MB) is empirically tuned for Apple M4 (16 MB L2 per cluster).
- - \b \c EIGEN_ARM64_USE_APPLE_AMX - Enables the Apple AMX GEMM for real \c float and \c double products in NEON builds
-   for Apple arm64 (macOS, iOS, visionOS). AMX is Apple's undocumented matrix coprocessor, so the path is opt-in; it
+ - \b \c EIGEN_ARM64_USE_APPLE_AMX - Enables the Apple AMX GEMM and column-major GEMV for real \c float and \c double
+   products in NEON builds for Apple arm64 (macOS, iOS, visionOS). AMX is Apple's undocumented matrix coprocessor, so the path is opt-in; it
    runs where \c hw.cpufamily names an M2, M3 or M4 family chip and the product is past the crossover with the NEON
    kernel, and the NEON kernel runs everywhere else. An SME build (see above) does not use it. Not defined by default.
  - \b \c EIGEN_APPLE_AMX_MIN_TASK_SIZE - Minimum work per thread, in FP32 multiply-adds (an FP64 one counts four),
@@ -178,6 +178,9 @@ run time. However, these assertions do cost time and can thus be turned off.
    columns) and smallest product (rows times columns times depth times the scalar size) that the Apple AMX GEMM takes;
    smaller products keep the NEON kernel. The defaults (256 and 2^17) are the best shared crossover on Apple M2 and
    M4 Pro for \c float and \c double.
+ - \b \c EIGEN_APPLE_AMX_GEMV_MIN_ROW_BYTES and \b \c EIGEN_APPLE_AMX_GEMV_MIN_BYTES - Smallest column (rows times the
+   scalar size) and smallest matrix (rows times columns times the scalar size) that the Apple AMX GEMV takes; smaller
+   matrix-vector products keep the NEON kernel. The defaults are 384 and 2^15.
 
  - \b \c EIGEN_DONT_ALIGN - Deprecated, it is a synonym for \c EIGEN_MAX_ALIGN_BYTES=0. It disables alignment completely. %Eigen will not try to align its objects and does not expect that any objects passed to it are aligned. This will turn off vectorization if \b \c EIGEN_UNALIGNED_VECTORIZE=1. Not defined by default.
  - \b \c EIGEN_DONT_ALIGN_STATICALLY - Deprecated, it is a synonym for \c EIGEN_MAX_STATIC_ALIGN_BYTES=0. It disables alignment of arrays on the stack. Not defined by default, unless \c EIGEN_DONT_ALIGN is defined.

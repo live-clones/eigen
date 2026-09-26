@@ -154,6 +154,53 @@ void test_threaded() {
   }
 }
 
+// GEMV: rows past the last full Z row, column chunks of the broadcast buffer, strided x, and columns with and
+// without the 128-byte alignment of the four-register loads.
+template <typename Scalar>
+void test_gemv() {
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  const Index shapes[][2] = {{128, 32}, {143, 40}, {256, 1}, {1000, 7}, {1031, 300}, {2053, 257}, {4096, 520}};
+  for (const auto& s : shapes) {
+    const Mat a = Mat::Random(s[0], s[1]);
+    const Vec x = Vec::Random(s[1]);
+    Vec y = Vec::Random(s[0]);
+    Vec ref = y + Scalar(-1.5) * a.lazyProduct(x);
+    y.noalias() += Scalar(-1.5) * a * x;
+    VERIFY_IS_APPROX(y, ref);
+    // x strided: a row of a column-major matrix.
+    const Mat xs = Mat::Random(3, s[1]);
+    ref = y + a.lazyProduct(xs.row(1).transpose());
+    y.noalias() += a * xs.row(1).transpose();
+    VERIFY_IS_APPROX(y, ref);
+    // A block whose columns start one element past the matrix's.
+    const Mat big = Mat::Random(s[0] + 3, s[1]);
+    ref = y + big.block(1, 0, s[0], s[1]).lazyProduct(x);
+    y.noalias() += big.block(1, 0, s[0], s[1]) * x;
+    VERIFY_IS_APPROX(y, ref);
+  }
+  // Columns on 128-byte boundaries, so that the kernel takes its four-register loads.
+  const Index rows = 1024 + 16, cols = 70, ld = 1056;
+  std::vector<Scalar> storage(std::size_t(ld * cols) + 256 / sizeof(Scalar));
+  Scalar* base = storage.data();
+  while (reinterpret_cast<std::uintptr_t>(base) % 128 != 0) ++base;
+  Map<Mat, 0, OuterStride<>> a(base, rows, cols, OuterStride<>(ld));
+  a.setRandom();
+  const Vec x = Vec::Random(cols);
+  Vec y = Vec::Random(rows);
+  const Vec ref = y + Scalar(0.25) * a.lazyProduct(x);
+  y.noalias() += Scalar(0.25) * a * x;
+  VERIFY_IS_APPROX(y, ref);
+#ifdef EIGEN_GEMM_APPLE_AMX
+  if (internal::apple_amx::usable()) {
+    Vec direct = ref - Scalar(0.25) * a.lazyProduct(x);
+    const internal::const_blas_data_mapper<Scalar, Index, RowMajor> x_mapper(x.data(), 1);
+    internal::apple_amx::gemv(rows, cols, a.data(), ld, x_mapper, direct.data(), Scalar(0.25));
+    VERIFY_IS_APPROX(direct, ref);
+  }
+#endif
+}
+
 EIGEN_DECLARE_TEST(product_apple_amx) {
 #ifdef EIGEN_GEMM_APPLE_AMX
   CALL_SUBTEST_1(test_dispatch<float>());
@@ -169,4 +216,6 @@ EIGEN_DECLARE_TEST(product_apple_amx) {
   }
   CALL_SUBTEST_6(test_threaded<float>());
   CALL_SUBTEST_6(test_threaded<double>());
+  CALL_SUBTEST_7(test_gemv<float>());
+  CALL_SUBTEST_7(test_gemv<double>());
 }

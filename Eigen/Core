@@ -423,6 +423,7 @@ using std::size_t;
 #include "src/Core/products/GeneralBlockPanelKernel.h"
 #ifdef EIGEN_GEMM_APPLE_AMX
 #include "src/Core/arch/AppleAMX/GeneralMatrixMatrix.h"
+#include "src/Core/arch/AppleAMX/GeneralMatrixVector.h"
 #endif
 #include "src/Core/DeviceWrapper.h"
 #ifdef EIGEN_GEMM_THREADPOOL
