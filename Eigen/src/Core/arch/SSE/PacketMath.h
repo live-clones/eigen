@@ -1725,9 +1725,9 @@ EIGEN_STRONG_INLINE Packet2d pldexp<Packet2d>(const Packet2d& a, const Packet2d&
   const Packet2d max_exponent = pset1<Packet2d>(2099.0);
   const Packet2d e = pmin(pmax(exponent, pnegate(max_exponent)), max_exponent);
 
-  // e and trunc(e/3) as int32 in the two low lanes.
+  // e and trunc(e*89/256) as int32 in the two low lanes.
   const Packet4i ei = _mm_cvtpd_epi32(e);
-  const Packet4i b = _mm_cvttpd_epi32(pmul(e, pset1<Packet2d>(1.0 / 3.0)));
+  const Packet4i b = _mm_cvttpd_epi32(pmul(e, pset1<Packet2d>(0.34765625)));
 
   // The sequential 3-way split; see pldexp_generic. Interleaving b and e - 2b puts each biased pair in one 64-bit
   // lane, b + bias low: shifting left by 52 drops the high half, and shifting right by 32 first selects it.

@@ -1492,7 +1492,7 @@ EIGEN_STRONG_INLINE Packet8d pldexp<Packet8d>(const Packet8d& a, const Packet8d&
   // 2^b and 2^(e-2b) are built by widening the biased int32 exponent to int64
   // with vpmovsxdq and shifting into the double exponent field with vpsllq.
   const Packet8i bias = pset1<Packet8i>(1023);
-  const Packet8i b = _mm512_cvttpd_epi32(pmul(clamped, pset1<Packet8d>(1.0 / 3.0)));                     // trunc(e/3)
+  const Packet8i b = _mm512_cvttpd_epi32(pmul(clamped, pset1<Packet8d>(0.34765625)));  // trunc(e*89/256)
   const Packet8i b_remainder = psub(e, padd(b, b));                                                      // e - 2b
   const Packet8d c1 = _mm512_castsi512_pd(_mm512_slli_epi64(_mm512_cvtepi32_epi64(padd(b, bias)), 52));  // 2^b
   const Packet8d c2 =

@@ -1909,7 +1909,7 @@ EIGEN_STRONG_INLINE Packet4d pldexp<Packet4d>(const Packet4d& a, const Packet4d&
 
   // The sequential 3-way split; see pldexp_generic.
   const Packet4i bias = pset1<Packet4i>(1023);
-  const Packet4i b = _mm256_cvttpd_epi32(pmul(clamped, pset1<Packet4d>(1.0 / 3.0)));  // trunc(e/3)
+  const Packet4i b = _mm256_cvttpd_epi32(pmul(clamped, pset1<Packet4d>(0.34765625)));  // trunc(e*89/256)
   const Packet4i b_remainder = psub(e, padd(b, b));                                   // e - 2b
   const Packet4d c1 = pldexp_avx_pow2_from_biased(padd(b, bias));                     // 2^b
   const Packet4d c2 = pldexp_avx_pow2_from_biased(padd(b_remainder, bias));           // 2^(e-2b)
