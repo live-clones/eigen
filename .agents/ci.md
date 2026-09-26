@@ -189,11 +189,11 @@ tests, [`scripts/test_check_style.py`](../scripts/test_check_style.py) and
 [`scripts/test_clang_tidy_hook.py`](../scripts/test_clang_tidy_hook.py), run in `checkformat:lint`; run them after
 changing either script.
 
-The whole-tree codespell invocation used by CI can expose pre-existing findings. Do not modify unrelated files merely
-to make a local broad scan clean. `checkformat:lint` runs clang-format, codespell, REUSE, and the Python helper tests
-through [`ci/lint/lint.sh`](../ci/lint/lint.sh). REUSE and the helper tests are blocking; a clang-format or codespell
-failure alone leaves the job a warning, as does anything from `checkformat:clangtidy`, but treat their diagnostics as
-review findings anyway.
+The whole-tree codespell invocation used by CI can expose pre-existing findings. Do not modify unrelated files merely to
+make a local broad scan clean. `checkformat:lint` runs clang-format, codespell, REUSE, and the Python helper tests
+through [`ci/lint/lint.sh`](../ci/lint/lint.sh), with `vermin` checking that the helpers still run on Python 3.12. REUSE
+and the helper tests are blocking; a clang-format or codespell failure alone leaves the job a warning, as does anything
+from `checkformat:clangtidy`, but treat their diagnostics as review findings anyway.
 
 Source files carry the inline SPDX header [`conventions.md`](conventions.md) records; files that cannot need coverage
 in [`REUSE.toml`](../REUSE.toml). To stamp selected new files with the repository helper, pass them explicitly because
