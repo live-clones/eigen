@@ -23,7 +23,6 @@ FROM ubuntu:24.04
 
 # After installing, drop what no job reaches:
 #  - every LLVM tool but clang and clang-tidy, and libclang's C API;
-#  - perl, which git needs only for commands the job does not run;
 #  - GCC's sanitizer runtimes and the static C and C++ libraries: CMake's
 #    checks link dynamically, which needs only libc_nonshared.a and libgcc.a;
 #  - binutils' gold and gprof, the Polly plugin, documentation, CMake's help,
@@ -38,7 +37,6 @@ RUN apt-get update -y \
     && gcc=/usr/lib/gcc/x86_64-linux-gnu/13 && lib=/usr/lib/x86_64-linux-gnu \
     && rm -rf $lib/libclang-18.so* /usr/lib/llvm-18/lib/libclang.so* \
       /usr/lib/llvm-18/lib/LLVMPolly.so \
-      /usr/share/perl /usr/share/perl5 $lib/perl $lib/libperl.so* /usr/bin/perl5.*-* \
       $gcc/*san* $gcc/libstdc++.a $gcc/libstdc++fs.a $gcc/libsupc++.a $lib/lib*san.so* \
       $lib/libc.a $lib/libm.a $lib/libm-*.a $lib/libmvec.a $lib/libcrypt.a \
       $lib/libgprofng.so* /usr/bin/*gold /usr/bin/*gprof* /usr/bin/*-gp-* \
