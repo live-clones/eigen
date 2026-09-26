@@ -53,31 +53,18 @@ FROM alpine:3.24.2
 
 COPY requirements.txt /tmp/
 
-# After populating the venv, drop what no job reaches (~9 MB compressed):
-#  - pip, ensurepip, and the stdlib's GUI, REPL-help, test and build parts;
-#  - git's HTTP transport and libcurl's dependency chain: the runner's helper
-#    image does the clone, and the jobs only read the local repository;
-#  - OpenSSL, and with it the apk binary: hashlib falls back to the builtin
-#    _sha2/_md5.  /lib/apk/db stays so container scanners can list packages;
-#  - the C decimal accelerator (and libstdc++ it alone needs), and sqlite3.
+# After populating the venv, drop pip, ensurepip, and the stdlib's GUI,
+# REPL-help, test and build parts.  Pruning git's HTTP transport, OpenSSL and
+# apk as well saves 5.6 MB compressed, not worth an image nobody can extend or
+# debug with apk.
 RUN apk add --no-cache python3 git \
     && python3 -m venv /opt/lint \
     && /opt/lint/bin/pip install --no-cache-dir -r /tmp/requirements.txt \
     && /opt/lint/bin/pip uninstall -q -y pip \
     && py=$(echo /usr/lib/python3.*) && dyn=$py/lib-dynload \
     && rm -rf $py/ensurepip $py/idlelib $py/tkinter $py/turtledemo $py/turtle.py \
-      $py/pydoc_data $py/test $py/config-3.* $py/__phello__ $py/sqlite3 \
+      $py/pydoc_data $py/test $py/config-3.* $py/__phello__ \
       $dyn/_test*.so $dyn/_ctypes_test*.so $dyn/xxlimited*.so $dyn/_xxtestfuzz*.so \
-      $dyn/_decimal*.so $dyn/_hashlib*.so $dyn/_ssl*.so $dyn/_sqlite3*.so \
-      /usr/libexec/git-core/git-remote-http* /usr/libexec/git-core/git-remote-ftp* \
-      /usr/libexec/git-core/git-http-* /usr/libexec/git-core/git-imap-send \
-      /usr/lib/libcurl.so* /usr/lib/libbrotli*.so* /usr/lib/libnghttp2.so* \
-      /usr/lib/libcares.so* /usr/lib/libidn2.so* /usr/lib/libunistring.so* \
-      /usr/lib/libpsl.so* /usr/lib/libmpdec.so* /usr/lib/libstdc++.so* \
-      /usr/lib/libgcc_s.so* /usr/lib/libsqlite3.so* \
-      /usr/lib/libcrypto.so* /usr/lib/libssl.so* /lib/libcrypto.so* /lib/libssl.so* \
-      /usr/bin/ssl_client /sbin/apk /usr/lib/libapk.so* /lib/libapk.so* \
-      /lib/apk/exec /etc/apk /usr/share/apk /etc/ssl* /usr/share/ca-certificates \
       /tmp/requirements.txt
 
 COPY --from=clang-format /out/ /usr/local/bin/
@@ -89,6 +76,7 @@ ENV PATH=/opt/lint/bin:$PATH
 # in .agents/ci.md run unchanged inside the image.
 RUN ln -s clang-format /usr/local/bin/clang-format-17 \
     && clang-format --version && git --version && codespell --version && reuse --version \
+    && vermin --version && apk --version \
     && python3 -c 'import hashlib, json, subprocess' \
     && for f in /usr/bin/* /usr/libexec/git-core/* /usr/lib/python3.*/lib-dynload/*.so; do \
          if /lib/ld-musl-x86_64.so.1 --list "$f" 2>&1 | grep -q 'Error loading'; then \
