@@ -8,6 +8,11 @@
 #include <limits>
 #include <vector>
 
+// use_double_word<packet_traits<Scalar>::type> names a vector type such as __m512d as a template argument.
+#if EIGEN_GNUC_STRICT_AT_LEAST(6, 0, 0)
+#pragma GCC diagnostic ignored "-Wignored-attributes"
+#endif
+
 // Integer powers of binary32 and binary64 bases, real and complex, are computed by repeated squaring in
 // double-word arithmetic: correctly rounded up to the rare cases where the exact power lies within about
 // 7 * n * u^2 of a rounding boundary. These tests check that bound against independent references, on the
@@ -373,27 +378,52 @@ void complex_pow_test() {
       }
     }
   }
-  // Exceptional values follow the plain complex product; a NaN base gives NaN. Complex division by zero or
-  // infinity is implementation-defined, so negative exponents are only checked for NaN bases.
+  // Zero, infinite and NaN bases give what the standard library's pow gives, in a packet and in the scalar tail
+  // alike. n = 1 returns the base itself.
   {
     Real inf = std::numeric_limits<Real>::infinity();
     Real nan = std::numeric_limits<Real>::quiet_NaN();
-    for (const Complex& base : {Complex(0, 0), Complex(inf, 0), Complex(0, inf), Complex(nan, 1), Complex(1, nan)}) {
-      for (int n : {2, 3, 4}) {
+    auto same = [](const Real& a, const Real& b) {
+      return ((numext::isnan)(a) && (numext::isnan)(b)) || (a == b && std::signbit(a) == std::signbit(b));
+    };
+    for (const Complex& base : {Complex(0, 0), Complex(-Real(0), 0), Complex(0, -Real(0)), Complex(inf, 0),
+                                Complex(-inf, 2), Complex(0, inf), Complex(inf, inf), Complex(inf, nan),
+                                Complex(nan, inf), Complex(nan, 1), Complex(1, nan), Complex(nan, nan)}) {
+      for (int n : {2, 3, 4, 5, -1, -2, -3, -4}) {
         ArrayX<Complex> z = ArrayX<Complex>::Constant(size, base);
-        ArrayX<Complex> y = z.pow(n);
-        Complex plain = base;
-        for (int k = 1; k < n; ++k) plain = internal::pmul(plain, base);
+        ArrayX<Complex> y = z.pow(n), y_real = z.pow(Real(n));
+        Complex expected = std::pow(base, n), expected_real = std::pow(base, Real(n));
         for (Index k = 0; k < size; ++k) {
-          bool both_nan = (numext::isnan)(y(k)) && (numext::isnan)(plain);
-          VERIFY(both_nan || y(k) == plain);
+          VERIFY(same(numext::real(y(k)), numext::real(expected)));
+          VERIFY(same(numext::imag(y(k)), numext::imag(expected)));
+          VERIFY(same(numext::real(y_real(k)), numext::real(expected_real)));
+          VERIFY(same(numext::imag(y_real(k)), numext::imag(expected_real)));
         }
       }
     }
-    for (const Complex& base : {Complex(nan, 1), Complex(1, nan)}) {
-      for (int n : {-1, -2, -3}) {
-        ArrayX<Complex> z = ArrayX<Complex>::Constant(size, base);
-        VERIFY(z.pow(n).isNaN().all());
+  }
+  // A base with one zero component is the limit of a base whose component is tiny and of the same sign, and the
+  // zero component of its power takes the sign of that limit: here of the power of the perturbed base, computed
+  // in double by repeated multiplication, where the tiny component cannot cancel.
+  for (Real a : {Real(2), Real(-2), Real(0.5), Real(-3)}) {
+    for (Real s : {Real(0), -Real(0)}) {
+      for (bool swapped : {false, true}) {
+        for (int n = -12; n <= 12; ++n) {
+          if (n == 0) continue;
+          double tiny = std::copysign(std::ldexp(1.0, -60), double(s));
+          std::complex<double> w = swapped ? std::complex<double>(tiny, a) : std::complex<double>(a, tiny);
+          if (n < 0) w = std::conj(w) / std::norm(w);
+          std::complex<double> reference = w;
+          for (int k = 1; k < numext::abs(n); ++k) reference *= w;
+          bool real_is_zero = std::abs(reference.real()) < std::abs(reference.imag());
+          double zero_sign = real_is_zero ? reference.real() : reference.imag();
+          ArrayX<Complex> z = ArrayX<Complex>::Constant(size, swapped ? Complex(s, a) : Complex(a, s));
+          ArrayX<Complex> y = z.pow(n);
+          for (Index k = 0; k < size; ++k) {
+            Real zero = real_is_zero ? numext::real(y(k)) : numext::imag(y(k));
+            VERIFY(zero == Real(0) && std::signbit(zero) == std::signbit(zero_sign));
+          }
+        }
       }
     }
   }
