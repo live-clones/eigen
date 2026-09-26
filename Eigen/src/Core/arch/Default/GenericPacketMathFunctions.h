@@ -656,13 +656,24 @@ struct psign_impl<Packet, std::enable_if_t<!is_scalar<Packet>::value &&
   static EIGEN_DEVICE_FUNC inline Packet run(const Packet& a) {
     using Scalar = typename unpacket_traits<Packet>::type;
     const Packet cst_one = pset1<Packet>(Scalar(1));
-    const Packet cst_zero = pzero(a);
 
     const Packet abs_a = pabs(a);
     const Packet sign_mask = pandnot(a, abs_a);
-    const Packet nonzero_mask = pcmp_lt(cst_zero, abs_a);
+    const Packet zero_mask = pzero_magnitude(abs_a, packet_has_integer_packet<Packet>());
 
-    return pselect(nonzero_mask, por(sign_mask, cst_one), abs_a);
+    return pselect(pisnan(a), a, pselect(zero_mask, abs_a, por(sign_mask, cst_one)));
+  }
+
+ private:
+  // DAZ/FZ can make a comparison read a subnormal as zero; compare the encoding.
+  static EIGEN_DEVICE_FUNC inline Packet pzero_magnitude(const Packet& abs_a, true_type) {
+    using PacketI = typename unpacket_traits<Packet>::integer_packet;
+    const PacketI bits = preinterpret<PacketI>(abs_a);
+    return preinterpret<Packet>(pcmp_eq(bits, pzero(bits)));
+  }
+
+  static EIGEN_DEVICE_FUNC inline Packet pzero_magnitude(const Packet& abs_a, false_type) {
+    return pcmp_eq(abs_a, pzero(abs_a));
   }
 };
 
