@@ -49,6 +49,12 @@ struct redux_max_size<CwiseBinaryOp<Op, Lhs, Rhs>> {
 template <typename Op, typename Arg>
 struct redux_max_size<CwiseUnaryOp<Op, Arg>> : redux_max_size<remove_all_t<Arg>> {};
 
+template <typename Arg>
+struct redux_max_size<ArrayWrapper<Arg>> : redux_max_size<remove_all_t<Arg>> {};
+
+template <typename Arg>
+struct redux_max_size<MatrixWrapper<Arg>> : redux_max_size<remove_all_t<Arg>> {};
+
 template <typename Op, typename Arg1, typename Arg2, typename Arg3>
 struct redux_max_size<CwiseTernaryOp<Op, Arg1, Arg2, Arg3>> {
   using First = redux_max_size<remove_all_t<Arg1>>;
