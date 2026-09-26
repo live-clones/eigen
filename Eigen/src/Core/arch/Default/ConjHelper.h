@@ -51,7 +51,7 @@ struct conj_if;
 template <>
 struct conj_if<true> {
   template <typename T>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T operator()(const T& x) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr T operator()(const T& x) const {
     return numext::conj(x);
   }
   template <typename T>
@@ -63,7 +63,7 @@ struct conj_if<true> {
 template <>
 struct conj_if<false> {
   template <typename T>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const T& operator()(const T& x) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const T& operator()(const T& x) const {
     return x;
   }
   template <typename T>

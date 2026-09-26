@@ -44,7 +44,7 @@ namespace Eigen {
 #define EIGEN_LAPACKE_SCHUR_REAL(EIGTYPE, LAPACKE_TYPE, LAPACKE_PREFIX, LAPACKE_PREFIX_U, EIGCOLROW, LAPACKE_COLROW) \
   template <>                                                                                                        \
   template <typename InputType>                                                                                      \
-  inline RealSchur<Matrix<EIGTYPE, Dynamic, Dynamic, EIGCOLROW> >&                                                   \
+  constexpr RealSchur<Matrix<EIGTYPE, Dynamic, Dynamic, EIGCOLROW> >&                                                \
   RealSchur<Matrix<EIGTYPE, Dynamic, Dynamic, EIGCOLROW> >::compute(const EigenBase<InputType>& matrix,              \
                                                                     bool computeU) {                                 \
     eigen_assert(matrix.cols() == matrix.rows());                                                                    \

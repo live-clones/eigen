@@ -153,3 +153,9 @@ SPDX-License-Identifier = "BSD-3-Clause"
 path = "debug/msvc/eigen_autoexp_part.dat"
 SPDX-FileCopyrightText = "The Eigen Authors"
 SPDX-License-Identifier = "MPL-2.0"
+
+# gcem
+[[annotations]]
+path = "Eigen/src/gcem/**"
+SPDX-FileCopyrightText = "The gcem Authors"
+SPDX-License-Identifier = "Apache-2.0"

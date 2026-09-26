@@ -45,7 +45,7 @@ namespace Eigen {
                                     LAPACKE_COLROW)                                                                \
   template <>                                                                                                      \
   template <typename InputType>                                                                                    \
-  inline ComplexSchur<Matrix<EIGTYPE, Dynamic, Dynamic, EIGCOLROW> >&                                              \
+  constexpr ComplexSchur<Matrix<EIGTYPE, Dynamic, Dynamic, EIGCOLROW> >&                                           \
   ComplexSchur<Matrix<EIGTYPE, Dynamic, Dynamic, EIGCOLROW> >::compute(const EigenBase<InputType>& matrix,         \
                                                                        bool computeU) {                            \
     eigen_assert(matrix.cols() == matrix.rows());                                                                  \
