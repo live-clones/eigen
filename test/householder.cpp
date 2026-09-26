@@ -961,6 +961,16 @@ void householder_noncommutative_scalar() {
     column.applyHouseholderOnTheRight(none, Scalar(1) - i, workspace);
     VERIFY(column == Mat::Constant(2, 1, -k));
   }
+  {
+    // A zero essential part keeps the product kernels out: a H = a - (a v) tau v^* with v = [1, 0...]^T, so
+    // tau = i turns a first column of j into j - j * i = j + k.
+    Mat a = Mat::Constant(2, Size, Scalar(0));
+    a.col(0).setConstant(j);
+    const EssentialType essential = EssentialType::Constant(Scalar(0));
+    Scalar workspace[2];
+    a.applyHouseholderOnTheRight(essential, i, workspace);
+    VERIFY(a.col(0) == Mat::Constant(2, 1, j + k));
+  }
   const Index cols = internal::random<Index>(1, 7);
   Mat a(Size, cols);
   for (Index c = 0; c < cols; ++c)
