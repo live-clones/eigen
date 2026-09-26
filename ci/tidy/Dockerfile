@@ -14,15 +14,19 @@
 # larger than Ubuntu's, clang-tidy ran 23-45% slower on musl, and musl's
 # NULL is nullptr, which hides NULL from modernize-use-nullptr.
 #
-# Rebuild and push when this file changes:
+# Any change to this file bumps the tag of EIGEN_CI_IMAGE_LINUX_TIDY in
+# .gitlab-ci.yml: runners pull if-not-present, so one that holds a tag never
+# sees a rebuild pushed under it.  Then build the new tag with the manual
+# build:docker:ubuntu-24.04-tidy job in the merge request's pipeline, or:
 #   docker buildx build --platform linux/amd64 \
-#     -t registry.gitlab.com/libeigen/eigen/ubuntu-24.04-tidy:latest \
+#     -t registry.gitlab.com/libeigen/eigen/ubuntu-24.04-tidy:<tag> \
 #     --push ci/tidy/
 
 FROM ubuntu:24.04
 
 # After installing, drop what no job reaches:
-#  - every LLVM tool but clang and clang-tidy, and libclang's C API;
+#  - every LLVM tool but clang, clang-tidy and clang-scan-deps (which CMake
+#    records when configuring), and libclang's C API;
 #  - GCC's sanitizer runtimes and the static C and C++ libraries: CMake's
 #    checks link dynamically, which needs only libc_nonshared.a and libgcc.a;
 #  - binutils' gold and gprof, the Polly plugin, documentation, CMake's help,
@@ -32,7 +36,8 @@ RUN apt-get update -y \
       git cmake ninja-build clang-tidy clang python3 \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/* /var/log/* \
     && find /usr/lib/llvm-18/bin -mindepth 1 \
-      ! -name clang ! -name clang++ ! -name clang-18 ! -name clang-tidy -delete \
+      ! -name clang ! -name clang++ ! -name clang-18 ! -name clang-tidy \
+      ! -name clang-scan-deps -delete \
     && find /usr/bin -xtype l -delete \
     && gcc=/usr/lib/gcc/x86_64-linux-gnu/13 && lib=/usr/lib/x86_64-linux-gnu \
     && rm -rf $lib/libclang-18.so* /usr/lib/llvm-18/lib/libclang.so* \
@@ -45,7 +50,8 @@ RUN apt-get update -y \
 
 # Fail the build, not every merge request's job, if the pruning above removed
 # something a tool needs.
-RUN clang-tidy --version && git --version && cmake --version \
+RUN clang-tidy --version | grep -q 'LLVM version 18\.1\.3' \
+    && git --version && cmake --version \
     && for f in /usr/bin/* /usr/lib/llvm-18/bin/* /usr/lib/git-core/*; do \
          if ldd "$f" 2>/dev/null | grep -q 'not found'; then \
            echo "missing shared library: $f"; exit 1; fi; \
