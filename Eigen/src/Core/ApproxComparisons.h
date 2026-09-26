@@ -72,12 +72,71 @@ EIGEN_DEVICE_FUNC bool operator<=(const comparison_magnitude<RealScalar>& x,
   return comparison_magnitude<Common>(x) <= comparison_magnitude<Common>(y);
 }
 
-// The scaled path rescales its operands with operator*(Scalar). Dense-shaped expressions stay lazy, so nothing is
-// allocated; another shape may hide that operator (Homogeneous does) and is evaluated first.
+// Types whose data(), rowStride() and colStride() address every coefficient. DirectAccessBit alone does not promise
+// this: a single-row IndexedView of a column-major matrix and the RealView of a strided complex block report strides
+// that do not.
 template <typename X>
-using scaled_comparison_operand_t =
-    std::conditional_t<std::is_same<typename evaluator_traits<X>::Shape, DenseShape>::value, const X&,
-                       typename plain_object_eval<X>::type>;
+struct scaled_comparison_viewable : std::false_type {};
+
+template <typename Scalar, int Rows, int Cols, int Options, int MaxRows, int MaxCols>
+struct scaled_comparison_viewable<Matrix<Scalar, Rows, Cols, Options, MaxRows, MaxCols>> : std::true_type {};
+
+template <typename Scalar, int Rows, int Cols, int Options, int MaxRows, int MaxCols>
+struct scaled_comparison_viewable<Array<Scalar, Rows, Cols, Options, MaxRows, MaxCols>> : std::true_type {};
+
+template <typename PlainObjectType, int Options, typename StrideType>
+struct scaled_comparison_viewable<Map<PlainObjectType, Options, StrideType>> : std::true_type {};
+
+template <typename PlainObjectType, int Options, typename StrideType>
+struct scaled_comparison_viewable<Ref<PlainObjectType, Options, StrideType>> : std::true_type {};
+
+template <typename XprType, int BlockRows, int BlockCols, bool InnerPanel>
+struct scaled_comparison_viewable<Block<XprType, BlockRows, BlockCols, InnerPanel>>
+    : scaled_comparison_viewable<std::remove_const_t<XprType>> {};
+
+template <typename XprType>
+struct scaled_comparison_viewable<Transpose<XprType>> : scaled_comparison_viewable<std::remove_const_t<XprType>> {};
+
+template <typename XprType>
+struct scaled_comparison_viewable<ArrayWrapper<XprType>> : scaled_comparison_viewable<std::remove_const_t<XprType>> {};
+
+template <typename XprType>
+struct scaled_comparison_viewable<MatrixWrapper<XprType>> : scaled_comparison_viewable<std::remove_const_t<XprType>> {};
+
+// The scaled path reduces each operand several times, so it runs on at most three view types per scalar type rather
+// than being instantiated for every operand expression. A viewable operand with direct access is viewed in place,
+// keeping packet access when its inner stride is one; any other operand, including a lazy expression or a shape that
+// hides operator*(Scalar) as Homogeneous does, is evaluated first, which allocates only for dynamic sizes.
+template <typename X, bool DirectAccess = has_direct_access<X>::value && scaled_comparison_viewable<X>::value,
+          bool UnitInnerStride = inner_stride_at_compile_time<X>::value == 1>
+struct scaled_comparison_operand {
+  using View =
+      Map<const Matrix<typename X::Scalar, Dynamic, Dynamic, X::IsRowMajor ? RowMajor : ColMajor>, 0, OuterStride<>>;
+  EIGEN_DEVICE_FUNC explicit scaled_comparison_operand(const X& x)
+      : view(x.data(), x.rows(), x.cols(), OuterStride<>(x.outerStride())) {}
+  View view;
+};
+
+template <typename X>
+struct scaled_comparison_operand<X, true, false> {
+  using View = Map<const Matrix<typename X::Scalar, Dynamic, Dynamic>, 0, Stride<Dynamic, Dynamic>>;
+  EIGEN_DEVICE_FUNC explicit scaled_comparison_operand(const X& x)
+      : view(x.data(), x.rows(), x.cols(), Stride<Dynamic, Dynamic>(x.colStride(), x.rowStride())) {}
+  View view;
+};
+
+template <typename X, bool UnitInnerStride>
+struct scaled_comparison_operand<X, false, UnitInnerStride> {
+  // Column-major unless it holds at most one row, where Matrix requires row-major storage.
+  using Plain = Matrix<typename X::Scalar, Dynamic, Dynamic,
+                       X::MaxRowsAtCompileTime == 1 && X::MaxColsAtCompileTime != 1 ? RowMajor : ColMajor,
+                       X::MaxRowsAtCompileTime, X::MaxColsAtCompileTime>;
+  using View = typename scaled_comparison_operand<Plain>::View;
+  EIGEN_DEVICE_FUNC explicit scaled_comparison_operand(const X& x)
+      : value(x.matrix()), view(scaled_comparison_operand<Plain>(value).view) {}
+  Plain value;
+  View view;
+};
 
 template <typename Components>
 EIGEN_DEVICE_FUNC typename Components::Scalar scaled_comparison_max_coeff(const Components& components) {
@@ -89,10 +148,8 @@ EIGEN_DEVICE_FUNC typename Components::Scalar scaled_comparison_max_coeff(const 
 
 template <typename Derived>
 EIGEN_DEVICE_FUNC comparison_magnitude<typename stable_norm_accumulator<typename Derived::RealScalar>::type>
-scaled_comparison_norm(const Derived& xExpr) {
+scaled_comparison_norm_impl(const MatrixBase<Derived>& matrix) {
   using RealScalar = typename stable_norm_accumulator<typename Derived::RealScalar>::type;
-  scaled_comparison_operand_t<Derived> x(xExpr);
-  const auto& matrix = x.matrix();
   const auto& realComponents = matrix.realView();
   const auto& components = realComponents.template cast<RealScalar>();
   const RealScalar scale = scaled_comparison_max_coeff(components);
@@ -108,15 +165,11 @@ scaled_comparison_norm(const Derived& xExpr) {
 
 template <typename X, typename Y>
 EIGEN_DEVICE_FUNC comparison_magnitude<typename stable_norm_accumulator<typename X::RealScalar>::type>
-scaled_comparison_distance(const X& xExpr, const Y& yExpr) {
+scaled_comparison_distance_impl(const MatrixBase<X>& matrixX, const MatrixBase<Y>& matrixY) {
   using Accumulator = typename stable_norm_accumulator<typename X::RealScalar>::type;
   using WideScalar =
       std::conditional_t<NumTraits<typename X::Scalar>::IsComplex || NumTraits<typename Y::Scalar>::IsComplex,
                          std::complex<Accumulator>, Accumulator>;
-  scaled_comparison_operand_t<X> x(xExpr);
-  scaled_comparison_operand_t<Y> y(yExpr);
-  const auto& matrixX = x.matrix();
-  const auto& matrixY = y.matrix();
   const auto& wideX = matrixX.template cast<WideScalar>();
   const auto& wideY = matrixY.template cast<WideScalar>();
   // FTZ flushes a subnormal difference of normal operands. Scaling a maximum M < 1 up by a power of two first loses
@@ -127,16 +180,28 @@ scaled_comparison_distance(const X& xExpr, const Y& yExpr) {
   const safe_scaling_factors<Accumulator> factors = supports_power_of_two_scaling<Accumulator>::value
                                                         ? safe_scaling<Accumulator>::compute_floor_factors(maxCoeff)
                                                         : safe_scaling_factors<Accumulator>();
-  // Both calls share one expression type, so scaled_comparison_norm is instantiated once.
-  auto difference = scaled_comparison_norm(wideX * factors.invScale - wideY * factors.invScale);
+  // Both calls share one expression type, so scaled_comparison_norm_impl is instantiated once.
+  auto difference = scaled_comparison_norm_impl(wideX * factors.invScale - wideY * factors.invScale);
   if (!difference.isFinite()) {
     // Finite operands can overflow on subtraction; halving first keeps every component representable.
     const Accumulator halfInvScale = factors.invScale * Accumulator(0.5);
-    difference = scaled_comparison_norm(wideX * halfInvScale - wideY * halfInvScale);
+    difference = scaled_comparison_norm_impl(wideX * halfInvScale - wideY * halfInvScale);
     difference.multiply(Accumulator(2));
   }
   difference.multiply(factors.scale);
   return difference;
+}
+
+template <typename Derived>
+EIGEN_DEVICE_FUNC comparison_magnitude<typename stable_norm_accumulator<typename Derived::RealScalar>::type>
+scaled_comparison_norm(const Derived& x) {
+  return scaled_comparison_norm_impl(scaled_comparison_operand<Derived>(x).view);
+}
+
+template <typename X, typename Y>
+EIGEN_DEVICE_FUNC comparison_magnitude<typename stable_norm_accumulator<typename X::RealScalar>::type>
+scaled_comparison_distance(const X& x, const Y& y) {
+  return scaled_comparison_distance_impl(scaled_comparison_operand<X>(x).view, scaled_comparison_operand<Y>(y).view);
 }
 
 // Coefficients widened to the stable-norm accumulator, in which ordinary comparisons square and sum. The cast is the
@@ -242,14 +307,14 @@ struct approx_comparison_impl<Scalar, true> {
   template <typename X, typename Y>
   EIGEN_DEVICE_FUNC static EIGEN_DONT_INLINE bool isApprox_scaled(const X& xExpr, const Y& yExpr,
                                                                   const RealScalar& prec) {
-    scaled_comparison_operand_t<X> x(xExpr);
-    scaled_comparison_operand_t<Y> y(yExpr);
-    const auto nx = scaled_comparison_norm(x);
-    const auto ny = scaled_comparison_norm(y);
+    const scaled_comparison_operand<X> x(xExpr);
+    const scaled_comparison_operand<Y> y(yExpr);
+    const auto nx = scaled_comparison_norm_impl(x.view);
+    const auto ny = scaled_comparison_norm_impl(y.view);
     if (!nx.isFinite() || !ny.isFinite()) return false;
     auto tolerance = nx <= ny ? nx : ny;
     tolerance.multiply(numext::abs(Accumulator(prec)));
-    return scaled_comparison_distance(x, y) <= tolerance;
+    return scaled_comparison_distance_impl(x.view, y.view) <= tolerance;
   }
 
   template <typename X, typename Y>

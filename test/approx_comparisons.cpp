@@ -26,7 +26,6 @@ void approx_comparisons_floating() {
     VERIFY(!y.isApprox(x, precision));
     VERIFY(!x.array().isApprox(y.array(), precision));
     VERIFY(!x.transpose().isApprox(y.transpose(), precision));
-    VERIFY(!x.isApprox(MatrixType::Zero(3, 5), precision));
     VERIFY(!x.isMuchSmallerThan(y, precision));
     VERIFY(x.isMuchSmallerThan(y, Real(0.5)));
     VERIFY(!x.isMuchSmallerThan(scale, precision));
@@ -40,6 +39,8 @@ void approx_comparisons_floating() {
     VERIFY(x.array().isApprox(y.array(), precision));
     VERIFY((x.template block<2, 3>(0, 1).isApprox(y.template block<2, 3>(0, 1), precision)));
     internal::set_is_malloc_allowed(true);
+    // The scaled path evaluates a lazy operand, which allocates for dynamic sizes.
+    VERIFY(!x.isApprox(MatrixType::Zero(3, 5), precision));
     Matrix<Scalar, Dynamic, Dynamic, Options == ColMajor ? RowMajor : ColMajor> other = y;
     VERIFY(x.isApprox(other, precision));
   }
@@ -80,6 +81,41 @@ void approx_comparisons_floating() {
     VERIFY(x.isMuchSmallerThan(y));
     VERIFY(x.isMuchSmallerThan(Real(0)));
   }
+}
+
+// The scaled path views plain objects, maps and their blocks in place, whatever their strides, and evaluates other
+// operands, on the stack when their size is bounded.
+template <typename Scalar>
+void approx_comparisons_strided_operands() {
+  using Real = typename NumTraits<Scalar>::Real;
+  using ColMatrix = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
+  using RowMatrix = Matrix<Scalar, Dynamic, Dynamic, RowMajor>;
+  using StridedMap = Map<const ColMatrix, 0, Stride<Dynamic, Dynamic>>;
+  const Real precision = Real(0.125);
+  // Squares of these coefficients underflow, which selects the scaled path.
+  const Real scale = (numext::numeric_limits<Real>::min)() * Real(32);
+  const ColMatrix x = ColMatrix::Random(6, 8) * scale;
+  const ColMatrix y = x * (Real(1) + precision / Real(2));
+  const ColMatrix z = x * Real(2);
+  const RowMatrix xr = x, yr = y, zr = z;
+  const Stride<Dynamic, Dynamic> stride(12, 2);
+  const ColMatrix ys = StridedMap(y.data(), 3, 4, stride);
+  internal::set_is_malloc_allowed(false);
+  VERIFY(xr.isApprox(y, precision));
+  VERIFY(!xr.isApprox(z, precision));
+  VERIFY(x.row(2).isApprox(yr.row(2), precision));
+  VERIFY(!x.row(2).isApprox(zr.row(2), precision));
+  VERIFY(xr.col(3).isApprox(y.col(3), precision));
+  VERIFY(!xr.col(3).isApprox(z.col(3), precision));
+  VERIFY(StridedMap(x.data(), 3, 4, stride).isApprox(ys, precision));
+  VERIFY(!StridedMap(x.data(), 3, 4, stride).isApprox(StridedMap(z.data(), 3, 4, stride), precision));
+  VERIFY((Real(2) * x.template topLeftCorner<3, 3>()).isApprox(Real(2) * y.template topLeftCorner<3, 3>(), precision));
+  VERIFY(!(Real(2) * x.template topLeftCorner<3, 3>()).isApprox(x.template topLeftCorner<3, 3>(), precision));
+  internal::set_is_malloc_allowed(true);
+  // These have direct access, but their strides do not address every coefficient.
+  VERIFY(x(2, seq(0, 7, 2)).isApprox(yr(2, seq(0, 7, 2)), precision));
+  VERIFY(xr(seq(0, 5, 2), 3).isApprox(y(seq(0, 5, 2), 3), precision));
+  VERIFY(x.row(2).realView().isApprox(yr.row(2).realView(), precision));
 }
 
 template <typename Real>
@@ -286,6 +322,8 @@ void approx_comparisons_scale_invariance() {
 EIGEN_DECLARE_TEST(approx_comparisons) {
   CALL_SUBTEST_1((approx_comparisons_floating<float, ColMajor>()));
   CALL_SUBTEST_1((approx_comparisons_floating<double, RowMajor>()));
+  CALL_SUBTEST_1(approx_comparisons_strided_operands<float>());
+  CALL_SUBTEST_1(approx_comparisons_strided_operands<double>());
   CALL_SUBTEST_1(approx_comparisons_special_values<float>());
   CALL_SUBTEST_1(approx_comparisons_special_values<double>());
   CALL_SUBTEST_1(approx_comparisons_rounding_boundary<float>());
@@ -296,6 +334,7 @@ EIGEN_DECLARE_TEST(approx_comparisons) {
   CALL_SUBTEST_1(approx_comparisons_flush_to_zero<double>());
   CALL_SUBTEST_2((approx_comparisons_floating<std::complex<float>, RowMajor>()));
   CALL_SUBTEST_2((approx_comparisons_floating<std::complex<double>, ColMajor>()));
+  CALL_SUBTEST_2(approx_comparisons_strided_operands<std::complex<float>>());
   CALL_SUBTEST_2(approx_comparisons_complex_components<float>());
   CALL_SUBTEST_2(approx_comparisons_complex_components<double>());
   CALL_SUBTEST_2(approx_comparisons_lazy_operands<float>());
