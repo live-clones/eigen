@@ -823,8 +823,9 @@ struct repeated_squaring_ops<Packet, true> {
     out = por(out, pandnot(pcmp_lt(pmul(minor, bound), one), pcmp_eq(minor, pzero(minor))));
     return predux_any(out) == false;
   }
+  template <typename Count>
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE State base(const Packet& x, bool reciprocal, bool scaled,
-                                                          const Real& count) {
+                                                          const Count& m) {
     State b;
     b.any_separated = false;
     R re, im;
@@ -841,7 +842,7 @@ struct repeated_squaring_ops<Packet, true> {
     // one L would lose its residuals (see kSeparationExponent). Then z = L (1 + delta) with |delta| tiny and
     // z^n = L^n (1 + n delta) to working precision: the power runs on L alone and result() adds L^n n delta, with
     // delta = i b/a, or a/(bi) = -i a/b, and -delta for the reciprocal base.
-    int separation_exponent = every_step(count) ? kSeparationExponent - 56 : kSeparationExponent;
+    int separation_exponent = every_step(Real(m)) ? kSeparationExponent - 56 : kSeparationExponent;
     R separation =
         pset1frombits<R>(typename Scaling::Bits(Scaling::kBias + separation_exponent) << Scaling::kMantissaBits);
     R zero = pzero(wr);
@@ -853,7 +854,13 @@ struct repeated_squaring_ops<Packet, true> {
       R s_lift, s_scale, s_exponent, count_exponent;
       Scaling::input_scale(pselect(im_separated, im, re), s_lift, s_scale, s_exponent);
       R s = pmul(pmul(pselect(im_separated, im, re), s_lift), s_scale);
-      R count_scale = Scaling::inverse_scale(pset1<R>(count), count_exponent);
+      // The count n is a double word too, as Real(n) is inexact beyond 2^digits: its leading digits, which Real
+      // holds exactly, and the rest.
+      numext::uint64_t n = numext::uint64_t(m);
+      numext::uint64_t unit = highest_set_bit(n) >> (kDigits - 1);
+      numext::uint64_t n_hi = unit > 1 ? n & ~(unit - 1) : n;
+      R count_hi = pset1<R>(Real(n_hi)), count_lo = pset1<R>(Real(n - n_hi));
+      R count_scale = Scaling::inverse_scale(count_hi, count_exponent);
       // The coefficient n s / L is a double word so that result() rounds the added component once: the ratio
       // q + (s - q L) / L, where s - q L = (s - p_hi) - p_lo is exact, times the count. The scaled |s / L| is in
       // (1/2, 2) and the scaled count in [2, 4); an eighth keeps |c hi| within 2^62.
@@ -862,9 +869,10 @@ struct repeated_squaring_ops<Packet, true> {
       R p_hi, p_lo, c_hi, c_lo;
       twoprod(q, l, p_hi, p_lo);
       R q_lo = pdiv(psub(psub(s, p_hi), p_lo), l);
-      R scaled_count = pmul(pset1<R>(count), count_scale);
+      R scaled_count = pmul(count_hi, count_scale);
+      R scaled_count_lo = pmul(count_lo, count_scale);
       twoprod(scaled_count, q, c_hi, c_lo);
-      fast_twosum(c_hi, pmadd(scaled_count, q_lo, c_lo), p_hi, p_lo);
+      fast_twosum(c_hi, pmadd(scaled_count, q_lo, pmadd(scaled_count_lo, q, c_lo)), p_hi, p_lo);
       R sign = pselect(im_separated, pset1<R>(Real(reciprocal ? -0.125 : 0.125)),
                        pset1<R>(Real(reciprocal ? 0.125 : -0.125)));
       b.coefficient_hi = pmul(p_hi, sign);
@@ -1011,7 +1019,7 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet int_pow_double_word(const Packet& x
       pset1frombits<typename Ops::Bound>(RealBits(kBiasBits + RealBits(b < 0 ? 0 : b)) << kMantissaBits);
   bool scaled = b < 0 || !Ops::in_range(x, bound);
 
-  typename Ops::State base = Ops::base(x, negative, scaled, Real(m));
+  typename Ops::State base = Ops::base(x, negative, scaled, m);
   typename Ops::State y = base;
   int renormalization_steps = Ops::renormalization_steps(Real(m));
   int steps_since_renormalization = 0;
