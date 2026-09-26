@@ -106,7 +106,8 @@ struct scaled_comparison_viewable<MatrixWrapper<XprType>> : scaled_comparison_vi
 // The scaled path reduces each operand several times, so it runs on at most three view types per scalar type rather
 // than being instantiated for every operand expression. A viewable operand with direct access is viewed in place,
 // keeping packet access when its inner stride is one; any other operand, including a lazy expression or a shape that
-// hides operator*(Scalar) as Homogeneous does, is evaluated first, which allocates only for dynamic sizes.
+// hides operator*(Scalar) as Homogeneous does, is evaluated first, which allocates only for dynamic sizes and for
+// fixed sizes above EIGEN_STACK_ALLOCATION_LIMIT.
 template <typename X, bool DirectAccess = has_direct_access<X>::value && scaled_comparison_viewable<X>::value,
           bool UnitInnerStride = inner_stride_at_compile_time<X>::value == 1>
 struct scaled_comparison_operand {
@@ -127,10 +128,18 @@ struct scaled_comparison_operand<X, true, false> {
 
 template <typename X, bool UnitInnerStride>
 struct scaled_comparison_operand<X, false, UnitInnerStride> {
+  // A fixed capacity the stack limit would reject makes the comparison fail to compile for an operand the caller
+  // never stores, so the temporary takes it only where DenseStorage accepts it.
+  static constexpr bool FixedCapacity =
+      EIGEN_STACK_ALLOCATION_LIMIT == 0 ||
+      (X::MaxSizeAtCompileTime != Dynamic &&
+       std::ptrdiff_t(X::MaxSizeAtCompileTime) * std::ptrdiff_t(sizeof(typename X::Scalar)) <=
+           std::ptrdiff_t(EIGEN_STACK_ALLOCATION_LIMIT));
   // Column-major unless it holds at most one row, where Matrix requires row-major storage.
-  using Plain = Matrix<typename X::Scalar, Dynamic, Dynamic,
-                       X::MaxRowsAtCompileTime == 1 && X::MaxColsAtCompileTime != 1 ? RowMajor : ColMajor,
-                       X::MaxRowsAtCompileTime, X::MaxColsAtCompileTime>;
+  using Plain =
+      Matrix<typename X::Scalar, Dynamic, Dynamic,
+             X::MaxRowsAtCompileTime == 1 && X::MaxColsAtCompileTime != 1 ? RowMajor : ColMajor,
+             FixedCapacity ? X::MaxRowsAtCompileTime : Dynamic, FixedCapacity ? X::MaxColsAtCompileTime : Dynamic>;
   using View = typename scaled_comparison_operand<Plain>::View;
   EIGEN_DEVICE_FUNC explicit scaled_comparison_operand(const X& x)
       : value(x.matrix()), view(scaled_comparison_operand<Plain>(value).view) {}
