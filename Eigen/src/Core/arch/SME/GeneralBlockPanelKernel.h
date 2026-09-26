@@ -123,6 +123,12 @@ struct sme_traits<double> {
 // Contiguous predicated load/store, fused multiply-add and multiply.
 static EIGEN_ALWAYS_INLINE svfloat32_t sme_ld1(svbool_t pg, const float* p) __arm_streaming { return svld1_f32(pg, p); }
 static EIGEN_ALWAYS_INLINE void sme_st1(svbool_t pg, float* p, svfloat32_t v) __arm_streaming { svst1_f32(pg, p, v); }
+static EIGEN_ALWAYS_INLINE svfloat32x2_t sme_ld2(svbool_t pg, const float* p) __arm_streaming {
+  return svld2_f32(pg, p);
+}
+static EIGEN_ALWAYS_INLINE void sme_st2(svbool_t pg, float* p, svfloat32_t re, svfloat32_t im) __arm_streaming {
+  svst2_f32(pg, p, svcreate2_f32(re, im));
+}
 static EIGEN_ALWAYS_INLINE svfloat32x2_t sme_ld1_x2(svcount_t pn, const float* p) __arm_streaming {
   return svld1_f32_x2(pn, p);
 }
@@ -203,6 +209,12 @@ static EIGEN_ALWAYS_INLINE svfloat64_t sme_ld1(svbool_t pg, const double* p) __a
   return svld1_f64(pg, p);
 }
 static EIGEN_ALWAYS_INLINE void sme_st1(svbool_t pg, double* p, svfloat64_t v) __arm_streaming { svst1_f64(pg, p, v); }
+static EIGEN_ALWAYS_INLINE svfloat64x2_t sme_ld2(svbool_t pg, const double* p) __arm_streaming {
+  return svld2_f64(pg, p);
+}
+static EIGEN_ALWAYS_INLINE void sme_st2(svbool_t pg, double* p, svfloat64_t re, svfloat64_t im) __arm_streaming {
+  svst2_f64(pg, p, svcreate2_f64(re, im));
+}
 static EIGEN_ALWAYS_INLINE svfloat64x2_t sme_ld1_x2(svcount_t pn, const double* p) __arm_streaming {
   return svld1_f64_x2(pn, p);
 }
@@ -1472,9 +1484,9 @@ static EIGEN_ALWAYS_INLINE void outer_product_2x2(
  * (FMOPA) or subtract (FMOPS) -- a compile-time choice, with no work in the
  * depth loop and no separate conjugating packer.
  *
- * Slices come back out through sme_read_scaled_slice, which applies the complex
- * alpha and interleaves the halves with ZIP1/ZIP2 into the two vectors that
- * cover one slice's worth of contiguous complex results.
+ * Slices come back out through sme_read_slice as separate real and imaginary
+ * vectors; sme_accumulate_pair applies alpha and accumulates them into C,
+ * deinterleaved through LD2/ST2 where that pays and zipped otherwise.
  *
  * A ZA tile number is an instruction immediate, so cells outside the tile grid
  * (complex<float> has two tile pairs, hence a single grid row) are dropped by
@@ -1482,19 +1494,11 @@ static EIGEN_ALWAYS_INLINE void outer_product_2x2(
  * have to name an in-range tile.
  *****************************************************************************/
 
-// One slice of a tile pair, re-interleaved into the two vectors that cover its
-// complex results: `lo` the first half, `hi` the second.  ScaleByAlpha applies
-// the complex alpha, four predicated FP ops the caller skips when alpha is 1
-// (see sme_store_za_pair) -- streaming-mode FP is de-rated enough on Apple M4
-// that those four cost about as much as the rest of the slice.
-template <typename RealScalar, int TileRe, int TileIm, bool Vertical, bool ScaleByAlpha>
-EIGEN_ALWAYS_INLINE void sme_read_slice(svbool_t pg, typename sme_traits<RealScalar>::Vec valpha_re,
-                                        typename sme_traits<RealScalar>::Vec valpha_im,
-                                        typename sme_traits<RealScalar>::Vec vzero, uint32_t slice,
-                                        typename sme_traits<RealScalar>::Vec& lo,
-                                        typename sme_traits<RealScalar>::Vec& hi) __arm_streaming __arm_inout("za") {
-  using Vec = typename sme_traits<RealScalar>::Vec;
-  Vec re, im;
+// One slice of a tile pair as its real and imaginary vectors.
+template <typename RealScalar, int TileRe, int TileIm, bool Vertical>
+EIGEN_ALWAYS_INLINE void sme_read_slice(svbool_t pg, typename sme_traits<RealScalar>::Vec vzero, uint32_t slice,
+                                        typename sme_traits<RealScalar>::Vec& re,
+                                        typename sme_traits<RealScalar>::Vec& im) __arm_streaming __arm_inout("za") {
   EIGEN_IF_CONSTEXPR (Vertical) {
     re = sme_read_ver_za<TileRe>(vzero, pg, slice);
     im = sme_read_ver_za<TileIm>(vzero, pg, slice);
@@ -1502,54 +1506,81 @@ EIGEN_ALWAYS_INLINE void sme_read_slice(svbool_t pg, typename sme_traits<RealSca
     re = sme_read_hor_za<TileRe>(vzero, pg, slice);
     im = sme_read_hor_za<TileIm>(vzero, pg, slice);
   }
-  EIGEN_IF_CONSTEXPR (ScaleByAlpha) {
-    const Vec out_re = sme_mls(pg, sme_mul(pg, re, valpha_re), im, valpha_im);
-    const Vec out_im = sme_mla(pg, sme_mul(pg, im, valpha_re), re, valpha_im);
-    lo = sme_zip1(out_re, out_im);
-    hi = sme_zip2(out_re, out_im);
-  } else {
-    lo = sme_zip1(re, im);
-    hi = sme_zip2(re, im);
-  }
 }
 
 // Accumulate a tile pair's `slices` slices into C along its contiguous axis,
-// `step` reals apart.  `lanes` is twice a slice's complex count; when it fits
-// one vector the high half's predicate is empty, so its load and store are
-// no-ops even though the destination has nothing at p + svl to point at.
+// `step` reals apart; `lanes` is twice a slice's complex count, and `limit`
+// the slices left in the C block from the first one, which bounds the
+// prefetch: past the block it can leave the mapping and measured 0.45-0.5x on
+// 32^3 and 64^3 products.
+//
+// A scaled slice spanning two vectors stays deinterleaved: LD2/ST2 move C with
+// one predicate lane per complex result, so alpha applies as two independent
+// 2-op FMA chains starting on the loaded C (4 ops where mul, fmls, add is 6),
+// and the prefetch keeps that C load off the critical path once C streams
+// from beyond L2.  Apple M4 (#3129), scaled complex GEMM from 8^3 to
+// 4096x176x176: 1.00-1.17x for complex<float> and 1.00-1.10x for
+// complex<double>; without the prefetch 0.90-0.93x at 1024^3.  FCMLA
+// measured 0.70x: its two rotations are a dependent pair on one accumulator.
+//
+// Everything else keeps the ZIP form.  LD2/ST2 on a slice that fits one
+// vector measured 0.68-0.75x at the GEMM level (8-row complex<float>), and
+// the unscaled path has no chain to fold C into: neutral at best, 0.7-0.85x
+// on tiny products.
 template <typename RealScalar, int TileRe, int TileIm, bool Vertical, bool ScaleByAlpha, typename Index>
 EIGEN_ALWAYS_INLINE void sme_accumulate_pair_impl(
-    RealScalar* EIGEN_RESTRICT p, Index step, int slices, int lanes, svbool_t pg,
+    RealScalar* EIGEN_RESTRICT p, Index step, int slices, int limit, int lanes, svbool_t pg,
     typename sme_traits<RealScalar>::Vec valpha_re, typename sme_traits<RealScalar>::Vec valpha_im,
     typename sme_traits<RealScalar>::Vec vzero) __arm_streaming __arm_inout("za") {
   using Traits = sme_traits<RealScalar>;
   using Vec = typename Traits::Vec;
   const int svl = Traits::svl();
+  if (ScaleByAlpha && lanes > svl) {
+    constexpr int kPrefetchSlices = 8;
+    for (int s = 0; s < slices; ++s, p += step) {
+      if (s + kPrefetchSlices < limit) {
+        RealScalar* pf = sme_offset(p, Index(kPrefetchSlices) * step);
+        __builtin_prefetch(pf, 1, 3);
+        __builtin_prefetch(sme_offset(pf, Index(svl)), 1, 3);
+      }
+      Vec re, im;
+      sme_read_slice<RealScalar, TileRe, TileIm, Vertical>(pg, vzero, uint32_t(s), re, im);
+      const typename Traits::Vec2 c = sme_ld2(pg, p);
+      const Vec out_re = sme_mls(pg, sme_mla(pg, sme_get<0>(c), re, valpha_re), im, valpha_im);
+      const Vec out_im = sme_mla(pg, sme_mla(pg, sme_get<1>(c), im, valpha_re), re, valpha_im);
+      sme_st2(pg, p, out_re, out_im);
+    }
+    return;
+  }
   const svbool_t pl0 = Traits::whilelt(0, lanes);
   const svbool_t pl1 = Traits::whilelt(svl, lanes);
   for (int s = 0; s < slices; ++s, p += step) {
-    Vec lo, hi;
-    sme_read_slice<RealScalar, TileRe, TileIm, Vertical, ScaleByAlpha>(pg, valpha_re, valpha_im, vzero, uint32_t(s), lo,
-                                                                       hi);
-    sme_st1(pl0, p, sme_add(pl0, sme_ld1(pl0, p), lo));
+    Vec re, im;
+    sme_read_slice<RealScalar, TileRe, TileIm, Vertical>(pg, vzero, uint32_t(s), re, im);
+    EIGEN_IF_CONSTEXPR (ScaleByAlpha) {
+      const Vec t_re = sme_mls(pg, sme_mul(pg, re, valpha_re), im, valpha_im);
+      im = sme_mla(pg, sme_mul(pg, im, valpha_re), re, valpha_im);
+      re = t_re;
+    }
+    sme_st1(pl0, p, sme_add(pl0, sme_ld1(pl0, p), sme_zip1(re, im)));
     // pl1 is all-false when one vector covers the slice, and an inactive lane
     // neither reads nor writes -- so this needs no `lanes > svl` guard, only an
     // address the destination is allowed to form.
     RealScalar* EIGEN_RESTRICT phi = sme_offset(p, Index(svl));
-    sme_st1(pl1, phi, sme_add(pl1, sme_ld1(pl1, phi), hi));
+    sme_st1(pl1, phi, sme_add(pl1, sme_ld1(pl1, phi), sme_zip2(re, im)));
   }
 }
 
 template <typename RealScalar, int TileRe, int TileIm, bool Vertical, typename Index>
 EIGEN_ALWAYS_INLINE void sme_accumulate_pair(
-    bool scale_by_alpha, RealScalar* EIGEN_RESTRICT p, Index step, int slices, int lanes, svbool_t pg,
+    bool scale_by_alpha, RealScalar* EIGEN_RESTRICT p, Index step, int slices, int limit, int lanes, svbool_t pg,
     typename sme_traits<RealScalar>::Vec valpha_re, typename sme_traits<RealScalar>::Vec valpha_im,
     typename sme_traits<RealScalar>::Vec vzero) __arm_streaming __arm_inout("za") {
   if (scale_by_alpha) {
-    sme_accumulate_pair_impl<RealScalar, TileRe, TileIm, Vertical, true>(p, step, slices, lanes, pg, valpha_re,
+    sme_accumulate_pair_impl<RealScalar, TileRe, TileIm, Vertical, true>(p, step, slices, limit, lanes, pg, valpha_re,
                                                                          valpha_im, vzero);
   } else {
-    sme_accumulate_pair_impl<RealScalar, TileRe, TileIm, Vertical, false>(p, step, slices, lanes, pg, valpha_re,
+    sme_accumulate_pair_impl<RealScalar, TileRe, TileIm, Vertical, false>(p, step, slices, limit, lanes, pg, valpha_re,
                                                                           valpha_im, vzero);
   }
 }
@@ -1559,7 +1590,8 @@ EIGEN_ALWAYS_INLINE void sme_accumulate_pair(
 template <typename RealScalar, int TileRe, int TileIm, typename Index>
 EIGEN_ALWAYS_INLINE void sme_store_za_pair(std::complex<RealScalar>* EIGEN_RESTRICT C, Index C_stride_row,
                                            Index C_stride_col, std::complex<RealScalar> alpha, Index row_start, int pw,
-                                           Index col_start, int cw) __arm_streaming __arm_inout("za") {
+                                           Index col_start, int cw, Index rows,
+                                           Index cols) __arm_streaming __arm_inout("za") {
   using Scalar = std::complex<RealScalar>;
   using Traits = sme_traits<RealScalar>;
   using Vec = typename Traits::Vec;
@@ -1583,13 +1615,15 @@ EIGEN_ALWAYS_INLINE void sme_store_za_pair(std::complex<RealScalar>* EIGEN_RESTR
     // Column-major C: vertical slices are the tile pair's columns, and one
     // slice is pw contiguous complex results, i.e. 2*pw reals.
     RealScalar* p = rC + Index(2) * (row_start + col_start * C_stride_col);
-    sme_accumulate_pair<RealScalar, TileRe, TileIm, true>(scale, p, Index(2) * C_stride_col, cw, 2 * pw, pg_m,
-                                                          valpha_re, valpha_im, vzero);
+    sme_accumulate_pair<RealScalar, TileRe, TileIm, true>(scale, p, Index(2) * C_stride_col, cw,
+                                                          static_cast<int>(cols - col_start), 2 * pw, pg_m, valpha_re,
+                                                          valpha_im, vzero);
   } else if (C_stride_col == 1) {
     // Row-major C: horizontal slices are the tile pair's rows.
     RealScalar* p = rC + Index(2) * (row_start * C_stride_row + col_start);
-    sme_accumulate_pair<RealScalar, TileRe, TileIm, false>(scale, p, Index(2) * C_stride_row, pw, 2 * cw, pg_n,
-                                                           valpha_re, valpha_im, vzero);
+    sme_accumulate_pair<RealScalar, TileRe, TileIm, false>(scale, p, Index(2) * C_stride_row, pw,
+                                                           static_cast<int>(rows - row_start), 2 * cw, pg_n, valpha_re,
+                                                           valpha_im, vzero);
   } else {
     // General stride: interleave a row into a temp buffer, scatter to C.  Every
     // caller passes cw <= min(svl, nr), so nr is a static bound on the buffer,
@@ -1601,12 +1635,14 @@ EIGEN_ALWAYS_INLINE void sme_store_za_pair(std::complex<RealScalar>* EIGEN_RESTR
     const svbool_t pl0 = Traits::whilelt(0, lanes);
     const svbool_t pl1 = Traits::whilelt(svl, lanes);
     for (int ri = 0; ri < pw; ++ri) {
-      Vec lo, hi;
-      sme_read_slice<RealScalar, TileRe, TileIm, false, true>(pg_n, valpha_re, valpha_im, vzero, uint32_t(ri), lo, hi);
-      sme_st1(pl0, rscratch, lo);
+      Vec re, im;
+      sme_read_slice<RealScalar, TileRe, TileIm, false>(pg_n, vzero, uint32_t(ri), re, im);
+      const Vec out_re = sme_mls(pg_n, sme_mul(pg_n, re, valpha_re), im, valpha_im);
+      const Vec out_im = sme_mla(pg_n, sme_mul(pg_n, im, valpha_re), re, valpha_im);
+      sme_st1(pl0, rscratch, sme_zip1(out_re, out_im));
       // scratch is nr complex, i.e. 2*nr >= 2*svl reals, so rscratch + svl is
       // always in bounds; pl1 is all-false when one vector already covers cw.
-      sme_st1(pl1, rscratch + svl, hi);
+      sme_st1(pl1, rscratch + svl, sme_zip2(out_re, out_im));
       for (int ci = 0; ci < cw; ++ci) {
         C[(row_start + ri) * C_stride_row + (col_start + ci) * C_stride_col] += scratch[ci];
       }
@@ -1634,10 +1670,10 @@ struct sme_complex_cell {
 
   template <typename Index>
   static EIGEN_ALWAYS_INLINE void store(Scalar* EIGEN_RESTRICT dst, Index C_stride_row, Index C_stride_col,
-                                        Scalar alpha, Index row_start, int pw, Index col_start,
-                                        int cw) __arm_streaming __arm_inout("za") {
+                                        Scalar alpha, Index row_start, int pw, Index col_start, int cw, Index rows,
+                                        Index cols) __arm_streaming __arm_inout("za") {
     sme_store_za_pair<RealScalar, kTileRe, kTileIm>(dst, C_stride_row, C_stride_col, alpha, row_start, pw, col_start,
-                                                    cw);
+                                                    cw, rows, cols);
   }
 };
 
@@ -1647,8 +1683,8 @@ struct sme_complex_cell<Scalar, R, C, ConjLhs, ConjRhs, false> {
   static EIGEN_ALWAYS_INLINE void accumulate(svbool_t, svbool_t, Vec, Vec, Vec, Vec) __arm_streaming __arm_inout("za") {
   }
   template <typename Index>
-  static EIGEN_ALWAYS_INLINE void store(Scalar*, Index, Index, Scalar, Index, int, Index,
-                                        int) __arm_streaming __arm_inout("za") {}
+  static EIGEN_ALWAYS_INLINE void store(Scalar*, Index, Index, Scalar, Index, int, Index, int, Index,
+                                        Index) __arm_streaming __arm_inout("za") {}
 };
 
 /*****************************************************************************
@@ -1671,8 +1707,10 @@ struct sme_complex_cell<Scalar, R, C, ConjLhs, ConjRhs, false> {
 template <bool ConjLhs, bool ConjRhs, typename Scalar, typename Index>
 EIGEN_ALWAYS_INLINE void sme_process(Scalar* EIGEN_RESTRICT C, Index C_stride_row, Index C_stride_col,
                                      const Scalar* EIGEN_RESTRICT blA, const Scalar* EIGEN_RESTRICT blB, Index depth,
-                                     Scalar alpha, Index row_start, int pw, Index col_start,
-                                     int cw) __arm_streaming __arm_inout("za") {
+                                     Scalar alpha, Index row_start, int pw, Index col_start, int cw, Index rows,
+                                     Index cols) __arm_streaming __arm_inout("za") {
+  EIGEN_UNUSED_VARIABLE(rows);
+  EIGEN_UNUSED_VARIABLE(cols);
   // Conjugation is the identity on real scalars, so this overload ignores it.
   using Traits = sme_traits<Scalar>;
   using Vec = typename Traits::Vec;
@@ -1756,20 +1794,21 @@ EIGEN_ALWAYS_INLINE void sme_process(Scalar* EIGEN_RESTRICT C, Index C_stride_ro
 template <typename Scalar, bool ConjLhs, bool ConjRhs, typename Index>
 EIGEN_ALWAYS_INLINE void sme_store_complex_grid(Scalar* EIGEN_RESTRICT C, Index C_stride_row, Index C_stride_col,
                                                 Scalar alpha, Index row_start, int rlo, int rhi, Index col_start,
-                                                int clo, int chi) __arm_streaming __arm_inout("za") {
+                                                int clo, int chi, Index rows,
+                                                Index cols) __arm_streaming __arm_inout("za") {
   const int svl = sme_traits<typename NumTraits<Scalar>::Real>::svl();
   sme_complex_cell<Scalar, 0, 0, ConjLhs, ConjRhs>::store(C, C_stride_row, C_stride_col, alpha, row_start, rlo,
-                                                          col_start, clo);
+                                                          col_start, clo, rows, cols);
   if (chi > 0) {
     sme_complex_cell<Scalar, 0, 1, ConjLhs, ConjRhs>::store(C, C_stride_row, C_stride_col, alpha, row_start, rlo,
-                                                            col_start + svl, chi);
+                                                            col_start + svl, chi, rows, cols);
   }
   if (rhi > 0) {
     sme_complex_cell<Scalar, 1, 0, ConjLhs, ConjRhs>::store(C, C_stride_row, C_stride_col, alpha, row_start + svl, rhi,
-                                                            col_start, clo);
+                                                            col_start, clo, rows, cols);
     if (chi > 0) {
       sme_complex_cell<Scalar, 1, 1, ConjLhs, ConjRhs>::store(C, C_stride_row, C_stride_col, alpha, row_start + svl,
-                                                              rhi, col_start + svl, chi);
+                                                              rhi, col_start + svl, chi, rows, cols);
     }
   }
 }
@@ -1787,8 +1826,8 @@ template <bool ConjLhs, bool ConjRhs, typename RealScalar, typename Index>
 EIGEN_ALWAYS_INLINE void sme_process(std::complex<RealScalar>* EIGEN_RESTRICT C, Index C_stride_row, Index C_stride_col,
                                      const std::complex<RealScalar>* EIGEN_RESTRICT blA,
                                      const std::complex<RealScalar>* EIGEN_RESTRICT blB, Index depth,
-                                     std::complex<RealScalar> alpha, Index row_start, int pw, Index col_start,
-                                     int cw) __arm_streaming __arm_inout("za") {
+                                     std::complex<RealScalar> alpha, Index row_start, int pw, Index col_start, int cw,
+                                     Index rows, Index cols) __arm_streaming __arm_inout("za") {
   using Scalar = std::complex<RealScalar>;
   using Traits = sme_traits<RealScalar>;
   using Vec = typename Traits::Vec;
@@ -1849,7 +1888,7 @@ EIGEN_ALWAYS_INLINE void sme_process(std::complex<RealScalar>* EIGEN_RESTRICT C,
       }
 
       sme_store_complex_grid<Scalar, ConjLhs, ConjRhs>(C, C_stride_row, C_stride_col, alpha, row_start + rt, r0, r1,
-                                                       col_start + ct, c0, c1);
+                                                       col_start + ct, c0, c1, rows, cols);
     }
   }
 }
@@ -1875,7 +1914,7 @@ EIGEN_DONT_INLINE __arm_locally_streaming __arm_new("za") void sme_gebp_impl(
     for (Index i = 0; i < rows; i += MR) {
       const int pw = static_cast<int>(sme_min(rows - i, Index(MR)));
       const Scalar* blA = blockA + i * strideA + offsetA * pw;
-      sme_process<ConjLhs, ConjRhs>(C, C_stride_row, C_stride_col, blA, blB, depth, alpha, i, pw, j, cw);
+      sme_process<ConjLhs, ConjRhs>(C, C_stride_row, C_stride_col, blA, blB, depth, alpha, i, pw, j, cw, rows, cols);
     }
   }
 }
