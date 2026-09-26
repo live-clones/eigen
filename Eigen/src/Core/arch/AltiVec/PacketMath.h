@@ -2437,6 +2437,7 @@ EIGEN_STRONG_INLINE Packet8bf pcmp_eq(const Packet8bf& a, const Packet8bf& b) {
   BF16_TO_F32_BINARY_OP_WRAPPER_BOOL(pcmp_eq<Packet4f>, a, b);
 }
 
+// Compare encoded lanes: widening bf16 subnormals to float loses them under DAZ/FZ.
 template <>
 EIGEN_STRONG_INLINE Packet8bf psign<Packet8bf>(const Packet8bf& a) {
   const Packet8us magnitude = vec_and(a.m_val, vec_splats(static_cast<unsigned short int>(0x7fff)));
