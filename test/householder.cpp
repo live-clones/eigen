@@ -240,6 +240,14 @@ void householder_row_vector_products(Index size) {
   const RowVector3 row3 = RowVector3::Random();
   STATIC_CHECK((internal::is_same<decltype(row3 * qr3.householderQ()), RowVector3>::value));
   VERIFY_IS_APPROX(RowVector3(row3 * qr3.householderQ()), RowVector3(row3 * Matrix3(qr3.householderQ())));
+
+  // A single-column reflector set makes the blocked right-side tmp N x 1; it is instantiated although one
+  // reflector never takes that path at run time.
+  using VectorType = Matrix<Scalar, Dynamic, 1>;
+  const HouseholderQR<VectorType> qrv(VectorType::Random(size));
+  const MatrixType qv = qrv.householderQ();
+  const MatrixType m = MatrixType::Random(3, size);
+  VERIFY_IS_APPROX(MatrixType(m * qrv.householderQ()), m * qv);
 }
 
 template <typename MatrixType>
@@ -1007,7 +1015,7 @@ EIGEN_DECLARE_TEST(householder) {
     CALL_SUBTEST_6(householder(
         MatrixXcf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_5(householder_row_vector_products<double>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-    // Large enough for the blocked right-side application.
+    // Takes the blocked right-side application: length >= BlockSize (48) and rows >= 4 * BlockSize.
     CALL_SUBTEST_5(householder_row_vector_products<double>(200));
     CALL_SUBTEST_6(householder_row_vector_products<std::complex<float>>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
     CALL_SUBTEST_7(householder(
