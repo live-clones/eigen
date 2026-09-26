@@ -53,17 +53,19 @@
   # (when: always): the retry pipeline after a compile error is exactly where
   # hits matter most.
   cache:
-    # The pinned ccache binary the build script downloads when the runner has
+    # The pinned sccache/ccache binaries the build script downloads when the runner has
     # none; one shared key so a runner downloads it once for all build jobs.
     # Cache content is writable job output, not a trusted source: the script
     # re-verifies the binary's SHA-256 on every use before executing it.
     - key: "windows-ccache-bin"
       paths:
         - .ccache-bin/
+        - .sccache-bin/
       when: always
     - key: "$EIGEN_CI_CCACHE_POOL-ccache"
       paths:
         - .ccache/
+        - .sccache/
       policy: $EIGEN_CI_CCACHE_POLICY
       when: always
 
@@ -106,6 +108,10 @@ build:windows:x86-64:msvc-14.29:avx512dq:
     # offline compilation for Volta and older; nothing below sm_75 can be
     # listed here any more.
     EIGEN_CI_CUDA_COMPUTE_ARCH: "89"
+    # sccache 0.18 parses the unknown /d2ReducedOptimizeHugeFunctions as a
+    # second input file and, for nvcc's host pass, fails the compile instead
+    # of running cl.exe uncached. ccache compiles these as before sccache.
+    EIGEN_CI_SCCACHE: "off"
     EIGEN_CI_BUILD_TARGET: buildtests_gpu
     EIGEN_CI_ADDITIONAL_ARGS:
       -DEIGEN_TEST_CUDA=on

@@ -50,7 +50,7 @@ struct product_can_fold_scalar
                     std::is_same<Shape, DiagonalShape>::value || std::is_same<Shape, SelfAdjointShape>::value> {};
 
 template <typename Lhs>
-struct product_can_fold_scalar<Lhs, TriangularShape> : bool_constant<(Lhs::Mode & UnitDiag) == 0> {};
+struct product_can_fold_scalar<Lhs, TriangularShape> : bool_constant<(int(Lhs::Mode) & int(UnitDiag)) == 0> {};
 
 // The lazy selfadjoint/diagonal evaluator would conjugate a folded complex factor.
 template <typename Lhs, typename Rhs>
@@ -328,9 +328,9 @@ void EIGEN_DEVICE_FUNC outer_product_selector_run_small(Dst& dst, const Lhs& lhs
   const Index rows = dst.rows();
   const Index cols = dst.cols();
   for (Index j = 0; j < cols; ++j) {
-    const Scalar rhs_j = rhsEval.coeff(Index(0), j);
+    const typename Rhs::Scalar rhs_j = rhsEval.coeff(Index(0), j);
     for (Index i = 0; i < rows; ++i) {
-      func.assignCoeff(dst.coeffRef(i, j), alpha * (rhs_j * actual_lhs.coeff(i, Index(0))));
+      func.assignCoeff(dst.coeffRef(i, j), internal::mul(alpha, internal::mul(rhs_j, actual_lhs.coeff(i, Index(0)))));
     }
   }
 }
@@ -343,9 +343,9 @@ void EIGEN_DEVICE_FUNC outer_product_selector_run_small(Dst& dst, const Lhs& lhs
   const Index rows = dst.rows();
   const Index cols = dst.cols();
   for (Index i = 0; i < rows; ++i) {
-    const Scalar lhs_i = lhsEval.coeff(i, Index(0));
+    const typename Lhs::Scalar lhs_i = lhsEval.coeff(i, Index(0));
     for (Index j = 0; j < cols; ++j) {
-      func.assignCoeff(dst.coeffRef(i, j), alpha * (lhs_i * actual_rhs.coeff(Index(0), j)));
+      func.assignCoeff(dst.coeffRef(i, j), internal::mul(alpha, internal::mul(lhs_i, actual_rhs.coeff(Index(0), j))));
     }
   }
 }
@@ -355,6 +355,13 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, OuterProduct> {
   template <typename T>
   struct is_row_major : bool_constant<(int(T::Flags) & RowMajorBit)> {};
   using Scalar = typename Product<Lhs, Rhs>::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  static constexpr bool IsMixedRealComplex = (std::is_same<typename Lhs::Scalar, RealScalar>::value &&
+                                              std::is_same<typename Rhs::Scalar, std::complex<RealScalar>>::value) ||
+                                             (std::is_same<typename Rhs::Scalar, RealScalar>::value &&
+                                              std::is_same<typename Lhs::Scalar, std::complex<RealScalar>>::value);
+  // Complex(1) introduces 0*inf terms that are absent from a real/complex product.
+  using UnitScalar = std::conditional_t<IsMixedRealComplex, RealScalar, Scalar>;
 
   // TODO: it would be nice to be able to exploit our *_assign_op functors for that purpose
   struct set {
@@ -392,7 +399,7 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, OuterProduct> {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void evalTo(Dst& dst, const Lhs& lhs, const Rhs& rhs) {
     if (internal::outer_product_use_small_assignment(dst)) {
       internal::outer_product_selector_run_small(dst, lhs, rhs, internal::assign_op<typename Dst::Scalar, Scalar>(),
-                                                 Scalar(1), is_row_major<Dst>());
+                                                 UnitScalar(1), is_row_major<Dst>());
     } else {
       internal::outer_product_selector_run(dst, lhs, rhs, set(), is_row_major<Dst>());
     }
@@ -402,7 +409,7 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, OuterProduct> {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void addTo(Dst& dst, const Lhs& lhs, const Rhs& rhs) {
     if (internal::outer_product_use_small_assignment(dst)) {
       internal::outer_product_selector_run_small(dst, lhs, rhs, internal::add_assign_op<typename Dst::Scalar, Scalar>(),
-                                                 Scalar(1), is_row_major<Dst>());
+                                                 UnitScalar(1), is_row_major<Dst>());
     } else {
       internal::outer_product_selector_run(dst, lhs, rhs, add(), is_row_major<Dst>());
     }
@@ -412,7 +419,7 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, OuterProduct> {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void subTo(Dst& dst, const Lhs& lhs, const Rhs& rhs) {
     if (internal::outer_product_use_small_assignment(dst)) {
       internal::outer_product_selector_run_small(dst, lhs, rhs, internal::sub_assign_op<typename Dst::Scalar, Scalar>(),
-                                                 Scalar(1), is_row_major<Dst>());
+                                                 UnitScalar(1), is_row_major<Dst>());
     } else {
       internal::outer_product_selector_run(dst, lhs, rhs, sub(), is_row_major<Dst>());
     }
@@ -1373,14 +1380,16 @@ struct generic_product_impl<Lhs, Rhs, SelfAdjointShape, DiagonalShape, ProductTa
   // off-triangle. Strip the scalar factor with blas_traits and re-fold it into
   // the kernel's alpha so the same scalar multiplies every output entry.
   using LhsBlasTraits = blas_traits<typename Lhs::MatrixType>;
-  using ActualLhsMatrix = decltype(LhsBlasTraits::extract(std::declval<const typename Lhs::MatrixType&>())
-                                       .template conjugateIf<bool(LhsBlasTraits::NeedToConjugate)>());
+  // A named constant, not bool(...): nvcc's front end re-emits that cast as a function type MSVC rejects.
+  static constexpr bool ConjLhs = LhsBlasTraits::NeedToConjugate;
+  using ActualLhsMatrix =
+      decltype(LhsBlasTraits::extract(std::declval<const typename Lhs::MatrixType&>()).template conjugateIf<ConjLhs>());
   using ActualLhsMatrixType = remove_all_t<ActualLhsMatrix>;
   using Kernel =
       selfadjoint_diagonal_product_impl<Lhs::Mode, OnTheRight, ActualLhsMatrixType, typename Rhs::DiagonalVectorType>;
 
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ActualLhsMatrix actualLhsMatrix(const typename Lhs::MatrixType& matrix) {
-    return LhsBlasTraits::extract(matrix).template conjugateIf<bool(LhsBlasTraits::NeedToConjugate)>();
+    return LhsBlasTraits::extract(matrix).template conjugateIf<ConjLhs>();
   }
 
   template <typename Dest>
@@ -1411,14 +1420,15 @@ struct generic_product_impl<Lhs, Rhs, DiagonalShape, SelfAdjointShape, ProductTa
   // See note on the SelfAdjointShape, DiagonalShape specialization above for why
   // we extract the scalar factor with blas_traits.
   using RhsBlasTraits = blas_traits<typename Rhs::MatrixType>;
-  using ActualRhsMatrix = decltype(RhsBlasTraits::extract(std::declval<const typename Rhs::MatrixType&>())
-                                       .template conjugateIf<bool(RhsBlasTraits::NeedToConjugate)>());
+  static constexpr bool ConjRhs = RhsBlasTraits::NeedToConjugate;
+  using ActualRhsMatrix =
+      decltype(RhsBlasTraits::extract(std::declval<const typename Rhs::MatrixType&>()).template conjugateIf<ConjRhs>());
   using ActualRhsMatrixType = remove_all_t<ActualRhsMatrix>;
   using Kernel =
       selfadjoint_diagonal_product_impl<Rhs::Mode, OnTheLeft, ActualRhsMatrixType, typename Lhs::DiagonalVectorType>;
 
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ActualRhsMatrix actualRhsMatrix(const typename Rhs::MatrixType& matrix) {
-    return RhsBlasTraits::extract(matrix).template conjugateIf<bool(RhsBlasTraits::NeedToConjugate)>();
+    return RhsBlasTraits::extract(matrix).template conjugateIf<ConjRhs>();
   }
 
   template <typename Dest>
@@ -1439,6 +1449,98 @@ struct generic_product_impl<Lhs, Rhs, DiagonalShape, SelfAdjointShape, ProductTa
     Kernel::run(dst, actualRhsMatrix(rhs.nestedExpression()), lhs.diagonal(), combinedAlpha);
   }
 };
+
+/***************************************************************************
+ * Products of two triangular or self-adjoint views
+ ***************************************************************************/
+
+/** \internal
+ * Evaluates a triangular or self-adjoint view into a plain matrix as the product kernels read it, and returns
+ * the scalar factor to apply. A factor folded into a self-adjoint view, as in (alpha * A).selfadjointView<Lower>(),
+ * would be conjugated on the mirrored triangle by evalTo, so it is extracted first with blas_traits, exactly as
+ * the SYMM kernel does. A triangular view densifies exactly and returns 1.
+ */
+template <typename View, typename Shape = typename evaluator_traits<View>::Shape>
+struct densified_view_operand {
+  using Scalar = typename View::Scalar;
+  template <typename Dense>
+  static Scalar run(Dense& dense, const View& view) {
+    dense = view;
+    return Scalar(1);
+  }
+};
+
+template <typename View>
+struct densified_view_operand<View, SelfAdjointShape> {
+  using Scalar = typename View::Scalar;
+  using BlasTraits = blas_traits<typename View::MatrixType>;
+  static constexpr unsigned int UpLo = unsigned(int(View::Mode) & int(Upper | Lower));
+  template <typename Dense>
+  static Scalar run(Dense& dense, const View& view) {
+    dense = BlasTraits::extract(view.nestedExpression())
+                .template conjugateIf<bool(BlasTraits::NeedToConjugate)>()
+                .template selfadjointView<UpLo>();
+    return BlasTraits::extractScalarFactor(view.nestedExpression());
+  }
+};
+
+/** \internal
+ * Products of two views: one factor is evaluated into a plain dense matrix and the product is re-dispatched to
+ * the kernel that keeps the other one structured. The triangular factor is the one kept whenever there is one
+ * (TRMM is n^3/2 where SYMM is n^3), so a self-adjoint view is densified when it meets a triangular one, and
+ * the right factor is densified otherwise. The structure of the result (Upper * Upper is upper triangular) is
+ * not tracked.
+ */
+template <typename Lhs, typename Rhs, typename LhsShape, typename RhsShape, int ProductTag, bool DensifyRhs>
+struct structured_view_product_impl;
+
+template <typename Lhs, typename Rhs, typename LhsShape, typename RhsShape, int ProductTag>
+struct structured_view_product_impl<Lhs, Rhs, LhsShape, RhsShape, ProductTag, true>
+    : generic_product_impl_base<Lhs, Rhs,
+                                structured_view_product_impl<Lhs, Rhs, LhsShape, RhsShape, ProductTag, true>> {
+  using Scalar = typename Product<Lhs, Rhs>::Scalar;
+  using RhsDenseType = typename Rhs::DenseMatrixType;
+
+  template <typename Dest>
+  static void scaleAndAddTo(Dest& dst, const Lhs& lhs, const Rhs& rhs, const Scalar& alpha) {
+    RhsDenseType rhsDense(rhs.rows(), rhs.cols());
+    const Scalar factor = densified_view_operand<Rhs>::run(rhsDense, rhs);
+    generic_product_impl<Lhs, RhsDenseType, LhsShape, DenseShape, ProductTag>::scaleAndAddTo(dst, lhs, rhsDense,
+                                                                                             alpha * factor);
+  }
+};
+
+template <typename Lhs, typename Rhs, typename LhsShape, typename RhsShape, int ProductTag>
+struct structured_view_product_impl<Lhs, Rhs, LhsShape, RhsShape, ProductTag, false>
+    : generic_product_impl_base<Lhs, Rhs,
+                                structured_view_product_impl<Lhs, Rhs, LhsShape, RhsShape, ProductTag, false>> {
+  using Scalar = typename Product<Lhs, Rhs>::Scalar;
+  using LhsDenseType = typename Lhs::DenseMatrixType;
+
+  template <typename Dest>
+  static void scaleAndAddTo(Dest& dst, const Lhs& lhs, const Rhs& rhs, const Scalar& alpha) {
+    LhsDenseType lhsDense(lhs.rows(), lhs.cols());
+    const Scalar factor = densified_view_operand<Lhs>::run(lhsDense, lhs);
+    generic_product_impl<LhsDenseType, Rhs, DenseShape, RhsShape, ProductTag>::scaleAndAddTo(dst, lhsDense, rhs,
+                                                                                             alpha * factor);
+  }
+};
+
+template <typename Lhs, typename Rhs, int ProductTag>
+struct generic_product_impl<Lhs, Rhs, TriangularShape, TriangularShape, ProductTag>
+    : structured_view_product_impl<Lhs, Rhs, TriangularShape, TriangularShape, ProductTag, true> {};
+
+template <typename Lhs, typename Rhs, int ProductTag>
+struct generic_product_impl<Lhs, Rhs, TriangularShape, SelfAdjointShape, ProductTag>
+    : structured_view_product_impl<Lhs, Rhs, TriangularShape, SelfAdjointShape, ProductTag, true> {};
+
+template <typename Lhs, typename Rhs, int ProductTag>
+struct generic_product_impl<Lhs, Rhs, SelfAdjointShape, TriangularShape, ProductTag>
+    : structured_view_product_impl<Lhs, Rhs, SelfAdjointShape, TriangularShape, ProductTag, false> {};
+
+template <typename Lhs, typename Rhs, int ProductTag>
+struct generic_product_impl<Lhs, Rhs, SelfAdjointShape, SelfAdjointShape, ProductTag>
+    : structured_view_product_impl<Lhs, Rhs, SelfAdjointShape, SelfAdjointShape, ProductTag, true> {};
 
 /***************************************************************************
  * Diagonal products
@@ -1720,8 +1822,10 @@ struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DiagonalSha
 
 // Dense SelfAdjointView statically rejects the Upper|Lower mode (only one half is stored), so the
 // off-stored coefficient is always reconstructed by conjugating its mirror.
-template <int Mode, int ProductOrder, typename MatrixType, typename DiagonalType, typename Derived>
-struct selfadjoint_diagonal_product_lazy_evaluator_base : evaluator_base<Derived> {
+template <int Mode, int ProductOrder, typename MatrixType, typename DiagonalType, typename ProductXpr,
+          bool Materialize =
+              NumTraits<typename MatrixType::Scalar>::IsComplex && blas_traits<MatrixType>::HasScalarFactor>
+struct selfadjoint_diagonal_product_lazy_evaluator_base : evaluator_base<ProductXpr> {
   using Scalar = typename ScalarBinaryOpTraits<typename MatrixType::Scalar, typename DiagonalType::Scalar>::ReturnType;
 
   enum {
@@ -1731,7 +1835,8 @@ struct selfadjoint_diagonal_product_lazy_evaluator_base : evaluator_base<Derived
     Alignment = 0
   };
 
-  EIGEN_DEVICE_FUNC selfadjoint_diagonal_product_lazy_evaluator_base(const MatrixType& mat, const DiagonalType& diag)
+  EIGEN_DEVICE_FUNC selfadjoint_diagonal_product_lazy_evaluator_base(const ProductXpr&, const MatrixType& mat,
+                                                                     const DiagonalType& diag)
       : m_diagImpl(diag), m_matImpl(mat) {}
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar coeff(Index row, Index col) const {
@@ -1747,34 +1852,44 @@ struct selfadjoint_diagonal_product_lazy_evaluator_base : evaluator_base<Derived
   evaluator<MatrixType> m_matImpl;
 };
 
+// Extract complex factors before conjugating mirrored entries; the temporary also protects nested aliases.
+// The parameter is not named XprType: MSVC lets the dependent base's XprType (an EvalToTemp) hide it.
+template <int Mode, int ProductOrder, typename MatrixType, typename DiagonalType, typename ProductXpr>
+struct selfadjoint_diagonal_product_lazy_evaluator_base<Mode, ProductOrder, MatrixType, DiagonalType, ProductXpr, true>
+    : evaluator<EvalToTemp<Product<typename ProductXpr::Lhs, typename ProductXpr::Rhs, DefaultProduct>>> {
+  using DefaultProductType = Product<typename ProductXpr::Lhs, typename ProductXpr::Rhs, DefaultProduct>;
+  using Base = evaluator<EvalToTemp<DefaultProductType>>;
+  EIGEN_DEVICE_FUNC selfadjoint_diagonal_product_lazy_evaluator_base(const ProductXpr& xpr, const MatrixType&,
+                                                                     const DiagonalType&)
+      : Base(DefaultProductType(xpr.lhs(), xpr.rhs())) {}
+};
+
 // SelfAdjoint × Diagonal
 template <typename Lhs, typename Rhs, int ProductKind, int ProductTag>
 struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, SelfAdjointShape, DiagonalShape>
-    : selfadjoint_diagonal_product_lazy_evaluator_base<
-          Lhs::Mode, OnTheRight, typename Lhs::MatrixType, typename Rhs::DiagonalVectorType,
-          product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, SelfAdjointShape, DiagonalShape>> {
+    : selfadjoint_diagonal_product_lazy_evaluator_base<Lhs::Mode, OnTheRight, typename Lhs::MatrixType,
+                                                       typename Rhs::DiagonalVectorType,
+                                                       Product<Lhs, Rhs, ProductKind>> {
   using XprType = Product<Lhs, Rhs, ProductKind>;
-  using Base = selfadjoint_diagonal_product_lazy_evaluator_base<
-      Lhs::Mode, OnTheRight, typename Lhs::MatrixType, typename Rhs::DiagonalVectorType,
-      product_evaluator<XprType, ProductTag, SelfAdjointShape, DiagonalShape>>;
+  using Base = selfadjoint_diagonal_product_lazy_evaluator_base<Lhs::Mode, OnTheRight, typename Lhs::MatrixType,
+                                                                typename Rhs::DiagonalVectorType, XprType>;
 
   EIGEN_DEVICE_FUNC explicit product_evaluator(const XprType& xpr)
-      : Base(xpr.lhs().nestedExpression(), xpr.rhs().diagonal()) {}
+      : Base(xpr, xpr.lhs().nestedExpression(), xpr.rhs().diagonal()) {}
 };
 
 // Diagonal × SelfAdjoint
 template <typename Lhs, typename Rhs, int ProductKind, int ProductTag>
 struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DiagonalShape, SelfAdjointShape>
-    : selfadjoint_diagonal_product_lazy_evaluator_base<
-          Rhs::Mode, OnTheLeft, typename Rhs::MatrixType, typename Lhs::DiagonalVectorType,
-          product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DiagonalShape, SelfAdjointShape>> {
+    : selfadjoint_diagonal_product_lazy_evaluator_base<Rhs::Mode, OnTheLeft, typename Rhs::MatrixType,
+                                                       typename Lhs::DiagonalVectorType,
+                                                       Product<Lhs, Rhs, ProductKind>> {
   using XprType = Product<Lhs, Rhs, ProductKind>;
-  using Base = selfadjoint_diagonal_product_lazy_evaluator_base<
-      Rhs::Mode, OnTheLeft, typename Rhs::MatrixType, typename Lhs::DiagonalVectorType,
-      product_evaluator<XprType, ProductTag, DiagonalShape, SelfAdjointShape>>;
+  using Base = selfadjoint_diagonal_product_lazy_evaluator_base<Rhs::Mode, OnTheLeft, typename Rhs::MatrixType,
+                                                                typename Lhs::DiagonalVectorType, XprType>;
 
   EIGEN_DEVICE_FUNC explicit product_evaluator(const XprType& xpr)
-      : Base(xpr.rhs().nestedExpression(), xpr.lhs().diagonal()) {}
+      : Base(xpr, xpr.rhs().nestedExpression(), xpr.lhs().diagonal()) {}
 };
 
 /***************************************************************************
@@ -1784,10 +1899,19 @@ struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DiagonalSha
 /** \internal
  * \class permutation_matrix_product
  * Internal helper class implementing the product between a permutation matrix and a matrix.
- * This class is specialized for DenseShape below and for SparseShape in SparseCore/SparsePermutation.h
+ * This class is specialized for DenseShape, TriangularShape and SelfAdjointShape below and for SparseShape in
+ * SparseCore/SparsePermutation.h.
+ * The generic_product_impl cells for PermutationShape accept any operand shape, so the primary template
+ * turns a missing specialization into a static assertion instead of an incomplete-type error.
  */
 template <typename ExpressionType, int Side, bool Transposed, typename ExpressionShape>
-struct permutation_matrix_product;
+struct permutation_matrix_product {
+  template <typename Dest, typename PermutationType>
+  static EIGEN_DEVICE_FUNC void run(Dest&, const PermutationType&, const ExpressionType&) {
+    static_assert(std::is_same<ExpressionShape, DenseShape>::value,
+                  "PERMUTATION_PRODUCTS_ARE_NOT_IMPLEMENTED_FOR_THIS_OPERAND_SHAPE");
+  }
+};
 
 template <typename ExpressionType, int Side, bool Transposed>
 struct permutation_matrix_product<ExpressionType, Side, Transposed, DenseShape> {
@@ -1844,6 +1968,30 @@ struct permutation_matrix_product<ExpressionType, Side, Transposed, DenseShape> 
   }
 };
 
+/** \internal
+ * Permutation products with a triangular or self-adjoint operand: the operand is evaluated into a plain dense
+ * matrix (its implicit unit diagonal, zeros and mirrored half included) and the dense kernel permutes that into
+ * dst. The result is dense; the permuted structure is not tracked.
+ */
+template <typename ExpressionType, int Side, bool Transposed>
+struct permutation_densified_matrix_product {
+  using DenseType = typename ExpressionType::DenseMatrixType;
+
+  template <typename Dest, typename PermutationType>
+  static EIGEN_DEVICE_FUNC void run(Dest& dst, const PermutationType& perm, const ExpressionType& xpr) {
+    const DenseType dense(xpr);
+    permutation_matrix_product<DenseType, Side, Transposed, DenseShape>::run(dst, perm, dense);
+  }
+};
+
+template <typename ExpressionType, int Side, bool Transposed>
+struct permutation_matrix_product<ExpressionType, Side, Transposed, TriangularShape>
+    : permutation_densified_matrix_product<ExpressionType, Side, Transposed> {};
+
+template <typename ExpressionType, int Side, bool Transposed>
+struct permutation_matrix_product<ExpressionType, Side, Transposed, SelfAdjointShape>
+    : permutation_densified_matrix_product<ExpressionType, Side, Transposed> {};
+
 template <typename Lhs, typename Rhs, int ProductTag, typename MatrixShape>
 struct generic_product_impl<Lhs, Rhs, PermutationShape, MatrixShape, ProductTag> {
   template <typename Dest>
@@ -1894,6 +2042,9 @@ struct transposition_matrix_product {
   template <typename Dest, typename TranspositionType>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Dest& dst, const TranspositionType& tr,
                                                         const ExpressionType& xpr) {
+    // The in-place row/column swaps below need a dense operand.
+    static_assert(std::is_same<ExpressionShape, DenseShape>::value,
+                  "TRANSPOSITIONS_PRODUCTS_ARE_ONLY_IMPLEMENTED_FOR_DENSE_OPERANDS");
     MatrixType mat(xpr);
     using StorageIndex = typename TranspositionType::StorageIndex;
     const Index size = tr.size();
@@ -1946,14 +2097,15 @@ struct generic_product_impl<Lhs, Transpose<Rhs>, MatrixShape, TranspositionsShap
 
 /***************************************************************************
  * skew symmetric products
- * for now we just call the generic implementation
+ * The 3x3 skew-symmetric operand is densified and the product is re-dispatched on the other
+ * operand's shape, so shapes whose products with a dense matrix are evaluator-only (DiagonalShape)
+ * resolve too.
  ***************************************************************************/
 template <typename Lhs, typename Rhs, int ProductTag, typename MatrixShape>
 struct generic_product_impl<Lhs, Rhs, SkewSymmetricShape, MatrixShape, ProductTag> {
   template <typename Dest>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void evalTo(Dest& dst, const Lhs& lhs, const Rhs& rhs) {
-    generic_product_impl<typename Lhs::DenseMatrixType, Rhs, DenseShape, MatrixShape, ProductTag>::evalTo(dst, lhs,
-                                                                                                          rhs);
+    call_assignment_no_alias(dst, typename Lhs::DenseMatrixType(lhs) * rhs);
   }
 };
 
@@ -1961,8 +2113,7 @@ template <typename Lhs, typename Rhs, int ProductTag, typename MatrixShape>
 struct generic_product_impl<Lhs, Rhs, MatrixShape, SkewSymmetricShape, ProductTag> {
   template <typename Dest>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void evalTo(Dest& dst, const Lhs& lhs, const Rhs& rhs) {
-    generic_product_impl<Lhs, typename Rhs::DenseMatrixType, MatrixShape, DenseShape, ProductTag>::evalTo(dst, lhs,
-                                                                                                          rhs);
+    call_assignment_no_alias(dst, lhs * typename Rhs::DenseMatrixType(rhs));
   }
 };
 
