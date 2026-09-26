@@ -1,0 +1,50 @@
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
+
+# NVIDIA Grace: 72 Arm Neoverse V2 cores, single-threaded, one socket, Ubuntu 24.04.
+
+id = "neoverse-v2-72c"
+display_name = "NVIDIA Grace (72-core Arm Neoverse V2, 1 socket), Ubuntu 24.04"
+cpu_model = "Neoverse-V2"
+max_load_avg = 0.5
+default_isa = "aarch64-neon"
+
+notes = """
+64 KiB L1d and 1 MiB L2 per core, a 114 MiB L3 shared by all 72 cores, so the
+level-3 fall-off happens much later here than on a desktop part. SVE2 at a
+128-bit vector length (/proc/sys/abi/sve_default_vector_length is 16 bytes):
+the aarch64-sve target is a different instruction set at the same width as
+NEON, so a difference between the two is code generation, not vector width.
+All 72 cores are on NUMA node 0; the eight other nodes are device memory
+without CPUs. 64 KiB kernel pages. GCC 13.3, no Ninja on the host.
+"""
+
+[pinning]
+# One core, away from core 0 where the interrupt load goes. The L2 is private
+# per core, so a migration would refill it.
+cpu_list = "8"
+
+# The compiler's default target (armv8-a), as for the Apple M4 NEON page.
+[isa."aarch64-neon"]
+flags = []
+
+# Eigen selects SVE only when asked and only at a fixed vector length.
+[isa."aarch64-sve"]
+flags = ["-march=armv9-a+sve2", "-msve-vector-bits=128", "-DEIGEN_ARM64_USE_SVE"]
+
+# The sequential LP64 library of the official deb installer (GCC build).
+[arms.armpl]
+cmake_options = ["-DEIGEN_BENCH_REFERENCE=armpl", "-DBLAS_LIBRARIES=/opt/arm/armpl_26.07_gcc/lib/libarmpl_lp64.so", "-DLAPACK_LIBRARIES=/opt/arm/armpl_26.07_gcc/lib/libarmpl_lp64.so"]
+thread_env = { ARMPL_NUM_THREADS = "{threads}" }
+
+# NVPL 26.5 redistributable tarballs (nvpl_common 0.3.5, nvpl_blas 0.6.0,
+# nvpl_lapack 0.4.0.1) unpacked into one prefix; the config packages select
+# the sequential LP64 targets.
+[arms.nvpl]
+cmake_options = ["-DEIGEN_BENCH_REFERENCE=nvpl", "-DCMAKE_PREFIX_PATH=/opt/nvidia/nvpl-26.5"]
+thread_env = { NVPL_BLAS_NUM_THREADS = "{threads}", NVPL_LAPACK_NUM_THREADS = "{threads}" }
+
+# Ubuntu 24.04's libopenblas-dev (pthread build, DYNAMIC_ARCH, LAPACK bundled).
+[arms.openblas]
+cmake_options = ["-DEIGEN_BENCH_REFERENCE=openblas"]
+thread_env = { OPENBLAS_NUM_THREADS = "{threads}" }

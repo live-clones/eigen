@@ -1,0 +1,45 @@
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
+
+# Apple M4 (4 performance + 6 efficiency cores), Mac mini (Mac16,10), macOS 27.
+
+id = "apple-m4-mac-mini"
+display_name = "Apple M4 (10-core, 4P+6E), Mac mini"
+cpu_model = "Apple M4"
+# macOS counts more than runnable threads in its load average; an idle desktop
+# session sits near 1.3. The measurement driver gates on CPU busy time instead.
+max_load_avg = 2.5
+default_isa = "aarch64-sme"
+
+notes = """
+Heterogeneous part: 4 P-cores (128 KiB L1d, 16 MiB shared L2) and 6 E-cores
+(64 KiB L1d, 4 MiB shared L2). macOS has no thread-to-core affinity API, so a
+run cannot be confined to the P-cores; a single-threaded number from here is
+"whatever core the scheduler chose". 24 GiB unified memory, 128-byte cache line.
+SME2 with a 512-bit streaming vector length, FEAT_SME_F64F64, no non-streaming
+SVE. Eigen has an SME kernel for GEMM only; every other kernel under the
+aarch64-sme target is the NEON code, and the blocked level-3 and LAPACK-style
+operations reach SME through their GEMM updates.
+"""
+
+[isa."aarch64-neon"]
+flags = []
+
+# -mcpu=apple-m4 defines __ARM_FEATURE_SME2, which selects Eigen's SME backend.
+[isa."aarch64-sme"]
+flags = ["-mcpu=apple-m4"]
+
+# Accelerate exposes no version query; the macOS build is the identifier.
+[arms.accelerate]
+cmake_options = ["-DEIGEN_BENCH_REFERENCE=accelerate", "-DEIGEN_BENCH_REFERENCE_VERSION=Apple Accelerate, macOS 27.0 (build 26A428)"]
+thread_env = { VECLIB_MAXIMUM_THREADS = "{threads}" }
+
+# The sequential LP64 library; the Homebrew cask installs under /opt/arm.
+[arms.armpl]
+cmake_options = ["-DEIGEN_BENCH_REFERENCE=armpl", "-DBLAS_LIBRARIES=/opt/arm/armpl_26.07_flang-22/lib/libarmpl_lp64.dylib", "-DLAPACK_LIBRARIES=/opt/arm/armpl_26.07_flang-22/lib/libarmpl_lp64.dylib"]
+thread_env = { ARMPL_NUM_THREADS = "{threads}" }
+
+# Homebrew's keg-only bottle: DYNAMIC_ARCH, threaded, LAPACK included.
+[arms.openblas]
+cmake_options = ["-DEIGEN_BENCH_REFERENCE=openblas", "-DBLAS_LIBRARIES=/opt/homebrew/opt/openblas/lib/libopenblas.dylib", "-DLAPACK_LIBRARIES=/opt/homebrew/opt/openblas/lib/libopenblas.dylib"]
+thread_env = { OPENBLAS_NUM_THREADS = "{threads}" }
