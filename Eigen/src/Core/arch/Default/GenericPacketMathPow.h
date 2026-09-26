@@ -728,9 +728,20 @@ struct repeated_squaring_ops {
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet nan_lanes(const Packet&, const Packet& r, const ScalarExponent&) {
     return r;
   }
+  // Zero bases are resolved by the special value in result().
+  struct ZeroBases {
+    static constexpr bool any = false;
+  };
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE ZeroBases zero_bases(const Packet&, bool) { return ZeroBases(); }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet without_zero_bases(const Packet& x, const ZeroBases&) {
+    return x;
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet with_zero_bases(const Packet& r, const ZeroBases&, bool) {
+    return r;
+  }
 };
 
-// pow(x, exponent) as the standard library computes it, for a result r that is NaN.
+// pow(x, exponent) as the standard library computes it, for a result r that is NaN: an infinite or NaN base.
 template <typename Scalar, typename ScalarExponent>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar std_pow_if_nan(const Scalar& x, const Scalar& r,
                                                             const ScalarExponent& exponent) {
@@ -777,6 +788,14 @@ struct complex_components {
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool any_zero(const Packet& z) {
     return predux_any(pcmp_eq(z.v, pzero(z.v)));
   }
+  // Both components zero, in both lanes of each pair.
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE R zero_base_mask(const Packet& z) {
+    R zero = pcmp_eq(z.v, pzero(z.v));
+    return pand(zero, flip(zero));
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet replace(const R& mask, const Scalar& value, const Packet& z) {
+    return Packet(pselect(mask, pset1<Packet>(value).v, z.v));
+  }
   template <typename ScalarExponent>
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet nan_lanes(const Packet& x, const Packet& r,
                                                                 const ScalarExponent& exponent) {
@@ -813,6 +832,12 @@ struct complex_components<Scalar, true> {
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool any_zero(const Scalar& z) {
     return numext::real(z) == R(0) || numext::imag(z) == R(0);
   }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE R zero_base_mask(const Scalar& z) {
+    return numext::real(z) == R(0) && numext::imag(z) == R(0) ? R(1) : R(0);
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar replace(const R& mask, const Scalar& value, const Scalar& z) {
+    return mask != R(0) ? value : z;
+  }
   template <typename ScalarExponent>
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar nan_lanes(const Scalar& x, const Scalar& r,
                                                                 const ScalarExponent& exponent) {
@@ -822,8 +847,10 @@ struct complex_components<Scalar, true> {
 
 // Complex bases keep the real and imaginary parts as separate double words sharing one exponent, scaled by the
 // larger component: z^2 = (a^2 - b^2) + 2ab i is three products and a product (a + bi)(c + di) four. Either
-// component may legitimately be zero. Zero, infinite and NaN bases make the double-word result NaN, and
-// int_pow_double_word takes those lanes from the standard library's pow, as for other scalar types.
+// component may legitimately be zero. A zero base gives +0 + 0i for n > 0 and +inf + 0i for n < 0, the complex
+// infinity of std::proj: std::pow leaves the signs of these zeros and the other component of the infinity to the
+// implementation (libstdc++ gives inf + nan i for 1/0). Infinite and NaN bases make the double-word result NaN and
+// are taken from the standard library's pow, lane by lane.
 template <typename Packet>
 struct repeated_squaring_ops<Packet, true> {
   using Scalar = typename unpacket_traits<Packet>::type;
@@ -1013,6 +1040,29 @@ struct repeated_squaring_ops<Packet, true> {
                                                                 const ScalarExponent& exponent) {
     return Components::nan_lanes(x, r, exponent);
   }
+  // Zero bases are replaced by 1 + i before the loop, so that they neither force the scaled loop on their packet nor
+  // come back NaN, and their result is set at the end. 1 + i has no zero component, which would take the packet
+  // through zero_component_signs.
+  // Only whether there are any is carried through the loop; the mask is recomputed from the base.
+  struct ZeroBases {
+    Packet x;
+    bool any;
+  };
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE ZeroBases zero_bases(const Packet& x, bool scaled) {
+    ZeroBases z;
+    z.x = x;
+    z.any = scaled && Components::any_zero(x) && predux_any(Components::zero_base_mask(x));
+    return z;
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet without_zero_bases(const Packet& x, const ZeroBases& z) {
+    return z.any ? Components::replace(Components::zero_base_mask(x), Scalar(1, 1), x) : x;
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet with_zero_bases(const Packet& r, const ZeroBases& z,
+                                                                      bool negative) {
+    if (!z.any) return r;
+    return Components::replace(Components::zero_base_mask(z.x),
+                               negative ? Scalar(NumTraits<Real>::infinity(), Real(0)) : Scalar(0), r);
+  }
   // A base with one component s = +-0 is the limit of L (1 + i t), with t = s/L for a real L and -s/b for L = bi,
   // so z^n = L^n (1 + i n t): the zero component of the power has the sign of i n t L^n, which the double-word sums
   // lose (-0 + 0 = +0). Sign bits combine by xor; a scalar comparison mask is one rather than all ones, so masks
@@ -1097,8 +1147,12 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet int_pow_double_word(const Packet& x
   typename Ops::Bound bound =
       pset1frombits<typename Ops::Bound>(RealBits(kBiasBits + RealBits(b < 0 ? 0 : b)) << kMantissaBits);
   bool scaled = b < 0 || !Ops::in_range(x, bound);
+  // A zero base is never in range, so only a packet bound for the scaled loop can hold one.
+  typename Ops::ZeroBases zeros = Ops::zero_bases(x, scaled);
+  Packet x_nonzero = Ops::without_zero_bases(x, zeros);
+  if (zeros.any) scaled = b < 0 || !Ops::in_range(x_nonzero, bound);
 
-  typename Ops::State base = Ops::base(x, negative, scaled, m);
+  typename Ops::State base = Ops::base(x_nonzero, negative, scaled, m);
   typename Ops::State y = base;
   int renormalization_steps = Ops::renormalization_steps(Real(m));
   int steps_since_renormalization = 0;
@@ -1110,7 +1164,7 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet int_pow_double_word(const Packet& x
       steps_since_renormalization = 0;
     }
   }
-  Packet r = Ops::result(x, y, base, odd, scaled);
+  Packet r = Ops::with_zero_bases(Ops::result(x_nonzero, y, base, odd, scaled), zeros, negative);
   return scaled && Ops::any_nan(r) ? Ops::nan_lanes(x, r, exponent) : r;
 }
 
