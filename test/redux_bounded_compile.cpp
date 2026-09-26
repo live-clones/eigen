@@ -21,22 +21,34 @@ using BoundedVector3d = Eigen::Matrix<double, Eigen::Dynamic, 1, Eigen::ColMajor
 
 std::function<Eigen::VectorXd(Eigen::Index)> evaluate_position;
 
+template <int Mode>
 EIGEN_ALWAYS_INLINE double bounded_residual(const BoundedVector3d& target, Eigen::Index size) {
   const Eigen::VectorXd position = evaluate_position(size);
-  return (position - target.head(size)).norm();
+  EIGEN_IF_CONSTEXPR (Mode == 0) {
+    return (position - target.head(size)).norm();
+  } else EIGEN_IF_CONSTEXPR (Mode == 1) {
+    return Eigen::numext::sqrt((position - target.head(size)).array().square().sum());
+  } else {
+    return (position.array() - target.head(size).array()).matrix().norm();
+  }
 }
 
+template <int Mode>
 Eigen::VectorXd bounded_residuals(const Eigen::MatrixXd& points, Eigen::Index size) {
   Eigen::VectorXd result(points.cols());
-  for (Eigen::Index i = 0; i < points.cols(); ++i) result(i) = bounded_residual(BoundedVector3d(points.col(i)), size);
+  for (Eigen::Index i = 0; i < points.cols(); ++i)
+    result(i) = bounded_residual<Mode>(BoundedVector3d(points.col(i)), size);
   return result;
 }
 
 int main() {
   evaluate_position = [](Eigen::Index size) -> Eigen::VectorXd { return Eigen::VectorXd::Zero(size); };
   for (Eigen::Index size = 1; size <= 3; ++size) {
-    const Eigen::VectorXd result = bounded_residuals(Eigen::MatrixXd::Ones(size, 2), size);
-    for (Eigen::Index i = 0; i < result.size(); ++i)
-      if (Eigen::numext::abs(result(i) - Eigen::numext::sqrt(double(size))) > 1e-12) return 1;
+    const Eigen::MatrixXd points = Eigen::MatrixXd::Ones(size, 2);
+    for (const Eigen::VectorXd& result :
+         {bounded_residuals<0>(points, size), bounded_residuals<1>(points, size), bounded_residuals<2>(points, size)}) {
+      for (Eigen::Index i = 0; i < result.size(); ++i)
+        if (Eigen::numext::abs(result(i) - Eigen::numext::sqrt(double(size))) > 1e-12) return 1;
+    }
   }
 }
