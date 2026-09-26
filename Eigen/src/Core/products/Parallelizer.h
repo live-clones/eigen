@@ -62,6 +62,11 @@ inline int nbThreads() {
  * \sa nbThreads */
 inline void setNbThreads(int v) { internal::manage_multi_threading(SetAction, &v); }
 
+#ifdef EIGEN_GEMM_APPLE_AMX
+#ifndef EIGEN_APPLE_AMX_MIN_TASK_SIZE
+#define EIGEN_APPLE_AMX_MIN_TASK_SIZE (double(1 << 21))
+#endif
+#endif
 #ifdef EIGEN_VECTORIZE_SME
 #ifndef EIGEN_SME_MIN_TASK_SIZE
 #define EIGEN_SME_MIN_TASK_SIZE (double(1 << 20))
@@ -83,12 +88,7 @@ inline int detect_sme_units() {
 #elif EIGEN_OS_MAC
   // Performance clusters only (a cluster shares one L2): the work is split evenly over the threads,
   // so a thread on the efficiency cluster's slower unit would set the finishing time.
-  int32_t cores = 0, per_l2 = 0;
-  size_t sz = sizeof(cores);
-  if (sysctlbyname("hw.perflevel0.physicalcpu", &cores, &sz, nullptr, 0) != 0 || cores <= 0) return 0;
-  sz = sizeof(per_l2);
-  if (sysctlbyname("hw.perflevel0.cpusperl2", &per_l2, &sz, nullptr, 0) != 0 || per_l2 <= 0) return 0;
-  return numext::maxi<int32_t>(1, cores / per_l2);
+  return queryPerformanceClusters();
 #else
   return 0;
 #endif
@@ -259,6 +259,51 @@ inline void manage_multi_threading(Action action, int* v) {
   }
 }
 
+#if defined(EIGEN_VECTORIZE_SME) || defined(EIGEN_GEMM_APPLE_AMX)
+// Runs disjoint parts of the result, one per thread, split along its rows or its columns in multiples of the grain.
+template <typename Functor, typename Index>
+void run_disjoint_gemm_parts(const Functor& func, Index rows, Index cols, int threads, bool split_rows, Index row_grain,
+                             Index col_grain) {
+  auto part = [&func, rows, cols, threads, split_rows, row_grain, col_grain](int i) {
+    Index start, length;
+    if (split_rows) {
+      balanced_gemm_range<Index>(rows, threads, row_grain, i, start, length);
+      if (length > 0) func(start, length, 0, cols);
+    } else {
+      balanced_gemm_range<Index>(cols, threads, col_grain, i, start, length);
+      if (length > 0) func(0, rows, start, length);
+    }
+  };
+#if defined(EIGEN_HAS_OPENMP)
+#pragma omp parallel for num_threads(threads) schedule(static, 1)
+  for (int i = 0; i < threads; ++i) part(i);
+#elif defined(EIGEN_GEMM_THREADPOOL)
+  // The parts take about as long as each other, so the caller spins for the others, then yields, instead of
+  // sleeping on a barrier. It waits for them before an exception from its own part leaves this frame.
+  ThreadPool* pool = getGemmThreadPool();
+  std::atomic<int> pending(threads - 1);
+  for (int i = 0; i < threads - 1; ++i)
+    pool->Schedule([&part, &pending, i] {
+      part(i);
+      pending.fetch_sub(1, std::memory_order_release);
+    });
+  const auto wait = [&pending] {
+    for (int spin = 0; pending.load(std::memory_order_acquire) != 0;)
+      if (spin < 4096)
+        ++spin;
+      else
+        std::this_thread::yield();
+  };
+  EIGEN_TRY { part(threads - 1); }
+  EIGEN_CATCH(...) {
+    wait();
+    EIGEN_THROW;
+  }
+  wait();
+#endif
+}
+#endif
+
 template <bool Condition, typename Functor, typename Index>
 EIGEN_STRONG_INLINE void parallelize_gemm(const Functor& func, Index rows, Index cols, Index depth, bool transpose) {
   // Dynamically check whether we should even try to execute in parallel.
@@ -292,6 +337,17 @@ EIGEN_STRONG_INLINE void parallelize_gemm(const Functor& func, Index rows, Index
         std::max<Index>(1, (std::max)(kernel_rows / Functor::Traits::mr, kernel_cols / Functor::Traits::nr));
   }
 #endif
+#ifdef EIGEN_GEMM_APPLE_AMX
+  // A known AMX unit count: one disjoint part of the result per unit; an fp64 multiply-add costs four fp32 ones.
+  constexpr bool kAmx =
+      apple_amx_pair<typename Functor::Traits::LhsScalar, typename Functor::Traits::RhsScalar>::value;
+  const int amx_units = kAmx ? apple_amx::units() : 0;
+  const bool amx_disjoint = amx_units > 0 && func.ownsNoBuffers();
+  if (amx_units > 0) {
+    kMinTaskSize = EIGEN_APPLE_AMX_MIN_TASK_SIZE / (sizeof(typename Functor::Traits::LhsScalar) == 8 ? 4.0 : 1.0);
+    pb_max_threads = std::max<Index>(1, (std::max)(rows, cols) / apple_amx::kSplitGrain);
+  }
+#endif
   pb_max_threads = std::max<Index>(1, std::min<Index>(pb_max_threads, static_cast<Index>(work / kMinTaskSize)));
 
   // compute the number of threads we are going to use
@@ -302,6 +358,9 @@ EIGEN_STRONG_INLINE void parallelize_gemm(const Functor& func, Index rows, Index
     const int units = nbSmeUnits();
     if (units > 0) threads = std::min<int>(threads, units);
   }
+#endif
+#ifdef EIGEN_GEMM_APPLE_AMX
+  if (amx_units > 0) threads = std::min<int>(threads, amx_units);
 #endif
 
   // if multi-threading is explicitly disabled, not useful, or if we already are
@@ -319,6 +378,17 @@ EIGEN_STRONG_INLINE void parallelize_gemm(const Functor& func, Index rows, Index
   dont_parallelize |= (pool == nullptr || pool->CurrentThreadId() != -1);
 #endif
   if (dont_parallelize) return func(0, rows, 0, cols);
+
+#ifdef EIGEN_GEMM_APPLE_AMX
+  // Split the longer side of the result, with at least two grains per part.
+  if (amx_disjoint) {
+    const bool split_rows = rows >= cols;
+    const Index grain = apple_amx::kSplitGrain;
+    threads = static_cast<int>((std::min)(Index(threads), (split_rows ? rows : cols) / (2 * grain)));
+    if (threads <= 1) return func(0, rows, 0, cols);
+    return run_disjoint_gemm_parts(func, rows, cols, threads, split_rows, grain, grain);
+  }
+#endif
 
 #ifdef EIGEN_VECTORIZE_SME
   // A known unit count stands for one SME unit per core cluster, each with its own L2 (see nbSmeUnits): the
@@ -342,42 +412,7 @@ EIGEN_STRONG_INLINE void parallelize_gemm(const Functor& func, Index rows, Index
       const Index chunks = split_rows ? (rows + row_grain - 1) / row_grain : (cols + col_grain - 1) / col_grain;
       threads = static_cast<int>((std::min)(Index(threads), chunks));
       if (threads <= 1) return func(0, rows, 0, cols);
-      auto part = [&func, rows, cols, threads, split_rows, row_grain, col_grain](int i) {
-        Index start, length;
-        if (split_rows) {
-          balanced_gemm_range<Index>(rows, threads, row_grain, i, start, length);
-          if (length > 0) func(start, length, 0, cols);
-        } else {
-          balanced_gemm_range<Index>(cols, threads, col_grain, i, start, length);
-          if (length > 0) func(0, rows, start, length);
-        }
-      };
-#if defined(EIGEN_HAS_OPENMP)
-#pragma omp parallel for num_threads(threads) schedule(static, 1)
-      for (int i = 0; i < threads; ++i) part(i);
-#elif defined(EIGEN_GEMM_THREADPOOL)
-      // The parts take about as long as each other, so the caller spins for the others, then yields, instead of
-      // sleeping on a barrier. It waits for them before an exception from its own part leaves this frame.
-      std::atomic<int> pending(threads - 1);
-      for (int i = 0; i < threads - 1; ++i)
-        pool->Schedule([&part, &pending, i] {
-          part(i);
-          pending.fetch_sub(1, std::memory_order_release);
-        });
-      const auto wait = [&pending] {
-        for (int spin = 0; pending.load(std::memory_order_acquire) != 0;)
-          if (spin < 4096)
-            ++spin;
-          else
-            std::this_thread::yield();
-      };
-      EIGEN_TRY { part(threads - 1); }
-      EIGEN_CATCH(...) {
-        wait();
-        EIGEN_THROW;
-      }
-      wait();
-#endif
+      run_disjoint_gemm_parts(func, rows, cols, threads, split_rows, row_grain, col_grain);
       return;
     }
   }

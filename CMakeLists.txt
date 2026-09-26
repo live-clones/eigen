@@ -583,6 +583,13 @@ if (EIGEN_BUILD_TESTING)
       message(STATUS "Requiring SME in tests/examples")
     endif()
 
+    # Apple AMX is opt-in only; on Apple arm64 NEON builds every GEMM then takes it where the chip allows.
+    option(EIGEN_TEST_APPLE_AMX "Enable the Apple AMX GEMM in tests/examples" OFF)
+    if(EIGEN_TEST_APPLE_AMX)
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DEIGEN_ARM64_USE_APPLE_AMX")
+      message(STATUS "Enabling the Apple AMX GEMM in tests/examples")
+    endif()
+
     # The SVE backend needs a compile-time vector length: EIGEN_ARM64_SVE_VL is taken from
     # __ARM_FEATURE_SVE_BITS, which only -msve-vector-bits sets. An SVE-capable -march is the
     # caller's responsibility, as it is for SME.

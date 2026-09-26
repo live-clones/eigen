@@ -213,6 +213,14 @@ struct general_matrix_matrix_product<Index, LhsScalar, LhsStorageOrder, Conjugat
                                lhs_, lhsStride, rhs_, rhsStride, res_, resIncr, resStride, alpha))
       return;
 #endif
+#ifdef EIGEN_GEMM_APPLE_AMX
+    // Preallocated blocking buffers mean a fixed-size product, which must not allocate.
+    if (info == nullptr && blocking.blockA() == nullptr && blocking.blockB() == nullptr &&
+        apple_amx_run<LhsStorageOrder, RhsStorageOrder>(bool_constant<apple_amx_pair<LhsScalar, RhsScalar>::value>(),
+                                                        rows, cols, depth, lhs_, lhsStride, rhs_, rhsStride, res_,
+                                                        resIncr, resStride, alpha))
+      return;
+#endif
 
     using LhsMapper = const_blas_data_mapper<LhsScalar, Index, LhsStorageOrder>;
     using RhsMapper = const_blas_data_mapper<RhsScalar, Index, RhsStorageOrder>;

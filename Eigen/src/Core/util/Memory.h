@@ -1597,6 +1597,18 @@ inline void queryCacheSizes(std::ptrdiff_t& l1, std::ptrdiff_t& l2, std::ptrdiff
   queryCacheSizes(l1, l2, l3, l3_per_cpu);
 }
 
+#if EIGEN_OS_MAC
+/** \internal \returns the performance-core clusters (one L2 and one matrix unit each), or 0 if macOS reports none */
+inline int queryPerformanceClusters() {
+  int32_t cores = 0, per_l2 = 0;
+  std::size_t size = sizeof(cores);
+  if (sysctlbyname("hw.perflevel0.physicalcpu", &cores, &size, nullptr, 0) != 0 || cores <= 0) return 0;
+  size = sizeof(per_l2);
+  if (sysctlbyname("hw.perflevel0.cpusperl2", &per_l2, &size, nullptr, 0) != 0 || per_l2 <= 0) return 0;
+  return cores >= per_l2 ? int(cores / per_l2) : 1;
+}
+#endif
+
 /** \internal
  * \returns the size in Bytes of the L1 data cache */
 inline std::ptrdiff_t queryL1CacheSize() {

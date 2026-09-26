@@ -17,6 +17,12 @@ eigen_add_benchmark(bench_gemm_complex_double bench_gemm.cpp
     DEFINITIONS "SCALAR=std::complex<double>" EIGEN_BENCH_COMPLEX_SCALAR)
 eigen_add_benchmark(bench_gemm_threads bench_gemm_threads.cpp)
 eigen_add_benchmark(bench_gemm_threads_double bench_gemm_threads.cpp DEFINITIONS SCALAR=double)
+if(APPLE AND CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64")
+  # The same grids with the opt-in Apple AMX GEMM, against the targets above.
+  eigen_add_benchmark(bench_gemm_apple_amx bench_gemm.cpp DEFINITIONS EIGEN_ARM64_USE_APPLE_AMX)
+  eigen_add_benchmark(bench_gemm_apple_amx_double bench_gemm.cpp DEFINITIONS EIGEN_ARM64_USE_APPLE_AMX SCALAR=double)
+  eigen_add_benchmark(bench_gemm_threads_apple_amx bench_gemm_threads.cpp DEFINITIONS EIGEN_ARM64_USE_APPLE_AMX)
+endif()
 eigen_add_benchmark(bench_gemv bench_gemv.cpp)
 eigen_add_benchmark(bench_vecadd bench_vecadd.cpp)
 eigen_add_benchmark(bench_trsm bench_trsm.cpp)
