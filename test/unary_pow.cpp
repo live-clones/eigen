@@ -308,6 +308,20 @@ void complex_pow_test() {
       VERIFY(within_ulps(numext::imag(y(k)), Real(im), 1.0));
     }
   }
+  // n = 2^digits + 1 is inexact in Real, and the first-order coefficient n b / a must not round it: the
+  // imaginary part of (1 + 1.5 * 2^e i)^(+-n) is +-(3 * 2^(digits - 1) + 1.5) 2^e, correctly rounded to
+  // +-(3 * 2^(digits - 1) + 2) 2^e, and the real part is 1.
+  {
+    constexpr int digits = std::numeric_limits<Real>::digits;
+    constexpr int e = std::numeric_limits<Real>::min_exponent - 2;
+    const long long n = (1LL << digits) + 1;
+    Real im = Real(std::ldexp(3.0 * std::ldexp(1.0, digits - 1) + 2.0, e));
+    ArrayX<Complex> z = ArrayX<Complex>::Constant(size, Complex(1, Real(std::ldexp(1.5, e))));
+    for (long long sign : {1LL, -1LL}) {
+      ArrayX<Complex> y = z.pow(sign * n);
+      for (Index k = 0; k < size; ++k) VERIFY(y(k) == Complex(1, Real(sign) * im));
+    }
+  }
   // An element's power does not depend on its packet neighbours, one of which here forces the scaled loop: the
   // unscaled loop, whose residuals would underflow in the smaller component (here 8 a b^7, subnormal), requires
   // both components in range, so this base takes the scaled loop either way.
