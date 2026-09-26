@@ -864,7 +864,6 @@ static EIGEN_ALWAYS_INLINE void tail_pack(Scalar* dst_panel, const Scalar* src, 
                                           Index tail) {
   EIGEN_IF_CONSTEXPR (!NumTraits<Scalar>::IsComplex) {
     if (tail > 4 && depth >= Index(4 * sme_block<Scalar>::nr)) {
-      sme_fpsr_guard fpsr;
       sme_tail_pack_streaming<Conjugate>(dst_panel, src, src_stride, depth, static_cast<int>(tail));
       return;
     }
@@ -2302,15 +2301,14 @@ EIGEN_ALWAYS_INLINE void sme_process_split(Scalar* EIGEN_RESTRICT C, Index C_str
   }
 }
 
-// One pw x cw block: sme_process_split when it fills at most two tiles of the 2 x 2 grid (the block fits in 2*svl
-// on both sides, which a vector length below MR does not guarantee, and its tile fold moves four slices at a time);
-// complex blocks keep sme_process.
+// One pw x cw block: sme_process_split when it fills at most two tiles of the 2 x 2 grid; complex blocks keep
+// sme_process. `split_ok` (sme_split_ok) holds once per call, outside the block loops.
 template <bool ConjLhs, bool ConjRhs, typename Scalar, typename Index>
 EIGEN_ALWAYS_INLINE void sme_process_block(Scalar* C, Index rs, Index cs, const Scalar* blA, const Scalar* blB,
                                            Index depth, Scalar alpha, Index row_start, int pw, Index col_start, int cw,
-                                           Index a_step) __arm_streaming __arm_inout("za") {
+                                           Index a_step, bool split_ok) __arm_streaming __arm_inout("za") {
   const int svl = sme_traits<Scalar>::svl();
-  if (svl >= 4 && (pw <= svl || cw <= svl) && pw <= 2 * svl && cw <= 2 * svl)
+  if (split_ok && (pw <= svl || cw <= svl))
     sme_process_split(C, rs, cs, blA, blB, depth, alpha, row_start, pw, col_start, cw, a_step);
   else
     sme_process<ConjLhs, ConjRhs>(C, rs, cs, blA, blB, depth, alpha, row_start, pw, col_start, cw, a_step);
@@ -2319,8 +2317,21 @@ template <bool ConjLhs, bool ConjRhs, typename RealScalar, typename Index>
 EIGEN_ALWAYS_INLINE void sme_process_block(std::complex<RealScalar>* C, Index rs, Index cs,
                                            const std::complex<RealScalar>* blA, const std::complex<RealScalar>* blB,
                                            Index depth, std::complex<RealScalar> alpha, Index row_start, int pw,
-                                           Index col_start, int cw, Index a_step) __arm_streaming __arm_inout("za") {
+                                           Index col_start, int cw, Index a_step,
+                                           bool) __arm_streaming __arm_inout("za") {
   sme_process<ConjLhs, ConjRhs>(C, rs, cs, blA, blB, depth, alpha, row_start, pw, col_start, cw, a_step);
+}
+
+// Whether the vector length gives the tile shapes the block kernels assume: the depth-split kernel covers one 2 x 2
+// grid of blocks up to MR x NR with four-slice tile folds, and the narrow kernel stacks two LHS panels of 2*svl rows.
+template <typename Scalar>
+EIGEN_ALWAYS_INLINE bool sme_split_ok() __arm_streaming {
+  const int svl = sme_traits<typename NumTraits<Scalar>::Real>::svl();
+  return svl >= 4 && sme_block<Scalar>::mr <= 2 * svl && sme_block<Scalar>::nr <= 2 * svl;
+}
+template <typename Scalar>
+EIGEN_ALWAYS_INLINE bool sme_narrow_ok() __arm_streaming {
+  return sme_block<Scalar>::mr == 2 * sme_traits<typename NumTraits<Scalar>::Real>::svl();
 }
 
 // sme_process_narrow for real scalars; complex panels keep the 2 x 2 path.
@@ -2368,14 +2379,14 @@ EIGEN_DONT_INLINE __arm_locally_streaming __arm_new("za") void sme_gebp_impl(
   // The narrow kernel stacks two LHS panels of exactly 2*svl rows.
   // A small C block (256 KB or less) gains nothing from the prefetch and pays its instructions on every call.
   const bool prefetch_c = rows * cols * Index(sizeof(Scalar)) > Index(256 * 1024);
+  const bool split_ok = sme_split_ok<Scalar>(), narrow_ok = sme_narrow_ok<Scalar>();
   for (Index j = 0; j < cols; j += NR) {
     const int cw = static_cast<int>(sme_min(cols - j, Index(NR)));
     const Scalar* blB = blockB + j * strideB + offsetB * cw;
 
     Index i = 0;
     EIGEN_IF_CONSTEXPR (!NumTraits<Scalar>::IsComplex) {
-      const int svl = sme_traits<typename NumTraits<Scalar>::Real>::svl();
-      if (MR == 2 * svl && cw <= svl)
+      if (narrow_ok && cw <= sme_traits<typename NumTraits<Scalar>::Real>::svl())
         for (; i + MR < rows; i += 2 * MR) {
           const int pw1 = static_cast<int>(sme_min(rows - i - MR, Index(MR)));
           sme_process_narrow_dispatch(C, C_stride_row, C_stride_col, blockA + i * strideA + offsetA * MR, Index(MR),
@@ -2390,7 +2401,7 @@ EIGEN_DONT_INLINE __arm_locally_streaming __arm_new("za") void sme_gebp_impl(
         sme_prefetch_next_c(C, C_stride_row, C_stride_col, i + MR < rows ? i + MR : Index(0),
                             i + MR < rows ? j : j + NR, rows, cols, MR, NR);
       sme_process_block<ConjLhs, ConjRhs>(C, C_stride_row, C_stride_col, blA, blB, depth, alpha, i, pw, j, cw,
-                                          Index(pw));
+                                          Index(pw), split_ok);
     }
   }
 }
@@ -2403,17 +2414,19 @@ EIGEN_DONT_INLINE __arm_locally_streaming __arm_new("za") void sme_gebp_impl_dir
     Index depth, Index cols, Scalar alpha, Index strideB, Index offsetB) {
   constexpr int MR = sme_block<Scalar>::mr;
   constexpr int NR = sme_block<Scalar>::nr;
+  const bool split_ok = sme_split_ok<Scalar>(), narrow_ok = sme_narrow_ok<Scalar>();
   for (Index j = 0; j < cols; j += NR) {
     const int cw = static_cast<int>(sme_min(cols - j, Index(NR)));
     const Scalar* blB = blockB + j * strideB + offsetB * cw;
     Index i = 0;
-    if (MR == 2 * sme_traits<Scalar>::svl() && cw <= sme_traits<Scalar>::svl())
+    if (narrow_ok && cw <= sme_traits<Scalar>::svl())
       for (; i + MR < rows; i += 2 * MR)
         sme_process_narrow(C, C_stride_row, C_stride_col, lhs + i, lda, lhs + i + MR, lda,
                            static_cast<int>(sme_min(rows - i - MR, Index(MR))), blB, cw, depth, alpha, i, j);
     for (; i < rows; i += MR) {
       const int pw = static_cast<int>(sme_min(rows - i, Index(MR)));
-      sme_process_block<false, false>(C, C_stride_row, C_stride_col, lhs + i, blB, depth, alpha, i, pw, j, cw, lda);
+      sme_process_block<false, false>(C, C_stride_row, C_stride_col, lhs + i, blB, depth, alpha, i, pw, j, cw, lda,
+                                      split_ok);
     }
   }
 }
