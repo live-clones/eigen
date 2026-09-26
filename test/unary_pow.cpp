@@ -188,6 +188,13 @@ std::complex<Real> reference_complex_pow(const std::complex<Real>& z, long n) {
   return std::complex<Real>(Real(re.hi + re.lo), Real(im.hi + im.lo));
 }
 
+// The reciprocal above rounds in long double, which is a reference only where that is wider than Real: not where
+// long double is binary64 (MSVC, Apple arm64), for Real = double.
+template <typename Real>
+bool has_complex_reference(long n) {
+  return n >= 0 || sizeof(long double) > sizeof(Real);
+}
+
 // The error of a complex result is measured against the magnitude of the reference: a component that nearly
 // cancels is not required to be accurate on its own.
 template <typename Real>
@@ -203,6 +210,7 @@ void check_complex_pow(const std::vector<std::complex<Real>>& bases, const std::
   Index size = 2 * internal::packet_traits<Complex>::size + 1;
   ArrayX<Complex> z(size), y(size);
   for (long n : exponents) {
+    if (!has_complex_reference<Real>(n)) continue;
     Exponent exponent = Exponent(n);
     for (const Complex& base : bases) {
       z.setConstant(base);
@@ -267,6 +275,7 @@ void complex_pow_test() {
     Real a = Real(1) + Real(std::ldexp(1.0, -10));
     Real b = Real(std::ldexp(1.0, b_exponent));
     for (long n : {100L, 101L, 1000L, 1003L, -99L, -100L, -1000L, -1001L}) {
+      if (!has_complex_reference<Real>(n)) continue;
       Real power = numext::real(reference_complex_pow(Complex(a), n));
       Real term = Real(n) * numext::real(reference_complex_pow(Complex(a), n - 1)) * b;
       for (bool swapped : {false, true}) {
