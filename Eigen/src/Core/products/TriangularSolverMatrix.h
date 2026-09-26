@@ -154,15 +154,33 @@ struct triangular_solve_packet_kernel {
     EIGEN_UNUSED_VARIABLE(store_rows);
   }
 
-  // Solves the rows from i in steps of Rows while a whole step remains; returns the first unsolved row.
-  template <int Rows, int RhsPackets>
-  static EIGEN_ALWAYS_INLINE Index solve_tiles(Index size, Index i, const TriMapper& a, const Scalar* inverse,
-                                               PacketBlock<Packet, RhsPackets>* work) {
+  template <int RhsPackets>
+  static EIGEN_STRONG_INLINE void solve(Index size, const TriMapper& a, const Scalar* inverse, Scalar* other,
+                                        Index otherStride) {
+    PacketBlock<Packet, RhsPackets> work[Traits::WorkspaceRows];
+    for (int p = 0; p < RhsPackets; ++p) {
+      Index row = 0;
+      for (; row + PacketSize <= size; row += PacketSize) {
+        PacketBlock<Packet, PacketSize> block;
+        for (int c = 0; c < PacketSize; ++c)
+          block.packet[c] = ploadu<Packet>(other + row + (p * PacketSize + c) * otherStride);
+        ptranspose(block);
+        for (int r = 0; r < PacketSize; ++r) work[row + r].packet[p] = block.packet[r];
+      }
+      for (; row < size; ++row)
+        work[row].packet[p] = pgather<Scalar, Packet>(other + row + p * PacketSize * otherStride, otherStride);
+    }
+    Index i = 0;
     const Index step = IsLower ? 1 : -1;
-    for (; i + Rows <= size; i += Rows) {
+    constexpr int TileRows = Traits::tile_rows(RhsPackets);
+    EIGEN_IF_CONSTEXPR (TileRows != Traits::RegisterRows) {
+      for (; i + TileRows <= size; i += TileRows)
+        solve_block(i, a, inverse, work, IsLower ? i : size - i - 1, step, std::make_index_sequence<TileRows>{});
+    }
+    for (; i + Traits::RegisterRows <= size; i += Traits::RegisterRows) {
       const Index r0 = IsLower ? i : size - i - 1;
       // Preserve the four-row schedule that keeps GCC and Clang's hot loops compact.
-      EIGEN_IF_CONSTEXPR (Rows == 4) {
+      EIGEN_IF_CONSTEXPR (Traits::RegisterRows == 4) {
         const Index r1 = r0 + step, r2 = r1 + step, r3 = r2 + step;
         PacketBlock<Packet, RhsPackets> x0 = work[r0], x1 = work[r1], x2 = work[r2], x3 = work[r3];
         for (Index k = 0; k < i; ++k) {
@@ -188,32 +206,8 @@ struct triangular_solve_packet_kernel {
         work[r2] = x2;
         work[r3] = x3;
       } else {
-        solve_block(i, a, inverse, work, r0, step, std::make_index_sequence<Rows>{});
+        solve_block(i, a, inverse, work, r0, step, std::make_index_sequence<Traits::RegisterRows>{});
       }
-    }
-    return i;
-  }
-
-  template <int RhsPackets>
-  static EIGEN_STRONG_INLINE void solve(Index size, const TriMapper& a, const Scalar* inverse, Scalar* other,
-                                        Index otherStride) {
-    PacketBlock<Packet, RhsPackets> work[Traits::WorkspaceRows];
-    for (int p = 0; p < RhsPackets; ++p) {
-      Index row = 0;
-      for (; row + PacketSize <= size; row += PacketSize) {
-        PacketBlock<Packet, PacketSize> block;
-        for (int c = 0; c < PacketSize; ++c)
-          block.packet[c] = ploadu<Packet>(other + row + (p * PacketSize + c) * otherStride);
-        ptranspose(block);
-        for (int r = 0; r < PacketSize; ++r) work[row + r].packet[p] = block.packet[r];
-      }
-      for (; row < size; ++row)
-        work[row].packet[p] = pgather<Scalar, Packet>(other + row + p * PacketSize * otherStride, otherStride);
-    }
-    constexpr int TileRows = Traits::tile_rows(RhsPackets);
-    Index i = solve_tiles<TileRows>(size, Index(0), a, inverse, work);
-    EIGEN_IF_CONSTEXPR (TileRows != Traits::RegisterRows) {
-      i = solve_tiles<Traits::RegisterRows>(size, i, a, inverse, work);
     }
     for (; i < size; ++i) {
       const Index r = IsLower ? i : size - i - 1;
@@ -250,9 +244,23 @@ struct triangular_solve_packet_kernel {
     }
   }
 
+  // The last cols < PacketSize columns, zero-padded to a packet in a copy. For a row-major triangle this costs
+  // one packet solve instead of a scalar dot product per coefficient; a column-major triangle's scalar solve
+  // is a contiguous axpy per column, which compilers vectorize. Padded lanes are dropped.
+  static EIGEN_DONT_INLINE void solve_padded(Index size, const TriMapper& a, const Scalar* inverse, Scalar* other,
+                                             Index otherStride, Index cols) {
+    Map<Matrix<Scalar, Dynamic, Dynamic>, Unaligned, OuterStride<>> rest(other, size, cols, OuterStride<>(otherStride));
+    Matrix<Scalar, Dynamic, Dynamic, ColMajor, Traits::WorkspaceRows, PacketSize> padded(size, PacketSize);
+    padded.leftCols(cols) = rest;
+    padded.rightCols(PacketSize - cols).setZero();
+    solve<1>(size, a, inverse, padded.data(), size);
+    rest = padded.leftCols(cols);
+  }
+
   static EIGEN_DONT_INLINE void kernel(Index size, Index cols, const Scalar* tri, Index triStride, Scalar* other,
                                        Index otherStride) {
-    eigen_internal_assert(size <= Traits::WorkspaceRows && cols % PacketSize == 0);
+    eigen_internal_assert(size <= Traits::WorkspaceRows && cols >= PacketSize &&
+                          (TriStorageOrder == RowMajor || cols % PacketSize == 0));
     EIGEN_IF_CONSTEXPR (!IsLower) {
       tri -= (size - 1) * (triStride + 1);
       other -= size - 1;
@@ -277,6 +285,9 @@ struct triangular_solve_packet_kernel {
         solve<2>(size, a, inverse, other + j * otherStride, otherStride);
     }
     for (; j + PacketSize <= cols; j += PacketSize) solve<1>(size, a, inverse, other + j * otherStride, otherStride);
+    EIGEN_IF_CONSTEXPR (TriStorageOrder == RowMajor) {
+      if (j < cols) solve_padded(size, a, inverse, other + j * otherStride, otherStride, cols - j);
+    }
   }
 };
 
@@ -289,7 +300,9 @@ EIGEN_STRONG_INLINE void trsmKernelL<Scalar, Index, Mode, Conjugate, TriStorageO
   EIGEN_IF_CONSTEXPR ((Specialized && OtherInnerStride == 1 && triangular_solve_packet_traits<Scalar>::Enabled)) {
     if (size >= triangular_solve_packet_traits<Scalar>::RegisterRows &&
         size <= triangular_solve_packet_traits<Scalar>::WorkspaceRows && otherSize >= packet_traits<Scalar>::size) {
-      const Index packetCols = numext::round_down(otherSize, Index(packet_traits<Scalar>::size));
+      // The packet kernel pads the last columns only for a row-major triangle; see solve_padded.
+      const Index packetCols =
+          TriStorageOrder == RowMajor ? otherSize : numext::round_down(otherSize, Index(packet_traits<Scalar>::size));
       triangular_solve_packet_kernel<Scalar, Index, Mode, TriStorageOrder>::kernel(size, packetCols, _tri, triStride,
                                                                                    _other, otherStride);
       if (packetCols == otherSize) return;
@@ -564,14 +577,17 @@ EIGEN_DONT_INLINE void triangular_solve_matrix<Scalar, Index, OnTheLeft, Mode, C
   EIGEN_IF_CONSTEXPR ((OtherInnerStride == 1 && triangular_solve_packet_traits<Scalar>::UseUnblocked)) {
     // The packet kernel solves a whole diagonal block faster than narrow panels do, since those
     // interleave slower rank-SmallPanelWidth gebp updates; a block deeper than its workspace is split
-    // evenly. The kernel then packs a chunk right after solving it, so a chunk of kc rows should stay
-    // in L2, and packet-aligned chunks keep the kernel's scalar tail out of every chunk.
+    // evenly. That needs a tile of two packets of right-hand sides where the registers allow: a single
+    // packet measured slower. The kernel then packs a chunk right after solving it, so a chunk of kc
+    // rows should stay in L2, and packet-aligned chunks keep the kernel's scalar tail out of every chunk.
     using PacketTraits = triangular_solve_packet_traits<Scalar>;
     const Index rows = Index(PacketTraits::RegisterRows), packet = Index(PacketTraits::PacketSize);
-    const Index panels = numext::div_ceil(kc, Index(PacketTraits::WorkspaceRows));
-    panelWidth = (numext::mini)(blockARows, rows * numext::div_ceil(numext::div_ceil(kc, panels), rows));
-    colStep = colStep % packet == 0 ? colStep : packet % colStep == 0 ? packet : colStep * packet;
-    subcols = otherSize > 0 ? Index(l2 / (2 * std::ptrdiff_t(sizeof(Scalar)) * kc)) : 0;
+    if (otherSize >= Index(plain_enum_min(2, PacketTraits::RhsPackets)) * packet) {
+      const Index panels = numext::div_ceil(kc, Index(PacketTraits::WorkspaceRows));
+      panelWidth = (numext::mini)(blockARows, rows * numext::div_ceil(numext::div_ceil(kc, panels), rows));
+      colStep = colStep % packet == 0 ? colStep : packet % colStep == 0 ? packet : colStep * packet;
+      subcols = Index(l2 / (2 * std::ptrdiff_t(sizeof(Scalar)) * kc));
+    }
   }
   subcols = numext::maxi<Index>(numext::round_down(subcols, colStep), colStep);
 
@@ -610,10 +626,17 @@ EIGEN_DONT_INLINE void triangular_solve_matrix<Scalar, Index, OnTheLeft, Mode, C
               i = IsLower ? k2 + k1 : k2 - k1 - actualPanelWidth;
             }
 #endif
-            trsmKernelL<Scalar, Index, Mode, Conjugate, TriStorageOrder, OtherInnerStride,
-                        /*Specialized=*/true>::kernel(actualPanelWidth, actual_cols, _tri + i + (i)*triStride,
-                                                      triStride, _panel + i * otherIncr + j2 * otherStride, otherIncr,
-                                                      otherStride);
+            using DiagonalKernel =
+                trsmKernelL<Scalar, Index, Mode, Conjugate, TriStorageOrder, OtherInnerStride, /*Specialized=*/true>;
+            const Scalar* diagonal = _tri + i + i * triStride;
+            Scalar* rhs = _panel + i * otherIncr + j2 * otherStride;
+            // Narrow panels keep their compile-time width bound, which lets compilers shorten the scalar
+            // kernel's loops; the packet kernel solves wider ones.
+            if (panelWidth == Index(SmallPanelWidth))
+              DiagonalKernel::kernel(numext::mini<Index>(actualPanelWidth, SmallPanelWidth), actual_cols, diagonal,
+                                     triStride, rhs, otherIncr, otherStride);
+            else
+              DiagonalKernel::kernel(actualPanelWidth, actual_cols, diagonal, triStride, rhs, otherIncr, otherStride);
           }
 
           Index lengthTarget = actual_kc - k1 - actualPanelWidth;
