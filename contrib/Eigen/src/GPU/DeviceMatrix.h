@@ -183,6 +183,11 @@ class DeviceMatrix {
   DeviceMatrix(const SpMVExpr<Scalar>& expr);
   DeviceMatrix(const SpMVAffineExpr<Scalar>& expr);
 
+  /** Owning copies of a column block, mirroring `VectorXd v = A.col(j);`: a
+   * device-to-device copy on the thread-local Context. */
+  DeviceMatrix(const DeviceBlock<Scalar>& block);
+  DeviceMatrix(DeviceBlock<Scalar>&& block);
+
   DeviceMatrix(DeviceMatrix&& o) noexcept : buf_(std::move(o.buf_)), rows_(o.rows_), cols_(o.cols_) {
     o.rows_ = 0;
     o.cols_ = 0;
@@ -207,6 +212,10 @@ class DeviceMatrix {
    * out-of-line in DeviceDispatch.h, where Context is complete. */
   DeviceMatrix(const DeviceMatrix& other);
   DeviceMatrix& operator=(const DeviceMatrix& other);
+
+  /** Copy a column block into this matrix, like copy assignment: moving from
+   * a block copies, since the block does not own its memory. */
+  DeviceMatrix& operator=(DeviceBlock<Scalar>&& block);
 
   /** Upload a host Eigen matrix to device memory on \p ctx, synchronously: the
    * copy has completed on return, so \p host may then be modified. Plain
@@ -260,6 +269,23 @@ class DeviceMatrix {
   Index rows() const { return rows_; }
   Index cols() const { return cols_; }
   bool empty() const { return rows_ == 0 || cols_ == 0; }
+
+  /** Column \p j as a DeviceBlock view of this matrix. */
+  DeviceBlock<Scalar> col(Index j) { return middleCols(j, 1); }
+  const DeviceBlock<Scalar> col(Index j) const { return middleCols(j, 1); }
+
+  /** The first \p n columns as a DeviceBlock view of this matrix. */
+  DeviceBlock<Scalar> leftCols(Index n) { return middleCols(0, n); }
+  const DeviceBlock<Scalar> leftCols(Index n) const { return middleCols(0, n); }
+
+  /** The last \p n columns as a DeviceBlock view of this matrix. */
+  DeviceBlock<Scalar> rightCols(Index n) { return middleCols(cols_ - n, n); }
+  const DeviceBlock<Scalar> rightCols(Index n) const { return middleCols(cols_ - n, n); }
+
+  /** Columns \p start to \p start + \p n - 1 as a DeviceBlock view of this
+   * matrix. A column range is contiguous, since the leading dimension is rows(). */
+  DeviceBlock<Scalar> middleCols(Index start, Index n);
+  const DeviceBlock<Scalar> middleCols(Index start, Index n) const;
 
   /** Size of the matrix data in bytes. */
   size_t sizeInBytes() const { return static_cast<size_t>(rows_) * static_cast<size_t>(cols_) * sizeof(Scalar); }
@@ -490,12 +516,63 @@ class DeviceMatrix {
 
  private:
   friend struct internal::DeviceMatrixAccess;
+  friend class DeviceBlock<Scalar_>;
 
   DeviceMatrix(internal::DeviceBuffer&& buf, Index rows, Index cols) : buf_(std::move(buf)), rows_(rows), cols_(cols) {}
 
   internal::DeviceBuffer buf_;
   Index rows_ = 0;
   Index cols_ = 0;
+};
+
+/** \ingroup GPU_Module
+ * \class DeviceBlock
+ * \brief A contiguous column range of a DeviceMatrix, the result of
+ * DeviceMatrix::col(), leftCols(), middleCols() and rightCols().
+ *
+ * A DeviceBlock is a DeviceMatrix view: it aliases the parent's memory and its
+ * access ordering, so every DeviceMatrix operation applies to it and a read or
+ * write through it is ordered with every other access to the parent, on any
+ * context. Accesses are tracked for the whole parent, so accesses to different
+ * columns from different contexts are ordered as if they overlapped.
+ *
+ * As for an Eigen Block, assigning to a block writes into the parent (moving
+ * into a block copies), copying a block makes another view of the same
+ * columns, and copying a block into a DeviceMatrix makes an owning copy. The
+ * parent must outlive its blocks: resizing, moving or destroying it
+ * invalidates them. A block cannot be resized, and a solver cannot adopt its
+ * memory.
+ */
+template <typename Scalar_>
+class DeviceBlock : public DeviceMatrix<Scalar_> {
+  using Base = DeviceMatrix<Scalar_>;
+
+ public:
+  using Base::operator=;
+
+  /** Another view of the same columns. */
+  DeviceBlock(const DeviceBlock& other)
+      : Base(internal::DeviceBuffer::alias(other.buf_, 0, other.buf_.size()), other.rows(), other.cols()) {}
+  DeviceBlock(DeviceBlock&& other) noexcept : Base(static_cast<Base&&>(other)) {}
+
+  /** Copy the columns of \p other into this block's columns of the parent. */
+  DeviceBlock& operator=(const DeviceBlock& other) {
+    Base::operator=(static_cast<const Base&>(other));
+    return *this;
+  }
+  DeviceBlock& operator=(const Base& other) {
+    Base::operator=(other);
+    return *this;
+  }
+  DeviceBlock& operator=(Base&& other) {
+    Base::operator=(static_cast<const Base&>(other));
+    return *this;
+  }
+
+ private:
+  friend class DeviceMatrix<Scalar_>;
+
+  DeviceBlock(internal::DeviceBuffer&& alias, Index rows, Index cols) : Base(std::move(alias), rows, cols) {}
 };
 
 namespace internal {
@@ -511,6 +588,7 @@ struct DeviceMatrixAccess {
   /** Moves the allocation out, leaving \p m empty. */
   template <typename Scalar>
   static DeviceBuffer take(DeviceMatrix<Scalar>& m) {
+    eigen_assert(!m.buf_.isAlias() && "a DeviceBlock view cannot give up its memory: pass a copy");
     m.rows_ = 0;
     m.cols_ = 0;
     return std::move(m.buf_);
@@ -526,6 +604,7 @@ struct DeviceMatrixAccess {
   static void resize(DeviceMatrix<Scalar>& m, const StreamHandle& stream, Index rows, Index cols) {
     eigen_assert(rows >= 0 && cols >= 0);
     if (rows == m.rows_ && cols == m.cols_) return;
+    eigen_assert(!m.buf_.isAlias() && "a DeviceBlock view cannot be resized");
     const size_t bytes = static_cast<size_t>(rows) * static_cast<size_t>(cols) * sizeof(Scalar);
     if (bytes > 0 && bytes <= m.buf_.size() && m.buf_.owns()) {
       // The next access's prepareWrite orders the reuse after pending ones.

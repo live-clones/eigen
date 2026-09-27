@@ -140,6 +140,27 @@ For BLAS Level-1 operations, `DeviceMatrix` also provides `dot()`, `norm()`,
 (`+=`, `-=`, `*=`) that dispatch to cuBLAS `axpy`, `nrm2`, `dot`, `scal`,
 and `geam`. These are the operations needed by iterative solvers.
 
+Column blocks are views of the matrix, as in Eigen. `col(j)`, `leftCols(n)`,
+`middleCols(j, n)` and `rightCols(n)` return a `gpu::DeviceBlock`, a
+`DeviceMatrix` that aliases the parent's memory (a column range is contiguous,
+since the leading dimension is `rows()`) and shares its access ordering, so it
+works as an operand or destination of every operation above:
+
+```cpp
+gpu::DeviceMatrix<double> h;
+h.device(ctx) = V.leftCols(j).adjoint() * v;  // GEMV on the first j columns
+v.device(ctx) -= V.leftCols(j) * h;           // v -= V(:, 0:j) h
+V.col(j).scale(ctx, 1.0 / beta);              // writes into V
+gpu::DeviceMatrix<double> u = V.col(j);       // an owning copy
+```
+
+A block's accesses are ordered with every access to the parent on any context,
+tracked for the parent as a whole: accesses to different columns from
+different contexts are ordered as if they overlapped. Assigning to a block
+writes into the parent (moving into a block copies); resizing a block, or
+handing its memory to a solver, asserts. Resizing, moving or destroying the
+parent invalidates its blocks.
+
 ### `gpu::DeviceScalar<Scalar>`
 
 A device-resident scalar value. Reductions like `dot()`, `norm()`, and
@@ -1021,6 +1042,12 @@ bool         empty()
 Scalar*      data()                                             // Raw device pointer
 void         resize(gpu::Context& ctx, Index rows, Index cols)  // Discard contents; reuses a large-enough allocation
 void         resize(Index rows, Index cols)
+
+// Column blocks: DeviceBlock views sharing the parent's memory and access ordering
+DeviceBlock  col(Index j)
+DeviceBlock  leftCols(Index n)
+DeviceBlock  middleCols(Index start, Index n)
+DeviceBlock  rightCols(Index n)
 cudaStream_t stream()                                           // Stream of the last write; memory is freed there
 
 // Bracketing direct accesses to data(); only needed across streams (see "Ordering across contexts")
@@ -1419,7 +1446,9 @@ The caller must ensure operands don't alias the destination for GEMM, TRSM,
 SYMM/HEMM, and SYRK/HERK. Debug builds assert on these violations before
 dispatching to cuBLAS. `geam` expressions (`d_C = d_A + alpha * d_B`) are
 safe with aliasing. The `.noalias()` method exists as a no-op for Eigen
-template compatibility.
+template compatibility. Column blocks of one matrix alias when their column
+ranges overlap; the debug checks compare data pointers and do not detect a
+partial overlap.
 
 ## Future work
 
