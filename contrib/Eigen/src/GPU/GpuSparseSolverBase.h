@@ -419,7 +419,7 @@ class SparseSolverBase {
   Context& context() const { return *ctx_; }
 
  protected:
-  // Declared first so that it is destroyed last, after the buffers that work on its stream uses.
+  // Declared first so that it is destroyed last, after the buffers used by work on its stream.
   std::unique_ptr<Context> owned_ctx_;
   Context* ctx_ = nullptr;
   cudaStream_t stream_ = nullptr;  // ctx_->stream(), cached

@@ -128,8 +128,10 @@ class HostTransfer {
  * a read on another stream waits for that write, a write waits for every
  * earlier access, and the memory is freed on stream() after all of them —
  * without blocking the host. Several threads, each on its own Context, may
- * read one matrix concurrently; a write needs exclusive access. To access data() from your own kernels, bracket
- * the launch on ctx.stream() the same way the library does:
+ * read one matrix concurrently; a write needs exclusive access.
+ *
+ * To access data() from your own kernels, bracket the launch on ctx.stream()
+ * the same way the library does:
  * \code
  * d_A.prepareRead(ctx);  d_C.prepareWrite(ctx);
  * my_kernel<<<grid, block, 0, ctx.stream()>>>(d_A.data(), d_C.data());

@@ -177,7 +177,7 @@ class SVD {
     eigen_assert(solver_ctx_.info() == Success);
     const Index k = (std::min)(m_, n_);
     RealVector S(k);
-    download(S.data(), d_S_.get(), static_cast<size_t>(k) * sizeof(RealScalar));
+    solver_ctx_.download(S.data(), d_S_.get(), static_cast<size_t>(k) * sizeof(RealScalar));
     return S;
   }
 
@@ -191,12 +191,13 @@ class SVD {
     if (!transposed_) {
       const Index ucols = (options_ & ComputeFullU) ? m_ : k;
       PlainMatrix U(m_, ucols);
-      download(U.data(), d_U_.get(), static_cast<size_t>(m_) * static_cast<size_t>(ucols) * sizeof(Scalar));
+      solver_ctx_.download(U.data(), d_U_.get(), static_cast<size_t>(m_) * static_cast<size_t>(ucols) * sizeof(Scalar));
       return U;
     } else {
       const Index vtrows = (options_ & ComputeFullU) ? m_orig : k;
       PlainMatrix VT_stored(vtrows, n_);
-      download(VT_stored.data(), d_VT_.get(), static_cast<size_t>(vtrows) * static_cast<size_t>(n_) * sizeof(Scalar));
+      solver_ctx_.download(VT_stored.data(), d_VT_.get(),
+                           static_cast<size_t>(vtrows) * static_cast<size_t>(n_) * sizeof(Scalar));
       return VT_stored.adjoint();
     }
   }
@@ -214,12 +215,14 @@ class SVD {
     if (!transposed_) {
       const Index vtrows = (options_ & ComputeFullV) ? n_ : k;
       PlainMatrix VT(vtrows, n_);
-      download(VT.data(), d_VT_.get(), static_cast<size_t>(vtrows) * static_cast<size_t>(n_) * sizeof(Scalar));
+      solver_ctx_.download(VT.data(), d_VT_.get(),
+                           static_cast<size_t>(vtrows) * static_cast<size_t>(n_) * sizeof(Scalar));
       return VT;
     } else {
       const Index ucols = (options_ & ComputeFullV) ? n_orig : k;
       PlainMatrix U_stored(m_, ucols);
-      download(U_stored.data(), d_U_.get(), static_cast<size_t>(m_) * static_cast<size_t>(ucols) * sizeof(Scalar));
+      solver_ctx_.download(U_stored.data(), d_U_.get(),
+                           static_cast<size_t>(m_) * static_cast<size_t>(ucols) * sizeof(Scalar));
       return U_stored.adjoint();
     }
   }
@@ -407,13 +410,6 @@ class SVD {
     EIGEN_CUBLAS_CHECK(internal::cublasXgeam(solver_ctx_.cublasHandle(), CUBLAS_OP_C, CUBLAS_OP_N, m_, n_, &alpha_one,
                                              d_A.data(), d_A.rows(), &beta_zero, static_cast<const Scalar*>(nullptr),
                                              m_, static_cast<Scalar*>(d_A_.get()), m_));
-  }
-
-  // Blocking download of solver-owned device data, on the solver's stream.
-  void download(void* dst, const void* src, size_t bytes) const {
-    if (bytes == 0) return;
-    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(dst, src, bytes, cudaMemcpyDeviceToHost, solver_ctx_.stream()));
-    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(solver_ctx_.stream()));
   }
 
   // Swap U↔V flags for the transposed case.

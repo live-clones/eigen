@@ -13,6 +13,7 @@
 //   * a small make_test_value() that constructs a Scalar with an imaginary
 //     component for complex types so the complex code paths are genuinely
 //     exercised — without this, Scalar(real_value) silently zeros the imag.
+//   * StreamGate and LegacyStreamSentinel for stream-ordering checks.
 
 #ifndef EIGEN_UNSUPPORTED_TEST_GPU_TEST_HELPERS_H
 #define EIGEN_UNSUPPORTED_TEST_GPU_TEST_HELPERS_H
