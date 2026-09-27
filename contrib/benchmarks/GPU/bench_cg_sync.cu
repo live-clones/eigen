@@ -82,7 +82,7 @@ static void BM_CG_DeviceMatrixOps(benchmark::State& state) {
   auto mat = spmv.deviceView(A);
 
   // Upload RHS once.
-  auto rhs = gpu::DeviceMatrix<Scalar>::fromHost(b, ctx.stream());
+  auto rhs = gpu::DeviceMatrix<Scalar>::fromHost(ctx, b);
 
   for (auto _ : state) {
     // --- Eigen CG lines 34-63: initialization ---
@@ -183,8 +183,9 @@ static void BM_CG_DevicePointerMode(benchmark::State& state) {
   SpMat A = make_spd(n);
   Vec b = Vec::Random(n);
 
-  cudaStream_t stream;
-  cudaStreamCreate(&stream);
+  // The buffers below hold the handle, so the stream outlives their stream-ordered frees.
+  const gpu::internal::StreamHandle stream_handle = gpu::internal::make_owned_stream();
+  cudaStream_t stream = stream_handle.get();
   cublasHandle_t cublas;
   cublasCreate(&cublas);
   cublasSetStream(cublas, stream);
@@ -193,18 +194,18 @@ static void BM_CG_DevicePointerMode(benchmark::State& state) {
   cusparseCreate(&cusparse);
   cusparseSetStream(cusparse, stream);
 
-  gpu::internal::DeviceBuffer d_outer((n + 1) * sizeof(int));
-  gpu::internal::DeviceBuffer d_inner(A.nonZeros() * sizeof(int));
-  gpu::internal::DeviceBuffer d_vals(A.nonZeros() * sizeof(Scalar));
-  cudaMemcpy(d_outer.get(), A.outerIndexPtr(), (n + 1) * sizeof(int), cudaMemcpyHostToDevice);
-  cudaMemcpy(d_inner.get(), A.innerIndexPtr(), A.nonZeros() * sizeof(int), cudaMemcpyHostToDevice);
-  cudaMemcpy(d_vals.get(), A.valuePtr(), A.nonZeros() * sizeof(Scalar), cudaMemcpyHostToDevice);
+  gpu::internal::DeviceBuffer d_outer((n + 1) * sizeof(int), stream_handle);
+  gpu::internal::DeviceBuffer d_inner(A.nonZeros() * sizeof(int), stream_handle);
+  gpu::internal::DeviceBuffer d_vals(A.nonZeros() * sizeof(Scalar), stream_handle);
+  cudaMemcpyAsync(d_outer.get(), A.outerIndexPtr(), (n + 1) * sizeof(int), cudaMemcpyHostToDevice, stream);
+  cudaMemcpyAsync(d_inner.get(), A.innerIndexPtr(), A.nonZeros() * sizeof(int), cudaMemcpyHostToDevice, stream);
+  cudaMemcpyAsync(d_vals.get(), A.valuePtr(), A.nonZeros() * sizeof(Scalar), cudaMemcpyHostToDevice, stream);
 
   cusparseSpMatDescr_t matA;
   cusparseCreateCsc(&matA, n, n, A.nonZeros(), d_outer.get(), d_inner.get(), d_vals.get(), CUSPARSE_INDEX_32I,
                     CUSPARSE_INDEX_32I, CUSPARSE_INDEX_BASE_ZERO, CUDA_R_64F);
 
-  gpu::internal::DeviceBuffer d_tmp_buf(n * sizeof(Scalar));
+  gpu::internal::DeviceBuffer d_tmp_buf(n * sizeof(Scalar), stream_handle);
   cusparseDnVecDescr_t tmp_x, tmp_y;
   cusparseCreateDnVec(&tmp_x, n, d_tmp_buf.get(), CUDA_R_64F);
   cusparseCreateDnVec(&tmp_y, n, d_tmp_buf.get(), CUDA_R_64F);
@@ -212,19 +213,19 @@ static void BM_CG_DevicePointerMode(benchmark::State& state) {
   size_t ws_size = 0;
   cusparseSpMV_bufferSize(cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE, &spmv_alpha, matA, tmp_x, &spmv_beta, tmp_y,
                           CUDA_R_64F, CUSPARSE_SPMV_ALG_DEFAULT, &ws_size);
-  gpu::internal::DeviceBuffer d_workspace(ws_size);
+  gpu::internal::DeviceBuffer d_workspace(ws_size, stream_handle);
   cusparseDestroyDnVec(tmp_x);
   cusparseDestroyDnVec(tmp_y);
 
-  gpu::internal::DeviceBuffer d_x(n * sizeof(Scalar)), d_r(n * sizeof(Scalar));
-  gpu::internal::DeviceBuffer d_p(n * sizeof(Scalar)), d_tmp(n * sizeof(Scalar));
-  gpu::internal::DeviceBuffer d_b(n * sizeof(Scalar));
-  gpu::internal::DeviceBuffer d_absNew(sizeof(Scalar)), d_absOld(sizeof(Scalar));
-  gpu::internal::DeviceBuffer d_pdot(sizeof(Scalar)), d_alpha(sizeof(Scalar));
-  gpu::internal::DeviceBuffer d_neg_alpha(sizeof(Scalar)), d_beta(sizeof(Scalar));
-  gpu::internal::DeviceBuffer d_rnorm(sizeof(RealScalar));
+  gpu::internal::DeviceBuffer d_x(n * sizeof(Scalar), stream_handle), d_r(n * sizeof(Scalar), stream_handle);
+  gpu::internal::DeviceBuffer d_p(n * sizeof(Scalar), stream_handle), d_tmp(n * sizeof(Scalar), stream_handle);
+  gpu::internal::DeviceBuffer d_b(n * sizeof(Scalar), stream_handle);
+  gpu::internal::DeviceBuffer d_absNew(sizeof(Scalar), stream_handle), d_absOld(sizeof(Scalar), stream_handle);
+  gpu::internal::DeviceBuffer d_pdot(sizeof(Scalar), stream_handle), d_alpha(sizeof(Scalar), stream_handle);
+  gpu::internal::DeviceBuffer d_neg_alpha(sizeof(Scalar), stream_handle), d_beta(sizeof(Scalar), stream_handle);
+  gpu::internal::DeviceBuffer d_rnorm(sizeof(RealScalar), stream_handle);
 
-  cudaMemcpy(d_b.get(), b.data(), n * sizeof(Scalar), cudaMemcpyHostToDevice);
+  cudaMemcpyAsync(d_b.get(), b.data(), n * sizeof(Scalar), cudaMemcpyHostToDevice, stream);
 
   auto spmv = [&](Scalar* x_ptr, Scalar* y_ptr) {
     cusparseDnVecDescr_t vx, vy;
@@ -288,7 +289,6 @@ static void BM_CG_DevicePointerMode(benchmark::State& state) {
   cusparseDestroySpMat(matA);
   cusparseDestroy(cusparse);
   cublasDestroy(cublas);
-  cudaStreamDestroy(stream);
 }
 
 BENCHMARK(BM_CG_DevicePointerMode)->RangeMultiplier(4)->Range(1 << 10, 1 << 20)->UseRealTime()->MinWarmUpTime(0.5);

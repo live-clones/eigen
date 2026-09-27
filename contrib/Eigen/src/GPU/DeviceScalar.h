@@ -22,59 +22,61 @@
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
 
+#include "./FwdDecl.h"
 #include "./GpuSupport.h"
 #include "./DeviceScalarOps.h"
 
 namespace Eigen {
 namespace gpu {
 
-/** \brief RAII wrapper for a scalar in GPU device memory. */
+/** \brief RAII wrapper for a scalar in GPU device memory.
+ *
+ * Accesses are ordered across streams exactly as for DeviceMatrix, with the same
+ * prepareRead/finishRead/prepareWrite/finishWrite protocol for your own kernels.
+ * Arithmetic between DeviceScalars stays on device (real types) and runs on the
+ * first operand's stream().
+ */
 template <typename Scalar_>
 class DeviceScalar {
  public:
   using Scalar = Scalar_;
 
-  /** Allocate an uninitialized device scalar. Contents are undefined until
-   * written, e.g. by cuBLAS dot/nrm2 under POINTER_MODE_DEVICE. */
-  explicit DeviceScalar(cudaStream_t stream = nullptr) : d_val_(sizeof(Scalar)), stream_(stream) {}
+  /** Allocate an uninitialized device scalar on the thread-local Context.
+   * Contents are undefined until written, e.g. by cuBLAS dot/nrm2 under
+   * POINTER_MODE_DEVICE. */
+  DeviceScalar();
 
-  DeviceScalar(Scalar host_val, cudaStream_t stream) : d_val_(sizeof(Scalar)), stream_(stream) {
-    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_val_.get(), &host_val, sizeof(Scalar), cudaMemcpyHostToDevice, stream_));
-  }
+  /** Allocate an uninitialized device scalar on \p ctx. */
+  explicit DeviceScalar(Context& ctx);
 
-  DeviceScalar(DeviceScalar&& o) noexcept : d_val_(std::move(o.d_val_)), stream_(o.stream_) { o.stream_ = nullptr; }
+  /** Upload \p value on \p ctx. */
+  DeviceScalar(Context& ctx, Scalar value);
 
-  DeviceScalar& operator=(DeviceScalar&& o) noexcept {
-    if (this != &o) {
-      d_val_ = std::move(o.d_val_);
-      stream_ = o.stream_;
-      o.stream_ = nullptr;
-    }
-    return *this;
-  }
+  DeviceScalar(DeviceScalar&& o) noexcept = default;
+  DeviceScalar& operator=(DeviceScalar&& o) noexcept = default;
 
-  /** Deep copy: a device-to-device cudaMemcpyAsync on the source's stream, no
+  /** Deep copy: a device-to-device cudaMemcpyAsync on the source's stream(), no
    * host round trip. Provided so that generic code returning a DeviceScalar by
    * value from a const reference (numext::real in Eigen's iterative solver
    * templates) compiles; explicit code should move instead. */
-  DeviceScalar(const DeviceScalar& o) : d_val_(sizeof(Scalar)), stream_(o.stream_) {
+  DeviceScalar(const DeviceScalar& o) : DeviceScalar(o.d_val_.streamHandle()) {
     EIGEN_CUDA_RUNTIME_CHECK(
-        cudaMemcpyAsync(d_val_.get(), o.d_val_.get(), sizeof(Scalar), cudaMemcpyDeviceToDevice, stream_));
+        cudaMemcpyAsync(devicePtr(), o.devicePtr(), sizeof(Scalar), cudaMemcpyDeviceToDevice, stream()));
+    d_val_.finishWrite(/*record_event=*/false);
   }
 
-  /** Copy assignment adopts the source's stream. Copy construction followed by a
-   * move releases the previous buffer instead of writing into it: a write on the
-   * source's stream could race with reads still queued on this scalar's old stream. */
+  /** Copy assignment adopts the source's stream: it copies into a fresh
+   * allocation and releases the previous one. */
   DeviceScalar& operator=(const DeviceScalar& o) {
     if (this != &o) *this = DeviceScalar(o);
     return *this;
   }
 
-  /** Download from device, synchronizing the stream. */
+  /** Download from device on stream(), blocking until the value is available. */
   Scalar get() const {
     Scalar result;
-    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(&result, d_val_.get(), sizeof(Scalar), cudaMemcpyDeviceToHost, stream_));
-    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream_));
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(&result, devicePtr(), sizeof(Scalar), cudaMemcpyDeviceToHost, stream()));
+    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream()));
     return result;
   }
 
@@ -84,39 +86,62 @@ class DeviceScalar {
 
   Scalar* devicePtr() { return static_cast<Scalar*>(d_val_.get()); }
   const Scalar* devicePtr() const { return static_cast<const Scalar*>(d_val_.get()); }
-  cudaStream_t stream() const { return stream_; }
+
+  /** The stream of the last write; see DeviceMatrix::stream(). */
+  cudaStream_t stream() const { return d_val_.stream(); }
+
+  /** See DeviceMatrix::prepareRead(). */
+  void prepareRead(Context& ctx) const;
+  /** See DeviceMatrix::finishRead(). */
+  void finishRead(Context& ctx) const;
+  /** See DeviceMatrix::prepareWrite(). */
+  void prepareWrite(Context& ctx);
+  /** See DeviceMatrix::finishWrite(). A scalar defers the event to the first
+   * read from another stream, which then also waits for later work on stream(). */
+  void finishWrite(Context& ctx);
 
   // The arithmetic below keeps results on device via the NPP helpers in
-  // DeviceScalarOps.h, and covers real types only; complex division falls back to
-  // the implicit conversion and its host sync. Unlike DeviceMatrix, DeviceScalar
-  // tracks no cross-stream readiness, so all operands must share one stream.
+  // DeviceScalarOps.h, and covers real types only; complex division falls back
+  // to the implicit conversion and its host sync.
 
   friend DeviceScalar operator/(const DeviceScalar& a, const DeviceScalar& b) {
-    eigen_assert(a.stream_ == b.stream_ && "DeviceScalar operator/: operands must share the same stream");
-    DeviceScalar result(a.stream_);
-    gpu::internal::device_scalar_div(a.devicePtr(), b.devicePtr(), result.devicePtr(), a.stream_);
+    const internal::StreamHandle& s = a.d_val_.streamHandle();
+    DeviceScalar result(s);
+    b.d_val_.prepareRead(s);
+    gpu::internal::device_scalar_div(a.devicePtr(), b.devicePtr(), result.devicePtr(), s.get());
+    b.d_val_.finishRead(s);
+    result.d_val_.finishWrite(/*record_event=*/false);
     return result;
   }
 
   friend DeviceScalar operator/(Scalar a, const DeviceScalar& b) {
-    DeviceScalar d_a(a, b.stream_);
+    DeviceScalar d_a(b.d_val_.streamHandle(), a);
     return d_a / b;
   }
 
   friend DeviceScalar operator/(const DeviceScalar& a, Scalar b) {
-    DeviceScalar d_b(b, a.stream_);
+    DeviceScalar d_b(a.d_val_.streamHandle(), b);
     return a / d_b;
   }
 
   DeviceScalar operator-() const {
-    DeviceScalar result(stream_);
-    gpu::internal::device_scalar_neg(devicePtr(), result.devicePtr(), stream_);
+    DeviceScalar result(d_val_.streamHandle());
+    gpu::internal::device_scalar_neg(devicePtr(), result.devicePtr(), stream());
+    result.d_val_.finishWrite(/*record_event=*/false);
     return result;
   }
 
  private:
+  explicit DeviceScalar(const internal::StreamHandle& stream) : d_val_(sizeof(Scalar), stream) {}
+
+  // The host value is pageable, so the copy has been staged when the call returns.
+  DeviceScalar(const internal::StreamHandle& stream, Scalar value) : DeviceScalar(stream) {
+    EIGEN_CUDA_RUNTIME_CHECK(
+        cudaMemcpyAsync(devicePtr(), &value, sizeof(Scalar), cudaMemcpyHostToDevice, stream.get()));
+    d_val_.finishWrite(/*record_event=*/false);
+  }
+
   internal::DeviceBuffer d_val_;
-  cudaStream_t stream_ = nullptr;
 };
 
 }  // namespace gpu

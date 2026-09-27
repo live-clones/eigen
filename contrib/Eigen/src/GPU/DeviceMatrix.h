@@ -10,8 +10,9 @@
 
 // Typed RAII wrapper for a dense column-major matrix in GPU device memory.
 //
-// Cross-stream safety is automatic: an internal CUDA event records when the last
-// write completed, and consumers on a different stream wait on it before reading.
+// Cross-stream safety is automatic: the storage is an internal::DeviceBuffer,
+// which orders reads after the last write, writes after earlier reads and
+// writes, and the free after every access, on whichever streams they ran.
 
 #ifndef EIGEN_GPU_DEVICE_MATRIX_H
 #define EIGEN_GPU_DEVICE_MATRIX_H
@@ -64,9 +65,9 @@ class HostTransfer {
     return false;
   }
 
-  ~HostTransfer() {
-    if (event_) (void)cudaEventDestroy(event_);
-  }
+  // The pinned staging buffer's cudaFreeHost is not stream-ordered, so a
+  // pending transfer is waited for before the buffer goes.
+  ~HostTransfer() { discard(); }
 
   HostTransfer(HostTransfer&& o) noexcept
       : host_buf_(std::move(o.host_buf_)), pinned_buf_(std::move(o.pinned_buf_)), event_(o.event_), synced_(o.synced_) {
@@ -76,8 +77,7 @@ class HostTransfer {
 
   HostTransfer& operator=(HostTransfer&& o) noexcept {
     if (this != &o) {
-      // Unchecked like the destructor: eigen_assert may throw, and this operator is noexcept.
-      if (event_) (void)cudaEventDestroy(event_);
+      discard();
       host_buf_ = std::move(o.host_buf_);
       pinned_buf_ = std::move(o.pinned_buf_);
       event_ = o.event_;
@@ -98,6 +98,14 @@ class HostTransfer {
   HostTransfer(PlainMatrix&& buf, internal::PinnedHostBuffer&& pinned, cudaEvent_t event)
       : host_buf_(std::move(buf)), pinned_buf_(std::move(pinned)), event_(event), synced_(false) {}
 
+  // Unchecked: runs from the destructor and a noexcept operator, where eigen_assert may not throw.
+  void discard() noexcept {
+    if (!event_) return;
+    if (!synced_) (void)cudaEventSynchronize(event_);
+    (void)cudaEventDestroy(event_);
+    event_ = nullptr;
+  }
+
   PlainMatrix host_buf_;                   // final destination (pageable)
   internal::PinnedHostBuffer pinned_buf_;  // staging buffer for async DMA
   cudaEvent_t event_ = nullptr;
@@ -110,9 +118,23 @@ class HostTransfer {
  *
  * \tparam Scalar_  Element type: float, double, complex<float>, complex<double>
  *
- * Owns a device allocation with tracked dimensions and leading dimension.
- * An internal CUDA event records when the data was last written, enabling
- * safe cross-stream consumption without user-visible synchronization.
+ * Owns a stream-ordered device allocation with tracked dimensions (the leading
+ * dimension is always rows()). Every operation that enqueues work runs on a
+ * gpu::Context: the one passed as the first argument, or Context::threadLocal()
+ * for the overloads and operators that take none.
+ *
+ * Accesses are ordered across contexts automatically. The matrix remembers the
+ * stream of its last write (stream()) and the streams that have read it since:
+ * a read on another stream waits for that write, a write waits for every
+ * earlier access, and the memory is freed on stream() after all of them —
+ * without blocking the host. Several threads, each on its own Context, may
+ * read one matrix concurrently; a write needs exclusive access. To access data() from your own kernels, bracket
+ * the launch on ctx.stream() the same way the library does:
+ * \code
+ * d_A.prepareRead(ctx);  d_C.prepareWrite(ctx);
+ * my_kernel<<<grid, block, 0, ctx.stream()>>>(d_A.data(), d_C.data());
+ * d_A.finishRead(ctx);   d_C.finishWrite(ctx);
+ * \endcode
  *
  * Transfers come in synchronous and asynchronous variants: fromHost() /
  * fromHostAsync() and toHost() / toHostAsync().
@@ -128,18 +150,15 @@ class DeviceMatrix {
   /** Default: empty (0x0, no allocation). */
   DeviceMatrix() = default;
 
-  /** Allocate an uninitialized column vector, mirroring
-   * Matrix<Scalar,Dynamic,1>(n) so generic solver code compiles unchanged. */
-  explicit DeviceMatrix(Index n) : rows_(n), cols_(1) {
-    eigen_assert(n >= 0);
-    allocate(sizeInBytes());
-  }
+  /** Allocate an uninitialized column vector on the thread-local Context,
+   * mirroring Matrix<Scalar,Dynamic,1>(n) so generic solver code compiles unchanged. */
+  explicit DeviceMatrix(Index n);
 
-  /** Allocate uninitialized device memory for a rows x cols matrix. */
-  DeviceMatrix(Index rows, Index cols) : rows_(rows), cols_(cols) {
-    eigen_assert(rows >= 0 && cols >= 0);
-    allocate(sizeInBytes());
-  }
+  /** Allocate uninitialized device memory for a rows x cols matrix on the thread-local Context. */
+  DeviceMatrix(Index rows, Index cols);
+
+  /** Allocate uninitialized device memory for a rows x cols matrix on \p ctx. */
+  DeviceMatrix(Context& ctx, Index rows, Index cols);
 
   // Copy-initialization from a device expression, mirroring the Eigen CPU idiom
   // `DeviceMatrix<double> d_C = d_A * d_B;`. Each delegates to the corresponding
@@ -160,45 +179,18 @@ class DeviceMatrix {
   DeviceMatrix(const SpMVExpr<Scalar>& expr);
   DeviceMatrix(const SpMVAffineExpr<Scalar>& expr);
 
-  ~DeviceMatrix() {
-    // cudaEventDestroy on a pending event is non-blocking: the runtime defers
-    // teardown until the event completes. The trailing cudaFree() (via
-    // data_.reset()) is itself synchronous, so the buffer outlives any
-    // in-flight kernel that may still be touching it.
-    if (ready_event_) (void)cudaEventDestroy(ready_event_);
-  }
-
-  DeviceMatrix(DeviceMatrix&& o) noexcept
-      : data_(std::move(o.data_)),
-        rows_(o.rows_),
-        cols_(o.cols_),
-        capacity_bytes_(o.capacity_bytes_),
-        ready_event_(o.ready_event_),
-        ready_stream_(o.ready_stream_),
-        retained_buffer_(std::move(o.retained_buffer_)) {
+  DeviceMatrix(DeviceMatrix&& o) noexcept : buf_(std::move(o.buf_)), rows_(o.rows_), cols_(o.cols_) {
     o.rows_ = 0;
     o.cols_ = 0;
-    o.capacity_bytes_ = 0;
-    o.ready_event_ = nullptr;
-    o.ready_stream_ = nullptr;
   }
 
   DeviceMatrix& operator=(DeviceMatrix&& o) noexcept {
     if (this != &o) {
-      // Unchecked like the destructor: eigen_assert may throw, and this operator is noexcept.
-      if (ready_event_) (void)cudaEventDestroy(ready_event_);
-      data_ = std::move(o.data_);
+      buf_ = std::move(o.buf_);
       rows_ = o.rows_;
       cols_ = o.cols_;
-      capacity_bytes_ = o.capacity_bytes_;
-      ready_event_ = o.ready_event_;
-      ready_stream_ = o.ready_stream_;
-      retained_buffer_ = std::move(o.retained_buffer_);
       o.rows_ = 0;
       o.cols_ = 0;
-      o.capacity_bytes_ = 0;
-      o.ready_event_ = nullptr;
-      o.ready_stream_ = nullptr;
     }
     return *this;
   }
@@ -207,166 +199,83 @@ class DeviceMatrix {
    * asynchronous and without a host transfer. Copies exist so that generic Eigen
    * algorithm code with value semantics (`p = precond.solve(residual)` in
    * internal::conjugate_gradient) compiles against DeviceMatrix; code that
-   * manages streams explicitly should prefer copyFrom(ctx, other). Defined
+   * manages contexts explicitly should prefer copyFrom(ctx, other). Defined
    * out-of-line in DeviceDispatch.h, where Context is complete. */
   DeviceMatrix(const DeviceMatrix& other);
   DeviceMatrix& operator=(const DeviceMatrix& other);
 
-  /** Upload a host Eigen matrix to device memory (synchronous).
-   *
-   * Copies to device via cudaMemcpyAsync on \p stream and synchronizes before
-   * returning. Plain contiguous column-major input is transferred directly;
-   * other expressions are first evaluated into a contiguous temporary.
-   *
-   * \param host   Any Eigen dense expression.
-   * \param stream CUDA stream for the transfer (default: stream 0).
-   */
+  /** Upload a host Eigen matrix to device memory on \p ctx, synchronously: the
+   * copy has completed on return, so \p host may then be modified. Plain
+   * column-major input (any outer stride) is transferred directly; other
+   * expressions are first evaluated into a contiguous temporary. */
   template <typename Derived>
-  static DeviceMatrix fromHost(const DenseBase<Derived>& host, cudaStream_t stream = nullptr) {
-    // Ref binds any column-major direct-access input in place (no host copy);
-    // row-major layouts and expressions evaluate into its temporary. A bound
-    // block keeps its parent's outer stride, so the upload must honour
-    // outerStride() rather than assume rows() -- see upload_host_matrix.
-    const Ref<const PlainMatrix> mat(host.derived());
-    DeviceMatrix dm(mat.rows(), mat.cols());
-    if (dm.sizeInBytes() > 0) {
-      internal::upload_host_matrix(dm.data_.get(), mat.rows(), mat.data(), mat.outerStride(), mat.rows(), mat.cols(),
-                                   stream);
-      EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream));
-    }
-    return dm;
-  }
+  static DeviceMatrix fromHost(Context& ctx, const DenseBase<Derived>& host);
 
-  /** Upload from a raw host pointer to device memory (asynchronous).
-   *
-   * Enqueues an async H2D copy on \p stream and records an internal event.
-   * The caller must keep \p host_data alive until the transfer completes.
-   *
-   * \param host_data  Pointer to contiguous column-major host data.
-   * \param rows       Number of rows.
-   * \param cols       Number of columns.
-   * \param stream     CUDA stream for the transfer.
-   */
-  static DeviceMatrix fromHostAsync(const Scalar* host_data, Index rows, Index cols, cudaStream_t stream) {
-    eigen_assert(rows >= 0 && cols >= 0);
-    eigen_assert(host_data != nullptr || (rows == 0 || cols == 0));
-    DeviceMatrix dm(rows, cols);
-    if (dm.sizeInBytes() > 0) {
-      EIGEN_CUDA_RUNTIME_CHECK(
-          cudaMemcpyAsync(dm.data_.get(), host_data, dm.sizeInBytes(), cudaMemcpyHostToDevice, stream));
-      dm.recordReady(stream);
-    }
-    return dm;
-  }
+  /** fromHost() on the thread-local Context. */
+  template <typename Derived>
+  static DeviceMatrix fromHost(const DenseBase<Derived>& host);
 
-  /** Download device matrix to host memory (synchronous).
-   *
-   * Waits on the internal ready event, enqueues a D2H copy on \p stream,
-   * synchronizes, and returns the host matrix directly.
-   *
-   * \param stream CUDA stream for the transfer (default: stream 0).
-   */
-  PlainMatrix toHost(cudaStream_t stream = nullptr) const {
-    PlainMatrix host_buf(rows_, cols_);
-    if (sizeInBytes() > 0) {
-      waitReady(stream);
-      EIGEN_CUDA_RUNTIME_CHECK(
-          cudaMemcpyAsync(host_buf.data(), data_.get(), sizeInBytes(), cudaMemcpyDeviceToHost, stream));
-      EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream));
-    }
-    return host_buf;
-  }
+  /** Upload contiguous column-major host data asynchronously on \p ctx. The
+   * caller must keep \p host_data alive and unmodified until the copy has
+   * executed, e.g. until a later synchronizing call on \p ctx. */
+  static DeviceMatrix fromHostAsync(Context& ctx, const Scalar* host_data, Index rows, Index cols);
 
-  /** Enqueue an async device-to-host transfer and return a future.
-   *
-   * Waits on the internal ready event (if any) to ensure the device data is
-   * valid, then enqueues the D2H copy on \p stream. Call HostTransfer::get() to
-   * block and retrieve the host matrix.
-   *
-   * \param stream CUDA stream for the transfer (default: stream 0).
-   */
-  HostTransfer<Scalar> toHostAsync(cudaStream_t stream = nullptr) const {
-    PlainMatrix host_buf(rows_, cols_);
-    internal::PinnedHostBuffer pinned_buf(sizeInBytes());
-    if (sizeInBytes() > 0) {
-      waitReady(stream);
-      EIGEN_CUDA_RUNTIME_CHECK(
-          cudaMemcpyAsync(pinned_buf.get(), data_.get(), sizeInBytes(), cudaMemcpyDeviceToHost, stream));
-    }
-    cudaEvent_t transfer_event;
-    EIGEN_CUDA_RUNTIME_CHECK(cudaEventCreateWithFlags(&transfer_event, cudaEventDisableTiming));
-    EIGEN_CUDA_RUNTIME_CHECK(cudaEventRecord(transfer_event, stream));
-    return HostTransfer<Scalar>(std::move(host_buf), std::move(pinned_buf), transfer_event);
-  }
+  /** fromHostAsync() on the thread-local Context. */
+  static DeviceMatrix fromHostAsync(const Scalar* host_data, Index rows, Index cols);
 
-  /** Deep copy on device. Fully async — records an event on the result, no sync.
-   *
-   * \param stream CUDA stream for the D2D copy (default: stream 0).
-   */
-  DeviceMatrix clone(cudaStream_t stream = nullptr) const {
-    DeviceMatrix result(rows_, cols_);
-    if (sizeInBytes() > 0) {
-      waitReady(stream);
-      EIGEN_CUDA_RUNTIME_CHECK(
-          cudaMemcpyAsync(result.data_.get(), data_.get(), sizeInBytes(), cudaMemcpyDeviceToDevice, stream));
-      result.recordReady(stream);
-    }
-    return result;
-  }
+  /** Download to host memory on \p ctx; blocks until the copy has completed. */
+  PlainMatrix toHost(Context& ctx) const;
 
-  /** Discard contents and resize to (rows x cols). Contents are undefined
-   * afterwards. Keeps the existing allocation when it is large enough
-   * (capacity-aware: no cudaMalloc/cudaFree churn when cycling through
-   * same-or-smaller shapes); otherwise reallocates and clears the ready
-   * event. */
-  void resize(Index rows, Index cols) {
-    eigen_assert(rows >= 0 && cols >= 0);
-    if (rows == rows_ && cols == cols_) return;
-    const size_t bytes = static_cast<size_t>(rows) * static_cast<size_t>(cols) * sizeof(Scalar);
-    if (bytes > 0 && bytes <= capacity_bytes_ && data_) {
-      // Reuse the allocation; the ready event still orders any in-flight
-      // writes to this buffer ahead of its next producer.
-      rows_ = rows;
-      cols_ = cols;
-      return;
-    }
-    data_.reset();
-    capacity_bytes_ = 0;
-    if (ready_event_) {
-      EIGEN_CUDA_RUNTIME_CHECK(cudaEventDestroy(ready_event_));
-      ready_event_ = nullptr;
-    }
-    ready_stream_ = nullptr;
-    retained_buffer_ = internal::DeviceBuffer();
-    rows_ = rows;
-    cols_ = cols;
-    allocate(bytes);
-  }
+  /** toHost() on the thread-local Context. */
+  PlainMatrix toHost() const;
 
-  Scalar* data() { return data_.get(); }
-  const Scalar* data() const { return data_.get(); }
+  /** Enqueue a device-to-host transfer on \p ctx and return a future;
+   * HostTransfer::get() blocks and returns the host matrix. */
+  HostTransfer<Scalar> toHostAsync(Context& ctx) const;
+
+  /** toHostAsync() on the thread-local Context. */
+  HostTransfer<Scalar> toHostAsync() const;
+
+  /** Deep copy on device, enqueued on \p ctx without a host sync. */
+  DeviceMatrix clone(Context& ctx) const;
+
+  /** clone() on the thread-local Context. */
+  DeviceMatrix clone() const;
+
+  /** Discard contents and resize to (rows x cols); contents are undefined
+   * afterwards. Keeps the existing allocation when it is large enough, so
+   * cycling through same-or-smaller shapes does not allocate; otherwise the old
+   * allocation is freed (stream-ordered) and a new one is made on \p ctx. */
+  void resize(Context& ctx, Index rows, Index cols);
+
+  /** resize() allocating on the thread-local Context. */
+  void resize(Index rows, Index cols);
+
+  Scalar* data() { return static_cast<Scalar*>(buf_.get()); }
+  const Scalar* data() const { return static_cast<const Scalar*>(buf_.get()); }
   Index rows() const { return rows_; }
   Index cols() const { return cols_; }
   bool empty() const { return rows_ == 0 || cols_ == 0; }
 
-  /** Size of the device allocation in bytes. */
+  /** Size of the matrix data in bytes. */
   size_t sizeInBytes() const { return static_cast<size_t>(rows_) * static_cast<size_t>(cols_) * sizeof(Scalar); }
 
-  /** Record that device data is ready after work on \p stream. */
-  void recordReady(cudaStream_t stream) {
-    ensureEvent();
-    EIGEN_CUDA_RUNTIME_CHECK(cudaEventRecord(ready_event_, stream));
-    ready_stream_ = stream;
-  }
+  /** The stream of the last write: the matrix's pending work is ordered on it,
+   * and its memory is freed there. */
+  cudaStream_t stream() const { return buf_.stream(); }
 
-  /** Make \p stream wait until the device data is ready.
-   * No-op if no event recorded, or if the consumer stream is the same as the
-   * producer stream (CUDA guarantees in-order execution within a stream). */
-  void waitReady(cudaStream_t stream) const {
-    if (ready_event_ && stream != ready_stream_) {
-      EIGEN_CUDA_RUNTIME_CHECK(cudaStreamWaitEvent(stream, ready_event_, 0));
-    }
-  }
+  /** Before reading data() on \p ctx's stream: wait for the last write. */
+  void prepareRead(Context& ctx) const;
+
+  /** After enqueuing a read on \p ctx's stream: later writes and the free wait for it. */
+  void finishRead(Context& ctx) const;
+
+  /** Before writing data() on \p ctx's stream (including a read-modify-write):
+   * wait for every earlier access. \p ctx's stream becomes stream(). */
+  void prepareWrite(Context& ctx);
+
+  /** After enqueuing a write on \p ctx's stream: later reads on other streams wait for it. */
+  void finishWrite(Context& ctx);
 
   /** Adjoint view: maps to a GEMM operand with ConjTrans. */
   AdjointView<Scalar> adjoint() const { return AdjointView<Scalar>(*this); }
@@ -452,7 +361,6 @@ class DeviceMatrix {
 
   /** Set all elements to zero. */
   void setZero(Context& ctx);
-  void setZero(cudaStream_t stream);
 
   /** this += alpha * x (cuBLAS axpy). Requires same total size. */
   void addScaled(Context& ctx, Scalar alpha, const DeviceMatrix& x);
@@ -540,74 +448,94 @@ class DeviceMatrix {
    * The method exists so `tmp.noalias() = mat * p` compiles for both types. */
   DeviceMatrix& noalias() { return *this; }
 
-  /** Adopt an existing device pointer. Caller relinquishes ownership. */
-  static DeviceMatrix adopt(Scalar* device_ptr, Index rows, Index cols) {
-    DeviceMatrix dm;
-    dm.data_.reset(device_ptr);
-    dm.rows_ = rows;
-    dm.cols_ = cols;
-    dm.capacity_bytes_ = dm.sizeInBytes();
-    return dm;
-  }
+  /** Take ownership of \p device_ptr, which must come from cudaMalloc or
+   * cudaMallocAsync and have its pending work complete or enqueued on \p ctx's
+   * stream. It is freed there, stream-ordered, when the matrix is destroyed. */
+  static DeviceMatrix adopt(Context& ctx, Scalar* device_ptr, Index rows, Index cols);
 
-  /** Construct a non-owning view over an existing device pointer.
+  /** adopt() on the thread-local Context. */
+  static DeviceMatrix adopt(Scalar* device_ptr, Index rows, Index cols);
+
+  /** Construct a non-owning view over an existing device pointer, whose pending
+   * writes must be complete or enqueued on \p ctx's stream.
    *
    * The pointer is *borrowed*: destruction does not free, and the underlying
    * storage must outlive this view. This chains decomposition outputs (e.g.
    * `svd.d_matrixU()`) into downstream cuBLAS expressions without an intervening
-   * D2D copy, and supports the full read interface. Do not assign through a view:
-   * the borrowed pointer would be silently replaced, leaving the owner intact. */
-  static DeviceMatrix view(Scalar* device_ptr, Index rows, Index cols) {
-    DeviceMatrix dm;
-    dm.data_ =
-        std::unique_ptr<Scalar, internal::CudaFreeDeleter>(device_ptr, internal::CudaFreeDeleter{/*borrow=*/true});
-    dm.rows_ = rows;
-    dm.cols_ = cols;
-    return dm;
-  }
+   * D2D copy, and supports the full read interface. The view orders its own
+   * accesses; it knows nothing of the owner's, so the owner must not be
+   * rewritten while work reading the view on another stream is pending. Do not
+   * assign through a view: the borrowed pointer would be silently replaced,
+   * leaving the owner intact. */
+  static DeviceMatrix view(Context& ctx, Scalar* device_ptr, Index rows, Index cols);
 
-  /** Transfer ownership of the device pointer out. Zeros internal state. */
+  /** view() on the thread-local Context. */
+  static DeviceMatrix view(Scalar* device_ptr, Index rows, Index cols);
+
+  /** Transfer ownership of the device pointer out and leave the matrix empty.
+   * Pending accesses from other streams are first ordered before stream()'s
+   * later work, so query stream() beforehand: the caller must order its own use,
+   * and the eventual cudaFreeAsync, after that stream's pending work. */
   Scalar* release() {
-    Scalar* p = data_.release();
+    Scalar* p = static_cast<Scalar*>(buf_.release());
     rows_ = 0;
     cols_ = 0;
-    capacity_bytes_ = 0;
-    if (ready_event_) {
-      EIGEN_CUDA_RUNTIME_CHECK(cudaEventDestroy(ready_event_));
-      ready_event_ = nullptr;
-    }
-    ready_stream_ = nullptr;
     return p;
   }
 
  private:
-  // Fresh owning allocation of `bytes` (no-op for empty). Also resets the
-  // deleter so a previously borrowed (view) deleter cannot leak the new
-  // owned pointer.
-  void allocate(size_t bytes) {
-    if (bytes > 0) {
-      data_ = std::unique_ptr<Scalar, internal::CudaFreeDeleter>(static_cast<Scalar*>(internal::device_malloc(bytes)),
-                                                                 internal::CudaFreeDeleter{});
-      capacity_bytes_ = bytes;
-    }
-  }
+  friend struct internal::DeviceMatrixAccess;
 
-  void ensureEvent() {
-    if (!ready_event_) {
-      EIGEN_CUDA_RUNTIME_CHECK(cudaEventCreateWithFlags(&ready_event_, cudaEventDisableTiming));
-    }
-  }
+  DeviceMatrix(internal::DeviceBuffer&& buf, Index rows, Index cols) : buf_(std::move(buf)), rows_(rows), cols_(cols) {}
 
-  void retainBuffer(internal::DeviceBuffer&& buffer) { retained_buffer_ = std::move(buffer); }
-
-  std::unique_ptr<Scalar, internal::CudaFreeDeleter> data_;
+  internal::DeviceBuffer buf_;
   Index rows_ = 0;
   Index cols_ = 0;
-  size_t capacity_bytes_ = 0;               // owned allocation size (0 for borrowed views)
-  cudaEvent_t ready_event_ = nullptr;       // internal: tracks last write completion
-  cudaStream_t ready_stream_ = nullptr;     // stream that recorded ready_event_ (for same-stream skip)
-  internal::DeviceBuffer retained_buffer_;  // internal: keeps async aux buffers alive
 };
+
+namespace internal {
+// Storage access for the solvers and dispatchers that hand a DeviceMatrix's
+// allocation to an internal owner or wrap an internal buffer as a result,
+// keeping the buffer's stream ordering intact across the handoff.
+struct DeviceMatrixAccess {
+  template <typename Scalar>
+  static const DeviceBuffer& buffer(const DeviceMatrix<Scalar>& m) {
+    return m.buf_;
+  }
+
+  /** Moves the allocation out, leaving \p m empty. */
+  template <typename Scalar>
+  static DeviceBuffer take(DeviceMatrix<Scalar>& m) {
+    m.rows_ = 0;
+    m.cols_ = 0;
+    return std::move(m.buf_);
+  }
+
+  template <typename Scalar>
+  static DeviceMatrix<Scalar> wrap(DeviceBuffer&& buf, Index rows, Index cols) {
+    return DeviceMatrix<Scalar>(std::move(buf), rows, cols);
+  }
+
+  /** Reallocates \p m on \p stream unless its owned allocation already fits rows x cols. */
+  template <typename Scalar>
+  static void resize(DeviceMatrix<Scalar>& m, const StreamHandle& stream, Index rows, Index cols) {
+    eigen_assert(rows >= 0 && cols >= 0);
+    if (rows == m.rows_ && cols == m.cols_) return;
+    const size_t bytes = static_cast<size_t>(rows) * static_cast<size_t>(cols) * sizeof(Scalar);
+    if (bytes > 0 && bytes <= m.buf_.size() && m.buf_.owns()) {
+      // The next access's prepareWrite orders the reuse after pending ones.
+      m.rows_ = rows;
+      m.cols_ = cols;
+      return;
+    }
+    // Free first so a large reallocation can reuse the memory.
+    m.buf_.reset();
+    m.buf_ = DeviceBuffer(bytes, stream);
+    m.rows_ = rows;
+    m.cols_ = cols;
+  }
+};
+}  // namespace internal
 }  // namespace gpu
 }  // namespace Eigen
 
