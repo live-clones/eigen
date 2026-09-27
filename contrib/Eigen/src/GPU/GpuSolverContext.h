@@ -41,22 +41,25 @@ struct GpuSolverContext {
   int& info_word() { return *static_cast<int*>(pinned_info_.get()); }
   int info_word() const { return *static_cast<const int*>(pinned_info_.get()); }
 
-  Context& context() const { return *ctx_; }
-  cudaStream_t stream() const { return ctx_->stream(); }
-  const StreamHandle& streamHandle() const { return ctx_->streamHandle(); }
-  cusolverDnHandle_t cusolverHandle() const { return ctx_->cusolverHandle(); }
-  cublasHandle_t cublasHandle() const { return ctx_->cublasHandle(); }
-  cublasLtHandle_t cublasLtHandle() const { return ctx_->cublasLtHandle(); }
-  CublasLtPlanCache& gemmPlanCache() const { return ctx_->gemmPlanCache(); }
-  DeviceBuffer& gemmWorkspace() const { return ctx_->gemmWorkspace(); }
-  std::size_t cublasLtMaxWorkspaceBytes() const { return ctx_->cublasLtMaxWorkspaceBytes(); }
+  Context& context() const {
+    eigen_assert(ctx_ && "use of a moved-from GPU solver");
+    return *ctx_;
+  }
+  cudaStream_t stream() const { return context().stream(); }
+  const StreamHandle& streamHandle() const { return context().streamHandle(); }
+  cusolverDnHandle_t cusolverHandle() const { return context().cusolverHandle(); }
+  cublasHandle_t cublasHandle() const { return context().cublasHandle(); }
+  cublasLtHandle_t cublasLtHandle() const { return context().cublasLtHandle(); }
+  CublasLtPlanCache& gemmPlanCache() const { return context().gemmPlanCache(); }
+  DeviceBuffer& gemmWorkspace() const { return context().gemmWorkspace(); }
+  std::size_t cublasLtMaxWorkspaceBytes() const { return context().cublasLtMaxWorkspaceBytes(); }
 
-  GpuSolverContext() : owned_ctx_(new Context()), ctx_(owned_ctx_.get()) { ensure_scratch(0); }
+  GpuSolverContext() : owned_ctx_(new Context()), ctx_(owned_ctx_.get()) { init(); }
 
   /** Run on \p ctx's stream with its handles, GEMM plan cache, and GEMM
    * workspace, so solver work chains with the caller's other GPU operations
    * without cross-stream event waits. The Context must outlive this solver context. */
-  explicit GpuSolverContext(Context& ctx) : ctx_(&ctx) { ensure_scratch(0); }
+  explicit GpuSolverContext(Context& ctx) : ctx_(&ctx) { init(); }
 
   // A pending info copy may still write pinned_info_, whose cudaFreeHost deleter is not stream-ordered.
   ~GpuSolverContext() { wait_for_info_copy(); }
@@ -77,7 +80,6 @@ struct GpuSolverContext {
   GpuSolverContext& operator=(GpuSolverContext&& o) noexcept {
     if (this != &o) {
       wait_for_info_copy();
-      // Scratch before the Context: its free is enqueued on the stream that Context may own.
       d_scratch_ = std::move(o.d_scratch_);
       owned_ctx_ = std::move(o.owned_ctx_);
       ctx_ = o.ctx_;
@@ -162,6 +164,13 @@ struct GpuSolverContext {
     if (bytes == 0) return;
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(dst, src, bytes, cudaMemcpyDeviceToHost, stream()));
     EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream()));
+  }
+
+  // The cuSOLVER handle is created here rather than at the first compute():
+  // creating it synchronizes the device.
+  void init() {
+    (void)context().cusolverHandle();
+    ensure_scratch(0);
   }
 
   void wait_for_info_copy() noexcept {

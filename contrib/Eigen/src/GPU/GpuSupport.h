@@ -176,8 +176,8 @@ struct DeviceBufferPool {
     threadState() = State::kDestroyed;
   }
 
-  // First fit among the retired blocks, oldest release first. The blocks are
-  // plain cudaMalloc memory, so a retired one is usable on any stream.
+  // First fit among the retired blocks, oldest release first. A retired block
+  // is idle, so it is usable on any stream.
   void* allocate(size_t bytes, cudaStream_t stream) {
     for (auto it = free_list_.begin(); it != free_list_.end(); ++it) {
       if (it->bytes >= bytes && cudaEventQuery(it->release_event) == cudaSuccess) {
@@ -228,8 +228,8 @@ struct DeviceBufferPool {
 
   // Gives up a block and the event tracking its release. Destroying a pending
   // event is non-blocking; the runtime defers it until the event completes.
-  // The block is cudaMalloc memory (the pool is only used without memory
-  // pools), so the free is the synchronous cudaFree and needs no stream.
+  // cudaFree synchronizes the device, so the block is idle when it is freed,
+  // whichever allocator it came from.
   static void freeBlock(void* p, cudaEvent_t release_event) noexcept {
     (void)cudaEventDestroy(release_event);
     (void)cudaFree(p);
@@ -253,8 +253,9 @@ struct DeviceBufferPool {
  *   - WAR, WAW: a write on s waits for all earlier work on home and for every
  *     read recorded on another stream, and s becomes the home stream;
  *   - free: home waits for the recorded reads, then cudaFreeAsync on home. A
- *     borrowed buffer's home waits for them too, so that the owner's later
- *     writes and free there follow reads made through the borrowed pointer.
+ *     borrowed buffer instead hands its accesses back to the stream it was
+ *     borrowed on, which waits for them, so that the owner's later writes and
+ *     free there follow the reads and writes made through the borrowed pointer.
  * Accesses on the home stream itself need no events. Internal scratch that is
  * only ever touched on its home stream may skip the protocol entirely. Reads
  * may run concurrently from several threads; a write needs exclusive access.
@@ -303,10 +304,12 @@ class DeviceBuffer {
     return b;
   }
 
-  /** Wraps \p p without taking ownership: the buffer never frees it. */
+  /** Wraps \p p without taking ownership: the buffer never frees it. On reset,
+   * \p stream waits for every access made through the buffer. */
   static DeviceBuffer borrow(void* p, size_t bytes, StreamHandle stream) {
-    DeviceBuffer b = adopt(p, bytes, std::move(stream));
+    DeviceBuffer b = adopt(p, bytes, stream);
     b.owns_ = false;
+    b.origin_ = std::move(stream);
     return b;
   }
 
@@ -416,6 +419,14 @@ class DeviceBuffer {
       for (const ReadMark& r : reads_) {
         if (r.pending && r.stream.get() != stream_.get()) (void)cudaStreamWaitEvent(stream_.get(), r.event, 0);
       }
+      // A write through a borrowed buffer may have moved home off the stream it
+      // was borrowed on; that stream then waits for everything on home.
+      if (!owns_ && origin_ && origin_.get() != stream_.get()) {
+        if (!write_event_) (void)cudaEventCreateWithFlags(&write_event_, cudaEventDisableTiming);
+        if (write_event_ && cudaEventRecord(write_event_, stream_.get()) == cudaSuccess) {
+          (void)cudaStreamWaitEvent(origin_.get(), write_event_, 0);
+        }
+      }
     }
     if (ptr_ && owns_) {
       // Pooled blocks go back to the pool only while it is alive; a
@@ -438,11 +449,12 @@ class DeviceBuffer {
     owns_ = false;
     pooled_ = false;
     stream_.reset();
+    origin_.reset();
   }
 
  private:
   struct ReadMark {
-    StreamHandle stream;  // keeps the reader's stream alive while the mark is pending
+    StreamHandle stream;  // keeps an owned reader stream alive while the mark is pending
     cudaEvent_t event;
     bool pending;
   };
@@ -459,6 +471,7 @@ class DeviceBuffer {
     owns_ = o.owns_;
     pooled_ = o.pooled_;
     stream_ = std::move(o.stream_);
+    origin_ = std::move(o.origin_);
     write_event_ = o.write_event_;
     write_recorded_ = o.write_recorded_;
     reads_ = std::move(o.reads_);
@@ -476,6 +489,7 @@ class DeviceBuffer {
   bool owns_ = false;
   bool pooled_ = false;
   StreamHandle stream_;
+  StreamHandle origin_;  // a borrowed buffer's original stream
   // Mutable: prepareRead/finishRead are logically const, like the reads they
   // bracket, and read_mutex_ lets them run from several threads at once.
   mutable std::mutex read_mutex_;

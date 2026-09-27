@@ -59,7 +59,7 @@ class DeviceScalar {
    * host round trip. Provided so that generic code returning a DeviceScalar by
    * value from a const reference (numext::real in Eigen's iterative solver
    * templates) compiles; explicit code should move instead. */
-  DeviceScalar(const DeviceScalar& o) : DeviceScalar(o.d_val_.streamHandle()) {
+  DeviceScalar(const DeviceScalar& o) : DeviceScalar(o.home()) {
     EIGEN_CUDA_RUNTIME_CHECK(
         cudaMemcpyAsync(devicePtr(), o.devicePtr(), sizeof(Scalar), cudaMemcpyDeviceToDevice, stream()));
     d_val_.finishWrite(/*record_event=*/false);
@@ -74,6 +74,7 @@ class DeviceScalar {
 
   /** Download from device on stream(), blocking until the value is available. */
   Scalar get() const {
+    (void)home();
     Scalar result;
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(&result, devicePtr(), sizeof(Scalar), cudaMemcpyDeviceToHost, stream()));
     EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream()));
@@ -105,7 +106,7 @@ class DeviceScalar {
   // to the implicit conversion and its host sync.
 
   friend DeviceScalar operator/(const DeviceScalar& a, const DeviceScalar& b) {
-    const internal::StreamHandle& s = a.d_val_.streamHandle();
+    const internal::StreamHandle& s = a.home();
     DeviceScalar result(s);
     b.d_val_.prepareRead(s);
     gpu::internal::device_scalar_div(a.devicePtr(), b.devicePtr(), result.devicePtr(), s.get());
@@ -115,23 +116,30 @@ class DeviceScalar {
   }
 
   friend DeviceScalar operator/(Scalar a, const DeviceScalar& b) {
-    DeviceScalar d_a(b.d_val_.streamHandle(), a);
+    DeviceScalar d_a(b.home(), a);
     return d_a / b;
   }
 
   friend DeviceScalar operator/(const DeviceScalar& a, Scalar b) {
-    DeviceScalar d_b(a.d_val_.streamHandle(), b);
+    DeviceScalar d_b(a.home(), b);
     return a / d_b;
   }
 
   DeviceScalar operator-() const {
-    DeviceScalar result(d_val_.streamHandle());
+    DeviceScalar result(home());
     gpu::internal::device_scalar_neg(devicePtr(), result.devicePtr(), stream());
     result.d_val_.finishWrite(/*record_event=*/false);
     return result;
   }
 
  private:
+  // A moved-from scalar has no stream; working on it would fall back to the
+  // legacy default stream.
+  const internal::StreamHandle& home() const {
+    eigen_assert(d_val_ && "use of a moved-from DeviceScalar");
+    return d_val_.streamHandle();
+  }
+
   explicit DeviceScalar(const internal::StreamHandle& stream) : d_val_(sizeof(Scalar), stream) {}
 
   // The host value is pageable, so the copy has been staged when the call returns.

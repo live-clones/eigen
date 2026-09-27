@@ -56,28 +56,38 @@ struct OneShotSolverScratch {
 // Grows `buf` to at least `needed` bytes, allocated on `stream`. Replacing a
 // buffer that queued work still uses is safe: the old one is freed on its home
 // stream, ordered after that work, so neither the host nor the stream waits.
+// Freeing first lets the allocator reuse the old block for the new one.
 inline void ensure_sized(DeviceBuffer& buf, size_t needed, const StreamHandle& stream) {
-  if (needed > buf.size()) buf = DeviceBuffer(needed, stream);
+  if (needed > buf.size()) {
+    buf.reset();
+    buf = DeviceBuffer(needed, stream);
+  }
 }
+
+// Selects the Context constructor that defers the cuBLAS handle to its first use.
+struct DeferCublas {};
 }  // namespace internal
 
 /** \ingroup GPU_Module
  * \class Context
  * \brief Unified GPU execution context: a CUDA stream plus the library handles bound to it.
  *
- * A Context says where GPU work runs. Every operation that enqueues work takes
- * one — explicitly, or implicitly as threadLocal() — and every solver runs on
- * one, either borrowed or privately owned. Multiple contexts run concurrently
- * on independent streams; DeviceMatrix and DeviceScalar order their accesses
+ * A Context says where GPU work runs: an operation runs on the Context passed
+ * to it, on the one its solver, SparseContext, or FFT is bound to, or on
+ * threadLocal() when it takes none. DeviceScalar arithmetic and copies are the
+ * exception: they run on the first operand's stream(). A solver built without a
+ * Context runs on a private one. Multiple contexts run concurrently on
+ * independent streams; DeviceMatrix and DeviceScalar order their accesses
  * across contexts automatically.
  *
  * The default constructor creates a non-blocking stream: the module never uses
  * or synchronizes with the legacy default stream. The cuBLAS handle is created
  * with the Context, because creating a library handle synchronizes the device
- * and a first use mid-pipeline would stall every stream. The cuSOLVER,
- * cuBLASLt, and cuSPARSE handles are created on first use, so a translation
- * unit that never touches cuSOLVER (the cuFFT test, say) does not need it at
- * link time.
+ * and a first use mid-pipeline would stall every stream. Destroying a Context
+ * destroys that handle, and cublasDestroy() synchronizes the device too. The
+ * cuSOLVER, cuBLASLt, and cuSPARSE handles are created on first use (cuBLASLt's
+ * on the first GEMM), so a translation unit that never touches one of those
+ * libraries (the cuFFT test, say) does not link it.
  *
  * A Context is not thread-safe: the library handles are not thread-safe per
  * handle and the lazy initialization above is racy, so use one per thread or
@@ -86,16 +96,22 @@ inline void ensure_sized(DeviceBuffer& buf, size_t needed, const StreamHandle& s
 class Context {
  public:
   /** Create a context with a new non-blocking stream that it owns. The stream
-   * lives until the last DeviceMatrix or DeviceScalar last written on it is
-   * destroyed, even if that outlives the Context. */
+   * stays alive after the Context is destroyed for as long as a DeviceMatrix or
+   * DeviceScalar last written on it, or a pending read recorded on it, needs it. */
   Context() : stream_(internal::make_owned_stream()), oneshot_solver_scratch_(stream_) { init_cublas(); }
 
-  /** Run on an existing stream without taking ownership. \p stream must outlive
-   * this Context and every DeviceMatrix or DeviceScalar last written on it: their
-   * memory is freed stream-ordered on it. */
+  /** Run on \p stream without taking ownership. It may be any stream; passing the
+   * legacy default stream puts this Context's work there. \p stream must outlive
+   * this Context, every DeviceMatrix or DeviceScalar last written on it (their
+   * memory is freed stream-ordered on it), and every read enqueued on it that a
+   * later write or free of such an object waits for. */
   explicit Context(cudaStream_t stream) : stream_(internal::borrow_stream(stream)), oneshot_solver_scratch_(stream_) {
     init_cublas();
   }
+
+  /** Internal: an owned stream, with the cuBLAS handle created on first use, for
+   * the private Context of a component that may never use cuBLAS. */
+  explicit Context(internal::DeferCublas) : stream_(internal::make_owned_stream()), oneshot_solver_scratch_(stream_) {}
 
   ~Context() = default;
 
@@ -137,7 +153,10 @@ class Context {
    * for their stream-ordered free. */
   const internal::StreamHandle& streamHandle() const { return stream_; }
 
-  cublasHandle_t cublasHandle() const { return cublas_.get(); }
+  cublasHandle_t cublasHandle() const {
+    if (!cublas_) init_cublas();
+    return cublas_.get();
+  }
 
   /** Returns the cuSOLVER handle, creating it on first call. */
   cusolverDnHandle_t cusolverHandle() {
@@ -209,9 +228,10 @@ class Context {
   using LazyCusparseHandle =
       std::unique_ptr<std::remove_pointer_t<cusparseHandle_t>, cusparseStatus_t (*)(cusparseHandle_t)>;
 
-  // Destroyed in reverse declaration order: the plan cache before the cuBLASLt handle, the stream last.
+  // Destroyed in reverse declaration order: the plan cache before the cuBLASLt handle, this Context's stream
+  // reference last.
   internal::StreamHandle stream_;
-  internal::UniqueCublasHandle cublas_;
+  mutable internal::UniqueCublasHandle cublas_;  // lazy only after the DeferCublas constructor
   LazyCusolverHandle cusolver_{nullptr, nullptr};
   LazyCusparseHandle cusparse_{nullptr, nullptr};
   internal::UniqueCublasLtHandle cublas_lt_;  // lazy
@@ -225,7 +245,7 @@ class Context {
     return ptr;
   }
 
-  void init_cublas() {
+  void init_cublas() const {
     cublasHandle_t h = nullptr;
     EIGEN_CUBLAS_CHECK(cublasCreate(&h));
     cublas_ = internal::UniqueCublasHandle(h);

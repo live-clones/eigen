@@ -142,6 +142,9 @@ void dispatch(Context& ctx, DeviceMatrix<Scalar>& dst, const LltSolveExpr<Scalar
     EIGEN_CUDA_RUNTIME_CHECK(
         cudaMemcpyAsync(scratch.d_factor.get(), A.data(), mat_bytes, cudaMemcpyDeviceToDevice, ctx.stream()));
   }
+  // A is not read again. Finish the read before dst.resize(): when dst is A and
+  // grows, the resize frees A, and that free must wait for this copy.
+  A.finishRead(ctx);
   const int64_t lda = static_cast<int64_t>(A.rows());
   size_t dev_ws = 0;
   size_t host_ws = 0;
@@ -165,7 +168,6 @@ void dispatch(Context& ctx, DeviceMatrix<Scalar>& dst, const LltSolveExpr<Scalar
   const int64_t nrhs = static_cast<int64_t>(B.cols());
   EIGEN_CUSOLVER_CHECK(cusolverDnXpotrs(ctx.cusolverHandle(), params.p, uplo, n, nrhs, dtype, scratch.d_factor.get(),
                                         lda, dtype, dst.data(), static_cast<int64_t>(dst.rows()), d_info_potrs));
-  A.finishRead(ctx);
   B.finishRead(ctx);
   dst.finishWrite(ctx);
   oneshot_check_info(ctx, scratch, "llt");
@@ -200,6 +202,9 @@ void dispatch(Context& ctx, DeviceMatrix<Scalar>& dst, const LuSolveExpr<Scalar>
     EIGEN_CUDA_RUNTIME_CHECK(
         cudaMemcpyAsync(scratch.d_factor.get(), A.data(), mat_bytes, cudaMemcpyDeviceToDevice, ctx.stream()));
   }
+  // A is not read again. Finish the read before dst.resize(): when dst is A and
+  // grows, the resize frees A, and that free must wait for this copy.
+  A.finishRead(ctx);
   ensure_sized(scratch.d_ipiv, static_cast<size_t>(n) * sizeof(int64_t), ctx.streamHandle());
   const int64_t lda = static_cast<int64_t>(A.rows());
   size_t dev_ws = 0;
@@ -224,7 +229,6 @@ void dispatch(Context& ctx, DeviceMatrix<Scalar>& dst, const LuSolveExpr<Scalar>
   EIGEN_CUSOLVER_CHECK(cusolverDnXgetrs(ctx.cusolverHandle(), params.p, CUBLAS_OP_N, n, nrhs, dtype,
                                         scratch.d_factor.get(), lda, static_cast<const int64_t*>(scratch.d_ipiv.get()),
                                         dtype, dst.data(), static_cast<int64_t>(dst.rows()), d_info_getrs));
-  A.finishRead(ctx);
   B.finishRead(ctx);
   dst.finishWrite(ctx);
   oneshot_check_info(ctx, scratch, "lu");
@@ -555,9 +559,10 @@ void with_device_pointer_mode(cublasHandle_t h, F&& f) {
 }
 }  // namespace internal
 
-// Allocation, transfers, and the access protocol. Every method that enqueues
-// work orders it with prepareRead/prepareWrite before and finishRead/finishWrite
-// after, which is all it takes to be safe across contexts.
+// Allocation, transfers, and the access protocol. Every method brackets each
+// existing object it accesses with prepareRead/prepareWrite before and
+// finishRead/finishWrite after; a result freshly allocated on the Context that
+// writes it needs only finishWrite.
 
 template <typename Scalar_>
 DeviceMatrix<Scalar_>::DeviceMatrix(Context& ctx, Index rows, Index cols) {
@@ -667,14 +672,15 @@ template <typename Scalar_>
 HostTransfer<Scalar_> DeviceMatrix<Scalar_>::toHostAsync(Context& ctx) const {
   PlainMatrix host_buf(rows_, cols_);
   internal::PinnedHostBuffer pinned_buf(sizeInBytes());
+  // Created before the copy is enqueued: pinned_buf must not be freed under a pending copy.
+  cudaEvent_t transfer_event;
+  EIGEN_CUDA_RUNTIME_CHECK(cudaEventCreateWithFlags(&transfer_event, cudaEventDisableTiming));
   if (sizeInBytes() > 0) {
     prepareRead(ctx);
     EIGEN_CUDA_RUNTIME_CHECK(
         cudaMemcpyAsync(pinned_buf.get(), data(), sizeInBytes(), cudaMemcpyDeviceToHost, ctx.stream()));
     finishRead(ctx);
   }
-  cudaEvent_t transfer_event;
-  EIGEN_CUDA_RUNTIME_CHECK(cudaEventCreateWithFlags(&transfer_event, cudaEventDisableTiming));
   EIGEN_CUDA_RUNTIME_CHECK(cudaEventRecord(transfer_event, ctx.stream()));
   return HostTransfer<Scalar>(std::move(host_buf), std::move(pinned_buf), transfer_event);
 }
@@ -775,7 +781,8 @@ void DeviceScalar<Scalar_>::finishWrite(Context& ctx) {
 
 // The reductions below (dot, norm, squaredNorm) run under
 // CUBLAS_POINTER_MODE_DEVICE: the scalar result is written to device memory and
-// stays there until DeviceScalar's conversion to Scalar syncs and reads it.
+// stays there until DeviceScalar's conversion to Scalar syncs and reads it. The
+// complex squaredNorm() is the exception: see squaredNorm_from_dot().
 
 namespace internal {
 inline int64_t blas1_size(Index rows, Index cols) { return static_cast<int64_t>(rows) * static_cast<int64_t>(cols); }

@@ -120,8 +120,9 @@ class HostTransfer {
  *
  * Owns a stream-ordered device allocation with tracked dimensions (the leading
  * dimension is always rows()). Every operation that enqueues work runs on a
- * gpu::Context: the one passed as the first argument, or Context::threadLocal()
- * for the overloads and operators that take none.
+ * gpu::Context: the one passed as the first argument, Context::threadLocal()
+ * for the overloads and operators that take none, or, for an SpMV expression,
+ * its SparseContext's.
  *
  * Accesses are ordered across contexts automatically. The matrix remembers the
  * stream of its last write (stream()) and the streams that have read it since:
@@ -164,8 +165,9 @@ class DeviceMatrix {
 
   // Copy-initialization from a device expression, mirroring the Eigen CPU idiom
   // `DeviceMatrix<double> d_C = d_A * d_B;`. Each delegates to the corresponding
-  // operator= on the thread-local Context, and is defined out-of-line in
-  // DeviceDispatch.h — GpuSparseContext.h for SpMV — where Context is complete.
+  // operator=, which runs on the thread-local Context (an SpMV on its
+  // SparseContext's), and is defined out-of-line in DeviceDispatch.h —
+  // GpuSparseContext.h for SpMV — where Context is complete.
 
   template <typename Lhs, typename Rhs>
   DeviceMatrix(const GemmExpr<Lhs, Rhs>& expr);
@@ -452,7 +454,7 @@ class DeviceMatrix {
 
   /** Take ownership of \p device_ptr, which must come from cudaMalloc or
    * cudaMallocAsync and have its pending work complete or enqueued on \p ctx's
-   * stream. It is freed there, stream-ordered, when the matrix is destroyed. */
+   * stream. It is freed stream-ordered on stream() when the matrix is destroyed. */
   static DeviceMatrix adopt(Context& ctx, Scalar* device_ptr, Index rows, Index cols);
 
   /** adopt() on the thread-local Context. */
@@ -464,21 +466,22 @@ class DeviceMatrix {
    * The pointer is *borrowed*: destruction does not free, and the underlying
    * storage must outlive this view. This chains decomposition outputs (e.g.
    * `svd.d_matrixU()`) into downstream cuBLAS expressions without an intervening
-   * D2D copy, and supports the full read interface. The view orders its own
-   * accesses and, when destroyed, makes \p ctx's stream wait for the reads made
-   * through it: the owner's writes and free are ordered after those reads only
-   * if they run on \p ctx's stream after the view is gone. Do not assign through
-   * a view: the borrowed pointer would be silently replaced, leaving the owner
-   * intact. */
+   * D2D copy. The view orders its own accesses and, when destroyed, makes
+   * \p ctx's stream wait for every read and write made through it, on any
+   * stream: the owner's later writes and free follow them if they run on
+   * \p ctx's stream after the view is gone. An assignment that changes the
+   * view's size allocates new storage instead, leaving the owner unchanged. */
   static DeviceMatrix view(Context& ctx, Scalar* device_ptr, Index rows, Index cols);
 
   /** view() on the thread-local Context. */
   static DeviceMatrix view(Scalar* device_ptr, Index rows, Index cols);
 
-  /** Transfer ownership of the device pointer out and leave the matrix empty.
-   * Every pending access is first ordered before later work on \p ctx's
-   * stream: use the pointer, and free it (cudaFreeAsync on ctx.stream(), or
-   * cudaFree), only after that. */
+  /** Give up the device pointer and leave the matrix empty. Every pending access
+   * is first ordered before later work on \p ctx's stream, so use the pointer
+   * only in work ordered after that stream's. An owning matrix transfers
+   * ownership: free the pointer with cudaFree, or with cudaFreeAsync on
+   * ctx.stream() where the matrix was allocated stream-ordered. A view returns
+   * its borrowed pointer, which its owner still frees. */
   Scalar* release(Context& ctx);
 
   /** release() to the thread-local Context. */
