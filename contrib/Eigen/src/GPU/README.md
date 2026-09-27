@@ -722,10 +722,10 @@ Mandatory sync points:
 - `toHost()` / `HostTransfer::get()` -- Must deliver data to host
 - `info()` -- Must read the factorization status
 - `DeviceScalar` implicit conversion -- Downloads scalar from device
-- Destroying a `HostTransfer` whose transfer is still pending -- Waits for it
-  before freeing its pinned staging buffer
-- Destroying a dense solver whose `info()` was never read after `compute()` --
-  Waits for the stream before freeing the pinned status word
+- Destroying a `HostTransfer` or a dense solver -- Frees pinned host memory,
+  and `cudaFreeHost()` waits for all work on the device (measured with CUDA
+  13.4; NVIDIA does not document it). The module also waits for its own
+  pending copy into that memory first, so it does not rely on this.
 - Creating or destroying a `Context`, including a solver's private one --
   `cublasCreate()` and `cublasDestroy()` synchronize the device
 
