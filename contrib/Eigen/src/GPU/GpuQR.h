@@ -59,6 +59,9 @@ class QR {
   /** Bind to \p ctx and factor a device-resident A (D2D copy). */
   QR(Context& ctx, const DeviceMatrix<Scalar>& d_A) : solver_ctx_(ctx) { compute(d_A); }
 
+  /** Bind to \p ctx and factor a device-resident A (adopt when m >= n, no copy). */
+  QR(Context& ctx, DeviceMatrix<Scalar>&& d_A) : solver_ctx_(ctx) { compute(std::move(d_A)); }
+
   ~QR() = default;
 
   QR(const QR&) = delete;
@@ -192,7 +195,9 @@ class QR {
 
  private:
   mutable internal::GpuSolverContext solver_ctx_;
-  internal::DeviceBuffer d_qr_;   // grow-only; QR factors (reflectors below diag, R above)
+  // QR factors (reflectors below diag, R above). Host and rvalue input are
+  // adopted when m >= n; the copying paths are grow-only.
+  internal::DeviceBuffer d_qr_;
   internal::DeviceBuffer d_tau_;  // grow-only; Householder scalars (length k)
   int64_t m_ = 0;                 // original A.rows()
   int64_t n_ = 0;                 // original A.cols()
