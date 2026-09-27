@@ -67,6 +67,9 @@ class LU {
   /** Bind to \p ctx and factor a device-resident A (D2D copy). */
   LU(Context& ctx, const DeviceMatrix<Scalar>& d_A) : solver_ctx_(ctx) { compute(d_A); }
 
+  /** Bind to \p ctx and factor a device-resident A (adopt, no copy). */
+  LU(Context& ctx, DeviceMatrix<Scalar>&& d_A) : solver_ctx_(ctx) { compute(std::move(d_A)); }
+
   ~LU() = default;
 
   LU(const LU&) = delete;
@@ -217,7 +220,7 @@ class LU {
 
  private:
   mutable internal::GpuSolverContext solver_ctx_;
-  internal::DeviceBuffer d_lu_;    // grow-only
+  internal::DeviceBuffer d_lu_;    // adopted from an rvalue input, else grow-only
   internal::DeviceBuffer d_ipiv_;  // grow-only
   int64_t n_ = 0;
   int64_t lda_ = 0;

@@ -997,10 +997,15 @@ QR factorization via `cusolverDnXgeqrf`. Solve uses ORMQR (apply Q^H) + TRSM
 
 ```cpp
 gpu::QR()                                                  // Default construct
+gpu::QR(Context& ctx)                                      // Bind to ctx's stream + handles
 gpu::QR(const DenseBase<D>& A)                             // Convenience: upload + factorize
+gpu::QR(const DeviceMatrix& d_A)                           // Convenience: D2D copy + factorize
+gpu::QR(DeviceMatrix&& d_A)                                // Convenience: adopt (m >= n) + factorize
+gpu::QR(Context& ctx, ...)                                 // Bind + factorize in one step
 
 gpu::QR&             compute(const DenseBase<D>& A)        // Upload + factorize
 gpu::QR&             compute(const DeviceMatrix& d_A)      // D2D copy + factorize
+gpu::QR&             compute(DeviceMatrix&& d_A)           // Adopt + factorize (no copy when m >= n)
 
 PlainMatrix        solve(const MatrixBase<D>& B)         // -> host Matrix (syncs)
 DeviceMatrix       solve(const DeviceMatrix& d_B)        // -> DeviceMatrix (async)
@@ -1019,10 +1024,15 @@ handled by internal transpose.
 
 ```cpp
 gpu::SVD()                                                 // Default construct, then call compute()
+gpu::SVD(Context& ctx)                                     // Bind to ctx's stream + handles
 gpu::SVD(const DenseBase<D>& A, unsigned options = ComputeThinU | ComputeThinV)  // Convenience
+gpu::SVD(const DeviceMatrix& d_A, unsigned options = ComputeThinU | ComputeThinV)  // D2D copy
+gpu::SVD(DeviceMatrix&& d_A, unsigned options = ComputeThinU | ComputeThinV)  // Adopt (m >= n)
+gpu::SVD(Context& ctx, ...)                                // Bind + decompose in one step
 
 gpu::SVD&            compute(const DenseBase<D>& A, unsigned options = ComputeThinU | ComputeThinV)
 gpu::SVD&            compute(const DeviceMatrix& d_A, unsigned options = ComputeThinU | ComputeThinV)
+gpu::SVD&            compute(DeviceMatrix&& d_A, unsigned options = ComputeThinU | ComputeThinV)
 
 RealVector         singularValues()                      // -> host vector (syncs, downloads)
 PlainMatrix        matrixU()                             // -> host Matrix (syncs, downloads)
@@ -1059,10 +1069,15 @@ Symmetric/Hermitian eigenvalue decomposition via `cusolverDnXsyevd`.
 
 ```cpp
 gpu::SelfAdjointEigenSolver()                              // Default construct, then call compute()
+gpu::SelfAdjointEigenSolver(Context& ctx)                  // Bind to ctx's stream + handles
 gpu::SelfAdjointEigenSolver(const DenseBase<D>& A, ComputeMode mode = ComputeEigenvectors)  // Convenience
+gpu::SelfAdjointEigenSolver(const DeviceMatrix& d_A, ComputeMode mode = ComputeEigenvectors)  // D2D copy
+gpu::SelfAdjointEigenSolver(DeviceMatrix&& d_A, ComputeMode mode = ComputeEigenvectors)  // Adopt, no copy
+gpu::SelfAdjointEigenSolver(Context& ctx, ...)             // Bind + decompose in one step
 
 gpu::SelfAdjointEigenSolver& compute(const DenseBase<D>& A, ComputeMode mode = ComputeEigenvectors)
 gpu::SelfAdjointEigenSolver& compute(const DeviceMatrix& d_A, ComputeMode mode = ComputeEigenvectors)
+gpu::SelfAdjointEigenSolver& compute(DeviceMatrix&& d_A, ComputeMode mode = ComputeEigenvectors)
 
 RealVector         eigenvalues()                         // -> host vector (syncs, downloads, ascending order)
 PlainMatrix        eigenvectors()                        // -> host Matrix (syncs, downloads, columns)
