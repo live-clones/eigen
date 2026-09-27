@@ -64,6 +64,12 @@ class SelfAdjointEigenSolver {
     compute(d_A, options);
   }
 
+  /** Bind to \p ctx and decompose a device-resident A (adopt, no copy). */
+  SelfAdjointEigenSolver(Context& ctx, DeviceMatrix<Scalar>&& d_A, int options = ComputeEigenvectors)
+      : solver_ctx_(ctx) {
+    compute(std::move(d_A), options);
+  }
+
   ~SelfAdjointEigenSolver() = default;
 
   SelfAdjointEigenSolver(const SelfAdjointEigenSolver&) = delete;
@@ -186,7 +192,9 @@ class SelfAdjointEigenSolver {
 
  private:
   mutable internal::GpuSolverContext solver_ctx_;
-  internal::DeviceBuffer d_A_;  // grow-only; overwritten with eigenvectors by syevd
+  // Overwritten with eigenvectors by syevd. Host and rvalue input are adopted;
+  // the const& path is grow-only.
+  internal::DeviceBuffer d_A_;
   internal::DeviceBuffer d_W_;  // grow-only; eigenvalues (RealScalar, length n)
   bool compute_eigenvectors_ = true;
   int64_t n_ = 0;
