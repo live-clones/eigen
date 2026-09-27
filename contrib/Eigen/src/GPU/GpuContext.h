@@ -212,6 +212,7 @@ class Context {
   // Destroyed in reverse declaration order: the plan cache before the cuBLASLt handle, the stream last.
   internal::StreamHandle stream_;
   internal::UniqueCublasHandle cublas_;
+  internal::DeviceBuffer cublas_workspace_;  // freed on stream_, after the work that uses it
   LazyCusolverHandle cusolver_{nullptr, nullptr};
   LazyCusparseHandle cusparse_{nullptr, nullptr};
   internal::UniqueCublasLtHandle cublas_lt_;  // lazy
@@ -230,6 +231,8 @@ class Context {
     EIGEN_CUBLAS_CHECK(cublasCreate(&h));
     cublas_ = internal::UniqueCublasHandle(h);
     EIGEN_CUBLAS_CHECK(cublasSetStream(h, stream()));
+    cublas_workspace_ = internal::DeviceBuffer(internal::kCublasWorkspaceBytes, stream_);
+    EIGEN_CUBLAS_CHECK(cublasSetWorkspace(h, cublas_workspace_.get(), cublas_workspace_.size()));
   }
 };
 
