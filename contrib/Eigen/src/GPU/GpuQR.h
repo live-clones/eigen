@@ -101,7 +101,7 @@ class QR {
     // uploaded matrix is factored in place (geqrf overwrites its input), so no
     // second device copy is made. The wide-matrix transpose runs on the GPU
     // (via cublasXgeam) inside the device-input path; no host transpose.
-    return compute(DeviceMatrix<Scalar>::fromHost(A.derived(), solver_ctx_.stream()));
+    return compute(DeviceMatrix<Scalar>::fromHost(context(), A.derived()));
   }
 
   QR& compute(const DeviceMatrix<Scalar>& d_A) {
@@ -115,20 +115,26 @@ class QR {
       EIGEN_CUDA_RUNTIME_CHECK(
           cudaMemcpyAsync(d_qr_.get(), d_A.data(), mat_bytes, cudaMemcpyDeviceToDevice, solver_ctx_.stream()));
     }
+    d_A.finishRead(context());
 
     factorize();
     return *this;
   }
 
   /** Factor a device matrix (move). For m >= n the buffer is adopted and
-   * factored in place — no copy; for m < n a transposed copy is unavoidable. */
+   * factored in place — no copy; for m < n a transposed copy is unavoidable. A
+   * view is copied: its storage belongs to another object. */
   QR& compute(DeviceMatrix<Scalar>&& d_A) {
+    if (!internal::DeviceMatrixAccess::buffer(d_A).owns())
+      return compute(static_cast<const DeviceMatrix<Scalar>&>(d_A));
     if (!begin_compute(d_A)) return *this;
 
     if (transposed_) {
       transpose_into_factor(d_A);
+      d_A.finishRead(context());
     } else {
-      d_qr_ = internal::DeviceBuffer::adopt(static_cast<void*>(d_A.release()), factorBytes());
+      d_qr_ = internal::DeviceMatrixAccess::take(d_A);
+      d_qr_.prepareWrite(solver_ctx_.streamHandle());
     }
 
     factorize();
@@ -160,12 +166,10 @@ class QR {
   DeviceMatrix<Scalar> solve(const DeviceMatrix<Scalar>& d_B) const {
     eigen_assert(solver_ctx_.info() == Success && "QR::solve called on a failed or uninitialized factorization");
     eigen_assert(d_B.rows() == m_);
-    d_B.waitReady(solver_ctx_.stream());
-
-    if (!transposed_) {
-      return solve_overdetermined_device(d_B);
-    }
-    return solve_underdetermined_device(d_B);
+    d_B.prepareRead(context());
+    DeviceMatrix<Scalar> X = transposed_ ? solve_underdetermined_device(d_B) : solve_overdetermined_device(d_B);
+    d_B.finishRead(context());
+    return X;
   }
 
   ComputationInfo info() const { return solver_ctx_.info(); }
@@ -174,15 +178,19 @@ class QR {
   Index cols() const { return n_; }
   cudaStream_t stream() const { return solver_ctx_.stream(); }
 
+  /** The Context this solver runs on; its results are written there. */
+  Context& context() const { return solver_ctx_.context(); }
+
   /** Upper-triangular factor R (k × n) of A = Q R. Available only for m >= n. */
   PlainMatrix matrixR() const {
     eigen_assert(solver_ctx_.info() == Success);
     eigen_assert(!transposed_ && "matrixR() not available when m < n (we factored A^H internally)");
     PlainMatrix qr_full(m_, n_);
     if (m_ > 0 && n_ > 0) {
-      EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpy(qr_full.data(), d_qr_.get(),
-                                          static_cast<size_t>(lda_) * static_cast<size_t>(n_) * sizeof(Scalar),
-                                          cudaMemcpyDeviceToHost));
+      EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(qr_full.data(), d_qr_.get(),
+                                               static_cast<size_t>(lda_) * static_cast<size_t>(n_) * sizeof(Scalar),
+                                               cudaMemcpyDeviceToHost, solver_ctx_.stream()));
+      EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(solver_ctx_.stream()));
     }
     PlainMatrix R = qr_full.topRows(k()).template triangularView<Upper>();
     return R;
@@ -204,8 +212,9 @@ class QR {
 
   size_t factorBytes() const { return static_cast<size_t>(lda_) * static_cast<size_t>(factor_cols()) * sizeof(Scalar); }
 
-  // Common compute() prologue: record shape, reset info, wait on the input.
-  // Returns false (and clears stale factors) for empty input.
+  // Common compute() prologue: record shape, reset info, order the read of the
+  // input (the caller finishes it). Returns false (and clears stale factors)
+  // for empty input.
   bool begin_compute(const DeviceMatrix<Scalar>& d_A) {
     m_ = d_A.rows();
     n_ = d_A.cols();
@@ -216,11 +225,13 @@ class QR {
     }
     transposed_ = (m_ < n_);
     lda_ = static_cast<int64_t>(transposed_ ? n_ : m_);
-    d_A.waitReady(solver_ctx_.stream());
+    d_A.prepareRead(context());
     return true;
   }
 
-  void allocate_factor_storage(size_t mat_bytes) { internal::ensure_sized(d_qr_, mat_bytes); }
+  void allocate_factor_storage(size_t mat_bytes) {
+    internal::ensure_sized(d_qr_, mat_bytes, solver_ctx_.streamHandle());
+  }
 
   // Wide input (m < n): factor A^H, produced on device via cuBLAS geam.
   void transpose_into_factor(const DeviceMatrix<Scalar>& d_A) {
@@ -236,7 +247,7 @@ class QR {
 
     solver_ctx_.mark_pending();
 
-    internal::ensure_sized(d_tau_, static_cast<size_t>(k()) * sizeof(Scalar));
+    internal::ensure_sized(d_tau_, static_cast<size_t>(k()) * sizeof(Scalar), solver_ctx_.streamHandle());
 
     const int64_t fm = factor_rows();
     const int64_t fn = factor_cols();
@@ -287,7 +298,7 @@ class QR {
     const Index nrhs = rhs.cols();
     const size_t b_bytes = static_cast<size_t>(m_) * static_cast<size_t>(nrhs) * sizeof(Scalar);
 
-    internal::DeviceBuffer d_B(b_bytes);
+    internal::DeviceBuffer d_B(b_bytes, solver_ctx_.streamHandle());
     internal::upload_host_matrix(static_cast<Scalar*>(d_B.get()), m_, rhs.data(), rhs.outerStride(), m_, nrhs,
                                  solver_ctx_.stream());
 
@@ -313,7 +324,7 @@ class QR {
     const Index nrhs = d_B.cols();
     const size_t b_bytes = static_cast<size_t>(m_) * static_cast<size_t>(nrhs) * sizeof(Scalar);
 
-    internal::DeviceBuffer d_work(b_bytes);
+    internal::DeviceBuffer d_work(b_bytes, solver_ctx_.streamHandle());
     EIGEN_CUDA_RUNTIME_CHECK(
         cudaMemcpyAsync(d_work.get(), d_B.data(), b_bytes, cudaMemcpyDeviceToDevice, solver_ctx_.stream()));
 
@@ -322,16 +333,16 @@ class QR {
 
     if (m_ == n_) {
       DeviceMatrix<Scalar> result =
-          DeviceMatrix<Scalar>::adopt(static_cast<Scalar*>(d_work.release()), n_, static_cast<Index>(nrhs));
-      result.recordReady(solver_ctx_.stream());
+          internal::DeviceMatrixAccess::wrap<Scalar>(std::move(d_work), n_, static_cast<Index>(nrhs));
+      result.finishWrite(context());
       return result;
     }
-    DeviceMatrix<Scalar> result(n_, static_cast<Index>(nrhs));
+    DeviceMatrix<Scalar> result(context(), n_, static_cast<Index>(nrhs));
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpy2DAsync(result.data(), static_cast<size_t>(n_) * sizeof(Scalar), d_work.get(),
                                                static_cast<size_t>(m_) * sizeof(Scalar),
                                                static_cast<size_t>(n_) * sizeof(Scalar), static_cast<size_t>(nrhs),
                                                cudaMemcpyDeviceToDevice, solver_ctx_.stream()));
-    result.recordReady(solver_ctx_.stream());
+    result.finishWrite(context());
     return result;
   }
 
@@ -343,7 +354,7 @@ class QR {
   PlainMatrix solve_underdetermined_host(const Ref<const PlainMatrix>& rhs, Index nrhs) const {
     const size_t x_bytes = static_cast<size_t>(n_) * static_cast<size_t>(nrhs) * sizeof(Scalar);
 
-    internal::DeviceBuffer d_X(x_bytes);
+    internal::DeviceBuffer d_X(x_bytes, solver_ctx_.streamHandle());
     // Zero the full n × nrhs buffer; B will overwrite the top m × nrhs block.
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(d_X.get(), 0, x_bytes, solver_ctx_.stream()));
 
@@ -365,7 +376,7 @@ class QR {
     const Index nrhs = d_B.cols();
     const size_t x_bytes = static_cast<size_t>(n_) * static_cast<size_t>(nrhs) * sizeof(Scalar);
 
-    internal::DeviceBuffer d_X(x_bytes);
+    internal::DeviceBuffer d_X(x_bytes, solver_ctx_.streamHandle());
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(d_X.get(), 0, x_bytes, solver_ctx_.stream()));
 
     if (m_ > 0 && nrhs > 0) {
@@ -379,8 +390,8 @@ class QR {
     apply_Q(CUBLAS_OP_N, d_X.get(), n_, nrhs);
 
     DeviceMatrix<Scalar> result =
-        DeviceMatrix<Scalar>::adopt(static_cast<Scalar*>(d_X.release()), n_, static_cast<Index>(nrhs));
-    result.recordReady(solver_ctx_.stream());
+        internal::DeviceMatrixAccess::wrap<Scalar>(std::move(d_X), n_, static_cast<Index>(nrhs));
+    result.finishWrite(context());
     return result;
   }
 

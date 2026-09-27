@@ -119,6 +119,14 @@ if(TARGET CUDA::cusparse)
     EXTRA_LIBS CUDA::cusparse CUDA::cublas CUDA::cusolver CUDA::npps CUDA::nppc)
 endif()
 
+# Cross-context ordering of DeviceMatrix/DeviceScalar accesses, and a check that
+# no module operation uses the legacy default stream. Touches every library the
+# module wraps except cuDSS, which the cudss_* tests cover.
+if(TARGET CUDA::cusparse AND TARGET CUDA::cufft)
+  ei_add_gpu_test(stream_ordering
+    EXTRA_LIBS CUDA::cublas CUDA::cusolver CUDA::cusparse CUDA::cufft CUDA::npps CUDA::nppc Threads::Threads)
+endif()
+
 # cuDSS sparse direct solvers -- distributed separately from the CUDA Toolkit.
 option(EIGEN_TEST_CUDSS "Test cuDSS sparse solver integration" OFF)
 if(EIGEN_TEST_CUDSS)

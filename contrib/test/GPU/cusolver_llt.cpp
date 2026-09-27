@@ -228,12 +228,12 @@ void test_context_bound_solver(Index n, Index nrhs) {
   Mat B = Mat::Random(n, nrhs);
 
   gpu::Context ctx;
-  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A, ctx.stream());
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(ctx, A);
   gpu::LLT<Scalar> llt(ctx, d_A);
   VERIFY(llt.info() == Success);
   VERIFY(llt.stream() == ctx.stream());
 
-  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B, ctx.stream());
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(ctx, B);
   gpu::DeviceMatrix<Scalar> d_X = llt.solve(d_B);
   Mat X = d_X.toHost();
   VERIFY((A * X - B).norm() / B.norm() < RealScalar(n) * NumTraits<Scalar>::epsilon());

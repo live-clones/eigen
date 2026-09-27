@@ -100,28 +100,32 @@ class SelfAdjointEigenSolver {
   SelfAdjointEigenSolver& compute(const DenseBase<InputType>& A, int options = ComputeEigenvectors) {
     // Route through the adopting overload: the freshly uploaded matrix is
     // decomposed in place (syevd overwrites its input) — no second device copy.
-    return compute(DeviceMatrix<Scalar>::fromHost(A.derived(), solver_ctx_.stream()), options);
+    return compute(DeviceMatrix<Scalar>::fromHost(context(), A.derived()), options);
   }
 
   SelfAdjointEigenSolver& compute(const DeviceMatrix<Scalar>& d_A, int options = ComputeEigenvectors) {
     if (!begin_compute(d_A, options)) return *this;
 
     const size_t mat_bytes = static_cast<size_t>(lda_) * static_cast<size_t>(n_) * sizeof(Scalar);
-    internal::ensure_sized(d_A_, mat_bytes);
+    internal::ensure_sized(d_A_, mat_bytes, solver_ctx_.streamHandle());
     EIGEN_CUDA_RUNTIME_CHECK(
         cudaMemcpyAsync(d_A_.get(), d_A.data(), mat_bytes, cudaMemcpyDeviceToDevice, solver_ctx_.stream()));
+    d_A.finishRead(context());
 
     factorize();
     return *this;
   }
 
   /** Decompose a device matrix (move): the buffer is adopted and overwritten
-   * in place by syevd — no copy. */
+   * in place by syevd — no copy. A view is copied instead: its storage belongs
+   * to another object. */
   SelfAdjointEigenSolver& compute(DeviceMatrix<Scalar>&& d_A, int options = ComputeEigenvectors) {
+    if (!internal::DeviceMatrixAccess::buffer(d_A).owns())
+      return compute(static_cast<const DeviceMatrix<Scalar>&>(d_A), options);
     if (!begin_compute(d_A, options)) return *this;
 
-    d_A_ = internal::DeviceBuffer::adopt(static_cast<void*>(d_A.release()),
-                                         static_cast<size_t>(lda_) * static_cast<size_t>(n_) * sizeof(Scalar));
+    d_A_ = internal::DeviceMatrixAccess::take(d_A);
+    d_A_.prepareWrite(solver_ctx_.streamHandle());
 
     factorize();
     return *this;
@@ -136,10 +140,7 @@ class SelfAdjointEigenSolver {
   RealVector eigenvalues() const {
     eigen_assert(solver_ctx_.info() == Success);
     RealVector W(n_);
-    if (n_ > 0) {
-      EIGEN_CUDA_RUNTIME_CHECK(
-          cudaMemcpy(W.data(), d_W_.get(), static_cast<size_t>(n_) * sizeof(RealScalar), cudaMemcpyDeviceToHost));
-    }
+    download(W.data(), d_W_.get(), static_cast<size_t>(n_) * sizeof(RealScalar));
     return W;
   }
 
@@ -149,11 +150,7 @@ class SelfAdjointEigenSolver {
     eigen_assert(solver_ctx_.info() == Success);
     eigen_assert(compute_eigenvectors_ && "eigenvectors() requires ComputeEigenvectors option");
     PlainMatrix V(n_, n_);
-    if (n_ > 0) {
-      EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpy(V.data(), d_A_.get(),
-                                          static_cast<size_t>(lda_) * static_cast<size_t>(n_) * sizeof(Scalar),
-                                          cudaMemcpyDeviceToHost));
-    }
+    download(V.data(), d_A_.get(), static_cast<size_t>(lda_) * static_cast<size_t>(n_) * sizeof(Scalar));
     return V;
   }
 
@@ -167,8 +164,8 @@ class SelfAdjointEigenSolver {
    * syevd; debug builds verify the factorization status. */
   DeviceMatrix<RealScalar> d_eigenvalues() const {
     eigen_assert(solver_ctx_.info() == Success);
-    auto v = DeviceMatrix<RealScalar>::view(static_cast<RealScalar*>(d_W_.get()), n_, 1);
-    v.recordReady(solver_ctx_.stream());
+    auto v = DeviceMatrix<RealScalar>::view(context(), static_cast<RealScalar*>(d_W_.get()), n_, 1);
+    v.finishWrite(context());
     return v;
   }
 
@@ -177,12 +174,15 @@ class SelfAdjointEigenSolver {
   DeviceMatrix<Scalar> d_eigenvectors() const {
     eigen_assert(solver_ctx_.info() == Success);
     eigen_assert(compute_eigenvectors_ && "d_eigenvectors() requires ComputeEigenvectors option");
-    auto v = DeviceMatrix<Scalar>::view(static_cast<Scalar*>(d_A_.get()), n_, n_);
-    v.recordReady(solver_ctx_.stream());
+    auto v = DeviceMatrix<Scalar>::view(context(), static_cast<Scalar*>(d_A_.get()), n_, n_);
+    v.finishWrite(context());
     return v;
   }
 
   cudaStream_t stream() const { return solver_ctx_.stream(); }
+
+  /** The Context this solver runs on; its results are written there. */
+  Context& context() const { return solver_ctx_.context(); }
 
  private:
   mutable internal::GpuSolverContext solver_ctx_;
@@ -192,8 +192,9 @@ class SelfAdjointEigenSolver {
   int64_t n_ = 0;
   int64_t lda_ = 0;
 
-  // Common compute() prologue: validate, record shape, reset info, wait on
-  // input. Returns false (and clears stale buffers) for empty input.
+  // Common compute() prologue: validate, record shape, reset info, order the
+  // read of the input (the caller finishes it). Returns false (and clears
+  // stale buffers) for empty input.
   bool begin_compute(const DeviceMatrix<Scalar>& d_A, int options) {
     eigen_assert(d_A.rows() == d_A.cols() && "SelfAdjointEigenSolver requires a square matrix");
     eigen_assert((options == ComputeEigenvectors || options == EigenvaluesOnly) &&
@@ -206,8 +207,15 @@ class SelfAdjointEigenSolver {
       return false;
     }
     lda_ = n_;
-    d_A.waitReady(solver_ctx_.stream());
+    d_A.prepareRead(context());
     return true;
+  }
+
+  // Blocking download of solver-owned device data, on the solver's stream.
+  void download(void* dst, const void* src, size_t bytes) const {
+    if (bytes == 0) return;
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(dst, src, bytes, cudaMemcpyDeviceToHost, solver_ctx_.stream()));
+    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(solver_ctx_.stream()));
   }
 
   void factorize() {
@@ -216,7 +224,7 @@ class SelfAdjointEigenSolver {
 
     solver_ctx_.mark_pending();
 
-    internal::ensure_sized(d_W_, static_cast<size_t>(n_) * sizeof(RealScalar));
+    internal::ensure_sized(d_W_, static_cast<size_t>(n_) * sizeof(RealScalar), solver_ctx_.streamHandle());
 
     const cusolverEigMode_t jobz = compute_eigenvectors_ ? CUSOLVER_EIG_MODE_VECTOR : CUSOLVER_EIG_MODE_NOVECTOR;
 

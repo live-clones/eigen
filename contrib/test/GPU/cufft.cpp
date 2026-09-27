@@ -254,7 +254,7 @@ void test_device_transforms(Index n) {
   // 1D C2C: device path matches the host path; roundtrip returns the input.
   CVec x = CVec::Random(n);
   CVec X_host = fft.fwd(x);
-  auto d_x = gpu::DeviceMatrix<Complex>::fromHost(x, ctx.stream());
+  auto d_x = gpu::DeviceMatrix<Complex>::fromHost(ctx, x);
   gpu::DeviceMatrix<Complex> d_X, d_y;
   fft.fwd(d_x, d_X);
   VERIFY_IS_APPROX(d_X.toHost(), X_host);
@@ -263,7 +263,7 @@ void test_device_transforms(Index n) {
 
   // 1D R2C / C2R roundtrip; the C2R input is preserved (staged via scratch).
   RVec r = RVec::Random(n);
-  auto d_r = gpu::DeviceMatrix<Scalar>::fromHost(r, ctx.stream());
+  auto d_r = gpu::DeviceMatrix<Scalar>::fromHost(ctx, r);
   gpu::DeviceMatrix<Complex> d_R;
   fft.fwd(d_r, d_R);
   VERIFY_IS_EQUAL(d_R.rows(), n / 2 + 1);
@@ -276,7 +276,7 @@ void test_device_transforms(Index n) {
   // 2D C2C roundtrip.
   using CMat = Matrix<Complex, Dynamic, Dynamic>;
   CMat A = CMat::Random(n / 2, n / 4 + 1);
-  auto d_A = gpu::DeviceMatrix<Complex>::fromHost(A, ctx.stream());
+  auto d_A = gpu::DeviceMatrix<Complex>::fromHost(ctx, A);
   gpu::DeviceMatrix<Complex> d_B, d_C;
   fft.fwd2(d_A, d_B);
   fft.inv2(d_B, d_C);

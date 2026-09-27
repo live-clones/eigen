@@ -26,6 +26,7 @@
 
 #include "./CuSparseSupport.h"
 #include "./CuDssSupport.h"
+#include "./DeviceDispatch.h"
 
 namespace Eigen {
 namespace gpu {
@@ -146,18 +147,18 @@ class SparseSolverBase {
   using DenseVector = Matrix<Scalar, Dynamic, 1>;
   using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
 
-  SparseSolverBase() { init_context(/*stream=*/nullptr, /*borrow_stream=*/false); }
+  /** Run on a private Context, so that separate solvers run concurrently. */
+  SparseSolverBase() : owned_ctx_(new Context()), ctx_(owned_ctx_.get()) { init_context(); }
 
-  /** Borrow \p ctx's stream: solver work runs on the same stream as the
-   * caller's other GPU operations (device-resident solves chain with SpMV /
-   * cuBLAS work without cross-stream event waits). The cuDSS handle itself is
-   * always owned by this solver. \p ctx must outlive this object. */
-  explicit SparseSolverBase(Context& ctx) { init_context(ctx.stream(), /*borrow_stream=*/true); }
+  /** Run on \p ctx's stream: solver work chains with the caller's other GPU
+   * operations (device-resident solves chain with SpMV / cuBLAS work without
+   * cross-stream event waits). The cuDSS handle itself is always owned by this
+   * solver. \p ctx must outlive this object. */
+  explicit SparseSolverBase(Context& ctx) : ctx_(&ctx) { init_context(); }
 
   ~SparseSolverBase() {
     destroy_cudss_objects();
     if (handle_) (void)cudssDestroy(handle_);
-    if (owns_stream_ && stream_) (void)cudaStreamDestroy(stream_);
   }
 
   SparseSolverBase(const SparseSolverBase&) = delete;
@@ -393,14 +394,15 @@ class SparseSolverBase {
     eigen_assert(d_B.rows() == n_);
 
     const int64_t nrhs = static_cast<int64_t>(d_B.cols());
-    DeviceMatrix<Scalar> X(n_, d_B.cols());
+    DeviceMatrix<Scalar> X(*ctx_, n_, d_B.cols());
     if (n_ == 0 || nrhs == 0) return X;
 
-    d_B.waitReady(stream_);
+    d_B.prepareRead(*ctx_);
     update_solve_descriptors(nrhs, const_cast<Scalar*>(d_B.data()), X.data());
     EIGEN_CUDSS_CHECK(
         cudssExecute(handle_, CUDSS_PHASE_SOLVE, config_, data_, d_A_cudss_, x_solve_cudss_, b_solve_cudss_));
-    X.recordReady(stream_);
+    d_B.finishRead(*ctx_);
+    X.finishWrite(*ctx_);
     return X;
   }
 
@@ -413,9 +415,14 @@ class SparseSolverBase {
 
   cudaStream_t stream() const { return stream_; }
 
+  /** The Context this solver runs on; its results are written there. */
+  Context& context() const { return *ctx_; }
+
  protected:
-  cudaStream_t stream_ = nullptr;
-  bool owns_stream_ = true;
+  // Declared first so that it is destroyed last, after the buffers that work on its stream uses.
+  std::unique_ptr<Context> owned_ctx_;
+  Context* ctx_ = nullptr;
+  cudaStream_t stream_ = nullptr;  // ctx_->stream(), cached
   cudssHandle_t handle_ = nullptr;
   cudssConfig_t config_ = nullptr;
   cudssData_t data_ = nullptr;
@@ -452,16 +459,8 @@ class SparseSolverBase {
   Derived& derived() { return static_cast<Derived&>(*this); }
   const Derived& derived() const { return static_cast<const Derived&>(*this); }
 
-  void init_context(cudaStream_t stream, bool borrow_stream) {
-    if (borrow_stream) {
-      // nullptr is CUDA's valid legacy default stream, so ownership cannot be
-      // inferred from the stream value.
-      stream_ = stream;
-      owns_stream_ = false;
-    } else {
-      EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&stream_));
-      owns_stream_ = true;
-    }
+  void init_context() {
+    stream_ = ctx_->stream();
     EIGEN_CUDSS_CHECK(cudssCreate(&handle_));
     EIGEN_CUDSS_CHECK(cudssSetStream(handle_, stream_));
     EIGEN_CUDSS_CHECK(cudssConfigCreate(&config_));
@@ -527,12 +526,7 @@ class SparseSolverBase {
 #endif
   }
 
-  void ensure_solve_buffer(DeviceBuffer& buf, size_t needed) const {
-    if (needed > buf.size()) {
-      if (buf) EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream_));
-      buf = DeviceBuffer(needed);
-    }
-  }
+  void ensure_solve_buffer(DeviceBuffer& buf, size_t needed) const { ensure_sized(buf, needed, ctx_->streamHandle()); }
 
   // Recreate the solve descriptors when nrhs changes; otherwise just re-point
   // them (cudssMatrixSetValues is a host-side pointer update).
@@ -622,9 +616,9 @@ class SparseSolverBase {
     const size_t colidx_bytes = static_cast<size_t>(nnz_) * sizeof(StorageIndex);
     const size_t values_bytes = static_cast<size_t>(nnz_) * sizeof(Scalar);
 
-    d_rowPtr_ = DeviceBuffer(rowptr_bytes);
-    d_colIdx_ = DeviceBuffer(colidx_bytes);
-    d_values_ = DeviceBuffer(values_bytes);
+    d_rowPtr_ = DeviceBuffer(rowptr_bytes, ctx_->streamHandle());
+    d_colIdx_ = DeviceBuffer(colidx_bytes, ctx_->streamHandle());
+    d_values_ = DeviceBuffer(values_bytes, ctx_->streamHandle());
 
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_rowPtr_.get(), outer, rowptr_bytes, cudaMemcpyHostToDevice, stream_));
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_colIdx_.get(), inner, colidx_bytes, cudaMemcpyHostToDevice, stream_));
