@@ -148,7 +148,7 @@ class SparseSolverBase {
   using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
 
   /** Run on a private Context, so that separate solvers run concurrently. */
-  SparseSolverBase() : owned_ctx_(new Context()), ctx_(owned_ctx_.get()) { init_context(); }
+  SparseSolverBase() : owned_ctx_(new Context(internal::DeferCublas{})), ctx_(owned_ctx_.get()) { init_context(); }
 
   /** Run on \p ctx's stream: solver work chains with the caller's other GPU
    * operations (device-resident solves chain with SpMV / cuBLAS work without

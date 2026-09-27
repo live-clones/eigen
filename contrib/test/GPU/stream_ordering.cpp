@@ -17,6 +17,7 @@
 #define EIGEN_USE_GPU
 #include "main.h"
 #include <Eigen/Sparse>
+#include <Eigen/IterativeLinearSolvers>
 #include <contrib/Eigen/GPU>
 
 #include "./gpu_test_helpers.h"
@@ -45,10 +46,12 @@ constexpr std::size_t kBytes = sizeof(double) * kSize;
 // first pass creates the lazily created library handles and loads the kernels
 // the scenario launches: both can synchronize the device (CUDA loads a module
 // on its first launch by default since 12.2), which would wait on the gate
-// forever.
+// forever. Without memory pools nothing is parked: cudaMalloc and cudaFree
+// synchronize the device, so the scenarios run but are no longer deterministic.
 class MaybeParked {
  public:
-  MaybeParked(cudaStream_t stream, bool park) : gate_(park ? new StreamGate(stream) : nullptr) {}
+  MaybeParked(cudaStream_t stream, bool park)
+      : gate_(park && gpu::internal::device_supports_memory_pools() ? new StreamGate(stream) : nullptr) {}
   void openAfter(std::chrono::milliseconds delay) {
     if (gate_) gate_->openAfter(delay);
   }
@@ -142,18 +145,23 @@ void test_free_after_read() {
 void test_device_scalar_across_contexts() {
   gpu::Context producer, consumer;
   const Vec a = Vec::Random(kSize);
-  const DeviceVec d_a = DeviceVec::fromHost(producer, a);
+  DeviceVec d_a = DeviceVec::fromHost(producer, a);
+  double scale = 1;
   for (bool park : {false, true}) {
     gpu::DeviceScalar<double> ratio(consumer);
     {
       MaybeParked gate(producer.stream(), park);
+      // A new value each pass, so that reading the previous pass's result,
+      // whose block the allocator may hand out again, fails the check.
+      d_a.scale(producer, 2.0);
       gpu::DeviceScalar<double> sq = d_a.squaredNorm(producer);
       ratio = gpu::DeviceScalar<double>(consumer, 1.0) / sq;
       gate.openAfter(kGateDelay);
       wait_for(consumer);
     }
+    scale *= 2;
     VERIFY(ratio.stream() == consumer.stream());
-    VERIFY_IS_APPROX(ratio.get(), 1.0 / a.squaredNorm());
+    VERIFY_IS_APPROX(ratio.get(), 1.0 / (scale * scale * a.squaredNorm()));
   }
 }
 
@@ -179,8 +187,7 @@ void test_solver_adopts_pending_matrix() {
   }
 }
 
-// Alternating writes on one context and reads on another keep one read mark:
-// the next read reuses the mark a write retired.
+// Alternating writes on one context and reads on another keep one read mark.
 void test_read_marks_are_reused() {
   gpu::Context writer, reader;
   DeviceVec d_a = DeviceVec::fromHost(writer, Vec::Random(kSize));
@@ -189,6 +196,26 @@ void test_read_marks_are_reused() {
     DeviceVec d_b = d_a.clone(reader);
   }
   VERIFY_IS_EQUAL(gpu::internal::DeviceMatrixAccess::buffer(d_a).readMarkCount(), std::size_t(1));
+}
+
+// A write retires the read marks it waited for: a read from another stream
+// reuses the retired mark while the read it recorded is still pending.
+void test_write_retires_read_marks() {
+  gpu::Context writer, reader1, reader2;
+  for (bool park : {false, true}) {
+    DeviceVec d_a = DeviceVec::fromHost(writer, Vec::Random(kSize));
+    std::size_t marks = 0;
+    {
+      MaybeParked gate(reader1.stream(), park);
+      DeviceVec d_b = d_a.clone(reader1);
+      d_a.scale(writer, 0.5);
+      DeviceVec d_c = d_a.clone(reader2);
+      marks = gpu::internal::DeviceMatrixAccess::buffer(d_a).readMarkCount();
+      gate.openAfter(kGateDelay);
+      wait_for(reader2);
+    }
+    VERIFY_IS_EQUAL(marks, std::size_t(1));
+  }
 }
 
 // Threads, each on its own Context, read one matrix at the same time. A race on
@@ -235,6 +262,79 @@ void test_free_after_read_through_view() {
       wait_for(writer);
     }
     VERIFY_IS_APPROX(d_b.toHost(reader), a);
+  }
+}
+
+// release() orders the matrix's pending write before the work the caller then
+// enqueues on the Context it passes.
+void test_release_orders_pending_write() {
+  gpu::Context writer, ctx;
+  const Vec a = Vec::Random(kSize);
+  for (bool park : {false, true}) {
+    DeviceVec matrix = DeviceVec::fromHost(writer, a);
+    DeviceVec out(ctx, kSize, 1);
+    double* p = nullptr;
+    {
+      MaybeParked gate(writer.stream(), park);
+      matrix.scale(writer, 2.0);
+      p = matrix.release(ctx);
+      copy_on(ctx, out.data(), p, kBytes);
+      gate.openAfter(kGateDelay);
+      wait_for(ctx);
+    }
+    EIGEN_CUDA_RUNTIME_CHECK(cudaFree(p));
+    VERIFY_IS_APPROX(out.toHost(ctx), Vec(2.0 * a));
+  }
+}
+
+// A view written on another stream hands that write back when destroyed: the
+// owner's later work on the view's Context follows it.
+void test_write_through_view() {
+  gpu::Context home, other;
+  const Vec a = Vec::Random(kSize), c = Vec::Random(kSize);
+  const DeviceVec d_c = DeviceVec::fromHost(home, c);
+  for (bool park : {false, true}) {
+    DeviceVec owner = DeviceVec::fromHost(home, a);
+    {
+      MaybeParked gate(other.stream(), park);
+      {
+        DeviceVec view = DeviceVec::view(home, owner.data(), owner.rows(), owner.cols());
+        view.scale(other, 2.0);
+      }
+      owner.copyFrom(home, d_c);
+      gate.openAfter(kGateDelay);
+      wait_for(home);
+    }
+    VERIFY_IS_APPROX(owner.toHost(home), c);
+  }
+}
+
+// A one-shot solve into its own matrix operand that grows the matrix frees the
+// operand's storage; the free waits for the pending copy of the operand. A
+// second thread reuses the freed block meanwhile, as another allocation would.
+void test_oneshot_solve_into_operand() {
+  gpu::Context home, solver;
+  const Index n = 64;
+  const MatrixXd M = MatrixXd::Random(n, n);
+  const MatrixXd A = M * M.transpose() + MatrixXd::Identity(n, n) * double(n);
+  const MatrixXd B = MatrixXd::Random(n, n + 8);
+  const gpu::DeviceMatrix<double> d_B = gpu::DeviceMatrix<double>::fromHost(home, B);
+  for (bool park : {false, true}) {
+    gpu::DeviceMatrix<double> d_A = gpu::DeviceMatrix<double>::fromHost(home, A);
+    {
+      MaybeParked gate(solver.stream(), park);
+      // Opened from the start: in debug builds the solve itself waits for the solver stream.
+      gate.openAfter(kGateDelay);
+      std::thread reuse([&] {
+        std::this_thread::sleep_for(kGateDelay / 4);
+        gpu::DeviceMatrix<double> junk(home, n, n);
+        junk.setZero(home);
+        wait_for(home);
+      });
+      d_A.device(solver) = d_A.llt().solve(d_B);
+      reuse.join();
+    }
+    VERIFY_IS_APPROX(MatrixXd(A * d_A.toHost(solver)), B);
   }
 }
 
@@ -443,21 +543,36 @@ void test_sentinel_detects_legacy_stream() {
   EIGEN_CUDA_RUNTIME_CHECK(cudaFree(p));
 }
 
-// Arithmetic that exists for real scalars only (NPP).
+// Arithmetic that exists for real scalars only (NPP), and Eigen's
+// ConjugateGradient class, whose device form is real-only.
 template <typename Scalar>
 std::enable_if_t<!NumTraits<Scalar>::IsComplex> real_only_workload(gpu::Context& ctx,
                                                                    const gpu::DeviceMatrix<Scalar>& d_x,
-                                                                   const gpu::DeviceMatrix<Scalar>& d_y) {
+                                                                   const gpu::DeviceMatrix<Scalar>& d_y,
+                                                                   const gpu::DeviceSparseView<Scalar>& view,
+                                                                   const gpu::DeviceMatrix<Scalar>& d_b) {
   gpu::DeviceScalar<Scalar> ratio = d_x.dot(ctx, d_y) / d_y.squaredNorm(ctx);
   gpu::DeviceScalar<Scalar> neg = -ratio;
   gpu::DeviceMatrix<Scalar> d_z = d_x.cwiseProduct(ctx, d_y);
   d_z /= Scalar(3);
   d_z *= neg;
+  d_z += ratio * d_y;
+  d_z -= ratio * d_x;
   VERIFY((numext::isfinite)(Scalar(neg)));
+
+  ConjugateGradient<gpu::DeviceSparseView<Scalar>, Lower | Upper, IdentityPreconditioner> cg;
+  cg.setMaxIterations(3);
+  cg.compute(view);
+  gpu::DeviceMatrix<Scalar> d_sol(ctx, d_b.rows(), 1);
+  d_sol.setZero(ctx);
+  cg.solveWithGuessInPlace(d_b, d_sol);
+  VERIFY(cg.iterations() > 0);
 }
 
 template <typename Scalar>
 std::enable_if_t<NumTraits<Scalar>::IsComplex> real_only_workload(gpu::Context&, const gpu::DeviceMatrix<Scalar>&,
+                                                                  const gpu::DeviceMatrix<Scalar>&,
+                                                                  const gpu::DeviceSparseView<Scalar>&,
                                                                   const gpu::DeviceMatrix<Scalar>&) {}
 
 // Every kind of module operation, across the thread-local and two explicit
@@ -470,13 +585,21 @@ struct ModuleWorkload {
   using RealScalar = typename NumTraits<Scalar>::Real;
   using Complex = std::complex<RealScalar>;
   using ComplexVec = Matrix<Complex, Dynamic, 1>;
+  using ComplexMat = Matrix<Complex, Dynamic, Dynamic>;
+  using RealVec = Matrix<RealScalar, Dynamic, 1>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Bsm = BlockSparseMatrix<Scalar, RowMajor, 2, 2, int>;
 
   const Index n = 48;
   const Mat M = Mat::Random(n, n);
   const Mat A = M * M.adjoint() + Mat::Identity(n, n) * RealScalar(n);
   const Mat B = Mat::Random(n, 2);
+  const Vec b = Vec::Random(n);
   const SparseMatrix<Scalar> S = A.sparseView();
   const ComplexVec z = ComplexVec::Random(64);
+  const RealVec r = RealVec::Random(64);
+  const ComplexMat Z = ComplexMat::Random(8, 8);
+  const Bsm block_identity = make_block_identity();
 
   gpu::Context ctx1, ctx2;
   gpu::LLT<Scalar> llt;
@@ -487,6 +610,14 @@ struct ModuleWorkload {
   gpu::SparseContext<Scalar> sparse{ctx1};
   gpu::SparseContext<Scalar> standalone;
   gpu::FFT<RealScalar> fft{ctx2};
+
+  Bsm make_block_identity() const {
+    std::vector<typename Bsm::TripletType> triplets;
+    for (int k = 0; k < int(n / 2); ++k) triplets.emplace_back(k, k, Bsm::BlockType::Identity());
+    Bsm identity(n / 2, n / 2);
+    identity.setFromTriplets(triplets.begin(), triplets.end());
+    return identity;
+  }
 
   void run() {
     gpu::DeviceMatrix<Scalar> d_A = gpu::DeviceMatrix<Scalar>::fromHost(ctx1, A);
@@ -519,8 +650,14 @@ struct ModuleWorkload {
     gpu::DeviceScalar<Scalar> dot = d_x.dot(ctx2, d_y);
     gpu::DeviceScalar<RealScalar> nrm = d_x.norm(ctx1);
     d_y.copyFrom(ctx1, d_x);
-    real_only_workload(ctx2, d_x, d_y);
     VERIFY((numext::isfinite)(numext::abs(Scalar(dot))) && (numext::isfinite)(RealScalar(nrm)));
+
+    // Copies, release, and adoption.
+    gpu::DeviceMatrix<Scalar> d_copy = d_x;
+    d_copy = d_y;
+    Scalar* raw = d_copy.release(ctx2);
+    gpu::DeviceMatrix<Scalar> d_adopted = gpu::DeviceMatrix<Scalar>::adopt(ctx2, raw, 2 * n, 1);
+    d_adopted.scale(ctx1, Scalar(2));
 
     // Transfers.
     auto transfer = d_C.toHostAsync(ctx2);
@@ -547,22 +684,38 @@ struct ModuleWorkload {
     llt.compute(gpu::DeviceMatrix<Scalar>::fromHost(ctx2, A));
     gpu::DeviceMatrix<Scalar> d_Y = llt.solve(d_B.clone(ctx2));
     VERIFY_IS_APPROX(Mat(A * d_Y.toHost()), B);
+    VERIFY_IS_APPROX(Mat(A.transpose() * lu.solve(d_B, gpu::GpuOp::Trans).toHost()), B);
+    VERIFY(svd.solve(d_B, Index(n / 2)).rows() == n && svd.solve(d_B, RealScalar(0.1)).rows() == n);
 
-    // Sparse products.
+    // Sparse products: CSC and BSR, SpMV, SpMM, and the affine form.
     VERIFY_IS_APPROX(Mat(standalone.multiply(S, B.col(0))), Mat(A * B.col(0)));
     auto view = sparse.deviceView(S);
-    gpu::DeviceMatrix<Scalar> d_b = d_B.clone(ctx2);
-    d_b.resize(ctx2, n, 1);
-    d_b.setZero(ctx2);
+    gpu::DeviceMatrix<Scalar> d_b = gpu::DeviceMatrix<Scalar>::fromHost(ctx2, b);
     gpu::DeviceMatrix<Scalar> d_Sx = view * d_b;
-    VERIFY(d_Sx.toHost(ctx2).isZero(0));
+    gpu::DeviceMatrix<Scalar> d_SX = view * d_B;
+    gpu::DeviceMatrix<Scalar> d_r = d_b - view * d_Sx;
+    VERIFY_IS_APPROX(Vec(d_r.toHost(ctx2)), Vec(b - A * A * b));
+    VERIFY_IS_APPROX(Mat(d_SX.toHost(ctx1)), Mat(A * B));
+    auto block_view = standalone.deviceView(block_identity);
+    gpu::DeviceMatrix<Scalar> d_Ib = block_view * d_b;
+    VERIFY_IS_APPROX(Vec(d_Ib.toHost(ctx2)), b);
+    real_only_workload(ctx2, d_x, d_y, view, d_b);
 
-    // FFT, host and device.
+    // FFT, host and device: C2C, R2C / C2R, and 2D.
     VERIFY_IS_APPROX(fft.inv(fft.fwd(z)), z);
     gpu::DeviceMatrix<Complex> d_z = gpu::DeviceMatrix<Complex>::fromHost(ctx1, z), d_Z, d_zz;
     fft.fwd(d_z, d_Z);
     fft.inv(d_Z, d_zz);
     VERIFY_IS_APPROX(d_zz.toHost(ctx1), z);
+    gpu::DeviceMatrix<RealScalar> d_r64 = gpu::DeviceMatrix<RealScalar>::fromHost(ctx1, r), d_rr;
+    gpu::DeviceMatrix<Complex> d_R;
+    fft.fwd(d_r64, d_R);
+    fft.invReal(d_R, d_rr, r.size());
+    VERIFY_IS_APPROX(d_rr.toHost(ctx2), r);
+    gpu::DeviceMatrix<Complex> d_Z2 = gpu::DeviceMatrix<Complex>::fromHost(ctx1, Z), d_F2, d_ZZ2;
+    fft.fwd2(d_Z2, d_F2);
+    fft.inv2(d_F2, d_ZZ2);
+    VERIFY_IS_APPROX(d_ZZ2.toHost(ctx1), Z);
   }
 };
 
@@ -571,6 +724,8 @@ struct ModuleWorkload {
 // thread-local Context is fresh as well.
 template <typename Scalar>
 void test_no_legacy_stream() {
+  // The cudaMalloc/cudaFree fallback synchronizes the device, which the capture rejects.
+  if (!gpu::internal::device_supports_memory_pools()) return;
   bool clean = false;
   std::thread worker([&clean] {
     gpu::Context::threadLocal();
@@ -594,12 +749,16 @@ EIGEN_DECLARE_TEST(gpu_stream_ordering) {
   CALL_SUBTEST(test_solver_adopts_pending_matrix());
   CALL_SUBTEST(test_matrix_outlives_context());
   CALL_SUBTEST(test_read_marks_are_reused());
+  CALL_SUBTEST(test_write_retires_read_marks());
   CALL_SUBTEST(test_concurrent_reads());
   CALL_SUBTEST(test_sentinel_detects_legacy_stream());
   CALL_SUBTEST(test_no_legacy_stream<double>());
   CALL_SUBTEST(test_no_legacy_stream<std::complex<float>>());
   CALL_SUBTEST(test_free_after_read_through_view());
   CALL_SUBTEST(test_release_after_context());
+  CALL_SUBTEST(test_release_orders_pending_write());
+  CALL_SUBTEST(test_write_through_view());
+  CALL_SUBTEST(test_oneshot_solve_into_operand());
   CALL_SUBTEST(test_read_marks_retire_when_done());
   CALL_SUBTEST(test_direct_read_after_write());
   CALL_SUBTEST(test_write_after_direct_read());

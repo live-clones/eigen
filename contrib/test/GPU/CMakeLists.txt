@@ -121,9 +121,12 @@ endif()
 
 # Cross-context ordering of DeviceMatrix/DeviceScalar accesses, and a check that
 # no module operation uses the legacy default stream. Touches every library the
-# module wraps except cuDSS, which the cudss_* tests cover.
+# module wraps except cuDSS, which the cudss_* tests cover. The _per_thread
+# variant builds it with the per-thread default stream.
 if(TARGET CUDA::cusparse AND TARGET CUDA::cufft)
   ei_add_gpu_test(stream_ordering
+    EXTRA_LIBS CUDA::cublas CUDA::cusolver CUDA::cusparse CUDA::cufft CUDA::npps CUDA::nppc Threads::Threads)
+  ei_add_gpu_test(stream_ordering_per_thread
     EXTRA_LIBS CUDA::cublas CUDA::cusolver CUDA::cusparse CUDA::cufft CUDA::npps CUDA::nppc Threads::Threads)
 endif()
 
