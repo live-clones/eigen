@@ -53,6 +53,7 @@ namespace Eigen {
 
 // IWYU pragma: begin_exports
 #include "src/NumericalDiff/NumericalDiff.h"
+#include "src/NumericalDiff/Stencil.h"
 // IWYU pragma: end_exports
 
 #include "../../Eigen/src/Core/util/ReenableStupidWarnings.h"
