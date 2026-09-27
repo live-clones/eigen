@@ -591,6 +591,8 @@ class DeviceMatrix {
   }
 
  private:
+  friend struct internal::DeviceMatrixAccess;
+
   // Fresh owning allocation of `bytes` (no-op for empty). Also resets the
   // deleter so a previously borrowed (view) deleter cannot leak the new
   // owned pointer.
@@ -618,6 +620,17 @@ class DeviceMatrix {
   cudaStream_t ready_stream_ = nullptr;     // stream that recorded ready_event_ (for same-stream skip)
   internal::DeviceBuffer retained_buffer_;  // internal: keeps async aux buffers alive
 };
+
+namespace internal {
+// Lets the solvers' adopting (rvalue) overloads tell a view, whose storage they
+// must not take over, from an owning matrix.
+struct DeviceMatrixAccess {
+  template <typename Scalar>
+  static bool owns(const DeviceMatrix<Scalar>& m) {
+    return !m.data_.get_deleter().borrow;
+  }
+};
+}  // namespace internal
 }  // namespace gpu
 }  // namespace Eigen
 
