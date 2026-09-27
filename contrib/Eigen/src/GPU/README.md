@@ -922,8 +922,8 @@ The entry points that exchange raw pointers carry the same ordering:
   writes and free follow them when the owner runs them on `ctx.stream()`. Until
   the view is destroyed, the owner's work is not ordered after the view's
   accesses: destroy the `d_*` views of a solver before recomputing or
-  destroying it. An assignment that changes a view's size allocates new storage
-  instead, leaving the owner unchanged.
+  destroying it. An assignment that changes a view's size, and moving a matrix
+  into a view, give the view new storage instead, leaving the owner unchanged.
 - `release(ctx)` orders every pending access before later work on
   `ctx.stream()`, as `prepareWrite(ctx)` does, and returns the pointer. Use it
   only in work ordered after `ctx.stream()`'s. An owning matrix transfers
