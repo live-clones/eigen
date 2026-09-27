@@ -16,9 +16,7 @@
 #include "main.h"
 #include <Eigen/Cholesky>
 #include <contrib/Eigen/GPU>
-#include <atomic>
 #include <chrono>
-#include <thread>
 
 #include "./gpu_test_helpers.h"
 
@@ -34,17 +32,6 @@ MatrixType make_spd(Eigen::Index n) {
   using Scalar = typename MatrixType::Scalar;
   MatrixType M = MatrixType::Random(n, n);
   return M.adjoint() * M + MatrixType::Identity(n, n) * static_cast<Scalar>(n);
-}
-
-struct HostInputGate {
-  std::atomic<bool> entered{false};
-  std::atomic<bool> release{false};
-};
-
-static void CUDART_CB wait_for_host_input_gate(void* data) {
-  HostInputGate* gate = static_cast<HostInputGate*>(data);
-  gate->entered.store(true, std::memory_order_release);
-  while (!gate->release.load(std::memory_order_acquire)) std::this_thread::yield();
 }
 
 // Test factorization: L*L^H must reconstruct A to within floating-point tolerance.
@@ -306,19 +293,14 @@ void test_pinned_host_input_lifetime(Eigen::Index n) {
   Eigen::Map<MatrixType> pinned_A(pinned_data, n, n);
   pinned_A = h_A;
 
-  HostInputGate gate;
-  EIGEN_CUDA_RUNTIME_CHECK(cudaLaunchHostFunc(gpu_llt.stream(), wait_for_host_input_gate, &gate));
-  std::thread release_thread([&gate]() {
-    while (!gate.entered.load(std::memory_order_acquire)) std::this_thread::yield();
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    gate.release.store(true, std::memory_order_release);
-  });
-
-  // The gate keeps the page-locked source live but unavailable to the DMA
-  // until after an unfenced compute() would have returned.
-  gpu_llt.compute(pinned_A);
-  pinned_A.setZero();
-  release_thread.join();
+  {
+    // The gate keeps the page-locked source live but unavailable to the DMA
+    // until after an unfenced compute() would have returned.
+    gpu_test::StreamGate gate(gpu_llt.stream());
+    gate.openAfter(std::chrono::milliseconds(100));
+    gpu_llt.compute(pinned_A);
+    pinned_A.setZero();
+  }
 
   VERIFY_IS_EQUAL(gpu_llt.info(), Eigen::Success);
   MatrixType h_X = gpu_llt.solve(h_B);

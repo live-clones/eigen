@@ -60,11 +60,10 @@ inline int64_t to_blas_dim(int64_t v) { return v; }
 inline int to_blas_dim(int64_t v) { return to_blas_int(v); }
 #endif
 
-// RAII cuBLAS / cuBLASLt handles; the ownership flag supports handles borrowed from a gpu::Context.
+// RAII cuBLAS / cuBLASLt handles.
 struct CublasHandleDeleter {
-  bool owns = true;
   void operator()(cublasHandle_t h) const noexcept {
-    if (owns && h) (void)cublasDestroy(h);
+    if (h) (void)cublasDestroy(h);
   }
 };
 using UniqueCublasHandle = std::unique_ptr<std::remove_pointer_t<cublasHandle_t>, CublasHandleDeleter>;
