@@ -729,6 +729,19 @@ DeviceMatrix<Scalar_> DeviceMatrix<Scalar_>::view(Scalar* device_ptr, Index rows
 }
 
 template <typename Scalar_>
+Scalar_* DeviceMatrix<Scalar_>::release(Context& ctx) {
+  Scalar* p = static_cast<Scalar*>(buf_.release(ctx.streamHandle()));
+  rows_ = 0;
+  cols_ = 0;
+  return p;
+}
+
+template <typename Scalar_>
+Scalar_* DeviceMatrix<Scalar_>::release() {
+  return release(Context::threadLocal());
+}
+
+template <typename Scalar_>
 DeviceScalar<Scalar_>::DeviceScalar() : DeviceScalar(Context::threadLocal()) {}
 
 template <typename Scalar_>

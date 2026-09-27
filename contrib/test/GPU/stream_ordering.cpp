@@ -203,6 +203,65 @@ void test_concurrent_reads() {
   VERIFY_IS_EQUAL(mismatches.load(), 0);
 }
 
+// Destroying a view makes its stream wait for the reads made through it, so
+// the owner's free there waits for them too.
+void test_free_after_read_through_view() {
+  gpu::Context writer, reader;
+  const Vec a = Vec::Random(kSize);
+  for (bool park : {false, true}) {
+    DeviceVec owner = DeviceVec::fromHost(writer, a);
+    DeviceVec d_b;
+    DeviceVec d_reuse;
+    {
+      MaybeParked gate(reader.stream(), park);
+      {
+        const DeviceVec view = DeviceVec::view(writer, owner.data(), owner.rows(), owner.cols());
+        d_b = view.clone(reader);
+      }
+      owner = DeviceVec();
+      d_reuse = DeviceVec(writer, kSize, 1);
+      d_reuse.setZero(writer);
+      gate.openAfter(kGateDelay);
+      wait_for(writer);
+    }
+    VERIFY_IS_APPROX(d_b.toHost(reader), a);
+  }
+}
+
+// release() hands the pending work to a Context the caller holds, so it works
+// after the Context that wrote the matrix, and with it the matrix's stream, is gone.
+void test_release_after_context() {
+  const Vec a = Vec::Random(kSize);
+  DeviceVec matrix;
+  {
+    gpu::Context writer;
+    matrix = DeviceVec::fromHost(writer, a);
+    matrix.scale(writer, 2.0);
+  }
+  gpu::Context ctx;
+  double* p = matrix.release(ctx);
+  VERIFY(matrix.empty() && matrix.data() == nullptr);
+  Vec back(kSize);
+  EIGEN_CUDA_RUNTIME_CHECK(
+      cudaMemcpyAsync(back.data(), p, sizeof(double) * kSize, cudaMemcpyDeviceToHost, ctx.stream()));
+  wait_for(ctx);
+  EIGEN_CUDA_RUNTIME_CHECK(cudaFree(p));
+  VERIFY_IS_APPROX(back, Vec(2.0 * a));
+}
+
+// A read mark retires when its read completes, without a write: short-lived
+// readers of a constant matrix leave a single mark behind.
+void test_read_marks_retire_when_done() {
+  gpu::Context home;
+  const DeviceVec d_a = DeviceVec::fromHost(home, Vec::Random(kSize));
+  for (int i = 0; i < 32; ++i) {
+    gpu::Context reader;
+    const DeviceVec d_b = d_a.clone(reader);
+    wait_for(reader);
+  }
+  VERIFY_IS_EQUAL(gpu::internal::DeviceMatrixAccess::buffer(d_a).readMarkCount(), std::size_t(1));
+}
+
 // Matrices outlive the Context that wrote them: its stream stays alive for
 // their reads and their stream-ordered frees.
 void test_matrix_outlives_context() {
@@ -225,7 +284,7 @@ void test_sentinel_detects_legacy_stream() {
   EIGEN_CUDA_RUNTIME_CHECK(cudaMalloc(&p, 16));
   {
     LegacyStreamSentinel sentinel;
-    (void)cudaMemsetAsync(p, 0, 16, /*legacy default stream*/ nullptr);
+    (void)cudaMemsetAsync(p, 0, 16, cudaStreamLegacy);
     VERIFY(!sentinel.end());
   }
   (void)cudaGetLastError();
@@ -387,4 +446,7 @@ EIGEN_DECLARE_TEST(gpu_stream_ordering) {
   CALL_SUBTEST_2(test_sentinel_detects_legacy_stream());
   CALL_SUBTEST_2(test_no_legacy_stream<double>());
   CALL_SUBTEST_2(test_no_legacy_stream<std::complex<float>>());
+  CALL_SUBTEST_3(test_free_after_read_through_view());
+  CALL_SUBTEST_3(test_release_after_context());
+  CALL_SUBTEST_3(test_read_marks_retire_when_done());
 }

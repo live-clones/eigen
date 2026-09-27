@@ -465,25 +465,24 @@ class DeviceMatrix {
    * storage must outlive this view. This chains decomposition outputs (e.g.
    * `svd.d_matrixU()`) into downstream cuBLAS expressions without an intervening
    * D2D copy, and supports the full read interface. The view orders its own
-   * accesses; it knows nothing of the owner's, so the owner must not be
-   * rewritten while work reading the view on another stream is pending. Do not
-   * assign through a view: the borrowed pointer would be silently replaced,
-   * leaving the owner intact. */
+   * accesses and, when destroyed, makes \p ctx's stream wait for the reads made
+   * through it: the owner's writes and free are ordered after those reads only
+   * if they run on \p ctx's stream after the view is gone. Do not assign through
+   * a view: the borrowed pointer would be silently replaced, leaving the owner
+   * intact. */
   static DeviceMatrix view(Context& ctx, Scalar* device_ptr, Index rows, Index cols);
 
   /** view() on the thread-local Context. */
   static DeviceMatrix view(Scalar* device_ptr, Index rows, Index cols);
 
   /** Transfer ownership of the device pointer out and leave the matrix empty.
-   * Pending accesses from other streams are first ordered before stream()'s
-   * later work, so query stream() beforehand: the caller must order its own use,
-   * and the eventual cudaFreeAsync, after that stream's pending work. */
-  Scalar* release() {
-    Scalar* p = static_cast<Scalar*>(buf_.release());
-    rows_ = 0;
-    cols_ = 0;
-    return p;
-  }
+   * Every pending access is first ordered before later work on \p ctx's
+   * stream: use the pointer, and free it (cudaFreeAsync on ctx.stream(), or
+   * cudaFree), only after that. */
+  Scalar* release(Context& ctx);
+
+  /** release() to the thread-local Context. */
+  Scalar* release();
 
  private:
   friend struct internal::DeviceMatrixAccess;
