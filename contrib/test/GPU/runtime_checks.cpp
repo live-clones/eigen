@@ -10,8 +10,7 @@
 // A failed CUDA runtime or library call has to reach EIGEN_GPU_CHECK_FAILED in a
 // release build as much as in a debug one (runtime_checks_ndebug.cpp compiles
 // this file with EIGEN_NO_DEBUG). The hook is overridden here to record the
-// failure instead of stopping the process. The failures are rejected at the call
-// and leave the context usable: none is a sticky error.
+// failure instead of stopping the process.
 
 #include <string>
 
@@ -69,39 +68,41 @@ void test_runtime_call() {
 }
 
 // Each library's check macro reports a failed status, named where the library
-// can name it.
+// can name it. The macros are given the statuses directly: what a library
+// returns for invalid arguments differs between versions, and some calls
+// dereference a null handle instead of returning a status.
 void test_library_checks() {
-  gpu::Context ctx;
   g_num_failures = 0;
+  EIGEN_CUBLAS_CHECK(CUBLAS_STATUS_SUCCESS);
+  EIGEN_NPP_CHECK(NPP_NO_OPERATION_WARNING);  // positive NPP statuses are warnings
+  VERIFY_IS_EQUAL(g_num_failures, 0);
 
-  EIGEN_CUBLAS_CHECK(cublasSetStream(nullptr, ctx.stream()));
+  EIGEN_CUBLAS_CHECK(CUBLAS_STATUS_INVALID_VALUE);
   VERIFY_IS_EQUAL(g_num_failures, 1);
-  VERIFY(starts_with(g_last_failure.error, "CUBLAS_STATUS_"));
-  VERIFY(starts_with(g_last_failure.expression, "cublasSetStream"));
+  VERIFY_IS_EQUAL(g_last_failure.error, std::string("CUBLAS_STATUS_INVALID_VALUE"));
+  VERIFY_IS_EQUAL(g_last_failure.expression, std::string("CUBLAS_STATUS_INVALID_VALUE"));
+  VERIFY(ends_with(g_last_failure.file, "runtime_checks.cpp"));
+  VERIFY(g_last_failure.line > 0);
 
-  EIGEN_CUBLASLT_CHECK(cublasLtMatmulDescCreate(nullptr, CUBLAS_COMPUTE_64F, CUDA_R_64F));
+  EIGEN_CUBLASLT_CHECK(CUBLAS_STATUS_NOT_SUPPORTED);
   VERIFY_IS_EQUAL(g_num_failures, 2);
-  VERIFY(starts_with(g_last_failure.error, "CUBLAS_STATUS_"));
+  VERIFY_IS_EQUAL(g_last_failure.error, std::string("CUBLAS_STATUS_NOT_SUPPORTED"));
 
-  // cuSOLVER dereferences a null handle, so pass a negative size instead.
-  int lwork = 0;
-  EIGEN_CUSOLVER_CHECK(
-      cusolverDnDpotrf_bufferSize(ctx.cusolverHandle(), CUBLAS_FILL_MODE_LOWER, -1, nullptr, 1, &lwork));
+  EIGEN_CUSOLVER_CHECK(CUSOLVER_STATUS_INVALID_VALUE);
   VERIFY_IS_EQUAL(g_num_failures, 3);
   VERIFY_IS_EQUAL(g_last_failure.error, std::string("CUSOLVER_STATUS_INVALID_VALUE"));
 
-  EIGEN_CUSPARSE_CHECK(cusparseSetStream(nullptr, ctx.stream()));
+  EIGEN_CUSPARSE_CHECK(CUSPARSE_STATUS_INVALID_VALUE);
   VERIFY_IS_EQUAL(g_num_failures, 4);
-  VERIFY(starts_with(g_last_failure.error, "CUSPARSE_STATUS_"));
+  VERIFY_IS_EQUAL(g_last_failure.error, std::string("CUSPARSE_STATUS_INVALID_VALUE"));
 
-  EIGEN_CUFFT_CHECK(cufftSetStream(cufftHandle(-1), ctx.stream()));
+  EIGEN_CUFFT_CHECK(CUFFT_INVALID_PLAN);
   VERIFY_IS_EQUAL(g_num_failures, 5);
-  VERIFY(starts_with(g_last_failure.error, "cuFFT status "));
+  VERIFY_IS_EQUAL(g_last_failure.error, "cuFFT status " + std::to_string(int(CUFFT_INVALID_PLAN)));
 
-  EIGEN_NPP_CHECK(nppsSqrt_64f_I_Ctx(nullptr, 1, gpu::internal::make_npp_stream_ctx(ctx.stream())));
+  EIGEN_NPP_CHECK(NPP_NULL_POINTER_ERROR);
   VERIFY_IS_EQUAL(g_num_failures, 6);
-  VERIFY(starts_with(g_last_failure.error, "NPP status "));
-  VERIFY(ends_with(g_last_failure.file, "runtime_checks.cpp"));
+  VERIFY_IS_EQUAL(g_last_failure.error, "NPP status " + std::to_string(int(NPP_NULL_POINTER_ERROR)));
 }
 
 EIGEN_DECLARE_TEST(gpu_runtime_checks) {
