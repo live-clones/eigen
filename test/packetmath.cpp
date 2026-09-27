@@ -2241,7 +2241,7 @@ void packetmath_bfloat16_abs_array() {
 }
 
 #if defined(EIGEN_VECTORIZE_AVX) || defined(EIGEN_VECTORIZE_AVX512) || defined(EIGEN_VECTORIZE_NEON) || \
-    defined(EIGEN_VECTORIZE_ALTIVEC)
+    defined(EIGEN_VECTORIZE_ALTIVEC) || defined(EIGEN_VECTORIZE_VSX)
 void packetmath_bfloat16_sign_bits() {
   using Packet = internal::packet_traits<bfloat16>::type;
   constexpr int packet_size = internal::unpacket_traits<Packet>::size;
@@ -2346,7 +2346,7 @@ EIGEN_DECLARE_TEST(packetmath) {
   });
 
 #if defined(EIGEN_VECTORIZE_AVX) || defined(EIGEN_VECTORIZE_AVX512) || defined(EIGEN_VECTORIZE_NEON) || \
-    defined(EIGEN_VECTORIZE_ALTIVEC)
+    defined(EIGEN_VECTORIZE_ALTIVEC) || defined(EIGEN_VECTORIZE_VSX)
   CALL_SUBTEST_15(packetmath_bfloat16_sign_bits());
   CALL_SUBTEST_15(packetmath_bfloat16_sign_bits_flushed());
 #endif
