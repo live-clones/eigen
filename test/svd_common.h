@@ -706,6 +706,46 @@ void svd_always_precondition_accuracy() {
   VERIFY(preconditionedError < defaultError);
 }
 
+EIGEN_DIAGNOSTICS(push)
+EIGEN_DISABLE_DEPRECATED_WARNING
+// AlwaysPrecondition in Options must not change what the deprecated runtime options request: the same U and V are
+// computed, with the same shapes, and the decomposition stays backward stable.
+template <typename SvdType, typename MatrixType>
+void svd_check_runtime_options_match(const MatrixType& m, const SvdType& svd, unsigned int options) {
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  SVD_DEFAULT(MatrixType) reference(m, options);
+  VERIFY_IS_EQUAL(svd.computeU(), reference.computeU());
+  VERIFY_IS_EQUAL(svd.computeV(), reference.computeV());
+  if (svd.computeU()) VERIFY_IS_EQUAL(svd.matrixU().cols(), reference.matrixU().cols());
+  if (svd.computeV()) VERIFY_IS_EQUAL(svd.matrixV().cols(), reference.matrixV().cols());
+  const Index n = m.rows();
+  const RealScalar tolerance = RealScalar(16 * n) * NumTraits<RealScalar>::epsilon();
+  const RealScalar largest = reference.singularValues().size() > 0 ? reference.singularValues()(0) : RealScalar(0);
+  VERIFY((svd.singularValues() - reference.singularValues()).cwiseAbs().maxCoeff() <= tolerance * largest);
+  if (svd.computeU() && svd.computeV()) {
+    const MatrixType reconstructed = svd.matrixU().leftCols(n) *
+                                     svd.singularValues().template cast<Scalar>().asDiagonal() *
+                                     svd.matrixV().leftCols(n).adjoint();
+    VERIFY((m - reconstructed).norm() <= tolerance * m.norm());
+  }
+}
+
+template <typename MatrixType>
+void svd_always_precondition_runtime_options(Index size) {
+  MatrixType m(size, size);
+  svd_fill_random(m);
+  for (unsigned int options : {0u, unsigned(ComputeThinU | ComputeThinV), unsigned(ComputeFullU | ComputeFullV),
+                               unsigned(ComputeFullU), unsigned(ComputeThinV)}) {
+    const SVD_STATIC_OPTIONS(MatrixType, AlwaysPrecondition) constructed(m, options);
+    svd_check_runtime_options_match(m, constructed, options);
+    SVD_STATIC_OPTIONS(MatrixType, AlwaysPrecondition) computed;
+    computed.compute(m, options);
+    svd_check_runtime_options_match(m, computed, options);
+  }
+}
+EIGEN_DIAGNOSTICS(pop)
+
 #undef SVD_DEFAULT
 #undef SVD_FOR_MIN_NORM
 #undef SVD_STATIC_OPTIONS

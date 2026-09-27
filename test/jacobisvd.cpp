@@ -351,6 +351,8 @@ EIGEN_DECLARE_TEST(jacobisvd) {
     CALL_SUBTEST_65((jacobisvd_always_precondition_backward_error<MatrixXf>(r)));
     CALL_SUBTEST_66((jacobisvd_always_precondition_backward_error<MatrixXcd>(r)));
     CALL_SUBTEST_67((jacobisvd_always_precondition_backward_error<Matrix<double, Dynamic, Dynamic, RowMajor>>(r)));
+    CALL_SUBTEST_68((svd_always_precondition_runtime_options<MatrixXf>(12)));
+    CALL_SUBTEST_68((svd_always_precondition_runtime_options<MatrixXcd>(r)));
 
     MatrixXcd noQRTest = MatrixXcd(r, r);
     CALL_SUBTEST_37((svd_thin_full_option_checks<MatrixXcd, NoQRPreconditioner>(noQRTest)));

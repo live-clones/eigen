@@ -494,6 +494,8 @@ EIGEN_DECLARE_TEST(bdcsvd) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_62((svd_always_precondition_accuracy<float>()));
     CALL_SUBTEST_63((svd_always_precondition_accuracy<std::complex<float>>()));
+    CALL_SUBTEST_64((svd_always_precondition_runtime_options<MatrixXf>(12)));
+    CALL_SUBTEST_64((svd_always_precondition_runtime_options<MatrixXcd>(internal::random<Index>(1, 30))));
   }
 
   CALL_SUBTEST_7((bdcsvd_thin_full_options<Matrix2cd>()));
