@@ -91,9 +91,10 @@ of the synchronization an owned one's teardown does). Do not encode a mode in a 
 a null stream is a valid stream with build-configurable meaning, not a "none" sentinel. The module itself never uses
 the legacy default stream: every allocation, free, copy, and library call is enqueued on a `gpu::Context`'s stream, and
 every access to a `DeviceMatrix` or `DeviceScalar` is bracketed by its `prepare*`/`finish*` calls, which order reads,
-writes, and the free across contexts (`internal::DeviceBuffer`). The `stream_ordering` test's sentinel fails on any
-legacy-stream use. Caches keyed on host identity
-(pointer, extent, nnz) are spoofable because reassignment reuses allocations; key on content or a generation counter.
+writes, and the free across contexts (`internal::DeviceBuffer`). The `stream_ordering` test's sentinel fails when an
+operation in its workload uses the legacy stream; extend the workload when adding an operation. Caches keyed on host
+identity (pointer, extent, nnz) are spoofable because reassignment reuses allocations; key on content or a generation
+counter.
 
 ## Validation
 
