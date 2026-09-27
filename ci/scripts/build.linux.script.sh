@@ -38,24 +38,39 @@ if [[ "${EIGEN_CI_CCACHE}" == "on" ]]; then
     export SCCACHE_BASEDIRS="${rootdir}"
     export SCCACHE_SERVER_PORT="$((4226 + (${CI_JOB_ID:-0} % 10000)))"
 
-    # Remote GCS caching via short-lived OAuth token injected from GitLab CI/CD variables:
-    # EIGEN_GCS_CACHE_TOKEN_RW (protected branch / master) or EIGEN_GCS_CACHE_TOKEN_RO (MRs)
+    # Remote GCS level, authenticated by a short-lived OAuth token from a GitLab CI/CD
+    # variable; the first one set wins:
+    #   EIGEN_GCS_CACHE_TOKEN_RW  protected refs: read-write, shared area.
+    #   EIGEN_GCS_CACHE_TOKEN_MR  merge requests: read-write, merge-request area, which
+    #                             protected builds never read.
+    #   EIGEN_GCS_CACHE_TOKEN_RO  merge requests: read-only, shared area.
+    # SCCACHE_MULTILEVEL_CHAIN takes each backend once, so a job reads one GCS area.
     sccache_cred_server_pid=""
     { set +x; } 2>/dev/null
-    if [[ -n "${EIGEN_GCS_CACHE_TOKEN_RW:-}" || -n "${EIGEN_GCS_CACHE_TOKEN_RO:-}" ]]; then
+    gcs_token_var=""
+    if [[ -n "${EIGEN_GCS_CACHE_TOKEN_RW:-}" ]]; then
+      gcs_token_var=EIGEN_GCS_CACHE_TOKEN_RW
       export SCCACHE_GCS_BUCKET="${EIGEN_CI_SCCACHE_GCS_BUCKET:-eigen-gitlab-ci-cache}"
+      export SCCACHE_GCS_RW_MODE="READ_WRITE"
+    elif [[ -n "${EIGEN_GCS_CACHE_TOKEN_MR:-}" ]]; then
+      gcs_token_var=EIGEN_GCS_CACHE_TOKEN_MR
+      export SCCACHE_GCS_BUCKET="${EIGEN_CI_SCCACHE_GCS_MR_BUCKET:-${EIGEN_CI_SCCACHE_GCS_BUCKET:-eigen-gitlab-ci-cache}}"
+      export SCCACHE_GCS_KEY_PREFIX="${EIGEN_CI_SCCACHE_GCS_MR_KEY_PREFIX:-mr}"
+      export SCCACHE_GCS_RW_MODE="READ_WRITE"
+    elif [[ -n "${EIGEN_GCS_CACHE_TOKEN_RO:-}" ]]; then
+      gcs_token_var=EIGEN_GCS_CACHE_TOKEN_RO
+      export SCCACHE_GCS_BUCKET="${EIGEN_CI_SCCACHE_GCS_BUCKET:-eigen-gitlab-ci-cache}"
+      export SCCACHE_GCS_RW_MODE="READ_ONLY"
+    fi
+    if [[ -n "${gcs_token_var}" ]]; then
       export SCCACHE_MULTILEVEL_CHAIN="disk,gcs"
-      if [[ -n "${EIGEN_GCS_CACHE_TOKEN_RW:-}" ]]; then
-        export SCCACHE_GCS_RW_MODE="READ_WRITE"
-      else
-        export SCCACHE_GCS_RW_MODE="READ_ONLY"
-      fi
+      export GCS_TOKEN_VAR="${gcs_token_var}"
       export GCS_URL_SECRET=$(od -vN 16 -An -tx1 /dev/urandom | tr -d ' \n')
       cred_port_file="${PWD}/.cred_port"
 
       python3 -c "
 import http.server, json, sys, os
-token = os.environ.get('EIGEN_GCS_CACHE_TOKEN_RW') or os.environ.get('EIGEN_GCS_CACHE_TOKEN_RO')
+token = os.environ[os.environ['GCS_TOKEN_VAR']]
 secret = os.environ.get('GCS_URL_SECRET')
 class H(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
@@ -90,13 +105,14 @@ server.serve_forever()
       else
         echo "Notice: Local credential server failed to bind or respond; skipping GCS remote cache." >&2
         unset SCCACHE_GCS_BUCKET
+        unset SCCACHE_GCS_KEY_PREFIX
         unset SCCACHE_GCS_RW_MODE
         unset SCCACHE_MULTILEVEL_CHAIN
         [[ -n "${sccache_cred_server_pid}" ]] && kill "${sccache_cred_server_pid}" 2>/dev/null || true
         sccache_cred_server_pid=""
       fi
       rm -f "${cred_port_file}"
-      unset GCS_URL_SECRET
+      unset GCS_URL_SECRET GCS_TOKEN_VAR
     fi
     set -x
 

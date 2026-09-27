@@ -52,3 +52,36 @@ Concurrent jobs may share one local directory on a POSIX or NTFS filesystem,
 but not over network shares.  The build scripts record per-job cache hits and
 misses via `CCACHE_STATSLOG` and `ccache --show-log-stats` so that concurrent
 jobs sharing a cache directory do not zero or mix each other's counters.
+
+## Remote compiler cache
+
+The Linux and Windows build jobs compile through sccache, which chains a local
+disk directory with a Google Cloud Storage level that every runner reaches.
+A job that may write stores each object in GCS as soon as it is compiled, so
+the work of a job that dies on a lost VM or is canceled survives for its
+retry. A GitLab
+CI/CD variable holding a short-lived OAuth token selects the GCS area and its
+mode; the first one set wins:
+
+| Variable | Variable scope | GCS area | Mode |
+|---|---|---|---|
+| `EIGEN_GCS_CACHE_TOKEN_RW` | protected | shared | read-write |
+| `EIGEN_GCS_CACHE_TOKEN_MR` | unprotected | merge request | read-write |
+| `EIGEN_GCS_CACHE_TOKEN_RO` | unprotected | shared | read-only |
+
+With none of them set, sccache uses the local directory alone. The shared area
+is the bucket `EIGEN_CI_SCCACHE_GCS_BUCKET` (default `eigen-gitlab-ci-cache`).
+The merge-request area is the bucket `EIGEN_CI_SCCACHE_GCS_MR_BUCKET` (default:
+the shared bucket) under the key prefix `EIGEN_CI_SCCACHE_GCS_MR_KEY_PREFIX`
+(default `mr`). Protected builds never read the merge-request area, so an
+object written by a merge-request job cannot reach a master or scheduled build.
+That guarantee rests on the credential, not on the scripts: the principal
+behind `EIGEN_GCS_CACHE_TOKEN_MR` must be able to write the merge-request area
+and nothing else, either as a separate bucket or through an IAM condition on
+the object name, such as
+`resource.name.startsWith("projects/_/buckets/<bucket>/objects/mr/")`. An
+age-based lifecycle rule on that area bounds its size.
+
+`SCCACHE_MULTILEVEL_CHAIN` names each backend once, so a job reads a single GCS
+area: a merge-request job holding the read-write token reads the merge-request
+area only, not the shared one.
