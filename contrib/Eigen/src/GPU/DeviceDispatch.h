@@ -814,12 +814,9 @@ void DeviceMatrix<Scalar_>::squaredNorm(Context& ctx, DeviceScalar<RealScalar>& 
   const int64_t n = internal::blas1_size(rows_, cols_);
   result.prepareWrite(ctx);
   if (n > 0) {
-    // ||x||^2 = sum |x_i|^2 is the real dot product of x with itself, for
-    // complex x over its 2n real and imaginary parts (std::complex<T> has the
-    // layout of T[2]), so the result is real on device with no host sync. dot
-    // rather than nrm2()^2: the dot kernel is ~4.5x faster. It has no overflow
-    // protection, so callers guard the scale of x themselves; Eigen's iterative
-    // solver templates call stableNorm() instead.
+    // ||x||^2 = x^T x over the 2n real and imaginary parts of a complex x
+    // (std::complex<T> has the layout of T[2]): real, so no host sync. Unscaled,
+    // and ~4.5x faster than nrm2^2; stableNorm() is the scaled form.
     const int64_t reals = NumTraits<Scalar>::IsComplex ? 2 * n : n;
     const RealScalar* x = reinterpret_cast<const RealScalar*>(data());
     prepareRead(ctx);
@@ -842,6 +839,16 @@ DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::squaredNo
 
 template <typename Scalar_>
 void DeviceMatrix<Scalar_>::norm(Context& ctx, DeviceScalar<RealScalar>& result) const {
+  // sqrt of the dot product: a dot and a one-element NPP sqrt cost less than
+  // cuBLAS nrm2's scaled accumulation, see stableNorm().
+  squaredNorm(ctx, result);
+  result.prepareWrite(ctx);
+  internal::device_scalar_sqrt(result.devicePtr(), ctx.stream());
+  result.finishWrite(ctx);
+}
+
+template <typename Scalar_>
+void DeviceMatrix<Scalar_>::stableNorm(Context& ctx, DeviceScalar<RealScalar>& result) const {
   const int64_t n = internal::blas1_size(rows_, cols_);
   result.prepareWrite(ctx);
   if (n > 0) {
@@ -993,17 +1000,14 @@ DeviceMatrix<Scalar_>& DeviceMatrix<Scalar_>::operator=(const DeviceMatrix& othe
 
 template <typename Scalar_>
 DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::stableNorm(Context& ctx) const {
-  return norm(ctx);
-}
-
-template <typename Scalar_>
-void DeviceMatrix<Scalar_>::stableNorm(Context& ctx, DeviceScalar<RealScalar>& result) const {
-  norm(ctx, result);
+  DeviceScalar<RealScalar> result(ctx);
+  stableNorm(ctx, result);
+  return result;
 }
 
 template <typename Scalar_>
 DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::stableNorm() const {
-  return norm(Context::threadLocal());
+  return stableNorm(Context::threadLocal());
 }
 
 // this *= alpha  (scal, device pointer — avoids host sync)

@@ -558,6 +558,12 @@ void test_reductions_into() {
     VERIFY(numext::abs(RealScalar(stable_norm) - a.norm()) < tol * a.norm());
   }
 
+  // stableNorm() scales its accumulation: exact where x^H x overflows.
+  const RealScalar big = numext::sqrt((NumTraits<RealScalar>::highest)()) * RealScalar(4);
+  auto d_big = gpu::DeviceMatrix<Scalar>::fromHost(ctx, Vec::Constant(n, Scalar(big)));
+  d_big.stableNorm(ctx, stable_norm);
+  VERIFY_IS_APPROX(RealScalar(stable_norm), big * numext::sqrt(RealScalar(n)));
+
   // An empty matrix writes zero over the previous result.
   gpu::DeviceMatrix<Scalar> d_empty(ctx, 0, 1);
   d_empty.dot(ctx, d_empty, dot);

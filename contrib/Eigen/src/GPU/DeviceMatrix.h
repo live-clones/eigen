@@ -352,12 +352,13 @@ class DeviceMatrix {
   /** Squared L2 norm via dot(x, x), without a host sync. */
   DeviceScalar<typename NumTraits<Scalar>::Real> squaredNorm(Context& ctx) const;
 
-  /** L2 norm, without a host sync. */
+  /** L2 norm as sqrt(squaredNorm()), like MatrixBase::norm(), without a host
+   * sync: unscaled, so it overflows once some |x_i| > sqrt(max) and loses
+   * accuracy when every |x_i| < sqrt(min). */
   DeviceScalar<typename NumTraits<Scalar>::Real> norm(Context& ctx) const;
 
-  /** Overflow-safe L2 norm, the same as norm(): cuBLAS nrm2 already runs a
-   * scaled sum of squares. Provided so that Eigen's iterative solver templates,
-   * which call stableNorm(), compile against DeviceMatrix. */
+  /** Overflow-safe L2 norm, like MatrixBase::stableNorm(): cuBLAS nrm2's scaled
+   * sum of squares, without a host sync. Eigen's iterative solver templates call it. */
   DeviceScalar<typename NumTraits<Scalar>::Real> stableNorm(Context& ctx) const;
 
   /** The reductions above written into \p result's existing storage on \p ctx,
