@@ -980,6 +980,35 @@ DeviceMatrix<Scalar_>& DeviceMatrix<Scalar_>::operator=(const DeviceMatrix& othe
 }
 
 template <typename Scalar_>
+DeviceMatrix<Scalar_>::DeviceMatrix(const DeviceBlock<Scalar>& block) : DeviceMatrix() {
+  copyFrom(Context::threadLocal(), block);
+}
+
+template <typename Scalar_>
+DeviceMatrix<Scalar_>::DeviceMatrix(DeviceBlock<Scalar>&& block) : DeviceMatrix() {
+  copyFrom(Context::threadLocal(), block);
+}
+
+template <typename Scalar_>
+DeviceMatrix<Scalar_>& DeviceMatrix<Scalar_>::operator=(DeviceBlock<Scalar>&& block) {
+  return *this = static_cast<const DeviceMatrix&>(block);
+}
+
+template <typename Scalar_>
+DeviceBlock<Scalar_> DeviceMatrix<Scalar_>::middleCols(Index start, Index n) {
+  eigen_assert(start >= 0 && n >= 0 && start + n <= cols_ && "DeviceMatrix: column range out of bounds");
+  const size_t column_bytes = static_cast<size_t>(rows_) * sizeof(Scalar);
+  return DeviceBlock<Scalar_>(internal::DeviceBuffer::alias(buf_, static_cast<size_t>(start) * column_bytes,
+                                                            static_cast<size_t>(n) * column_bytes),
+                              rows_, n);
+}
+
+template <typename Scalar_>
+const DeviceBlock<Scalar_> DeviceMatrix<Scalar_>::middleCols(Index start, Index n) const {
+  return const_cast<DeviceMatrix*>(this)->middleCols(start, n);
+}
+
+template <typename Scalar_>
 DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::stableNorm(Context& ctx) const {
   return norm(ctx);
 }

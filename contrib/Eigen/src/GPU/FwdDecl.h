@@ -38,6 +38,8 @@ struct device_expr_traits;
 template <typename Scalar_>
 class DeviceMatrix;
 template <typename Scalar_>
+class DeviceBlock;
+template <typename Scalar_>
 class DeviceScalar;
 
 template <typename Scalar_, int UpLo_>
