@@ -135,8 +135,10 @@ class LLT {
     return *this;
   }
 
-  /** Compute the Cholesky factorization from a device matrix (move, no copy). */
+  /** Compute the Cholesky factorization from a device matrix (move, no copy).
+   * A view is copied instead: its storage belongs to another object. */
   LLT& compute(DeviceMatrix<Scalar>&& d_A) {
+    if (!internal::DeviceMatrixAccess::owns(d_A)) return compute(static_cast<const DeviceMatrix<Scalar>&>(d_A));
     eigen_assert(d_A.rows() == d_A.cols());
     if (!begin_compute(d_A.rows())) return *this;
 
@@ -195,8 +197,10 @@ class LLT {
   }
 
   /** Solve in place: consumes \p d_B and returns it holding the solution —
-   * no RHS copy and no allocation (potrs overwrites its RHS). */
+   * no RHS copy and no allocation (potrs overwrites its RHS). A view is copied
+   * instead: its storage belongs to another object. */
   DeviceMatrix<Scalar> solve(DeviceMatrix<Scalar>&& d_B) const {
+    if (!internal::DeviceMatrixAccess::owns(d_B)) return solve(static_cast<const DeviceMatrix<Scalar>&>(d_B));
     eigen_assert(solver_ctx_.info() == Success && "LLT::solve called on a failed or uninitialized factorization");
     eigen_assert(d_B.rows() == n_);
     d_B.waitReady(solver_ctx_.stream());
