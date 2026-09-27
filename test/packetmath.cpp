@@ -2286,6 +2286,17 @@ void packetmath_binary_sign_subnormals() {
   }
 }
 
+template <typename Scalar>
+void packetmath_binary_sign_flushed() {
+  ScopedFlushToZero flush;
+  if (!flush.isSupported()) return;
+#if EIGEN_ARCH_i386_OR_x86_64 && defined(_MM_SET_DENORMALS_ZERO_MODE)
+  _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
+#endif
+  VERIFY(ScopedFlushToZero::hardwareFlushesSubnormalInputs());
+  packetmath_binary_sign_subnormals<Scalar>();
+}
+
 namespace Eigen {
 namespace test {
 
@@ -2356,24 +2367,8 @@ EIGEN_DECLARE_TEST(packetmath) {
 
   CALL_SUBTEST_1(packetmath_binary_sign_subnormals<float>());
   CALL_SUBTEST_2(packetmath_binary_sign_subnormals<double>());
-  CALL_SUBTEST_1({
-    ScopedFlushToZero flush_to_zero;
-    if (flush_to_zero.isSupported()) {
-#if EIGEN_TEST_HAS_X86_FTZ && defined(_MM_SET_DENORMALS_ZERO_MODE)
-      _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
-#endif
-      packetmath_binary_sign_subnormals<float>();
-    }
-  });
-  CALL_SUBTEST_2({
-    ScopedFlushToZero flush_to_zero;
-    if (flush_to_zero.isSupported()) {
-#if EIGEN_TEST_HAS_X86_FTZ && defined(_MM_SET_DENORMALS_ZERO_MODE)
-      _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
-#endif
-      packetmath_binary_sign_subnormals<double>();
-    }
-  });
+  CALL_SUBTEST_1(packetmath_binary_sign_flushed<float>());
+  CALL_SUBTEST_2(packetmath_binary_sign_flushed<double>());
 
 #if defined(EIGEN_VECTORIZE_RVV10)
   CALL_SUBTEST_1((packetmath_redux_infinities<float, internal::Packet1Xf>()));
