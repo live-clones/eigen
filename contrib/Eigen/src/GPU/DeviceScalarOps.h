@@ -69,6 +69,11 @@ inline void device_scalar_div(const double* a, const double* b, double* c, cudaS
   nppsDiv_64f_Ctx(b, a, c, 1, npp_ctx);
 }
 
+// a = sqrt(a), in place, with a context filled in before any capture began.
+inline void device_scalar_sqrt(float* a, const NppStreamContext& npp_ctx) { nppsSqrt_32f_I_Ctx(a, 1, npp_ctx); }
+
+inline void device_scalar_sqrt(double* a, const NppStreamContext& npp_ctx) { nppsSqrt_64f_I_Ctx(a, 1, npp_ctx); }
+
 // c = -a.
 inline void device_scalar_neg(const float* a, float* c, cudaStream_t stream) {
   NppStreamContext npp_ctx = make_npp_stream_ctx(stream);
