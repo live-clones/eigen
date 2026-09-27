@@ -610,6 +610,12 @@ static_assert((EIGEN_ARM64_SVE_VL >= 128) && (EIGEN_ARM64_SVE_VL <= 2048) &&
 // The backend blocks above are the only consumers; do not leak it into user code.
 #undef EIGEN_STACK_ALLOCATION_LIMIT_WAS_DEFAULTED
 
+// Apple AMX is undocumented, so it is opt-in only; the GEMM checks the chip at run time and otherwise stays on NEON.
+#if defined(EIGEN_ARM64_USE_APPLE_AMX) && defined(EIGEN_VECTORIZE_NEON) && EIGEN_OS_MAC && EIGEN_ARCH_ARM64 && \
+    !defined(EIGEN_USE_BLAS)
+#define EIGEN_GEMM_APPLE_AMX
+#endif
+
 // Following the Arm ACLE arm_neon.h should also include arm_fp16.h but not all
 // compilers seem to follow this. We therefore include it explicitly.
 // See also: https://bugs.llvm.org/show_bug.cgi?id=47955
