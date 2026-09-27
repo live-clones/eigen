@@ -843,7 +843,7 @@ void DeviceMatrix<Scalar_>::norm(Context& ctx, DeviceScalar<RealScalar>& result)
   // cuBLAS nrm2's scaled accumulation, see stableNorm().
   squaredNorm(ctx, result);
   result.prepareWrite(ctx);
-  internal::device_scalar_sqrt(result.devicePtr(), ctx.stream());
+  internal::device_scalar_sqrt(result.devicePtr(), ctx.nppStreamContext());
   result.finishWrite(ctx);
 }
 

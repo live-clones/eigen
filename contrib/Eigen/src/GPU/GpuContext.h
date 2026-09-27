@@ -19,6 +19,7 @@
 
 #include "./CuBlasSupport.h"
 #include "./CuSolverSupport.h"
+#include "./DeviceScalarOps.h"
 #include <cusparse.h>
 #include <vector>
 
@@ -88,12 +89,20 @@ class Context {
   /** Create a context with a new non-blocking stream that it owns. The stream
    * lives until the last DeviceMatrix or DeviceScalar last written on it is
    * destroyed, even if that outlives the Context. */
-  Context() : stream_(internal::make_owned_stream()), oneshot_solver_scratch_(stream_) { init_cublas(); }
+  Context()
+      : stream_(internal::make_owned_stream()),
+        npp_stream_ctx_(internal::make_npp_stream_ctx(stream_.get())),
+        oneshot_solver_scratch_(stream_) {
+    init_cublas();
+  }
 
   /** Run on an existing stream without taking ownership. \p stream must outlive
    * this Context and every DeviceMatrix or DeviceScalar last written on it: their
    * memory is freed stream-ordered on it. */
-  explicit Context(cudaStream_t stream) : stream_(internal::borrow_stream(stream)), oneshot_solver_scratch_(stream_) {
+  explicit Context(cudaStream_t stream)
+      : stream_(internal::borrow_stream(stream)),
+        npp_stream_ctx_(internal::make_npp_stream_ctx(stream_.get())),
+        oneshot_solver_scratch_(stream_) {
     init_cublas();
   }
 
@@ -138,6 +147,11 @@ class Context {
   const internal::StreamHandle& streamHandle() const { return stream_; }
 
   cublasHandle_t cublasHandle() const { return cublas_.get(); }
+
+  /** NPP stream context for stream(), filled in at construction. Filling it
+   * queries the stream, which fails while the stream is being captured on some
+   * drivers, so NPP calls inside a capture must use this one. */
+  const NppStreamContext& nppStreamContext() const { return npp_stream_ctx_; }
 
   /** Returns the cuSOLVER handle, creating it on first call. */
   cusolverDnHandle_t cusolverHandle() {
@@ -211,6 +225,7 @@ class Context {
 
   // Destroyed in reverse declaration order: the plan cache before the cuBLASLt handle, the stream last.
   internal::StreamHandle stream_;
+  NppStreamContext npp_stream_ctx_;
   internal::UniqueCublasHandle cublas_;
   internal::DeviceBuffer cublas_workspace_;  // freed on stream_, after the work that uses it
   LazyCusolverHandle cusolver_{nullptr, nullptr};

@@ -942,6 +942,7 @@ cublasHandle_t     cublasHandle()
 cusolverDnHandle_t cusolverHandle()                        // Lazy: creates the handle on first call
 cublasLtHandle_t   cublasLtHandle()                        // Lazy-initialized
 cusparseHandle_t   cusparseHandle()                        // Lazy-initialized
+const NppStreamContext& nppStreamContext()                // NPP context for stream(), filled in at construction
 
 internal::DeviceBuffer&          gemmWorkspace()            // cublasLtMatmul scratch (lazy-grown per context)
 internal::CublasLtPlanCache&     gemmPlanCache()            // shape-keyed plan cache (per context, ~8-entry LRU)

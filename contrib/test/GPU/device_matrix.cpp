@@ -616,7 +616,8 @@ void test_reductions_capture() {
   }
 
   cudaGraphExec_t exec = nullptr;
-  EIGEN_CUDA_RUNTIME_CHECK(cudaGraphInstantiate(&exec, graph, 0));
+  // cudaGraphInstantiate took five arguments before CUDA 12.
+  EIGEN_CUDA_RUNTIME_CHECK(cudaGraphInstantiateWithFlags(&exec, graph, 0));
   // Clear the slots so that the checks below see the replay's results.
   EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(dot.devicePtr(), 0, sizeof(Scalar), ctx.stream()));
   EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(squared_norm.devicePtr(), 0, sizeof(RealScalar), ctx.stream()));
