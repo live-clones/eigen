@@ -470,7 +470,8 @@ class DeviceMatrix {
    * \p ctx's stream wait for every read and write made through it, on any
    * stream: the owner's later writes and free follow them if they run on
    * \p ctx's stream after the view is gone. An assignment that changes the
-   * view's size allocates new storage instead, leaving the owner unchanged. */
+   * view's size, and moving a matrix into the view, give the view new storage
+   * instead, leaving the owner unchanged. */
   static DeviceMatrix view(Context& ctx, Scalar* device_ptr, Index rows, Index cols);
 
   /** view() on the thread-local Context. */
