@@ -310,8 +310,29 @@ class DeviceBuffer {
     return b;
   }
 
-  void* get() const noexcept { return ptr_; }
-  explicit operator bool() const noexcept { return ptr_ != nullptr; }
+  /** Aliases \p bytes at byte \p offset of \p parent. The alias never frees or
+   * reallocates, and every access through it is ordered through \p parent's
+   * state, so it is ordered with every access to the rest of \p parent.
+   * \p parent must outlive the alias and stay in place (not be moved or
+   * reallocated). An alias of an alias refers to the underlying buffer. */
+  static DeviceBuffer alias(const DeviceBuffer& parent, size_t offset, size_t bytes) {
+    const DeviceBuffer& root = parent.parent_ ? *parent.parent_ : parent;
+    const size_t rootOffset = (parent.parent_ ? parent.offset_ : 0) + offset;
+    eigen_assert(rootOffset + bytes <= root.bytes_ && "DeviceBuffer::alias: range exceeds the parent");
+    DeviceBuffer b;
+    b.parent_ = const_cast<DeviceBuffer*>(&root);
+    b.offset_ = rootOffset;
+    b.bytes_ = bytes;
+    return b;
+  }
+
+  /** True for a buffer made by alias(). */
+  bool isAlias() const noexcept { return parent_ != nullptr; }
+
+  void* get() const noexcept {
+    return parent_ ? static_cast<void*>(static_cast<char*>(parent_->ptr_) + offset_) : ptr_;
+  }
+  explicit operator bool() const noexcept { return get() != nullptr; }
 
   /** Logical allocation size in bytes, tracked for adopted pointers as well. */
   size_t size() const noexcept { return bytes_; }
@@ -319,10 +340,11 @@ class DeviceBuffer {
   /** False for a borrowed pointer, which is never freed or reallocated. */
   bool owns() const noexcept { return owns_; }
 
-  cudaStream_t stream() const noexcept { return stream_.get(); }
-  const StreamHandle& streamHandle() const noexcept { return stream_; }
+  cudaStream_t stream() const noexcept { return parent_ ? parent_->stream() : stream_.get(); }
+  const StreamHandle& streamHandle() const noexcept { return parent_ ? parent_->streamHandle() : stream_; }
 
   void prepareRead(const StreamHandle& s) const {
+    if (parent_) return parent_->prepareRead(s);
     if (!ptr_ || s.get() == stream_.get()) return;
     std::lock_guard<std::mutex> lock(read_mutex_);
     // A buffer never written through the protocol still has its allocation
@@ -332,6 +354,7 @@ class DeviceBuffer {
   }
 
   void finishRead(const StreamHandle& s) const {
+    if (parent_) return parent_->finishRead(s);
     if (!ptr_ || s.get() == stream_.get()) return;
     std::lock_guard<std::mutex> lock(read_mutex_);
     // The stream's pending mark, else a retired one. A mark retires when a
@@ -361,11 +384,13 @@ class DeviceBuffer {
 
   /** Read marks held, pending or retired for reuse. */
   std::size_t readMarkCount() const {
+    if (parent_) return parent_->readMarkCount();
     std::lock_guard<std::mutex> lock(read_mutex_);
     return reads_.size();
   }
 
   void prepareWrite(const StreamHandle& s) {
+    if (parent_) return parent_->prepareWrite(s);
     if (!ptr_) {
       stream_ = s;
       return;
@@ -389,6 +414,7 @@ class DeviceBuffer {
   // stream, which then also waits for later work on home: cheaper when such
   // reads are rare, as for DeviceScalar.
   void finishWrite(bool record_event = true) {
+    if (parent_) return parent_->finishWrite(record_event);
     if (!ptr_) return;
     if (record_event) {
       recordWriteEvent();
@@ -402,6 +428,7 @@ class DeviceBuffer {
    * and the free after \p target's work; the buffer's own stream, which may die
    * with the buffer, is not needed. */
   void* release(const StreamHandle& target) {
+    eigen_assert(!parent_ && "DeviceBuffer::release: an alias owns no memory");
     prepareWrite(target);
     void* p = ptr_;
     ptr_ = nullptr;
@@ -438,6 +465,8 @@ class DeviceBuffer {
     owns_ = false;
     pooled_ = false;
     stream_.reset();
+    parent_ = nullptr;
+    offset_ = 0;
   }
 
  private:
@@ -462,6 +491,10 @@ class DeviceBuffer {
     write_event_ = o.write_event_;
     write_recorded_ = o.write_recorded_;
     reads_ = std::move(o.reads_);
+    parent_ = o.parent_;
+    offset_ = o.offset_;
+    o.parent_ = nullptr;
+    o.offset_ = 0;
     o.ptr_ = nullptr;
     o.bytes_ = 0;
     o.owns_ = false;
@@ -482,6 +515,10 @@ class DeviceBuffer {
   mutable cudaEvent_t write_event_ = nullptr;
   mutable bool write_recorded_ = false;
   mutable std::vector<ReadMark> reads_;
+  // Set for an alias: the buffer it views, which holds the memory and the
+  // access state, and the byte offset into it.
+  DeviceBuffer* parent_ = nullptr;
+  size_t offset_ = 0;
 };
 
 // cudaMemcpyAsync only overlaps with compute when the host side is pinned, so
