@@ -193,7 +193,12 @@ class DeviceMatrix {
     o.cols_ = 0;
   }
 
-  DeviceMatrix& operator=(DeviceMatrix&& o) noexcept {
+  /** Adopts \p o's allocation, unless either side is a DeviceBlock view: then
+   * it copies, as copy assignment does, so that assigning to a view through
+   * this interface (noalias(), a DeviceMatrix&) writes into its parent, and a
+   * view's memory is never adopted. Not noexcept, since the copy can fail. */
+  DeviceMatrix& operator=(DeviceMatrix&& o) {
+    if (this != &o && (buf_.isAlias() || o.buf_.isAlias())) return *this = static_cast<const DeviceMatrix&>(o);
     if (this != &o) {
       buf_ = std::move(o.buf_);
       rows_ = o.rows_;
@@ -537,8 +542,9 @@ class DeviceMatrix {
  * columns from different contexts are ordered as if they overlapped.
  *
  * As for an Eigen Block, assigning to a block writes into the parent (moving
- * into a block copies), copying a block makes another view of the same
- * columns, and copying a block into a DeviceMatrix makes an owning copy. The
+ * into a block copies), also through noalias() or a DeviceMatrix&; copying a
+ * block makes another view of the same columns, and copying a block into a
+ * DeviceMatrix makes an owning copy. The
  * parent must outlive its blocks: resizing, moving or destroying it
  * invalidates them. A block cannot be resized, and a solver cannot adopt its
  * memory.

@@ -117,6 +117,36 @@ void test_block_writes(Index rows, Index cols) {
   VERIFY_IS_APPROX(d_A.toHost(ctx), expected);
 }
 
+// Code that sees a block as a DeviceMatrix -- through noalias(), or a
+// DeviceMatrix& -- still writes into the parent, from an rvalue too, and a
+// DeviceMatrix assigned a block this way owns a copy.
+void test_block_base_interface() {
+  using DeviceMat = gpu::DeviceMatrix<double>;
+  gpu::Context ctx;
+  DeviceMat d_A = DeviceMat::fromHost(ctx, MatrixXd::Zero(3, 3));
+  MatrixXd expected = MatrixXd::Zero(3, 3);
+
+  auto block = d_A.col(1);
+  DeviceMat src = DeviceMat::fromHost(ctx, VectorXd::Constant(3, 7.0));
+  block.noalias() = std::move(src);
+  expected.col(1).setConstant(7.0);
+  VERIFY(block.data() == d_A.data() + 3);
+
+  auto other_block = d_A.col(2);
+  DeviceMat& base = other_block;
+  base = DeviceMat::fromHost(ctx, VectorXd::Constant(3, 5.0));
+  expected.col(2).setConstant(5.0);
+  VERIFY(other_block.data() == d_A.data() + 6);
+  VERIFY_IS_EQUAL(d_A.toHost(ctx), expected);
+
+  DeviceMat owner;
+  owner = std::move(static_cast<DeviceMat&>(block));
+  VERIFY(owner.data() != d_A.data() + 3);
+  d_A.setZero(ctx);
+  VERIFY_IS_EQUAL(owner.toHost(ctx), MatrixXd(expected.col(1)));
+  owner.resize(ctx, 4, 1);
+}
+
 // The classical Gram-Schmidt step of a Lanczos reorthogonalization on column
 // blocks: h = V(:, 0:j)^H v, v -= V(:, 0:j) h.
 template <typename Scalar>
@@ -216,4 +246,5 @@ EIGEN_DECLARE_TEST(gpu_device_block) {
   CALL_SUBTEST_3(test_parent_read_after_block_write());
   CALL_SUBTEST_3(test_block_write_after_block_read());
   CALL_SUBTEST_3(test_block_cannot_own());
+  CALL_SUBTEST_3(test_block_base_interface());
 }

@@ -945,6 +945,9 @@ The entry points that exchange raw pointers carry the same ordering:
   accesses: destroy the `d_*` views of a solver before recomputing or
   destroying it. An assignment that changes a view's size, and moving a matrix
   into a view, give the view new storage instead, leaving the owner unchanged.
+  For columns of a `DeviceMatrix`, use `col()` or `middleCols()` instead: a
+  `DeviceBlock` shares its parent's ordering on any context, and assigning to it
+  writes into the parent.
 - `release(ctx)` orders every pending access before later work on
   `ctx.stream()`, as `prepareWrite(ctx)` does, and returns the pointer. Use it
   only in work ordered after `ctx.stream()`'s. An owning matrix transfers
