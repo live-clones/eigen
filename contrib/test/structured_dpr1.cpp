@@ -106,7 +106,10 @@ void test_dpr1_clustered(Index n) {
 
   // Exact triples among distinct poles: a pole of multiplicity k stays an eigenvalue >= k - 1 times.
   Vec dt(n);
-  for (Index i = 0; i < n; ++i) dt[i] = Scalar(1 + i / 3);
+  for (Index i = 0; i < n; ++i) {
+    const Index pole = 1 + i / 3;
+    dt[i] = Scalar(pole);
+  }
   check_dpr1<Scalar>(dt, Scalar(2), z);
   DPR1EigenSolver<Scalar> est(dt, Scalar(2), z, EigenvaluesOnly);
   for (Index i = 0; i < n; i += 3) {
