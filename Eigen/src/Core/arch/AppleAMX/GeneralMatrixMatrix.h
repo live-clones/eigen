@@ -13,12 +13,8 @@
 // IWYU pragma: private
 #include "../../InternalHeaderCheck.h"
 
-// NEON crossover, best shared rule on the M2 and M4 Pro: rows cols >= 256, rows cols depth sizeof(Scalar) >= 2^17.
 #ifndef EIGEN_APPLE_AMX_MIN_RESULT_SIZE
 #define EIGEN_APPLE_AMX_MIN_RESULT_SIZE 256
-#endif
-#ifndef EIGEN_APPLE_AMX_MIN_WORK_BYTES
-#define EIGEN_APPLE_AMX_MIN_WORK_BYTES (double(1 << 17))
 #endif
 
 namespace Eigen {
@@ -92,6 +88,15 @@ inline int generation() {
 }
 // The kernels use the quad loads of the M2 and later.
 inline bool usable() { return generation() >= 2; }
+
+// NEON crossover of the GEMM, rows cols depth sizeof(Scalar) >= this, measured on the M2 and M4 Pro (M3: M2's).
+inline double gemm_min_work_bytes() {
+#ifdef EIGEN_APPLE_AMX_MIN_WORK_BYTES
+  return EIGEN_APPLE_AMX_MIN_WORK_BYTES;
+#else
+  return generation() >= 4 ? double(1 << 17) : double(1 << 18);
+#endif
+}
 
 // Units a product spreads over, one per performance cluster; 0 when the kernels cannot run.
 inline int units() {
@@ -535,7 +540,7 @@ bool apple_amx_gemm(Index rows, Index cols, Index depth, const Scalar* lhs, Inde
                     Index rhsStride, Scalar* res, Index resIncr, Index resStride, Scalar alpha) {
   const double area = double(rows) * double(cols);
   if (resIncr != 1 || area < EIGEN_APPLE_AMX_MIN_RESULT_SIZE ||
-      area * double(depth) * sizeof(Scalar) < EIGEN_APPLE_AMX_MIN_WORK_BYTES || !apple_amx::usable())
+      !apple_amx::usable() || area * double(depth) * sizeof(Scalar) < apple_amx::gemm_min_work_bytes())
     return false;
   apple_amx::problem<Scalar> p;
   p.M = cols;

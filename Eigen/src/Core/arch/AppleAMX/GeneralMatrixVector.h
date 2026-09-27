@@ -13,17 +13,37 @@
 // IWYU pragma: private
 #include "../../InternalHeaderCheck.h"
 
-// NEON crossover in bytes: rows sizeof(Scalar) >= 384 and rows cols sizeof(Scalar) >= 2^15.
-#ifndef EIGEN_APPLE_AMX_GEMV_MIN_ROW_BYTES
-#define EIGEN_APPLE_AMX_GEMV_MIN_ROW_BYTES 384
-#endif
-#ifndef EIGEN_APPLE_AMX_GEMV_MIN_BYTES
-#define EIGEN_APPLE_AMX_GEMV_MIN_BYTES (double(1 << 15))
+#ifndef EIGEN_APPLE_AMX_GEMV_PREFETCH_MIN_BYTES
+#define EIGEN_APPLE_AMX_GEMV_PREFETCH_MIN_BYTES (double(16 << 20))
 #endif
 
 namespace Eigen {
 namespace internal {
 namespace apple_amx {
+
+// NEON crossover of the GEMV in bytes, measured on the M2 and M4 Pro (M3: M2's): column and matrix sizes.
+inline double gemv_min_row_bytes() {
+#ifdef EIGEN_APPLE_AMX_GEMV_MIN_ROW_BYTES
+  return EIGEN_APPLE_AMX_GEMV_MIN_ROW_BYTES;
+#else
+  return generation() >= 4 ? 384 : 768;
+#endif
+}
+inline double gemv_min_bytes() {
+#ifdef EIGEN_APPLE_AMX_GEMV_MIN_BYTES
+  return EIGEN_APPLE_AMX_GEMV_MIN_BYTES;
+#else
+  return generation() >= 4 ? double(1 << 15) : double(1 << 17);
+#endif
+}
+// Before the M4, NEON streams a matrix from memory faster than AMX does.
+inline double gemv_max_bytes() {
+#ifdef EIGEN_APPLE_AMX_GEMV_MAX_BYTES
+  return EIGEN_APPLE_AMX_GEMV_MAX_BYTES;
+#else
+  return generation() >= 4 ? NumTraits<double>::infinity() : double(48 << 20);
+#endif
+}
 
 // y += alpha A x, A column-major, rows % lanes == 0: Z row z holds y[i0 + z lanes, +lanes), Y copies of alpha x[j].
 // Prefetch: the columns 16 ahead into L2, which pays only for a matrix that streams from memory.
@@ -72,7 +92,7 @@ EIGEN_DONT_INLINE void gemv_kernel(Index rows, Index cols, const T* A, Index lda
 
 template <typename T, typename RhsMapper>
 void gemv(Index rows, Index cols, const T* A, Index lda, const RhsMapper& x, T* y, T alpha) {
-  if (double(rows) * double(cols) * sizeof(T) >= double(16 << 20))
+  if (double(rows) * double(cols) * sizeof(T) >= EIGEN_APPLE_AMX_GEMV_PREFETCH_MIN_BYTES)
     gemv_kernel<T, true>(rows, cols, A, lda, x, y, alpha);
   else
     gemv_kernel<T, false>(rows, cols, A, lda, x, y, alpha);
@@ -93,8 +113,10 @@ void gemv(Index rows, Index cols, const T* A, Index lda, const RhsMapper& x, T* 
     static EIGEN_STRONG_INLINE void run(Index rows, Index cols, const LhsMapper& lhs, const RhsMapper& rhs,          \
                                         Scalar* res, Index resIncr, Scalar alpha) {                                   \
       constexpr Index kLanes = 64 / sizeof(Scalar);                                                                   \
-      if (resIncr != 1 || rows * Index(sizeof(Scalar)) < EIGEN_APPLE_AMX_GEMV_MIN_ROW_BYTES ||                        \
-          double(rows) * double(cols) * sizeof(Scalar) < EIGEN_APPLE_AMX_GEMV_MIN_BYTES || !apple_amx::usable())     \
+      const double column_bytes = double(rows) * sizeof(Scalar);                                                      \
+      if (resIncr != 1 || !apple_amx::usable() || column_bytes < apple_amx::gemv_min_row_bytes() ||                   \
+          column_bytes * double(cols) < apple_amx::gemv_min_bytes() ||                                                \
+          column_bytes * double(cols) >= apple_amx::gemv_max_bytes())                                                 \
         return Generic::run(rows, cols, lhs, rhs, res, resIncr, alpha);                                               \
       /* BLAS contract: alpha == 0 leaves the result unchanged. */                                                    \
       if (numext::is_exactly_zero(alpha)) return;                                                                     \

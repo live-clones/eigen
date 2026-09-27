@@ -176,11 +176,17 @@ run time. However, these assertions do cost time and can thus be turned off.
    performance cluster, and gives each thread a disjoint part of the result. The default is 2^21.
  - \b \c EIGEN_APPLE_AMX_MIN_RESULT_SIZE and \b \c EIGEN_APPLE_AMX_MIN_WORK_BYTES - Smallest result (rows times
    columns) and smallest product (rows times columns times depth times the scalar size) that the Apple AMX GEMM takes;
-   smaller products keep the NEON kernel. The defaults (256 and 2^17) are the best shared crossover on Apple M2 and
-   M4 Pro for \c float and \c double.
+   smaller products keep the NEON kernel. The defaults are 256 and, measured for \c float and \c double, 2^18 on
+   Apple M2 and M3 and 2^17 on M4.
  - \b \c EIGEN_APPLE_AMX_GEMV_MIN_ROW_BYTES and \b \c EIGEN_APPLE_AMX_GEMV_MIN_BYTES - Smallest column (rows times the
    scalar size) and smallest matrix (rows times columns times the scalar size) that the Apple AMX GEMV takes; smaller
-   matrix-vector products keep the NEON kernel. The defaults are 384 and 2^15.
+   matrix-vector products keep the NEON kernel. The defaults, measured for \c float and \c double, are 768 and 2^17
+   on Apple M2 and M3, and 384 and 2^15 on M4.
+ - \b \c EIGEN_APPLE_AMX_GEMV_MAX_BYTES - Largest matrix (rows times columns times the scalar size) that the Apple
+   AMX GEMV takes. The default is 48 MB on Apple M2 and M3, where NEON streams larger matrices from memory faster,
+   and unbounded on M4.
+ - \b \c EIGEN_APPLE_AMX_GEMV_PREFETCH_MIN_BYTES - Smallest matrix for which the Apple AMX GEMV prefetches the
+   columns ahead into L2. The default (16 MB) is where the prefetch pays on Apple M2 and M4 Pro.
 
  - \b \c EIGEN_DONT_ALIGN - Deprecated, it is a synonym for \c EIGEN_MAX_ALIGN_BYTES=0. It disables alignment completely. %Eigen will not try to align its objects and does not expect that any objects passed to it are aligned. This will turn off vectorization if \b \c EIGEN_UNALIGNED_VECTORIZE=1. Not defined by default.
  - \b \c EIGEN_DONT_ALIGN_STATICALLY - Deprecated, it is a synonym for \c EIGEN_MAX_STATIC_ALIGN_BYTES=0. It disables alignment of arrays on the stack. Not defined by default, unless \c EIGEN_DONT_ALIGN is defined.
