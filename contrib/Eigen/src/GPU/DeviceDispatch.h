@@ -782,14 +782,11 @@ inline int64_t blas1_size(Index rows, Index cols) { return static_cast<int64_t>(
 }  // namespace internal
 
 template <typename Scalar_>
-DeviceScalar<typename DeviceMatrix<Scalar_>::Scalar> DeviceMatrix<Scalar_>::dot(Context& ctx,
-                                                                                const DeviceMatrix& other) const {
+void DeviceMatrix<Scalar_>::dot(Context& ctx, const DeviceMatrix& other, DeviceScalar<Scalar>& result) const {
   const int64_t n = internal::blas1_size(rows_, cols_);
   eigen_assert(n == internal::blas1_size(other.rows_, other.cols_));
+  result.prepareWrite(ctx);
   if (n > 0) {
-    // Allocated uninitialized: cublasXdot overwrites the slot, so uploading a
-    // zero first would be a wasted H2D transfer per reduction.
-    DeviceScalar<Scalar> result(ctx);
     prepareRead(ctx);
     other.prepareRead(ctx);
     internal::with_device_pointer_mode(ctx.cublasHandle(), [&] {
@@ -797,51 +794,73 @@ DeviceScalar<typename DeviceMatrix<Scalar_>::Scalar> DeviceMatrix<Scalar_>::dot(
     });
     finishRead(ctx);
     other.finishRead(ctx);
-    result.finishWrite(ctx);
-    return result;
+  } else {
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(result.devicePtr(), 0, sizeof(Scalar), ctx.stream()));
   }
-  return DeviceScalar<Scalar>(ctx, Scalar(0));
+  result.finishWrite(ctx);
 }
 
-namespace internal {
-// For real Scalar, dot(x,x) already has type DeviceScalar<RealScalar>, so a move
-// suffices and nothing syncs.
-template <typename Scalar, typename RealScalar>
-std::enable_if_t<std::is_same<Scalar, RealScalar>::value, DeviceScalar<RealScalar>> squaredNorm_from_dot(
-    DeviceScalar<Scalar>&& d, Context&) {
-  return std::move(d);
+template <typename Scalar_>
+DeviceScalar<typename DeviceMatrix<Scalar_>::Scalar> DeviceMatrix<Scalar_>::dot(Context& ctx,
+                                                                                const DeviceMatrix& other) const {
+  // Allocated uninitialized: the reduction overwrites the slot.
+  DeviceScalar<Scalar> result(ctx);
+  dot(ctx, other, result);
+  return result;
 }
-// Complex must sync to extract the real part: DeviceScalar arithmetic is real-only.
-template <typename Scalar, typename RealScalar>
-std::enable_if_t<!std::is_same<Scalar, RealScalar>::value, DeviceScalar<RealScalar>> squaredNorm_from_dot(
-    DeviceScalar<Scalar>&& d, Context& ctx) {
-  return DeviceScalar<RealScalar>(ctx, numext::real(Scalar(d)));
+
+template <typename Scalar_>
+void DeviceMatrix<Scalar_>::squaredNorm(Context& ctx, DeviceScalar<RealScalar>& result) const {
+  const int64_t n = internal::blas1_size(rows_, cols_);
+  result.prepareWrite(ctx);
+  if (n > 0) {
+    // ||x||^2 = sum |x_i|^2 is the real dot product of x with itself, for
+    // complex x over its 2n real and imaginary parts (std::complex<T> has the
+    // layout of T[2]), so the result is real on device with no host sync. dot
+    // rather than nrm2()^2: the dot kernel is ~4.5x faster. It has no overflow
+    // protection, so callers guard the scale of x themselves; Eigen's iterative
+    // solver templates call stableNorm() instead.
+    const int64_t reals = NumTraits<Scalar>::IsComplex ? 2 * n : n;
+    const RealScalar* x = reinterpret_cast<const RealScalar*>(data());
+    prepareRead(ctx);
+    internal::with_device_pointer_mode(ctx.cublasHandle(), [&] {
+      EIGEN_CUBLAS_CHECK(internal::cublasXdot(ctx.cublasHandle(), reals, x, 1, x, 1, result.devicePtr()));
+    });
+    finishRead(ctx);
+  } else {
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(result.devicePtr(), 0, sizeof(RealScalar), ctx.stream()));
+  }
+  result.finishWrite(ctx);
 }
-}  // namespace internal
 
 template <typename Scalar_>
 DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::squaredNorm(Context& ctx) const {
-  // dot(x,x) rather than nrm2()^2: the dot kernel is ~4.5x faster. It has no
-  // overflow protection, so callers guard the scale of x themselves; Eigen's
-  // iterative solver templates call stableNorm() instead.
-  return internal::squaredNorm_from_dot<Scalar_, RealScalar>(dot(ctx, *this), ctx);
+  DeviceScalar<RealScalar> result(ctx);
+  squaredNorm(ctx, result);
+  return result;
 }
 
 template <typename Scalar_>
-DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::norm(Context& ctx) const {
+void DeviceMatrix<Scalar_>::norm(Context& ctx, DeviceScalar<RealScalar>& result) const {
   const int64_t n = internal::blas1_size(rows_, cols_);
+  result.prepareWrite(ctx);
   if (n > 0) {
-    // See dot(): uninitialized on purpose, cublasXnrm2 overwrites the slot.
-    DeviceScalar<RealScalar> result(ctx);
     prepareRead(ctx);
     internal::with_device_pointer_mode(ctx.cublasHandle(), [&] {
       EIGEN_CUBLAS_CHECK(internal::cublasXnrm2(ctx.cublasHandle(), n, data(), 1, result.devicePtr()));
     });
     finishRead(ctx);
-    result.finishWrite(ctx);
-    return result;
+  } else {
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(result.devicePtr(), 0, sizeof(RealScalar), ctx.stream()));
   }
-  return DeviceScalar<RealScalar>(ctx, RealScalar(0));
+  result.finishWrite(ctx);
+}
+
+template <typename Scalar_>
+DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::norm(Context& ctx) const {
+  DeviceScalar<RealScalar> result(ctx);
+  norm(ctx, result);
+  return result;
 }
 
 template <typename Scalar_>
@@ -975,6 +994,11 @@ DeviceMatrix<Scalar_>& DeviceMatrix<Scalar_>::operator=(const DeviceMatrix& othe
 template <typename Scalar_>
 DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::stableNorm(Context& ctx) const {
   return norm(ctx);
+}
+
+template <typename Scalar_>
+void DeviceMatrix<Scalar_>::stableNorm(Context& ctx, DeviceScalar<RealScalar>& result) const {
+  norm(ctx, result);
 }
 
 template <typename Scalar_>

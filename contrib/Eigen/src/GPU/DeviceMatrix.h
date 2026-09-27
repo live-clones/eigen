@@ -349,8 +349,7 @@ class DeviceMatrix {
    * DeviceScalar's conversion to Scalar, which syncs. */
   DeviceScalar<Scalar> dot(Context& ctx, const DeviceMatrix& other) const;
 
-  /** Squared L2 norm via dot(x, x). For real types the result stays on device;
-   * for complex it syncs, since DeviceScalar arithmetic is real-only. */
+  /** Squared L2 norm via dot(x, x), without a host sync. */
   DeviceScalar<typename NumTraits<Scalar>::Real> squaredNorm(Context& ctx) const;
 
   /** L2 norm, without a host sync. */
@@ -360,6 +359,14 @@ class DeviceMatrix {
    * scaled sum of squares. Provided so that Eigen's iterative solver templates,
    * which call stableNorm(), compile against DeviceMatrix. */
   DeviceScalar<typename NumTraits<Scalar>::Real> stableNorm(Context& ctx) const;
+
+  /** The reductions above written into \p result's existing storage on \p ctx,
+   * instead of a new DeviceScalar: no allocation per call, so a loop or a
+   * captured CUDA graph repeats them without allocator traffic. */
+  void dot(Context& ctx, const DeviceMatrix& other, DeviceScalar<Scalar>& result) const;
+  void squaredNorm(Context& ctx, DeviceScalar<RealScalar>& result) const;
+  void norm(Context& ctx, DeviceScalar<RealScalar>& result) const;
+  void stableNorm(Context& ctx, DeviceScalar<RealScalar>& result) const;
 
   /** Set all elements to zero. */
   void setZero(Context& ctx);

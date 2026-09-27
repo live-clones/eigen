@@ -153,6 +153,11 @@ Scalar alpha = dot_val / norm_sq;      // sync here (implicit conversion)
 d_x += alpha * d_p;                    // host scalar * DeviceMatrix (axpy)
 ```
 
+Every reduction also has an overload that writes into an existing
+`DeviceScalar` on a given Context, `d_x.dot(ctx, d_y, s)`: it reuses the
+scalar's storage, so a loop, or a captured CUDA graph, repeats the reduction
+without allocating.
+
 Division between `DeviceScalar` values (real types only) is performed on
 device via NPP, on the first operand's stream, avoiding extra
 synchronizations. Small device allocations (including `DeviceScalar`) go
@@ -810,7 +815,7 @@ noted otherwise).
 | `x *= alpha` | `cublasXscal` | alpha (host or DeviceScalar) |
 | `x.dot(y)` | `cublasXdot` / `cublasXdotc` | returns `DeviceScalar` |
 | `x.norm()` | `cublasXnrm2` | returns `DeviceScalar<RealScalar>` |
-| `x.squaredNorm()` | `cublasXdot(x, x)` | returns `DeviceScalar<RealScalar>` |
+| `x.squaredNorm()` | `cublasXdot(x, x)` | real dot over the `2n` real and imaginary parts for complex `x`; returns `DeviceScalar<RealScalar>` |
 | `d_y = view * d_x` | `cusparseSpMV` | device-resident SpMV |
 | `d_Y = view * d_X` | `cusparseSpMM` | device-resident SpMM (RHS with >1 column) |
 | same, `view` of a `BlockSparseMatrix` | `cusparseSpMV` / `cusparseSpMM` on a BSR descriptor | opA=N, row-major blocks; op(A) formed on the host |
@@ -870,6 +875,8 @@ DeviceMatrix&      noalias()                             // No-op (all ops are i
 DeviceScalar<Scalar>     dot(const DeviceMatrix& other)  // cuBLAS dot/dotc -> DeviceScalar
 DeviceScalar<RealScalar> norm()                          // cuBLAS nrm2 -> DeviceScalar
 DeviceScalar<RealScalar>  squaredNorm()                    // dot(self, self) -> DeviceScalar (no sync)
+void dot(ctx, other, DeviceScalar<Scalar>& result)       // Each reduction into an existing DeviceScalar,
+void squaredNorm / norm / stableNorm(ctx, result)        // reusing its storage: no allocation
 void                     setZero([ctx])                  // cudaMemsetAsync
 void                     addScaled(gpu::Context&, Scalar alpha, const DeviceMatrix& x)  // this += alpha * x (axpy)
 void                     scale(gpu::Context&, Scalar alpha)                              // this *= alpha (scal)
