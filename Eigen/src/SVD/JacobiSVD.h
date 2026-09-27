@@ -596,8 +596,7 @@ struct traits<JacobiSVD<MatrixType_, Options>> : svd_traits<MatrixType_, Options
  * By default, square matrices are not QR preconditioned. Adding #AlwaysPrecondition to the Options template parameter
  * applies the selected QR preconditioner to square matrices too: the Jacobi iteration then runs on the triangular
  * factor \a R of \f$ A P = Q R \f$ instead of on \a A. For example: JacobiSVD<MatrixType,
- * ColPivHouseholderQRPreconditioner | AlwaysPrecondition>.
- * AlwaysPrecondition cannot be combined with NoQRPreconditioner.
+ * ColPivHouseholderQRPreconditioner | AlwaysPrecondition>. #AlwaysPrecondition cannot be combined with #NoQRPreconditioner.
  *
  * One may also use the Options template parameter to specify how the unitaries should be computed. The options are
  * #ComputeThinU, #ComputeThinV, #ComputeFullU, #ComputeFullV. It is not possible to request both the thin and full

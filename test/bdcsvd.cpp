@@ -491,14 +491,9 @@ EIGEN_DECLARE_TEST(bdcsvd) {
   CALL_SUBTEST_4((bdcsvd_asserts<Matrix<float, 7, 10>>()));
   CALL_SUBTEST_5((bdcsvd_asserts<Matrix<std::complex<double>, 6, 9>>()));
   CALL_SUBTEST_6((bdcsvd_mixed_option_enum_regression()));
-  CALL_SUBTEST_62((bdcsvd_always_precondition_bidiagonal()));
-  CALL_SUBTEST_62((bdcsvd_always_precondition_small<Matrix2d>()));
-  CALL_SUBTEST_62((bdcsvd_always_precondition_small<Matrix<std::complex<float>, 5, 5, RowMajor>>()));
   for (int i = 0; i < g_repeat; i++) {
-    const Index n = internal::random<Index>(1, 15);
-    TEST_SET_BUT_UNUSED_VARIABLE(n);
-    CALL_SUBTEST_62((bdcsvd_always_precondition_small<MatrixXd>(MatrixXd(n, n))));
-    CALL_SUBTEST_62((bdcsvd_always_precondition_small<MatrixXcf>(MatrixXcf(n, n))));
+    CALL_SUBTEST_62((svd_always_precondition_accuracy<float>()));
+    CALL_SUBTEST_63((svd_always_precondition_accuracy<std::complex<float>>()));
   }
 
   CALL_SUBTEST_7((bdcsvd_thin_full_options<Matrix2cd>()));

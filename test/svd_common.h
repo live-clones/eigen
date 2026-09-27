@@ -677,6 +677,35 @@ void svd_check_max_size_matrix(int initialRows, int initialCols) {
   VERIFY_RAISES_ASSERT(fullSvd.compute(dynamicMatrix));
 }
 
+// A square, column-scaled unitary matrix, A = UD, has an extremely simple QR decomposition, since
+// qr(A) = QD (R = D is diagonal). Using JacobiSVD's QRPreconditioner in this case is always beneficial,
+// since A is dense, but R is diagonal.
+// Using matrix size n = 12 is below BDCSVD's switch size, so BDCSVD will invoke JacobiSVD.
+template <typename Scalar>
+void svd_always_precondition_accuracy() {
+  using RefScalar = std::conditional_t<NumTraits<Scalar>::IsComplex, std::complex<double>, double>;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using RefMatrixType = Matrix<RefScalar, Dynamic, Dynamic>;
+  using RefVectorType = Matrix<RefScalar, Dynamic, 1>;
+  const Index n = 12;
+  const RefMatrixType q = HouseholderQR<RefMatrixType>(RefMatrixType::Random(n, n)).householderQ();
+  RefVectorType scaling(n);
+  for (Index i = 0; i < n; ++i) scaling(i) = RefScalar(std::pow(1e6, -double(i) / double(n - 1)));
+  const MatrixType m = (q * scaling.asDiagonal()).template cast<Scalar>();
+
+  // reference SDV is computed in double precision
+  const VectorXd reference = JacobiSVD<RefMatrixType>(m.template cast<RefScalar>()).singularValues();
+  const auto relativeError = [&reference](const auto& singularValues) {
+    return ((singularValues.template cast<double>() - reference).array().abs() / reference.array()).maxCoeff();
+  };
+
+  // preconditioning is always closer to reference. 
+  const double defaultError = relativeError(SVD_DEFAULT(MatrixType)(m).singularValues());
+  const double preconditionedError =
+      relativeError(SVD_STATIC_OPTIONS(MatrixType, AlwaysPrecondition)(m).singularValues());
+  VERIFY(preconditionedError < defaultError);
+}
+
 #undef SVD_DEFAULT
 #undef SVD_FOR_MIN_NORM
 #undef SVD_STATIC_OPTIONS

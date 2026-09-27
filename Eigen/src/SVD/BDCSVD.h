@@ -55,10 +55,9 @@ struct traits<BDCSVD<MatrixType_, Options> > : svd_traits<MatrixType_, Options> 
  *                  #DisableQRDecomposition. It is not possible to request both the thin and full version of \a U or
  *                  \a V. By default, unitaries are not computed. BDCSVD uses R-Bidiagonalization to improve
  *                  performance on tall and wide matrices. For backwards compatibility, the option
- *                  #DisableQRDecomposition can be used to disable this optimization. #AlwaysPrecondition is
- *                  forwarded to the JacobiSVD that decomposes inputs with fewer columns than the switch size (see
- *                  setSwitchSize()); it has no effect on larger inputs and cannot be combined with
- *                  #DisableQRDecomposition.
+ *                  #DisableQRDecomposition can be used to disable this optimization. For small enough inputs,
+ *                  #AlwaysPrecondition is forwarded to JacobiSVD. It has no effect on larger inputs and cannot be
+ *                  combined with #DisableQRDecomposition.
  *
  * This class first reduces the input matrix to bi-diagonal form using class UpperBidiagonalization,
  * and then performs a divide-and-conquer diagonalization. Small blocks are diagonalized using class JacobiSVD.
