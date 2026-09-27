@@ -165,9 +165,9 @@ void diagonalmatrices(const MatrixType& m) {
   VERIFY_IS_APPROX((sq_m1 + ldm1).sum(), (sq_m1 + ldm1Dense).sum());
   VERIFY_IS_APPROX((s1 * (sq_m1 - ldm1)).eval(), s1 * (sq_m1 - ldm1Dense));
 
-  // Direct assignment runs the dense operand's own kernel and then updates the diagonal: compound
-  // assignment, the negated forms, self-assignment of the dense operand, and a product operand on either
-  // side (the right one keeps the "xpr + product" rule).
+  // Direct assignment writes each column as vectorized segments of the dense operand around the diagonal
+  // coefficient: compound assignment, the negated forms, self-assignment of the dense operand, and a product
+  // operand on either side (the right one keeps the "xpr + product" rule).
   sq_m2 = random_for_arithmetic<SquareMatrixType>(rows, rows);
   sq_m3 = sq_m2;
   sq_m2 += sq_m1 + ldm1;
@@ -191,6 +191,62 @@ void diagonalmatrices(const MatrixType& m) {
   VERIFY_IS_APPROX(sq_m2 = sq_m1 * sq_m1 - ldm1, SquareMatrixType(sq_m1 * sq_m1 - ldm1Dense));
   sq_m2 = sq_m1;
   VERIFY_IS_APPROX(sq_m2 = sq_m2 * sq_m2 + ldm1, SquareMatrixType(sq_m1 * sq_m1 + ldm1Dense));
+
+  // The result is the coefficient-wise one, bit for bit. With dst scaled by 1024, dst + a drops low bits of a,
+  // so += and -= must add the exact sum at the diagonal; and a diagonal taken from the destination is read
+  // before it is overwritten.
+  const SquareMatrixType dst0 = Scalar(1024) * random_for_arithmetic<SquareMatrixType>(rows, rows);
+  const SquareMatrixType dst0Diagonal = dst0.diagonal().asDiagonal();
+  sq_m2 = dst0;
+  sq_m3 = dst0;
+  sq_m2 += sq_m1 + ldm1;
+  sq_m3 += sq_m1 + ldm1Dense;
+  VERIFY_IS_EQUAL(sq_m2, sq_m3);
+  sq_m2 -= ldm1 - sq_m1;
+  sq_m3 -= ldm1Dense - sq_m1;
+  VERIFY_IS_EQUAL(sq_m2, sq_m3);
+  sq_m2 = dst0;
+  sq_m2 = sq_m1 + sq_m2.diagonal().asDiagonal();
+  VERIFY_IS_EQUAL(sq_m2, SquareMatrixType(sq_m1 + dst0Diagonal));
+  sq_m2 = dst0;
+  sq_m2 = sq_m2.diagonal().asDiagonal() - sq_m1;
+  VERIFY_IS_EQUAL(sq_m2, SquareMatrixType(dst0Diagonal - sq_m1));
+  sq_m2 = dst0;
+  sq_m2 += sq_m1 - sq_m2.diagonal().asDiagonal();
+  VERIFY_IS_EQUAL(sq_m2, SquareMatrixType(dst0 + (sq_m1 - dst0Diagonal)));
+}
+
+// Operands for which a two-pass assignment (dense operand, then the diagonal) differs from the coefficient-wise sum.
+template <int>
+void dense_diagonal_sum_assignment_regressions() {
+  // dst + (a + d) is finite, (dst + a) + d is not.
+  Matrix<double, 1, 1> dst, a, d;
+  dst << 1e308;
+  a << 1e308;
+  d << -1e308;
+  dst += a + d.asDiagonal();
+  VERIFY_IS_EQUAL(dst(0, 0), 1e308);
+  // d - a is defined for d = a = INT_MIN, -a is not (-fsanitize=undefined reports it).
+  Matrix<int, 1, 1> ai, r;
+  ai << NumTraits<int>::lowest();
+  const Matrix<int, 1, 1> di = ai;
+  r = di.asDiagonal() - ai;
+  VERIFY_IS_EQUAL(r(0, 0), 0);
+  // dst - (a - d) is defined for dst = INT_MIN and a = d = 1, dst - a is not.
+  r << NumTraits<int>::lowest();
+  ai << 1;
+  r -= ai - ai.asDiagonal();
+  VERIFY_IS_EQUAL(r(0, 0), NumTraits<int>::lowest());
+  // bool has no negation or subtraction, so a sum must not instantiate them.
+  Matrix<bool, 3, 3> b = Matrix<bool, 3, 3>::Zero();
+  b(0, 1) = true;
+  const DiagonalMatrix<bool, 3> bd(true, false, true);
+  Matrix<bool, 3, 3> expected = b;
+  expected(0, 0) = expected(2, 2) = true;
+  Matrix<bool, 3, 3> bs = b + bd;
+  VERIFY((bs.array() == expected.array()).all());
+  bs = bd + b;
+  VERIFY((bs.array() == expected.array()).all());
 }
 
 template <typename MatrixType>
@@ -659,6 +715,7 @@ EIGEN_DECLARE_TEST(diagonalmatrices) {
   CALL_SUBTEST_10(selfadjoint_diagonal_products<0>());
   CALL_SUBTEST_10(selfadjoint_diagonal_products_block_path<0>());
   CALL_SUBTEST_10(structured_diagonal_aliasing<0>());
+  CALL_SUBTEST_10(dense_diagonal_sum_assignment_regressions<0>());
   CALL_SUBTEST_11(diagonal_matrix_moves<float>());
   CALL_SUBTEST_11(diagonal_matrix_moves<double>());
   CALL_SUBTEST_11(diagonal_matrix_moves<int>());

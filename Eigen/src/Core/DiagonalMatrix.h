@@ -565,9 +565,10 @@ struct Assignment<DstXprType, SrcXprType, Functor, Diagonal2Dense> {
 };
 
 /***************************************************************************
- * Dense ?= dense +/- structured operand, in either order: the lazy CwiseBinaryOp keeps its type, but a direct
- * assignment first assigns the dense operand with its own (vectorized) kernel and then applies the structured
- * term along its nonzeros, instead of evaluating the sum coefficient by coefficient without packets.
+ * Dense ?= lhs +/- rhs, where one operand is dense and the other has one structural nonzero in each column of the
+ * destination: the lazy CwiseBinaryOp keeps its type, but a direct assignment writes each column as two vectorized
+ * segments of the dense operand around that nonzero, instead of evaluating the sum coefficient by coefficient
+ * without packets.
  ***************************************************************************/
 
 // The three functors such an assignment can carry, and the sign with which they add the source.
@@ -579,6 +580,18 @@ template <typename Scalar>
 struct additive_assign_sign<add_assign_op<Scalar, Scalar>> : std::integral_constant<int, 1> {};
 template <typename Scalar>
 struct additive_assign_sign<sub_assign_op<Scalar, Scalar>> : std::integral_constant<int, -1> {};
+
+template <typename Functor>
+struct is_plain_assign : std::false_type {};
+template <typename Scalar>
+struct is_plain_assign<assign_op<Scalar, Scalar>> : std::true_type {};
+
+template <typename BinaryOp>
+struct is_additive_binary_op : std::false_type {};
+template <typename Scalar>
+struct is_additive_binary_op<scalar_sum_op<Scalar, Scalar>> : std::true_type {};
+template <typename Scalar>
+struct is_additive_binary_op<scalar_difference_op<Scalar, Scalar>> : std::true_type {};
 
 template <typename T>
 struct is_dense_shape : std::is_same<typename evaluator_traits<T>::Shape, DenseShape> {};
@@ -593,77 +606,154 @@ struct is_default_product<Product<Lhs, Rhs, DefaultProduct>> : std::true_type {}
 template <typename T>
 struct is_permutation_dense_xpr : std::false_type {};
 
+template <typename BinaryOp>
+struct is_difference_op : std::false_type {};
+template <typename Scalar>
+struct is_difference_op<scalar_difference_op<Scalar, Scalar>> : std::true_type {};
+
+// The block pass below also forms dst ?= +/-dense at the structured coefficients, then overwrites them. For signed
+// integers that intermediate can overflow where the coefficient-wise dst ?= op(lhs, rhs) does not (-INT_MIN, or
+// INT_MIN - 1 in INT_MIN - (1 - 1)), so they take the fast path only when the block pass is a copy.
+template <typename Scalar, typename Functor, bool NegateDense>
+struct dense_block_pass_cannot_overflow
+    : bool_constant<!(NumTraits<Scalar>::IsInteger && std::numeric_limits<Scalar>::is_signed) ||
+                    (is_plain_assign<Functor>::value && !NegateDense)> {};
+
 // Mixed scalar types and functors other than =, += and -= stay on the generic coefficient-wise path.
-template <typename Dst, typename DenseXpr, typename DiagonalXpr, typename Functor>
+template <typename Dst, typename DenseXpr, typename DiagonalXpr, typename Functor, bool NegateDense>
 struct dense_diagonal_sum_fast_path
     : bool_constant<is_dense_shape<DenseXpr>::value && !is_permutation_dense_xpr<DenseXpr>::value &&
                     is_diagonal_shape<DiagonalXpr>::value && additive_assign_sign<Functor>::value != 0 &&
                     std::is_same<typename Dst::Scalar, typename DenseXpr::Scalar>::value &&
-                    std::is_same<typename DenseXpr::Scalar, typename DiagonalXpr::Scalar>::value> {};
+                    std::is_same<typename DenseXpr::Scalar, typename DiagonalXpr::Scalar>::value &&
+                    dense_block_pass_cannot_overflow<typename Dst::Scalar, Functor, NegateDense>::value> {};
 
-// dst ?= (NegateDense ? -dense : dense), then dst.diagonal() +/-= diagonal. call_assignment keeps the aliasing
-// protection a product operand needs.
-template <bool NegateDense, bool SubtractDiagonal>
-struct dense_diagonal_sum_assignment {
-  template <typename Dst, typename DenseXpr, typename DiagonalXpr, typename Functor>
-  static void run(Dst& dst, const DenseXpr& dense, const DiagonalXpr& diagonal, const Functor& func) {
-    EIGEN_IF_CONSTEXPR (NegateDense) {
-      call_assignment(dst, -dense, func);
-    } else {
-      call_assignment(dst, dense, func);
-    }
-    EIGEN_IF_CONSTEXPR ((additive_assign_sign<Functor>::value > 0) != SubtractDiagonal) {
-      dst.diagonal() += diagonal.diagonal();
-    } else {
-      dst.diagonal() -= diagonal.diagonal();
-    }
+// block ?= +/-dense block as one of =, = -, += and -=, chosen at compile time: bool has no negation or subtraction,
+// so no other operator may be instantiated.
+template <bool Assign, int Sign>
+struct dense_block_update;
+template <>
+struct dense_block_update<true, 1> {
+  template <typename Block, typename DenseBlock>
+  EIGEN_DEVICE_FUNC static void run(Block&& block, const DenseBlock& dense) {
+    block = dense;
+  }
+};
+template <>
+struct dense_block_update<true, -1> {
+  template <typename Block, typename DenseBlock>
+  EIGEN_DEVICE_FUNC static void run(Block&& block, const DenseBlock& dense) {
+    block = -dense;
+  }
+};
+template <>
+struct dense_block_update<false, 1> {
+  template <typename Block, typename DenseBlock>
+  EIGEN_DEVICE_FUNC static void run(Block&& block, const DenseBlock& dense) {
+    block += dense;
+  }
+};
+template <>
+struct dense_block_update<false, -1> {
+  template <typename Block, typename DenseBlock>
+  EIGEN_DEVICE_FUNC static void run(Block&& block, const DenseBlock& dense) {
+    block -= dense;
   }
 };
 
-template <typename DstXprType, typename Lhs, typename Rhs, typename Functor>
-struct Assignment<
-    DstXprType, CwiseBinaryOp<scalar_sum_op<typename Lhs::Scalar, typename Rhs::Scalar>, const Lhs, const Rhs>, Functor,
-    Dense2Dense, std::enable_if_t<dense_diagonal_sum_fast_path<DstXprType, Lhs, Rhs, Functor>::value>> {
-  using SrcXprType = CwiseBinaryOp<scalar_sum_op<typename Lhs::Scalar, typename Rhs::Scalar>, const Lhs, const Rhs>;
-  static void run(DstXprType& dst, const SrcXprType& src, const Functor& func) {
-    dense_diagonal_sum_assignment<false, false>::run(dst, src.lhs(), src.rhs(), func);
+// A diagonal as the structured operand: its nonzero in column k is at row k.
+template <typename DiagonalXpr>
+struct diagonal_column_nonzeros {
+  using Scalar = typename DiagonalXpr::Scalar;
+  EIGEN_DEVICE_FUNC explicit diagonal_column_nonzeros(const DiagonalXpr& diagonal) : m_diagonal(diagonal) {}
+  EIGEN_DEVICE_FUNC Index row(Index k) const { return k; }
+  EIGEN_DEVICE_FUNC Scalar value(Index k) const { return m_diagonal.coeff(k, k); }
+  evaluator<DiagonalXpr> m_diagonal;
+};
+
+// Column-major views of a row-major destination and its dense operand; a structured operand is only paired with a
+// destination along whose columns it has one nonzero each, so after transposition it needs no view of its own.
+template <bool Transpose>
+struct column_major_view {
+  template <typename Xpr>
+  EIGEN_DEVICE_FUNC static Xpr& run(Xpr& xpr) {
+    return xpr;
+  }
+};
+template <>
+struct column_major_view<true> {
+  template <typename Xpr>
+  EIGEN_DEVICE_FUNC static auto run(Xpr& xpr) {
+    return xpr.transpose();
+  }
+};
+
+// dst ?= op(lhs, rhs) in blocks of columns. For each column k of a block, with the structured operand's nonzero at
+// row r, v(k) = func(dst(r, k), op(lhs(r, k), rhs(r, k))) is formed from coefficients read before the block is
+// written; then block ?= +/-dense block, and dst(r, k) = v(k). So each structured coefficient gets the
+// coefficient-wise value and grouping, also when the diagonal or the dense operand is read from dst; structural
+// zeros are not added.
+template <bool DenseOnLeft>
+struct dense_structured_sum_assignment {
+  template <typename Dst, typename DenseXpr, typename Structured, typename BinaryOp, typename Functor>
+  EIGEN_DEVICE_FUNC static void run(Dst& dst, const DenseXpr& dense, const Structured& structured, const BinaryOp& op,
+                                    const Functor& func) {
+    using Scalar = typename Dst::Scalar;
+    constexpr bool kNegateDense = !DenseOnLeft && std::is_same<BinaryOp, scalar_difference_op<Scalar, Scalar>>::value;
+    constexpr int kSign = additive_assign_sign<Functor>::value * (kNegateDense ? -1 : 1);
+    constexpr Index kBlockColumns = 32;
+    using Update = dense_block_update<is_plain_assign<Functor>::value, kSign>;
+    const evaluator<DenseXpr> denseEval(dense);
+    Scalar values[kBlockColumns];
+    for (Index j = 0; j < dst.cols(); j += kBlockColumns) {
+      const Index columns = numext::mini(Index(kBlockColumns), dst.cols() - j);
+      for (Index k = 0; k < columns; ++k) {
+        const Index r = structured.row(j + k);
+        const Scalar s = structured.value(j + k);
+        const Scalar d = denseEval.coeff(r, j + k);
+        EIGEN_IF_CONSTEXPR (!is_plain_assign<Functor>::value) {
+          values[k] = dst.coeff(r, j + k);
+        }
+        func.assignCoeff(values[k], DenseOnLeft ? op(d, s) : op(s, d));
+      }
+      Update::run(dst.middleCols(j, columns), dense.middleCols(j, columns));
+      for (Index k = 0; k < columns; ++k) {
+        dst.coeffRef(structured.row(j + k), j + k) = values[k];
+      }
+    }
+  }
+
+  template <typename Dst, typename SrcXprType, typename DenseXpr, typename Structured, typename Functor>
+  EIGEN_DEVICE_FUNC static void assign(Dst& dst, const SrcXprType& src, const DenseXpr& denseXpr,
+                                       const Structured& structured, const Functor& func) {
+    // Evaluates a product operand once, before dst is resized or written.
+    const typename nested_eval<DenseXpr, 1>::type dense(denseXpr);
+    resize_if_allowed(dst, src, func);
+    auto&& dstView = column_major_view<bool(Dst::IsRowMajor)>::run(dst);
+    run(dstView, column_major_view<bool(Dst::IsRowMajor)>::run(dense), structured, src.functor(), func);
+  }
+};
+
+template <typename DstXprType, typename BinaryOp, typename Lhs, typename Rhs, typename Functor>
+struct Assignment<DstXprType, CwiseBinaryOp<BinaryOp, const Lhs, const Rhs>, Functor, Dense2Dense,
+                  std::enable_if_t<is_additive_binary_op<BinaryOp>::value &&
+                                   dense_diagonal_sum_fast_path<DstXprType, Lhs, Rhs, Functor, false>::value>> {
+  using SrcXprType = CwiseBinaryOp<BinaryOp, const Lhs, const Rhs>;
+  EIGEN_DEVICE_FUNC static void run(DstXprType& dst, const SrcXprType& src, const Functor& func) {
+    dense_structured_sum_assignment<true>::assign(dst, src, src.lhs(), diagonal_column_nonzeros<Rhs>(src.rhs()), func);
   }
 };
 
 // A dense product on the right is left to the "xpr + product" rule above.
-template <typename DstXprType, typename Lhs, typename Rhs, typename Functor>
-struct Assignment<DstXprType,
-                  CwiseBinaryOp<scalar_sum_op<typename Lhs::Scalar, typename Rhs::Scalar>, const Lhs, const Rhs>,
-                  Functor, Dense2Dense,
-                  std::enable_if_t<dense_diagonal_sum_fast_path<DstXprType, Rhs, Lhs, Functor>::value &&
+template <typename DstXprType, typename BinaryOp, typename Lhs, typename Rhs, typename Functor>
+struct Assignment<DstXprType, CwiseBinaryOp<BinaryOp, const Lhs, const Rhs>, Functor, Dense2Dense,
+                  std::enable_if_t<is_additive_binary_op<BinaryOp>::value &&
+                                   dense_diagonal_sum_fast_path<DstXprType, Rhs, Lhs, Functor,
+                                                                is_difference_op<BinaryOp>::value>::value &&
                                    !is_default_product<Rhs>::value>> {
-  using SrcXprType = CwiseBinaryOp<scalar_sum_op<typename Lhs::Scalar, typename Rhs::Scalar>, const Lhs, const Rhs>;
-  static void run(DstXprType& dst, const SrcXprType& src, const Functor& func) {
-    dense_diagonal_sum_assignment<false, false>::run(dst, src.rhs(), src.lhs(), func);
-  }
-};
-
-template <typename DstXprType, typename Lhs, typename Rhs, typename Functor>
-struct Assignment<
-    DstXprType, CwiseBinaryOp<scalar_difference_op<typename Lhs::Scalar, typename Rhs::Scalar>, const Lhs, const Rhs>,
-    Functor, Dense2Dense, std::enable_if_t<dense_diagonal_sum_fast_path<DstXprType, Lhs, Rhs, Functor>::value>> {
-  using SrcXprType =
-      CwiseBinaryOp<scalar_difference_op<typename Lhs::Scalar, typename Rhs::Scalar>, const Lhs, const Rhs>;
-  static void run(DstXprType& dst, const SrcXprType& src, const Functor& func) {
-    dense_diagonal_sum_assignment<false, true>::run(dst, src.lhs(), src.rhs(), func);
-  }
-};
-
-template <typename DstXprType, typename Lhs, typename Rhs, typename Functor>
-struct Assignment<DstXprType,
-                  CwiseBinaryOp<scalar_difference_op<typename Lhs::Scalar, typename Rhs::Scalar>, const Lhs, const Rhs>,
-                  Functor, Dense2Dense,
-                  std::enable_if_t<dense_diagonal_sum_fast_path<DstXprType, Rhs, Lhs, Functor>::value &&
-                                   !is_default_product<Rhs>::value>> {
-  using SrcXprType =
-      CwiseBinaryOp<scalar_difference_op<typename Lhs::Scalar, typename Rhs::Scalar>, const Lhs, const Rhs>;
-  static void run(DstXprType& dst, const SrcXprType& src, const Functor& func) {
-    dense_diagonal_sum_assignment<true, false>::run(dst, src.rhs(), src.lhs(), func);
+  using SrcXprType = CwiseBinaryOp<BinaryOp, const Lhs, const Rhs>;
+  EIGEN_DEVICE_FUNC static void run(DstXprType& dst, const SrcXprType& src, const Functor& func) {
+    dense_structured_sum_assignment<false>::assign(dst, src, src.rhs(), diagonal_column_nonzeros<Lhs>(src.lhs()), func);
   }
 };
 

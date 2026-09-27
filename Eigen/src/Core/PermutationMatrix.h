@@ -726,40 +726,16 @@ struct AssignmentKind<DenseShape, PermutationShape> {
   using Kind = EigenBase2EigenBase;
 };
 
-// Dense ?= (dense or diagonal) +/- permutation, in either order: like the diagonal sums in DiagonalMatrix.h, the
-// other operand is assigned with its own kernel and the permutation's n ones are then scattered.
-template <typename Derived>
-EIGEN_DEVICE_FUNC auto negated_operand(const MatrixBase<Derived>& xpr) {
-  return -xpr.derived();
-}
-template <typename Derived>
-EIGEN_DEVICE_FUNC auto negated_operand(const DiagonalBase<Derived>& xpr) {
-  return (-xpr.diagonal()).asDiagonal();
-}
-
-template <typename Dst, typename OtherXpr, typename Functor>
-struct dense_permutation_sum_fast_path
-    : bool_constant<(is_dense_shape<OtherXpr>::value || is_diagonal_shape<OtherXpr>::value) &&
-                    additive_assign_sign<Functor>::value != 0 &&
-                    std::is_same<typename Dst::Scalar, typename OtherXpr::Scalar>::value> {};
-
-template <bool NegateOther, bool SubtractPermutation, bool Transposed>
-struct dense_permutation_sum_assignment {
-  template <typename Dst, typename OtherXpr, typename PermutationXpr, typename Functor>
-  static void run(Dst& dst, const OtherXpr& other, const PermutationXpr& permutation, const Functor& func) {
-    using Scalar = typename Dst::Scalar;
-    EIGEN_IF_CONSTEXPR (NegateOther) {
-      call_assignment(dst, negated_operand(other), func);
-    } else {
-      call_assignment(dst, other, func);
-    }
-    const Scalar one = ((additive_assign_sign<Functor>::value > 0) != SubtractPermutation) ? Scalar(1) : Scalar(-1);
-    const auto& indices = permutation.functor().indices();
-    for (Index k = 0; k < indices.size(); ++k) {
-      const Index image = indices.coeff(k);
-      dst.coeffRef(Transposed ? k : image, Transposed ? image : k) += one;
-    }
-  }
+// Dense ?= (dense or diagonal) +/- permutation, in either order. The permutation's one in column k is at row
+// indices(k), and at column indices(k) of row k for its transpose; the column kernels below need one nonzero per
+// destination column, so P pairs with a column-major and P^T with a row-major destination, and the other pairings
+// stay on the generic path.
+template <typename Scalar, typename IndicesType>
+struct permutation_column_nonzeros {
+  EIGEN_DEVICE_FUNC explicit permutation_column_nonzeros(const IndicesType& indices) : m_indices(indices) {}
+  EIGEN_DEVICE_FUNC Index row(Index k) const { return Index(m_indices.coeff(k)); }
+  EIGEN_DEVICE_FUNC Scalar value(Index) const { return Scalar(1); }
+  const IndicesType& m_indices;
 };
 
 template <typename Scalar, typename IndicesType, bool Transposed, typename Plain>
@@ -768,65 +744,106 @@ using permutation_dense_xpr = CwiseNullaryOp<permutation_dense_op<Scalar, Indice
 template <typename Scalar, typename IndicesType, bool Transposed, typename Plain>
 struct is_permutation_dense_xpr<permutation_dense_xpr<Scalar, IndicesType, Transposed, Plain>> : std::true_type {};
 
-// other + permutation
-template <typename DstXprType, typename OtherXpr, typename Scalar, typename IndicesType, bool Transposed,
-          typename Plain, typename Functor>
-struct Assignment<DstXprType,
-                  CwiseBinaryOp<scalar_sum_op<Scalar, Scalar>, const OtherXpr,
-                                const permutation_dense_xpr<Scalar, IndicesType, Transposed, Plain>>,
-                  Functor, Dense2Dense,
-                  std::enable_if_t<dense_permutation_sum_fast_path<DstXprType, OtherXpr, Functor>::value>> {
-  using SrcXprType = CwiseBinaryOp<scalar_sum_op<Scalar, Scalar>, const OtherXpr,
-                                   const permutation_dense_xpr<Scalar, IndicesType, Transposed, Plain>>;
-  static void run(DstXprType& dst, const SrcXprType& src, const Functor& func) {
-    dense_permutation_sum_assignment<false, false, Transposed>::run(dst, src.lhs(), src.rhs(), func);
+// A diagonal operand never goes through the block pass, so only a dense one is subject to
+// dense_block_pass_cannot_overflow.
+template <typename Dst, typename OtherXpr, bool Transposed, typename Functor, bool NegateOther>
+struct dense_permutation_sum_fast_path
+    : bool_constant<(is_dense_shape<OtherXpr>::value || is_diagonal_shape<OtherXpr>::value) &&
+                    !is_permutation_dense_xpr<OtherXpr>::value && bool(Dst::IsRowMajor) == Transposed &&
+                    additive_assign_sign<Functor>::value != 0 &&
+                    std::is_same<typename Dst::Scalar, typename OtherXpr::Scalar>::value &&
+                    (is_diagonal_shape<OtherXpr>::value ||
+                     dense_block_pass_cannot_overflow<typename Dst::Scalar, Functor, NegateOther>::value)> {};
+
+// dst ?= op(lhs, rhs) for a diagonal d and a permutation whose one in column k is at row r: op(d(k), [r == k]) at
+// (k, k), op(0, 1) or op(1, 0) at (r, k) when r != k, and structural zeros, which only = writes. A block's d(k) are
+// read before the block is written.
+template <bool DiagonalOnLeft>
+struct diagonal_permutation_sum_assignment {
+  template <typename Dst, typename Diagonal, typename Permutation, typename BinaryOp, typename Functor>
+  EIGEN_DEVICE_FUNC static void run(Dst& dst, const Diagonal& diagonal, const Permutation& permutation,
+                                    const BinaryOp& op, const Functor& func) {
+    using Scalar = typename Dst::Scalar;
+    constexpr Index kBlockColumns = 32;
+    const Scalar offDiagonalOne = DiagonalOnLeft ? op(Scalar(0), Scalar(1)) : op(Scalar(1), Scalar(0));
+    Scalar atDiagonal[kBlockColumns];
+    for (Index j = 0; j < dst.cols(); j += kBlockColumns) {
+      const Index columns = numext::mini(Index(kBlockColumns), dst.cols() - j);
+      for (Index k = 0; k < columns; ++k) {
+        const Scalar d = diagonal.value(j + k);
+        const Scalar p = permutation.row(j + k) == j + k ? Scalar(1) : Scalar(0);
+        atDiagonal[k] = DiagonalOnLeft ? op(d, p) : op(p, d);
+      }
+      EIGEN_IF_CONSTEXPR (is_plain_assign<Functor>::value) {
+        dst.middleCols(j, columns).setZero();
+      }
+      for (Index k = 0; k < columns; ++k) {
+        const Index r = permutation.row(j + k);
+        func.assignCoeff(dst.coeffRef(j + k, j + k), atDiagonal[k]);
+        if (r != j + k) {
+          func.assignCoeff(dst.coeffRef(r, j + k), offDiagonalOne);
+        }
+      }
+    }
   }
 };
 
-// permutation + other; a dense product on the right is left to the "xpr + product" rule.
-template <typename DstXprType, typename OtherXpr, typename Scalar, typename IndicesType, bool Transposed,
-          typename Plain, typename Functor>
-struct Assignment<DstXprType,
-                  CwiseBinaryOp<scalar_sum_op<Scalar, Scalar>,
-                                const permutation_dense_xpr<Scalar, IndicesType, Transposed, Plain>, const OtherXpr>,
-                  Functor, Dense2Dense,
-                  std::enable_if_t<dense_permutation_sum_fast_path<DstXprType, OtherXpr, Functor>::value &&
-                                   !is_default_product<OtherXpr>::value>> {
-  using SrcXprType = CwiseBinaryOp<scalar_sum_op<Scalar, Scalar>,
-                                   const permutation_dense_xpr<Scalar, IndicesType, Transposed, Plain>, const OtherXpr>;
-  static void run(DstXprType& dst, const SrcXprType& src, const Functor& func) {
-    dense_permutation_sum_assignment<false, false, Transposed>::run(dst, src.rhs(), src.lhs(), func);
+template <bool OtherIsDiagonal, bool OtherOnLeft>
+struct permutation_sum_assignment {
+  template <typename Dst, typename SrcXprType, typename OtherXpr, typename Nonzeros, typename Functor>
+  EIGEN_DEVICE_FUNC static void run(Dst& dst, const SrcXprType& src, const OtherXpr& other, const Nonzeros& ones,
+                                    const Functor& func) {
+    dense_structured_sum_assignment<OtherOnLeft>::assign(dst, src, other, ones, func);
   }
 };
 
-// other - permutation
-template <typename DstXprType, typename OtherXpr, typename Scalar, typename IndicesType, bool Transposed,
-          typename Plain, typename Functor>
-struct Assignment<DstXprType,
-                  CwiseBinaryOp<scalar_difference_op<Scalar, Scalar>, const OtherXpr,
-                                const permutation_dense_xpr<Scalar, IndicesType, Transposed, Plain>>,
-                  Functor, Dense2Dense,
-                  std::enable_if_t<dense_permutation_sum_fast_path<DstXprType, OtherXpr, Functor>::value>> {
-  using SrcXprType = CwiseBinaryOp<scalar_difference_op<Scalar, Scalar>, const OtherXpr,
-                                   const permutation_dense_xpr<Scalar, IndicesType, Transposed, Plain>>;
-  static void run(DstXprType& dst, const SrcXprType& src, const Functor& func) {
-    dense_permutation_sum_assignment<false, true, Transposed>::run(dst, src.lhs(), src.rhs(), func);
+template <bool OtherOnLeft>
+struct permutation_sum_assignment<true, OtherOnLeft> {
+  template <typename Dst, typename SrcXprType, typename OtherXpr, typename Nonzeros, typename Functor>
+  EIGEN_DEVICE_FUNC static void run(Dst& dst, const SrcXprType& src, const OtherXpr& other, const Nonzeros& ones,
+                                    const Functor& func) {
+    const diagonal_column_nonzeros<OtherXpr> diagonal(other);
+    resize_if_allowed(dst, src, func);
+    auto&& dstView = column_major_view<bool(Dst::IsRowMajor)>::run(dst);
+    diagonal_permutation_sum_assignment<OtherOnLeft>::run(dstView, diagonal, ones, src.functor(), func);
   }
 };
 
-// permutation - other
-template <typename DstXprType, typename OtherXpr, typename Scalar, typename IndicesType, bool Transposed,
-          typename Plain, typename Functor>
-struct Assignment<DstXprType,
-                  CwiseBinaryOp<scalar_difference_op<Scalar, Scalar>,
-                                const permutation_dense_xpr<Scalar, IndicesType, Transposed, Plain>, const OtherXpr>,
-                  Functor, Dense2Dense,
-                  std::enable_if_t<dense_permutation_sum_fast_path<DstXprType, OtherXpr, Functor>::value &&
-                                   !is_default_product<OtherXpr>::value>> {
-  using SrcXprType = CwiseBinaryOp<scalar_difference_op<Scalar, Scalar>,
-                                   const permutation_dense_xpr<Scalar, IndicesType, Transposed, Plain>, const OtherXpr>;
-  static void run(DstXprType& dst, const SrcXprType& src, const Functor& func) {
-    dense_permutation_sum_assignment<true, false, Transposed>::run(dst, src.rhs(), src.lhs(), func);
+// other +/- permutation
+template <typename DstXprType, typename BinaryOp, typename OtherXpr, typename Scalar, typename IndicesType,
+          bool Transposed, typename Plain, typename Functor>
+struct Assignment<
+    DstXprType,
+    CwiseBinaryOp<BinaryOp, const OtherXpr, const permutation_dense_xpr<Scalar, IndicesType, Transposed, Plain>>,
+    Functor, Dense2Dense,
+    std::enable_if_t<is_additive_binary_op<BinaryOp>::value &&
+                     dense_permutation_sum_fast_path<DstXprType, OtherXpr, Transposed, Functor, false>::value>> {
+  using SrcXprType =
+      CwiseBinaryOp<BinaryOp, const OtherXpr, const permutation_dense_xpr<Scalar, IndicesType, Transposed, Plain>>;
+  EIGEN_DEVICE_FUNC static void run(DstXprType& dst, const SrcXprType& src, const Functor& func) {
+    const auto& indices = src.rhs().functor().indices();
+    permutation_sum_assignment<is_diagonal_shape<OtherXpr>::value, true>::run(
+        dst, src, src.lhs(), permutation_column_nonzeros<Scalar, remove_all_t<decltype(indices)>>(indices), func);
+  }
+};
+
+// permutation +/- other; a dense product on the right is left to the "xpr + product" rule.
+template <typename DstXprType, typename BinaryOp, typename OtherXpr, typename Scalar, typename IndicesType,
+          bool Transposed, typename Plain, typename Functor>
+struct Assignment<
+    DstXprType,
+    CwiseBinaryOp<BinaryOp, const permutation_dense_xpr<Scalar, IndicesType, Transposed, Plain>, const OtherXpr>,
+    Functor, Dense2Dense,
+    std::enable_if_t<is_additive_binary_op<BinaryOp>::value &&
+                     dense_permutation_sum_fast_path<DstXprType, OtherXpr, Transposed, Functor,
+                                                     is_difference_op<BinaryOp>::value>::value &&
+                     !is_default_product<OtherXpr>::value>> {
+  using SrcXprType =
+      CwiseBinaryOp<BinaryOp, const permutation_dense_xpr<Scalar, IndicesType, Transposed, Plain>, const OtherXpr>;
+  EIGEN_DEVICE_FUNC static void run(DstXprType& dst, const SrcXprType& src, const Functor& func) {
+    const auto& indices = src.lhs().functor().indices();
+    permutation_sum_assignment<is_diagonal_shape<OtherXpr>::value, false>::run(
+        dst, src, src.rhs(), permutation_column_nonzeros<Scalar, remove_all_t<decltype(indices)>>(indices), func);
   }
 };
 
