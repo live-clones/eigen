@@ -544,14 +544,21 @@ void SelfAdjointView<Scalar_, UpLo_>::rankUpdate(const DeviceMatrix<Scalar_>& A,
 
 namespace internal {
 // Runs `f` with the handle temporarily in CUBLAS_POINTER_MODE_DEVICE, restoring
-// the caller's mode afterwards.
+// the caller's mode afterwards, also when `f` throws: a handle left in device
+// mode reads the host scalars of every later call on it as device pointers.
 template <typename F>
 void with_device_pointer_mode(cublasHandle_t h, F&& f) {
+  struct RestorePointerMode {
+    cublasHandle_t h;
+    cublasPointerMode_t mode;
+    // Unchecked: this may run during unwinding.
+    ~RestorePointerMode() { (void)cublasSetPointerMode(h, mode); }
+  };
   cublasPointerMode_t prev;
   EIGEN_CUBLAS_CHECK(cublasGetPointerMode(h, &prev));
   EIGEN_CUBLAS_CHECK(cublasSetPointerMode(h, CUBLAS_POINTER_MODE_DEVICE));
+  RestorePointerMode restore{h, prev};
   f();
-  EIGEN_CUBLAS_CHECK(cublasSetPointerMode(h, prev));
 }
 }  // namespace internal
 

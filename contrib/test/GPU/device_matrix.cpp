@@ -435,6 +435,30 @@ void test_blas1(Index n) {
   }
 }
 
+// ---- Pointer mode survives an exception out of a device-mode body ----------
+
+void test_device_pointer_mode_restored_on_throw() {
+  struct BodyFailed {};
+  gpu::Context ctx;
+  const cublasHandle_t h = ctx.cublasHandle();
+  cublasPointerMode_t mode;
+  VERIFY_IS_EQUAL(cublasGetPointerMode(h, &mode), CUBLAS_STATUS_SUCCESS);
+  VERIFY_IS_EQUAL(mode, CUBLAS_POINTER_MODE_HOST);
+  bool thrown = false;
+  try {
+    gpu::internal::with_device_pointer_mode(h, [&] {
+      VERIFY_IS_EQUAL(cublasGetPointerMode(h, &mode), CUBLAS_STATUS_SUCCESS);
+      VERIFY_IS_EQUAL(mode, CUBLAS_POINTER_MODE_DEVICE);
+      throw BodyFailed();
+    });
+  } catch (const BodyFailed&) {
+    thrown = true;
+  }
+  VERIFY(thrown);
+  VERIFY_IS_EQUAL(cublasGetPointerMode(h, &mode), CUBLAS_STATUS_SUCCESS);
+  VERIFY_IS_EQUAL(mode, CUBLAS_POINTER_MODE_HOST);
+}
+
 // ---- BLAS-1 operator overloads (CG-style) -----------------------------------
 
 template <typename Scalar>
@@ -585,6 +609,7 @@ EIGEN_DECLARE_TEST(gpu_device_matrix) {
   CALL_SUBTEST(test_blas1<double>(256));
   CALL_SUBTEST(test_blas1<std::complex<float>>(256));
   CALL_SUBTEST(test_blas1<std::complex<double>>(256));
+  CALL_SUBTEST(test_device_pointer_mode_restored_on_throw());
   CALL_SUBTEST(test_cg_operators<float>(256));
   CALL_SUBTEST(test_cg_operators<double>(256));
   CALL_SUBTEST(test_cg_operators<std::complex<float>>(256));
