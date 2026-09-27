@@ -700,10 +700,14 @@ class SparseContext {
     eigen_assert(d_x.rows() * d_x.cols() == x_size);
 
     if (m == 0 || n == 0 || cached_nnz_ == 0) {
-      // Empty A reduces SpMV to y <- beta*y; the beta != 0 case must be handled by the caller.
-      eigen_assert(beta == Scalar(0) && "SpMV with empty A and beta != 0 is unsupported; scale d_y externally");
-      if (d_y.rows() * d_y.cols() != y_size) d_y.resize(*ctx_, y_size, 1);
-      d_y.setZero(*ctx_);
+      // Empty A reduces SpMV to y <- beta*y.
+      if (beta == Scalar(0)) {
+        if (d_y.rows() * d_y.cols() != y_size) d_y.resize(*ctx_, y_size, 1);
+        d_y.setZero(*ctx_);
+      } else {
+        eigen_assert(d_y.rows() * d_y.cols() == y_size && "SpMV with beta != 0: d_y has the wrong size");
+        if (beta != Scalar(1)) d_y.scale(*ctx_, beta);
+      }
       return;
     }
 
@@ -737,9 +741,14 @@ class SparseContext {
     eigen_assert(d_X.rows() == k_op);
 
     if (m_op == 0 || n == 0 || cached_nnz_ == 0) {
-      eigen_assert(beta == Scalar(0) && "SpMM with empty A and beta != 0 is unsupported; scale d_Y externally");
-      d_Y.resize(*ctx_, m_op, n);
-      d_Y.setZero(*ctx_);
+      // Empty A reduces SpMM to Y <- beta*Y.
+      if (beta == Scalar(0)) {
+        d_Y.resize(*ctx_, m_op, n);
+        d_Y.setZero(*ctx_);
+      } else {
+        eigen_assert(d_Y.rows() == m_op && d_Y.cols() == n && "SpMM with beta != 0: d_Y has the wrong size");
+        if (beta != Scalar(1)) d_Y.scale(*ctx_, beta);
+      }
       return;
     }
 
@@ -1059,11 +1068,6 @@ DeviceMatrix<Scalar_>& DeviceMatrix<Scalar_>::operator=(const SpMVAffineExpr<Sca
   // the SparseContext's Context, like the product itself.
   Context& ctx = view.context().context();
   if (&addend != this) copyFrom(ctx, addend);
-  // With no stored entries the expression is beta * addend, which spmv_device_exec cannot form.
-  if (view.nonZeros() == 0 || view.rows() == 0 || view.cols() == 0) {
-    if (expr.beta() != Scalar_(1)) scale(ctx, expr.beta());
-    return *this;
-  }
   if (expr.x().cols() <= 1) {
     view.context().spmv_device_exec(expr.x(), *this, expr.alpha(), expr.beta(), GpuOp::NoTrans);
   } else {

@@ -132,6 +132,7 @@ class SVD {
 
   SVD& compute(const DeviceMatrix<Scalar>& d_A, unsigned int options = ComputeThinU | ComputeThinV) {
     if (!begin_compute(d_A, options)) return *this;
+    d_A.prepareRead(context());
 
     if (transposed_) {
       transpose_into_input(d_A);
@@ -156,6 +157,7 @@ class SVD {
     if (!begin_compute(d_A, options)) return *this;
 
     if (transposed_) {
+      d_A.prepareRead(context());
       transpose_into_input(d_A);
       d_A.finishRead(context());
     } else {
@@ -229,9 +231,10 @@ class SVD {
 
   //
   // These return non-owning DeviceMatrix views over the SVD's internal device storage.
-  // The view borrows the pointer: destruction does not free; the SVD object must outlive
-  // any view derived from it. For the common case (m >= n) all three accessors are pure
-  // metadata: zero kernel launches, zero allocations.
+  // The view borrows the pointer: destruction does not free. Destroy the views before the
+  // SVD is recomputed or destroyed: the solver's later work is ordered after the accesses
+  // made through a view, on any Context, only once the view is gone. For the common case
+  // (m >= n) all three accessors are pure metadata: zero kernel launches, zero allocations.
   //
   // For wide matrices (m < n, internally factored as A^H), original U and V^T are the
   // adjoints of the stored buffers, so d_matrixU() / d_matrixVT() build them via a
@@ -397,7 +400,6 @@ class SVD {
     } else {
       lda_ = static_cast<int64_t>(d_A.rows());
     }
-    d_A.prepareRead(context());
     return true;
   }
 
@@ -499,9 +501,7 @@ class SVD {
 
     const Index k = (std::min)(m_, n_);
     RealVector S(k);
-    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(S.data(), d_S_.get(), static_cast<size_t>(k) * sizeof(RealScalar),
-                                             cudaMemcpyDeviceToHost, solver_ctx_.stream()));
-    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(solver_ctx_.stream()));
+    solver_ctx_.download(S.data(), d_S_.get(), static_cast<size_t>(k) * sizeof(RealScalar));
 
     const RealScalar drop_threshold = S(0) * RealScalar(k) * NumTraits<RealScalar>::epsilon();
     auto S_head = S.head(kk).array();
@@ -604,10 +604,7 @@ class SVD {
                                solver_ctx_.streamHandle());
     apply_pinv(static_cast<const Scalar*>(d_B.get()), kk, nrhs, static_cast<Scalar*>(d_X.get()));
 
-    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(X.data(), d_X.get(),
-                                             static_cast<size_t>(n_orig) * static_cast<size_t>(nrhs) * sizeof(Scalar),
-                                             cudaMemcpyDeviceToHost, solver_ctx_.stream()));
-    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(solver_ctx_.stream()));
+    solver_ctx_.download(X.data(), d_X.get(), static_cast<size_t>(n_orig) * static_cast<size_t>(nrhs) * sizeof(Scalar));
 
     return X;
   }

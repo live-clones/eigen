@@ -106,6 +106,7 @@ class QR {
 
   QR& compute(const DeviceMatrix<Scalar>& d_A) {
     if (!begin_compute(d_A)) return *this;
+    d_A.prepareRead(context());
 
     if (transposed_) {
       transpose_into_factor(d_A);
@@ -130,6 +131,7 @@ class QR {
     if (!begin_compute(d_A)) return *this;
 
     if (transposed_) {
+      d_A.prepareRead(context());
       transpose_into_factor(d_A);
       d_A.finishRead(context());
     } else {
@@ -223,7 +225,6 @@ class QR {
     }
     transposed_ = (m_ < n_);
     lda_ = static_cast<int64_t>(transposed_ ? n_ : m_);
-    d_A.prepareRead(context());
     return true;
   }
 
@@ -364,9 +365,7 @@ class QR {
     apply_Q(CUBLAS_OP_N, d_X.get(), n_, nrhs);
 
     PlainMatrix X(n_, nrhs);
-    EIGEN_CUDA_RUNTIME_CHECK(
-        cudaMemcpyAsync(X.data(), d_X.get(), x_bytes, cudaMemcpyDeviceToHost, solver_ctx_.stream()));
-    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(solver_ctx_.stream()));
+    solver_ctx_.download(X.data(), d_X.get(), x_bytes);
     return X;
   }
 

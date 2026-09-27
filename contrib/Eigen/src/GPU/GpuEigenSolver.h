@@ -105,6 +105,7 @@ class SelfAdjointEigenSolver {
 
   SelfAdjointEigenSolver& compute(const DeviceMatrix<Scalar>& d_A, int options = ComputeEigenvectors) {
     if (!begin_compute(d_A, options)) return *this;
+    d_A.prepareRead(context());
 
     const size_t mat_bytes = static_cast<size_t>(lda_) * static_cast<size_t>(n_) * sizeof(Scalar);
     internal::ensure_sized(d_A_, mat_bytes, solver_ctx_.streamHandle());
@@ -156,8 +157,10 @@ class SelfAdjointEigenSolver {
 
   //
   // These return non-owning DeviceMatrix views over this solver's internal storage. The
-  // view borrows the pointer: destruction does not free; this solver must outlive any
-  // view derived from it. Both accessors are pure metadata — zero kernel launches.
+  // view borrows the pointer: destruction does not free. Destroy the views before this
+  // solver is recomputed or destroyed: its later work is ordered after the accesses made
+  // through a view, on any Context, only once the view is gone. Both accessors are pure
+  // metadata — zero kernel launches.
 
   /** Eigenvalues as an n × 1 view on this solver's stream. No host sync in
    * release builds — the recorded event orders downstream consumers after
@@ -207,7 +210,6 @@ class SelfAdjointEigenSolver {
       return false;
     }
     lda_ = n_;
-    d_A.prepareRead(context());
     return true;
   }
 

@@ -410,6 +410,17 @@ void test_affine_empty(Index n) {
   VERIFY(d_y.toHost(gctx) == b);
   d_y = d_A * d_x - d_b;
   VERIFY(d_y.toHost(gctx) == -b);
+
+  // The exec entry points form beta * y themselves.
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  const Mat X = Mat::Random(n, 3), Y = Mat::Random(n, 3);
+  d_y = d_b.clone(gctx);
+  ctx.spmv_device_exec(d_x, d_y, Scalar(1), Scalar(2));
+  VERIFY(d_y.toHost(gctx) == Vec(Scalar(2) * b));
+  auto d_X = gpu::DeviceMatrix<Scalar>::fromHost(gctx, X);
+  auto d_Y = gpu::DeviceMatrix<Scalar>::fromHost(gctx, Y);
+  ctx.spmm_device_exec(d_X, d_Y, Scalar(1), Scalar(2));
+  VERIFY(d_Y.toHost(gctx) == Mat(Scalar(2) * Y));
   gpu::Context::setThreadLocal(nullptr);
 }
 
