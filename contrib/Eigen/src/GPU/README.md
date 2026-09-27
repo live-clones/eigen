@@ -381,7 +381,8 @@ auto d_V = es.d_eigenvectors();           // DeviceMatrix view of eigenvectors
 The cached API keeps the factored matrix on device, avoiding redundant
 host-device transfers and re-factorizations. All five solvers accept
 `compute(DeviceMatrix&&)` to adopt the input and factor it in place with no
-copy (for QR/SVD with m < n the internal transpose still copies), and all five
+copy (for QR/SVD with m < n the internal transpose still copies, and a view is
+always copied because its storage belongs to another object), and all five
 can bind to a `gpu::Context` to share its stream and handles. All solvers also
 accept host dense expressions directly as a convenience (e.g.,
 `gpu::LLT<double> llt(A)` or `qr.solve(B)`), which handles upload/download
