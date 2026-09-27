@@ -78,6 +78,49 @@ void jacobisvd_verify_inputs(const MatrixType& input = MatrixType()) {
           (int)ColPivHouseholderQRPreconditioner));
 }
 
+// AlwaysPrecondition runs the Jacobi iteration on R from A P = Q R for square A too.
+template <typename MatrixType>
+void jacobisvd_always_precondition(const MatrixType& input = MatrixType()) {
+  using RealScalar = typename MatrixType::RealScalar;
+
+  svd_thin_full_option_checks<MatrixType, AlwaysPrecondition>(input);
+  svd_thin_full_option_checks<MatrixType, AlwaysPrecondition | HouseholderQRPreconditioner>(input);
+  svd_option_checks_full_only<MatrixType, AlwaysPrecondition | FullPivHouseholderQRPreconditioner>(input);
+
+  MatrixType m(input.rows(), input.cols());
+  svd_fill_random(m);
+  const JacobiSVD<MatrixType> reference(m);
+  const JacobiSVD<MatrixType, AlwaysPrecondition> preconditioned(m);
+  // Both are backward stable, and |s_i(A + E) - s_i(A)| <= ||E||_2.
+  const RealScalar bound = RealScalar(16 * numext::maxi(m.rows(), m.cols())) * NumTraits<RealScalar>::epsilon() *
+                           reference.singularValues()(0);
+  VERIFY((preconditioned.singularValues() - reference.singularValues()).cwiseAbs().maxCoeff() <= bound);
+}
+
+void jacobisvd_always_precondition_selection() {
+  using internal::PreconditionIfMoreColsThanRows;
+  using internal::PreconditionIfMoreRowsThanCols;
+  using DefaultSVD = JacobiSVD<Matrix4d>;
+  using AlwaysSVD = JacobiSVD<Matrix4d, AlwaysPrecondition | HouseholderQRPreconditioner | ComputeFullU>;
+  STATIC_CHECK((int(AlwaysSVD::QRPreconditioner) == int(HouseholderQRPreconditioner)));
+  STATIC_CHECK(((int(AlwaysSVD::Options) & ComputeFullU) != 0));
+
+  // A fixed-size square SVD holds a QR only under AlwaysPrecondition, and only in the more-rows slot.
+  STATIC_CHECK(
+      (std::is_empty<internal::qr_preconditioner_impl<Matrix4d, DefaultSVD::Options, DefaultSVD::QRPreconditioner,
+                                                      PreconditionIfMoreRowsThanCols>>::value));
+  STATIC_CHECK(
+      (!std::is_empty<internal::qr_preconditioner_impl<Matrix4d, AlwaysSVD::Options, AlwaysSVD::QRPreconditioner,
+                                                       PreconditionIfMoreRowsThanCols>>::value));
+  STATIC_CHECK(
+      (std::is_empty<internal::qr_preconditioner_impl<Matrix4d, AlwaysSVD::Options, AlwaysSVD::QRPreconditioner,
+                                                      PreconditionIfMoreColsThanRows>>::value));
+  // Fixed-size wide matrices still never use the more-rows slot.
+  STATIC_CHECK((std::is_empty<
+                internal::qr_preconditioner_impl<Matrix<double, 3, 4>, AlwaysSVD::Options, AlwaysSVD::QRPreconditioner,
+                                                 PreconditionIfMoreRowsThanCols>>::value));
+}
+
 template <typename MatrixType>
 void svd_triangular_matrix(const MatrixType& input = MatrixType()) {
   MatrixType matrix(input.rows(), input.cols());
@@ -298,6 +341,10 @@ EIGEN_DECLARE_TEST(jacobisvd) {
   CALL_SUBTEST_4((jacobisvd_mixed_option_enum_regression<>()));
   CALL_SUBTEST_4((jacobisvd_large_tau_regression<>()));
 
+  CALL_SUBTEST_62((jacobisvd_always_precondition_selection()));
+  CALL_SUBTEST_62((jacobisvd_always_precondition<Matrix4d>()));
+  CALL_SUBTEST_63((jacobisvd_always_precondition<Matrix<std::complex<float>, 3, 3, RowMajor>>()));
+
   CALL_SUBTEST_11((jacobisvd_thin_full_options<Matrix2cd>()));
   CALL_SUBTEST_12((jacobisvd_thin_full_options<Matrix2d>()));
 
@@ -319,6 +366,11 @@ EIGEN_DECLARE_TEST(jacobisvd) {
     CALL_SUBTEST_31((jacobisvd_thin_full_options<MatrixXd>(MatrixXd(r, c))));
     CALL_SUBTEST_33((jacobisvd_thin_full_options<Matrix<double, 5, 7, RowMajor>>()));
     CALL_SUBTEST_35((jacobisvd_thin_full_options<Matrix<double, 7, 5, RowMajor>>()));
+
+    CALL_SUBTEST_64((jacobisvd_always_precondition<MatrixXd>(MatrixXd(r, r))));
+    CALL_SUBTEST_65((jacobisvd_always_precondition<MatrixXcf>(MatrixXcf(r, r))));
+    CALL_SUBTEST_66((jacobisvd_always_precondition<Matrix<double, Dynamic, Dynamic, RowMajor>>(
+        Matrix<double, Dynamic, Dynamic, RowMajor>(r, c))));
 
     MatrixXcd noQRTest = MatrixXcd(r, r);
     CALL_SUBTEST_37((svd_thin_full_option_checks<MatrixXcd, NoQRPreconditioner>(noQRTest)));

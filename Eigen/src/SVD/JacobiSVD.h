@@ -33,7 +33,12 @@ struct svd_precondition_2x2_block_to_be_real {};
 
 enum { PreconditionIfMoreColsThanRows, PreconditionIfMoreRowsThanCols };
 
-template <typename MatrixType, int QRPreconditioner, int Case>
+// If option AlwaysPrecondition is set, square matrices take the PreconditionIfMoreRowsThanCols path: A = Q R P^*.
+constexpr bool svd_precondition_more_rows(int options, Index rows, Index cols) {
+  return rows > cols || (should_svd_always_precondition(options) && rows == cols);
+}
+
+template <typename MatrixType, int QRPreconditioner, int Case, bool PreconditionSquare>
 struct qr_preconditioner_should_do_anything
     : bool_constant<!((QRPreconditioner == NoQRPreconditioner) ||
                       (Case == PreconditionIfMoreColsThanRows && MatrixType::RowsAtCompileTime != Dynamic &&
@@ -41,10 +46,12 @@ struct qr_preconditioner_should_do_anything
                        MatrixType::ColsAtCompileTime <= MatrixType::RowsAtCompileTime) ||
                       (Case == PreconditionIfMoreRowsThanCols && MatrixType::RowsAtCompileTime != Dynamic &&
                        MatrixType::ColsAtCompileTime != Dynamic &&
-                       MatrixType::RowsAtCompileTime <= MatrixType::ColsAtCompileTime))> {};
+                       (PreconditionSquare ? MatrixType::RowsAtCompileTime < MatrixType::ColsAtCompileTime
+                                           : MatrixType::RowsAtCompileTime <= MatrixType::ColsAtCompileTime)))> {};
 
 template <typename MatrixType, int Options, int QRPreconditioner, int Case,
-          bool DoAnything = qr_preconditioner_should_do_anything<MatrixType, QRPreconditioner, Case>::value>
+          bool DoAnything = qr_preconditioner_should_do_anything<MatrixType, QRPreconditioner, Case,
+                                                                 should_svd_always_precondition(Options)>::value>
 struct qr_preconditioner_impl {};
 
 template <typename MatrixType, int Options, int QRPreconditioner, int Case>
@@ -79,7 +86,7 @@ class qr_preconditioner_impl<MatrixType, Options, FullPivHouseholderQRPreconditi
   }
   template <typename Xpr>
   bool run(SVDType& svd, const Xpr& matrix) {
-    if (matrix.rows() > matrix.cols()) {
+    if (svd_precondition_more_rows(Options, matrix.rows(), matrix.cols())) {
       m_qr.compute(matrix);
       svd.m_workMatrix = m_qr.matrixQR().block(0, 0, matrix.cols(), matrix.cols()).template triangularView<Upper>();
       if (svd.m_computeFullU) m_qr.matrixQ().evalTo(svd.m_matrixU, m_workspace);
@@ -168,7 +175,7 @@ class qr_preconditioner_impl<MatrixType, Options, ColPivHouseholderQRPreconditio
   }
   template <typename Xpr>
   bool run(SVDType& svd, const Xpr& matrix) {
-    if (matrix.rows() > matrix.cols()) {
+    if (svd_precondition_more_rows(Options, matrix.rows(), matrix.cols())) {
       m_qr.compute(matrix);
       svd.m_workMatrix = m_qr.matrixQR().block(0, 0, matrix.cols(), matrix.cols()).template triangularView<Upper>();
       if (svd.m_computeFullU)
@@ -274,7 +281,7 @@ class qr_preconditioner_impl<MatrixType, Options, HouseholderQRPreconditioner, P
   }
   template <typename Xpr>
   bool run(SVDType& svd, const Xpr& matrix) {
-    if (matrix.rows() > matrix.cols()) {
+    if (svd_precondition_more_rows(Options, matrix.rows(), matrix.cols())) {
       m_qr.compute(matrix);
       svd.m_workMatrix = m_qr.matrixQR().block(0, 0, matrix.cols(), matrix.cols()).template triangularView<Upper>();
       if (svd.m_computeFullU)
@@ -586,6 +593,12 @@ struct traits<JacobiSVD<MatrixType_, Options>> : svd_traits<MatrixType_, Options
  * significantly speed up computation, since JacobiSVD is always checking if QR preconditioning is needed before
  * applying it anyway.
  *
+ * By default, square matrices are not QR preconditioned. Adding #AlwaysPrecondition to the Options template parameter
+ * applies the selected QR preconditioner to square matrices too: the Jacobi iteration then runs on the triangular
+ * factor \a R of \f$ A P = Q R \f$ instead of on \a A. For example: JacobiSVD<MatrixType,
+ * ColPivHouseholderQRPreconditioner | AlwaysPrecondition>.
+ * AlwaysPrecondition cannot be combined with NoQRPreconditioner.
+ *
  * One may also use the Options template parameter to specify how the unitaries should be computed. The options are
  * #ComputeThinU, #ComputeThinV, #ComputeFullU, #ComputeFullV. It is not possible to request both the thin and full
  * versions of a unitary. By default, unitaries will not be computed.
@@ -740,7 +753,7 @@ class JacobiSVD : public SVDBase<JacobiSVD<MatrixType_, Options_>> {
 
     m_workMatrix.resize(diagSize(), diagSize());
     if (cols() > rows()) m_qr_precond_morecols.allocate(*this);
-    if (rows() > cols()) m_qr_precond_morerows.allocate(*this);
+    if (internal::svd_precondition_more_rows(Options, rows(), cols())) m_qr_precond_morerows.allocate(*this);
   }
 
  private:
@@ -777,6 +790,9 @@ class JacobiSVD : public SVDBase<JacobiSVD<MatrixType_, Options_>> {
                           !(ShouldComputeThinU && int(QRPreconditioner) == int(FullPivHouseholderQRPreconditioner)),
                       "JacobiSVD: can't compute thin U or thin V with the FullPivHouseholderQR preconditioner. "
                       "Use the ColPivHouseholderQR preconditioner instead.")
+  EIGEN_STATIC_ASSERT(!(internal::should_svd_always_precondition(Options) &&
+                        int(QRPreconditioner) == int(NoQRPreconditioner)),
+                      "JacobiSVD: AlwaysPrecondition requires a QR preconditioner other than NoQRPreconditioner.")
 
   template <typename MatrixType__, int Options__, bool IsComplex_>
   friend struct internal::svd_precondition_2x2_block_to_be_real;
@@ -841,7 +857,7 @@ JacobiSVD<MatrixType, Options>& JacobiSVD<MatrixType, Options>::compute_impl(con
 
   /*** step 1. The R-SVD step: we use a QR decomposition to reduce to the case of a square matrix */
 
-  if (rows() != cols()) {
+  if (rows() != cols() || internal::should_svd_always_precondition(Options)) {
     factors =
         internal::safe_scaling<RealScalar>::with_scaled(matrix.derived(), maxCoeff, [&](const auto& scaledMatrix) {
           m_qr_precond_morecols.run(*this, scaledMatrix);

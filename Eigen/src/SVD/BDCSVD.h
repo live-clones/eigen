@@ -55,7 +55,10 @@ struct traits<BDCSVD<MatrixType_, Options> > : svd_traits<MatrixType_, Options> 
  *                  #DisableQRDecomposition. It is not possible to request both the thin and full version of \a U or
  *                  \a V. By default, unitaries are not computed. BDCSVD uses R-Bidiagonalization to improve
  *                  performance on tall and wide matrices. For backwards compatibility, the option
- *                  #DisableQRDecomposition can be used to disable this optimization.
+ *                  #DisableQRDecomposition can be used to disable this optimization. #AlwaysPrecondition is
+ *                  forwarded to the JacobiSVD that decomposes inputs with fewer columns than the switch size (see
+ *                  setSwitchSize()); it has no effect on larger inputs and cannot be combined with
+ *                  #DisableQRDecomposition.
  *
  * This class first reduces the input matrix to bi-diagonal form using class UpperBidiagonalization,
  * and then performs a divide-and-conquer diagonalization. Small blocks are diagonalized using class JacobiSVD.
@@ -258,7 +261,7 @@ class BDCSVD : public SVDBase<BDCSVD<MatrixType_, Options_> > {
   void allocate_small(Index rows, Index cols, unsigned int computationOptions);
   internal::bdcsvd_impl<RealScalar> m_impl;
   bool m_isTranspose, m_useQrDecomp;
-  JacobiSVD<MatrixX> smallSvd;
+  JacobiSVD<MatrixX, internal::should_svd_always_precondition(Options) ? int(AlwaysPrecondition) : 0> smallSvd;
   HouseholderQR<MatrixX> qrDecomp;
   internal::UpperBidiagonalization<MatrixX> bid;
   MatrixX copyWorkspace;
@@ -277,6 +280,10 @@ class BDCSVD : public SVDBase<BDCSVD<MatrixType_, Options_> > {
   using Base::m_matrixV;
   using Base::m_nonzeroSingularValues;
   using Base::m_singularValues;
+
+  EIGEN_STATIC_ASSERT(!(internal::should_svd_always_precondition(Options) &&
+                        int(QRDecomposition) == int(DisableQRDecomposition)),
+                      "BDCSVD: AlwaysPrecondition cannot be combined with DisableQRDecomposition.")
 
  public:
   int m_numIters;

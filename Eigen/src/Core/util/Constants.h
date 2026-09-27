@@ -431,7 +431,11 @@ enum QRPreconditioners {
   /** Use a QR decomposition with full pivoting as the first step. */
   FullPivHouseholderQRPreconditioner = 0xC0,
   /** Used to disable the QR Preconditioner in BDCSVD. */
-  DisableQRDecomposition = NoQRPreconditioner
+  DisableQRDecomposition = NoQRPreconditioner,
+  /** Used in the Options template parameter of JacobiSVD to apply the QR preconditioner to square matrices as well as
+   * to non-square ones. Combine it with any preconditioner above except NoQRPreconditioner. BDCSVD forwards it to the
+   * JacobiSVD it uses for small inputs. */
+  AlwaysPrecondition = 0x800
 };
 
 // JacobiSVD and BDCSVD combine QR preconditioner flags with decomposition flags in a single template bitmask.

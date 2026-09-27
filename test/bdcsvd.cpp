@@ -216,6 +216,35 @@ void bdcsvd_switch_size() {
 }
 #endif
 
+#if defined(EIGEN_TEST_PART_62) || defined(EIGEN_TEST_PART_ALL)
+// Inputs with fewer columns than the switch size go to BDCSVD's JacobiSVD, which receives AlwaysPrecondition, so the
+// results match that JacobiSVD bit for bit.
+template <typename MatrixType>
+void bdcsvd_always_precondition_small(const MatrixType& input = MatrixType()) {
+  using MatrixX = Matrix<typename MatrixType::Scalar, Dynamic, Dynamic>;
+  MatrixType m(input.rows(), input.cols());
+  svd_fill_random(m);
+  const BDCSVD<MatrixType, AlwaysPrecondition | ComputeFullU | ComputeFullV> bdc(m);
+  const JacobiSVD<MatrixX, AlwaysPrecondition | ComputeFullU | ComputeFullV> jacobi{MatrixX(m)};
+  VERIFY(bdc.singularValues() == jacobi.singularValues());
+  VERIFY(bdc.matrixU() == jacobi.matrixU());
+  VERIFY(bdc.matrixV() == jacobi.matrixV());
+  svd_check_full(m, bdc);
+}
+
+// Small bidiagonal inputs also go to the small JacobiSVD.
+void bdcsvd_always_precondition_bidiagonal() {
+  using RealScalar = double;
+  VectorXd diagonal = VectorXd::Random(6), superdiagonal = VectorXd::Random(5);
+  BDCSVD<MatrixXd, AlwaysPrecondition | ComputeFullU | ComputeFullV> bidiagonalSvd;
+  bidiagonalSvd.compute(diagonal, superdiagonal);
+  BDCSVD<MatrixXd> reference;
+  reference.compute(diagonal, superdiagonal);
+  VERIFY((bidiagonalSvd.singularValues() - reference.singularValues()).cwiseAbs().maxCoeff() <=
+         RealScalar(16 * 6) * NumTraits<RealScalar>::epsilon() * reference.singularValues()(0));
+}
+#endif
+
 #if defined(EIGEN_TEST_PART_53) || defined(EIGEN_TEST_PART_ALL)
 template <typename = void>
 void bdcsvd_extreme_scale_regressions() {
@@ -461,7 +490,16 @@ EIGEN_DECLARE_TEST(bdcsvd) {
   CALL_SUBTEST_3((bdcsvd_asserts<Matrix<float, 10, 7>>()));
   CALL_SUBTEST_4((bdcsvd_asserts<Matrix<float, 7, 10>>()));
   CALL_SUBTEST_5((bdcsvd_asserts<Matrix<std::complex<double>, 6, 9>>()));
-  CALL_SUBTEST_6((bdcsvd_mixed_option_enum_regression<>()));
+  CALL_SUBTEST_6((bdcsvd_mixed_option_enum_regression()));
+  CALL_SUBTEST_62((bdcsvd_always_precondition_bidiagonal()));
+  CALL_SUBTEST_62((bdcsvd_always_precondition_small<Matrix2d>()));
+  CALL_SUBTEST_62((bdcsvd_always_precondition_small<Matrix<std::complex<float>, 5, 5, RowMajor>>()));
+  for (int i = 0; i < g_repeat; i++) {
+    const Index n = internal::random<Index>(1, 15);
+    TEST_SET_BUT_UNUSED_VARIABLE(n);
+    CALL_SUBTEST_62((bdcsvd_always_precondition_small<MatrixXd>(MatrixXd(n, n))));
+    CALL_SUBTEST_62((bdcsvd_always_precondition_small<MatrixXcf>(MatrixXcf(n, n))));
+  }
 
   CALL_SUBTEST_7((bdcsvd_thin_full_options<Matrix2cd>()));
   CALL_SUBTEST_9((bdcsvd_thin_full_options<Matrix2d>()));
