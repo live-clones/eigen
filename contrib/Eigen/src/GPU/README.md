@@ -202,10 +202,12 @@ To integrate with existing CUDA code, borrow an existing stream:
 gpu::Context ctx(my_existing_stream);  // wraps stream, does not take ownership
 ```
 
-A borrowed stream must outlive the `Context` and every `DeviceMatrix` or
+A borrowed stream must outlive the `Context`, every `DeviceMatrix` or
 `DeviceScalar` last written on it, because their memory is freed
-stream-ordered there. An owned stream needs no such care: it lives until the
-last object written on it is destroyed, even when that outlives the `Context`.
+stream-ordered there, and every read enqueued on it that a later write or free
+of such an object waits for. An owned stream needs no such care: it stays
+alive, even after the `Context` is destroyed, as long as an object or a
+pending read still needs it.
 
 To override the thread-local default (e.g., in CG where all ops share one
 context):
@@ -373,8 +375,8 @@ MatrixXd U = svd.matrixU();          // downloads to host
 MatrixXd V = svd.matrixV();          // V (matches JacobiSVD)
 MatrixXd VT = svd.matrixVT();        // V^T (matches cuSOLVER)
 
-// SVD: device-side views (no D2H transfer; svd must outlive the views, and
-// must not be recomputed while work reading them on another Context is pending)
+// SVD: device-side views (no D2H transfer; destroy the views before svd is
+// recomputed or destroyed)
 auto d_S = svd.d_singularValues();   // DeviceMatrix view of singular values
 auto d_U = svd.d_matrixU();          // DeviceMatrix view of U
 auto d_VT = svd.d_matrixVT();        // DeviceMatrix view of V^T
@@ -720,6 +722,12 @@ Mandatory sync points:
 - `toHost()` / `HostTransfer::get()` -- Must deliver data to host
 - `info()` -- Must read the factorization status
 - `DeviceScalar` implicit conversion -- Downloads scalar from device
+- Destroying a `HostTransfer` whose transfer is still pending -- Waits for it
+  before freeing its pinned staging buffer
+- Destroying a dense solver whose `info()` was never read after `compute()` --
+  Waits for the stream before freeing the pinned status word
+- Creating or destroying a `Context`, including a solver's private one --
+  `cublasCreate()` and `cublasDestroy()` synchronize the device
 
 Debug-only sync points (compiled out under `EIGEN_NO_DEBUG`/`NDEBUG`): every
 solver `solve()` and accessor verifies `info() == Success` via `eigen_assert`,
@@ -742,7 +750,8 @@ unless you borrow a stream of your own -- so the module neither waits for nor
 delays work that other code puts on the legacy stream, and it behaves the same
 under `--default-stream per-thread`. The `stream_ordering` test checks this by
 holding a stream capture open on a blocking stream, which the CUDA runtime
-invalidates on any use of the legacy stream.
+invalidates on any use of the legacy stream; `stream_ordering_per_thread` runs
+the same test with the per-thread default stream.
 
 **Device memory allocation is stream-ordered.** Allocations go through
 `cudaMallocAsync` / `cudaFreeAsync` on the owning stream on devices that
@@ -754,9 +763,10 @@ Consequences:
   and is ordered only against the owning stream; freed blocks recycle through
   the driver pool (the pool's release threshold is raised so steady-state loops
   reallocate at user-space speed).
-- Destroying a solver (or `DeviceMatrix`) with work still in flight is safe
-  *and* async: the stream-ordered free waits for the work that uses the memory
-  without stalling the host.
+- Destroying a `DeviceMatrix` with work still in flight is safe and async: the
+  stream-ordered free waits for the work that uses the memory without stalling
+  the host. So is a solver's device memory; the solver itself may synchronize
+  (see the sync points above).
 - Workspaces (GEMM, solver, FFT, SpMV) grow without a sync: the replaced
   buffer is freed after the work already queued on it.
 - `DeviceMatrix::resize()` is capacity-aware: shrinking or same-size reshapes
@@ -904,19 +914,23 @@ event per write for an occasional extra wait.
 
 The entry points that exchange raw pointers carry the same ordering:
 
-- `adopt(ctx, p, rows, cols)` and `view(ctx, p, rows, cols)` require the
-  pending writes to `p` to be complete or enqueued on `ctx.stream()`, which
+- `adopt(ctx, p, rows, cols)` and `view(ctx, p, rows, cols)` require all
+  pending work on `p` to be complete or enqueued on `ctx.stream()`, which
   becomes `stream()`. An adopted `p` is freed on `stream()` like any other
   allocation. A view never frees `p`; its destruction makes `ctx.stream()` wait
-  for the reads made through it, so the owner's later writes and free follow
-  those reads when the owner runs them on `ctx.stream()`. For the same reason,
-  write through a view only on `ctx.stream()`, and never assign to one: an
-  assignment that reallocates replaces the borrowed pointer and leaves the
-  owner's storage unchanged.
+  for every read and write made through it, on any stream, so the owner's later
+  writes and free follow them when the owner runs them on `ctx.stream()`. Until
+  the view is destroyed, the owner's work is not ordered after the view's
+  accesses: destroy the `d_*` views of a solver before recomputing or
+  destroying it. An assignment that changes a view's size allocates new storage
+  instead, leaving the owner unchanged.
 - `release(ctx)` orders every pending access before later work on
   `ctx.stream()`, as `prepareWrite(ctx)` does, and returns the pointer. Use it
-  only in work ordered after `ctx.stream()`'s, and free it with
-  `cudaFreeAsync(p, ctx.stream())` or `cudaFree`.
+  only in work ordered after `ctx.stream()`'s. An owning matrix transfers
+  ownership: free the pointer with `cudaFree`, or with
+  `cudaFreeAsync(p, ctx.stream())` where the matrix was allocated
+  stream-ordered. A view returns its borrowed pointer, which its owner still
+  frees.
 
 ## Reference
 
@@ -1031,7 +1045,7 @@ DeviceScalar<Scalar>     dot(gpu::Context& ctx, const DeviceMatrix& other)      
 DeviceScalar<Scalar>     dot(const DeviceMatrix& other)
 DeviceScalar<RealScalar> norm(gpu::Context& ctx)                                            // cuBLAS nrm2
 DeviceScalar<RealScalar> norm()
-DeviceScalar<RealScalar> squaredNorm(gpu::Context& ctx)                                     // dot(self, self), no sync
+DeviceScalar<RealScalar> squaredNorm(gpu::Context& ctx)                                     // dot(self, self); syncs for complex
 DeviceScalar<RealScalar> squaredNorm()
 void                     setZero(gpu::Context& ctx)                                         // cudaMemsetAsync
 void                     setZero()
@@ -1098,7 +1112,9 @@ gpu::Context()                                             // Creates a non-bloc
                                                            // (cuSOLVER / cuBLASLt / cuSPARSE handles
                                                            // are created lazily on first use)
 gpu::Context(cudaStream_t stream)                          // Borrow existing stream (not owned; must outlive
-                                                           // the objects last written on it)
+                                                           // the objects last written on it and the reads
+                                                           // enqueued on it)
+~Context()                                                 // Destroys the cuBLAS handle: syncs the device
 static gpu::Context& threadLocal()                         // Per-thread default (lazy-created)
 static void        setThreadLocal(gpu::Context* ctx)       // Override thread-local default (nullptr restores)
 
@@ -1215,9 +1231,9 @@ gpu::Context&      context()                             // The Context it runs 
 
 **Note:** `singularValues()`, `matrixU()`, `matrixV()`, and `matrixVT()`
 download to host on each call. The `d_*` accessors return non-owning
-`DeviceMatrix` views into the solver's internal buffers; the `gpu::SVD` object
-must outlive any view derived from it. For wide matrices (m < n) the U/V^T
-views are owning (one `cublasXgeam` adjoint pass).
+`DeviceMatrix` views into the solver's internal buffers; destroy them before
+the `gpu::SVD` object is recomputed or destroyed. For wide matrices (m < n) the
+U/V^T views are owning (one `cublasXgeam` adjoint pass).
 
 ### `gpu::SelfAdjointEigenSolver<Scalar>` -- Eigendecomposition (cuSOLVER)
 
@@ -1245,8 +1261,8 @@ gpu::Context&      context()                             // The Context it runs 
 
 **Note:** `eigenvalues()` and `eigenvectors()` download to host on each call.
 The `d_*` accessors return non-owning `DeviceMatrix` views into the solver's
-internal buffers; the `gpu::SelfAdjointEigenSolver` object must outlive any
-view derived from it.
+internal buffers; destroy them before the `gpu::SelfAdjointEigenSolver` object
+is recomputed or destroyed.
 
 ### `HostTransfer<Scalar>`
 
