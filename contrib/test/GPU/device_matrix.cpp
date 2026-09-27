@@ -369,6 +369,10 @@ void test_solver_copies_moved_view() {
   const MatrixXd X = lu.solve(svd.d_matrixU()).toHost();
   VERIFY_IS_APPROX(svd.matrixU(), U);
   VERIFY_IS_APPROX(MatrixXd(U * X), U);
+  gpu::Context ctx;
+  gpu::LU<double> lu_ctx(ctx, svd.d_matrixU());
+  VERIFY_IS_APPROX(svd.matrixU(), U);
+  VERIFY_IS_APPROX(MatrixXd(U * lu_ctx.solve(B)), B);
 
   // The remaining adopting overloads, each given a view of d_S.
   const MatrixXd S = A * A.transpose();
