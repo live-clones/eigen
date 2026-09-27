@@ -67,6 +67,11 @@ class SVD {
     compute(d_A, options);
   }
 
+  /** Bind to \p ctx and decompose a device-resident A (adopt when m >= n, no copy). */
+  SVD(Context& ctx, DeviceMatrix<Scalar>&& d_A, unsigned int options = ComputeThinU | ComputeThinV) : solver_ctx_(ctx) {
+    compute(std::move(d_A), options);
+  }
+
   ~SVD() = default;
 
   SVD(const SVD&) = delete;

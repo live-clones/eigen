@@ -75,6 +75,9 @@ class LLT {
   /** Bind to \p ctx and factor a device-resident A (D2D copy). */
   LLT(Context& ctx, const DeviceMatrix<Scalar>& d_A) : solver_ctx_(ctx) { compute(d_A); }
 
+  /** Bind to \p ctx and factor a device-resident A (adopt, no copy). */
+  LLT(Context& ctx, DeviceMatrix<Scalar>&& d_A) : solver_ctx_(ctx) { compute(std::move(d_A)); }
+
   ~LLT() = default;
 
   // Non-copyable (owns device memory and library handles).
@@ -213,7 +216,7 @@ class LLT {
 
  private:
   mutable internal::GpuSolverContext solver_ctx_;
-  internal::DeviceBuffer d_factor_;  // grow-only
+  internal::DeviceBuffer d_factor_;  // adopted from an rvalue input, else grow-only
   int64_t n_ = 0;
   int64_t lda_ = 0;
 
