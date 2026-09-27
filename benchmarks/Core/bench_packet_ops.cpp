@@ -87,7 +87,7 @@ BENCHMARK(BM_Ploaddup<double>)->Name("Ploaddup_double");
 // ---- psign ----
 
 #if defined(EIGEN_VECTORIZE_AVX) || defined(EIGEN_VECTORIZE_AVX512) || defined(EIGEN_VECTORIZE_NEON) || \
-    defined(EIGEN_VECTORIZE_ALTIVEC)
+    defined(EIGEN_VECTORIZE_ALTIVEC) || defined(EIGEN_VECTORIZE_VSX)
 void BM_PsignBfloat16(benchmark::State& state) {
   using Packet = typename packet_traits<bfloat16>::type;
   constexpr int N = packet_traits<bfloat16>::size;
