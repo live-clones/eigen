@@ -9,7 +9,8 @@
 // SPDX-License-Identifier: MPL-2.0
 
 // Cross-context ordering of DeviceMatrix and DeviceScalar accesses (RAW, WAR,
-// WAW, free after read), and no use of the legacy default stream. An ordering
+// WAW, free after read), by the module and by direct accesses bracketed with
+// prepare*/finish*, and no use of the legacy default stream. An ordering
 // test parks one context's stream behind a StreamGate and enqueues the access
 // under test on another: an access not ordered after the parked one runs first.
 
@@ -30,6 +31,15 @@ constexpr Index kSize = 4096;
 constexpr std::chrono::milliseconds kGateDelay(100);
 
 void wait_for(gpu::Context& ctx) { EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(ctx.stream())); }
+
+// Direct accesses to device memory, outside the module, on ctx's stream.
+void copy_on(gpu::Context& ctx, void* dst, const void* src, std::size_t bytes) {
+  EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(dst, src, bytes, cudaMemcpyDeviceToDevice, ctx.stream()));
+}
+void zero_on(gpu::Context& ctx, void* dst, std::size_t bytes) {
+  EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(dst, 0, bytes, ctx.stream()));
+}
+constexpr std::size_t kBytes = sizeof(double) * kSize;
 
 // Each scenario runs twice, parking the stream only on the second pass. The
 // first pass creates the lazily created library handles and loads the kernels
@@ -262,6 +272,148 @@ void test_read_marks_retire_when_done() {
   VERIFY_IS_EQUAL(gpu::internal::DeviceMatrixAccess::buffer(d_a).readMarkCount(), std::size_t(1));
 }
 
+// The tests below bracket direct accesses with the public prepare*/finish*
+// calls, as user code does; each check fails with its bracket removed.
+
+// prepareRead: a direct read on another context waits for the module's pending write.
+void test_direct_read_after_write() {
+  gpu::Context writer, reader;
+  const Vec a = Vec::Random(kSize);
+  for (bool park : {false, true}) {
+    DeviceVec d_a = DeviceVec::fromHost(writer, a);
+    DeviceVec d_b(reader, kSize, 1);
+    {
+      MaybeParked gate(writer.stream(), park);
+      d_a.scale(writer, 2.0);
+      d_a.prepareRead(reader);
+      d_b.prepareWrite(reader);
+      copy_on(reader, d_b.data(), d_a.data(), kBytes);
+      d_a.finishRead(reader);
+      d_b.finishWrite(reader);
+      gate.openAfter(kGateDelay);
+      wait_for(reader);
+    }
+    VERIFY_IS_APPROX(d_b.toHost(reader), Vec(2.0 * a));
+  }
+}
+
+// finishRead: the module's write waits for a pending direct read on another context.
+void test_write_after_direct_read() {
+  gpu::Context writer, reader;
+  const Vec a = Vec::Random(kSize);
+  for (bool park : {false, true}) {
+    DeviceVec d_a = DeviceVec::fromHost(writer, a);
+    DeviceVec d_b(reader, kSize, 1);
+    {
+      MaybeParked gate(reader.stream(), park);
+      d_a.prepareRead(reader);
+      d_b.prepareWrite(reader);
+      copy_on(reader, d_b.data(), d_a.data(), kBytes);
+      d_a.finishRead(reader);
+      d_b.finishWrite(reader);
+      d_a.setZero(writer);
+      gate.openAfter(kGateDelay);
+      wait_for(writer);
+    }
+    VERIFY_IS_APPROX(d_b.toHost(reader), a);
+    VERIFY(d_a.toHost(writer).isZero(0));
+  }
+}
+
+// prepareWrite on stream(): a direct write waits for the module's pending read
+// on another context.
+void test_direct_write_after_read() {
+  gpu::Context writer, reader;
+  const Vec a = Vec::Random(kSize);
+  for (bool park : {false, true}) {
+    DeviceVec d_a = DeviceVec::fromHost(writer, a);
+    DeviceVec d_b;
+    {
+      MaybeParked gate(reader.stream(), park);
+      d_b = d_a.clone(reader);
+      d_a.prepareWrite(writer);
+      zero_on(writer, d_a.data(), kBytes);
+      d_a.finishWrite(writer);
+      gate.openAfter(kGateDelay);
+      wait_for(writer);
+    }
+    VERIFY_IS_APPROX(d_b.toHost(reader), a);
+    VERIFY(d_a.toHost(writer).isZero(0));
+  }
+}
+
+// prepareWrite on another stream: a direct write there waits for the work
+// queued on stream(), reads included, and its stream becomes stream().
+void test_direct_write_moves_stream() {
+  gpu::Context home, other;
+  const Vec a = Vec::Random(kSize);
+  for (bool park : {false, true}) {
+    DeviceVec d_a = DeviceVec::fromHost(home, a);
+    DeviceVec d_b;
+    {
+      MaybeParked gate(home.stream(), park);
+      d_b = d_a.clone(home);
+      d_a.prepareWrite(other);
+      zero_on(other, d_a.data(), kBytes);
+      d_a.finishWrite(other);
+      gate.openAfter(kGateDelay);
+      wait_for(other);
+    }
+    VERIFY_IS_APPROX(d_b.toHost(home), a);
+    VERIFY(d_a.toHost(other).isZero(0));
+    VERIFY(d_a.stream() == other.stream());
+  }
+}
+
+// finishWrite: the module's read on another context waits for a direct write.
+// The matrix's previous write event has completed, so without finishWrite the
+// read would wait on that one.
+void test_read_after_direct_write() {
+  gpu::Context writer, reader;
+  const Vec a = Vec::Random(kSize);
+  for (bool park : {false, true}) {
+    DeviceVec d_a = DeviceVec::fromHost(writer, a);
+    d_a.scale(writer, 2.0);
+    wait_for(writer);
+    DeviceVec d_b;
+    {
+      MaybeParked gate(writer.stream(), park);
+      d_a.prepareWrite(writer);
+      zero_on(writer, d_a.data(), kBytes);
+      d_a.finishWrite(writer);
+      d_b = d_a.clone(reader);
+      gate.openAfter(kGateDelay);
+      wait_for(reader);
+    }
+    VERIFY(d_b.toHost(reader).isZero(0));
+  }
+}
+
+// DeviceScalar::finishWrite records no event but drops the previous one, which
+// an earlier read on another context recorded: the next such read records a
+// fresh event, behind the direct write.
+void test_device_scalar_direct_write() {
+  gpu::Context producer, consumer;
+  for (bool park : {false, true}) {
+    gpu::DeviceScalar<double> s(producer, 1.0), four(producer, 4.0);
+    const gpu::DeviceScalar<double> one(consumer, 1.0);
+    VERIFY_IS_APPROX((one / s).get(), 1.0);
+    gpu::DeviceScalar<double> ratio(consumer);
+    {
+      MaybeParked gate(producer.stream(), park);
+      four.prepareRead(producer);
+      s.prepareWrite(producer);
+      copy_on(producer, s.devicePtr(), four.devicePtr(), sizeof(double));
+      four.finishRead(producer);
+      s.finishWrite(producer);
+      ratio = one / s;
+      gate.openAfter(kGateDelay);
+      wait_for(consumer);
+    }
+    VERIFY_IS_APPROX(ratio.get(), 0.25);
+  }
+}
+
 // Matrices outlive the Context that wrote them: its stream stays alive for
 // their reads and their stream-ordered frees.
 void test_matrix_outlives_context() {
@@ -434,19 +586,25 @@ void test_no_legacy_stream() {
 
 EIGEN_DECLARE_TEST(gpu_stream_ordering) {
   gpu_test::require_cuda_device();
-  CALL_SUBTEST_1(test_read_after_write());
-  CALL_SUBTEST_1(test_write_after_read());
-  CALL_SUBTEST_1(test_write_after_home_stream_read());
-  CALL_SUBTEST_1(test_free_after_read());
-  CALL_SUBTEST_1(test_device_scalar_across_contexts());
-  CALL_SUBTEST_1(test_solver_adopts_pending_matrix());
-  CALL_SUBTEST_1(test_matrix_outlives_context());
-  CALL_SUBTEST_1(test_read_marks_are_reused());
-  CALL_SUBTEST_1(test_concurrent_reads());
-  CALL_SUBTEST_2(test_sentinel_detects_legacy_stream());
-  CALL_SUBTEST_2(test_no_legacy_stream<double>());
-  CALL_SUBTEST_2(test_no_legacy_stream<std::complex<float>>());
-  CALL_SUBTEST_3(test_free_after_read_through_view());
-  CALL_SUBTEST_3(test_release_after_context());
-  CALL_SUBTEST_3(test_read_marks_retire_when_done());
+  CALL_SUBTEST(test_read_after_write());
+  CALL_SUBTEST(test_write_after_read());
+  CALL_SUBTEST(test_write_after_home_stream_read());
+  CALL_SUBTEST(test_free_after_read());
+  CALL_SUBTEST(test_device_scalar_across_contexts());
+  CALL_SUBTEST(test_solver_adopts_pending_matrix());
+  CALL_SUBTEST(test_matrix_outlives_context());
+  CALL_SUBTEST(test_read_marks_are_reused());
+  CALL_SUBTEST(test_concurrent_reads());
+  CALL_SUBTEST(test_sentinel_detects_legacy_stream());
+  CALL_SUBTEST(test_no_legacy_stream<double>());
+  CALL_SUBTEST(test_no_legacy_stream<std::complex<float>>());
+  CALL_SUBTEST(test_free_after_read_through_view());
+  CALL_SUBTEST(test_release_after_context());
+  CALL_SUBTEST(test_read_marks_retire_when_done());
+  CALL_SUBTEST(test_direct_read_after_write());
+  CALL_SUBTEST(test_write_after_direct_read());
+  CALL_SUBTEST(test_direct_write_after_read());
+  CALL_SUBTEST(test_direct_write_moves_stream());
+  CALL_SUBTEST(test_read_after_direct_write());
+  CALL_SUBTEST(test_device_scalar_direct_write());
 }
