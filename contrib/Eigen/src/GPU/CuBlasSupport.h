@@ -27,10 +27,10 @@ namespace Eigen {
 namespace gpu {
 namespace internal {
 
-#define EIGEN_CUBLAS_CHECK(expr)                                       \
-  do {                                                                 \
-    cublasStatus_t _s = (expr);                                        \
-    eigen_assert(_s == CUBLAS_STATUS_SUCCESS && "cuBLAS call failed"); \
+#define EIGEN_CUBLAS_CHECK(expr)                                                                                 \
+  do {                                                                                                           \
+    const cublasStatus_t _s = (expr);                                                                            \
+    if (_s != CUBLAS_STATUS_SUCCESS) EIGEN_GPU_CHECK_FAILED(cublasGetStatusName(_s), #expr, __FILE__, __LINE__); \
   } while (0)
 
 constexpr cublasOperation_t to_cublas_op(GpuOp op) {
@@ -118,11 +118,7 @@ struct cuda_compute_type<std::complex<double>> {
   static constexpr cublasComputeType_t value = cuda_compute_type_detail::kDouble;
 };
 
-#define EIGEN_CUBLASLT_CHECK(expr)                                       \
-  do {                                                                   \
-    cublasStatus_t _s = (expr);                                          \
-    eigen_assert(_s == CUBLAS_STATUS_SUCCESS && "cuBLASLt call failed"); \
-  } while (0)
+#define EIGEN_CUBLASLT_CHECK(expr) EIGEN_CUBLAS_CHECK(expr)
 
 // Maximum workspace the heuristic is allowed to consider. This is a preference
 // ceiling, not an allocation — actual allocation matches the selected algorithm.

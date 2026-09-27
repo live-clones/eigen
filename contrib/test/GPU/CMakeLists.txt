@@ -125,6 +125,11 @@ endif()
 if(TARGET CUDA::cusparse AND TARGET CUDA::cufft)
   ei_add_gpu_test(stream_ordering
     EXTRA_LIBS CUDA::cublas CUDA::cusolver CUDA::cusparse CUDA::cufft CUDA::npps CUDA::nppc Threads::Threads)
+  # Failed runtime and library calls reach EIGEN_GPU_CHECK_FAILED, with and without EIGEN_NO_DEBUG.
+  foreach(_check_test runtime_checks runtime_checks_ndebug)
+    ei_add_gpu_test(${_check_test}
+      EXTRA_LIBS CUDA::cublas CUDA::cublasLt CUDA::cusolver CUDA::cusparse CUDA::cufft CUDA::npps CUDA::nppc)
+  endforeach()
 endif()
 
 # cuDSS sparse direct solvers -- distributed separately from the CUDA Toolkit.
