@@ -699,7 +699,7 @@ void svd_always_precondition_accuracy() {
     return ((singularValues.template cast<double>() - reference).array().abs() / reference.array()).maxCoeff();
   };
 
-  // preconditioning is always closer to reference. 
+  // preconditioning is always closer to reference.
   const double defaultError = relativeError(SVD_DEFAULT(MatrixType)(m).singularValues());
   const double preconditionedError =
       relativeError(SVD_STATIC_OPTIONS(MatrixType, AlwaysPrecondition)(m).singularValues());
