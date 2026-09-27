@@ -10,6 +10,7 @@
 #include <contrib/Eigen/NumericalDiff>
 
 using Eigen::Array;
+using Eigen::Index;
 using Eigen::makeStencil;
 using Eigen::Stencil;
 
@@ -25,20 +26,18 @@ void verify_polynomial_exactness(const Array<Scalar, Size, 1> &points) {
   const auto w = s.weights();
   const auto p = s.points();
 
-  for (std::size_t i = 0; i < Size; ++i) {
-    VERIFY_IS_APPROX(p[i], points[i]);
-  }
+  for (Index i = 0; i < Size; ++i) VERIFY_IS_APPROX(p[i], points[i]);
 
   Scalar fact(1);
-  for (unsigned i = 2; i <= Derivative; ++i) fact *= Scalar(i);
+  for (Index i = 2; i <= Derivative; ++i) fact *= Scalar(i);
 
   Scalar term[Size];
-  for (std::size_t i = 0; i < Size; ++i) term[i] = Scalar(1);
+  for (Index i = 0; i < Size; ++i) term[i] = Scalar(1);
 
-  for (std::size_t k = 0; k < Size; ++k) {
+  for (Index k = 0; k < Size; ++k) {
     Scalar acc(0);
     RealScalar magSum(0);
-    for (std::size_t i = 0; i < Size; ++i) {
+    for (Index i = 0; i < Size; ++i) {
       const Scalar contribution = w[i] * term[i];
       acc += contribution;
       magSum += numext::abs(contribution);
@@ -46,7 +45,7 @@ void verify_polynomial_exactness(const Array<Scalar, Size, 1> &points) {
     const Scalar expected = (k == Derivative) ? fact : Scalar(0);
     const RealScalar tol = RealScalar(50) * RealScalar(Size) * (magSum + RealScalar(1)) * Eigen::NumTraits<RealScalar>::epsilon();
     VERIFY(numext::abs(acc - expected) <= tol);
-    for (std::size_t i = 0; i < Size; ++i) term[i] *= p[i];
+    for (Index i = 0; i < Size; ++i) term[i] *= p[i];
   }
 }
 
@@ -133,7 +132,7 @@ void test_order_preservation() {
   const auto w = s.weights();
   const auto wReversed = sReversed.weights();
 
-  for (std::size_t i = 0; i < 5; ++i) {
+  for (Index i = 0; i < 5; ++i) {
     const double tol = 100.0 * Eigen::NumTraits<double>::epsilon() * (numext::abs(w[i]) + 1.0);
     VERIFY(numext::abs(w[i] - wReversed[4 - i]) <= tol);
   }
