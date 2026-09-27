@@ -252,7 +252,9 @@ struct DeviceBufferPool {
  *   - RAW: a read on s != home waits for the last write;
  *   - WAR, WAW: a write on s waits for all earlier work on home and for every
  *     read recorded on another stream, and s becomes the home stream;
- *   - free: home waits for the recorded reads, then cudaFreeAsync on home.
+ *   - free: home waits for the recorded reads, then cudaFreeAsync on home. A
+ *     borrowed buffer's home waits for them too, so that the owner's later
+ *     writes and free there follow reads made through the borrowed pointer.
  * Accesses on the home stream itself need no events. Internal scratch that is
  * only ever touched on its home stream may skip the protocol entirely. Reads
  * may run concurrently from several threads; a write needs exclusive access.
@@ -332,14 +334,20 @@ class DeviceBuffer {
   void finishRead(const StreamHandle& s) const {
     if (!ptr_ || s.get() == stream_.get()) return;
     std::lock_guard<std::mutex> lock(read_mutex_);
-    // The stream's pending mark, else a retired one: one mark per stream with
-    // reads pending, and no more marks than such streams have ever been.
+    // The stream's pending mark, else a retired one. A mark retires when a
+    // write has waited for it or its read has completed, so the marks number
+    // at most the reader streams that ever had reads in flight at once.
     ReadMark* mark = nullptr;
     for (ReadMark& r : reads_) {
       if (r.pending && r.stream.get() == s.get()) mark = &r;
     }
     for (ReadMark& r : reads_) {
-      if (!mark && !r.pending) mark = &r;
+      if (mark) break;
+      if (r.pending && cudaEventQuery(r.event) == cudaSuccess) {
+        r.pending = false;
+        r.stream.reset();
+      }
+      if (!r.pending) mark = &r;
     }
     if (!mark) {
       reads_.push_back(ReadMark{nullptr, nullptr, false});
@@ -389,10 +397,12 @@ class DeviceBuffer {
     }
   }
 
-  /** Gives up ownership without freeing. The home stream is first ordered after
-   * every recorded read, so the caller only has to respect stream(). */
-  void* release() {
-    prepareWrite(stream_);
+  /** Gives up ownership without freeing. \p target is first ordered after every
+   * pending access, as for a write, so the caller only has to order its own use
+   * and the free after \p target's work; the buffer's own stream, which may die
+   * with the buffer, is not needed. */
+  void* release(const StreamHandle& target) {
+    prepareWrite(target);
     void* p = ptr_;
     ptr_ = nullptr;
     reset();
@@ -402,10 +412,12 @@ class DeviceBuffer {
   /** Frees the allocation (if owned) on the home stream, after the recorded
    * reads; stream-ordered, so nothing blocks the host. */
   void reset() noexcept {
-    if (ptr_ && owns_) {
+    if (ptr_) {
       for (const ReadMark& r : reads_) {
         if (r.pending && r.stream.get() != stream_.get()) (void)cudaStreamWaitEvent(stream_.get(), r.event, 0);
       }
+    }
+    if (ptr_ && owns_) {
       // Pooled blocks go back to the pool only while it is alive; a
       // pool-allocated block is cudaMalloc memory, so device_free handles it
       // afterwards too.

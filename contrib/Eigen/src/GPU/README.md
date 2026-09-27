@@ -840,7 +840,7 @@ static DeviceMatrix view([ctx,] Scalar* device_ptr, rows, cols)   // Non-owning 
 PlainMatrix        toHost([ctx])                                  // -> host Matrix (syncs)
 HostTransfer       toHostAsync([ctx])                             // -> HostTransfer future (no sync)
 DeviceMatrix       clone([ctx])                                   // -> DeviceMatrix (D2D copy, async)
-Scalar*            release()                                      // Give up ownership of the pointer
+Scalar*            release([ctx])                                 // Give up ownership; pending work ordered before ctx's
 
 // Dimensions and access
 Index        rows()
