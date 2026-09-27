@@ -140,7 +140,7 @@ class SelfAdjointEigenSolver {
   RealVector eigenvalues() const {
     eigen_assert(solver_ctx_.info() == Success);
     RealVector W(n_);
-    download(W.data(), d_W_.get(), static_cast<size_t>(n_) * sizeof(RealScalar));
+    solver_ctx_.download(W.data(), d_W_.get(), static_cast<size_t>(n_) * sizeof(RealScalar));
     return W;
   }
 
@@ -150,7 +150,7 @@ class SelfAdjointEigenSolver {
     eigen_assert(solver_ctx_.info() == Success);
     eigen_assert(compute_eigenvectors_ && "eigenvectors() requires ComputeEigenvectors option");
     PlainMatrix V(n_, n_);
-    download(V.data(), d_A_.get(), static_cast<size_t>(lda_) * static_cast<size_t>(n_) * sizeof(Scalar));
+    solver_ctx_.download(V.data(), d_A_.get(), static_cast<size_t>(lda_) * static_cast<size_t>(n_) * sizeof(Scalar));
     return V;
   }
 
@@ -209,13 +209,6 @@ class SelfAdjointEigenSolver {
     lda_ = n_;
     d_A.prepareRead(context());
     return true;
-  }
-
-  // Blocking download of solver-owned device data, on the solver's stream.
-  void download(void* dst, const void* src, size_t bytes) const {
-    if (bytes == 0) return;
-    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(dst, src, bytes, cudaMemcpyDeviceToHost, solver_ctx_.stream()));
-    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(solver_ctx_.stream()));
   }
 
   void factorize() {

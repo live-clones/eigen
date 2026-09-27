@@ -460,7 +460,7 @@ class SparseContext {
 
  private:
   // Declared first so that it is destroyed last, after the buffers and
-  // descriptors that work on its stream uses.
+  // descriptors used by work on its stream.
   std::unique_ptr<Context> owned_ctx_;
   Context* ctx_ = nullptr;
   // ctx_'s stream and cuSPARSE handle, cached for the hot paths.

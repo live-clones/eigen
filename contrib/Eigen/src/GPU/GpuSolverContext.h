@@ -157,6 +157,13 @@ struct GpuSolverContext {
     return info_;
   }
 
+  // Blocking download of solver-owned device data, on the solver's stream.
+  void download(void* dst, const void* src, size_t bytes) const {
+    if (bytes == 0) return;
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(dst, src, bytes, cudaMemcpyDeviceToHost, stream()));
+    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream()));
+  }
+
   void wait_for_info_copy() noexcept {
     if (!info_synced_ && ctx_ && pinned_info_) (void)cudaStreamSynchronize(stream());
   }
