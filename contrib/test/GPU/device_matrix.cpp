@@ -109,35 +109,26 @@ void test_roundtrip_async(Index rows, Index cols) {
   using MatrixType = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
   MatrixType host = MatrixType::Random(rows, cols);
 
-  cudaStream_t stream;
-  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&stream));
+  gpu::Context ctx;
 
   // Async upload from raw pointer.
-  auto dm = gpu::DeviceMatrix<Scalar>::fromHostAsync(host.data(), rows, cols, stream);
+  auto dm = gpu::DeviceMatrix<Scalar>::fromHostAsync(ctx, host.data(), rows, cols);
   VERIFY_IS_EQUAL(dm.rows(), rows);
   VERIFY_IS_EQUAL(dm.cols(), cols);
 
   // Async download via HostTransfer future.
-  auto transfer = dm.toHostAsync(stream);
+  auto transfer = dm.toHostAsync(ctx);
 
   // get() blocks and returns the matrix.
   MatrixType result = transfer.get();
   VERIFY_IS_APPROX(result, host);
 
-  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamDestroy(stream));
-
-  cudaStream_t producer_stream;
-  cudaStream_t consumer_stream;
-  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&producer_stream));
-  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&consumer_stream));
-
-  auto cross_stream_dm = gpu::DeviceMatrix<Scalar>::fromHostAsync(host.data(), rows, cols, producer_stream);
-  auto cross_stream_transfer = cross_stream_dm.toHostAsync(consumer_stream);
+  gpu::Context producer;
+  gpu::Context consumer;
+  auto cross_stream_dm = gpu::DeviceMatrix<Scalar>::fromHostAsync(producer, host.data(), rows, cols);
+  auto cross_stream_transfer = cross_stream_dm.toHostAsync(consumer);
   MatrixType cross_stream_result = cross_stream_transfer.get();
   VERIFY_IS_APPROX(cross_stream_result, host);
-
-  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamDestroy(consumer_stream));
-  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamDestroy(producer_stream));
 }
 
 // ---- HostTransfer::ready() and idempotent get() -----------------------------
@@ -184,18 +175,17 @@ void test_host_transfer_move_assign() {
   MatrixType host_a = MatrixType::Random(50, 50);
   MatrixType host_b = MatrixType::Random(50, 50);
 
-  cudaStream_t stream;
-  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&stream));
+  gpu::Context ctx;
 
-  auto dm_a = gpu::DeviceMatrix<double>::fromHost(host_a, stream);
-  auto dm_b = gpu::DeviceMatrix<double>::fromHost(host_b, stream);
+  auto dm_a = gpu::DeviceMatrix<double>::fromHost(ctx, host_a);
+  auto dm_b = gpu::DeviceMatrix<double>::fromHost(ctx, host_b);
 
   // Destination already consumed: get() leaves event_ live and synced_ set.
   {
-    auto dest = dm_a.toHostAsync(stream);
+    auto dest = dm_a.toHostAsync(ctx);
     VERIFY_IS_APPROX(dest.get(), host_a);
 
-    auto src = dm_b.toHostAsync(stream);
+    auto src = dm_b.toHostAsync(ctx);
     dest = std::move(src);
 
     // The adopted transfer still completes and yields the source's data.
@@ -204,19 +194,16 @@ void test_host_transfer_move_assign() {
     VERIFY(src.ready());
   }
 
-  // Destination never consumed: event_ live and synced_ still false. Sync first
-  // so no copy is in flight into the staging buffer the assignment frees.
+  // Destination never consumed: event_ live and synced_ still false. The
+  // assignment waits for the pending copy before freeing its staging buffer.
   {
-    auto dest = dm_a.toHostAsync(stream);
-    auto src = dm_b.toHostAsync(stream);
-    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream));
+    auto dest = dm_a.toHostAsync(ctx);
+    auto src = dm_b.toHostAsync(ctx);
 
     dest = std::move(src);
     VERIFY_IS_APPROX(dest.get(), host_b);
     VERIFY(src.ready());
   }
-
-  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamDestroy(stream));
 }
 
 // ---- clone() produces independent copy --------------------------------------
@@ -278,30 +265,27 @@ void test_move_assign(Index rows, Index cols) {
   VERIFY_IS_APPROX(result, host);
 }
 
-// ---- Move assign over a live ready event ------------------------------------
+// ---- Move assign over a live write event ------------------------------------
 
-// A destination produced asynchronously owns a ready event, which the
-// assignment must destroy before adopting the source's. test_move_assign()
-// cannot reach that branch: its destination is default-constructed and its
-// source comes from the synchronous fromHost(), so neither records an event.
+// A destination produced asynchronously owns a write event, which the
+// assignment must release before adopting the source's. test_move_assign()
+// cannot reach that branch with work in flight: its source comes from the
+// synchronous fromHost().
 template <typename Scalar>
 void test_move_assign_async(Index rows, Index cols) {
   using MatrixType = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
   MatrixType host_a = MatrixType::Random(rows, cols);
   MatrixType host_b = MatrixType::Random(rows, cols);
 
-  cudaStream_t producer_stream;
-  cudaStream_t consumer_stream;
-  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&producer_stream));
-  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&consumer_stream));
+  gpu::Context producer;
+  gpu::Context consumer;
 
-  // Destination: upload finished, but its ready event is still live. Draining
-  // the stream keeps the assignment from freeing a buffer still being written.
-  auto dest = gpu::DeviceMatrix<Scalar>::fromHostAsync(host_a.data(), rows, cols, producer_stream);
-  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(producer_stream));
+  // Destination: its upload may still be in flight; the assignment frees it
+  // stream-ordered, after that upload.
+  auto dest = gpu::DeviceMatrix<Scalar>::fromHostAsync(producer, host_a.data(), rows, cols);
 
   // Source: upload still in flight, so the adopted event has real work behind it.
-  auto src = gpu::DeviceMatrix<Scalar>::fromHostAsync(host_b.data(), rows, cols, producer_stream);
+  auto src = gpu::DeviceMatrix<Scalar>::fromHostAsync(producer, host_b.data(), rows, cols);
   dest = std::move(src);
 
   VERIFY(src.empty());
@@ -309,13 +293,10 @@ void test_move_assign_async(Index rows, Index cols) {
   VERIFY_IS_EQUAL(dest.rows(), rows);
   VERIFY_IS_EQUAL(dest.cols(), cols);
 
-  // Reading back on the other stream waits on the adopted event, so an event
+  // Reading back on the other context waits on the adopted event, so an event
   // lost or left behind by the assignment shows up as wrong data.
-  MatrixType result = dest.toHost(consumer_stream);
+  MatrixType result = dest.toHost(consumer);
   VERIFY_IS_APPROX(result, host_b);
-
-  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamDestroy(consumer_stream));
-  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamDestroy(producer_stream));
 }
 
 // ---- resize() ---------------------------------------------------------------
@@ -397,10 +378,10 @@ void test_blas1(Index n) {
     Vec y = Vec::Random(n);
     Scalar alpha(2.5);
     Vec y_ref = y + alpha * x;
-    auto d_y = gpu::DeviceMatrix<Scalar>::fromHost(y, ctx.stream());
-    auto d_x = gpu::DeviceMatrix<Scalar>::fromHost(x, ctx.stream());
+    auto d_y = gpu::DeviceMatrix<Scalar>::fromHost(ctx, y);
+    auto d_x = gpu::DeviceMatrix<Scalar>::fromHost(ctx, x);
     d_y.addScaled(ctx, alpha, d_x);
-    Vec y_gpu = d_y.toHost(ctx.stream());
+    Vec y_gpu = d_y.toHost(ctx);
     VERIFY((y_gpu - y_ref).norm() < tol * y_ref.norm() + tol);
   }
 
@@ -409,28 +390,28 @@ void test_blas1(Index n) {
     Vec x = Vec::Random(n);
     Scalar alpha(3.0);
     Vec x_ref = alpha * x;
-    auto d_x = gpu::DeviceMatrix<Scalar>::fromHost(x, ctx.stream());
+    auto d_x = gpu::DeviceMatrix<Scalar>::fromHost(ctx, x);
     d_x.scale(ctx, alpha);
-    Vec x_gpu = d_x.toHost(ctx.stream());
+    Vec x_gpu = d_x.toHost(ctx);
     VERIFY((x_gpu - x_ref).norm() < tol * x_ref.norm() + tol);
   }
 
   // copyFrom
   {
     Vec x = Vec::Random(n);
-    auto d_x = gpu::DeviceMatrix<Scalar>::fromHost(x, ctx.stream());
+    auto d_x = gpu::DeviceMatrix<Scalar>::fromHost(ctx, x);
     gpu::DeviceMatrix<Scalar> d_y;
     d_y.copyFrom(ctx, d_x);
-    Vec y = d_y.toHost(ctx.stream());
+    Vec y = d_y.toHost(ctx);
     VERIFY_IS_APPROX(y, x);
   }
 
   // setZero
   {
     Vec x = Vec::Random(n);
-    auto d_x = gpu::DeviceMatrix<Scalar>::fromHost(x, ctx.stream());
+    auto d_x = gpu::DeviceMatrix<Scalar>::fromHost(ctx, x);
     d_x.setZero(ctx);
-    Vec result = d_x.toHost(ctx.stream());
+    Vec result = d_x.toHost(ctx);
     VERIFY_IS_EQUAL(result, Vec::Zero(n));
   }
 }
@@ -507,8 +488,8 @@ void test_device_scalar() {
   Vec b = Vec::Random(n);
 
   gpu::Context ctx;
-  auto d_a = gpu::DeviceMatrix<Scalar>::fromHost(a, ctx.stream());
-  auto d_b = gpu::DeviceMatrix<Scalar>::fromHost(b, ctx.stream());
+  auto d_a = gpu::DeviceMatrix<Scalar>::fromHost(ctx, a);
+  auto d_b = gpu::DeviceMatrix<Scalar>::fromHost(ctx, b);
 
   // dot() returns gpu::DeviceScalar — implicit conversion to Scalar syncs.
   Scalar gpu_dot = d_a.dot(ctx, d_b);
@@ -545,6 +526,25 @@ void test_device_scalar() {
   }
 }
 
+// ---- Moving a view into a solver --------------------------------------------
+
+// A view borrows another object's storage, so a solver that takes a matrix by
+// move must copy a view rather than factor over (and later free) that storage.
+void test_solver_copies_moved_view() {
+  const Index n = 32;
+  const MatrixXd A = MatrixXd::Random(n, n) + MatrixXd::Identity(n, n) * double(n);
+  const MatrixXd B = MatrixXd::Random(n, 2);
+  gpu::SVD<double> svd(A);
+  const MatrixXd U = svd.matrixU();
+  gpu::LU<double> lu;
+  lu.compute(svd.d_matrixU());
+  VERIFY_IS_APPROX(svd.matrixU(), U);
+  VERIFY_IS_APPROX(MatrixXd(U * lu.solve(B)), B);
+  const MatrixXd X = lu.solve(svd.d_matrixU()).toHost();
+  VERIFY_IS_APPROX(svd.matrixU(), U);
+  VERIFY_IS_APPROX(MatrixXd(U * X), U);
+}
+
 // ---- cwiseProduct -----------------------------------------------------------
 
 template <typename Scalar>
@@ -558,10 +558,10 @@ void test_cwiseProduct() {
   Vec ref = a.array() * b.array();
 
   gpu::Context ctx;
-  auto d_a = gpu::DeviceMatrix<Scalar>::fromHost(a, ctx.stream());
-  auto d_b = gpu::DeviceMatrix<Scalar>::fromHost(b, ctx.stream());
+  auto d_a = gpu::DeviceMatrix<Scalar>::fromHost(ctx, a);
+  auto d_b = gpu::DeviceMatrix<Scalar>::fromHost(ctx, b);
   auto d_c = d_a.cwiseProduct(ctx, d_b);
-  Vec result = d_c.toHost(ctx.stream());
+  Vec result = d_c.toHost(ctx);
 
   RealScalar tol = RealScalar(10) * RealScalar(n) * NumTraits<Scalar>::epsilon();
   VERIFY((result - ref).norm() < tol * ref.norm() + tol);
@@ -593,6 +593,7 @@ EIGEN_DECLARE_TEST(gpu_device_matrix) {
   CALL_SUBTEST(test_device_scalar<double>());
   CALL_SUBTEST(test_device_scalar<std::complex<float>>());
   CALL_SUBTEST(test_device_scalar<std::complex<double>>());
+  CALL_SUBTEST(test_solver_copies_moved_view());
   CALL_SUBTEST(test_cwiseProduct<float>());
   CALL_SUBTEST(test_cwiseProduct<double>());
 }

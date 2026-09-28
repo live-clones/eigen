@@ -60,11 +60,10 @@ inline int64_t to_blas_dim(int64_t v) { return v; }
 inline int to_blas_dim(int64_t v) { return to_blas_int(v); }
 #endif
 
-// RAII cuBLAS / cuBLASLt handles; the ownership flag supports handles borrowed from a gpu::Context.
+// RAII cuBLAS / cuBLASLt handles.
 struct CublasHandleDeleter {
-  bool owns = true;
   void operator()(cublasHandle_t h) const noexcept {
-    if (owns && h) (void)cublasDestroy(h);
+    if (h) (void)cublasDestroy(h);
   }
 };
 using UniqueCublasHandle = std::unique_ptr<std::remove_pointer_t<cublasHandle_t>, CublasHandleDeleter>;
@@ -283,13 +282,14 @@ using CublasLtPlanCache = Eigen::internal::LruCache<CublasLtPlanKey, CublasLtPla
 // shapes and types the cublasLt heuristic cannot serve. Dimensions are 64-bit on
 // the cublasLt path. `workspace` grows monotonically to the selected algorithm's
 // requirement; neither it nor `plan_cache` is thread-safe, so all calls sharing
-// them must run on one stream.
+// them must run on one stream. A grown workspace replaces the old one without a
+// sync: the old buffer's free is ordered after the GEMMs already queued on it.
 template <typename Scalar>
 void cublaslt_gemm(cublasLtHandle_t lt_handle, cublasHandle_t cublas_handle, cublasOperation_t transA,
                    cublasOperation_t transB, int64_t m, int64_t n, int64_t k, const Scalar* alpha, const Scalar* A,
                    int64_t lda, const Scalar* B, int64_t ldb, const Scalar* beta, Scalar* C, int64_t ldc,
                    DeviceBuffer& workspace, CublasLtPlanCache& plan_cache, std::size_t max_workspace_bytes,
-                   cudaStream_t stream) {
+                   const StreamHandle& stream) {
   constexpr cudaDataType_t dtype = cuda_data_type<Scalar>::value;
   constexpr cublasComputeType_t compute = cuda_compute_type<Scalar>::value;
   constexpr cudaDataType_t alpha_type = cuda_data_type<Scalar>::value;
@@ -304,15 +304,11 @@ void cublaslt_gemm(cublasLtHandle_t lt_handle, cublasHandle_t cublas_handle, cub
 
   if (entry->use_cublaslt) {
     const size_t needed = entry->workspace_size;
-    if (needed > workspace.size()) {
-      // Sync only when freeing an existing buffer that may be in use.
-      if (workspace.get()) EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream));
-      workspace = DeviceBuffer(needed);
-    }
+    if (needed > workspace.size()) workspace = DeviceBuffer(needed, stream);
 
     EIGEN_CUBLASLT_CHECK(cublasLtMatmul(lt_handle, entry->matmul_desc, alpha, A, entry->layout_A, B, entry->layout_B,
                                         beta, C, entry->layout_C, C, entry->layout_C, &entry->algo, workspace.get(),
-                                        needed, stream));
+                                        needed, stream.get()));
   } else {
     // Fallback: cublasGemmEx for shapes/types that cublasLt cannot handle.
     EIGEN_CUBLAS_CHECK(EIGEN_CUBLAS_FN(cublasGemmEx)(

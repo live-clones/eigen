@@ -295,13 +295,39 @@ void test_device_solve_context(Index n) {
   VERIFY(llt.stream() == gctx.stream());
 
   Mat X_host = llt.solve(B);
-  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B, gctx.stream());
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(gctx, B);
   gpu::DeviceMatrix<Scalar> d_X = llt.solve(d_B);
   VERIFY_IS_APPROX(d_X.toHost(), X_host);
 
   // Second device solve reuses the cached dense descriptors.
   gpu::DeviceMatrix<Scalar> d_X2 = llt.solve(d_B);
   VERIFY_IS_APPROX(d_X2.toHost(), X_host);
+}
+
+// A standalone and a bound solver, with host and device right-hand sides and a
+// refactorization, never touch the legacy default stream. The solvers are built
+// and run once beforehand: creating library handles synchronizes the device,
+// which the sentinel's open capture rejects.
+template <typename Scalar>
+void test_no_legacy_stream(Index n) {
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  const SparseMatrix<Scalar, ColMajor, int> A = make_spd<Scalar>(n);
+  const Mat B = Mat::Random(n, 2);
+  gpu::Context gctx;
+  gpu::SparseLLT<Scalar> standalone;
+  gpu::SparseLLT<Scalar> bound(gctx);
+  auto run = [&] {
+    standalone.compute(A);
+    bound.compute(A);
+    const Mat X = standalone.solve(B);
+    auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(gctx, B);
+    bound.factorize(A);
+    VERIFY_IS_APPROX(bound.solve(d_B).toHost(gctx), X);
+  };
+  run();
+  gpu_test::LegacyStreamSentinel sentinel;
+  run();
+  VERIFY(sentinel.end());
 }
 
 void test_default_stream_context() {
@@ -324,5 +350,6 @@ EIGEN_DECLARE_TEST(gpu_cudss_llt) {
   CALL_SUBTEST_5(test_empty<std::complex<double>>());
   CALL_SUBTEST_5(test_device_solve_context<float>(64));
   CALL_SUBTEST_5(test_device_solve_context<double>(64));
+  CALL_SUBTEST_5(test_no_legacy_stream<double>(64));
   CALL_SUBTEST_5(test_default_stream_context());
 }

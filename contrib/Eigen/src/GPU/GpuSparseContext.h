@@ -39,7 +39,7 @@
 #include <cstdint>
 
 #include "./CuSparseSupport.h"
-#include "./FwdDecl.h"
+#include "./DeviceDispatch.h"
 
 namespace Eigen {
 namespace gpu {
@@ -282,24 +282,16 @@ class SparseContext {
   template <int Options, int BlockRows, int BlockCols>
   using BlockSpMat = BlockSparseMatrix<Scalar, Options, BlockRows, BlockCols, StorageIndex>;
 
-  /** Standalone: creates own stream and cuSPARSE handle. */
-  SparseContext() : owns_handle_(true) {
-    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&stream_));
-    owns_stream_ = true;
-    EIGEN_CUSPARSE_CHECK(cusparseCreate(&handle_));
-    EIGEN_CUSPARSE_CHECK(cusparseSetStream(handle_, stream_));
-  }
+  /** Standalone: runs on a private Context (its own stream and cuSPARSE handle). */
+  SparseContext() : owned_ctx_(new Context()), ctx_(owned_ctx_.get()) { bind_handles(); }
 
-  /** Borrow a Context: shares stream and cuSPARSE handle.
+  /** Borrow a Context: shares its stream and cuSPARSE handle.
    * The Context must outlive this SparseContext. */
-  explicit SparseContext(Context& ctx)
-      : stream_(ctx.stream()), handle_(ctx.cusparseHandle()), owns_stream_(false), owns_handle_(false) {}
+  explicit SparseContext(Context& ctx) : ctx_(&ctx) { bind_handles(); }
 
   ~SparseContext() {
     destroy_spmat_descriptor(/*checked=*/false);
     destroy_dense_descriptors();
-    if (owns_handle_ && handle_) (void)cusparseDestroy(handle_);
-    if (owns_stream_ && stream_) (void)cudaStreamDestroy(stream_);
   }
 
   SparseContext(const SparseContext&) = delete;
@@ -463,11 +455,22 @@ class SparseContext {
 
   cudaStream_t stream() const { return stream_; }
 
+  /** The Context this SparseContext runs on. */
+  Context& context() const { return *ctx_; }
+
  private:
+  // Declared first so that it is destroyed last, after the buffers and
+  // descriptors used by work on its stream.
+  std::unique_ptr<Context> owned_ctx_;
+  Context* ctx_ = nullptr;
+  // ctx_'s stream and cuSPARSE handle, cached for the hot paths.
   cudaStream_t stream_ = nullptr;
   cusparseHandle_t handle_ = nullptr;
-  bool owns_stream_ = false;
-  bool owns_handle_ = false;
+
+  void bind_handles() {
+    stream_ = ctx_->stream();
+    handle_ = ctx_->cusparseHandle();
+  }
 
   // Cached device buffers for sparse matrix (grow-only).
   internal::DeviceBuffer d_outerPtr_;
@@ -697,27 +700,26 @@ class SparseContext {
     eigen_assert(d_x.rows() * d_x.cols() == x_size);
 
     if (m == 0 || n == 0 || cached_nnz_ == 0) {
-      // Empty A reduces SpMV to y <- beta*y; SparseContext owns no cuBLAS
-      // handle for the scale, so the beta != 0 case must be handled by the caller.
-      eigen_assert(beta == Scalar(0) && "SpMV with empty A and beta != 0 is unsupported; scale d_y externally");
-      if (d_y.rows() * d_y.cols() != y_size) d_y.resize(y_size, 1);
-      d_y.setZero(stream_);
+      // Empty A reduces SpMV to y <- beta*y.
+      if (beta == Scalar(0)) {
+        if (d_y.rows() * d_y.cols() != y_size) d_y.resize(*ctx_, y_size, 1);
+        d_y.setZero(*ctx_);
+      } else {
+        eigen_assert(d_y.rows() * d_y.cols() == y_size && "SpMV with beta != 0: d_y has the wrong size");
+        if (beta != Scalar(1)) d_y.scale(*ctx_, beta);
+      }
       return;
     }
 
-    // Ensure d_y is allocated.
-    if (d_y.rows() * d_y.cols() != y_size) {
-      d_y.resize(y_size, 1);
-    }
-
-    // Wait for input data to be ready on this stream.
-    d_x.waitReady(stream_);
-    d_y.waitReady(stream_);
+    if (d_y.rows() * d_y.cols() != y_size) d_y.resize(*ctx_, y_size, 1);
+    d_x.prepareRead(*ctx_);
+    d_y.prepareWrite(*ctx_);
 
     exec_spmv(x_size, y_size, const_cast<void*>(static_cast<const void*>(d_x.data())), static_cast<void*>(d_y.data()),
               alpha, beta, cu_op);
 
-    d_y.recordReady(stream_);
+    d_x.finishRead(*ctx_);
+    d_y.finishWrite(*ctx_);
   }
 
   /** Execute SpMM (d_Y = alpha * op(A) * d_X + beta * d_Y) using the
@@ -739,23 +741,26 @@ class SparseContext {
     eigen_assert(d_X.rows() == k_op);
 
     if (m_op == 0 || n == 0 || cached_nnz_ == 0) {
-      eigen_assert(beta == Scalar(0) && "SpMM with empty A and beta != 0 is unsupported; scale d_Y externally");
-      if (d_Y.rows() != m_op || d_Y.cols() != n) d_Y.resize(m_op, n);
-      d_Y.setZero(stream_);
+      // Empty A reduces SpMM to Y <- beta*Y.
+      if (beta == Scalar(0)) {
+        d_Y.resize(*ctx_, m_op, n);
+        d_Y.setZero(*ctx_);
+      } else {
+        eigen_assert(d_Y.rows() == m_op && d_Y.cols() == n && "SpMM with beta != 0: d_Y has the wrong size");
+        if (beta != Scalar(1)) d_Y.scale(*ctx_, beta);
+      }
       return;
     }
 
-    if (d_Y.rows() != m_op || d_Y.cols() != n) {
-      d_Y.resize(m_op, n);
-    }
-
-    d_X.waitReady(stream_);
-    d_Y.waitReady(stream_);
+    d_Y.resize(*ctx_, m_op, n);
+    d_X.prepareRead(*ctx_);
+    d_Y.prepareWrite(*ctx_);
 
     exec_spmm(m_op, k_op, n, const_cast<void*>(static_cast<const void*>(d_X.data())), static_cast<void*>(d_Y.data()),
               alpha, beta, cu_op);
 
-    d_Y.recordReady(stream_);
+    d_X.finishRead(*ctx_);
+    d_Y.finishWrite(*ctx_);
   }
 
  private:
@@ -1028,10 +1033,7 @@ class SparseContext {
   }
 
   void ensure_buffer(internal::DeviceBuffer& buf, size_t needed) const {
-    if (needed > buf.size()) {
-      if (buf) EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream_));
-      buf = internal::DeviceBuffer(needed);
-    }
+    internal::ensure_sized(buf, needed, ctx_->streamHandle());
   }
 };
 
@@ -1062,14 +1064,10 @@ DeviceMatrix<Scalar_>& DeviceMatrix<Scalar_>::operator=(const SpMVAffineExpr<Sca
                "SpMVAffineExpr: the addend must have the shape of the product");
   eigen_assert(&expr.x() != this && "SpMVAffineExpr: the destination aliases the dense operand");
   // The product accumulates into a copy of the addend; when the addend is the destination
-  // itself (d_r = d_r - d_A * d_x) cuSPARSE's beta accumulates in place.
-  if (&addend != this) copyFrom(Context::threadLocal(), addend);
-  // With no stored entries the expression is beta * addend, which spmv_device_exec cannot
-  // form: SparseContext owns no cuBLAS handle to scale d_y by beta.
-  if (view.nonZeros() == 0 || view.rows() == 0 || view.cols() == 0) {
-    if (expr.beta() != Scalar_(1)) scale(Context::threadLocal(), expr.beta());
-    return *this;
-  }
+  // itself (d_r = d_r - d_A * d_x) cuSPARSE's beta accumulates in place. Both steps run on
+  // the SparseContext's Context, like the product itself.
+  Context& ctx = view.context().context();
+  if (&addend != this) copyFrom(ctx, addend);
   if (expr.x().cols() <= 1) {
     view.context().spmv_device_exec(expr.x(), *this, expr.alpha(), expr.beta(), GpuOp::NoTrans);
   } else {

@@ -105,7 +105,7 @@ void test_gpu_cg_class(Index n) {
   gpu::Context::setThreadLocal(&ctx);
   gpu::SparseContext<Scalar> spmv_ctx(ctx);
   auto mat = spmv_ctx.deviceView(A);
-  auto d_b = gpu::DeviceMatrix<Scalar>::fromHost(b, ctx.stream());
+  auto d_b = gpu::DeviceMatrix<Scalar>::fromHost(ctx, b);
   gpu::DeviceMatrix<Scalar> d_x(n, 1);
   d_x.setZero(ctx);
 
@@ -124,12 +124,12 @@ void test_gpu_cg_class(Index n) {
   gpu::DeviceMatrix<Scalar> d_c = d_b;
   d_c /= Scalar(3);
   gpu::Context::setThreadLocal(nullptr);
-  const Vec c = d_c.toHost(ctx.stream());
+  const Vec c = d_c.toHost(ctx);
   const Vec c_ref = b / Scalar(3);
   VERIFY(((c - c_ref).cwiseAbs().array() <= RealScalar(2) * NumTraits<Scalar>::epsilon() * c_ref.cwiseAbs().array())
              .all());
 
-  Vec x_gpu = d_x.toHost(ctx.stream());
+  Vec x_gpu = d_x.toHost(ctx);
   check_cg_solution(A, b, x_gpu, x_cpu, tol);
 }
 
@@ -164,14 +164,14 @@ void test_gpu_cg_extreme_rhs() {
                                numext::sqrt((Limits::max)()) * RealScalar(1e10), (Limits::max)() / RealScalar(4)};
   for (RealScalar scale : scales) {
     const Vec rhs = scale * direction;
-    auto d_b = gpu::DeviceMatrix<Scalar>::fromHost(rhs, ctx.stream());
+    auto d_b = gpu::DeviceMatrix<Scalar>::fromHost(ctx, rhs);
     for (RealScalar guess : {RealScalar(0), RealScalar(0.5)}) {
       const Vec x0 = guess * rhs;
-      auto d_x = gpu::DeviceMatrix<Scalar>::fromHost(x0, ctx.stream());
+      auto d_x = gpu::DeviceMatrix<Scalar>::fromHost(ctx, x0);
       cg.solveWithGuessInPlace(d_b, d_x);
       VERIFY_IS_EQUAL(cg.info(), Success);
       VERIFY(cg.iterations() <= 1);
-      const Vec x = d_x.toHost(ctx.stream());
+      const Vec x = d_x.toHost(ctx);
       VERIFY(x.allFinite());
       VERIFY_IS_APPROX(x / scale, direction);
     }
@@ -201,9 +201,9 @@ void test_gpu_cg_loop(Index n, bool jacobi) {
   gpu::Context::setThreadLocal(&ctx);
   gpu::SparseContext<Scalar> spmv_ctx(ctx);
   auto mat = spmv_ctx.deviceView(A);
-  auto d_invdiag = gpu::DeviceMatrix<Scalar>::fromHost(invdiag, ctx.stream());
+  auto d_invdiag = gpu::DeviceMatrix<Scalar>::fromHost(ctx, invdiag);
 
-  auto d_b = gpu::DeviceMatrix<Scalar>::fromHost(b, ctx.stream());
+  auto d_b = gpu::DeviceMatrix<Scalar>::fromHost(ctx, b);
   gpu::DeviceMatrix<Scalar> d_x(n, 1);
   d_x.setZero(ctx);
 
@@ -255,7 +255,7 @@ void test_gpu_cg_loop(Index n, bool jacobi) {
 
   gpu::Context::setThreadLocal(nullptr);
 
-  Vec x_gpu = d_x.toHost(ctx.stream());
+  Vec x_gpu = d_x.toHost(ctx);
   check_cg_solution(A, b, x_gpu, x_cpu, tol);
 }
 

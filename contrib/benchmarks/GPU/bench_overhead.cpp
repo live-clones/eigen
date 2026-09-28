@@ -72,7 +72,7 @@ static void BM_FromHost(benchmark::State& state) {
   HostMatrix A = HostMatrix::Random(n, n);
   gpu::Context& ctx = gpu::Context::threadLocal();
   for (auto _ : state) {
-    DeviceMatrix d_A = DeviceMatrix::fromHost(A, ctx.stream());
+    DeviceMatrix d_A = DeviceMatrix::fromHost(ctx, A);
     benchmark::DoNotOptimize(d_A.data());
   }
   state.SetBytesProcessed(state.iterations() * n * n * sizeof(Scalar));
@@ -84,7 +84,7 @@ static void BM_FromHostRawPointer(benchmark::State& state) {
   HostMatrix A = HostMatrix::Random(n, n);
   gpu::Context& ctx = gpu::Context::threadLocal();
   for (auto _ : state) {
-    DeviceMatrix d_A = DeviceMatrix::fromHostAsync(A.data(), n, n, ctx.stream());
+    DeviceMatrix d_A = DeviceMatrix::fromHostAsync(ctx, A.data(), n, n);
     syncStream(ctx.stream());
     benchmark::DoNotOptimize(d_A.data());
   }
@@ -102,8 +102,8 @@ BENCHMARK(BM_FromHostRawPointer)->Arg(256)->Arg(1024)->Arg(4096)->UseRealTime()-
 static void BM_GemmFreshDst(benchmark::State& state) {
   const Index n = state.range(0);
   gpu::Context& ctx = gpu::Context::threadLocal();
-  DeviceMatrix d_A = DeviceMatrix::fromHost(HostMatrix::Random(n, n), ctx.stream());
-  DeviceMatrix d_B = DeviceMatrix::fromHost(HostMatrix::Random(n, n), ctx.stream());
+  DeviceMatrix d_A = DeviceMatrix::fromHost(ctx, HostMatrix::Random(n, n));
+  DeviceMatrix d_B = DeviceMatrix::fromHost(ctx, HostMatrix::Random(n, n));
   for (auto _ : state) {
     DeviceMatrix d_C;  // fresh: resize() -> cudaMalloc; dtor -> cudaFree
     d_C.device(ctx) = d_A * d_B;
@@ -115,8 +115,8 @@ BENCHMARK(BM_GemmFreshDst)->Arg(64)->Arg(256)->Arg(1024)->UseRealTime()->MinWarm
 static void BM_GemmPreallocDst(benchmark::State& state) {
   const Index n = state.range(0);
   gpu::Context& ctx = gpu::Context::threadLocal();
-  DeviceMatrix d_A = DeviceMatrix::fromHost(HostMatrix::Random(n, n), ctx.stream());
-  DeviceMatrix d_B = DeviceMatrix::fromHost(HostMatrix::Random(n, n), ctx.stream());
+  DeviceMatrix d_A = DeviceMatrix::fromHost(ctx, HostMatrix::Random(n, n));
+  DeviceMatrix d_B = DeviceMatrix::fromHost(ctx, HostMatrix::Random(n, n));
   DeviceMatrix d_C(n, n);
   for (auto _ : state) {
     d_C.device(ctx) = d_A * d_B;
@@ -136,8 +136,8 @@ BENCHMARK(BM_GemmPreallocDst)->Arg(64)->Arg(256)->Arg(1024)->UseRealTime()->MinW
 static void BM_DotDeviceScalar(benchmark::State& state) {
   const Index n = state.range(0);
   gpu::Context& ctx = gpu::Context::threadLocal();
-  DeviceMatrix d_x = DeviceMatrix::fromHost(HostMatrix::Random(n, 1), ctx.stream());
-  DeviceMatrix d_y = DeviceMatrix::fromHost(HostMatrix::Random(n, 1), ctx.stream());
+  DeviceMatrix d_x = DeviceMatrix::fromHost(ctx, HostMatrix::Random(n, 1));
+  DeviceMatrix d_y = DeviceMatrix::fromHost(ctx, HostMatrix::Random(n, 1));
   for (auto _ : state) {
     gpu::DeviceScalar<Scalar> r = d_x.dot(ctx, d_y);
     benchmark::DoNotOptimize(r.devicePtr());
@@ -149,8 +149,8 @@ BENCHMARK(BM_DotDeviceScalar)->Arg(1 << 12)->Arg(1 << 20)->UseRealTime()->MinWar
 static void BM_DotRawCublas(benchmark::State& state) {
   const Index n = state.range(0);
   gpu::Context& ctx = gpu::Context::threadLocal();
-  DeviceMatrix d_x = DeviceMatrix::fromHost(HostMatrix::Random(n, 1), ctx.stream());
-  DeviceMatrix d_y = DeviceMatrix::fromHost(HostMatrix::Random(n, 1), ctx.stream());
+  DeviceMatrix d_x = DeviceMatrix::fromHost(ctx, HostMatrix::Random(n, 1));
+  DeviceMatrix d_y = DeviceMatrix::fromHost(ctx, HostMatrix::Random(n, 1));
   Scalar* d_result = nullptr;
   EIGEN_CUDA_RUNTIME_CHECK(cudaMalloc(&d_result, sizeof(Scalar)));
   EIGEN_CUBLAS_CHECK(cublasSetPointerMode(ctx.cublasHandle(), CUBLAS_POINTER_MODE_DEVICE));
@@ -180,8 +180,8 @@ static void BM_OneShotLltExpr(benchmark::State& state) {
   const Index n = state.range(0);
   const Index nrhs = 8;
   gpu::Context& ctx = gpu::Context::threadLocal();
-  DeviceMatrix d_A = DeviceMatrix::fromHost(spdMatrix(n), ctx.stream());
-  DeviceMatrix d_B = DeviceMatrix::fromHost(HostMatrix::Random(n, nrhs), ctx.stream());
+  DeviceMatrix d_A = DeviceMatrix::fromHost(ctx, spdMatrix(n));
+  DeviceMatrix d_B = DeviceMatrix::fromHost(ctx, HostMatrix::Random(n, nrhs));
   DeviceMatrix d_X(n, nrhs);
   for (auto _ : state) {
     d_X.device(ctx) = d_A.llt().solve(d_B);
@@ -194,8 +194,8 @@ static void BM_CachedLltSolve(benchmark::State& state) {
   const Index n = state.range(0);
   const Index nrhs = 8;
   gpu::Context& ctx = gpu::Context::threadLocal();
-  DeviceMatrix d_A = DeviceMatrix::fromHost(spdMatrix(n), ctx.stream());
-  DeviceMatrix d_B = DeviceMatrix::fromHost(HostMatrix::Random(n, nrhs), ctx.stream());
+  DeviceMatrix d_A = DeviceMatrix::fromHost(ctx, spdMatrix(n));
+  DeviceMatrix d_B = DeviceMatrix::fromHost(ctx, HostMatrix::Random(n, nrhs));
   gpu::LLT<Scalar> llt;
   llt.compute(d_A);
   benchmark::DoNotOptimize(llt.info());  // factor + first-solve sync out of the loop
@@ -218,8 +218,8 @@ static void BM_RawPotrs(benchmark::State& state) {
   HostMatrix A = spdMatrix(n);
   Eigen::LLT<HostMatrix> hostLlt(A);
   HostMatrix L = HostMatrix(hostLlt.matrixL());
-  DeviceMatrix d_L = DeviceMatrix::fromHost(L, ctx.stream());
-  DeviceMatrix d_B = DeviceMatrix::fromHost(HostMatrix::Random(n, nrhs), ctx.stream());
+  DeviceMatrix d_L = DeviceMatrix::fromHost(ctx, L);
+  DeviceMatrix d_B = DeviceMatrix::fromHost(ctx, HostMatrix::Random(n, nrhs));
   DeviceMatrix d_X(n, nrhs);
 
   gpu::internal::CusolverParams params;
@@ -259,7 +259,7 @@ static void BM_DeviceSpMV(benchmark::State& state) {
   gpu::Context& gctx = gpu::Context::threadLocal();
   gpu::SparseContext<Scalar> ctx(gctx);
   auto view = ctx.deviceView(A);
-  DeviceMatrix d_x = DeviceMatrix::fromHost(HostMatrix::Random(n, 1), gctx.stream());
+  DeviceMatrix d_x = DeviceMatrix::fromHost(gctx, HostMatrix::Random(n, 1));
   DeviceMatrix d_y(n, 1);
   for (auto _ : state) {
     d_y = view * d_x;
@@ -315,20 +315,23 @@ BENCHMARK(BM_CudaMallocAsyncFree)->Arg(1 << 10)->Arg(1 << 20)->Arg(1 << 26)->Use
 
 static void BM_SmallBufferAllocFree(benchmark::State& state) {
   const size_t bytes = static_cast<size_t>(state.range(0));
+  gpu::Context& ctx = gpu::Context::threadLocal();
   for (auto _ : state) {
-    gpu::internal::DeviceBuffer b(bytes);
+    gpu::internal::DeviceBuffer b(bytes, ctx.streamHandle());
     benchmark::DoNotOptimize(b.get());
   }
+  syncStream(ctx.stream());
 }
 BENCHMARK(BM_SmallBufferAllocFree)->Arg(8)->Arg(64)->Arg(256)->UseRealTime()->MinWarmUpTime(0.5);
 
 static void BM_PoolAllocFree(benchmark::State& state) {
   const size_t bytes = static_cast<size_t>(state.range(0));
   auto& pool = gpu::internal::DeviceBufferPool<>::threadLocal();
+  gpu::Context& ctx = gpu::Context::threadLocal();
   for (auto _ : state) {
-    void* p = pool.allocate(bytes);
+    void* p = pool.allocate(bytes, ctx.stream());
     benchmark::DoNotOptimize(p);
-    pool.deallocate(p, bytes);
+    pool.deallocate(p, bytes, ctx.stream());
   }
 }
 BENCHMARK(BM_PoolAllocFree)->Arg(8)->Arg(256)->UseRealTime()->MinWarmUpTime(0.5);
@@ -342,7 +345,7 @@ static void BM_SmallBufferAllocFreeBusyStream(benchmark::State& state) {
   for (auto _ : state) {
     // ~1 ms of work ahead of each release, as in an iterative solver loop.
     gpu::DeviceScalar<Scalar> r = d_x.dot(ctx, d_y);
-    gpu::internal::DeviceBuffer b(bytes);
+    gpu::internal::DeviceBuffer b(bytes, ctx.streamHandle());
     benchmark::DoNotOptimize(b.get());
     benchmark::DoNotOptimize(r.devicePtr());
   }

@@ -86,6 +86,10 @@ ei_add_gpu_test(cublas_64bit EXTRA_LIBS CUDA::cublas)
 find_package(Threads REQUIRED)
 ei_add_gpu_test(device_buffer_pool EXTRA_LIBS Threads::Threads)
 
+# DeviceBlock column views: values, writes into the parent, and cross-context ordering (stream gate).
+ei_add_gpu_test(device_block
+  EXTRA_LIBS CUDA::cublas CUDA::cublasLt CUDA::cusolver CUDA::npps CUDA::nppc Threads::Threads)
+
 # cuBLAS integration. OFF by default; later MRs in the stack opt in.
 option(EIGEN_TEST_CUBLAS "Test cuBLAS integration" OFF)
 if(EIGEN_TEST_CUBLAS AND TARGET CUDA::cublas)
@@ -117,6 +121,17 @@ if(TARGET CUDA::cusparse)
     EXTRA_LIBS CUDA::cusparse CUDA::cublas CUDA::cusolver)
   ei_add_gpu_test(cg
     EXTRA_LIBS CUDA::cusparse CUDA::cublas CUDA::cusolver CUDA::npps CUDA::nppc)
+endif()
+
+# Cross-context ordering of DeviceMatrix/DeviceScalar accesses, and a check that
+# no module operation uses the legacy default stream. Touches every library the
+# module wraps except cuDSS, which the cudss_* tests cover. The _per_thread
+# variant builds it with the per-thread default stream.
+if(TARGET CUDA::cusparse AND TARGET CUDA::cufft)
+  ei_add_gpu_test(stream_ordering
+    EXTRA_LIBS CUDA::cublas CUDA::cusolver CUDA::cusparse CUDA::cufft CUDA::npps CUDA::nppc Threads::Threads)
+  ei_add_gpu_test(stream_ordering_per_thread
+    EXTRA_LIBS CUDA::cublas CUDA::cusolver CUDA::cusparse CUDA::cufft CUDA::npps CUDA::nppc Threads::Threads)
 endif()
 
 # cuDSS sparse direct solvers -- distributed separately from the CUDA Toolkit.

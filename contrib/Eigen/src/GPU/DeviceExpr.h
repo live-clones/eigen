@@ -183,6 +183,10 @@ struct device_expr_traits<DeviceMatrix<Scalar>> {
   static Scalar alpha(const DeviceMatrix<Scalar>&) { return Scalar(1); }
 };
 
+// A column block is an ordinary DeviceMatrix operand.
+template <typename Scalar>
+struct device_expr_traits<DeviceBlock<Scalar>> : device_expr_traits<DeviceMatrix<Scalar>> {};
+
 template <typename Scalar>
 struct device_expr_traits<AdjointView<Scalar>> {
   using scalar_type = Scalar;
