@@ -63,7 +63,7 @@ class LLT {
   /** Factor a device-resident A immediately (D2D copy). */
   explicit LLT(const DeviceMatrix<Scalar>& d_A) { compute(d_A); }
 
-  /** Factor a device-resident A immediately (adopt, no copy). */
+  /** Factor a device-resident A immediately (adopt, no copy; a view is copied). */
   explicit LLT(DeviceMatrix<Scalar>&& d_A) { compute(std::move(d_A)); }
 
   /** Bind to \p ctx and factor A immediately. */
@@ -75,7 +75,7 @@ class LLT {
   /** Bind to \p ctx and factor a device-resident A (D2D copy). */
   LLT(Context& ctx, const DeviceMatrix<Scalar>& d_A) : solver_ctx_(ctx) { compute(d_A); }
 
-  /** Bind to \p ctx and factor a device-resident A (adopt, no copy). */
+  /** Bind to \p ctx and factor a device-resident A (adopt, no copy; a view is copied). */
   LLT(Context& ctx, DeviceMatrix<Scalar>&& d_A) : solver_ctx_(ctx) { compute(std::move(d_A)); }
 
   ~LLT() = default;
