@@ -1245,9 +1245,7 @@ template compatibility.
 ```bash
 cmake -G Ninja -B build -S . \
   -DEIGEN_TEST_CUDA=ON \
-  -DEIGEN_CUDA_COMPUTE_ARCH="70" \
-  -DEIGEN_TEST_CUBLAS=ON \
-  -DEIGEN_TEST_CUSOLVER=ON
+  -DEIGEN_CUDA_COMPUTE_ARCH="70"
 
 cmake --build build --target cublas cusolver_llt cusolver_lu \
   cusolver_qr cusolver_svd cusolver_eigen \
