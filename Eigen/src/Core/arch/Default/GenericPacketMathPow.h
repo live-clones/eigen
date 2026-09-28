@@ -644,18 +644,21 @@ struct binary_exponent_scaling {
                                                                       false_type) {
     return r;
   }
-  // A flushing pldexp returns zero where x * 2^e lies below the smallest normal. That result is k * 2^(min_exponent -
-  // digits) for k = rint(|x| * 2^(e - min_exponent + digits)) <= 2^kMantissaBits, rounded once as pldexp rounds, and
-  // the integer k is the bit pattern of its magnitude (2^kMantissaBits that of the smallest normal).
+  // A flushing pldexp returns zero where x * 2^e lies below the smallest normal, i.e. t = |x| * 2^(e - min_exponent +
+  // digits) < 2^kMantissaBits. Rounded once, as pldexp rounds, that is k * 2^(min_exponent - digits) for k = rint(t) <=
+  // 2^kMantissaBits, the bit pattern of its magnitude. Only lanes with |r| < min are scaled, as elsewhere the scaling
+  // can overflow and its conversion raise FE_INVALID, and of those only lanes with t < 2^kMantissaBits are rebuilt:
+  // pldexp also zeroes some normal x * 2^e through a flushed partial product (2^-124 * 2^-1 in float).
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet with_subnormals(const Packet& x, const Packet& e, const Packet& r,
                                                                       true_type) {
     using PacketI = typename unpacket_traits<Packet>::integer_packet;
     constexpr int kShift = numext::numeric_limits<Scalar>::digits - numext::numeric_limits<Scalar>::min_exponent;
-    if (!predux_any(pcmp_lt(pabs(r), pset1<Packet>((numext::numeric_limits<Scalar>::min)())))) return r;
-    Packet t = pldexp(pabs(x), padd(e, pset1<Packet>(Scalar(kShift))));
+    Packet below = pcmp_lt(pabs(r), pset1<Packet>((numext::numeric_limits<Scalar>::min)()));
+    if (!predux_any(below)) return r;
+    Packet t = pldexp(pand(below, pabs(x)), padd(e, pset1<Packet>(Scalar(kShift))));
     Packet k = preinterpret<Packet>(pcast<Packet, PacketI>(print(t)));
-    Packet subnormal = por(k, pand(x, pset1<Packet>(Scalar(-0.0))));
-    return pselect(pcmp_lt(t, pset1<Packet>(Scalar(Bits(1) << kMantissaBits))), subnormal, r);
+    Packet rebuilt = pand(below, pcmp_lt(t, pset1<Packet>(Scalar(Bits(1) << kMantissaBits))));
+    return pselect(rebuilt, por(k, pand(x, pset1<Packet>(Scalar(-0.0)))), r);
   }
 
   // Whether a lane is subnormal, tested on its bits, as a flushing comparison reads a subnormal as zero.
