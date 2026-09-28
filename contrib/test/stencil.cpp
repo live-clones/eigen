@@ -14,19 +14,19 @@ using Eigen::Index;
 using Eigen::makeStencil;
 using Eigen::Stencil;
 
-// Independent oracle (see .agents/numerics.md): for order-Derivative weights at x0 = 0 over points
-// p_0..p_{Size-1}, sum_i weights[i] * p_i^k == (k == Derivative ? Derivative! : 0) for every
-// k = 0..Size-1. This holds for any polynomial reproduced exactly by an (Size-1)-degree
-// interpolant, independently of how Stencil's recursion is implemented.
-template <unsigned Derivative, typename Scalar, int Size>
+// Independent oracle: for order-Derivative weights at x0 = 0 over points p_0..p_{Size-1},
+// sum_i weights[i] * p_i^k == (k == Derivative ? Derivative! : 0) for every k = 0..Size-1. This
+// holds for any polynomial reproduced exactly by an (Size-1)-degree interpolant, independently of
+// how Stencil's recursion is implemented.
+template <int Derivative, typename Scalar, int Size>
 void verify_polynomial_exactness(const Array<Scalar, Size, 1> &points) {
-  typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename Eigen::NumTraits<Scalar>::Real;
 
   const Stencil<Derivative, Scalar, Size> s(points);
-  const auto w = s.weights();
-  const auto p = s.points();
+  const Array<Scalar, Size, 1> w = s.weights();
+  const Array<Scalar, Size, 1> p = s.points();
 
-  for (Index i = 0; i < Size; ++i) VERIFY_IS_APPROX(p[i], points[i]);
+  for (Index i = 0; i < Size; ++i) VERIFY_IS_EQUAL(p[i], points[i]);
 
   Scalar fact(1);
   for (Index i = 2; i <= Derivative; ++i) fact *= Scalar(i);
@@ -54,13 +54,13 @@ void test_textbook_central() {
   const double tol = 10.0 * Eigen::NumTraits<double>::epsilon();
 
   const Stencil<1, double, 3> d1(points);
-  const auto w1 = d1.weights();
+  const Array<double, 3, 1> w1 = d1.weights();
   VERIFY(numext::abs(w1[0] - (-0.5)) <= tol);
   VERIFY(numext::abs(w1[1] - 0.0) <= tol);
   VERIFY(numext::abs(w1[2] - 0.5) <= tol);
 
   const Stencil<2, double, 3> d2(points);
-  const auto w2 = d2.weights();
+  const Array<double, 3, 1> w2 = d2.weights();
   VERIFY(numext::abs(w2[0] - 1.0) <= tol);
   VERIFY(numext::abs(w2[1] - (-2.0)) <= tol);
   VERIFY(numext::abs(w2[2] - 1.0) <= tol);
@@ -70,8 +70,8 @@ void test_textbook_forward() {
   const Array<double, 3, 1> points{{0.0, 1.0, 2.0}};
   const double tol = 10.0 * Eigen::NumTraits<double>::epsilon();
 
-  const auto d1 = makeStencil<1>(points);
-  const auto w1 = d1.weights();
+  const Stencil<1, double, 3> d1 = makeStencil<1>(points);
+  const Array<double, 3, 1> w1 = d1.weights();
   VERIFY(numext::abs(w1[0] - (-1.5)) <= tol);
   VERIFY(numext::abs(w1[1] - 2.0) <= tol);
   VERIFY(numext::abs(w1[2] - (-0.5)) <= tol);
@@ -114,7 +114,7 @@ void test_polynomial_exactness_float() {
 }
 
 void test_polynomial_exactness_complex() {
-  typedef std::complex<double> Scalar;
+  using Scalar = std::complex<double>;
   const Array<Scalar, 4, 1> points{{Scalar(-1.0, 1.0), Scalar(0.0, 0.0), Scalar(1.0, 1.0), Scalar(2.0, -1.0)}};
   verify_polynomial_exactness<0>(points);
   verify_polynomial_exactness<1>(points);
@@ -129,8 +129,8 @@ void test_order_preservation() {
 
   const Stencil<2, double, 5> s(points);
   const Stencil<2, double, 5> sReversed(reversed);
-  const auto w = s.weights();
-  const auto wReversed = sReversed.weights();
+  const Array<double, 5, 1> w = s.weights();
+  const Array<double, 5, 1> wReversed = sReversed.weights();
 
   for (Index i = 0; i < 5; ++i) {
     const double tol = 100.0 * Eigen::NumTraits<double>::epsilon() * (numext::abs(w[i]) + 1.0);
@@ -138,15 +138,26 @@ void test_order_preservation() {
   }
 }
 
-// Empirical confirmation that Stencil/makeStencil are usable in an actual constant expression, not
-// just declared constexpr, under this toolchain's C++14 mode. weights()/points() return a Map, whose
-// constructor is not constexpr-evaluable on this toolchain (MapBase::checkSanity() is not constexpr),
-// so the compile-time check stops at construction; value checks against weights() run at runtime.
-constexpr Array<double, 3, 1> centralPoints{{-1.0, 0.0, 1.0}};
-constexpr auto centralDiff1 = makeStencil<1>(centralPoints);
+// Repeated points make a `points[n] - points[nu]` denominator in the recursion vanish.
+void test_repeated_points_assert() {
+  const Array<double, 3, 1> points{{0.0, 0.0, 1.0}};
+  VERIFY_RAISES_ASSERT((Stencil<1, double, 3>(points)));
+}
+
+// The C-array constructor and weight()/point() bypass Eigen::Array and Map respectively, so unlike
+// the DenseBase constructor and weights()/points(), these are real constant expressions on every
+// supported C++14 compiler.
+constexpr double centralPoints[] = {-1.0, 0.0, 1.0};
+constexpr Stencil<1, double, 3> centralDiff1 = makeStencil<1>(centralPoints);
+static_assert(centralDiff1.weight(0) == -0.5, "");
+static_assert(centralDiff1.weight(1) == 0.0, "");
+static_assert(centralDiff1.weight(2) == 0.5, "");
+static_assert(centralDiff1.point(0) == -1.0, "");
+static_assert(centralDiff1.point(1) == 0.0, "");
+static_assert(centralDiff1.point(2) == 1.0, "");
 
 void test_compile_time_smoke() {
-  const auto w = centralDiff1.weights();
+  const Array<double, 3, 1> w = centralDiff1.weights();
   VERIFY(numext::abs(w[0] - (-0.5)) <= Eigen::NumTraits<double>::epsilon());
   VERIFY(numext::abs(w[1] - 0.0) <= Eigen::NumTraits<double>::epsilon());
   VERIFY(numext::abs(w[2] - 0.5) <= Eigen::NumTraits<double>::epsilon());
@@ -161,5 +172,6 @@ EIGEN_DECLARE_TEST(stencil) {
   CALL_SUBTEST(test_polynomial_exactness_float());
   CALL_SUBTEST(test_polynomial_exactness_complex());
   CALL_SUBTEST(test_order_preservation());
+  CALL_SUBTEST(test_repeated_points_assert());
   CALL_SUBTEST(test_compile_time_smoke());
 }
