@@ -92,7 +92,7 @@ class Stencil {
         c2 *= c3;
         if (nu == n - 1) {
           delta[n][0] = -c1 * m_points[n - 1] * delta[n - 1][0] / c2;
-          for (Index m = 1; m <= mn; ++m)
+          for (Index m = mn; m >= 1; --m)
             delta[n][m] = c1 * (Scalar(m) * delta[n - 1][m - 1] - m_points[n - 1] * delta[n - 1][m]) / c2;
         }
         for (Index m = mn; m >= 1; --m) delta[nu][m] = (c4 * delta[nu][m] - Scalar(m) * delta[nu][m - 1]) / c3;
