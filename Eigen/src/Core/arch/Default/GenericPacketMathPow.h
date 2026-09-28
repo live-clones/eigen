@@ -1209,9 +1209,9 @@ template <typename Packet, typename ScalarExponent>
 EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE Packet int_pow_lanewise(const Packet& x, const ScalarExponent& exponent) {
   using Scalar = typename unpacket_traits<Packet>::type;
   EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar values[unpacket_traits<Packet>::size];
-  pstoreu(values, x);
+  pstore(values, x);
   for (Scalar& value : values) value = int_pow_double_word(value, exponent);
-  return ploadu<Packet>(values);
+  return pload<Packet>(values);
 }
 
 template <typename Packet, typename ScalarExponent>
