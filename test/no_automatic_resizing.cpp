@@ -13,6 +13,7 @@
 #define EIGEN_NO_AUTOMATIC_RESIZING
 #include "main.h"
 #include <Eigen/Core>
+#include <Eigen/SparseCore>
 
 template <typename Scalar>
 void testNoAutomaticResizing() {
@@ -100,6 +101,64 @@ void testNoAutomaticResizing() {
   }
 }
 
+template <int Order>
+void testVectorOrientationNoAutomaticResizing() {
+  using Matrix = Eigen::Matrix<double, Dynamic, Dynamic, Order>;
+  using Array = Eigen::Array<double, Dynamic, Dynamic, Order>;
+  const Matrix column = Matrix::Constant(3, 1, 4.0);
+  const Matrix row = Matrix::Constant(1, 3, 5.0);
+  RowVectorXd r = RowVectorXd::Constant(3, -1.0);
+  VectorXd c = VectorXd::Constant(3, -1.0);
+  VERIFY_RAISES_ASSERT(r = column);
+  VERIFY_RAISES_ASSERT(c = row);
+  VERIFY_IS_EQUAL(r.sum(), -3.0);
+  VERIFY_IS_EQUAL(c.sum(), -3.0);
+
+  Eigen::Array<double, 1, Dynamic> ar = Eigen::Array<double, 1, Dynamic>::Constant(3, -1.0);
+  ArrayXd ac = ArrayXd::Constant(3, -1.0);
+  const Array arrayColumn = Array::Constant(3, 1, 4.0);
+  const Array arrayRow = Array::Constant(1, 3, 5.0);
+  VERIFY_RAISES_ASSERT(ar = arrayColumn);
+  VERIFY_RAISES_ASSERT(ac = arrayRow);
+
+  const Matrix identity = Matrix::Identity(3, 3);
+  VERIFY_RAISES_ASSERT(r.noalias() = identity * column);
+  VERIFY_RAISES_ASSERT(c.noalias() = row * identity);
+  VERIFY_RAISES_ASSERT(r.noalias() = 2.0 * (identity * column));
+  VERIFY_RAISES_ASSERT(c.noalias() = 2.0 * (row * identity));
+
+  // Compile-time vector orientation conversion remains supported.
+  c << 1, 2, 3;
+  r = c;
+  VERIFY_IS_EQUAL(r, RowVector3d(1, 2, 3));
+  c = RowVector3d(4, 5, 6);
+  VERIFY_IS_EQUAL(c, Vector3d(4, 5, 6));
+  ac << 1, 2, 3;
+  ar = ac;
+  VERIFY_IS_EQUAL(ar.matrix(), RowVector3d(1, 2, 3));
+  ac = ar;
+  VERIFY_IS_EQUAL(ac.matrix(), Vector3d(1, 2, 3));
+  r = row;
+  c = column;
+  VERIFY_IS_EQUAL(r.sum(), 15.0);
+  VERIFY_IS_EQUAL(c.sum(), 12.0);
+}
+
+template <int Order>
+void testSparseNoAutomaticResizing() {
+  SparseMatrix<double, Order> row(1, 3), column(3, 1);
+  row.insert(0, 2) = 7.0;
+  column.insert(2, 0) = 8.0;
+  VectorXd c = VectorXd::Constant(3, -1.0);
+  RowVectorXd r = RowVectorXd::Constant(3, -1.0);
+  VERIFY_RAISES_ASSERT(c = row);
+  VERIFY_RAISES_ASSERT(r = column);
+  c = column;
+  r = row;
+  VERIFY_IS_EQUAL(c, Vector3d(0, 0, 8));
+  VERIFY_IS_EQUAL(r, RowVector3d(0, 0, 7));
+}
+
 void testProductNoAutomaticResizing() {
   const MatrixXd lhs = MatrixXd::Ones(3, 2);
   const MatrixXd rhs = MatrixXd::Constant(2, 4, 2.0);
@@ -132,5 +191,9 @@ EIGEN_DECLARE_TEST(no_automatic_resizing) {
   CALL_SUBTEST_1(testNoAutomaticResizing<float>());
   CALL_SUBTEST_2(testNoAutomaticResizing<double>());
   CALL_SUBTEST_2(testProductNoAutomaticResizing());
+  CALL_SUBTEST_2(testVectorOrientationNoAutomaticResizing<ColMajor>());
+  CALL_SUBTEST_2(testVectorOrientationNoAutomaticResizing<RowMajor>());
   CALL_SUBTEST_3(testNoAutomaticResizing<std::complex<double>>());
+  CALL_SUBTEST_4(testSparseNoAutomaticResizing<ColMajor>());
+  CALL_SUBTEST_4(testSparseNoAutomaticResizing<RowMajor>());
 }
