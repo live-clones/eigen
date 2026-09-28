@@ -46,7 +46,7 @@ class SelfAdjointEigenSolver {
     compute(d_A, options);
   }
 
-  /** Decompose a device-resident A immediately (adopt, no copy). */
+  /** Decompose a device-resident A immediately (adopt, no copy; a view is copied). */
   explicit SelfAdjointEigenSolver(DeviceMatrix<Scalar>&& d_A, int options = ComputeEigenvectors) {
     compute(std::move(d_A), options);
   }
@@ -64,7 +64,7 @@ class SelfAdjointEigenSolver {
     compute(d_A, options);
   }
 
-  /** Bind to \p ctx and decompose a device-resident A (adopt, no copy). */
+  /** Bind to \p ctx and decompose a device-resident A (adopt, no copy; a view is copied). */
   SelfAdjointEigenSolver(Context& ctx, DeviceMatrix<Scalar>&& d_A, int options = ComputeEigenvectors)
       : solver_ctx_(ctx) {
     compute(std::move(d_A), options);

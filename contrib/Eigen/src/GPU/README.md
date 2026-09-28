@@ -914,11 +914,11 @@ gpu::LLT(Context& ctx, ...)                               // Bind + factorize in
 
 gpu::LLT&            compute(const DenseBase<D>& A)       // Upload + factorize
 gpu::LLT&            compute(const DeviceMatrix& d_A)     // D2D copy + factorize
-gpu::LLT&            compute(DeviceMatrix&& d_A)          // Adopt + factorize (no copy)
+gpu::LLT&            compute(DeviceMatrix&& d_A)          // Adopt + factorize (a view is copied)
 
 PlainMatrix        solve(const MatrixBase<D>& B)         // -> host Matrix (syncs)
 DeviceMatrix       solve(const DeviceMatrix& d_B)        // -> DeviceMatrix (async, stays on device)
-DeviceMatrix       solve(DeviceMatrix&& d_B)             // In-place: consumes RHS, no copy/alloc
+DeviceMatrix       solve(DeviceMatrix&& d_B)             // In-place: consumes RHS, no copy/alloc (a view is copied)
 
 ComputationInfo    info()                                // Lazy sync on first call: Success or NumericalIssue
 Index              rows() / cols()
@@ -951,7 +951,7 @@ gpu::QR(Context& ctx, ...)                                 // Bind + factorize i
 
 gpu::QR&             compute(const DenseBase<D>& A)        // Upload + factorize
 gpu::QR&             compute(const DeviceMatrix& d_A)      // D2D copy + factorize
-gpu::QR&             compute(DeviceMatrix&& d_A)           // Adopt + factorize (no copy when m >= n)
+gpu::QR&             compute(DeviceMatrix&& d_A)           // Adopt + factorize (copies when m < n or for a view)
 
 PlainMatrix        solve(const MatrixBase<D>& B)         // -> host Matrix (syncs)
 DeviceMatrix       solve(const DeviceMatrix& d_B)        // -> DeviceMatrix (async)
@@ -1011,19 +1011,19 @@ views are owning (one `cublasXgeam` adjoint pass).
 ### `gpu::SelfAdjointEigenSolver<Scalar>` -- Eigendecomposition (cuSOLVER)
 
 Symmetric/Hermitian eigenvalue decomposition via `cusolverDnXsyevd`.
-`ComputeMode` enum: `EigenvaluesOnly`, `ComputeEigenvectors`.
+`options`: `ComputeEigenvectors` (the default) or `EigenvaluesOnly`.
 
 ```cpp
 gpu::SelfAdjointEigenSolver()                              // Default construct, then call compute()
 gpu::SelfAdjointEigenSolver(Context& ctx)                  // Bind to ctx's stream + handles
-gpu::SelfAdjointEigenSolver(const DenseBase<D>& A, ComputeMode mode = ComputeEigenvectors)  // Convenience
-gpu::SelfAdjointEigenSolver(const DeviceMatrix& d_A, ComputeMode mode = ComputeEigenvectors)  // D2D copy
-gpu::SelfAdjointEigenSolver(DeviceMatrix&& d_A, ComputeMode mode = ComputeEigenvectors)  // Adopt, no copy
+gpu::SelfAdjointEigenSolver(const DenseBase<D>& A, int options = ComputeEigenvectors)  // Convenience
+gpu::SelfAdjointEigenSolver(const DeviceMatrix& d_A, int options = ComputeEigenvectors)  // D2D copy
+gpu::SelfAdjointEigenSolver(DeviceMatrix&& d_A, int options = ComputeEigenvectors)  // Adopt (a view is copied)
 gpu::SelfAdjointEigenSolver(Context& ctx, ...)             // Bind + decompose in one step
 
-gpu::SelfAdjointEigenSolver& compute(const DenseBase<D>& A, ComputeMode mode = ComputeEigenvectors)
-gpu::SelfAdjointEigenSolver& compute(const DeviceMatrix& d_A, ComputeMode mode = ComputeEigenvectors)
-gpu::SelfAdjointEigenSolver& compute(DeviceMatrix&& d_A, ComputeMode mode = ComputeEigenvectors)
+gpu::SelfAdjointEigenSolver& compute(const DenseBase<D>& A, int options = ComputeEigenvectors)
+gpu::SelfAdjointEigenSolver& compute(const DeviceMatrix& d_A, int options = ComputeEigenvectors)
+gpu::SelfAdjointEigenSolver& compute(DeviceMatrix&& d_A, int options = ComputeEigenvectors)
 
 RealVector         eigenvalues()                         // -> host vector (syncs, downloads, ascending order)
 PlainMatrix        eigenvectors()                        // -> host Matrix (syncs, downloads, columns)

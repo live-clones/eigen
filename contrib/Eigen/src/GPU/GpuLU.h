@@ -55,7 +55,7 @@ class LU {
   /** Factor a device-resident A immediately (D2D copy). */
   explicit LU(const DeviceMatrix<Scalar>& d_A) { compute(d_A); }
 
-  /** Factor a device-resident A immediately (adopt, no copy). */
+  /** Factor a device-resident A immediately (adopt, no copy; a view is copied). */
   explicit LU(DeviceMatrix<Scalar>&& d_A) { compute(std::move(d_A)); }
 
   /** Bind to \p ctx and factor A immediately. */
@@ -67,7 +67,7 @@ class LU {
   /** Bind to \p ctx and factor a device-resident A (D2D copy). */
   LU(Context& ctx, const DeviceMatrix<Scalar>& d_A) : solver_ctx_(ctx) { compute(d_A); }
 
-  /** Bind to \p ctx and factor a device-resident A (adopt, no copy). */
+  /** Bind to \p ctx and factor a device-resident A (adopt, no copy; a view is copied). */
   LU(Context& ctx, DeviceMatrix<Scalar>&& d_A) : solver_ctx_(ctx) { compute(std::move(d_A)); }
 
   ~LU() = default;
