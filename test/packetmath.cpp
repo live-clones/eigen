@@ -1167,12 +1167,10 @@ void packetmath_real() {
     data1[0] = Scalar(std::ldexp(Scalar(1.0), NumTraits<Scalar>::max_exponent() - 1));
     data1[PacketSize] = Scalar(+NumTraits<Scalar>::min_exponent() - NumTraits<Scalar>::max_exponent());
     CHECK_CWISE2_IF(PacketTraits::HasExp, REF_LDEXP, internal::pldexp);
-    // Near-max magnitude with small negative exponents.  Regression guard for
-    // the 4-way scale-factor split: the remainder factor c2 = 2^(e-3*floor(e/4))
-    // is > 1 for e in {-1, -2, -5, -6, ...}, so the multiply tree must apply
-    // the downscale c1 before c2 -- otherwise (numext::abs(a)) * c2 spuriously
-    // overflows to inf for finite results like ldexp((numext::numeric_limits)
-    // <Scalar>::max(), -1).
+    // Near-max magnitude with small negative exponents: a scale factor above
+    // one, as the four-factor split's remainder 2^(e - 3 floor(e/4)) was for
+    // e in {-1, -2, -5, -6, ...}, overflows ldexp(max, -1) to inf when applied
+    // first.
     for (int i = 0; i < PacketSize; ++i) {
       data1[i] = (numext::numeric_limits<Scalar>::max)();
       data1[i + PacketSize] = Scalar(-1 - (i % 8));  // -1, -2, ..., -8

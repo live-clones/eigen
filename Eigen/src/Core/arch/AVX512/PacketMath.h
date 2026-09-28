@@ -3186,6 +3186,21 @@ EIGEN_STRONG_INLINE Packet8s plogical_shift_right(const Packet8s& a) {
   return _mm_srli_epi16(a, N);
 }
 
+template <>
+EIGEN_STRONG_INLINE Packet32s pandnot(const Packet32s& a, const Packet32s& b) {
+  return _mm512_andnot_si512(b, a);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet16s pandnot(const Packet16s& a, const Packet16s& b) {
+  return _mm256_andnot_si256(b, a);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8s pandnot(const Packet8s& a, const Packet8s& b) {
+  return _mm_andnot_si128(b, a);
+}
+
 }  // end namespace internal
 
 }  // end namespace Eigen
