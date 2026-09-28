@@ -101,6 +101,39 @@ void testNoAutomaticResizing() {
   }
 }
 
+// Isolate this check from the additional shape assertions in assignment evaluators.
+template <typename PlainObject>
+struct ResizeToMatchProbe : PlainObject {
+  using PlainObject::_resize_to_match;
+};
+
+template <typename Vector>
+void testResizeToMatchVector() {
+  ResizeToMatchProbe<Vector> dst;
+  MatrixXd source = MatrixXd::Ones(2, 3);
+  VERIFY_RAISES_ASSERT(dst._resize_to_match(source));
+  dst.resize(6);
+  dst.setConstant(-1);
+  VERIFY_RAISES_ASSERT(dst._resize_to_match(source));
+  VERIFY_IS_EQUAL(dst.sum(), -6);
+
+  // A non-empty vector accepts a same-length source of either runtime orientation and keeps its shape.
+  source.resize(6, 1);
+  dst._resize_to_match(source);
+  source.resize(1, 6);
+  dst._resize_to_match(source);
+  VERIFY_IS_EQUAL(dst.rows(), Vector::RowsAtCompileTime == 1 ? 1 : 6);
+  VERIFY_IS_EQUAL(dst.cols(), Vector::RowsAtCompileTime == 1 ? 6 : 1);
+  source.resize(1, 5);
+  VERIFY_RAISES_ASSERT(dst._resize_to_match(source));
+
+  ResizeToMatchProbe<Vector> empty;
+  empty._resize_to_match(source);
+  VERIFY_IS_EQUAL(empty.size(), 5);
+  VERIFY_IS_EQUAL(empty.rows(), Vector::RowsAtCompileTime == 1 ? 1 : 5);
+  VERIFY_IS_EQUAL(empty.cols(), Vector::RowsAtCompileTime == 1 ? 5 : 1);
+}
+
 template <int Order>
 void testVectorOrientationNoAutomaticResizing() {
   using Matrix = Eigen::Matrix<double, Dynamic, Dynamic, Order>;
@@ -193,6 +226,10 @@ EIGEN_DECLARE_TEST(no_automatic_resizing) {
   CALL_SUBTEST_2(testProductNoAutomaticResizing());
   CALL_SUBTEST_2(testVectorOrientationNoAutomaticResizing<ColMajor>());
   CALL_SUBTEST_2(testVectorOrientationNoAutomaticResizing<RowMajor>());
+  CALL_SUBTEST_2(testResizeToMatchVector<VectorXd>());
+  CALL_SUBTEST_2(testResizeToMatchVector<RowVectorXd>());
+  CALL_SUBTEST_2(testResizeToMatchVector<ArrayXd>());
+  CALL_SUBTEST_2((testResizeToMatchVector<Eigen::Array<double, 1, Dynamic>>()));
   CALL_SUBTEST_3(testNoAutomaticResizing<std::complex<double>>());
   CALL_SUBTEST_4(testSparseNoAutomaticResizing<ColMajor>());
   CALL_SUBTEST_4(testSparseNoAutomaticResizing<RowMajor>());
