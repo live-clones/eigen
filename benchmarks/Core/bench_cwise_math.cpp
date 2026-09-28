@@ -44,15 +44,18 @@ BENCH_CWISE_UNARY(Expm1, a.expm1(), -2, 2)
 BENCH_CWISE_UNARY(Cbrt, a.cbrt(), -100, 100)
 
 // mode: 0 = ordinary inputs, 1 = subnormal inputs, 2 = one subnormal per 64 coefficients.
+template <typename Scalar>
 static void BM_Sign(benchmark::State& state) {
+  using Binary = internal::binary_floating_point_traits<Scalar>;
+  using Bits = typename Binary::Bits;
   const Index n = state.range(0);
   const int mode = int(state.range(1));
-  ArrayXf a(n), b(n);
+  Array<Scalar, Dynamic, 1> a(n), b(n);
   for (Index i = 0; i < n; ++i) {
-    a(i) = float(i % 257 - 128) / 32.0f;
+    a(i) = Scalar(i % 257 - 128) / Scalar(32);
     if (mode == 1 || (mode == 2 && i % 64 == 0)) {
-      const std::uint32_t magnitude = std::uint32_t(1 + (i * 37) % 0x7fffff);
-      a(i) = numext::bit_cast<float>(magnitude | (i % 2 ? 0x80000000u : 0u));
+      const Bits magnitude = Bits(1) + Bits(i * 37) % (Binary::kExponentUnit - 1);
+      a(i) = numext::bit_cast<Scalar>(magnitude | (i % 2 ? Binary::kSignBit : Bits(0)));
     }
   }
   for (auto _ : state) {
@@ -62,14 +65,15 @@ static void BM_Sign(benchmark::State& state) {
     benchmark::ClobberMemory();
   }
   for (Index i = 0; i < n; ++i) {
-    const std::uint32_t bits = numext::bit_cast<std::uint32_t>(a(i));
-    const std::uint32_t expected = (bits & 0x7fffffffu) == 0 ? 0u : (bits & 0x80000000u) | 0x3f800000u;
-    if (numext::bit_cast<std::uint32_t>(b(i)) != expected) {
+    const Bits bits = numext::bit_cast<Bits>(a(i));
+    const Bits expected =
+        (bits & ~Binary::kSignBit) == 0 ? Bits(0) : (bits & Binary::kSignBit) | Binary::bits(Scalar(1));
+    if (numext::bit_cast<Bits>(b(i)) != expected) {
       state.SkipWithError("sign output does not match the bitwise reference");
       break;
     }
   }
-  state.SetBytesProcessed(state.iterations() * n * sizeof(float) * 2);
+  state.SetBytesProcessed(state.iterations() * n * sizeof(Scalar) * 2);
 }
 
 // Trigonometric functions
@@ -240,7 +244,8 @@ BENCHMARK(BM_Erf<float>)->ArgsProduct({{1024, 4096, 16384, 65536, 262144, 104857
     ->ArgNames({"size", "mode"})->Name("Erf_float");
 BENCHMARK(BM_Erf<bfloat16>)->ArgsProduct({{1024, 4096, 16384, 65536, 262144, 1048576}, {0, 1, 2}})
     ->ArgNames({"size", "mode"})->Name("Erf_bfloat16");
-BENCHMARK(BM_Sign)->ArgsProduct({{1024, 16384, 262144}, {0, 1, 2}})->ArgNames({"size", "mode"})->Name("Sign_float");
+BENCHMARK_TEMPLATE(BM_Sign, float)->ArgsProduct({{1024, 16384, 262144}, {0, 1, 2}})->ArgNames({"size", "mode"})->Name("Sign_float");
+BENCHMARK_TEMPLATE(BM_Sign, double)->ArgsProduct({{1024, 16384, 262144}, {0, 1, 2}})->ArgNames({"size", "mode"})->Name("Sign_double");
 BENCHMARK(BM_Abs<float>) CWISE_SIZES ->Name("Abs_float");
 BENCHMARK(BM_Square<float>) CWISE_SIZES ->Name("Square_float");
 BENCHMARK(BM_Cube<float>) CWISE_SIZES ->Name("Cube_float");
