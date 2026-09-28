@@ -40,20 +40,26 @@ namespace Eigen {
  * and applying such an ordering, including e.g. a Leja ordering for complex nodes, is the caller's
  * responsibility.
  *
+ * For offsets `h * k` at a fixed relative layout `k` and varying step `h`, the weights scale as
+ * `w_i(h * k) == h^(-Derivative) * w_i(k)`: computing weights once on `k` and scaling by `h^(-Derivative)`
+ * avoids repeating the `O(Size^2 * Derivative)` recursion for every step. `Stencil` only produces the
+ * weights for the points it is given; choosing or adapting `h` itself is the caller's responsibility.
+ *
  * \tparam Derivative The order of the derivative the weights approximate.
  * \tparam Scalar The scalar type of the grid points and weights. Must be a non-integer type.
  * \tparam Size The number of grid points.
  */
-template <unsigned Derivative, typename Scalar, int Size>
+template <int Derivative, typename Scalar, int Size>
 class Stencil {
   EIGEN_STATIC_ASSERT_NON_INTEGER(Scalar)
-  static_assert((Size >= 0 && Derivative < unsigned(Size)), "Stencil requires at least `Derivative + 1` points");
+  static_assert(Size >= 0, "Stencil requires a fixed-size point set");
+  static_assert(Derivative >= 0 && Derivative < Size, "Stencil requires at least `Derivative + 1` points");
 
  public:
-  static constexpr unsigned DerivativeOrder = Derivative;
-  static constexpr size_t PointCount = Size;
+  static constexpr int DerivativeOrder = Derivative;
+  static constexpr int PointCount = Size;
 
-  /** The type returned by weights() and points(): a vectorizable, read-only view over a stored array. */
+  /** The type returned by weights() and points(): a plain, vectorizable array, copied out of the object. */
   using ArrayType = Array<Scalar, Size, 1>;
 
   /** Computes the weights of the order-\a Derivative finite-difference formula for \a points, given as
@@ -66,11 +72,28 @@ class Stencil {
     computeWeights();
   }
 
+  /** Constructs from a plain C array of \a Size points. Unlike the DenseBase overload above, this
+   * constructor does not route through Eigen::Array, so it and weight()/point() remain usable in an
+   * actual constant expression on compilers where Array's own fixed-size constructors are not. */
+  explicit constexpr Stencil(const Scalar (&points)[Size]) {
+    for (Index i = 0; i < Size; ++i) m_points[i] = points[i];
+    computeWeights();
+  }
+
   /** \returns the weights, in the same order as points(). */
-  Map<const ArrayType> weights() const { return Map<const ArrayType>(m_weights); }
+  ArrayType weights() const { return Map<const ArrayType>(m_weights); }
 
   /** \returns the grid points, in the order originally supplied. */
-  Map<const ArrayType> points() const { return Map<const ArrayType>(m_points); }
+  ArrayType points() const { return Map<const ArrayType>(m_points); }
+
+  /** \returns the weight of points()[i]. Unlike weights()[i], usable in a constant expression: it
+   * indexes the underlying storage directly rather than through Map, whose constructor is not
+   * constexpr-evaluable on every supported compiler. */
+  constexpr const Scalar& weight(Index i) const { return m_weights[i]; }
+
+  /** \returns points()[i]. Unlike points()[i] (through the Map returned by points()), usable in a
+   * constant expression, for the same reason as weight(). */
+  constexpr const Scalar& point(Index i) const { return m_points[i]; }
 
  private:
   // Fornberg's recursion (1988), in the in-place algorithmic form given by Fornberg (1998).
@@ -104,6 +127,8 @@ class Stencil {
     for (Index nu = 0; nu < Size; ++nu) m_weights[nu] = delta[nu][Derivative];
   }
 
+  // NOTE: C arrays instead of `std::array` (through `Eigen::array`) is intentional since
+  // non-`const` `operator[]` is only `constexpr` in C++17, not C++14.
   Scalar m_points[Size]{};
   Scalar m_weights[Size]{};
 };
@@ -112,10 +137,18 @@ class Stencil {
  * Deduces \a Scalar and \a Size from \a points; \a Derivative must still be supplied explicitly,
  * e.g. `makeStencil<2>(points)`. Exists because C++14 has no class template argument deduction.
  */
-template <unsigned Derivative, typename Derived>
+template <int Derivative, typename Derived>
 constexpr Stencil<Derivative, typename Derived::Scalar, Derived::SizeAtCompileTime> makeStencil(
     const DenseBase<Derived>& points) {
   return Stencil<Derivative, typename Derived::Scalar, Derived::SizeAtCompileTime>(points);
+}
+
+/** \relates Stencil
+ * As above, deducing \a Scalar and \a Size from a plain C array of points.
+ */
+template <int Derivative, typename Scalar, int Size>
+constexpr Stencil<Derivative, Scalar, Size> makeStencil(const Scalar (&points)[Size]) {
+  return Stencil<Derivative, Scalar, Size>(points);
 }
 
 }  // namespace Eigen
