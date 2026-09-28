@@ -49,7 +49,7 @@ class SVD {
     compute(d_A, options);
   }
 
-  /** Decompose a device-resident A immediately (adopt when m >= n, no copy). */
+  /** Decompose a device-resident A immediately (adopt when m >= n, no copy; a view is copied). */
   explicit SVD(DeviceMatrix<Scalar>&& d_A, unsigned int options = ComputeThinU | ComputeThinV) {
     compute(std::move(d_A), options);
   }
@@ -67,7 +67,7 @@ class SVD {
     compute(d_A, options);
   }
 
-  /** Bind to \p ctx and decompose a device-resident A (adopt when m >= n, no copy). */
+  /** Bind to \p ctx and decompose a device-resident A (adopt when m >= n, no copy; a view is copied). */
   SVD(Context& ctx, DeviceMatrix<Scalar>&& d_A, unsigned int options = ComputeThinU | ComputeThinV) : solver_ctx_(ctx) {
     compute(std::move(d_A), options);
   }
