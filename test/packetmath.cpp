@@ -1196,6 +1196,37 @@ void packetmath_real() {
       data1[i + PacketSize] = Scalar(-2 * NumTraits<Scalar>::max_exponent() - (i % 4));
     }
     CHECK_CWISE2_IF(PacketTraits::HasExp, REF_LDEXP, internal::pldexp);
+#if !EIGEN_ARCH_ARM
+    // Every integer exponent to past both ends of the range, on bases in every sixteenth binade from the smallest
+    // subnormal up, bit for bit against std::ldexp. Scaling in steps must not round twice: with the last mantissa
+    // bit dropped by a subnormal intermediate, denorm_min * (1 + eps) / 2 became zero and denorm_min * (1.5 - eps)
+    // became 2 * denorm_min.
+    {
+      const int max_exp = NumTraits<Scalar>::max_exponent(), min_exp = NumTraits<Scalar>::min_exponent(),
+                digits = NumTraits<Scalar>::digits();
+      const Scalar eps = NumTraits<Scalar>::epsilon();
+      const Scalar mantissas[] = {Scalar(1), Scalar(1) + eps, Scalar(1.5) - eps, Scalar(2) - eps};
+      std::vector<Scalar> bases = {Scalar(0), std::numeric_limits<Scalar>::denorm_min(),
+                                   (std::numeric_limits<Scalar>::max)()};
+      for (int be = min_exp - digits; be < max_exp; be += 16) {
+        for (Scalar m : mantissas) bases.push_back(Scalar(std::ldexp(m, be)));
+      }
+      test::packet_helper<PacketTraits::HasExp, Packet> h;
+      const int range = max_exp - min_exp + digits + 20;
+      for (int e = -range; e <= range; ++e) {
+        for (size_t k = 0; k < bases.size(); k += PacketSize) {
+          for (int i = 0; i < PacketSize; ++i) {
+            const Scalar base = bases[(k + i) % bases.size()];
+            data1[i] = (i % 2) ? -base : base;
+            data1[i + PacketSize] = Scalar(e);  // rounded for bfloat16 beyond 256, so read it back
+            ref[i] = Scalar(std::ldexp(data1[i], static_cast<int>(data1[i + PacketSize])));
+          }
+          h.store(data2, internal::pldexp(h.load(data1), h.load(data1 + PacketSize)));
+          for (int i = 0; i < PacketSize; ++i) VERIFY_IS_EQUAL(data2[i], ref[i]);
+        }
+      }
+    }
+#endif
   }
 
   for (int i = 0; i < size; ++i) {

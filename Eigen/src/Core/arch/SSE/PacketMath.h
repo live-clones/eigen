@@ -1721,20 +1721,19 @@ EIGEN_STRONG_INLINE Packet4f pldexp<Packet4f>(const Packet4f& a, const Packet4f&
 // supported by SSE, and has more range than is needed for exponents.
 template <>
 EIGEN_STRONG_INLINE Packet2d pldexp<Packet2d>(const Packet2d& a, const Packet2d& exponent) {
-  // Clamp exponent to [-2099, 2099]
+  // The single-rounding split of pldexp_generic on the two low int32 lanes. Interleaving t and e - t puts each
+  // biased pair in one 64-bit lane, t + 2 * bias low: shifting left by 51 drops the high half, and shifting right by
+  // 32 first selects it.
   const Packet2d max_exponent = pset1<Packet2d>(2099.0);
-  const Packet2d e = pmin(pmax(exponent, pnegate(max_exponent)), max_exponent);
-
-  // e and trunc(e*89/256) as int32 in the two low lanes.
-  const Packet4i ei = _mm_cvtpd_epi32(e);
-  const Packet4i b = _mm_cvttpd_epi32(pmul(e, pset1<Packet2d>(0.34765625)));
-
-  // The sequential 3-way split; see pldexp_generic. Interleaving b and e - 2b puts each biased pair in one 64-bit
-  // lane, b + bias low: shifting left by 52 drops the high half, and shifting right by 32 first selects it.
-  const Packet4i biased = padd(Packet4i(_mm_unpacklo_epi32(b, psub(ei, padd(b, b)))), pset1<Packet4i>(1023));
-  const Packet2d c1 = _mm_castsi128_pd(_mm_slli_epi64(biased, 52));                      // 2^b
-  const Packet2d c2 = _mm_castsi128_pd(_mm_slli_epi64(_mm_srli_epi64(biased, 32), 52));  // 2^(e - 2b)
-  return pldexp_apply_factors(a, c1, c2);                                             // a * 2^e
+  const Packet2d last_max = pset1<Packet2d>(1022.0);
+  const Packet4i e = _mm_cvtpd_epi32(pmin(pmax(exponent, pnegate(max_exponent)), max_exponent));
+  const Packet4i b = _mm_cvtpd_epi32(pmin(pmax(exponent, pnegate(last_max)), last_max));
+  const Packet4i t = pandnot(psub(e, b), pset1<Packet4i>(1));  // even
+  const Packet4i biased =
+      padd(Packet4i(_mm_unpacklo_epi32(t, psub(e, t))), Packet4i(_mm_set_epi32(1023, 2046, 1023, 2046)));
+  const Packet2d c1 = _mm_castsi128_pd(_mm_slli_epi64(biased, 51));                      // 2^(t/2)
+  const Packet2d c2 = _mm_castsi128_pd(_mm_slli_epi64(_mm_srli_epi64(biased, 32), 52));  // 2^(e - t)
+  return pldexp_apply_factors(a, c1, c2);                                                // a * 2^e
 }
 
 // We specialize pldexp here, since the generic implementation uses Packet2l, which is not well
