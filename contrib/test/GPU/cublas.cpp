@@ -14,6 +14,8 @@
 #define EIGEN_USE_GPU
 #include "main.h"
 #include <contrib/Eigen/GPU>
+#include <cstdint>
+#include <new>
 
 #include "./gpu_test_helpers.h"
 
@@ -281,6 +283,42 @@ void test_gemm_explicit_context(Index m, Index n, Index k) {
 
   Mat C = d_C.toHost();
   Mat C_ref = A * B;
+
+  RealScalar tol = RealScalar(k) * NumTraits<Scalar>::epsilon() * C_ref.norm();
+  VERIFY((C - C_ref).norm() < tol);
+}
+
+// ---- GEMM with misaligned host alpha/beta -----------------------------------
+// cuBLAS reads alpha and beta as cuComplex/cuDoubleComplex, which declare 8- and
+// 16-byte alignment; std::complex<double> only needs 8, so a caller may hold it
+// at an odd multiple of 8. cublaslt_gemm must copy the scalars rather than pass
+// such storage on: on MSVC the dispatcher's locals land there.
+
+template <typename Scalar>
+void test_gemm_misaligned_host_scalars(Index m, Index n, Index k) {
+  using Mat = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  Mat A = Mat::Random(m, k);
+  Mat B = Mat::Random(k, n);
+
+  gpu::Context ctx;
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A, ctx.stream());
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B, ctx.stream());
+  gpu::DeviceMatrix<Scalar> d_C(m, n);
+
+  alignas(16) unsigned char storage[8 + 2 * sizeof(Scalar)];
+  const Scalar* alpha = ::new (storage + 8) Scalar(2);
+  const Scalar* beta = ::new (storage + 8 + sizeof(Scalar)) Scalar(0);
+  VERIFY_IS_EQUAL(reinterpret_cast<std::uintptr_t>(alpha) % 16, std::uintptr_t(8));
+
+  gpu::internal::cublaslt_gemm(ctx.cublasLtHandle(), ctx.cublasHandle(), CUBLAS_OP_N, CUBLAS_OP_N, m, n, k, alpha,
+                               d_A.data(), m, d_B.data(), k, beta, d_C.data(), m, ctx.gemmWorkspace(),
+                               ctx.gemmPlanCache(), ctx.cublasLtMaxWorkspaceBytes(), ctx.stream());
+  d_C.recordReady(ctx.stream());
+
+  Mat C = d_C.toHost();
+  Mat C_ref = Scalar(2) * A * B;
 
   RealScalar tol = RealScalar(k) * NumTraits<Scalar>::epsilon() * C_ref.norm();
   VERIFY((C - C_ref).norm() < tol);
@@ -780,6 +818,7 @@ void test_scalar() {
   CALL_SUBTEST(test_gemm_subtract<Scalar>(64, 64, 64));
   CALL_SUBTEST(test_gemm_subtract_empty<Scalar>(64, 64, 64));
   CALL_SUBTEST(test_gemm_explicit_context<Scalar>(64, 64, 64));
+  CALL_SUBTEST(test_gemm_misaligned_host_scalars<Scalar>(64, 48, 32));
   CALL_SUBTEST(test_gemm_cross_context_reuse<Scalar>(64));
   CALL_SUBTEST(test_gemm_cross_context_resize<Scalar>());
   CALL_SUBTEST(test_gemm_chain<Scalar>(64));
