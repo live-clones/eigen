@@ -311,6 +311,13 @@ void cublaslt_gemm(cublasLtHandle_t lt_handle, cublasHandle_t cublas_handle, cub
     entry = plan_cache.insert(key, CublasLtPlanEntry(lt_handle, key, compute, alpha_type, max_workspace_bytes));
   }
 
+  // cuBLAS reads alpha and beta on the host as its own scalar types. cuComplex
+  // and cuDoubleComplex declare 8- and 16-byte alignment, which std::complex
+  // does not guarantee: MSVC aligns std::complex<double> to 8, and a 16-byte
+  // load through such a pointer faults. Hand the library aligned copies.
+  alignas(16) const Scalar alpha_val = *alpha;
+  alignas(16) const Scalar beta_val = *beta;
+
   if (entry->use_cublaslt) {
     const size_t needed = entry->workspace_size;
     if (needed > workspace.size()) {
@@ -319,14 +326,15 @@ void cublaslt_gemm(cublasLtHandle_t lt_handle, cublasHandle_t cublas_handle, cub
       workspace = DeviceBuffer(needed);
     }
 
-    EIGEN_CUBLASLT_CHECK(cublasLtMatmul(lt_handle, entry->matmul_desc, alpha, A, entry->layout_A, B, entry->layout_B,
-                                        beta, C, entry->layout_C, C, entry->layout_C, &entry->algo, workspace.get(),
-                                        needed, stream));
+    EIGEN_CUBLASLT_CHECK(cublasLtMatmul(lt_handle, entry->matmul_desc, &alpha_val, A, entry->layout_A, B,
+                                        entry->layout_B, &beta_val, C, entry->layout_C, C, entry->layout_C,
+                                        &entry->algo, workspace.get(), needed, stream));
   } else {
     // Fallback: cublasGemmEx for shapes/types that cublasLt cannot handle.
-    EIGEN_CUBLAS_CHECK(EIGEN_CUBLAS_FN(cublasGemmEx)(
-        cublas_handle, transA, transB, to_blas_dim(m), to_blas_dim(n), to_blas_dim(k), alpha, A, dtype,
-        to_blas_dim(lda), B, dtype, to_blas_dim(ldb), beta, C, dtype, to_blas_dim(ldc), compute, cuda_gemm_algo()));
+    EIGEN_CUBLAS_CHECK(EIGEN_CUBLAS_FN(cublasGemmEx)(cublas_handle, transA, transB, to_blas_dim(m), to_blas_dim(n),
+                                                     to_blas_dim(k), &alpha_val, A, dtype, to_blas_dim(lda), B, dtype,
+                                                     to_blas_dim(ldb), &beta_val, C, dtype, to_blas_dim(ldc), compute,
+                                                     cuda_gemm_algo()));
   }
 }
 
@@ -348,12 +356,11 @@ static_assert(sizeof(cuComplex) == sizeof(std::complex<float>), "cuComplex and s
 static_assert(sizeof(cuDoubleComplex) == sizeof(std::complex<double>),
               "cuDoubleComplex and std::complex<double> layout mismatch");
 
-// Complex alpha/beta are type-punned from std::complex<T>* to
-// cuComplex*/cuDoubleComplex*. reinterpret_cast violates strict aliasing here:
-// once inlined, clang/MSVC no longer see a read through the original type and
-// elide the caller's store, which segfaults. std::memcpy is the standard-blessed
-// pun. Device array pointers (A, B, C) are never dereferenced by the host
-// compiler, so reinterpret_cast is safe for them.
+// Complex alpha/beta are copied into cuComplex/cuDoubleComplex locals instead of
+// reinterpret_cast: the copy gives cuBLAS the alignment those types declare (see
+// cublaslt_gemm) and reads the std::complex through its own type. Device array
+// pointers (A, B, C) are never dereferenced by the host compiler, so
+// reinterpret_cast is safe for them.
 inline cublasStatus_t cublasXgemm(cublasHandle_t h, cublasOperation_t transA, cublasOperation_t transB, int64_t m,
                                   int64_t n, int64_t k, const std::complex<float>* alpha, const std::complex<float>* A,
                                   int64_t lda, const std::complex<float>* B, int64_t ldb,
