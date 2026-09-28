@@ -3,6 +3,7 @@
 
 #include "main.h"
 
+#include <cfenv>
 #include <cmath>
 #include <complex>
 #include <limits>
@@ -43,6 +44,21 @@ std::vector<Scalar> log_uniform_bases(int lo, int hi, int count) {
     bases.push_back(i % 2 ? -x : x);
   }
   return bases;
+}
+
+// y = x.pow(n), returning which of FE_INVALID and FE_OVERFLOW it raised on a target whose packets flush subnormals,
+// where the results below the smallest normal are rebuilt from integer bits. Elsewhere it reports none: the double
+// word can raise FE_INVALID for a zero base, which an AVX2 partial packet holds as padding.
+template <typename ArrayType, typename Exponent>
+int pow_exceptions(const ArrayType& x, const Exponent& n, ArrayType& y) {
+  using Packet = typename internal::packet_traits<typename ArrayType::Scalar>::type;
+  std::fenv_t saved_environment;
+  const bool environment_saved =
+      internal::unary_pow::flushes_subnormals<Packet>::value && std::feholdexcept(&saved_environment) == 0;
+  y = x.pow(n);
+  const int exceptions = environment_saved ? std::fetestexcept(FE_INVALID | FE_OVERFLOW) : 0;
+  if (environment_saved) std::fesetenv(&saved_environment);
+  return exceptions;
 }
 
 // Reference: pow in the next wider format, so its own rounding is negligible for float; for double, the
@@ -130,6 +146,17 @@ void real_pow_test() {
       ArrayX<Scalar> y = ArrayX<Scalar>::Constant(size, base).pow(2);
       for (Index k = 0; k < size; ++k) VERIFY(within_ulps(y(k), base * base, 0.0));
     }
+  }
+  // A subnormal power beside normal ones, 2^-n and 1^n in one packet, raises neither FE_INVALID nor FE_OVERFLOW.
+  {
+    const int n = 1 - min_exponent + std::numeric_limits<Scalar>::digits / 2;
+    const Scalar tiny = Scalar(std::ldexp(1.0, -n));
+    ArrayX<Scalar> x = ArrayX<Scalar>::Ones(2 * internal::packet_traits<Scalar>::size + 1), y;
+    x(0) = Scalar(0.5);
+    VERIFY_IS_EQUAL(pow_exceptions(x, n, y), 0);
+    for (Index k = 0; k < x.size(); ++k) VERIFY(within_ulps(y(k), k == 0 ? tiny : Scalar(1), 0.0));
+    VERIFY_IS_EQUAL(pow_exceptions(x, Scalar(n), y), 0);
+    for (Index k = 0; k < x.size(); ++k) VERIFY(within_ulps(y(k), k == 0 ? tiny : Scalar(1), 0.0));
   }
   // Exponents beyond the squaring cutoff, on bases within a few ulps of one, where the power stays finite for
   // every exponent up to INT_MAX. The reference pow then carries the full rounding error of its own exponent
@@ -296,6 +323,16 @@ void complex_pow_test() {
     y = z.pow(-5);
     y_real = z.pow(Real(-5));
     for (Index k = 0; k < size; ++k) VERIFY(y(k) == tinier && y_real(k) == tinier);
+  }
+  // A zero component beside nonzero ones, (1 + i)^2 = 2i and (1 + 2i)^2 = -3 + 4i in one packet, raises neither
+  // FE_INVALID nor FE_OVERFLOW.
+  {
+    ArrayX<Complex> z = ArrayX<Complex>::Constant(size, Complex(1, 2)), y;
+    z(0) = Complex(1, 1);
+    VERIFY_IS_EQUAL(pow_exceptions(z, 2, y), 0);
+    for (Index k = 0; k < size; ++k) VERIFY(y(k) == (k == 0 ? Complex(0, 2) : Complex(-3, 4)));
+    VERIFY_IS_EQUAL(pow_exceptions(z, Real(2), y), 0);
+    for (Index k = 0; k < size; ++k) VERIFY(y(k) == (k == 0 ? Complex(0, 2) : Complex(-3, 4)));
   }
   // Reciprocals of normal bases whose norm exceeds 1 / min, c (1 + i) with |z|^2 = 4.5 * 2^(2e), or whose smaller
   // component is subnormal: 1/(2^p + 2^-30 i) = 2^-p - 2^(-30 - 2p) i to working precision.
