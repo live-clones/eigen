@@ -581,7 +581,8 @@ struct use_double_word : bool_constant<is_double_word_base<typename unpacket_tra
                                        has_exponent_bit_ops<typename real_view<Packet>::type>::value> {};
 
 // ARMv7 NEON flushes subnormal float operands and results to zero in its arithmetic and comparisons; the scalar VFP
-// unit, which runs the scalar path, does not.
+// unit, which runs the scalar path, does not. Its dispatch is also under #if EIGEN_ARCH_ARM: elsewhere, although it
+// selects the unchanged path, GCC inlines the pow kernels differently.
 template <typename Packet>
 struct flushes_subnormals
     : bool_constant<EIGEN_ARCH_ARM && !is_scalar<Packet>::value &&
@@ -637,7 +638,11 @@ struct binary_exponent_scaling {
     Packet zero_below = pset1<Packet>(Scalar(kZeroBelow));
     Packet value = pselect(pcmp_lt(e, zero_below), pmul(x, pzero(x)), x);
     Packet exponent = pmin(pmax(e, zero_below), pset1<Packet>(Scalar(kLimit)));
+#if EIGEN_ARCH_ARM
     return with_subnormals(value, exponent, pldexp(value, exponent), flushes_subnormals<Packet>());
+#else
+    return pldexp(value, exponent);
+#endif
   }
 
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet with_subnormals(const Packet&, const Packet&, const Packet& r,
@@ -1239,7 +1244,11 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet int_pow_double_word(const Packet& x
 
 template <typename Packet, typename ScalarExponent>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet int_pow(const Packet& x, const ScalarExponent& exponent, true_type) {
+#if EIGEN_ARCH_ARM
   return int_pow_double_word(x, exponent, flushes_subnormals<Packet>());
+#else
+  return int_pow_double_word(x, exponent);
+#endif
 }
 
 template <typename Packet, typename ScalarExponent>
