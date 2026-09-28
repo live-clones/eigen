@@ -272,12 +272,12 @@ void test_spmv_device(Index n) {
   gpu::Context gpu_ctx;
   gpu::SparseContext<Scalar> ctx(gpu_ctx);
 
-  auto d_x = gpu::DeviceMatrix<Scalar>::fromHost(x, gpu_ctx.stream());
+  auto d_x = gpu::DeviceMatrix<Scalar>::fromHost(gpu_ctx, x);
   gpu::DeviceMatrix<Scalar> d_y;
 
   ctx.multiply(A, d_x, d_y);
 
-  Vec y_gpu = d_y.toHost(gpu_ctx.stream());
+  Vec y_gpu = d_y.toHost(gpu_ctx);
   Vec y_cpu = A * x;
 
   RealScalar tol = RealScalar(10) * RealScalar(n) * NumTraits<Scalar>::epsilon();
@@ -302,7 +302,7 @@ void test_spmv_expr(Index n) {
   auto d_A = ctx.deviceView(A);
 
   // Upload x.
-  auto d_x = gpu::DeviceMatrix<Scalar>::fromHost(x, gpu_ctx.stream());
+  auto d_x = gpu::DeviceMatrix<Scalar>::fromHost(gpu_ctx, x);
 
   // Expression syntax: d_y = d_A * d_x
   gpu::DeviceMatrix<Scalar> d_y;
@@ -312,8 +312,8 @@ void test_spmv_expr(Index n) {
   gpu::DeviceMatrix<Scalar> d_tmp;
   d_tmp.noalias() = d_A * d_x;
 
-  Vec y_gpu = d_y.toHost(gpu_ctx.stream());
-  Vec tmp_gpu = d_tmp.toHost(gpu_ctx.stream());
+  Vec y_gpu = d_y.toHost(gpu_ctx);
+  Vec tmp_gpu = d_tmp.toHost(gpu_ctx);
   Vec y_cpu = A * x;
 
   RealScalar tol = RealScalar(10) * RealScalar(n) * NumTraits<Scalar>::epsilon();
@@ -340,12 +340,12 @@ void test_spmv_affine_expr(Index n) {
   gpu::Context::setThreadLocal(&copy_ctx);
   gpu::SparseContext<Scalar> ctx(gpu_ctx);
   auto d_A = ctx.deviceView(A);
-  auto d_x = gpu::DeviceMatrix<Scalar>::fromHost(x, gpu_ctx.stream());
-  auto d_b = gpu::DeviceMatrix<Scalar>::fromHost(b, gpu_ctx.stream());
+  auto d_x = gpu::DeviceMatrix<Scalar>::fromHost(gpu_ctx, x);
+  auto d_b = gpu::DeviceMatrix<Scalar>::fromHost(gpu_ctx, b);
 
   const RealScalar tol = RealScalar(10) * RealScalar(n) * NumTraits<Scalar>::epsilon();
   auto check = [&](const gpu::DeviceMatrix<Scalar>& d_y, const Vec& y_ref) {
-    Vec y = d_y.toHost(gpu_ctx.stream());
+    Vec y = d_y.toHost(gpu_ctx);
     VERIFY((y - y_ref).norm() / (y_ref.norm() + RealScalar(1)) < tol);
   };
 
@@ -378,8 +378,8 @@ void test_device_spmm_affine(Index n, Index nrhs) {
   gpu::Context::setThreadLocal(&gctx);
   gpu::SparseContext<Scalar> ctx(gctx);
   auto view = ctx.deviceView(A);
-  auto d_X = gpu::DeviceMatrix<Scalar>::fromHost(X, gctx.stream());
-  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B, gctx.stream());
+  auto d_X = gpu::DeviceMatrix<Scalar>::fromHost(gctx, X);
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(gctx, B);
   gpu::DeviceMatrix<Scalar> d_Y = d_B - view * d_X;  // nrhs > 1 -> SpMM with beta = 1
   gpu::Context::setThreadLocal(nullptr);
 
@@ -403,13 +403,24 @@ void test_affine_empty(Index n) {
   gpu::SparseContext<Scalar> ctx(gctx);
   auto d_A = ctx.deviceView(A);
   VERIFY_IS_EQUAL(d_A.nonZeros(), 0);
-  auto d_x = gpu::DeviceMatrix<Scalar>::fromHost(x, gctx.stream());
-  auto d_b = gpu::DeviceMatrix<Scalar>::fromHost(b, gctx.stream());
+  auto d_x = gpu::DeviceMatrix<Scalar>::fromHost(gctx, x);
+  auto d_b = gpu::DeviceMatrix<Scalar>::fromHost(gctx, b);
 
   gpu::DeviceMatrix<Scalar> d_y = d_b - d_A * d_x;
-  VERIFY(d_y.toHost(gctx.stream()) == b);
+  VERIFY(d_y.toHost(gctx) == b);
   d_y = d_A * d_x - d_b;
-  VERIFY(d_y.toHost(gctx.stream()) == -b);
+  VERIFY(d_y.toHost(gctx) == -b);
+
+  // The exec entry points form beta * y themselves.
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  const Mat X = Mat::Random(n, 3), Y = Mat::Random(n, 3);
+  d_y = d_b.clone(gctx);
+  ctx.spmv_device_exec(d_x, d_y, Scalar(1), Scalar(2));
+  VERIFY(d_y.toHost(gctx) == Vec(Scalar(2) * b));
+  auto d_X = gpu::DeviceMatrix<Scalar>::fromHost(gctx, X);
+  auto d_Y = gpu::DeviceMatrix<Scalar>::fromHost(gctx, Y);
+  ctx.spmm_device_exec(d_X, d_Y, Scalar(1), Scalar(2));
+  VERIFY(d_Y.toHost(gctx) == Mat(Scalar(2) * Y));
   gpu::Context::setThreadLocal(nullptr);
 }
 
@@ -431,10 +442,10 @@ void test_deviceview_overwrite(Index n) {
 
   // First view: A1.
   auto d_A1 = ctx.deviceView(A1);
-  auto d_x = gpu::DeviceMatrix<Scalar>::fromHost(x, gpu_ctx.stream());
+  auto d_x = gpu::DeviceMatrix<Scalar>::fromHost(gpu_ctx, x);
   gpu::DeviceMatrix<Scalar> d_y1;
   d_y1 = d_A1 * d_x;
-  Vec y1_gpu = d_y1.toHost(gpu_ctx.stream());
+  Vec y1_gpu = d_y1.toHost(gpu_ctx);
   Vec y1_cpu = A1 * x;
   RealScalar tol = RealScalar(10) * RealScalar(n) * NumTraits<Scalar>::epsilon();
   VERIFY((y1_gpu - y1_cpu).norm() / (y1_cpu.norm() + RealScalar(1)) < tol);
@@ -443,7 +454,7 @@ void test_deviceview_overwrite(Index n) {
   auto d_A2 = ctx.deviceView(A2);
   gpu::DeviceMatrix<Scalar> d_y2;
   d_y2 = d_A2 * d_x;
-  Vec y2_gpu = d_y2.toHost(gpu_ctx.stream());
+  Vec y2_gpu = d_y2.toHost(gpu_ctx);
   Vec y2_cpu = A2 * x;
   VERIFY((y2_gpu - y2_cpu).norm() / (y2_cpu.norm() + RealScalar(1)) < tol);
 }
@@ -464,7 +475,7 @@ void test_device_spmm(Index n, Index nrhs) {
   auto view = ctx.deviceView(A);
   VERIFY(view.generation() == ctx.uploadGeneration());
 
-  auto d_X = gpu::DeviceMatrix<Scalar>::fromHost(X, gctx.stream());
+  auto d_X = gpu::DeviceMatrix<Scalar>::fromHost(gctx, X);
   gpu::DeviceMatrix<Scalar> d_Y = view * d_X;  // nrhs > 1 -> SpMM
   Mat Y_ref = A * X;
   RealScalar tol = RealScalar(10) * RealScalar(n) * NumTraits<Scalar>::epsilon();
@@ -482,7 +493,7 @@ void test_device_multiply_gpuop(Index n) {
 
   gpu::Context gctx;
   gpu::SparseContext<Scalar> ctx(gctx);
-  auto d_x = gpu::DeviceMatrix<Scalar>::fromHost(x, gctx.stream());
+  auto d_x = gpu::DeviceMatrix<Scalar>::fromHost(gctx, x);
   gpu::DeviceMatrix<Scalar> d_y;
   ctx.multiply(A, d_x, d_y, Scalar(1), Scalar(0), gpu::GpuOp::Trans);
   Vec y_ref = A.transpose() * x;
@@ -540,16 +551,16 @@ void test_block_sparse_input(Index block_rows, Index block_cols) {
   if (kTestAdjoint) verify_close(ctx.multiplyAdjoint(A, xt), Vec(A.adjoint() * xt));
   verify_close(ctx.multiplyMat(A, X), Mat(A * X));
 
-  auto d_x = gpu::DeviceMatrix<Scalar>::fromHost(x, gctx.stream());
+  auto d_x = gpu::DeviceMatrix<Scalar>::fromHost(gctx, x);
   gpu::DeviceMatrix<Scalar> d_y;
   ctx.multiply(A, d_x, d_y);
-  verify_close(d_y.toHost(gctx.stream()), y_ref);
+  verify_close(d_y.toHost(gctx), y_ref);
 
   auto view = ctx.deviceView(A);
   VERIFY_IS_EQUAL(view.rows(), A.rows());
   VERIFY_IS_EQUAL(view.cols(), A.cols());
   gpu::DeviceMatrix<Scalar> d_y2 = view * d_x;
-  verify_close(d_y2.toHost(gctx.stream()), y_ref);
+  verify_close(d_y2.toHost(gctx), y_ref);
 }
 
 template <typename Scalar>

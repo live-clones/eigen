@@ -132,8 +132,8 @@ void run_gpu_cg(benchmark::State& state, MatGen make_matrix) {
   gpu::Context::setThreadLocal(&ctx);
   gpu::SparseContext<Scalar> spmv_ctx(ctx);
   auto mat = spmv_ctx.deviceView(A);
-  auto d_invdiag = gpu::DeviceMatrix<Scalar>::fromHost(invdiag, ctx.stream());
-  auto d_b = gpu::DeviceMatrix<Scalar>::fromHost(b, ctx.stream());
+  auto d_invdiag = gpu::DeviceMatrix<Scalar>::fromHost(ctx, invdiag);
+  auto d_b = gpu::DeviceMatrix<Scalar>::fromHost(ctx, b);
 
   int last_iters = 0;
   RealScalar last_error = 0;

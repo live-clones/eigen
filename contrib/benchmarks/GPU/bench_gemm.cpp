@@ -36,8 +36,8 @@ static void cuda_warmup() {
     gpu::Context ctx;
     Mat A = Mat::Random(64, 64);
     Mat B = Mat::Random(64, 64);
-    auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A, ctx.stream());
-    auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B, ctx.stream());
+    auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(ctx, A);
+    auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(ctx, B);
     gpu::DeviceMatrix<Scalar> d_C;
     d_C.device(ctx) = d_A * d_B;
     if (cudaDeviceSynchronize() != cudaSuccess) abort();
@@ -56,8 +56,8 @@ static void BM_DeviceMatrix_Gemm(benchmark::State& state) {
   gpu::Context ctx;
   Mat hostA = Mat::Random(n, n);
   Mat hostB = Mat::Random(n, n);
-  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(hostA, ctx.stream());
-  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(hostB, ctx.stream());
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(ctx, hostA);
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(ctx, hostB);
   gpu::DeviceMatrix<Scalar> d_C;
 
   // Warmup: run a few GEMMs to stabilize clocks and populate plan cache.
@@ -88,8 +88,8 @@ static void BM_Raw_CublasGemmEx(benchmark::State& state) {
   gpu::Context ctx;
   Mat hostA = Mat::Random(n, n);
   Mat hostB = Mat::Random(n, n);
-  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(hostA, ctx.stream());
-  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(hostB, ctx.stream());
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(ctx, hostA);
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(ctx, hostB);
   gpu::DeviceMatrix<Scalar> d_C(n, n);
 
   constexpr cudaDataType_t dtype = gpu::internal::cuda_data_type<Scalar>::value;
@@ -138,8 +138,8 @@ static void BM_DeviceMatrix_Gemm_TransA(benchmark::State& state) {
   gpu::Context ctx;
   Mat hostA = Mat::Random(n, n);
   Mat hostB = Mat::Random(n, n);
-  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(hostA, ctx.stream());
-  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(hostB, ctx.stream());
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(ctx, hostA);
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(ctx, hostB);
   gpu::DeviceMatrix<Scalar> d_C;
 
   for (int i = 0; i < 5; ++i) {

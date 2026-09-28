@@ -28,7 +28,7 @@
 
 #include "./CuFftSupport.h"
 #include "./CuBlasSupport.h"
-#include "./GpuContext.h"
+#include "./DeviceDispatch.h"
 
 namespace Eigen {
 namespace gpu {
@@ -234,9 +234,9 @@ class FFT {
   }
 
   // DeviceMatrix in / DeviceMatrix out: no host transfer and no host
-  // synchronization. Cross-stream safety follows the DeviceMatrix event
-  // protocol (waitReady before reading, recordReady after enqueuing). 1D
-  // overloads expect column vectors.
+  // synchronization. Cross-stream safety follows the DeviceMatrix access
+  // protocol (prepare_out before enqueuing, finish_out after). 1D overloads
+  // expect column vectors.
 
   /** Forward 1D C2C FFT, device-resident: d_X = fft(d_x). */
   void fwd(const DeviceMatrix<Complex>& d_x, DeviceMatrix<Complex>& d_X) {
@@ -247,7 +247,7 @@ class FFT {
     cufftHandle plan = get_plan_1d(n, internal::cufft_c2c_type<Scalar>::value);
     EIGEN_CUFFT_CHECK(
         internal::cufftExecC2C_dispatch(plan, const_cast<Complex*>(d_x.data()), d_X.data(), CUFFT_FORWARD));
-    d_X.recordReady(ctx_->stream());
+    finish_out(d_x, d_X);
   }
 
   /** Inverse 1D C2C FFT, device-resident. Scaled by 1/n. */
@@ -260,7 +260,7 @@ class FFT {
     EIGEN_CUFFT_CHECK(
         internal::cufftExecC2C_dispatch(plan, const_cast<Complex*>(d_X.data()), d_x.data(), CUFFT_INVERSE));
     EIGEN_CUBLAS_CHECK(internal::cublasXscal(ctx_->cublasHandle(), n, Scalar(1) / Scalar(n), d_x.data(), 1));
-    d_x.recordReady(ctx_->stream());
+    finish_out(d_X, d_x);
   }
 
   /** Forward 1D R2C FFT, device-resident. Output is n/2+1 complex values. */
@@ -272,7 +272,7 @@ class FFT {
     if (n == 0) return;
     cufftHandle plan = get_plan_1d(n, internal::cufft_r2c_type<Scalar>::value);
     EIGEN_CUFFT_CHECK(internal::cufftExecR2C_dispatch(plan, const_cast<Scalar*>(d_x.data()), d_X.data()));
-    d_X.recordReady(ctx_->stream());
+    finish_out(d_x, d_X);
   }
 
   /** Inverse 1D C2R FFT, device-resident. Input is nfft/2+1 complex values,
@@ -292,7 +292,7 @@ class FFT {
     cufftHandle plan = get_plan_1d(n, internal::cufft_c2r_type<Scalar>::value);
     EIGEN_CUFFT_CHECK(internal::cufftExecC2R_dispatch(plan, static_cast<Complex*>(d_in_.get()), d_x.data()));
     EIGEN_CUBLAS_CHECK(internal::cublasXscal(ctx_->cublasHandle(), n, Scalar(1) / Scalar(n), d_x.data(), 1));
-    d_x.recordReady(ctx_->stream());
+    finish_out(d_X, d_x);
   }
 
   /** Forward 2D C2C FFT, device-resident. */
@@ -304,7 +304,7 @@ class FFT {
     cufftHandle plan = get_plan_2d(rows, cols, internal::cufft_c2c_type<Scalar>::value);
     EIGEN_CUFFT_CHECK(
         internal::cufftExecC2C_dispatch(plan, const_cast<Complex*>(d_A.data()), d_B.data(), CUFFT_FORWARD));
-    d_B.recordReady(ctx_->stream());
+    finish_out(d_A, d_B);
   }
 
   /** Inverse 2D C2C FFT, device-resident. Scaled by 1/(rows*cols). */
@@ -319,7 +319,7 @@ class FFT {
     const int total_elems = internal::to_blas_int(static_cast<int64_t>(rows) * static_cast<int64_t>(cols));
     EIGEN_CUBLAS_CHECK(
         internal::cublasXscal(ctx_->cublasHandle(), total_elems, Scalar(1) / Scalar(total_elems), d_B.data(), 1));
-    d_B.recordReady(ctx_->stream());
+    finish_out(d_A, d_B);
   }
 
   /** The CUDA stream borrowed from the bound Context. */
@@ -333,37 +333,30 @@ class FFT {
   Eigen::internal::LruCache<int64_t, internal::CufftPlan> plans_;
   internal::DeviceBuffer d_in_;
   internal::DeviceBuffer d_out_;
-  size_t d_in_size_ = 0;
-  size_t d_out_size_ = 0;
 
-  // Common device-transform prologue: alias check, input/output event waits,
-  // and (destructive) output resize.
+  // Common device-transform prologue: alias check, (destructive) output
+  // resize on the bound Context, and the access ordering finish_out completes.
   template <typename InScalar, typename OutScalar>
   void prepare_out(const DeviceMatrix<InScalar>& in, DeviceMatrix<OutScalar>& out, Index out_rows, Index out_cols) {
     eigen_assert(
         (in.data() == nullptr || static_cast<const void*>(in.data()) != static_cast<const void*>(out.data())) &&
         "device FFT: output must not alias input");
-    in.waitReady(ctx_->stream());
-    if (!out.empty()) out.waitReady(ctx_->stream());
-    out.resize(out_rows, out_cols);
+    out.resize(*ctx_, out_rows, out_cols);
+    in.prepareRead(*ctx_);
+    out.prepareWrite(*ctx_);
   }
 
-  // Buffers grow but never shrink. The pre-realloc sync drains the *bound*
-  // Context's stream — including unrelated GEMMs/solves/`device(ctx) = ...`
-  // assignments queued on it — so callers running FFTs alongside other GPU
-  // work on the same Context should size up front (call fwd/inv with the
-  // largest expected n once) to avoid mid-pipeline stalls.
+  template <typename InScalar, typename OutScalar>
+  void finish_out(const DeviceMatrix<InScalar>& in, DeviceMatrix<OutScalar>& out) {
+    in.finishRead(*ctx_);
+    out.finishWrite(*ctx_);
+  }
+
+  // Buffers grow but never shrink. A replaced buffer is freed stream-ordered
+  // after the transforms already queued on it, so growing never stalls.
   void ensure_buffers(size_t in_bytes, size_t out_bytes) {
-    if (in_bytes > d_in_size_) {
-      if (d_in_) EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(ctx_->stream()));
-      d_in_ = internal::DeviceBuffer(in_bytes);
-      d_in_size_ = in_bytes;
-    }
-    if (out_bytes > d_out_size_) {
-      if (d_out_) EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(ctx_->stream()));
-      d_out_ = internal::DeviceBuffer(out_bytes);
-      d_out_size_ = out_bytes;
-    }
+    internal::ensure_sized(d_in_, in_bytes, ctx_->streamHandle());
+    internal::ensure_sized(d_out_, out_bytes, ctx_->streamHandle());
   }
 
   // Plan key encoding: rank (1 bit) | type (4 bits) | dims.

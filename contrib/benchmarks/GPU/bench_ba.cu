@@ -408,8 +408,8 @@ static void BM_BA_GPU_CG(benchmark::State& state) {
   gpu::Context::setThreadLocal(&ctx);
   gpu::SparseContext<double> spmv_ctx(ctx);
   auto mat = spmv_ctx.deviceView(H);
-  auto d_invdiag = gpu::DeviceMatrix<double>::fromHost(invdiag, ctx.stream());
-  auto d_g = gpu::DeviceMatrix<double>::fromHost(g, ctx.stream());
+  auto d_invdiag = gpu::DeviceMatrix<double>::fromHost(ctx, invdiag);
+  auto d_g = gpu::DeviceMatrix<double>::fromHost(ctx, g);
 
   int last_iters = 0;
   double last_error = 0;

@@ -124,18 +124,18 @@ void test_bsr_device_multiply(Index block_rows, Index block_cols) {
   gpu::SparseContext<Scalar> ctx(gctx);
 
   const Vec x = Vec::Random(A.cols());
-  auto d_x = gpu::DeviceMatrix<Scalar>::fromHost(x, gctx.stream());
+  auto d_x = gpu::DeviceMatrix<Scalar>::fromHost(gctx, x);
   gpu::DeviceMatrix<Scalar> d_y;
   ctx.multiply(A, d_x, d_y);
-  verify_product(d_y.toHost(gctx.stream()), Vec(A * x), A);
+  verify_product(d_y.toHost(gctx), Vec(A * x), A);
 
   const Vec xt = Vec::Random(A.rows());
-  auto d_xt = gpu::DeviceMatrix<Scalar>::fromHost(xt, gctx.stream());
+  auto d_xt = gpu::DeviceMatrix<Scalar>::fromHost(gctx, xt);
   gpu::DeviceMatrix<Scalar> d_yt;
   ctx.multiply(A, d_xt, d_yt, Scalar(1), Scalar(0), gpu::GpuOp::Trans);
-  verify_product(d_yt.toHost(gctx.stream()), Vec(A.transpose() * xt), A);
+  verify_product(d_yt.toHost(gctx), Vec(A.transpose() * xt), A);
   ctx.multiply(A, d_xt, d_yt, Scalar(1), Scalar(0), gpu::GpuOp::ConjTrans);
-  verify_product(d_yt.toHost(gctx.stream()), Vec(A.adjoint() * xt), A);
+  verify_product(d_yt.toHost(gctx), Vec(A.adjoint() * xt), A);
 }
 
 // ---- deviceView: upload once, SpMV and SpMM by expression ----------------------
@@ -154,15 +154,15 @@ void test_bsr_device_view(Index block_rows, Index block_cols, Index nrhs) {
   VERIFY_IS_EQUAL(view.cols(), A.cols());
 
   const Vec x = Vec::Random(A.cols());
-  auto d_x = gpu::DeviceMatrix<Scalar>::fromHost(x, gctx.stream());
+  auto d_x = gpu::DeviceMatrix<Scalar>::fromHost(gctx, x);
   gpu::DeviceMatrix<Scalar> d_y = view * d_x;
-  verify_product(d_y.toHost(gctx.stream()), Vec(A * x), A);
+  verify_product(d_y.toHost(gctx), Vec(A * x), A);
 
   const Mat X = Mat::Random(A.cols(), nrhs);
-  auto d_X = gpu::DeviceMatrix<Scalar>::fromHost(X, gctx.stream());
+  auto d_X = gpu::DeviceMatrix<Scalar>::fromHost(gctx, X);
   gpu::DeviceMatrix<Scalar> d_Y;
   d_Y.noalias() = view * d_X;
-  verify_product(d_Y.toHost(gctx.stream()), Mat(A * X), A);
+  verify_product(d_Y.toHost(gctx), Mat(A * X), A);
 
   // cuSPARSE runs no transposed BSR product; the exec entry points reject any
   // other op against a BSR upload before queuing work.
@@ -249,11 +249,11 @@ void test_bsr_empty() {
   VERIFY_IS_APPROX(y, Vec(Scalar(2) * y_init));
   VERIFY(ctx.multiply(A, x).isZero());
 
-  auto d_x = gpu::DeviceMatrix<Scalar>::fromHost(x, gctx.stream());
+  auto d_x = gpu::DeviceMatrix<Scalar>::fromHost(gctx, x);
   gpu::DeviceMatrix<Scalar> d_y;
   ctx.multiply(A, d_x, d_y);
   VERIFY_IS_EQUAL(d_y.rows(), A.rows());
-  VERIFY(d_y.toHost(gctx.stream()).isZero());
+  VERIFY(d_y.toHost(gctx).isZero());
 }
 
 // ---- Driver ---------------------------------------------------------------------

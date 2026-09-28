@@ -422,7 +422,7 @@ void test_device_solve(Index m, Index n, Index nrhs) {
   VERIFY(svd.info() == Success);
   Mat X_host = svd.solve(B);
 
-  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B, svd.stream());
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(svd.context(), B);
   gpu::DeviceMatrix<Scalar> d_X = svd.solve(d_B);
   VERIFY_IS_APPROX(d_X.toHost(), X_host);
 

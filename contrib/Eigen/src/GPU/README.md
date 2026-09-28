@@ -154,26 +154,30 @@ d_x += alpha * d_p;                    // host scalar * DeviceMatrix (axpy)
 ```
 
 Division between `DeviceScalar` values (real types only) is performed on
-device via NPP, avoiding extra synchronizations. Small device allocations
-(including `DeviceScalar`) go through the stream-ordered allocator like every
-other block when the device has memory pools; on the `cudaMalloc` fallback
-path they are recycled through a thread-local `DeviceBufferPool` instead, to
-avoid `cudaMalloc`/`cudaFree` overhead in tight loops.
-Pool contract: a released block is recycled only after the device has retired
-every operation enqueued before the release on any blocking stream, so pooled
-buffers may move between the streams of one thread. The release is tracked by
-an event on the legacy default stream, the same ordering the stream-ordered
-allocator relies on. The pool is thread-local, so sharing a pooled buffer
-across threads needs external synchronization, and `cudaStreamNonBlocking`
-streams are outside the guarantee.
+device via NPP, on the first operand's stream, avoiding extra
+synchronizations. Small device allocations (including `DeviceScalar`) go
+through the stream-ordered allocator like every other block when the device
+has memory pools; on the `cudaMalloc` fallback path they are recycled through
+a thread-local `DeviceBufferPool` instead, to avoid `cudaMalloc`/`cudaFree`
+overhead in tight loops. A released block is recycled only after an event
+recorded on its home stream, behind every access to the block, has completed,
+so pooled blocks may move between streams. The pool is thread-local, so
+sharing a pooled buffer across threads needs external synchronization.
 
 ### `gpu::Context`
 
-Every GPU operation needs a CUDA stream and library handles (cuBLAS eagerly,
-cuSOLVER / cuBLASLt / cuSPARSE lazily on first use). `gpu::Context` bundles
-these together. A single `Context` is not thread-safe -- use one per thread
-(or external synchronization), since the underlying NVIDIA library handles
-are not thread-safe per handle.
+A `gpu::Context` says where GPU work runs: a CUDA stream plus the library
+handles bound to it (cuBLAS eagerly, cuSOLVER / cuBLASLt / cuSPARSE lazily on
+first use). A method that enqueues work takes a `gpu::Context& ctx` as its
+first parameter; its overload without that parameter, where one exists, runs on
+the thread-local default. Every solver runs on a `Context`, bound at
+construction or privately owned. A single `Context` is not thread-safe -- use
+one per thread (or external synchronization), since the underlying NVIDIA
+library handles are not thread-safe per handle.
+
+A default-constructed `Context` owns a new non-blocking stream. The module never
+uses the legacy default stream, so it neither waits for nor delays work that
+other code puts there.
 
 For simple usage, you don't need to create one -- a per-thread default context
 is created lazily on first use:
@@ -197,6 +201,13 @@ To integrate with existing CUDA code, borrow an existing stream:
 ```cpp
 gpu::Context ctx(my_existing_stream);  // wraps stream, does not take ownership
 ```
+
+A borrowed stream must outlive the `Context`, every `DeviceMatrix` or
+`DeviceScalar` last written on it, because their memory is freed
+stream-ordered there, and every read enqueued on it that a later write or free
+of such an object waits for. An owned stream needs no such care: it stays
+alive, even after the `Context` is destroyed, as long as an object or a
+pending read still needs it.
 
 To override the thread-local default (e.g., in CG where all ops share one
 context):
@@ -248,7 +259,7 @@ d_C = d_A * d_B.transpose();
 // Scaled and accumulated
 d_C += 2.0 * d_A * d_B;             // alpha=2, beta=1
 d_C -= d_A * d_B;                   // alpha=-1, beta=1
-d_C.device(ctx) -= d_A * d_B;       // same, on an explicit stream
+d_C.device(ctx) -= d_A * d_B;       // same, on an explicit Context
 
 // Triangular solve (TRSM)
 d_X = d_A.triangularView<Lower>().solve(d_B);
@@ -364,7 +375,8 @@ MatrixXd U = svd.matrixU();          // downloads to host
 MatrixXd V = svd.matrixV();          // V (matches JacobiSVD)
 MatrixXd VT = svd.matrixVT();        // V^T (matches cuSOLVER)
 
-// SVD: device-side views (no D2H transfer; svd must outlive the views)
+// SVD: device-side views (no D2H transfer; destroy the views before svd is
+// recomputed or destroyed)
 auto d_S = svd.d_singularValues();   // DeviceMatrix view of singular values
 auto d_U = svd.d_matrixU();          // DeviceMatrix view of U
 auto d_VT = svd.d_matrixVT();        // DeviceMatrix view of V^T
@@ -382,7 +394,8 @@ The cached API keeps the factored matrix on device, avoiding redundant
 host-device transfers and re-factorizations. All five solvers accept
 `compute(DeviceMatrix&&)` to adopt the input and factor it in place with no
 copy (for QR/SVD with m < n the internal transpose still copies), and all five
-can bind to a `gpu::Context` to share its stream and handles. All solvers also
+can bind to a `gpu::Context` to share its stream and handles; a solver built
+without one runs on a private `Context`, which `context()` returns. All solvers also
 accept host dense expressions directly as a convenience (e.g.,
 `gpu::LLT<double> llt(A)` or `qr.solve(B)`), which handles upload/download
 internally. Host `compute()` finishes its upload before returning, while
@@ -426,7 +439,7 @@ VectorXd x = lu.solve(b);
 // with a device-resident RHS — result stays on device, no host sync:
 gpu::Context ctx;
 gpu::SparseLLT<double> llt_ctx(ctx, A);
-auto d_b = gpu::DeviceMatrix<double>::fromHost(b, ctx.stream());
+auto d_b = gpu::DeviceMatrix<double>::fromHost(ctx, b);
 gpu::DeviceMatrix<double> d_x = llt_ctx.solve(d_b);
 ```
 
@@ -611,7 +624,7 @@ gpu::Context ctx;
 gpu::Context::setThreadLocal(&ctx);
 gpu::SparseContext<double> spmv(ctx);
 auto mat = spmv.deviceView(A);
-auto d_b = gpu::DeviceMatrix<double>::fromHost(b, ctx.stream());
+auto d_b = gpu::DeviceMatrix<double>::fromHost(ctx, b);
 gpu::DeviceMatrix<double> d_x(n, 1);
 d_x.setZero(ctx);
 
@@ -642,7 +655,7 @@ gpu::Context::setThreadLocal(&ctx);
 gpu::SparseContext<double> spmv(ctx);
 auto mat = spmv.deviceView(A);              // upload sparse matrix once
 
-auto rhs = gpu::DeviceMatrix<double>::fromHost(b, ctx.stream());
+auto rhs = gpu::DeviceMatrix<double>::fromHost(ctx, b);
 gpu::DeviceMatrix<double> x(n, 1);
 x.setZero();
 gpu::DeviceMatrix<double> residual(n, 1);
@@ -709,6 +722,12 @@ Mandatory sync points:
 - `toHost()` / `HostTransfer::get()` -- Must deliver data to host
 - `info()` -- Must read the factorization status
 - `DeviceScalar` implicit conversion -- Downloads scalar from device
+- Destroying a `HostTransfer` or a dense solver -- Frees pinned host memory,
+  and `cudaFreeHost()` waits for all work on the device (measured with CUDA
+  13.4; NVIDIA does not document it). The module also waits for its own
+  pending copy into that memory first, so it does not rely on this.
+- Creating or destroying a `Context`, including a solver's private one --
+  `cublasCreate()` and `cublasDestroy()` synchronize the device
 
 Debug-only sync points (compiled out under `EIGEN_NO_DEBUG`/`NDEBUG`): every
 solver `solve()` and accessor verifies `info() == Success` via `eigen_assert`,
@@ -718,27 +737,200 @@ which forces one stream synchronization the first time after each
 solve additionally downloads the singular values once per (truncation,
 lambda) setting to build its cached inverse diagonal.
 
-**Cross-stream safety** is automatic. `DeviceMatrix` tracks write completion
-via CUDA events. When a matrix written on stream A is read on stream B, the
-module automatically inserts `cudaStreamWaitEvent`. Same-stream operations
-skip the wait (CUDA guarantees in-order execution within a stream).
+**Cross-context ordering** is automatic for the module's own operations: a
+matrix written on one `Context` and read on another is read after the write,
+and so on for every combination of reads, writes, and the free. Code that
+touches `data()` or `devicePtr()` itself needs four bracketing calls only when
+the object is also used on another stream; see
+[Ordering across contexts](#eigen_gpu_ordering).
 
-**Device memory allocation is stream-ordered.** All module allocations go
-through `cudaMallocAsync` / `cudaFreeAsync` on devices that support memory
-pools (detected at runtime; `cudaMalloc`/`cudaFree` fallback otherwise, or
-force the fallback with `EIGEN_GPU_NO_STREAM_ORDERED_ALLOC` — required when
-borrowing `cudaStreamNonBlocking` streams, which do not synchronize with the
-legacy stream the allocator uses for ordering). Consequences:
+**No legacy default stream.** Every allocation, free, copy, library call, and
+event is enqueued on an explicit stream -- a `Context`'s, which is non-blocking
+unless you borrow a stream of your own -- so the module neither waits for nor
+delays work that other code puts on the legacy stream, and it behaves the same
+under `--default-stream per-thread`. The `stream_ordering` test checks this by
+holding a stream capture open on a blocking stream, which the CUDA runtime
+invalidates on any use of the legacy stream; `stream_ordering_per_thread` runs
+the same test with the per-thread default stream.
 
-- Allocating/destroying `DeviceMatrix` temporaries no longer performs a
-  device-wide synchronization; freed blocks recycle through the driver pool
-  (the pool's release threshold is raised so steady-state loops reallocate at
-  user-space speed).
-- Destroying a solver (or `DeviceMatrix`) with work still in flight is safe
-  *and* async: the stream-ordered free waits for previously enqueued work
-  without stalling the host.
+**Device memory allocation is stream-ordered.** Allocations go through
+`cudaMallocAsync` / `cudaFreeAsync` on the owning stream on devices that
+support memory pools (detected at runtime; `cudaMalloc`/`cudaFree` fallback
+otherwise, or force the fallback with `EIGEN_GPU_NO_STREAM_ORDERED_ALLOC`).
+Consequences:
+
+- Allocating/destroying `DeviceMatrix` temporaries performs no synchronization
+  and is ordered only against the owning stream; freed blocks recycle through
+  the driver pool (the pool's release threshold is raised so steady-state loops
+  reallocate at user-space speed).
+- Destroying a `DeviceMatrix` with work still in flight is safe and async: the
+  stream-ordered free waits for the work that uses the memory without stalling
+  the host. So is a solver's device memory; the solver itself may synchronize
+  (see the sync points above).
+- Workspaces (GEMM, solver, FFT, SpMV) grow without a sync: the replaced
+  buffer is freed after the work already queued on it.
 - `DeviceMatrix::resize()` is capacity-aware: shrinking or same-size reshapes
   reuse the existing allocation (contents are still discarded).
+
+### Ordering across contexts {#eigen_gpu_ordering}
+
+CUDA runs the work on one stream in order, but work on different streams --
+different `Context`s -- concurrently. Each `DeviceMatrix` and `DeviceScalar`
+therefore orders the accesses to its memory itself: every operation of the
+module brackets each object it reads or writes with `prepareRead` /
+`finishRead` or `prepareWrite` / `finishWrite`. The same four calls are public,
+for code that accesses `data()` or `devicePtr()` directly -- a custom kernel, a
+`cudaMemcpyAsync`, a call into another CUDA library. Most such code does not
+need them.
+
+#### When the brackets are needed
+
+**Not needed** when every access to the object -- the module's and yours --
+runs on one stream, because CUDA already runs that stream's work in order.
+Prefer writing code this way; it is simpler and needs no events. To keep an
+object on one `Context` `ctx`:
+
+- pass `ctx` to every call that takes one, or make it the thread-local default
+  with `gpu::Context::setThreadLocal(&ctx)`, so that the calls without one and
+  the operators run on it too;
+- bind every solver and `SparseContext` to `ctx` (built without one, they run
+  on a private `Context`, which is another stream);
+- enqueue your own kernels, copies, and library calls on `ctx.stream()`.
+
+```cpp
+gpu::Context ctx;
+gpu::Context::setThreadLocal(&ctx);
+auto d_A = gpu::DeviceMatrix<float>::fromHost(ctx, A);
+gpu::DeviceMatrix<float> d_B(ctx, n, n);
+my_kernel<<<grid, block, 0, ctx.stream()>>>(d_A.data(), d_B.data(), n);  // no brackets
+d_B += d_A;                            // thread-local, so on ctx: after my_kernel
+gpu::LLT<float> llt(ctx, d_B);         // bound to ctx: factors after the update
+MatrixXf X = llt.solve(d_A).toHost();  // solve and download, on ctx
+gpu::Context::setThreadLocal(nullptr);
+```
+
+Code that uses only the module's operations never needs the brackets either,
+on any number of contexts.
+
+**Needed** when your code accesses an object directly and some other access to
+the same object -- the module's or yours, earlier or later -- runs on a
+different stream: a matrix produced on one `Context` and consumed on another,
+one read concurrently by several threads, or one handed to a solver that runs
+on its own `Context`. Then bracket every direct access, as below; the module
+brackets its own.
+
+#### State
+
+Each object keeps
+
+- `stream()`, the stream of its last write (for a new object, the stream it
+  was allocated on). Its memory is freed there.
+- the last write: an event recorded on `stream()` behind that write.
+- read marks: for each other stream that has read the object since the last
+  write, an event recorded behind the latest such read.
+
+#### The four calls
+
+`ctx` is the `gpu::Context` whose stream runs the access. Every wait below is
+a `cudaStreamWaitEvent` enqueued on `ctx.stream()`: none blocks the host.
+
+| Call | When | Effect when `ctx.stream() != stream()` | When `ctx.stream() == stream()` |
+|---|---|---|---|
+| `prepareRead(ctx)` | before enqueuing a read | `ctx.stream()` waits for the last write | nothing |
+| `finishRead(ctx)` | after enqueuing the read | records the read mark of `ctx.stream()` | nothing |
+| `prepareWrite(ctx)` | before enqueuing a write | `ctx.stream()` waits for everything enqueued on `stream()` so far and for every read mark; `ctx.stream()` becomes `stream()`; the marks are dropped | `ctx.stream()` waits for the read marks of other streams, which are dropped |
+| `finishWrite(ctx)` | after enqueuing the write | -- (`prepareWrite(ctx)` made the streams equal) | records the last write |
+
+Together they give, for accesses in the order the host issues them:
+
+```text
+read  after write : waits for the last write                        (RAW)
+write after read  : waits for every read since the last write      (WAR)
+write after write : waits for the last write                        (WAW)
+free              : on stream(), after the last write and every read
+```
+
+Accesses on `stream()` itself cost no events: keeping related work on one
+`Context` makes every bracket a no-op or nearly one.
+
+#### Rules for bracketed code
+
+1. Bracket every access to `data()` or `devicePtr()`: `prepare*` before
+   enqueuing it, `finish*` after. The calls only enqueue waits and record
+   events; none of them waits for the device.
+2. Enqueue the access on `ctx.stream()`, where `ctx` is the `Context` passed to
+   its brackets. To use a stream of your own, wrap it in a `Context`:
+   `gpu::Context ctx(my_stream);`. For a call into another CUDA library, set
+   the library handle's stream to `ctx.stream()`.
+3. An access that reads and writes the same object -- an in-place update --
+   takes only the write bracket: `prepareWrite` already waits for the last
+   write.
+4. With several objects, call every `prepare*`, enqueue the access, then call
+   every `finish*`.
+5. Call `finishWrite(ctx)` only after `prepareWrite(ctx)` with the same `ctx`;
+   debug builds assert that `ctx.stream() == stream()`.
+6. Several threads, each on its own `Context`, may read one object at once:
+   `prepareRead` and `finishRead` are `const` and lock internally. A write, and
+   anything else that changes the object (assignment, `resize()`, `release()`,
+   destruction), needs exclusive access to it.
+
+A missing call is a race, not an error:
+
+| Missing | Consequence |
+|---|---|
+| `prepareRead` | the access may read before a write pending on another stream |
+| `finishRead` | a later write on another stream, or the free, may overtake the access, which then reads overwritten or freed memory |
+| `prepareWrite` | the write may overtake pending reads and writes on other streams, and the free on the old `stream()` may overtake the write |
+| `finishWrite` | a read on another stream may wait only for the previous write |
+
+```cpp
+// d_C = f(d_A, d_B) with a custom kernel. d_A and d_B may have been written,
+// and d_C read, on other contexts; d_C already has the right size.
+d_A.prepareRead(ctx);
+d_B.prepareRead(ctx);
+d_C.prepareWrite(ctx);
+f_kernel<<<grid, block, 0, ctx.stream()>>>(d_A.data(), d_B.data(), d_C.data(), n);
+d_A.finishRead(ctx);
+d_B.finishRead(ctx);
+d_C.finishWrite(ctx);
+// Every later bracketed access, on any Context, sees the new d_C; a later
+// write to d_A or d_B, or their destruction, waits for f_kernel.
+
+// In place, d_x = g(d_x): a write.
+d_x.prepareWrite(ctx);
+g_kernel<<<grid, block, 0, ctx.stream()>>>(d_x.data(), n);
+d_x.finishWrite(ctx);
+```
+
+#### `DeviceScalar`
+
+`DeviceScalar` has the same four calls, with one difference: its `finishWrite`
+records no event. The first `prepareRead` from another stream records it
+instead, so that read also waits for work enqueued on `stream()` after the
+write. Scalars are written often and rarely read elsewhere, so this saves an
+event per write for an occasional extra wait.
+
+#### Raw pointers
+
+The entry points that exchange raw pointers carry the same ordering:
+
+- `adopt(ctx, p, rows, cols)` and `view(ctx, p, rows, cols)` require all
+  pending work on `p` to be complete or enqueued on `ctx.stream()`, which
+  becomes `stream()`. An adopted `p` is freed on `stream()` like any other
+  allocation. A view never frees `p`; its destruction makes `ctx.stream()` wait
+  for every read and write made through it, on any stream, so the owner's later
+  writes and free follow them when the owner runs them on `ctx.stream()`. Until
+  the view is destroyed, the owner's work is not ordered after the view's
+  accesses: destroy the `d_*` views of a solver before recomputing or
+  destroying it. An assignment that changes a view's size, and moving a matrix
+  into a view, give the view new storage instead, leaving the owner unchanged.
+- `release(ctx)` orders every pending access before later work on
+  `ctx.stream()`, as `prepareWrite(ctx)` does, and returns the pointer. Use it
+  only in work ordered after `ctx.stream()`'s. An owning matrix transfers
+  ownership: free the pointer with `cudaFree`, or with
+  `cudaFreeAsync(p, ctx.stream())` where the matrix was allocated
+  stream-ordered. A view returns its borrowed pointer, which its owner still
+  frees.
 
 ## Reference
 
@@ -787,63 +979,92 @@ noted otherwise).
 
 Typed RAII wrapper for a dense column-major matrix in GPU device memory.
 Always dense (leading dimension = rows). A vector is a `DeviceMatrix` with
-one column.
+one column. A method that enqueues work takes a `gpu::Context& ctx` first and
+runs on `ctx`'s stream; where it also has an overload without `ctx`, that
+overload is listed on the next line and runs on `gpu::Context::threadLocal()`.
 
 ```cpp
 // Construction
-DeviceMatrix<Scalar>()                                   // Empty (0x0)
-DeviceMatrix<Scalar>(Index n)                            // Allocate column vector (n x 1)
-DeviceMatrix<Scalar>(rows, cols)                         // Allocate uninitialized
-DeviceMatrix<Scalar>(expr)                               // Copy-init from any supported expression
-                                                         // (GEMM, geam/scaled, LLT/LU solve, TRSM,
-                                                         //  SYMM, SpMV/SpMM)
+DeviceMatrix<Scalar>()                                           // Empty (0x0)
+DeviceMatrix<Scalar>(Index n)                                    // Allocate column vector (n x 1)
+DeviceMatrix<Scalar>(gpu::Context& ctx, Index rows, Index cols)  // Allocate uninitialized
+DeviceMatrix<Scalar>(Index rows, Index cols)
+DeviceMatrix<Scalar>(expr)                                       // Copy-init from any supported expression
+                                                                 // (GEMM, geam/scaled, LLT/LU solve, TRSM,
+                                                                 //  SYMM, SpMV/SpMM)
 
-// Upload / download / pointer adoption
-static DeviceMatrix fromHost(matrix, stream=nullptr)           // -> DeviceMatrix (syncs)
-static DeviceMatrix fromHostAsync(ptr, rows, cols, stream)         // -> DeviceMatrix (no sync, caller manages ptr lifetime)
-static DeviceMatrix adopt(Scalar* device_ptr, rows, cols)          // Owning wrapper over a raw device pointer
-static DeviceMatrix view(Scalar* device_ptr, rows, cols)           // Non-owning view (does not free on destruction)
-PlainMatrix        toHost(stream=nullptr)                      // -> host Matrix (syncs)
-HostTransfer       toHostAsync(stream=nullptr)                 // -> HostTransfer future (no sync)
-DeviceMatrix       clone(stream=nullptr)                       // -> DeviceMatrix (D2D copy, async)
+// Upload and pointer adoption
+static DeviceMatrix fromHost(gpu::Context& ctx, const DenseBase<D>& host)                        // Syncs
+static DeviceMatrix fromHost(const DenseBase<D>& host)
+static DeviceMatrix fromHostAsync(gpu::Context& ctx, const Scalar* ptr, Index rows, Index cols)  // No sync; ptr must outlive the copy
+static DeviceMatrix fromHostAsync(const Scalar* ptr, Index rows, Index cols)
+static DeviceMatrix adopt(gpu::Context& ctx, Scalar* device_ptr, Index rows, Index cols)         // Owning; frees on ctx's stream
+static DeviceMatrix adopt(Scalar* device_ptr, Index rows, Index cols)
+static DeviceMatrix view(gpu::Context& ctx, Scalar* device_ptr, Index rows, Index cols)          // Non-owning; never frees
+static DeviceMatrix view(Scalar* device_ptr, Index rows, Index cols)
+
+// Download, copy, and ownership release
+PlainMatrix  toHost(gpu::Context& ctx)       // -> host Matrix (syncs)
+PlainMatrix  toHost()
+HostTransfer toHostAsync(gpu::Context& ctx)  // -> HostTransfer future (no sync)
+HostTransfer toHostAsync()
+DeviceMatrix clone(gpu::Context& ctx)        // -> DeviceMatrix (D2D copy, async)
+DeviceMatrix clone()
+Scalar*      release(gpu::Context& ctx)      // Give up ownership; pending work ordered before ctx's
+Scalar*      release()
 
 // Dimensions and access
-Index   rows()
-Index   cols()
-size_t  sizeInBytes()
-bool    empty()
-Scalar* data()                                           // Raw device pointer
-void    resize(Index rows, Index cols)                   // Discard contents; keeps the allocation
-                                                         // when it is already large enough
+Index        rows()
+Index        cols()
+size_t       sizeInBytes()
+bool         empty()
+Scalar*      data()                                             // Raw device pointer
+void         resize(gpu::Context& ctx, Index rows, Index cols)  // Discard contents; reuses a large-enough allocation
+void         resize(Index rows, Index cols)
+cudaStream_t stream()                                           // Stream of the last write; memory is freed there
+
+// Bracketing direct accesses to data(); only needed across streams (see "Ordering across contexts")
+void prepareRead(gpu::Context& ctx)   // Before a read on ctx.stream(): wait for the last write
+void finishRead(gpu::Context& ctx)    // After enqueuing it: later writes and the free wait for it
+void prepareWrite(gpu::Context& ctx)  // Before a write on ctx.stream(): wait for every earlier access;
+                                      // ctx.stream() becomes stream()
+void finishWrite(gpu::Context& ctx)   // After enqueuing it: later reads wait for it
 
 // Expression builders (return lightweight views, evaluated on assignment)
-AdjointView       adjoint()                              // GEMM with ConjTrans
-TransposeView     transpose()                            // GEMM with Trans
-LltExpr            llt() / llt<UpLo>()                   // -> .solve(d_B) -> DeviceMatrix
-LuExpr             lu()                                  // -> .solve(d_B) -> DeviceMatrix
-TriangularView     triangularView<UpLo>()                // -> .solve(d_B) -> DeviceMatrix (TRSM)
-SelfAdjointView    selfadjointView<UpLo>()               // -> * d_B (SYMM), .rankUpdate(d_A) (SYRK)
-Assignment   device(gpu::Context& ctx)                // Bind assignment to explicit stream
-DeviceMatrix&      noalias()                             // No-op (all ops are implicitly noalias)
+AdjointView     adjoint()                    // GEMM with ConjTrans
+TransposeView   transpose()                  // GEMM with Trans
+LltExpr         llt() / llt<UpLo>()          // -> .solve(d_B) -> DeviceMatrix
+LuExpr          lu()                         // -> .solve(d_B) -> DeviceMatrix
+TriangularView  triangularView<UpLo>()       // -> .solve(d_B) -> DeviceMatrix (TRSM)
+SelfAdjointView selfadjointView<UpLo>()      // -> * d_B (SYMM), .rankUpdate(d_A) (SYRK)
+Assignment      device(gpu::Context& ctx)    // Bind an assignment to ctx
+DeviceMatrix&   noalias()                    // No-op (all ops are implicitly noalias)
 
-// BLAS Level-1 (all have overloads with explicit gpu::Context& parameter)
-DeviceScalar<Scalar>     dot(const DeviceMatrix& other)  // cuBLAS dot/dotc -> DeviceScalar
-DeviceScalar<RealScalar> norm()                          // cuBLAS nrm2 -> DeviceScalar
-DeviceScalar<RealScalar>  squaredNorm()                    // dot(self, self) -> DeviceScalar (no sync)
-void                     setZero()                       // cudaMemsetAsync
-void                     addScaled(gpu::Context&, Scalar alpha, const DeviceMatrix& x)  // this += alpha * x (axpy)
-void                     scale(gpu::Context&, Scalar alpha)                              // this *= alpha (scal)
-void                     copyFrom(gpu::Context&, const DeviceMatrix& other)              // this = other (D2D copy)
-DeviceMatrix& operator+=(const Scaled<DeviceMatrix>&)    // axpy; spelled `mat += alpha * other`
-DeviceMatrix& operator-=(const Scaled<DeviceMatrix>&)    // axpy negated; spelled `mat -= alpha * other`
-DeviceMatrix& operator+=(const DeviceMatrix&)            // cuBLAS axpy (alpha=1)
-DeviceMatrix& operator-=(const DeviceMatrix&)            // cuBLAS axpy (alpha=-1)
+// BLAS Level-1
+DeviceScalar<Scalar>     dot(gpu::Context& ctx, const DeviceMatrix& other)                  // cuBLAS dot/dotc
+DeviceScalar<Scalar>     dot(const DeviceMatrix& other)
+DeviceScalar<RealScalar> norm(gpu::Context& ctx)                                            // cuBLAS nrm2
+DeviceScalar<RealScalar> norm()
+DeviceScalar<RealScalar> squaredNorm(gpu::Context& ctx)                                     // dot(self, self); syncs for complex
+DeviceScalar<RealScalar> squaredNorm()
+void                     setZero(gpu::Context& ctx)                                         // cudaMemsetAsync
+void                     setZero()
+void                     addScaled(gpu::Context& ctx, Scalar alpha, const DeviceMatrix& x)  // this += alpha * x (axpy)
+void                     scale(gpu::Context& ctx, Scalar alpha)                             // this *= alpha (scal)
+void                     copyFrom(gpu::Context& ctx, const DeviceMatrix& other)             // this = other (D2D copy)
+DeviceMatrix             cwiseProduct(gpu::Context& ctx, const DeviceMatrix& other)         // NPP nppsMul (float/double only)
+void                     cwiseProduct(gpu::Context& ctx, const DeviceMatrix& a,
+                                      const DeviceMatrix& b)                                // In place: this = a .* b
+
+// BLAS Level-1 operators, on gpu::Context::threadLocal()
+DeviceMatrix& operator+=(const Scaled<DeviceMatrix>&)        // axpy; spelled `mat += alpha * other`
+DeviceMatrix& operator-=(const Scaled<DeviceMatrix>&)        // axpy negated; spelled `mat -= alpha * other`
+DeviceMatrix& operator+=(const DeviceMatrix&)                // cuBLAS axpy (alpha=1)
+DeviceMatrix& operator-=(const DeviceMatrix&)                // cuBLAS axpy (alpha=-1)
 DeviceMatrix& operator+=(const DeviceScaledDevice<Scalar>&)  // axpy with device scalar; spelled `mat += d_alpha * other`
 DeviceMatrix& operator-=(const DeviceScaledDevice<Scalar>&)  // negated; spelled `mat -= d_alpha * other`
-DeviceMatrix& operator*=(Scalar)                         // cuBLAS scal (host pointer mode)
-DeviceMatrix& operator*=(const DeviceScalar<Scalar>&)    // cuBLAS scal (device pointer mode, no host sync)
-DeviceMatrix  cwiseProduct(gpu::Context&, const DeviceMatrix&)            // NPP nppsMul (float/double only)
-void          cwiseProduct(gpu::Context&, const DeviceMatrix&, const DeviceMatrix&)  // in-place: this = a .* b
+DeviceMatrix& operator*=(Scalar)                             // cuBLAS scal (host pointer mode)
+DeviceMatrix& operator*=(const DeviceScalar<Scalar>&)        // cuBLAS scal (device pointer mode, no host sync)
 
 // geam expressions (evaluated on assignment)
 DeviceMatrix& operator=(const DeviceAddExpr&)            // C = A + B, C = A + alpha*B, C = A - B, etc.
@@ -853,15 +1074,25 @@ DeviceMatrix& operator=(const DeviceAddExpr&)            // C = A + B, C = A + a
 
 Device-resident scalar. Returned by `dot()`, `norm()`, and `squaredNorm()`.
 Implicit conversion to `Scalar` triggers `cudaStreamSynchronize` + download.
+Accesses are ordered across contexts as for `DeviceMatrix`, with the same
+`prepare*`/`finish*` methods, except that `finishWrite` defers its event to the
+first read from another stream; see [Ordering across contexts](#eigen_gpu_ordering).
 
 ```cpp
-DeviceScalar(cudaStream_t stream = nullptr)              // Allocate uninitialized
-DeviceScalar(Scalar host_val, cudaStream_t stream)       // Upload host value
+DeviceScalar(gpu::Context& ctx)                          // Allocate uninitialized on ctx
+DeviceScalar()                                           // Allocate uninitialized on gpu::Context::threadLocal()
+DeviceScalar(gpu::Context& ctx, Scalar value)            // Upload a host value on ctx
 
-Scalar         get()                                     // Download (syncs stream)
+Scalar         get()                                     // Download on stream() (syncs it)
                operator Scalar()                         // Implicit conversion (syncs)
 Scalar*        devicePtr()                               // Raw device pointer
-cudaStream_t   stream()
+cudaStream_t   stream()                                  // Stream of the last write
+
+// Bracketing direct accesses to devicePtr(), as for DeviceMatrix
+void           prepareRead(gpu::Context& ctx)
+void           finishRead(gpu::Context& ctx)
+void           prepareWrite(gpu::Context& ctx)
+void           finishWrite(gpu::Context& ctx)            // Records no event; see above
 
 // Device-side arithmetic (no host sync, real types only)
 DeviceScalar   operator/(DeviceScalar, DeviceScalar)     // NPP nppsDiv
@@ -877,10 +1108,13 @@ thread-safe -- use one `Context` per thread, or external synchronization
 across threads.
 
 ```cpp
-gpu::Context()                                             // Creates dedicated stream + cuBLAS handle
+gpu::Context()                                             // Creates a non-blocking stream + cuBLAS handle
                                                            // (cuSOLVER / cuBLASLt / cuSPARSE handles
                                                            // are created lazily on first use)
-gpu::Context(cudaStream_t stream)                          // Borrow existing stream (not owned)
+gpu::Context(cudaStream_t stream)                          // Borrow existing stream (not owned; must outlive
+                                                           // the objects last written on it and the reads
+                                                           // enqueued on it)
+~Context()                                                 // Destroys the cuBLAS handle: syncs the device
 static gpu::Context& threadLocal()                         // Per-thread default (lazy-created)
 static void        setThreadLocal(gpu::Context* ctx)       // Override thread-local default (nullptr restores)
 
@@ -905,11 +1139,12 @@ Caches the Cholesky factor on device for repeated solves.
 
 ```cpp
 gpu::LLT()                                                // Default construct, then call compute()
-gpu::LLT(Context& ctx)                                    // Bind to ctx's stream + handles
+gpu::LLT(gpu::Context& ctx)                               // Bind to ctx's stream + handles
 gpu::LLT(const DenseBase<D>& A)                           // Convenience: upload + factorize
 gpu::LLT(const DeviceMatrix& d_A)                         // Convenience: D2D copy + factorize
 gpu::LLT(DeviceMatrix&& d_A)                              // Convenience: adopt + factorize
-gpu::LLT(Context& ctx, ...)                               // Bind + factorize in one step
+gpu::LLT(gpu::Context& ctx, const DenseBase<D>& A)        // Bind + upload + factorize
+gpu::LLT(gpu::Context& ctx, const DeviceMatrix& d_A)      // Bind + D2D copy + factorize
 
 gpu::LLT&            compute(const DenseBase<D>& A)       // Upload + factorize
 gpu::LLT&            compute(const DeviceMatrix& d_A)     // D2D copy + factorize
@@ -922,6 +1157,7 @@ DeviceMatrix       solve(DeviceMatrix&& d_B)             // In-place: consumes R
 ComputationInfo    info()                                // Lazy sync on first call: Success or NumericalIssue
 Index              rows() / cols()
 cudaStream_t       stream()
+gpu::Context&      context()                             // The Context it runs on (private unless bound)
 ```
 
 ### `gpu::LU<Scalar>` -- Dense LU (cuSOLVER)
@@ -954,6 +1190,7 @@ PlainMatrix        matrixR()                             // -> host Matrix (m >=
 ComputationInfo    info()                                // Lazy sync
 Index              rows() / cols()
 cudaStream_t       stream()
+gpu::Context&      context()                             // The Context it runs on (private unless bound)
 ```
 
 ### `gpu::SVD<Scalar>` -- Dense SVD (cuSOLVER)
@@ -989,13 +1226,14 @@ Index              rank(RealScalar threshold = -1)
 ComputationInfo    info()                                // Lazy sync
 Index              rows() / cols()
 cudaStream_t       stream()
+gpu::Context&      context()                             // The Context it runs on (private unless bound)
 ```
 
 **Note:** `singularValues()`, `matrixU()`, `matrixV()`, and `matrixVT()`
 download to host on each call. The `d_*` accessors return non-owning
-`DeviceMatrix` views into the solver's internal buffers; the `gpu::SVD` object
-must outlive any view derived from it. For wide matrices (m < n) the U/V^T
-views are owning (one `cublasXgeam` adjoint pass).
+`DeviceMatrix` views into the solver's internal buffers; destroy them before
+the `gpu::SVD` object is recomputed or destroyed. For wide matrices (m < n) the
+U/V^T views are owning (one `cublasXgeam` adjoint pass).
 
 ### `gpu::SelfAdjointEigenSolver<Scalar>` -- Eigendecomposition (cuSOLVER)
 
@@ -1018,12 +1256,13 @@ DeviceMatrix       d_eigenvectors()                      // -> DeviceMatrix view
 ComputationInfo    info()                                // Lazy sync
 Index              rows() / cols()
 cudaStream_t       stream()
+gpu::Context&      context()                             // The Context it runs on (private unless bound)
 ```
 
 **Note:** `eigenvalues()` and `eigenvectors()` download to host on each call.
 The `d_*` accessors return non-owning `DeviceMatrix` views into the solver's
-internal buffers; the `gpu::SelfAdjointEigenSolver` object must outlive any
-view derived from it.
+internal buffers; destroy them before the `gpu::SelfAdjointEigenSolver` object
+is recomputed or destroyed.
 
 ### `HostTransfer<Scalar>`
 
@@ -1059,6 +1298,7 @@ const SparseSolverConfig& config()                        // Last configuration 
 ComputationInfo    info()                                // Lazy sync
 Index              rows() / cols()
 cudaStream_t       stream()
+gpu::Context&      context()                             // The Context it runs on (private unless bound)
 ```
 
 All three cuDSS solvers also accept a `gpu::Context&` as first constructor
@@ -1131,8 +1371,8 @@ dimensions and nonzero count must fit in `int` (cuSPARSE limitation; debug
 builds assert).
 
 ```cpp
-gpu::SparseContext()                                       // Creates own stream + cuSPARSE handle
-gpu::SparseContext(gpu::Context& ctx)                        // Borrow gpu::Context for same-stream execution
+gpu::SparseContext()                                       // Runs on a private Context
+gpu::SparseContext(gpu::Context& ctx)                      // Bind to ctx for same-stream execution
 
 // Host data in/out
 DenseVector        multiply(A, x)                                       // y = A * x
@@ -1156,6 +1396,7 @@ void               spmv_device_exec(d_x, d_y, alpha=1, beta=0, op=GpuOp::NoTrans
 void               spmm_device_exec(d_X, d_Y, alpha=1, beta=0, op=GpuOp::NoTrans)
 
 cudaStream_t       stream()
+gpu::Context&      context()                                            // The Context it runs on
 ```
 
 ### `DeviceSparseView<Scalar>` -- Device-resident sparse matrix
@@ -1213,7 +1454,7 @@ template compatibility.
 
 | File | Depends on | Contents |
 |------|-----------|----------|
-| `GpuSupport.h` | `<cuda_runtime.h>` | Error macro, `DeviceBuffer`, `DeviceBufferPool`, `cuda_data_type<>` |
+| `GpuSupport.h` | `<cuda_runtime.h>` | Error macro, `StreamHandle`, stream-ordered `DeviceBuffer`, `DeviceBufferPool`, `cuda_data_type<>` |
 | `DeviceMatrix.h` | `GpuSupport.h` | `gpu::DeviceMatrix<>`, `gpu::HostTransfer<>` |
 | `DeviceExpr.h` | `DeviceMatrix.h` | GEMM, geam, and device-scalar expression wrappers |
 | `DeviceBlasExpr.h` | `DeviceMatrix.h` | TRSM, SYMM, SYRK expression wrappers |
@@ -1224,7 +1465,7 @@ template compatibility.
 | `GpuContext.h` | `CuBlasSupport.h`, `CuSolverSupport.h` | `gpu::Context` |
 | `CuBlasSupport.h` | `GpuSupport.h`, `<cublas_v2.h>`, `<cublasLt.h>` | cuBLAS error macro, type-specific wrappers |
 | `CuSolverSupport.h` | `GpuSupport.h`, `<cusolverDn.h>` | cuSOLVER params, fill-mode mapping |
-| `GpuSolverContext.h` | `CuSolverSupport.h`, `CuBlasSupport.h` | Shared solver context (stream, handles, scratch) |
+| `GpuSolverContext.h` | `CuSolverSupport.h`, `CuBlasSupport.h`, `GpuContext.h` | Shared solver context (bound or private `Context`, scratch, info word) |
 | `GpuLLT.h` | `GpuSolverContext.h` | `gpu::LLT<>` -- Cached dense Cholesky factorization |
 | `GpuLU.h` | `GpuSolverContext.h` | `gpu::LU<>` -- Cached dense LU factorization |
 | `GpuQR.h` | `GpuSolverContext.h` | `gpu::QR<>` -- Dense QR decomposition |
@@ -1282,6 +1523,12 @@ ctest --test-dir build -R '^cudss_' --output-on-failure
   dispatch and device-side Eigen expression templates (Core + Tensor) running
   inside CUDA kernels. Raw-pointer + `Map` / `TensorMap` as the zero-copy
   interop surface.
+- **CUDA graph capture.** The module no longer uses the legacy default
+  stream, which capture requires. Capturing its device-resident work also
+  needs no debug-build status syncs or other host syncs on device paths while
+  capturing, no host-memory sources a replay would re-read, stable addresses
+  for the workspaces a graph bakes in, and write events recorded inside a
+  capture re-established after the graph launches.
 - **Per-stream CUDA memory pools.** Allocation is now stream-ordered through
   the device's default memory pool. Attaching a dedicated `cudaMemPool_t` per
   stream (`cudaDeviceSetMempool` / `cudaMallocFromPoolAsync`) could further

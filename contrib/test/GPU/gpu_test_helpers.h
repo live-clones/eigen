@@ -13,13 +13,17 @@
 //   * a small make_test_value() that constructs a Scalar with an imaginary
 //     component for complex types so the complex code paths are genuinely
 //     exercised — without this, Scalar(real_value) silently zeros the imag.
+//   * StreamGate and LegacyStreamSentinel for stream-ordering checks.
 
 #ifndef EIGEN_UNSUPPORTED_TEST_GPU_TEST_HELPERS_H
 #define EIGEN_UNSUPPORTED_TEST_GPU_TEST_HELPERS_H
 
 #include <Eigen/Core>
+#include <atomic>
+#include <chrono>
 #include <cstdlib>
 #include <iostream>
+#include <thread>
 #include <type_traits>
 
 namespace gpu_test {
@@ -48,6 +52,89 @@ inline void require_cuda_device() {
     std::exit(77);
   }
 }
+
+// Parks a stream: work enqueued on it after construction does not start until
+// the gate opens. Ordering tests park one context, enqueue the access under
+// test on another, and check that the second access waited for the first.
+class StreamGate {
+ public:
+  explicit StreamGate(cudaStream_t stream) {
+    EIGEN_CUDA_RUNTIME_CHECK(cudaLaunchHostFunc(stream, &StreamGate::hold, this));
+  }
+
+  // Waits for the host function to finish, so it never touches a dead gate.
+  ~StreamGate() {
+    open();
+    if (opener_.joinable()) opener_.join();
+    while (!exited_.load(std::memory_order_acquire)) std::this_thread::yield();
+  }
+
+  StreamGate(const StreamGate&) = delete;
+  StreamGate& operator=(const StreamGate&) = delete;
+
+  void open() { open_.store(true, std::memory_order_release); }
+
+  // Opens the gate from another thread once the stream has been parked for
+  // `delay`, so the calling thread may block on work queued behind the gate.
+  void openAfter(std::chrono::milliseconds delay) {
+    opener_ = std::thread([this, delay] {
+      while (!entered_.load(std::memory_order_acquire)) std::this_thread::yield();
+      std::this_thread::sleep_for(delay);
+      open();
+    });
+  }
+
+ private:
+  static void CUDART_CB hold(void* data) {
+    StreamGate* gate = static_cast<StreamGate*>(data);
+    gate->entered_.store(true, std::memory_order_release);
+    while (!gate->open_.load(std::memory_order_acquire)) std::this_thread::yield();
+    gate->exited_.store(true, std::memory_order_release);
+  }
+
+  std::atomic<bool> entered_{false};
+  std::atomic<bool> open_{false};
+  std::atomic<bool> exited_{false};
+  std::thread opener_;
+};
+
+// Holds a capture open on a blocking stream, so that the CUDA runtime rejects any
+// use of the legacy default stream, from any thread, and invalidates the capture;
+// end() reports whether that happened. Creating a library handle synchronizes
+// the device, which the capture rejects too: create handles beforehand.
+class LegacyStreamSentinel {
+ public:
+  LegacyStreamSentinel() {
+    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&stream_));
+    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamBeginCapture(stream_, cudaStreamCaptureModeRelaxed));
+  }
+
+  ~LegacyStreamSentinel() {
+    (void)end();
+    (void)cudaStreamDestroy(stream_);
+  }
+
+  LegacyStreamSentinel(const LegacyStreamSentinel&) = delete;
+  LegacyStreamSentinel& operator=(const LegacyStreamSentinel&) = delete;
+
+  // True iff nothing used the legacy default stream since construction.
+  bool end() {
+    if (!ended_) {
+      ended_ = true;
+      cudaGraph_t graph = nullptr;
+      const cudaError_t status = cudaStreamEndCapture(stream_, &graph);
+      if (graph) (void)cudaGraphDestroy(graph);
+      (void)cudaGetLastError();
+      clean_ = status == cudaSuccess;
+    }
+    return clean_;
+  }
+
+ private:
+  cudaStream_t stream_ = nullptr;
+  bool ended_ = false;
+  bool clean_ = false;
+};
 #endif
 
 #ifdef CUDSS_VERSION
