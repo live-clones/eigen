@@ -136,7 +136,7 @@ class LU {
   /** Compute the LU factorization from a device matrix (move, no copy). A view
    * is copied instead: its storage belongs to another object. */
   LU& compute(DeviceMatrix<Scalar>&& d_A) {
-    if (!internal::DeviceMatrixAccess::owns(d_A)) return compute(static_cast<const DeviceMatrix<Scalar>&>(d_A));
+    if (d_A.isView()) return compute(static_cast<const DeviceMatrix<Scalar>&>(d_A));
     eigen_assert(d_A.rows() == d_A.cols() && "LU requires a square matrix");
     if (!begin_compute(d_A.rows())) return *this;
 
@@ -202,7 +202,7 @@ class LU {
    * no RHS copy and no allocation (getrs overwrites its RHS). A view is copied
    * instead: its storage belongs to another object. */
   DeviceMatrix<Scalar> solve(DeviceMatrix<Scalar>&& d_B, GpuOp op = GpuOp::NoTrans) const {
-    if (!internal::DeviceMatrixAccess::owns(d_B)) return solve(static_cast<const DeviceMatrix<Scalar>&>(d_B), op);
+    if (d_B.isView()) return solve(static_cast<const DeviceMatrix<Scalar>&>(d_B), op);
     eigen_assert(solver_ctx_.info() == Success && "LU::solve called on a failed or uninitialized factorization");
     eigen_assert(d_B.rows() == n_);
     d_B.waitReady(solver_ctx_.stream());
