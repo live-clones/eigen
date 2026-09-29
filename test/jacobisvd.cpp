@@ -39,9 +39,13 @@ void jacobisvd_method() {
 template <typename MatrixType>
 void jacobisvd_thin_full_options(const MatrixType& input = MatrixType()) {
   svd_thin_full_option_checks<MatrixType, 0>(input);
+  svd_thin_full_option_checks<MatrixType, AlwaysPrecondition>(input);
   svd_thin_full_option_checks<MatrixType, HouseholderQRPreconditioner>(input);
+  svd_thin_full_option_checks<MatrixType, HouseholderQRPreconditioner | AlwaysPrecondition>(input);
+  // FullPiv only used when computing full unitaries
   svd_option_checks_full_only<MatrixType, FullPivHouseholderQRPreconditioner>(
-      input);  // FullPiv only used when computing full unitaries
+      input);  
+  svd_option_checks_full_only<MatrixType, FullPivHouseholderQRPreconditioner | AlwaysPrecondition>(input);
 }
 
 template <typename MatrixType>
@@ -76,30 +80,6 @@ void jacobisvd_verify_inputs(const MatrixType& input = MatrixType()) {
           (int)ColPivHouseholderQRPreconditioner));
   VERIFY(((int)JacobiSVD<MatrixType, ComputeFullU | ComputeThinV>::QRPreconditioner ==
           (int)ColPivHouseholderQRPreconditioner));
-}
-
-// AlwaysPrecondition with each QR preconditioner on square input: ||A - U S V^*||_F <= 8 n eps ||A||_F.
-template <typename MatrixType, int QRPreconditioner>
-void jacobisvd_always_precondition_backward_error(const MatrixType& m) {
-  using Scalar = typename MatrixType::Scalar;
-  using RealScalar = typename MatrixType::RealScalar;
-  const JacobiSVD<MatrixType, AlwaysPrecondition | QRPreconditioner | ComputeFullU | ComputeFullV> svd(m);
-  VERIFY_IS_EQUAL(svd.info(), Success);
-  const RealScalar tolerance = RealScalar(8 * m.rows()) * NumTraits<RealScalar>::epsilon();
-  const MatrixType reconstructed =
-      svd.matrixU() * svd.singularValues().template cast<Scalar>().asDiagonal() * svd.matrixV().adjoint();
-  VERIFY((m - reconstructed).norm() <= tolerance * m.norm());
-  VERIFY_IS_UNITARY(svd.matrixU());
-  VERIFY_IS_UNITARY(svd.matrixV());
-}
-
-template <typename MatrixType>
-void jacobisvd_always_precondition_backward_error(Index size) {
-  MatrixType m(size, size);
-  svd_fill_random(m);
-  jacobisvd_always_precondition_backward_error<MatrixType, ColPivHouseholderQRPreconditioner>(m);
-  jacobisvd_always_precondition_backward_error<MatrixType, HouseholderQRPreconditioner>(m);
-  jacobisvd_always_precondition_backward_error<MatrixType, FullPivHouseholderQRPreconditioner>(m);
 }
 
 template <typename MatrixType>
@@ -344,13 +324,14 @@ EIGEN_DECLARE_TEST(jacobisvd) {
     CALL_SUBTEST_33((jacobisvd_thin_full_options<Matrix<double, 5, 7, RowMajor>>()));
     CALL_SUBTEST_35((jacobisvd_thin_full_options<Matrix<double, 7, 5, RowMajor>>()));
 
-    CALL_SUBTEST_62((svd_always_precondition_accuracy<float>()));
-    CALL_SUBTEST_63((svd_always_precondition_accuracy<std::complex<float>>()));
-    CALL_SUBTEST_64((jacobisvd_always_precondition_backward_error<Matrix4f>(4)));
-    CALL_SUBTEST_64((jacobisvd_always_precondition_backward_error<Matrix<std::complex<double>, 3, 3>>(3)));
-    CALL_SUBTEST_65((jacobisvd_always_precondition_backward_error<MatrixXf>(r)));
-    CALL_SUBTEST_66((jacobisvd_always_precondition_backward_error<MatrixXcd>(r)));
-    CALL_SUBTEST_67((jacobisvd_always_precondition_backward_error<Matrix<double, Dynamic, Dynamic, RowMajor>>(r)));
+    CALL_SUBTEST_62((svd_always_precondition_accuracy<Matrix2f>(2)));
+    CALL_SUBTEST_62((svd_always_precondition_accuracy<Matrix4d>(4)));
+    CALL_SUBTEST_62((svd_always_precondition_accuracy<MatrixXf>(12)));
+    CALL_SUBTEST_62((svd_always_precondition_accuracy<MatrixXd>(12)));
+    CALL_SUBTEST_63((svd_always_precondition_accuracy<Matrix2cd>(2)));
+    CALL_SUBTEST_63((svd_always_precondition_accuracy<Matrix4cf>(4)));
+    CALL_SUBTEST_63((svd_always_precondition_accuracy<MatrixXcf>(12)));
+    CALL_SUBTEST_63((svd_always_precondition_accuracy<MatrixXcd>(12)));
     CALL_SUBTEST_68((svd_always_precondition_runtime_options<MatrixXf>(12)));
     CALL_SUBTEST_68((svd_always_precondition_runtime_options<MatrixXcd>(r)));
 

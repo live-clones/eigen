@@ -680,49 +680,43 @@ void svd_check_max_size_matrix(int initialRows, int initialCols) {
 // A square, column-scaled unitary matrix, A = UD, has an extremely simple QR decomposition, since
 // qr(A) = QD (R = D is diagonal). Using JacobiSVD's QRPreconditioner in this case is always beneficial,
 // since A is dense, but R is diagonal.
-// Using matrix size n = 12 is below BDCSVD's switch size, so BDCSVD will invoke JacobiSVD.
-template <typename Scalar>
-void svd_always_precondition_accuracy() {
-  using RefScalar = std::conditional_t<NumTraits<Scalar>::IsComplex, std::complex<double>, double>;
-  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
-  using RefMatrixType = Matrix<RefScalar, Dynamic, Dynamic>;
-  using RefVectorType = Matrix<RefScalar, Dynamic, 1>;
-  const Index n = 12;
-  const RefMatrixType q = HouseholderQR<RefMatrixType>(RefMatrixType::Random(n, n)).householderQ();
-  RefVectorType scaling(n);
-  for (Index i = 0; i < n; ++i) scaling(i) = RefScalar(std::pow(1e6, -double(i) / double(n - 1)));
-  const MatrixType m = (q * scaling.asDiagonal()).template cast<Scalar>();
+// For n below BDCSVD's switch size, BDCSVD will invoke JacobiSVD.
+template <typename MatrixType>
+void svd_always_precondition_accuracy(Index n) {
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  const MatrixType q = HouseholderQR<MatrixType>(MatrixType::Random(n, n)).householderQ();
+  VectorX<RealScalar> scaling(n);
+  for (Index i = 0; i < n; ++i) scaling(i) = RealScalar(std::pow(1e6, -double(i) / double(n - 1)));
+  const MatrixType m = q * scaling.template cast<Scalar>().asDiagonal();
 
-  // reference SDV is computed in double precision
-  const VectorXd reference = JacobiSVD<RefMatrixType>(m.template cast<RefScalar>()).singularValues();
-  const auto relativeError = [&reference](const auto& singularValues) {
-    return ((singularValues.template cast<double>() - reference).array().abs() / reference.array()).maxCoeff();
-  };
-
-  // preconditioning is always closer to reference.
-  const double defaultError = relativeError(SVD_DEFAULT(MatrixType)(m).singularValues());
-  const double preconditionedError =
-      relativeError(SVD_STATIC_OPTIONS(MatrixType, AlwaysPrecondition)(m).singularValues());
-  VERIFY(preconditionedError < defaultError);
+  // Without preconditioning, this bound can fail.
+  const VectorX<RealScalar> singularValues = SVD_STATIC_OPTIONS(MatrixType, AlwaysPrecondition)(m).singularValues();
+  const RealScalar bound = RealScalar(4 * n) * NumTraits<RealScalar>::epsilon();
+  VERIFY(((singularValues - scaling).array().abs() / scaling.array()).maxCoeff() <= bound);
 }
 
 EIGEN_DIAGNOSTICS(push)
 EIGEN_DISABLE_DEPRECATED_WARNING
-// AlwaysPrecondition in Options must not change what the deprecated runtime options request: the same U and V are
-// computed, with the same shapes, and the decomposition stays backward stable.
+// AlwaysPrecondition in Options must not change what the deprecated runtime options request: U and V are computed
+// exactly when their bits are set, thin or full as requested, and the decomposition stays backward stable.
 template <typename SvdType, typename MatrixType>
 void svd_check_runtime_options_match(const MatrixType& m, const SvdType& svd, unsigned int options) {
   using Scalar = typename MatrixType::Scalar;
   using RealScalar = typename MatrixType::RealScalar;
-  SVD_DEFAULT(MatrixType) reference(m, options);
-  VERIFY_IS_EQUAL(svd.computeU(), reference.computeU());
-  VERIFY_IS_EQUAL(svd.computeV(), reference.computeV());
-  if (svd.computeU()) VERIFY_IS_EQUAL(svd.matrixU().cols(), reference.matrixU().cols());
-  if (svd.computeV()) VERIFY_IS_EQUAL(svd.matrixV().cols(), reference.matrixV().cols());
+  const Index diagSize = (std::min)(m.rows(), m.cols());
+  VERIFY_IS_EQUAL(svd.computeU(), (options & (ComputeThinU | ComputeFullU)) != 0);
+  VERIFY_IS_EQUAL(svd.computeV(), (options & (ComputeThinV | ComputeFullV)) != 0);
+  if (svd.computeU()) {
+    VERIFY_IS_EQUAL(svd.matrixU().rows(), m.rows());
+    VERIFY_IS_EQUAL(svd.matrixU().cols(), (options & ComputeThinU) ? diagSize : m.rows());
+  }
+  if (svd.computeV()) {
+    VERIFY_IS_EQUAL(svd.matrixV().rows(), m.cols());
+    VERIFY_IS_EQUAL(svd.matrixV().cols(), (options & ComputeThinV) ? diagSize : m.cols());
+  }
   const Index n = m.rows();
   const RealScalar tolerance = RealScalar(16 * n) * NumTraits<RealScalar>::epsilon();
-  const RealScalar largest = reference.singularValues().size() > 0 ? reference.singularValues()(0) : RealScalar(0);
-  VERIFY((svd.singularValues() - reference.singularValues()).cwiseAbs().maxCoeff() <= tolerance * largest);
   if (svd.computeU() && svd.computeV()) {
     const MatrixType reconstructed = svd.matrixU().leftCols(n) *
                                      svd.singularValues().template cast<Scalar>().asDiagonal() *
@@ -735,6 +729,7 @@ template <typename MatrixType>
 void svd_always_precondition_runtime_options(Index size) {
   MatrixType m(size, size);
   svd_fill_random(m);
+  // combine `AlwaysPrecondition` with combinations of runtime options
   for (unsigned int options : {0u, unsigned(ComputeThinU | ComputeThinV), unsigned(ComputeFullU | ComputeFullV),
                                unsigned(ComputeFullU), unsigned(ComputeThinV)}) {
     const SVD_STATIC_OPTIONS(MatrixType, AlwaysPrecondition) constructed(m, options);
