@@ -1220,7 +1220,10 @@ void packetmath_real() {
             ref[i] = Scalar(std::ldexp(data1[i], static_cast<int>(data1[i + PacketSize])));
           }
           h.store(data2, internal::pldexp(h.load(data1), h.load(data1 + PacketSize)));
-          for (int i = 0; i < PacketSize; ++i) VERIFY_IS_EQUAL(data2[i], ref[i]);
+          for (int i = 0; i < PacketSize; ++i) {
+            VERIFY_IS_EQUAL(data2[i], ref[i]);  // prints the values; biteq also tells -0 from +0
+            VERIFY(test::biteq(data2[i], ref[i]));
+          }
         }
       }
     }
