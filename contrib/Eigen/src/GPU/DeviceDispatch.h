@@ -559,25 +559,20 @@ namespace internal {
 // would otherwise read host scalars of later calls as device pointers.
 template <typename F>
 void with_device_pointer_mode(cublasHandle_t h, F&& f) {
-  class RestoreOnThrow {
-   public:
-    RestoreOnThrow(cublasHandle_t handle, cublasPointerMode_t mode) : handle_(handle), mode_(mode) {}
+  struct RestoreOnThrow {
+    cublasHandle_t handle;
+    cublasPointerMode_t mode;
+    bool armed;
     ~RestoreOnThrow() {
-      if (armed_) (void)cublasSetPointerMode(handle_, mode_);  // unchecked: may run during unwinding
+      if (armed) (void)cublasSetPointerMode(handle, mode);  // unchecked: may run during unwinding
     }
-    void disarm() { armed_ = false; }
-
-   private:
-    cublasHandle_t handle_;
-    cublasPointerMode_t mode_;
-    bool armed_ = true;
   };
   cublasPointerMode_t prev;
   EIGEN_CUBLAS_CHECK(cublasGetPointerMode(h, &prev));
   EIGEN_CUBLAS_CHECK(cublasSetPointerMode(h, CUBLAS_POINTER_MODE_DEVICE));
-  RestoreOnThrow restore(h, prev);
+  RestoreOnThrow restore{h, prev, true};
   f();
-  restore.disarm();
+  restore.armed = false;
   EIGEN_CUBLAS_CHECK(cublasSetPointerMode(h, prev));
 }
 }  // namespace internal

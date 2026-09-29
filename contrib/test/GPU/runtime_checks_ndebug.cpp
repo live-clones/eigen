@@ -7,7 +7,6 @@
 // SPDX-FileCopyrightText: The Eigen Authors
 // SPDX-License-Identifier: MPL-2.0
 
-// The same checks with assertions compiled out: the module's checks have to fire
-// in a release build, where the eigen_assert calls they replace were empty.
+// The checks have to fire with assertions compiled out, as in a release build.
 #define EIGEN_NO_DEBUG 1
 #include "runtime_checks.cpp"  // NOLINT(bugprone-suspicious-include): the same suite under EIGEN_NO_DEBUG.

@@ -30,12 +30,12 @@ namespace internal {
 // cublasGetStatusName arrived in cuBLAS 11.6.1 (CUDA 11.4 Update 2); before it,
 // a failure is reported by its numeric status.
 inline void cublas_check_failed(cublasStatus_t status, const char* expression, const char* file, int line) {
+#if defined(CUBLAS_VERSION) && CUBLAS_VERSION >= 110601
   // A user-defined EIGEN_GPU_CHECK_FAILED need not use every argument.
   EIGEN_UNUSED_VARIABLE(status);
   EIGEN_UNUSED_VARIABLE(expression);
   EIGEN_UNUSED_VARIABLE(file);
   EIGEN_UNUSED_VARIABLE(line);
-#if defined(CUBLAS_VERSION) && CUBLAS_VERSION >= 110601
   EIGEN_GPU_CHECK_FAILED(cublasGetStatusName(status), expression, file, line);
 #else
   gpu_check_failed_code("cuBLAS", static_cast<int>(status), expression, file, line);

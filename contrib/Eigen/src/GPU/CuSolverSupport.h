@@ -19,13 +19,12 @@
 
 #include "./GpuSupport.h"
 #include <cusolverDn.h>
-#include <cstdio>
 
 namespace Eigen {
 namespace gpu {
 namespace internal {
 
-// cuSOLVER's public API has no cusolverGetErrorString(), so failed asserts would
+// cuSOLVER's public API has no cusolverGetErrorString(), so failure reports would
 // otherwise carry a bare numeric code.
 inline const char* cusolver_status_name(cusolverStatus_t s) {
   switch (s) {

@@ -757,10 +757,10 @@ builds as in debug builds. A failed call prints `file:line: call: error` to
 
 `error` is the status name where the library provides one
 (`cudaErrorInvalidValue`, `CUBLAS_STATUS_INVALID_VALUE`, ...) and
-`<library> status <code>` for cuFFT, cuDSS and NPP. There is no mode that
-ignores a failure: the failed call has not done its work, and a sticky error
-(say, an illegal address in a kernel) makes every later call on the device fail
-as well.
+`<library> status <code>` for cuFFT, cuDSS, NPP and cuBLAS before 11.6.1.
+There is no mode that ignores a failure: the failed call has not done its work,
+and a sticky error (say, an illegal address in a kernel) makes every later call
+on the device fail as well.
 
 To handle failures yourself, define
 `EIGEN_GPU_CHECK_FAILED(error, expression, file, line)` before including the
@@ -1268,7 +1268,7 @@ template compatibility.
 | `DeviceBlasExpr.h` | `DeviceMatrix.h` | TRSM, SYMM, SYRK expression wrappers |
 | `DeviceSolverExpr.h` | `DeviceMatrix.h` | Solver expression wrappers (LLT, LU) |
 | `DeviceScalar.h` | `GpuSupport.h`, `DeviceScalarOps.h` | `gpu::DeviceScalar<>` (device-resident scalar) |
-| `DeviceScalarOps.h` | `<npps_*.h>` | Scalar div/neg/cwiseProduct via NPP, NPP error macro |
+| `DeviceScalarOps.h` | `<npps_*.h>` | Scalar div/neg/sqrt/cwiseProduct via NPP, NPP error macro |
 | `DeviceDispatch.h` | all above | All dispatch functions, BLAS-1 out-of-line defs, `gpu::Assignment` |
 | `GpuContext.h` | `CuBlasSupport.h`, `CuSolverSupport.h`, `CuSparseSupport.h` | `gpu::Context` |
 | `CuBlasSupport.h` | `GpuSupport.h`, `<cublas_v2.h>`, `<cublasLt.h>` | cuBLAS error macro, type-specific wrappers |
