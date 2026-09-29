@@ -813,6 +813,7 @@ Index   rows()
 Index   cols()
 size_t  sizeInBytes()
 bool    empty()
+bool    isView()                                         // Holds storage borrowed through view()
 Scalar* data()                                           // Raw device pointer
 void    resize(Index rows, Index cols)                   // Discard contents; keeps the allocation
                                                          // when it is already large enough

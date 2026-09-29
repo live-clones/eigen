@@ -125,8 +125,7 @@ class SelfAdjointEigenSolver {
    * in place by syevd — no copy. A view is copied instead: its storage belongs
    * to another object. */
   SelfAdjointEigenSolver& compute(DeviceMatrix<Scalar>&& d_A, int options = ComputeEigenvectors) {
-    if (!internal::DeviceMatrixAccess::owns(d_A))
-      return compute(static_cast<const DeviceMatrix<Scalar>&>(d_A), options);
+    if (d_A.isView()) return compute(static_cast<const DeviceMatrix<Scalar>&>(d_A), options);
     if (!begin_compute(d_A, options)) return *this;
 
     d_A_ = internal::DeviceBuffer::adopt(static_cast<void*>(d_A.release()),

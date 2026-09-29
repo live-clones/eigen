@@ -22,7 +22,6 @@ enum class GpuOp;
 
 namespace internal {
 class DeviceBuffer;
-struct DeviceMatrixAccess;
 
 /** \brief Describes GPU device expression types.
  *

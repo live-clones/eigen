@@ -127,7 +127,7 @@ class QR {
    * factored in place — no copy; for m < n a transposed copy is unavoidable. A
    * view is copied: its storage belongs to another object. */
   QR& compute(DeviceMatrix<Scalar>&& d_A) {
-    if (!internal::DeviceMatrixAccess::owns(d_A)) return compute(static_cast<const DeviceMatrix<Scalar>&>(d_A));
+    if (d_A.isView()) return compute(static_cast<const DeviceMatrix<Scalar>&>(d_A));
     if (!begin_compute(d_A)) return *this;
 
     if (transposed_) {
