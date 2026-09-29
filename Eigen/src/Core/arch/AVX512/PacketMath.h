@@ -1478,27 +1478,24 @@ EIGEN_STRONG_INLINE Packet8d pfrexp<Packet8d>(const Packet8d& a, Packet8d& expon
 
 template <>
 EIGEN_STRONG_INLINE Packet16f pldexp<Packet16f>(const Packet16f& a, const Packet16f& exponent) {
-  return pldexp_generic(a, exponent);
+  // vscalef is a * 2^floor(exponent), rounded once, and pldexp takes (int)exponent: truncate first.
+  return _mm512_scalef_ps(a, _mm512_roundscale_ps(exponent, _MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet8d pldexp<Packet8d>(const Packet8d& a, const Packet8d& exponent) {
-  // Clamp exponent to [-2099, 2099]
-  const Packet8d max_exponent = pset1<Packet8d>(2099.0);
-  const Packet8i e = _mm512_cvtpd_epi32(pmin(pmax(exponent, pnegate(max_exponent)), max_exponent));
+  return _mm512_scalef_pd(a, _mm512_roundscale_pd(exponent, _MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+}
 
-  // The single-rounding split of pldexp_generic. The factors are built by
-  // widening the biased int32 exponent to int64 with vpmovsxdq and shifting
-  // into the double exponent field with vpsllq.
-  const Packet8i bias = pset1<Packet8i>(1023);
-  const Packet8i b = pmin(pmax(e, pset1<Packet8i>(-1022)), pset1<Packet8i>(1022));
-  const Packet8i t = pandnot(psub(e, b), pset1<Packet8i>(1));  // even
-  const Packet8d c1 =
-      _mm512_castsi512_pd(_mm512_slli_epi64(_mm512_cvtepi32_epi64(padd(t, padd(bias, bias))), 51));  // 2^(t/2)
-  const Packet8d c2 =
-      _mm512_castsi512_pd(_mm512_slli_epi64(_mm512_cvtepi32_epi64(padd(psub(e, t), bias)), 52));  // 2^(e-t)
+// pldexp_fast's callers pass integral exponents, and vscalef floors, so neither the clamp nor the truncation.
+template <>
+EIGEN_STRONG_INLINE Packet16f pldexp_fast<Packet16f>(const Packet16f& a, const Packet16f& exponent) {
+  return _mm512_scalef_ps(a, exponent);
+}
 
-  return pldexp_apply_factors(a, c1, c2);  // a * 2^e
+template <>
+EIGEN_STRONG_INLINE Packet8d pldexp_fast<Packet8d>(const Packet8d& a, const Packet8d& exponent) {
+  return _mm512_scalef_pd(a, exponent);
 }
 
 #ifdef EIGEN_VECTORIZE_AVX512DQ
@@ -3184,21 +3181,6 @@ EIGEN_STRONG_INLINE Packet16s plogical_shift_right(const Packet16s& a) {
 template <int N>
 EIGEN_STRONG_INLINE Packet8s plogical_shift_right(const Packet8s& a) {
   return _mm_srli_epi16(a, N);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet32s pandnot(const Packet32s& a, const Packet32s& b) {
-  return _mm512_andnot_si512(b, a);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet16s pandnot(const Packet16s& a, const Packet16s& b) {
-  return _mm256_andnot_si256(b, a);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet8s pandnot(const Packet8s& a, const Packet8s& b) {
-  return _mm_andnot_si128(b, a);
 }
 
 }  // end namespace internal
