@@ -352,6 +352,36 @@ void test_empty() {
   VERIFY_IS_EQUAL(result.cols(), 0);
 }
 
+// ---- isView() ---------------------------------------------------------------
+
+void test_is_view() {
+  const MatrixXd A = MatrixXd::Random(8, 4);
+  auto owner = gpu::DeviceMatrix<double>::fromHost(A);
+  VERIFY(!owner.isView());
+  VERIFY(!gpu::DeviceMatrix<double>().isView());
+
+  auto v = gpu::DeviceMatrix<double>::view(owner.data(), 8, 4);
+  VERIFY(v.isView());
+  VERIFY_IS_EQUAL(v.toHost(), A);
+  gpu::DeviceMatrix<double> moved(std::move(v));
+  VERIFY(moved.isView());
+
+  // release() hands back the owner's pointer, frees nothing, and leaves no view.
+  VERIFY(moved.release() == owner.data());
+  VERIFY(!moved.isView());
+  VERIFY_IS_EQUAL(owner.toHost(), A);
+
+  // A new size gives the view storage of its own.
+  auto w = gpu::DeviceMatrix<double>::view(owner.data(), 8, 4);
+  w.resize(2, 2);
+  VERIFY(!w.isView());
+  VERIFY(w.data() != owner.data());
+  auto z = gpu::DeviceMatrix<double>::view(owner.data(), 8, 4);
+  z.resize(0, 0);
+  VERIFY(!z.isView());
+  VERIFY_IS_EQUAL(owner.toHost(), A);
+}
+
 // ---- Moving a view into a solver --------------------------------------------
 
 // A view borrows another object's storage, so a solver that takes a matrix by
@@ -757,6 +787,7 @@ EIGEN_DECLARE_TEST(gpu_device_matrix) {
   CALL_SUBTEST(test_host_transfer_ready());
   CALL_SUBTEST(test_host_transfer_move());
   CALL_SUBTEST(test_host_transfer_move_assign());
+  CALL_SUBTEST(test_is_view());
   CALL_SUBTEST(test_solver_copies_moved_view());
   CALL_SUBTEST((test_allocate<float>(100, 50)));
   CALL_SUBTEST((test_allocate<double>(100, 50)));
