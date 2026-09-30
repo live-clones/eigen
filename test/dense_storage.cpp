@@ -317,6 +317,32 @@ void fixed_max_storage_tests() {
   verify_unused_storage_untouched(*m);
 }
 
+// The constructors above default-initialize the storage. Every coefficient of a scalar with a non-trivial default
+// constructor must still be constructed before it is assigned: SafeScalar asserts on any read of a value that was not.
+void fixed_max_safe_scalar_tests() {
+  using Scalar = SafeScalar<float>;
+  using MatrixMax = Matrix<Scalar, Dynamic, Dynamic, ColMajor, 8, 8>;
+  using VectorMax = Matrix<Scalar, Dynamic, 1, ColMajor, 16, 1>;
+  using Vector4 = Matrix<Scalar, 4, 1>;
+  MatrixMax source = MatrixMax::Random(8, 8);
+  // conversion from a DenseBase expression
+  MatrixMax dense = source.topLeftCorner(3, 5);
+  VERIFY_IS_CWISE_EQUAL(dense, source.topLeftCorner(3, 5));
+  VectorMax vector = source.col(1).head(5);
+  VERIFY_IS_CWISE_EQUAL(vector, source.col(1).head(5));
+  // conversion from an EigenBase expression
+  MatrixMax diagonal = source.col(0).head(4).asDiagonal();
+  VERIFY_IS_CWISE_EQUAL(diagonal, source.col(0).head(4).asDiagonal().toDenseMatrix());
+  // initializer list
+  MatrixMax list({{Scalar(1.f), Scalar(2.f)}, {Scalar(3.f), Scalar(4.f)}});
+  VERIFY_IS_EQUAL(list.rows(), 2);
+  VERIFY_IS_EQUAL(list.cols(), 2);
+  VERIFY_IS_EQUAL(float(list(1, 0)), 3.f);
+  // four or more coefficients
+  Vector4 coefficients(Scalar(1.f), Scalar(2.f), Scalar(3.f), Scalar(4.f));
+  VERIFY_IS_EQUAL(float(coefficients(3)), 4.f);
+}
+
 EIGEN_DECLARE_TEST(dense_storage) {
   dense_storage_tests<int>();
   dense_storage_tests<float>();
@@ -324,6 +350,7 @@ EIGEN_DECLARE_TEST(dense_storage) {
   dense_storage_tests<MovableScalar<float>>();
   dense_storage_tests<AnnoyingScalar>();
   fixed_max_storage_tests();
+  fixed_max_safe_scalar_tests();
   for (int i = 0; i < g_repeat; i++) {
     plaintype_tests<Matrix<float, 0, 0, ColMajor>>();
     plaintype_tests<Matrix<float, Dynamic, Dynamic, ColMajor, 0, 0>>();
