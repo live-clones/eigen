@@ -76,7 +76,7 @@ static constexpr int sme_tile() {
 // widening cannot change which lanes are active.
 template <typename Scalar, typename Begin, typename End = Begin>
 __arm_locally_streaming static bool sme_whilelt_covers_first_lane_only() {
-  using Traits = internal::sme_traits<Scalar>;
+  using Traits = internal::sme_packet_traits<Scalar>;
   const svbool_t pg = Traits::whilelt(Begin(0), End(1));
   return svptest_first(Traits::ptrue(), pg) && svcntp_b8(Traits::ptrue(), pg) == 1;
 }
