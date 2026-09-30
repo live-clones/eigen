@@ -424,13 +424,15 @@ enum DecompositionOptions {
 enum QRPreconditioners {
   /** Use a QR decomposition with column pivoting as the first step. */
   ColPivHouseholderQRPreconditioner = 0x0,
-  /** Do not specify what is to be done if the SVD of a non-square matrix is asked for. */
+  /** Do not use a QR preconditioner. JacobiSVD then only supports square matrices, since reducing a non-square
+   * matrix to a square one is the QR preconditioner's job. */
   NoQRPreconditioner = 0x40,
   /** Use a QR decomposition without pivoting as the first step. */
   HouseholderQRPreconditioner = 0x80,
   /** Use a QR decomposition with full pivoting as the first step. */
   FullPivHouseholderQRPreconditioner = 0xC0,
-  /** Used to disable the QR Preconditioner in BDCSVD. */
+  /** Used to disable the QR Preconditioner in BDCSVD. It shares its value with NoQRPreconditioner, so inputs small
+   * enough for BDCSVD to hand to JacobiSVD must be square. */
   DisableQRDecomposition = NoQRPreconditioner,
   /** Used in the Options template parameter of JacobiSVD to apply the QR preconditioner to square matrices.
    * BDCSVD forwards this option to JacobiSVD on small inputs. */

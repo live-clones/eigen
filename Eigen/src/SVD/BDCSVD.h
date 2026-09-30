@@ -260,9 +260,11 @@ class BDCSVD : public SVDBase<BDCSVD<MatrixType_, Options_> > {
   void allocate_small(Index rows, Index cols, unsigned int computationOptions);
   internal::bdcsvd_impl<RealScalar> m_impl;
   bool m_isTranspose, m_useQrDecomp;
-  JacobiSVD<MatrixX, internal::should_svd_always_precondition(Options) ? int(AlwaysPrecondition) : 0> smallSvd;
-  // AlwaysPrecondition only selects smallSvd's type, so it must not stop the runtime options from reaching smallSvd.
-  static constexpr bool kSmallSvdUsesRuntimeOptions = (Options & ~int(AlwaysPrecondition)) == 0;
+  JacobiSVD<MatrixX, Options> smallSvd;
+  // The deprecated runtime options only apply when Options requests no unitaries.
+  static unsigned int smallSvdRuntimeOptions(unsigned int computationOptions) {
+    return internal::get_computation_options(Options) == 0 ? internal::get_computation_options(computationOptions) : 0;
+  }
   HouseholderQR<MatrixX> qrDecomp;
   internal::UpperBidiagonalization<MatrixX> bid;
   MatrixX copyWorkspace;
@@ -296,8 +298,7 @@ void BDCSVD<MatrixType, Options>::allocate(Index rows, Index cols, unsigned int 
   if (Base::allocate(rows, cols, computationOptions)) return;
 
   if (cols < m_impl.algoSwap())
-    smallSvd.allocate(rows, cols,
-                      kSmallSvdUsesRuntimeOptions ? computationOptions : internal::get_computation_options(Options));
+    smallSvd.allocate(rows, cols, smallSvdRuntimeOptions(computationOptions));
 
   m_isTranspose = (cols > rows);
 
@@ -328,8 +329,7 @@ template <typename MatrixType, int Options>
 void BDCSVD<MatrixType, Options>::allocate_small(Index rows, Index cols, unsigned int computationOptions) {
   if (Base::allocate(rows, cols, computationOptions)) return;
 
-  smallSvd.allocate(rows, cols,
-                    kSmallSvdUsesRuntimeOptions ? computationOptions : internal::get_computation_options(Options));
+  smallSvd.allocate(rows, cols, smallSvdRuntimeOptions(computationOptions));
   m_isTranspose = (cols > rows);
 }
 

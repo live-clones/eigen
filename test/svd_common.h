@@ -698,8 +698,9 @@ void svd_always_precondition_accuracy(Index n) {
 
 EIGEN_DIAGNOSTICS(push)
 EIGEN_DISABLE_DEPRECATED_WARNING
-// AlwaysPrecondition in Options must not change what the deprecated runtime options request: U and V are computed
-// exactly when their bits are set, thin or full as requested, and the decomposition stays backward stable.
+// Non-computation bits in Options (AlwaysPrecondition, a QR preconditioner, DisableQRDecomposition) must not change
+// what the deprecated runtime options request: U and V are computed exactly when their bits are set, thin or full as
+// requested, and the decomposition stays backward stable.
 template <typename SvdType, typename MatrixType>
 void svd_check_runtime_options_match(const MatrixType& m, const SvdType& svd, unsigned int options) {
   using Scalar = typename MatrixType::Scalar;
@@ -725,20 +726,20 @@ void svd_check_runtime_options_match(const MatrixType& m, const SvdType& svd, un
   }
 }
 
-template <typename MatrixType>
-void svd_always_precondition_runtime_options(Index size) {
+template <typename MatrixType, int Options>
+void svd_runtime_options_checks(Index size) {
   MatrixType m(size, size);
   svd_fill_random(m);
-  // combine `AlwaysPrecondition` with combinations of runtime options
   for (unsigned int options : {0u, unsigned(ComputeThinU | ComputeThinV), unsigned(ComputeFullU | ComputeFullV),
                                unsigned(ComputeFullU), unsigned(ComputeThinV)}) {
-    const SVD_STATIC_OPTIONS(MatrixType, AlwaysPrecondition) constructed(m, options);
+    const SVD_STATIC_OPTIONS(MatrixType, Options) constructed(m, options);
     svd_check_runtime_options_match(m, constructed, options);
-    SVD_STATIC_OPTIONS(MatrixType, AlwaysPrecondition) computed;
+    SVD_STATIC_OPTIONS(MatrixType, Options) computed;
     computed.compute(m, options);
     svd_check_runtime_options_match(m, computed, options);
   }
 }
+
 EIGEN_DIAGNOSTICS(pop)
 
 #undef SVD_DEFAULT

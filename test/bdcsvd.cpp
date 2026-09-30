@@ -501,9 +501,10 @@ EIGEN_DECLARE_TEST(bdcsvd) {
     CALL_SUBTEST_63((svd_always_precondition_accuracy<Matrix4cf>(4)));
     CALL_SUBTEST_63((svd_always_precondition_accuracy<MatrixXcf>(12)));
     CALL_SUBTEST_63((svd_always_precondition_accuracy<MatrixXcd>(12)));
-    CALL_SUBTEST_64((svd_always_precondition_runtime_options<MatrixXf>(12)));
-    CALL_SUBTEST_64((svd_always_precondition_runtime_options<MatrixXcd>(internal::random<Index>(1, 30))));
-    CALL_SUBTEST_64((svd_always_precondition_runtime_options<Matrix2f>(2)));
+    CALL_SUBTEST_64((svd_runtime_options_checks<MatrixXf, AlwaysPrecondition>(12)));
+    CALL_SUBTEST_64((svd_runtime_options_checks<MatrixXcd, AlwaysPrecondition>(internal::random<Index>(1, 30))));
+    CALL_SUBTEST_64((svd_runtime_options_checks<Matrix2f, AlwaysPrecondition>(2)));
+    CALL_SUBTEST_64((svd_runtime_options_checks<MatrixXd, DisableQRDecomposition>(internal::random<Index>(1, 30))));
   }
 
   CALL_SUBTEST_7((bdcsvd_thin_full_options<Matrix2cd>()));
