@@ -597,8 +597,34 @@ inline cublasStatus_t cublasXdgmm(cublasHandle_t h, cublasSideMode_t side, int64
 
 // The BLAS-1 wrappers below honour whichever pointer mode the caller set on the
 // handle; under CUBLAS_POINTER_MODE_DEVICE the dot/nrm2 result and axpy/scal
-// alpha pointers address device memory, so complex alpha is passed through
-// rather than copied on the host as in the gemm/trsm/symm/geam wrappers above.
+// alpha pointers address device memory and are passed through.
+
+// Complex axpy/scal alpha as cuBLAS reads it. Under CUBLAS_POINTER_MODE_HOST it is
+// copied into the cuBLAS type for the alignment reason given in cublaslt_gemm
+// (Zaxpy and Zscal fault on a std::complex<double> at 8 mod 16); under
+// CUBLAS_POINTER_MODE_DEVICE it addresses device memory and is passed through.
+template <typename CuComplexType>
+struct Blas1ComplexAlpha {
+  template <typename Complex>
+  Blas1ComplexAlpha(cublasHandle_t h, const Complex* alpha) {
+    static_assert(sizeof(Complex) == sizeof(CuComplexType), "complex alpha layout mismatch");
+    cublasPointerMode_t mode = CUBLAS_POINTER_MODE_HOST;
+    status = cublasGetPointerMode(h, &mode);
+    if (status != CUBLAS_STATUS_SUCCESS || mode == CUBLAS_POINTER_MODE_DEVICE) {
+      ptr = reinterpret_cast<const CuComplexType*>(alpha);
+    } else {
+      std::memcpy(&value, alpha, sizeof(value));
+      ptr = &value;
+    }
+  }
+  // ptr may point at value.
+  Blas1ComplexAlpha(const Blas1ComplexAlpha&) = delete;
+  Blas1ComplexAlpha& operator=(const Blas1ComplexAlpha&) = delete;
+
+  CuComplexType value;
+  const CuComplexType* ptr;
+  cublasStatus_t status;
+};
 
 // dot: result = x^T * y (real) or x^H * y (complex, conjugating x).
 inline cublasStatus_t cublasXdot(cublasHandle_t h, int64_t n, const float* x, int64_t incx, const float* y,
@@ -651,27 +677,32 @@ inline cublasStatus_t cublasXaxpy(cublasHandle_t h, int64_t n, const double* alp
 }
 inline cublasStatus_t cublasXaxpy(cublasHandle_t h, int64_t n, const std::complex<float>* alpha,
                                   const std::complex<float>* x, int64_t incx, std::complex<float>* y, int64_t incy) {
-  return EIGEN_CUBLAS_FN(cublasCaxpy)(h, to_blas_dim(n), reinterpret_cast<const cuComplex*>(alpha),
-                                      reinterpret_cast<const cuComplex*>(x), to_blas_dim(incx),
-                                      reinterpret_cast<cuComplex*>(y), to_blas_dim(incy));
+  const Blas1ComplexAlpha<cuComplex> a(h, alpha);
+  if (a.status != CUBLAS_STATUS_SUCCESS) return a.status;
+  return EIGEN_CUBLAS_FN(cublasCaxpy)(h, to_blas_dim(n), a.ptr, reinterpret_cast<const cuComplex*>(x),
+                                      to_blas_dim(incx), reinterpret_cast<cuComplex*>(y), to_blas_dim(incy));
 }
 inline cublasStatus_t cublasXaxpy(cublasHandle_t h, int64_t n, const std::complex<double>* alpha,
                                   const std::complex<double>* x, int64_t incx, std::complex<double>* y, int64_t incy) {
-  return EIGEN_CUBLAS_FN(cublasZaxpy)(h, to_blas_dim(n), reinterpret_cast<const cuDoubleComplex*>(alpha),
-                                      reinterpret_cast<const cuDoubleComplex*>(x), to_blas_dim(incx),
-                                      reinterpret_cast<cuDoubleComplex*>(y), to_blas_dim(incy));
+  const Blas1ComplexAlpha<cuDoubleComplex> a(h, alpha);
+  if (a.status != CUBLAS_STATUS_SUCCESS) return a.status;
+  return EIGEN_CUBLAS_FN(cublasZaxpy)(h, to_blas_dim(n), a.ptr, reinterpret_cast<const cuDoubleComplex*>(x),
+                                      to_blas_dim(incx), reinterpret_cast<cuDoubleComplex*>(y), to_blas_dim(incy));
 }
 
 // SCAL with complex alpha (Cscal/Zscal); the real-alpha forms are above.
 inline cublasStatus_t cublasXscal(cublasHandle_t h, int64_t n, const std::complex<float>* alpha, std::complex<float>* x,
                                   int64_t incx) {
-  return EIGEN_CUBLAS_FN(cublasCscal)(h, to_blas_dim(n), reinterpret_cast<const cuComplex*>(alpha),
-                                      reinterpret_cast<cuComplex*>(x), to_blas_dim(incx));
+  const Blas1ComplexAlpha<cuComplex> a(h, alpha);
+  if (a.status != CUBLAS_STATUS_SUCCESS) return a.status;
+  return EIGEN_CUBLAS_FN(cublasCscal)(h, to_blas_dim(n), a.ptr, reinterpret_cast<cuComplex*>(x), to_blas_dim(incx));
 }
 inline cublasStatus_t cublasXscal(cublasHandle_t h, int64_t n, const std::complex<double>* alpha,
                                   std::complex<double>* x, int64_t incx) {
-  return EIGEN_CUBLAS_FN(cublasZscal)(h, to_blas_dim(n), reinterpret_cast<const cuDoubleComplex*>(alpha),
-                                      reinterpret_cast<cuDoubleComplex*>(x), to_blas_dim(incx));
+  const Blas1ComplexAlpha<cuDoubleComplex> a(h, alpha);
+  if (a.status != CUBLAS_STATUS_SUCCESS) return a.status;
+  return EIGEN_CUBLAS_FN(cublasZscal)(h, to_blas_dim(n), a.ptr, reinterpret_cast<cuDoubleComplex*>(x),
+                                      to_blas_dim(incx));
 }
 
 // copy: y = x.

@@ -292,7 +292,9 @@ void test_gemm_explicit_context(Index m, Index n, Index k) {
 // cuBLAS reads alpha and beta as cuComplex/cuDoubleComplex, which declare 8- and
 // 16-byte alignment; std::complex<double> only needs 8, so a caller may hold it
 // at an odd multiple of 8. cublaslt_gemm must copy the scalars rather than pass
-// such storage on: on MSVC the dispatcher's locals land there.
+// such storage on: on MSVC the dispatcher's locals land there. Only the GEMV
+// shapes (n == 1, or m == 1 with op(A) = A) and k == 1 fault without the copy,
+// so the callers below use those.
 
 template <typename Scalar>
 void test_gemm_misaligned_host_scalars(Index m, Index n, Index k) {
@@ -322,6 +324,34 @@ void test_gemm_misaligned_host_scalars(Index m, Index n, Index k) {
 
   RealScalar tol = RealScalar(k) * NumTraits<Scalar>::epsilon() * C_ref.norm();
   VERIFY((C - C_ref).norm() < tol);
+}
+
+// ---- BLAS-1 with misaligned host alpha --------------------------------------
+// Zaxpy and Zscal fault on a host-mode alpha at 8 mod 16 like the GEMV paths
+// above; the complex axpy/scal wrappers must copy it.
+
+template <typename Scalar>
+void test_blas1_misaligned_host_alpha(Index n) {
+  using Vec = Eigen::Matrix<Scalar, Dynamic, 1>;
+
+  Vec x = Vec::Random(n);
+  Vec y = Vec::Random(n);
+
+  gpu::Context ctx;
+  auto d_x = gpu::DeviceMatrix<Scalar>::fromHost(x, ctx.stream());
+  auto d_y = gpu::DeviceMatrix<Scalar>::fromHost(y, ctx.stream());
+
+  alignas(16) unsigned char storage[8 + sizeof(Scalar)];
+  const Scalar* alpha = ::new (storage + 8) Scalar(2);
+  VERIFY_IS_EQUAL(reinterpret_cast<std::uintptr_t>(alpha) % 16, std::uintptr_t(8));
+
+  EIGEN_CUBLAS_CHECK(gpu::internal::cublasXaxpy(ctx.cublasHandle(), n, alpha, d_x.data(), 1, d_y.data(), 1));
+  EIGEN_CUBLAS_CHECK(gpu::internal::cublasXscal(ctx.cublasHandle(), n, alpha, d_x.data(), 1));
+  d_x.recordReady(ctx.stream());
+  d_y.recordReady(ctx.stream());
+
+  VERIFY_IS_APPROX(Vec(d_y.toHost()), Vec(y + Scalar(2) * x));
+  VERIFY_IS_APPROX(Vec(d_x.toHost()), Vec(Scalar(2) * x));
 }
 
 // ---- GEMM cross-context reuse of the same destination -----------------------
@@ -818,7 +848,9 @@ void test_scalar() {
   CALL_SUBTEST(test_gemm_subtract<Scalar>(64, 64, 64));
   CALL_SUBTEST(test_gemm_subtract_empty<Scalar>(64, 64, 64));
   CALL_SUBTEST(test_gemm_explicit_context<Scalar>(64, 64, 64));
-  CALL_SUBTEST(test_gemm_misaligned_host_scalars<Scalar>(64, 48, 32));
+  CALL_SUBTEST(test_gemm_misaligned_host_scalars<Scalar>(64, 1, 32));
+  CALL_SUBTEST(test_gemm_misaligned_host_scalars<Scalar>(1, 48, 32));
+  CALL_SUBTEST(test_blas1_misaligned_host_alpha<Scalar>(1000));
   CALL_SUBTEST(test_gemm_cross_context_reuse<Scalar>(64));
   CALL_SUBTEST(test_gemm_cross_context_resize<Scalar>());
   CALL_SUBTEST(test_gemm_chain<Scalar>(64));
