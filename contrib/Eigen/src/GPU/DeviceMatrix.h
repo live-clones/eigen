@@ -352,7 +352,8 @@ class DeviceMatrix {
 
   /** Whether this matrix holds storage borrowed through view(). Destroying a
    * view does not free that storage, and release() on a view returns a pointer
-   * that its owner still frees. */
+   * that its owner still frees. resize() to a different size replaces a view
+   * with storage of its own; resize() to the same size leaves it a view. */
   bool isView() const { return data_ != nullptr && data_.get_deleter().borrow; }
 
   /** Size of the device allocation in bytes. */
@@ -625,7 +626,6 @@ class DeviceMatrix {
   cudaStream_t ready_stream_ = nullptr;     // stream that recorded ready_event_ (for same-stream skip)
   internal::DeviceBuffer retained_buffer_;  // internal: keeps async aux buffers alive
 };
-
 }  // namespace gpu
 }  // namespace Eigen
 
