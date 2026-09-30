@@ -36,10 +36,11 @@ enum { Large = 2, Small = 3 };
 // Fixed-size products can reach the GEMM product path even when the
 // coeff-based evaluator is still faster. Keep this threshold separate so
 // runtime-size dispatch preserves the historical heuristic above. This default
-// was tuned on the same Haswell system as the runtime threshold, and deliberately
-// tracks EIGEN_GEMM_TO_COEFFBASED_THRESHOLD unless specialized independently.
+// was tuned on the same Haswell system as the runtime threshold. It does not
+// follow a user-defined EIGEN_GEMM_TO_COEFFBASED_THRESHOLD, which still applies
+// at run time, so a fixed-size product's crossover is the larger of the two.
 #ifndef EIGEN_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD
-#define EIGEN_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD (2 * EIGEN_GEMM_TO_COEFFBASED_THRESHOLD)
+#define EIGEN_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD 40
 #endif
 
 #ifdef EIGEN_VECTORIZE_SME
