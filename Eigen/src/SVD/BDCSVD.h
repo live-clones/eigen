@@ -263,7 +263,7 @@ class BDCSVD : public SVDBase<BDCSVD<MatrixType_, Options_> > {
   bool m_isTranspose, m_useQrDecomp;
   // Only AlwaysPrecondition is forwarded: BDCSVD's QR bits configure its own R-bidiagonalization, and smallSvd needs
   // its QR preconditioner to reduce non-square inputs. The unitaries are requested at runtime in allocate().
-  JacobiSVD<MatrixX, Options & int(AlwaysPrecondition)> smallSvd;
+  JacobiSVD<MatrixX, (Options & int(AlwaysPrecondition))> smallSvd;
   HouseholderQR<MatrixX> qrDecomp;
   internal::UpperBidiagonalization<MatrixX> bid;
   MatrixX copyWorkspace;

@@ -747,10 +747,10 @@ class JacobiSVD : public SVDBase<JacobiSVD<MatrixType_, Options_>> {
 
   void allocate(Index rows_, Index cols_, unsigned int computationOptions) {
     if (Base::allocate(rows_, cols_, computationOptions)) return;
-    eigen_assert(!((m_computeThinU || m_computeThinV) &&
-                   int(QRPreconditioner) == int(FullPivHouseholderQRPreconditioner)) &&
-                 "JacobiSVD: can't compute thin U or thin V with the FullPivHouseholderQR preconditioner. "
-                 "Use the ColPivHouseholderQR preconditioner instead.");
+    eigen_assert(
+        !((m_computeThinU || m_computeThinV) && int(QRPreconditioner) == int(FullPivHouseholderQRPreconditioner)) &&
+        "JacobiSVD: can't compute thin U or thin V with the FullPivHouseholderQR preconditioner. "
+        "Use the ColPivHouseholderQR preconditioner instead.");
 
     m_workMatrix.resize(diagSize(), diagSize());
     if (cols() > rows()) m_qr_precond_morecols.allocate(*this);
