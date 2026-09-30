@@ -55,9 +55,10 @@ struct traits<BDCSVD<MatrixType_, Options> > : svd_traits<MatrixType_, Options> 
  *                  #DisableQRDecomposition. It is not possible to request both the thin and full version of \a U or
  *                  \a V. By default, unitaries are not computed. BDCSVD uses R-Bidiagonalization to improve
  *                  performance on tall and wide matrices. For backwards compatibility, the option
- *                  #DisableQRDecomposition can be used to disable this optimization. For small enough inputs,
- *                  #AlwaysPrecondition is forwarded to JacobiSVD. It has no effect on larger inputs and cannot be
- *                  combined with #DisableQRDecomposition.
+ *                  #DisableQRDecomposition can be used to disable this optimization. #AlwaysPrecondition is
+ *                  forwarded to the JacobiSVD that BDCSVD uses for inputs with fewer columns than the switch size,
+ *                  and does not affect larger inputs. Like #DisableQRDecomposition, it selects Eigen's implementation
+ *                  over LAPACKE's ?gesdd when EIGEN_USE_LAPACKE is defined.
  *
  * This class first reduces the input matrix to bi-diagonal form using class UpperBidiagonalization,
  * and then performs a divide-and-conquer diagonalization. Small blocks are diagonalized using class JacobiSVD.
@@ -260,11 +261,9 @@ class BDCSVD : public SVDBase<BDCSVD<MatrixType_, Options_> > {
   void allocate_small(Index rows, Index cols, unsigned int computationOptions);
   internal::bdcsvd_impl<RealScalar> m_impl;
   bool m_isTranspose, m_useQrDecomp;
-  JacobiSVD<MatrixX, Options> smallSvd;
-  // The deprecated runtime options only apply when Options requests no unitaries.
-  static unsigned int smallSvdRuntimeOptions(unsigned int computationOptions) {
-    return internal::get_computation_options(Options) == 0 ? internal::get_computation_options(computationOptions) : 0;
-  }
+  // Only AlwaysPrecondition is forwarded: BDCSVD's QR bits configure its own R-bidiagonalization, and smallSvd needs
+  // its QR preconditioner to reduce non-square inputs. The unitaries are requested at runtime in allocate().
+  JacobiSVD<MatrixX, internal::should_svd_always_precondition(Options) ? int(AlwaysPrecondition) : 0> smallSvd;
   HouseholderQR<MatrixX> qrDecomp;
   internal::UpperBidiagonalization<MatrixX> bid;
   MatrixX copyWorkspace;
@@ -284,10 +283,6 @@ class BDCSVD : public SVDBase<BDCSVD<MatrixType_, Options_> > {
   using Base::m_nonzeroSingularValues;
   using Base::m_singularValues;
 
-  EIGEN_STATIC_ASSERT(!(internal::should_svd_always_precondition(Options) &&
-                        int(QRDecomposition) == int(DisableQRDecomposition)),
-                      "BDCSVD: AlwaysPrecondition cannot be combined with DisableQRDecomposition.")
-
  public:
   int m_numIters;
 };  // end class BDCSVD
@@ -298,7 +293,7 @@ void BDCSVD<MatrixType, Options>::allocate(Index rows, Index cols, unsigned int 
   if (Base::allocate(rows, cols, computationOptions)) return;
 
   if (cols < m_impl.algoSwap())
-    smallSvd.allocate(rows, cols, smallSvdRuntimeOptions(computationOptions));
+    smallSvd.allocate(rows, cols, internal::get_computation_options(Options | computationOptions));
 
   m_isTranspose = (cols > rows);
 
@@ -329,7 +324,7 @@ template <typename MatrixType, int Options>
 void BDCSVD<MatrixType, Options>::allocate_small(Index rows, Index cols, unsigned int computationOptions) {
   if (Base::allocate(rows, cols, computationOptions)) return;
 
-  smallSvd.allocate(rows, cols, smallSvdRuntimeOptions(computationOptions));
+  smallSvd.allocate(rows, cols, internal::get_computation_options(Options | computationOptions));
   m_isTranspose = (cols > rows);
 }
 

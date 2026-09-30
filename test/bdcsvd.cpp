@@ -186,6 +186,14 @@ void bdcsvd_mixed_option_enum_regression() {
 
   STATIC_CHECK((int(ReversedMixedSVD::QRDecomposition) == int(DisableQRDecomposition)));
   STATIC_CHECK((ReversedMixedSVD::ComputationOptions == (ComputeThinU | ComputeFullV)));
+
+  // Runtime unitary options must reach the JacobiSVD used below the switch size when Options holds only QR bits.
+  const MatrixXd m = MatrixXd::Random(5, 5);
+  EIGEN_DIAGNOSTICS(push)
+  EIGEN_DISABLE_DEPRECATED_WARNING
+  const BDCSVD<MatrixXd, DisableQRDecomposition> svd(m, ComputeFullU | ComputeFullV);
+  EIGEN_DIAGNOSTICS(pop)
+  svd_check_full(m, svd);
 }
 #endif
 
@@ -501,10 +509,14 @@ EIGEN_DECLARE_TEST(bdcsvd) {
     CALL_SUBTEST_63((svd_always_precondition_accuracy<Matrix4cf>(4)));
     CALL_SUBTEST_63((svd_always_precondition_accuracy<MatrixXcf>(12)));
     CALL_SUBTEST_63((svd_always_precondition_accuracy<MatrixXcd>(12)));
-    CALL_SUBTEST_64((svd_runtime_options_checks<MatrixXf, AlwaysPrecondition>(12)));
-    CALL_SUBTEST_64((svd_runtime_options_checks<MatrixXcd, AlwaysPrecondition>(internal::random<Index>(1, 30))));
-    CALL_SUBTEST_64((svd_runtime_options_checks<Matrix2f, AlwaysPrecondition>(2)));
-    CALL_SUBTEST_64((svd_runtime_options_checks<MatrixXd, DisableQRDecomposition>(internal::random<Index>(1, 30))));
+    CALL_SUBTEST_64((svd_always_precondition_runtime_options<MatrixXf>(12)));
+    CALL_SUBTEST_64((svd_always_precondition_runtime_options<MatrixXcd>(internal::random<Index>(1, 30))));
+    CALL_SUBTEST_64((svd_always_precondition_runtime_options<Matrix2f>(2)));
+    // smallSvd keeps its QR preconditioner, so small non-square inputs work with DisableQRDecomposition too.
+    CALL_SUBTEST_64(
+        (svd_thin_full_option_checks<MatrixXd, DisableQRDecomposition | AlwaysPrecondition>(MatrixXd(10, 5))));
+    CALL_SUBTEST_64(
+        (svd_thin_full_option_checks<MatrixXd, DisableQRDecomposition | AlwaysPrecondition>(MatrixXd(5, 10))));
   }
 
   CALL_SUBTEST_7((bdcsvd_thin_full_options<Matrix2cd>()));

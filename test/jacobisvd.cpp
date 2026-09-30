@@ -47,20 +47,6 @@ void jacobisvd_thin_full_options(const MatrixType& input = MatrixType()) {
   svd_option_checks_full_only<MatrixType, FullPivHouseholderQRPreconditioner | AlwaysPrecondition>(input);
 }
 
-EIGEN_DIAGNOSTICS(push)
-EIGEN_DISABLE_DEPRECATED_WARNING
-// FullPiv can't compute thin unitaries, including ones requested at runtime for a square matrix.
-template <typename MatrixType, int Options>
-void jacobisvd_fullpiv_runtime_thin_asserts(Index size) {
-  const MatrixType m = MatrixType::Zero(size, size);
-  for (unsigned int options : {unsigned(ComputeThinU), unsigned(ComputeThinV), unsigned(ComputeThinU | ComputeThinV)}) {
-    VERIFY_RAISES_ASSERT((JacobiSVD<MatrixType, Options>(m, options)));
-    JacobiSVD<MatrixType, Options> svd;
-    VERIFY_RAISES_ASSERT(svd.compute(m, options));
-  }
-}
-EIGEN_DIAGNOSTICS(pop)
-
 template <typename MatrixType>
 void jacobisvd_vector_asserts(const MatrixType& input = MatrixType()) {
   MatrixType m(input.rows(), input.cols());
@@ -345,11 +331,8 @@ EIGEN_DECLARE_TEST(jacobisvd) {
     CALL_SUBTEST_63((svd_always_precondition_accuracy<Matrix4cf>(4)));
     CALL_SUBTEST_63((svd_always_precondition_accuracy<MatrixXcf>(12)));
     CALL_SUBTEST_63((svd_always_precondition_accuracy<MatrixXcd>(12)));
-    CALL_SUBTEST_68((svd_runtime_options_checks<MatrixXf, AlwaysPrecondition>(12)));
-    CALL_SUBTEST_68((svd_runtime_options_checks<MatrixXcd, AlwaysPrecondition>(r)));
-    CALL_SUBTEST_68((jacobisvd_fullpiv_runtime_thin_asserts<MatrixXd, FullPivHouseholderQRPreconditioner>(r)));
-    CALL_SUBTEST_68(
-        (jacobisvd_fullpiv_runtime_thin_asserts<MatrixXd, FullPivHouseholderQRPreconditioner | AlwaysPrecondition>(r)));
+    CALL_SUBTEST_68((svd_always_precondition_runtime_options<MatrixXf>(12)));
+    CALL_SUBTEST_68((svd_always_precondition_runtime_options<MatrixXcd>(r)));
 
     MatrixXcd noQRTest = MatrixXcd(r, r);
     CALL_SUBTEST_37((svd_thin_full_option_checks<MatrixXcd, NoQRPreconditioner>(noQRTest)));

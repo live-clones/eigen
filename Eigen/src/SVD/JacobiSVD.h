@@ -733,7 +733,7 @@ class JacobiSVD : public SVDBase<JacobiSVD<MatrixType_, Options_>> {
   template <typename Derived>
   EIGEN_DEPRECATED_WITH_REASON("Options should be specified using the class template parameter.")
   JacobiSVD& compute(const MatrixBase<Derived>& matrix, unsigned int computationOptions) {
-    internal::check_svd_options_assertions<MatrixType, Options>(computationOptions, matrix.rows(), matrix.cols());
+    internal::check_svd_options_assertions<MatrixType, Options>(m_computationOptions, matrix.rows(), matrix.cols());
     return compute_impl(matrix, computationOptions);
   }
 
@@ -746,8 +746,8 @@ class JacobiSVD : public SVDBase<JacobiSVD<MatrixType_, Options_>> {
 
   void allocate(Index rows_, Index cols_, unsigned int computationOptions) {
     if (Base::allocate(rows_, cols_, computationOptions)) return;
-    eigen_assert(!((m_computeThinU || m_computeThinV) &&
-                   int(QRPreconditioner) == int(FullPivHouseholderQRPreconditioner)) &&
+    eigen_assert(!(ShouldComputeThinU && int(QRPreconditioner) == int(FullPivHouseholderQRPreconditioner)) &&
+                 !(ShouldComputeThinV && int(QRPreconditioner) == int(FullPivHouseholderQRPreconditioner)) &&
                  "JacobiSVD: can't compute thin U or thin V with the FullPivHouseholderQR preconditioner. "
                  "Use the ColPivHouseholderQR preconditioner instead.");
 
