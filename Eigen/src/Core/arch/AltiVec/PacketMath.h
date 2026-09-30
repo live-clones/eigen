@@ -3384,6 +3384,19 @@ EIGEN_STRONG_INLINE Packet2l pcmp_eq(const Packet2l& a, const Packet2l& b) {
   return reinterpret_cast<Packet2l>(pand(halves, flipped));
 }
 #endif
+// Not the generic a < b ? ptrue(a) : pzero(a): under Clang's default -faltivec-src-compat=mixed,
+// a < b on vector long long is a scalar all-lanes predicate, not a lane mask.
+template <>
+#ifdef __POWER8_VECTOR__
+EIGEN_STRONG_INLINE Packet2l pcmp_lt(const Packet2l& a, const Packet2l& b) {
+  return reinterpret_cast<Packet2l>(vec_cmplt(a, b));
+}
+#else
+EIGEN_STRONG_INLINE Packet2l pcmp_lt(const Packet2l& a, const Packet2l& b) {
+  const Packet2l ret = {a[0] < b[0] ? -1 : 0, a[1] < b[1] ? -1 : 0};
+  return ret;
+}
+#endif
 template <>
 EIGEN_STRONG_INLINE Packet2d pcmp_lt_or_nan(const Packet2d& a, const Packet2d& b) {
   Packet2d c = reinterpret_cast<Packet2d>(vec_cmpge(a, b));
