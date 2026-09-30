@@ -296,6 +296,11 @@ void test_gemm_explicit_context(Index m, Index n, Index k) {
 // shapes (n == 1, or m == 1 with op(A) = A) and k == 1 fault without the copy,
 // so the callers below use those.
 
+// The strictest alignment cuBLAS declares for a host scalar, and the offset that
+// puts a scalar halfway between two such boundaries.
+constexpr std::size_t kCublasScalarAlign = alignof(cuDoubleComplex);
+constexpr std::size_t kMisalignment = kCublasScalarAlign / 2;
+
 template <typename Scalar>
 void test_gemm_misaligned_host_scalars(Index m, Index n, Index k) {
   using Mat = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
@@ -309,10 +314,10 @@ void test_gemm_misaligned_host_scalars(Index m, Index n, Index k) {
   auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B, ctx.stream());
   gpu::DeviceMatrix<Scalar> d_C(m, n);
 
-  alignas(16) unsigned char storage[8 + 2 * sizeof(Scalar)];
-  const Scalar* alpha = ::new (storage + 8) Scalar(2);
-  const Scalar* beta = ::new (storage + 8 + sizeof(Scalar)) Scalar(0);
-  VERIFY_IS_EQUAL(reinterpret_cast<std::uintptr_t>(alpha) % 16, std::uintptr_t(8));
+  alignas(kCublasScalarAlign) unsigned char storage[kMisalignment + 2 * sizeof(Scalar)];
+  const Scalar* alpha = ::new (storage + kMisalignment) Scalar(2);
+  const Scalar* beta = ::new (storage + kMisalignment + sizeof(Scalar)) Scalar(0);
+  VERIFY_IS_EQUAL(reinterpret_cast<std::uintptr_t>(alpha) % kCublasScalarAlign, std::uintptr_t(kMisalignment));
 
   gpu::internal::cublaslt_gemm(ctx.cublasLtHandle(), ctx.cublasHandle(), CUBLAS_OP_N, CUBLAS_OP_N, m, n, k, alpha,
                                d_A.data(), m, d_B.data(), k, beta, d_C.data(), m, ctx.gemmWorkspace(),
@@ -341,9 +346,9 @@ void test_blas1_misaligned_host_alpha(Index n) {
   auto d_x = gpu::DeviceMatrix<Scalar>::fromHost(x, ctx.stream());
   auto d_y = gpu::DeviceMatrix<Scalar>::fromHost(y, ctx.stream());
 
-  alignas(16) unsigned char storage[8 + sizeof(Scalar)];
-  const Scalar* alpha = ::new (storage + 8) Scalar(2);
-  VERIFY_IS_EQUAL(reinterpret_cast<std::uintptr_t>(alpha) % 16, std::uintptr_t(8));
+  alignas(kCublasScalarAlign) unsigned char storage[kMisalignment + sizeof(Scalar)];
+  const Scalar* alpha = ::new (storage + kMisalignment) Scalar(2);
+  VERIFY_IS_EQUAL(reinterpret_cast<std::uintptr_t>(alpha) % kCublasScalarAlign, std::uintptr_t(kMisalignment));
 
   EIGEN_CUBLAS_CHECK(gpu::internal::cublasXaxpy(ctx.cublasHandle(), n, alpha, d_x.data(), 1, d_y.data(), 1));
   EIGEN_CUBLAS_CHECK(gpu::internal::cublasXscal(ctx.cublasHandle(), n, alpha, d_x.data(), 1));

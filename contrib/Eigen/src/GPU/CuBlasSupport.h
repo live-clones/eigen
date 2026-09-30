@@ -325,9 +325,10 @@ void cublaslt_gemm(cublasLtHandle_t lt_handle, cublasHandle_t cublas_handle, cub
   // cuBLAS reads alpha and beta on the host as its own scalar types. cuComplex
   // and cuDoubleComplex declare 8- and 16-byte alignment, which std::complex
   // does not guarantee: MSVC aligns std::complex<double> to 8, and a 16-byte
-  // load through such a pointer faults. Hand the library aligned copies.
-  alignas(16) const Scalar alpha_val = *alpha;
-  alignas(16) const Scalar beta_val = *beta;
+  // load through such a pointer faults. Hand the library copies aligned for
+  // the stricter of the two.
+  alignas(cuDoubleComplex) const Scalar alpha_val = *alpha;
+  alignas(cuDoubleComplex) const Scalar beta_val = *beta;
 
   if (entry->use_cublaslt) {
     const size_t needed = entry->workspace_size;
