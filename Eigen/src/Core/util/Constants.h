@@ -433,7 +433,7 @@ enum QRPreconditioners {
   /** Used to disable the QR Preconditioner in BDCSVD. */
   DisableQRDecomposition = NoQRPreconditioner,
   /** Used in the Options template parameter of JacobiSVD to apply the QR preconditioner to square matrices.
-   * BDCSVD forwards this option to JacobiSVD when it switches on small inputs. */
+   * BDCSVD forwards this option to the JacobiSVD it switches to for small inputs. */
   AlwaysPrecondition = 0x800
 };
 

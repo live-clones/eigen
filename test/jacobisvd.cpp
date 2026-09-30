@@ -345,6 +345,7 @@ EIGEN_DECLARE_TEST(jacobisvd) {
     CALL_SUBTEST_62((svd_always_precondition_accuracy<Matrix4d>(4)));
     CALL_SUBTEST_62((svd_always_precondition_accuracy<MatrixXf>(12)));
     CALL_SUBTEST_62((svd_always_precondition_accuracy<MatrixXd>(12)));
+    CALL_SUBTEST_62((svd_always_precondition_accuracy<Matrix<double, Dynamic, Dynamic, RowMajor>>(12)));
     CALL_SUBTEST_63((svd_always_precondition_accuracy<Matrix2cd>(2)));
     CALL_SUBTEST_63((svd_always_precondition_accuracy<Matrix4cf>(4)));
     CALL_SUBTEST_63((svd_always_precondition_accuracy<MatrixXcf>(12)));
@@ -353,6 +354,8 @@ EIGEN_DECLARE_TEST(jacobisvd) {
     CALL_SUBTEST_64((svd_always_precondition_runtime_options<MatrixXcd>(r)));
     CALL_SUBTEST_64((jacobisvd_fullpiv_runtime_thin_asserts<0>(8, 5)));
     CALL_SUBTEST_64((jacobisvd_fullpiv_runtime_thin_asserts<AlwaysPrecondition>(6, 6)));
+    CALL_SUBTEST_64((jacobisvd_thin_full_options<Matrix<double, Dynamic, Dynamic, RowMajor>>(
+        Matrix<double, Dynamic, Dynamic, RowMajor>(8, 8))));
 
     MatrixXcd noQRTest = MatrixXcd(r, r);
     CALL_SUBTEST_37((svd_thin_full_option_checks<MatrixXcd, NoQRPreconditioner>(noQRTest)));

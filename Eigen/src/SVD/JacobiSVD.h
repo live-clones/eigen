@@ -546,7 +546,7 @@ struct traits<JacobiSVD<MatrixType_, Options>> : svd_traits<MatrixType_, Options
  *
  * \tparam MatrixType_ the type of the matrix of which we are computing the SVD decomposition
  * \tparam Options this optional parameter allows one to specify the type of QR decomposition that will be used
- * internally for the R-SVD step on rectangular matrices. The R-SVD step can be applied to square matrices using 
+ * internally for the R-SVD step on rectangular matrices. The R-SVD step can be applied to square matrices using
  * #AlwaysPrecondition. Additionally, it allows one to specify whether to compute thin or full unitaries \a U and \a V.
  * See discussion of possible values below.
  *
@@ -598,7 +598,7 @@ struct traits<JacobiSVD<MatrixType_, Options>> : svd_traits<MatrixType_, Options
  * applies the selected QR preconditioner to square matrices too: the Jacobi iteration then runs on the triangular
  * factor \a R of \f$ A P = Q R \f$ instead of on \a A. For example: JacobiSVD<MatrixType,
  * ColPivHouseholderQRPreconditioner | AlwaysPrecondition>. #AlwaysPrecondition cannot be combined with
- * #NoQRPreconditioner. 
+ * #NoQRPreconditioner.
  *
  * One may also use the Options template parameter to specify how the unitaries should be computed. The options are
  * #ComputeThinU, #ComputeThinV, #ComputeFullU, #ComputeFullV. It is not possible to request both the thin and full
