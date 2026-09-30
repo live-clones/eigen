@@ -129,7 +129,25 @@ void jacobisvd_mixed_option_enum_regression() {
   STATIC_CHECK(((int(ReversedMixedSVD::Options) & ComputeThinV) == 0));
 }
 
-template <typename = void>
+EIGEN_DIAGNOSTICS(push)
+EIGEN_DISABLE_DEPRECATED_WARNING
+// Thin unitaries requested through the deprecated runtime options must be rejected with FullPiv, as they are
+// statically through Options.
+template <int Options>
+void jacobisvd_fullpiv_runtime_thin_asserts(Index rows, Index cols) {
+  using SVD = JacobiSVD<MatrixXd, FullPivHouseholderQRPreconditioner | Options>;
+  const MatrixXd m = MatrixXd::Random(rows, cols);
+  for (unsigned int thin : {unsigned(ComputeThinU), unsigned(ComputeThinV), unsigned(ComputeThinU | ComputeThinV)}) {
+    VERIFY_RAISES_ASSERT(SVD(m, thin));
+    VERIFY_RAISES_ASSERT(SVD(rows, cols, thin));
+    SVD svd;
+    VERIFY_RAISES_ASSERT(svd.compute(m, thin));
+  }
+  SVD full(m, ComputeFullU | ComputeFullV);
+  svd_check_full(m, full);
+}
+EIGEN_DIAGNOSTICS(pop)
+
 void jacobisvd_large_tau_regression() {
   Matrix3f m;
   m << 3.7855173218304116745e-07f, 0.0f, 500.0f, -4.9999995231628417969f, -0.0f, -1.9106853686029490191e-12f,
@@ -331,8 +349,10 @@ EIGEN_DECLARE_TEST(jacobisvd) {
     CALL_SUBTEST_63((svd_always_precondition_accuracy<Matrix4cf>(4)));
     CALL_SUBTEST_63((svd_always_precondition_accuracy<MatrixXcf>(12)));
     CALL_SUBTEST_63((svd_always_precondition_accuracy<MatrixXcd>(12)));
-    CALL_SUBTEST_68((svd_always_precondition_runtime_options<MatrixXf>(12)));
-    CALL_SUBTEST_68((svd_always_precondition_runtime_options<MatrixXcd>(r)));
+    CALL_SUBTEST_64((svd_always_precondition_runtime_options<MatrixXf>(12)));
+    CALL_SUBTEST_64((svd_always_precondition_runtime_options<MatrixXcd>(r)));
+    CALL_SUBTEST_64((jacobisvd_fullpiv_runtime_thin_asserts<0>(8, 5)));
+    CALL_SUBTEST_64((jacobisvd_fullpiv_runtime_thin_asserts<AlwaysPrecondition>(6, 6)));
 
     MatrixXcd noQRTest = MatrixXcd(r, r);
     CALL_SUBTEST_37((svd_thin_full_option_checks<MatrixXcd, NoQRPreconditioner>(noQRTest)));

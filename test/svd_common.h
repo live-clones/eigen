@@ -685,13 +685,15 @@ template <typename MatrixType>
 void svd_always_precondition_accuracy(Index n) {
   using Scalar = typename MatrixType::Scalar;
   using RealScalar = typename MatrixType::RealScalar;
+  // The scaling below spans [1e-12, 1] only for n >= 2.
+  VERIFY(n >= 2);
   VectorX<RealScalar> scaling(n);
   for (Index i = 0; i < n; ++i) scaling(i) = RealScalar(std::pow(1e12, -double(i) / double(n - 1)));
   const MatrixType m = generateRandomUnitaryMatrix<MatrixType>(n) * scaling.template cast<Scalar>().asDiagonal();
 
   const VectorX<RealScalar> singularValues = SVD_STATIC_OPTIONS(MatrixType, AlwaysPrecondition)(m).singularValues();
   const RealScalar bound = RealScalar(4 * n) * NumTraits<RealScalar>::epsilon();
-  VERIFY(((singularValues - scaling).array().abs() / scaling.array()).maxCoeff() <= bound);
+  VERIFY(((singularValues - scaling).array().abs() / scaling.array()).template maxCoeff<PropagateNaN>() <= bound);
 }
 
 // AlwaysPrecondition in Options must not change what the deprecated runtime options request: U and V are computed

@@ -500,24 +500,6 @@ EIGEN_DECLARE_TEST(bdcsvd) {
   CALL_SUBTEST_4((bdcsvd_asserts<Matrix<float, 7, 10>>()));
   CALL_SUBTEST_5((bdcsvd_asserts<Matrix<std::complex<double>, 6, 9>>()));
   CALL_SUBTEST_6((bdcsvd_mixed_option_enum_regression()));
-  for (int i = 0; i < g_repeat; i++) {
-    CALL_SUBTEST_62((svd_always_precondition_accuracy<Matrix2f>(2)));
-    CALL_SUBTEST_62((svd_always_precondition_accuracy<Matrix4d>(4)));
-    CALL_SUBTEST_62((svd_always_precondition_accuracy<MatrixXf>(12)));
-    CALL_SUBTEST_62((svd_always_precondition_accuracy<MatrixXd>(12)));
-    CALL_SUBTEST_63((svd_always_precondition_accuracy<Matrix2cd>(2)));
-    CALL_SUBTEST_63((svd_always_precondition_accuracy<Matrix4cf>(4)));
-    CALL_SUBTEST_63((svd_always_precondition_accuracy<MatrixXcf>(12)));
-    CALL_SUBTEST_63((svd_always_precondition_accuracy<MatrixXcd>(12)));
-    CALL_SUBTEST_64((svd_always_precondition_runtime_options<MatrixXf>(12)));
-    CALL_SUBTEST_64((svd_always_precondition_runtime_options<MatrixXcd>(internal::random<Index>(1, 30))));
-    CALL_SUBTEST_64((svd_always_precondition_runtime_options<Matrix2f>(2)));
-    // smallSvd keeps its QR preconditioner, so small non-square inputs work with DisableQRDecomposition too.
-    CALL_SUBTEST_64(
-        (svd_thin_full_option_checks<MatrixXd, DisableQRDecomposition | AlwaysPrecondition>(MatrixXd(10, 5))));
-    CALL_SUBTEST_64(
-        (svd_thin_full_option_checks<MatrixXd, DisableQRDecomposition | AlwaysPrecondition>(MatrixXd(5, 10))));
-  }
 
   CALL_SUBTEST_7((bdcsvd_thin_full_options<Matrix2cd>()));
   CALL_SUBTEST_9((bdcsvd_thin_full_options<Matrix2d>()));
@@ -561,6 +543,23 @@ EIGEN_DECLARE_TEST(bdcsvd) {
     CALL_SUBTEST_41(
         (svd_check_max_size_matrix<Matrix<float, Dynamic, Dynamic, RowMajor, 35, 20>, HouseholderQRPreconditioner>(r,
                                                                                                                    c)));
+
+    CALL_SUBTEST_62((svd_always_precondition_accuracy<Matrix2f>(2)));
+    CALL_SUBTEST_62((svd_always_precondition_accuracy<Matrix4d>(4)));
+    CALL_SUBTEST_62((svd_always_precondition_accuracy<MatrixXf>(12)));
+    CALL_SUBTEST_62((svd_always_precondition_accuracy<MatrixXd>(12)));
+    CALL_SUBTEST_63((svd_always_precondition_accuracy<Matrix2cd>(2)));
+    CALL_SUBTEST_63((svd_always_precondition_accuracy<Matrix4cf>(4)));
+    CALL_SUBTEST_63((svd_always_precondition_accuracy<MatrixXcf>(12)));
+    CALL_SUBTEST_63((svd_always_precondition_accuracy<MatrixXcd>(12)));
+    CALL_SUBTEST_64((svd_always_precondition_runtime_options<MatrixXf>(12)));
+    CALL_SUBTEST_64((svd_always_precondition_runtime_options<MatrixXcd>(internal::random<Index>(1, 30))));
+    CALL_SUBTEST_64((svd_always_precondition_runtime_options<Matrix2f>(2)));
+    // smallSvd keeps its QR preconditioner, so small non-square inputs work with DisableQRDecomposition too.
+    CALL_SUBTEST_64(
+        (svd_thin_full_option_checks<MatrixXd, DisableQRDecomposition | AlwaysPrecondition>(MatrixXd(10, 5))));
+    CALL_SUBTEST_64(
+        (svd_thin_full_option_checks<MatrixXd, DisableQRDecomposition | AlwaysPrecondition>(MatrixXd(5, 10))));
   }
 
   // test matrixbase method
