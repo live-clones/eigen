@@ -233,6 +233,7 @@ class BDCSVD : public SVDBase<BDCSVD<MatrixType_, Options_> > {
 
   void setSwitchSize(int s) {
     eigen_assert(s >= 3 && "BDCSVD the size of the algo switch has to be at least 3.");
+    if (s == m_impl.algoSwap()) return;
     m_impl.setAlgoSwap(s);
     // smallSvd is only allocated for sizes below the switch, so the next compute must reallocate.
     m_isAllocated = false;

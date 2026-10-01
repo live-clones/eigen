@@ -528,5 +528,5 @@ EIGEN_DECLARE_TEST(bdcsvd) {
   CALL_SUBTEST_60((bdcsvd_flushed_subnormal_bidiagonal<float>(12, 8)));
   CALL_SUBTEST_60((bdcsvd_flushed_subnormal_bidiagonal<double>(16, 8)));
   CALL_SUBTEST_60((bdcsvd_flushed_subnormal_bidiagonal<double>(6, 8)));
-  CALL_SUBTEST_65((bdcsvd_switch_size_regression()));
+  CALL_SUBTEST_65((bdcsvd_switch_size()));
 }
