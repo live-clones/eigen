@@ -94,20 +94,32 @@ if ("${EIGEN_CI_CCACHE}" -eq "on") {
     $job_id = if ($env:CI_JOB_ID) { [int64]$env:CI_JOB_ID } else { 0 }
     $env:SCCACHE_SERVER_PORT = [string](4226 + ($job_id % 10000))
 
+    # Token precedence and GCS areas as in build.linux.script.sh: RW (protected refs,
+    # shared area), MR (read-write merge-request area), RO (read-only shared area).
     $cred_server_job = $null
-    if ($env:EIGEN_GCS_CACHE_TOKEN_RW -or $env:EIGEN_GCS_CACHE_TOKEN_RO) {
-      $env:SCCACHE_GCS_BUCKET = if ($env:EIGEN_CI_SCCACHE_GCS_BUCKET) { $env:EIGEN_CI_SCCACHE_GCS_BUCKET } else { "eigen-gitlab-ci-cache" }
+    $shared_bucket = if ($env:EIGEN_CI_SCCACHE_GCS_BUCKET) { $env:EIGEN_CI_SCCACHE_GCS_BUCKET } else { "eigen-gitlab-ci-cache" }
+    $gcs_token_var = $null
+    if ($env:EIGEN_GCS_CACHE_TOKEN_RW) {
+      $gcs_token_var = "EIGEN_GCS_CACHE_TOKEN_RW"
+      $env:SCCACHE_GCS_BUCKET = $shared_bucket
+      $env:SCCACHE_GCS_RW_MODE = "READ_WRITE"
+    } elseif ($env:EIGEN_GCS_CACHE_TOKEN_MR) {
+      $gcs_token_var = "EIGEN_GCS_CACHE_TOKEN_MR"
+      $env:SCCACHE_GCS_BUCKET = if ($env:EIGEN_CI_SCCACHE_GCS_MR_BUCKET) { $env:EIGEN_CI_SCCACHE_GCS_MR_BUCKET } else { $shared_bucket }
+      $env:SCCACHE_GCS_KEY_PREFIX = if ($env:EIGEN_CI_SCCACHE_GCS_MR_KEY_PREFIX) { $env:EIGEN_CI_SCCACHE_GCS_MR_KEY_PREFIX } else { "mr" }
+      $env:SCCACHE_GCS_RW_MODE = "READ_WRITE"
+    } elseif ($env:EIGEN_GCS_CACHE_TOKEN_RO) {
+      $gcs_token_var = "EIGEN_GCS_CACHE_TOKEN_RO"
+      $env:SCCACHE_GCS_BUCKET = $shared_bucket
+      $env:SCCACHE_GCS_RW_MODE = "READ_ONLY"
+    }
+    if ($gcs_token_var) {
       $env:SCCACHE_MULTILEVEL_CHAIN = "disk,gcs"
-      if ($env:EIGEN_GCS_CACHE_TOKEN_RW) {
-        $env:SCCACHE_GCS_RW_MODE = "READ_WRITE"
-      } else {
-        $env:SCCACHE_GCS_RW_MODE = "READ_ONLY"
-      }
       $url_secret = -join ((48..57) + (65..90) + (97..122) | Get-Random -Count 16 | % {[char]$_})
 
       $cred_server_job = Start-Job -ScriptBlock {
-        param($path_secret)
-        $tok = if ($env:EIGEN_GCS_CACHE_TOKEN_RW) { $env:EIGEN_GCS_CACHE_TOKEN_RW } else { $env:EIGEN_GCS_CACHE_TOKEN_RO }
+        param($path_secret, $token_var)
+        $tok = [Environment]::GetEnvironmentVariable($token_var)
         $listener = New-Object System.Net.HttpListener
         $tcp = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
         $tcp.Start()
@@ -130,7 +142,7 @@ if ("${EIGEN_CI_CCACHE}" -eq "on") {
           $resp.OutputStream.Write($body, 0, $body.Length)
           $resp.Close()
         }
-      } -ArgumentList $url_secret
+      } -ArgumentList $url_secret, $gcs_token_var
 
       # Wait up to 2 seconds for local credential server to be ready
       $cred_port = $null
@@ -157,6 +169,7 @@ if ("${EIGEN_CI_CCACHE}" -eq "on") {
       } else {
         Write-Warning "Local credential server failed to bind or respond; skipping GCS remote cache."
         Remove-Item Env:SCCACHE_GCS_BUCKET -ErrorAction SilentlyContinue
+        Remove-Item Env:SCCACHE_GCS_KEY_PREFIX -ErrorAction SilentlyContinue
         Remove-Item Env:SCCACHE_GCS_RW_MODE -ErrorAction SilentlyContinue
         Remove-Item Env:SCCACHE_MULTILEVEL_CHAIN -ErrorAction SilentlyContinue
         if ($cred_server_job) {
