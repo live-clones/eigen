@@ -187,8 +187,7 @@ void bdcsvd_mixed_option_enum_regression() {
 #endif
 
 #if defined(EIGEN_TEST_PART_65) || defined(EIGEN_TEST_PART_ALL)
-// Changing the switch size between computes of the same size must not reuse an allocation made for the other path.
-void bdcsvd_switch_size_regression() {
+void bdcsvd_switch_size() {
   const MatrixXd m = MatrixXd::Random(20, 20);
   BDCSVD<MatrixXd, ComputeFullU | ComputeFullV> svd(m.rows(), m.cols());
   svd.setSwitchSize(32);
