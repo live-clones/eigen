@@ -703,11 +703,12 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
         exponents(i, j) = -(modesA.exponents[j] + modesB.exponents[i]);
       }
     DenseVector bc(m1 * m2);
-    DenseMatrix M(kB, kA), X(m_B.cols(), m_A.cols());
+    DenseMatrix M(kB, kA), X(m_B.cols(), m_A.cols()), tmpM(kB, m1), tmpX(m_B.cols(), kA);
     for (Index k = 0; k < b.cols(); ++k) {
       bc = b.col(k);
       // By [1], M = U_B^H mat(b) conj(U_A) matricizes (U_A (x) U_B)^H b.
-      M.noalias() = svdB.matrixU().adjoint() * bc.reshaped(m2, m1) * svdA.matrixU().conjugate();
+      tmpM.noalias() = svdB.matrixU().adjoint() * bc.reshaped(m2, m1);
+      M.noalias() = tmpM * svdA.matrixU().conjugate();
       // Apply the exponent before dividing by the mantissa product [2]: the
       // singular-value product or its reciprocal need not be representable.
       for (Index j = 0; j < kA; ++j)
@@ -717,7 +718,8 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
           else
             M(i, j) = Scalar(0);
         }
-      X.noalias() = svdB.matrixV() * M * svdA.matrixV().transpose();
+      tmpX.noalias() = svdB.matrixV() * M;
+      X.noalias() = tmpX * svdA.matrixV().transpose();
       x.col(k) = X.reshaped();
     }
     return x;
@@ -998,7 +1000,7 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
     const int bits2 = RhsOps::growthBits(n2);
     const int budget = std::numeric_limits<ProductReal>::max_exponent - 2;
     ProductVector xc(n1 * n2);
-    ProductMatrix Y(m_B.rows(), m_A.rows());
+    ProductMatrix Y(m_B.rows(), m_A.rows()), T(m_B.rows(), n1);
     for (Index k = 0; k < actualRhs.cols(); ++k) {
       xc = actualRhs.col(k).template cast<ProductScalar>();
       int e = 0;
@@ -1033,7 +1035,8 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
         dst.col(k) += Y.reshaped();
         continue;
       }
-      Y.noalias() = m_B * xc.reshaped(n2, n1) * LhsOps::transposedOperand(m_A);
+      T.noalias() = m_B * xc.reshaped(n2, n1);
+      Y.noalias() = T * LhsOps::transposedOperand(m_A);
       if (e > 0) {
         const ProductReal up1 = ProductReal(std::ldexp(ProductReal(1), e / 2));
         const ProductReal up2 = ProductReal(std::ldexp(ProductReal(1), e - e / 2));
