@@ -30,7 +30,8 @@ extern "C" RealScalar EIGEN_CAT(REAL_SCALAR_SUFFIX, EIGEN_CAT(cabs1, EIGEN_BLAS_
 
 // computes the sum of magnitudes of all vector elements or, for a complex vector x, the sum
 // res = |Rex1| + |Imx1| + |Rex2| + |Imx2| + ... + |Rexn| + |Imxn|, where x is a vector of order n
-extern "C" RealScalar EIGEN_CAT(REAL_SCALAR_SUFFIX, EIGEN_BLAS_FUNC_NAME(asum))(EIGEN_BLAS_INT *n, RealScalar *px, EIGEN_BLAS_INT *incx) {
+extern "C" RealScalar EIGEN_CAT(REAL_SCALAR_SUFFIX, EIGEN_BLAS_FUNC_NAME(asum))(EIGEN_BLAS_INT *n, RealScalar *px,
+                                                                                EIGEN_BLAS_INT *incx) {
   if (*n <= 0) return 0;
 
   // std::complex<T> is layout-compatible with T[2], so we can reinterpret
@@ -46,7 +47,8 @@ extern "C" RealScalar EIGEN_CAT(REAL_SCALAR_SUFFIX, EIGEN_BLAS_FUNC_NAME(asum))(
   }
 }
 
-extern "C" EIGEN_BLAS_INT EIGEN_CAT(i, EIGEN_BLAS_FUNC_NAME(amax))(EIGEN_BLAS_INT *n, RealScalar *px, EIGEN_BLAS_INT *incx) {
+extern "C" EIGEN_BLAS_INT EIGEN_CAT(i, EIGEN_BLAS_FUNC_NAME(amax))(EIGEN_BLAS_INT *n, RealScalar *px,
+                                                                   EIGEN_BLAS_INT *incx) {
   if (*n <= 0) return 0;
   Scalar *x = reinterpret_cast<Scalar *>(px);
 
@@ -58,7 +60,8 @@ extern "C" EIGEN_BLAS_INT EIGEN_CAT(i, EIGEN_BLAS_FUNC_NAME(amax))(EIGEN_BLAS_IN
   return EIGEN_BLAS_INT(ret) + 1;
 }
 
-extern "C" EIGEN_BLAS_INT EIGEN_CAT(i, EIGEN_BLAS_FUNC_NAME(amin))(EIGEN_BLAS_INT *n, RealScalar *px, EIGEN_BLAS_INT *incx) {
+extern "C" EIGEN_BLAS_INT EIGEN_CAT(i, EIGEN_BLAS_FUNC_NAME(amin))(EIGEN_BLAS_INT *n, RealScalar *px,
+                                                                   EIGEN_BLAS_INT *incx) {
   if (*n <= 0) return 0;
   Scalar *x = reinterpret_cast<Scalar *>(px);
 
@@ -71,7 +74,8 @@ extern "C" EIGEN_BLAS_INT EIGEN_CAT(i, EIGEN_BLAS_FUNC_NAME(amin))(EIGEN_BLAS_IN
 }
 
 // computes a dot product of a conjugated vector with another vector.
-EIGEN_BLAS_FUNC(dotcw)(EIGEN_BLAS_INT *n, RealScalar *px, EIGEN_BLAS_INT *incx, RealScalar *py, EIGEN_BLAS_INT *incy, RealScalar *pres) {
+EIGEN_BLAS_FUNC(dotcw)
+(EIGEN_BLAS_INT *n, RealScalar *px, EIGEN_BLAS_INT *incx, RealScalar *py, EIGEN_BLAS_INT *incy, RealScalar *pres) {
   //   std::cerr << "_dotc " << *n << " " << *incx << " " << *incy << "\n";
   Scalar *res = reinterpret_cast<Scalar *>(pres);
 
@@ -96,7 +100,8 @@ EIGEN_BLAS_FUNC(dotcw)(EIGEN_BLAS_INT *n, RealScalar *px, EIGEN_BLAS_INT *incx, 
 }
 
 // computes a vector-vector dot product without complex conjugation.
-EIGEN_BLAS_FUNC(dotuw)(EIGEN_BLAS_INT *n, RealScalar *px, EIGEN_BLAS_INT *incx, RealScalar *py, EIGEN_BLAS_INT *incy, RealScalar *pres) {
+EIGEN_BLAS_FUNC(dotuw)
+(EIGEN_BLAS_INT *n, RealScalar *px, EIGEN_BLAS_INT *incx, RealScalar *py, EIGEN_BLAS_INT *incy, RealScalar *pres) {
   Scalar *res = reinterpret_cast<Scalar *>(pres);
 
   if (*n <= 0) {
@@ -119,7 +124,8 @@ EIGEN_BLAS_FUNC(dotuw)(EIGEN_BLAS_INT *n, RealScalar *px, EIGEN_BLAS_INT *incx, 
     *res = (make_vector(x, *n, -*incx).reverse().cwiseProduct(make_vector(y, *n, -*incy).reverse())).sum();
 }
 
-extern "C" RealScalar EIGEN_CAT(REAL_SCALAR_SUFFIX, EIGEN_BLAS_FUNC_NAME(nrm2))(EIGEN_BLAS_INT *n, RealScalar *px, EIGEN_BLAS_INT *incx) {
+extern "C" RealScalar EIGEN_CAT(REAL_SCALAR_SUFFIX, EIGEN_BLAS_FUNC_NAME(nrm2))(EIGEN_BLAS_INT *n, RealScalar *px,
+                                                                                EIGEN_BLAS_INT *incx) {
   //   std::cerr << "__nrm2 " << *n << " " << *incx << "\n";
   if (*n <= 0) return 0;
 
@@ -131,7 +137,8 @@ extern "C" RealScalar EIGEN_CAT(REAL_SCALAR_SUFFIX, EIGEN_BLAS_FUNC_NAME(nrm2))(
 }
 
 EIGEN_BLAS_FUNC(EIGEN_CAT(REAL_SCALAR_SUFFIX, rot))
-(EIGEN_BLAS_INT *n, RealScalar *px, EIGEN_BLAS_INT *incx, RealScalar *py, EIGEN_BLAS_INT *incy, RealScalar *pc, RealScalar *ps) {
+(EIGEN_BLAS_INT *n, RealScalar *px, EIGEN_BLAS_INT *incx, RealScalar *py, EIGEN_BLAS_INT *incy, RealScalar *pc,
+ RealScalar *ps) {
   if (*n <= 0) return;
 
   Scalar *x = reinterpret_cast<Scalar *>(px);
@@ -154,7 +161,8 @@ EIGEN_BLAS_FUNC(EIGEN_CAT(REAL_SCALAR_SUFFIX, rot))
     Eigen::internal::apply_rotation_in_the_plane(vx, vy, Eigen::JacobiRotation<Scalar>(c, s));
 }
 
-EIGEN_BLAS_FUNC(EIGEN_CAT(REAL_SCALAR_SUFFIX, scal))(EIGEN_BLAS_INT *n, RealScalar *palpha, RealScalar *px, EIGEN_BLAS_INT *incx) {
+EIGEN_BLAS_FUNC(EIGEN_CAT(REAL_SCALAR_SUFFIX, scal))
+(EIGEN_BLAS_INT *n, RealScalar *palpha, RealScalar *px, EIGEN_BLAS_INT *incx) {
   if (*n <= 0) return;
 
   Scalar *x = reinterpret_cast<Scalar *>(px);

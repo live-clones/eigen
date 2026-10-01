@@ -12,8 +12,9 @@
 
 // y = alpha*A*x + beta*y
 EIGEN_BLAS_FUNC(symv)
-(const char *uplo, const EIGEN_BLAS_INT *n, const RealScalar *palpha, const RealScalar *pa, const EIGEN_BLAS_INT *lda, const RealScalar *px,
- const EIGEN_BLAS_INT *incx, const RealScalar *pbeta, RealScalar *py, const EIGEN_BLAS_INT *incy) {
+(const char *uplo, const EIGEN_BLAS_INT *n, const RealScalar *palpha, const RealScalar *pa, const EIGEN_BLAS_INT *lda,
+ const RealScalar *px, const EIGEN_BLAS_INT *incx, const RealScalar *pbeta, RealScalar *py,
+ const EIGEN_BLAS_INT *incy) {
   typedef void (*functype)(EIGEN_BLAS_INT, const Scalar *, EIGEN_BLAS_INT, const Scalar *, Scalar *, Scalar);
   using Eigen::ColMajor;
   using Eigen::Lower;
@@ -68,8 +69,8 @@ EIGEN_BLAS_FUNC(symv)
 
 // C := alpha*x*x' + C
 EIGEN_BLAS_FUNC(syr)
-(const char *uplo, const EIGEN_BLAS_INT *n, const RealScalar *palpha, const RealScalar *px, const EIGEN_BLAS_INT *incx, RealScalar *pc,
- const EIGEN_BLAS_INT *ldc) {
+(const char *uplo, const EIGEN_BLAS_INT *n, const RealScalar *palpha, const RealScalar *px, const EIGEN_BLAS_INT *incx,
+ RealScalar *pc, const EIGEN_BLAS_INT *ldc) {
   typedef void (*functype)(EIGEN_BLAS_INT, Scalar *, EIGEN_BLAS_INT, const Scalar *, const Scalar *, const Scalar &);
   using Eigen::ColMajor;
   using Eigen::Lower;
@@ -111,8 +112,8 @@ EIGEN_BLAS_FUNC(syr)
 
 // C := alpha*x*y' + alpha*y*x' + C
 EIGEN_BLAS_FUNC(syr2)
-(const char *uplo, const EIGEN_BLAS_INT *n, const RealScalar *palpha, const RealScalar *px, const EIGEN_BLAS_INT *incx, const RealScalar *py,
- const EIGEN_BLAS_INT *incy, RealScalar *pc, const EIGEN_BLAS_INT *ldc) {
+(const char *uplo, const EIGEN_BLAS_INT *n, const RealScalar *palpha, const RealScalar *px, const EIGEN_BLAS_INT *incx,
+ const RealScalar *py, const EIGEN_BLAS_INT *incy, RealScalar *pc, const EIGEN_BLAS_INT *ldc) {
   typedef void (*functype)(EIGEN_BLAS_INT, Scalar *, EIGEN_BLAS_INT, const Scalar *, const Scalar *, Scalar);
   static const functype func[2] = {
       // array index: UP
@@ -361,9 +362,11 @@ EIGEN_BLAS_FUNC(spr)(char *uplo, EIGEN_BLAS_INT *n, Scalar *palpha, Scalar *px, 
   typedef void (*functype)(EIGEN_BLAS_INT, Scalar *, const Scalar *, Scalar);
   static const functype func[2] = {
       // array index: UP
-      (Eigen::internal::selfadjoint_packed_rank1_update<Scalar, EIGEN_BLAS_INT, Eigen::ColMajor, Eigen::Upper, false, false>::run),
+      (Eigen::internal::selfadjoint_packed_rank1_update<Scalar, EIGEN_BLAS_INT, Eigen::ColMajor, Eigen::Upper, false,
+                                                        false>::run),
       // array index: LO
-      (Eigen::internal::selfadjoint_packed_rank1_update<Scalar, EIGEN_BLAS_INT, Eigen::ColMajor, Eigen::Lower, false, false>::run),
+      (Eigen::internal::selfadjoint_packed_rank1_update<Scalar, EIGEN_BLAS_INT, Eigen::ColMajor, Eigen::Lower, false,
+                                                        false>::run),
   };
 
   Scalar *x = reinterpret_cast<Scalar *>(px);
@@ -399,7 +402,8 @@ EIGEN_BLAS_FUNC(spr)(char *uplo, EIGEN_BLAS_INT *n, Scalar *palpha, Scalar *px, 
  *  n by n symmetric matrix, supplied in packed form.
  */
 EIGEN_BLAS_FUNC(spr2)
-(char *uplo, EIGEN_BLAS_INT *n, RealScalar *palpha, RealScalar *px, EIGEN_BLAS_INT *incx, RealScalar *py, EIGEN_BLAS_INT *incy, RealScalar *pap) {
+(char *uplo, EIGEN_BLAS_INT *n, RealScalar *palpha, RealScalar *px, EIGEN_BLAS_INT *incx, RealScalar *py,
+ EIGEN_BLAS_INT *incy, RealScalar *pap) {
   typedef void (*functype)(EIGEN_BLAS_INT, Scalar *, const Scalar *, const Scalar *, Scalar);
   static const functype func[2] = {
       // array index: UP
@@ -446,7 +450,8 @@ EIGEN_BLAS_FUNC(spr2)
  *  vector and A is an m by n matrix.
  */
 EIGEN_BLAS_FUNC(ger)
-(EIGEN_BLAS_INT *m, EIGEN_BLAS_INT *n, Scalar *palpha, Scalar *px, EIGEN_BLAS_INT *incx, Scalar *py, EIGEN_BLAS_INT *incy, Scalar *pa, EIGEN_BLAS_INT *lda) {
+(EIGEN_BLAS_INT *m, EIGEN_BLAS_INT *n, Scalar *palpha, Scalar *px, EIGEN_BLAS_INT *incx, Scalar *py,
+ EIGEN_BLAS_INT *incy, Scalar *pa, EIGEN_BLAS_INT *lda) {
   Scalar *x = reinterpret_cast<Scalar *>(px);
   Scalar *y = reinterpret_cast<Scalar *>(py);
   Scalar *a = reinterpret_cast<Scalar *>(pa);

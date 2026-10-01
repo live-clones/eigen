@@ -18,8 +18,9 @@
  *  A is an n by n hermitian matrix.
  */
 EIGEN_BLAS_FUNC(hemv)
-(const char *uplo, const EIGEN_BLAS_INT *n, const RealScalar *palpha, const RealScalar *pa, const EIGEN_BLAS_INT *lda, const RealScalar *px,
- const EIGEN_BLAS_INT *incx, const RealScalar *pbeta, RealScalar *py, const EIGEN_BLAS_INT *incy) {
+(const char *uplo, const EIGEN_BLAS_INT *n, const RealScalar *palpha, const RealScalar *pa, const EIGEN_BLAS_INT *lda,
+ const RealScalar *px, const EIGEN_BLAS_INT *incx, const RealScalar *pbeta, RealScalar *py,
+ const EIGEN_BLAS_INT *incy) {
   typedef void (*functype)(EIGEN_BLAS_INT, const Scalar *, EIGEN_BLAS_INT, const Scalar *, Scalar *, Scalar);
   static const functype func[2] = {
       // array index: UP
@@ -268,13 +269,16 @@ EIGEN_BLAS_FUNC(hpmv)
  *  where alpha is a real scalar, x is an n element vector and A is an
  *  n by n hermitian matrix, supplied in packed form.
  */
-EIGEN_BLAS_FUNC(hpr)(char *uplo, EIGEN_BLAS_INT *n, RealScalar *palpha, RealScalar *px, EIGEN_BLAS_INT *incx, RealScalar *pap) {
+EIGEN_BLAS_FUNC(hpr)
+(char *uplo, EIGEN_BLAS_INT *n, RealScalar *palpha, RealScalar *px, EIGEN_BLAS_INT *incx, RealScalar *pap) {
   typedef void (*functype)(EIGEN_BLAS_INT, Scalar *, const Scalar *, RealScalar);
   static const functype func[2] = {
       // array index: UP
-      (Eigen::internal::selfadjoint_packed_rank1_update<Scalar, EIGEN_BLAS_INT, Eigen::ColMajor, Eigen::Upper, false, Conj>::run),
+      (Eigen::internal::selfadjoint_packed_rank1_update<Scalar, EIGEN_BLAS_INT, Eigen::ColMajor, Eigen::Upper, false,
+                                                        Conj>::run),
       // array index: LO
-      (Eigen::internal::selfadjoint_packed_rank1_update<Scalar, EIGEN_BLAS_INT, Eigen::ColMajor, Eigen::Lower, false, Conj>::run),
+      (Eigen::internal::selfadjoint_packed_rank1_update<Scalar, EIGEN_BLAS_INT, Eigen::ColMajor, Eigen::Lower, false,
+                                                        Conj>::run),
   };
 
   Scalar *x = reinterpret_cast<Scalar *>(px);
@@ -310,7 +314,8 @@ EIGEN_BLAS_FUNC(hpr)(char *uplo, EIGEN_BLAS_INT *n, RealScalar *palpha, RealScal
  *  n by n hermitian matrix, supplied in packed form.
  */
 EIGEN_BLAS_FUNC(hpr2)
-(char *uplo, EIGEN_BLAS_INT *n, RealScalar *palpha, RealScalar *px, EIGEN_BLAS_INT *incx, RealScalar *py, EIGEN_BLAS_INT *incy, RealScalar *pap) {
+(char *uplo, EIGEN_BLAS_INT *n, RealScalar *palpha, RealScalar *px, EIGEN_BLAS_INT *incx, RealScalar *py,
+ EIGEN_BLAS_INT *incy, RealScalar *pap) {
   typedef void (*functype)(EIGEN_BLAS_INT, Scalar *, const Scalar *, const Scalar *, Scalar);
   static const functype func[2] = {
       // array index: UP
@@ -356,7 +361,9 @@ EIGEN_BLAS_FUNC(hpr2)
  *  where alpha is a real scalar, x is an n element vector and A is an
  *  n by n hermitian matrix.
  */
-EIGEN_BLAS_FUNC(her)(char *uplo, EIGEN_BLAS_INT *n, RealScalar *palpha, RealScalar *px, EIGEN_BLAS_INT *incx, RealScalar *pa, EIGEN_BLAS_INT *lda) {
+EIGEN_BLAS_FUNC(her)
+(char *uplo, EIGEN_BLAS_INT *n, RealScalar *palpha, RealScalar *px, EIGEN_BLAS_INT *incx, RealScalar *pa,
+ EIGEN_BLAS_INT *lda) {
   typedef void (*functype)(EIGEN_BLAS_INT, Scalar *, EIGEN_BLAS_INT, const Scalar *, const Scalar *, const Scalar &);
   static const functype func[2] = {
       // array index: UP
@@ -402,8 +409,8 @@ EIGEN_BLAS_FUNC(her)(char *uplo, EIGEN_BLAS_INT *n, RealScalar *palpha, RealScal
  *  by n hermitian matrix.
  */
 EIGEN_BLAS_FUNC(her2)
-(char *uplo, EIGEN_BLAS_INT *n, RealScalar *palpha, RealScalar *px, EIGEN_BLAS_INT *incx, RealScalar *py, EIGEN_BLAS_INT *incy, RealScalar *pa,
- EIGEN_BLAS_INT *lda) {
+(char *uplo, EIGEN_BLAS_INT *n, RealScalar *palpha, RealScalar *px, EIGEN_BLAS_INT *incx, RealScalar *py,
+ EIGEN_BLAS_INT *incy, RealScalar *pa, EIGEN_BLAS_INT *lda) {
   typedef void (*functype)(EIGEN_BLAS_INT, Scalar *, EIGEN_BLAS_INT, const Scalar *, const Scalar *, Scalar);
   static const functype func[2] = {
       // array index: UP
@@ -454,7 +461,8 @@ EIGEN_BLAS_FUNC(her2)
  *  vector and A is an m by n matrix.
  */
 EIGEN_BLAS_FUNC(geru)
-(EIGEN_BLAS_INT *m, EIGEN_BLAS_INT *n, RealScalar *palpha, RealScalar *px, EIGEN_BLAS_INT *incx, RealScalar *py, EIGEN_BLAS_INT *incy, RealScalar *pa, EIGEN_BLAS_INT *lda) {
+(EIGEN_BLAS_INT *m, EIGEN_BLAS_INT *n, RealScalar *palpha, RealScalar *px, EIGEN_BLAS_INT *incx, RealScalar *py,
+ EIGEN_BLAS_INT *incy, RealScalar *pa, EIGEN_BLAS_INT *lda) {
   Scalar *x = reinterpret_cast<Scalar *>(px);
   Scalar *y = reinterpret_cast<Scalar *>(py);
   Scalar *a = reinterpret_cast<Scalar *>(pa);
@@ -493,7 +501,8 @@ EIGEN_BLAS_FUNC(geru)
  *  vector and A is an m by n matrix.
  */
 EIGEN_BLAS_FUNC(gerc)
-(EIGEN_BLAS_INT *m, EIGEN_BLAS_INT *n, RealScalar *palpha, RealScalar *px, EIGEN_BLAS_INT *incx, RealScalar *py, EIGEN_BLAS_INT *incy, RealScalar *pa, EIGEN_BLAS_INT *lda) {
+(EIGEN_BLAS_INT *m, EIGEN_BLAS_INT *n, RealScalar *palpha, RealScalar *px, EIGEN_BLAS_INT *incx, RealScalar *py,
+ EIGEN_BLAS_INT *incy, RealScalar *pa, EIGEN_BLAS_INT *lda) {
   Scalar *x = reinterpret_cast<Scalar *>(px);
   Scalar *y = reinterpret_cast<Scalar *>(py);
   Scalar *a = reinterpret_cast<Scalar *>(pa);
@@ -517,8 +526,8 @@ EIGEN_BLAS_FUNC(gerc)
   Scalar *x_cpy = get_compact_vector(x, *m, *incx);
   Scalar *y_cpy = get_compact_vector(y, *n, *incy);
 
-  Eigen::internal::general_rank1_update<Scalar, EIGEN_BLAS_INT, Eigen::ColMajor, false, Conj>::run(
-      *m, *n, a, *lda, x_cpy, y_cpy, alpha);
+  Eigen::internal::general_rank1_update<Scalar, EIGEN_BLAS_INT, Eigen::ColMajor, false, Conj>::run(*m, *n, a, *lda,
+                                                                                                   x_cpy, y_cpy, alpha);
 
   if (x_cpy != x) delete[] x_cpy;
   if (y_cpy != y) delete[] y_cpy;

@@ -88,41 +88,40 @@ typedef Eigen::Map<Eigen::Matrix<Scalar, Eigen::Dynamic, 1>, 0, Eigen::InnerStri
 typedef Eigen::Map<Eigen::Matrix<Scalar, Eigen::Dynamic, 1> > CompactVectorType;
 
 template <typename T>
-Eigen::Map<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>, 0, Eigen::OuterStride<> > matrix(
+Eigen::Map<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>, 0, Eigen::OuterStride<>> matrix(
     T* data, EIGEN_BLAS_INT rows, EIGEN_BLAS_INT cols, EIGEN_BLAS_INT stride) {
   return Eigen::Map<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>, 0, Eigen::OuterStride<> >(
       data, rows, cols, Eigen::OuterStride<>(stride));
 }
 
 template <typename T>
-Eigen::Map<const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>, 0, Eigen::OuterStride<> > matrix(
+Eigen::Map<const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>, 0, Eigen::OuterStride<>> matrix(
     const T* data, EIGEN_BLAS_INT rows, EIGEN_BLAS_INT cols, EIGEN_BLAS_INT stride) {
   return Eigen::Map<const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>, 0, Eigen::OuterStride<> >(
       data, rows, cols, Eigen::OuterStride<>(stride));
 }
 
 template <typename T>
-Eigen::Map<Eigen::Matrix<T, Eigen::Dynamic, 1>, 0, Eigen::InnerStride<Eigen::Dynamic> > make_vector(T* data, EIGEN_BLAS_INT size,
-                                                                                                    EIGEN_BLAS_INT incr) {
+Eigen::Map<Eigen::Matrix<T, Eigen::Dynamic, 1>, 0, Eigen::InnerStride<Eigen::Dynamic>> make_vector(
+    T* data, EIGEN_BLAS_INT size, EIGEN_BLAS_INT incr) {
   return Eigen::Map<Eigen::Matrix<T, Eigen::Dynamic, 1>, 0, Eigen::InnerStride<Eigen::Dynamic> >(
       data, size, Eigen::InnerStride<Eigen::Dynamic>(incr));
 }
 
 template <typename T>
-Eigen::Map<const Eigen::Matrix<T, Eigen::Dynamic, 1>, 0, Eigen::InnerStride<Eigen::Dynamic> > make_vector(const T* data,
-                                                                                                          EIGEN_BLAS_INT size,
-                                                                                                          EIGEN_BLAS_INT incr) {
+Eigen::Map<const Eigen::Matrix<T, Eigen::Dynamic, 1>, 0, Eigen::InnerStride<Eigen::Dynamic>> make_vector(
+    const T* data, EIGEN_BLAS_INT size, EIGEN_BLAS_INT incr) {
   return Eigen::Map<const Eigen::Matrix<T, Eigen::Dynamic, 1>, 0, Eigen::InnerStride<Eigen::Dynamic> >(
       data, size, Eigen::InnerStride<Eigen::Dynamic>(incr));
 }
 
 template <typename T>
-Eigen::Map<Eigen::Matrix<T, Eigen::Dynamic, 1> > make_vector(T* data, EIGEN_BLAS_INT size) {
+Eigen::Map<Eigen::Matrix<T, Eigen::Dynamic, 1>> make_vector(T* data, EIGEN_BLAS_INT size) {
   return Eigen::Map<Eigen::Matrix<T, Eigen::Dynamic, 1> >(data, size);
 }
 
 template <typename T>
-Eigen::Map<const Eigen::Matrix<T, Eigen::Dynamic, 1> > make_vector(const T* data, EIGEN_BLAS_INT size) {
+Eigen::Map<const Eigen::Matrix<T, Eigen::Dynamic, 1>> make_vector(const T* data, EIGEN_BLAS_INT size) {
   return Eigen::Map<const Eigen::Matrix<T, Eigen::Dynamic, 1> >(data, size);
 }
 

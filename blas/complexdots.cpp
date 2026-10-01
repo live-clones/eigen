@@ -54,28 +54,32 @@ struct eigen_blas_complex_double {
 };
 
 // CDOTC computes the conjugated dot product of two single-precision complex vectors.
-EIGEN_BLAS_CDOT_API eigen_blas_complex_float cdotc_(EIGEN_BLAS_INT *n, float *cx, EIGEN_BLAS_INT *incx, float *cy, EIGEN_BLAS_INT *incy) {
+EIGEN_BLAS_CDOT_API eigen_blas_complex_float cdotc_(EIGEN_BLAS_INT *n, float *cx, EIGEN_BLAS_INT *incx, float *cy,
+                                                    EIGEN_BLAS_INT *incy) {
   eigen_blas_complex_float res = {0.0f, 0.0f};
   cdotcw_(n, cx, incx, cy, incy, &res.r);
   return res;
 }
 
 // CDOTU computes the unconjugated dot product of two single-precision complex vectors.
-EIGEN_BLAS_CDOT_API eigen_blas_complex_float cdotu_(EIGEN_BLAS_INT *n, float *cx, EIGEN_BLAS_INT *incx, float *cy, EIGEN_BLAS_INT *incy) {
+EIGEN_BLAS_CDOT_API eigen_blas_complex_float cdotu_(EIGEN_BLAS_INT *n, float *cx, EIGEN_BLAS_INT *incx, float *cy,
+                                                    EIGEN_BLAS_INT *incy) {
   eigen_blas_complex_float res = {0.0f, 0.0f};
   cdotuw_(n, cx, incx, cy, incy, &res.r);
   return res;
 }
 
 // ZDOTC computes the conjugated dot product of two double-precision complex vectors.
-EIGEN_BLAS_CDOT_API eigen_blas_complex_double zdotc_(EIGEN_BLAS_INT *n, double *cx, EIGEN_BLAS_INT *incx, double *cy, EIGEN_BLAS_INT *incy) {
+EIGEN_BLAS_CDOT_API eigen_blas_complex_double zdotc_(EIGEN_BLAS_INT *n, double *cx, EIGEN_BLAS_INT *incx, double *cy,
+                                                     EIGEN_BLAS_INT *incy) {
   eigen_blas_complex_double res = {0.0, 0.0};
   zdotcw_(n, cx, incx, cy, incy, &res.r);
   return res;
 }
 
 // ZDOTU computes the unconjugated dot product of two double-precision complex vectors.
-EIGEN_BLAS_CDOT_API eigen_blas_complex_double zdotu_(EIGEN_BLAS_INT *n, double *cx, EIGEN_BLAS_INT *incx, double *cy, EIGEN_BLAS_INT *incy) {
+EIGEN_BLAS_CDOT_API eigen_blas_complex_double zdotu_(EIGEN_BLAS_INT *n, double *cx, EIGEN_BLAS_INT *incx, double *cy,
+                                                     EIGEN_BLAS_INT *incy) {
   eigen_blas_complex_double res = {0.0, 0.0};
   zdotuw_(n, cx, incx, cy, incy, &res.r);
   return res;

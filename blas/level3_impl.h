@@ -10,9 +10,9 @@
 #include "common.h"
 
 EIGEN_BLAS_FUNC(gemm)
-(const char *opa, const char *opb, const EIGEN_BLAS_INT *m, const EIGEN_BLAS_INT *n, const EIGEN_BLAS_INT *k, const RealScalar *palpha,
- const RealScalar *pa, const EIGEN_BLAS_INT *lda, const RealScalar *pb, const EIGEN_BLAS_INT *ldb, const RealScalar *pbeta, RealScalar *pc,
- const EIGEN_BLAS_INT *ldc) {
+(const char *opa, const char *opb, const EIGEN_BLAS_INT *m, const EIGEN_BLAS_INT *n, const EIGEN_BLAS_INT *k,
+ const RealScalar *palpha, const RealScalar *pa, const EIGEN_BLAS_INT *lda, const RealScalar *pb,
+ const EIGEN_BLAS_INT *ldb, const RealScalar *pbeta, RealScalar *pc, const EIGEN_BLAS_INT *ldc) {
   using Eigen::ColMajor;
   using Eigen::DenseIndex;
   using Eigen::Dynamic;
@@ -96,9 +96,9 @@ EIGEN_BLAS_FUNC(gemm)
 }
 
 EIGEN_BLAS_FUNC(gemmtr)
-(const char *uplo, const char *opa, const char *opb, const EIGEN_BLAS_INT *n, const EIGEN_BLAS_INT *k, const RealScalar *palpha,
- const RealScalar *pa, const EIGEN_BLAS_INT *lda, const RealScalar *pb, const EIGEN_BLAS_INT *ldb, const RealScalar *pbeta, RealScalar *pc,
- const EIGEN_BLAS_INT *ldc) {
+(const char *uplo, const char *opa, const char *opb, const EIGEN_BLAS_INT *n, const EIGEN_BLAS_INT *k,
+ const RealScalar *palpha, const RealScalar *pa, const EIGEN_BLAS_INT *lda, const RealScalar *pb,
+ const EIGEN_BLAS_INT *ldb, const RealScalar *pbeta, RealScalar *pc, const EIGEN_BLAS_INT *ldc) {
   using Eigen::ColMajor;
   using Eigen::DenseIndex;
   using Eigen::Dynamic;
@@ -228,8 +228,9 @@ EIGEN_BLAS_FUNC(gemmtr)
 }
 
 EIGEN_BLAS_FUNC(trsm)
-(const char *side, const char *uplo, const char *opa, const char *diag, const EIGEN_BLAS_INT *m, const EIGEN_BLAS_INT *n,
- const RealScalar *palpha, const RealScalar *pa, const EIGEN_BLAS_INT *lda, RealScalar *pb, const EIGEN_BLAS_INT *ldb) {
+(const char *side, const char *uplo, const char *opa, const char *diag, const EIGEN_BLAS_INT *m,
+ const EIGEN_BLAS_INT *n, const RealScalar *palpha, const RealScalar *pa, const EIGEN_BLAS_INT *lda, RealScalar *pb,
+ const EIGEN_BLAS_INT *ldb) {
   using Eigen::ColMajor;
   using Eigen::DenseIndex;
   using Eigen::Dynamic;
@@ -366,8 +367,9 @@ EIGEN_BLAS_FUNC(trsm)
 // b = alpha*op(a)*b  for side = 'L'or'l'
 // b = alpha*b*op(a)  for side = 'R'or'r'
 EIGEN_BLAS_FUNC(trmm)
-(const char *side, const char *uplo, const char *opa, const char *diag, const EIGEN_BLAS_INT *m, const EIGEN_BLAS_INT *n,
- const RealScalar *palpha, const RealScalar *pa, const EIGEN_BLAS_INT *lda, RealScalar *pb, const EIGEN_BLAS_INT *ldb) {
+(const char *side, const char *uplo, const char *opa, const char *diag, const EIGEN_BLAS_INT *m,
+ const EIGEN_BLAS_INT *n, const RealScalar *palpha, const RealScalar *pa, const EIGEN_BLAS_INT *lda, RealScalar *pb,
+ const EIGEN_BLAS_INT *ldb) {
   using Eigen::ColMajor;
   using Eigen::DenseIndex;
   using Eigen::Dynamic;
@@ -505,8 +507,9 @@ EIGEN_BLAS_FUNC(trmm)
 // c = alpha*a*b + beta*c  for side = 'L'or'l'
 // c = alpha*b*a + beta*c  for side = 'R'or'r
 EIGEN_BLAS_FUNC(symm)
-(const char *side, const char *uplo, const EIGEN_BLAS_INT *m, const EIGEN_BLAS_INT *n, const RealScalar *palpha, const RealScalar *pa,
- const EIGEN_BLAS_INT *lda, const RealScalar *pb, const EIGEN_BLAS_INT *ldb, const RealScalar *pbeta, RealScalar *pc, const EIGEN_BLAS_INT *ldc) {
+(const char *side, const char *uplo, const EIGEN_BLAS_INT *m, const EIGEN_BLAS_INT *n, const RealScalar *palpha,
+ const RealScalar *pa, const EIGEN_BLAS_INT *lda, const RealScalar *pb, const EIGEN_BLAS_INT *ldb,
+ const RealScalar *pbeta, RealScalar *pc, const EIGEN_BLAS_INT *ldc) {
   const Scalar *a = reinterpret_cast<const Scalar *>(pa);
   const Scalar *b = reinterpret_cast<const Scalar *>(pb);
   Scalar *c = reinterpret_cast<Scalar *>(pc);
@@ -594,8 +597,8 @@ EIGEN_BLAS_FUNC(symm)
 // c = alpha*a*a' + beta*c  for op = 'N'or'n'
 // c = alpha*a'*a + beta*c  for op = 'T'or't','C'or'c'
 EIGEN_BLAS_FUNC(syrk)
-(const char *uplo, const char *op, const EIGEN_BLAS_INT *n, const EIGEN_BLAS_INT *k, const RealScalar *palpha, const RealScalar *pa,
- const EIGEN_BLAS_INT *lda, const RealScalar *pbeta, RealScalar *pc, const EIGEN_BLAS_INT *ldc) {
+(const char *uplo, const char *op, const EIGEN_BLAS_INT *n, const EIGEN_BLAS_INT *k, const RealScalar *palpha,
+ const RealScalar *pa, const EIGEN_BLAS_INT *lda, const RealScalar *pbeta, RealScalar *pc, const EIGEN_BLAS_INT *ldc) {
   using Eigen::ColMajor;
   using Eigen::DenseIndex;
   using Eigen::Dynamic;
@@ -691,8 +694,9 @@ EIGEN_BLAS_FUNC(syrk)
 // c = alpha*a*b' + alpha*b*a' + beta*c  for op = 'N'or'n'
 // c = alpha*a'*b + alpha*b'*a + beta*c  for op = 'T'or't'
 EIGEN_BLAS_FUNC(syr2k)
-(const char *uplo, const char *op, const EIGEN_BLAS_INT *n, const EIGEN_BLAS_INT *k, const RealScalar *palpha, const RealScalar *pa,
- const EIGEN_BLAS_INT *lda, const RealScalar *pb, const EIGEN_BLAS_INT *ldb, const RealScalar *pbeta, RealScalar *pc, const EIGEN_BLAS_INT *ldc) {
+(const char *uplo, const char *op, const EIGEN_BLAS_INT *n, const EIGEN_BLAS_INT *k, const RealScalar *palpha,
+ const RealScalar *pa, const EIGEN_BLAS_INT *lda, const RealScalar *pb, const EIGEN_BLAS_INT *ldb,
+ const RealScalar *pbeta, RealScalar *pc, const EIGEN_BLAS_INT *ldc) {
   const Scalar *a = reinterpret_cast<const Scalar *>(pa);
   const Scalar *b = reinterpret_cast<const Scalar *>(pb);
   Scalar *c = reinterpret_cast<Scalar *>(pc);
@@ -758,8 +762,9 @@ EIGEN_BLAS_FUNC(syr2k)
 // c = alpha*a*b + beta*c  for side = 'L'or'l'
 // c = alpha*b*a + beta*c  for side = 'R'or'r
 EIGEN_BLAS_FUNC(hemm)
-(const char *side, const char *uplo, const EIGEN_BLAS_INT *m, const EIGEN_BLAS_INT *n, const RealScalar *palpha, const RealScalar *pa,
- const EIGEN_BLAS_INT *lda, const RealScalar *pb, const EIGEN_BLAS_INT *ldb, const RealScalar *pbeta, RealScalar *pc, const EIGEN_BLAS_INT *ldc) {
+(const char *side, const char *uplo, const EIGEN_BLAS_INT *m, const EIGEN_BLAS_INT *n, const RealScalar *palpha,
+ const RealScalar *pa, const EIGEN_BLAS_INT *lda, const RealScalar *pb, const EIGEN_BLAS_INT *ldb,
+ const RealScalar *pbeta, RealScalar *pc, const EIGEN_BLAS_INT *ldc) {
   const Scalar *a = reinterpret_cast<const Scalar *>(pa);
   const Scalar *b = reinterpret_cast<const Scalar *>(pb);
   Scalar *c = reinterpret_cast<Scalar *>(pc);
@@ -833,8 +838,8 @@ RowMajor,true,Conj,  ColMajor, 1>
 // c = alpha*a*conj(a') + beta*c  for op = 'N'or'n'
 // c = alpha*conj(a')*a + beta*c  for op  = 'C'or'c'
 EIGEN_BLAS_FUNC(herk)
-(const char *uplo, const char *op, const EIGEN_BLAS_INT *n, const EIGEN_BLAS_INT *k, const RealScalar *palpha, const RealScalar *pa,
- const EIGEN_BLAS_INT *lda, const RealScalar *pbeta, RealScalar *pc, const EIGEN_BLAS_INT *ldc) {
+(const char *uplo, const char *op, const EIGEN_BLAS_INT *n, const EIGEN_BLAS_INT *k, const RealScalar *palpha,
+ const RealScalar *pa, const EIGEN_BLAS_INT *lda, const RealScalar *pbeta, RealScalar *pc, const EIGEN_BLAS_INT *ldc) {
   using Eigen::ColMajor;
   using Eigen::DenseIndex;
   using Eigen::Dynamic;
@@ -913,8 +918,9 @@ EIGEN_BLAS_FUNC(herk)
 // c = alpha*a*conj(b') + conj(alpha)*b*conj(a') + beta*c,  for op = 'N'or'n'
 // c = alpha*conj(a')*b + conj(alpha)*conj(b')*a + beta*c,  for op = 'C'or'c'
 EIGEN_BLAS_FUNC(her2k)
-(const char *uplo, const char *op, const EIGEN_BLAS_INT *n, const EIGEN_BLAS_INT *k, const RealScalar *palpha, const RealScalar *pa,
- const EIGEN_BLAS_INT *lda, const RealScalar *pb, const EIGEN_BLAS_INT *ldb, const RealScalar *pbeta, RealScalar *pc, const EIGEN_BLAS_INT *ldc) {
+(const char *uplo, const char *op, const EIGEN_BLAS_INT *n, const EIGEN_BLAS_INT *k, const RealScalar *palpha,
+ const RealScalar *pa, const EIGEN_BLAS_INT *lda, const RealScalar *pb, const EIGEN_BLAS_INT *ldb,
+ const RealScalar *pbeta, RealScalar *pc, const EIGEN_BLAS_INT *ldc) {
   const Scalar *a = reinterpret_cast<const Scalar *>(pa);
   const Scalar *b = reinterpret_cast<const Scalar *>(pb);
   Scalar *c = reinterpret_cast<Scalar *>(pc);

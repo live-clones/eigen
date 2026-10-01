@@ -11,7 +11,8 @@
 #include "common.h"
 
 EIGEN_BLAS_FUNC(axpy)
-(const EIGEN_BLAS_INT *n, const RealScalar *palpha, const RealScalar *px, const EIGEN_BLAS_INT *incx, RealScalar *py, const EIGEN_BLAS_INT *incy) {
+(const EIGEN_BLAS_INT *n, const RealScalar *palpha, const RealScalar *px, const EIGEN_BLAS_INT *incx, RealScalar *py,
+ const EIGEN_BLAS_INT *incy) {
   const Scalar *x = reinterpret_cast<const Scalar *>(px);
   Scalar *y = reinterpret_cast<Scalar *>(py);
   Scalar alpha = *reinterpret_cast<const Scalar *>(palpha);
@@ -31,8 +32,8 @@ EIGEN_BLAS_FUNC(axpy)
 }
 
 EIGEN_BLAS_FUNC(axpby)
-(const EIGEN_BLAS_INT *pn, const RealScalar *palpha, const RealScalar *px, const EIGEN_BLAS_INT *pincx, const RealScalar *pbeta,
- RealScalar *py, const EIGEN_BLAS_INT *pincy) {
+(const EIGEN_BLAS_INT *pn, const RealScalar *palpha, const RealScalar *px, const EIGEN_BLAS_INT *pincx,
+ const RealScalar *pbeta, RealScalar *py, const EIGEN_BLAS_INT *pincy) {
   const Scalar *x = reinterpret_cast<const Scalar *>(px);
   Scalar *y = reinterpret_cast<Scalar *>(py);
   const Scalar alpha = *reinterpret_cast<const Scalar *>(palpha);

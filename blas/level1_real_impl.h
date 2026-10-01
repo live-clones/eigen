@@ -25,7 +25,8 @@ extern "C" RealScalar EIGEN_BLAS_FUNC_NAME(asum)(EIGEN_BLAS_INT *n, Scalar *px, 
     return make_vector(x, *n, std::abs(*incx)).cwiseAbs().sum();
 }
 
-extern "C" EIGEN_BLAS_INT EIGEN_CAT(i, EIGEN_BLAS_FUNC_NAME(amax))(EIGEN_BLAS_INT *n, Scalar *px, EIGEN_BLAS_INT *incx) {
+extern "C" EIGEN_BLAS_INT EIGEN_CAT(i, EIGEN_BLAS_FUNC_NAME(amax))(EIGEN_BLAS_INT *n, Scalar *px,
+                                                                   EIGEN_BLAS_INT *incx) {
   if (*n <= 0) return 0;
   Scalar *x = reinterpret_cast<Scalar *>(px);
 
@@ -37,7 +38,8 @@ extern "C" EIGEN_BLAS_INT EIGEN_CAT(i, EIGEN_BLAS_FUNC_NAME(amax))(EIGEN_BLAS_IN
   return EIGEN_BLAS_INT(ret) + 1;
 }
 
-extern "C" EIGEN_BLAS_INT EIGEN_CAT(i, EIGEN_BLAS_FUNC_NAME(amin))(EIGEN_BLAS_INT *n, Scalar *px, EIGEN_BLAS_INT *incx) {
+extern "C" EIGEN_BLAS_INT EIGEN_CAT(i, EIGEN_BLAS_FUNC_NAME(amin))(EIGEN_BLAS_INT *n, Scalar *px,
+                                                                   EIGEN_BLAS_INT *incx) {
   if (*n <= 0) return 0;
   Scalar *x = reinterpret_cast<Scalar *>(px);
 
@@ -50,7 +52,8 @@ extern "C" EIGEN_BLAS_INT EIGEN_CAT(i, EIGEN_BLAS_FUNC_NAME(amin))(EIGEN_BLAS_IN
 }
 
 // computes a vector-vector dot product.
-extern "C" Scalar EIGEN_BLAS_FUNC_NAME(dot)(EIGEN_BLAS_INT *n, Scalar *px, EIGEN_BLAS_INT *incx, Scalar *py, EIGEN_BLAS_INT *incy) {
+extern "C" Scalar EIGEN_BLAS_FUNC_NAME(dot)(EIGEN_BLAS_INT *n, Scalar *px, EIGEN_BLAS_INT *incx, Scalar *py,
+                                            EIGEN_BLAS_INT *incy) {
   //   std::cerr << "_dot " << *n << " " << *incx << " " << *incy << "\n";
 
   if (*n <= 0) return 0;
@@ -84,7 +87,8 @@ extern "C" Scalar EIGEN_BLAS_FUNC_NAME(nrm2)(EIGEN_BLAS_INT *n, Scalar *px, EIGE
     return make_vector(x, *n, std::abs(*incx)).stableNorm();
 }
 
-EIGEN_BLAS_FUNC(rot)(EIGEN_BLAS_INT *n, Scalar *px, EIGEN_BLAS_INT *incx, Scalar *py, EIGEN_BLAS_INT *incy, Scalar *pc, Scalar *ps) {
+EIGEN_BLAS_FUNC(rot)
+(EIGEN_BLAS_INT *n, Scalar *px, EIGEN_BLAS_INT *incx, Scalar *py, EIGEN_BLAS_INT *incy, Scalar *pc, Scalar *ps) {
   //   std::cerr << "_rot " << *n << " " << *incx << " " << *incy << "\n";
   if (*n <= 0) return;
 
@@ -114,7 +118,8 @@ EIGEN_BLAS_FUNC(rot)(EIGEN_BLAS_INT *n, Scalar *px, EIGEN_BLAS_INT *incx, Scalar
 //      1: H = [[h11, 1], [-1, h22]]             (h11, h22 from param)
 //     -2: H = identity                           (no-op)
 //   param[1..4] = h11, h21, h12, h22
-EIGEN_BLAS_FUNC(rotm)(EIGEN_BLAS_INT *n, Scalar *px, EIGEN_BLAS_INT *incx, Scalar *py, EIGEN_BLAS_INT *incy, Scalar *param) {
+EIGEN_BLAS_FUNC(rotm)
+(EIGEN_BLAS_INT *n, Scalar *px, EIGEN_BLAS_INT *incx, Scalar *py, EIGEN_BLAS_INT *incy, Scalar *param) {
   Scalar *x = reinterpret_cast<Scalar *>(px);
   Scalar *y = reinterpret_cast<Scalar *>(py);
 
