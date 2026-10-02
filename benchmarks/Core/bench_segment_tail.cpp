@@ -8,8 +8,8 @@
 //                    (compile-time tail count; the #3083 regression shape)
 //   * dynamic     -> LinearVectorizedTraversal / NoUnrolling
 //                    (runtime tail count)
-// Part A's destinations are not read back, so it does NOT exercise the
-// store-to-load forwarding hazard -- see Part C.
+// Part A's destinations are not read back, so apart from DynChain it does NOT
+// exercise the store-to-load forwarding hazard -- see Part C.
 //
 // Part B is a direct A/B of the segment primitives (ploaduSegment /
 // pstoreuSegment) against an equivalent scalar loop, swept over the tail
@@ -117,6 +117,25 @@ void BM_DynamicAssign(benchmark::State& state) {
     benchmark::ClobberMemory();
   }
   state.SetBytesProcessed(state.iterations() * static_cast<int64_t>(size) * sizeof(T) * 3);
+}
+
+// Dynamic-size chain: the second assignment reloads tmp right after the first stores it, so the
+// tail store sits on the critical path. A masked store does not forward to that reload.
+template <typename T>
+void BM_DynamicChain(benchmark::State& state) {
+  const Index size = state.range(0);
+  using Vec = Matrix<T, Dynamic, 1>;
+  Vec a = Vec::Random(size), b = Vec::Random(size), c = Vec::Random(size), tmp(size), dst(size);
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(a.data());
+    benchmark::DoNotOptimize(b.data());
+    benchmark::DoNotOptimize(tmp.data());
+    tmp = a + b;
+    benchmark::ClobberMemory();
+    dst = tmp.cwiseProduct(c);
+    benchmark::DoNotOptimize(dst.data());
+    benchmark::ClobberMemory();
+  }
 }
 
 // ===========================================================================
@@ -557,6 +576,8 @@ template <typename T>
 void add_dynamic() {
   auto* b = benchmark::RegisterBenchmark(std::string("DynAssign/") + type_tag<T>(), &BM_DynamicAssign<T>);
   for (int s : {15, 17, 31, 33, 63, 65, 127, 129, 255, 1025}) b->Arg(s);
+  auto* c = benchmark::RegisterBenchmark(std::string("DynChain/") + type_tag<T>(), &BM_DynamicChain<T>);
+  for (int s : {3, 7, 15, 17, 33, 129, 1025}) c->Arg(s);
 }
 
 // Part B : segment vs scalar primitives, runtime count 1..PacketSize.
