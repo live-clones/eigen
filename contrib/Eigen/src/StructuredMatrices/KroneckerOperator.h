@@ -499,6 +499,8 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
   // Factor-kind dispatch (dense, diagonal or sparse), see kron_factor_ops.
   using LhsOps = internal::kron_factor_ops<LhsMatrix>;
   using RhsOps = internal::kron_factor_ops<RhsMatrix>;
+
+ public:
   using ComplexScalar = std::complex<RealScalar>;
   // The vec-trick reshapes below identify a vector of length n1*n2 with an
   // n2 x n1 matrix whose columns are stacked, so every workspace taking part
@@ -509,7 +511,6 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
   using ComplexMatrix = Matrix<ComplexScalar, Dynamic, Dynamic, ColMajor>;
   using ComplexVector = Matrix<ComplexScalar, Dynamic, 1>;
 
- public:
   static constexpr int RowsAtCompileTime =
       internal::size_at_compile_time(LhsMatrix::RowsAtCompileTime, RhsMatrix::RowsAtCompileTime);
   static constexpr int ColsAtCompileTime =
@@ -578,8 +579,8 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
    * nrhs (n1 + n2) n1 n2) total cost for dense factors; a diagonal factor
    * contributes only O(nrhs n1 n2), a sparse one its factorization plus its
    * substitutions. As in any chain of solves, \f$ B^{-1} \mathrm{mat}(b) \f$
-   * can over- or underflow on extreme factor magnitudes (\c B tiny, \c A
-   * huge) even when the solution is representable.
+   * can overflow (\c B tiny) or underflow (\c B huge, \c A tiny) on extreme
+   * factor magnitudes even when the solution is representable.
    * \warning Both factors must be invertible, like in \c PartialPivLU: a
    * singular dense factor substitutes Inf/NaN through the solution, and a
    * sparse factor whose \c SparseLU factorization fails solves to NaN. Use
@@ -620,9 +621,9 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
    * Handles rectangular and rank-deficient factors. Supports multiple
    * right-hand sides, applied in cache-sized batches with one product per
    * factor matrix per batch. A retained mode is scaled by the reciprocal of
-   * \f$ \sigma_i(A)\,\sigma_j(B) \f$, which loses precision or vanishes once
-   * that product exceeds \f$ 2^{e_{max}-2} \f$, i.e. once \f$ \|A \otimes B\|_2 \f$
-   * itself leaves the representable range. */
+   * \f$ \sigma_i(A)\,\sigma_j(B) \f$, which loses precision once that product
+   * exceeds \f$ 2^{e_{max}-2} \f$ and vanishes once it overflows, even when the
+   * solution \f$ x \f$ is representable. */
   template <typename Rhs>
   Matrix<Scalar, ColsAtCompileTime, Rhs::ColsAtCompileTime> leastSquaresSolve(const MatrixBase<Rhs>& b) const {
     EIGEN_STATIC_ASSERT(RowsAtCompileTime == Dynamic || Rhs::RowsAtCompileTime == Dynamic ||
@@ -944,7 +945,7 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
    * \a perColumn workspace entries each one needs: as many as fit in an eighth
    * of the L2 cache, at least one. Stacking widens the factor products, which
    * pays for small factors; larger workspaces cost more in allocation and cache
-   * misses than they gain (measured in benchmarks/StructuredMatrices). */
+   * misses than they gain (measured in bench_structured_kronecker_batched). */
   template <typename WorkScalar>
   static Index rhsChunk(Index perColumn) {
     const Index budget = Index(l2CacheSize() / 8) / Index(sizeof(WorkScalar));

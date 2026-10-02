@@ -3,7 +3,8 @@
 
 // KroneckerOperator products and solves, (A (x) B) vec(X) = vec(B X A^T), with
 // n x n factors and r right-hand sides. The product GFLOPS count
-// 2 r (work(B) n1 + m2 work(A)) flops, work(F) = stored entries of F.
+// 2 r (work(B) n1 + m2 work(A)) flops, work(F) = stored entries of F. Each
+// benchmark first checks its result outside the timed loop.
 
 #include <benchmark/benchmark.h>
 #include <Eigen/Dense>
@@ -39,11 +40,30 @@ void setFlops(benchmark::State& state, double flopsPerIteration) {
       benchmark::Counter(1e-9 * flopsPerIteration, benchmark::Counter::kIsIterationInvariantRate);
 }
 
+// The batched result must match the operator applied to one column at a time.
+template <typename Lhs, typename Rhs>
+bool productMatchesColumns(const KroneckerOperator<Lhs, Rhs>& K, const Mat& X, const Mat& Y) {
+  Mat expected(K.rows(), X.cols());
+  for (Index k = 0; k < X.cols(); ++k) expected.col(k) = K * X.col(k);
+  return (Y - expected).norm() <= 1e-10 * expected.norm();
+}
+
+// K x = b up to the conditioning of the (diagonally dominant) factors.
+template <typename Lhs, typename Rhs>
+bool solveHasSmallResidual(const KroneckerOperator<Lhs, Rhs>& K, const Mat& x, const Mat& b) {
+  const Mat residual = K * x - b;
+  return residual.norm() <= 1e-8 * b.norm();
+}
+
 template <typename Lhs, typename Rhs>
 void runProduct(benchmark::State& state, const KroneckerOperator<Lhs, Rhs>& K, double workA, double workB) {
   const Index r = state.range(1);
   const Mat X = Mat::Random(K.cols(), r);
-  Mat Y(K.rows(), r);
+  Mat Y = K * X;
+  if (!productMatchesColumns(K, X, Y)) {
+    state.SkipWithError("batched product differs from the column-by-column product");
+    return;
+  }
   for (auto _ : state) {
     Y.noalias() = K * X;
     benchmark::DoNotOptimize(Y.data());
@@ -89,7 +109,11 @@ void BM_ProductIdentitySparse(benchmark::State& state) {
 template <typename Lhs, typename Rhs>
 void runSolve(benchmark::State& state, const KroneckerOperator<Lhs, Rhs>& K) {
   const Mat b = Mat::Random(K.rows(), state.range(1));
-  Mat x(K.cols(), b.cols());
+  Mat x = K.solve(b);
+  if (!solveHasSmallResidual(K, x, b)) {
+    state.SkipWithError("solve residual too large");
+    return;
+  }
   for (auto _ : state) {
     x = K.solve(b);
     benchmark::DoNotOptimize(x.data());
@@ -109,9 +133,13 @@ void BM_SolveSparse(benchmark::State& state) {
 
 void BM_LeastSquaresDense(benchmark::State& state) {
   const Index n = state.range(0);
-  const KroneckerOperator<Mat, Mat> K(Mat::Random(n, n), Mat::Random(n, n));
+  const KroneckerOperator<Mat, Mat> K(dominant(n), dominant(n));  // full rank: least squares is the solve
   const Mat b = Mat::Random(K.rows(), state.range(1));
-  Mat x(K.cols(), b.cols());
+  Mat x = K.leastSquaresSolve(b);
+  if (!solveHasSmallResidual(K, x, b)) {
+    state.SkipWithError("least-squares residual too large");
+    return;
+  }
   for (auto _ : state) {
     x = K.leastSquaresSolve(b);
     benchmark::DoNotOptimize(x.data());

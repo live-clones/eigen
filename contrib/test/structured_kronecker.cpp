@@ -272,6 +272,35 @@ void test_kron_chunked() {
   VERIFY_IS_APPROX(Kss.solve(b), x);
   const KroneckerOperator<Mat, Mat> Kl(Mat::Random(2, 1), Mat::Random(2, 2));
   VERIFY_IS_APPROX(Kl.leastSquaresSolve(b), Mat(Mat(Kl).completeOrthogonalDecomposition().solve(Mat(b))));
+  // A diagonal factor solves by entrywise division of the stacked right-hand sides.
+  const Vec d = Vec::Random(2) + Vec::Constant(2, Scalar(4));
+  const KroneckerOperator<Diag, Mat> Kdl(Diag(d), Bd);
+  VERIFY_IS_APPROX(Kdl.solve(b), Mat(Mat(Kdl).partialPivLu().solve(Mat(b))));
+  const KroneckerOperator<Mat, Diag> Kdr(Ad, Diag(d));
+  VERIFY_IS_APPROX(Kdr.solve(b), Mat(Mat(Kdr).partialPivLu().solve(Mat(b))));
+
+  setCpuCacheSizes(l1, l2, l3);
+}
+
+// A real operator applied to complex right-hand sides, in several chunks.
+template <typename RealScalar>
+void test_kron_chunked_mixed_scalar() {
+  using Complex = std::complex<RealScalar>;
+  using RMat = Matrix<RealScalar, Dynamic, Dynamic>;
+  using CMat = Matrix<Complex, Dynamic, Dynamic>;
+  using CRowMat = Matrix<Complex, Dynamic, Dynamic, RowMajor>;
+  const std::ptrdiff_t l1 = l1CacheSize(), l2 = l2CacheSize(), l3 = l3CacheSize();
+  setCpuCacheSizes(l1, std::ptrdiff_t(8 * 32 * sizeof(Complex)), l3);
+
+  const KroneckerOperator<RMat, RMat> K(RMat::Random(3, 2), RMat::Random(2, 3));
+  const CMat dense = RMat(K).template cast<Complex>();
+  const CRowMat X = CRowMat::Random(K.cols(), 5);
+  CRowMat Y = K * X;
+  VERIFY_IS_APPROX(Y, CRowMat(dense * X));
+  const CRowMat Y0 = CRowMat::Random(K.rows(), 5);
+  Y = Y0;
+  Y.noalias() += K * X;
+  VERIFY_IS_APPROX(Y, CRowMat(Y0 + dense * X));
 
   setCpuCacheSizes(l1, l2, l3);
 }
@@ -1743,6 +1772,8 @@ EIGEN_DECLARE_TEST(structured_kronecker) {
     CALL_SUBTEST_6((test_kron_mixed_scalar<double>(4, 3, 3, 5)));
     CALL_SUBTEST_18((test_kron_mixed_scalar<float>(3, 4, 2, 3)));
     CALL_SUBTEST_19((test_kron_chunked<double>()));
+    CALL_SUBTEST_19((test_kron_chunked<std::complex<double>>()));
+    CALL_SUBTEST_19((test_kron_chunked_mixed_scalar<double>()));
 
     // Numerical boundaries: product-level rank truncation, balanced determinant
     // and ratio-space rank thresholds.
