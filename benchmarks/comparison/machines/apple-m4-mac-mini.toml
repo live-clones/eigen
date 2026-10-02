@@ -31,7 +31,7 @@ flags = ["-mcpu=apple-m4"]
 
 # Accelerate exposes no version query; the macOS build is the identifier.
 [arms.accelerate]
-cmake_options = ["-DEIGEN_BENCH_REFERENCE=accelerate", "-DEIGEN_BENCH_REFERENCE_VERSION=Apple Accelerate, macOS 27.0 (build 26A428)"]
+cmake_options = ["-DEIGEN_BENCH_REFERENCE=accelerate", "-DEIGEN_BENCH_REFERENCE_VERSION=Apple Accelerate, macOS 27.0.1 (build 26A434)"]
 thread_env = { VECLIB_MAXIMUM_THREADS = "{threads}" }
 
 # The sequential LP64 library; the Homebrew cask installs under /opt/arm.
