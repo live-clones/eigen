@@ -571,11 +571,13 @@ void add_all_fixed() {
 }
 
 // Part A : dynamic-size tails. Small sizes keep the tail a meaningful fraction;
-// 1025 confirms there is no regression once the tail is amortized.
+// 1025 confirms there is no regression once the tail is amortized. The multiples
+// of 16 have an empty tail for every packet up to 512 bits, so the masked op never
+// runs: they are the control, isolating code size and layout from the tail itself.
 template <typename T>
 void add_dynamic() {
   auto* b = benchmark::RegisterBenchmark(std::string("DynAssign/") + type_tag<T>(), &BM_DynamicAssign<T>);
-  for (int s : {15, 17, 31, 33, 63, 65, 127, 129, 255, 1025}) b->Arg(s);
+  for (int s : {15, 16, 17, 31, 32, 33, 63, 64, 65, 127, 128, 129, 255, 256, 1024, 1025}) b->Arg(s);
   auto* c = benchmark::RegisterBenchmark(std::string("DynChain/") + type_tag<T>(), &BM_DynamicChain<T>);
   for (int s : {3, 7, 15, 17, 33, 129, 1025}) c->Arg(s);
 }
