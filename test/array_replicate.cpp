@@ -62,6 +62,19 @@ void replicate(const MatrixType& m) {
   VERIFY_IS_APPROX(vx1, v1.colwise().replicate(f2));
 }
 
+void replicate_flexible_indexers() {
+  typedef Matrix<int, 2, 2> Mat;
+  Mat m;
+  m << 1, 2, 3, 4;
+
+  VERIFY_IS_EQUAL(m.replicate(fix<2>, fix<3>), m.template replicate<2, 3>());
+  VERIFY_IS_EQUAL(m.replicate(fix<2>, 3), m.template replicate<2, 3>());
+  VERIFY_IS_EQUAL(m.replicate(fix<Dynamic>(2), fix<3>), m.template replicate<2, 3>());
+  STATIC_CHECK((internal::is_same<decltype(m.replicate(fix<2>, 3)), Replicate<Mat, 2, Dynamic> >::value));
+  STATIC_CHECK((internal::is_same<decltype(m.replicate(fix<Dynamic>(2), fix<3>)),
+                                  Replicate<Mat, Dynamic, 3> >::value));
+}
+
 // A Replicate packet cannot cross a replication boundary, so the evaluator may serve packets
 // exactly when the inner (storage-order) direction is not replicated; without the flag, colwise
 // and rowwise broadcast operations silently fall back to scalar traversal.
@@ -127,6 +140,7 @@ void replicate_broadcasts(Index rows, Index cols) {
 
 EIGEN_DECLARE_TEST(array_replicate) {
   for (int i = 0; i < g_repeat; i++) {
+    CALL_SUBTEST_1(replicate_flexible_indexers());
     CALL_SUBTEST_1(replicate(Matrix<float, 1, 1>()));
     CALL_SUBTEST_2(replicate(Vector2f()));
     CALL_SUBTEST_3(replicate(Vector3d()));
