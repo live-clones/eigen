@@ -213,6 +213,7 @@ EIGEN_DEVICE_FUNC AngleAxis<Scalar>& AngleAxis<Scalar>::operator=(const Quaterni
 template <typename Scalar>
 template <typename Derived>
 EIGEN_DEVICE_FUNC AngleAxis<Scalar>& AngleAxis<Scalar>::operator=(const MatrixBase<Derived>& mat) {
+  // A 4D vector holds quaternion coefficients; anything else is a 3x3 rotation matrix.
   if (mat.size() == 4) {
     return *this = QuaternionType(mat);
   }
@@ -221,12 +222,12 @@ EIGEN_DEVICE_FUNC AngleAxis<Scalar>& AngleAxis<Scalar>::operator=(const MatrixBa
 
 /**
  * \brief Sets \c *this from a 3x3 rotation matrix.
+ *
+ * The resulting axis is normalized, and the computed angle is in the [0,pi] range.
  **/
 template <typename Scalar>
 template <typename Derived>
 EIGEN_DEVICE_FUNC AngleAxis<Scalar>& AngleAxis<Scalar>::fromRotationMatrix(const MatrixBase<Derived>& mat) {
-  EIGEN_USING_STD(atan2)
-  EIGEN_USING_STD(sqrt)
   EIGEN_STATIC_ASSERT(
       (std::is_same<Scalar, typename Derived::Scalar>::value),
       YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
@@ -234,55 +235,49 @@ EIGEN_DEVICE_FUNC AngleAxis<Scalar>& AngleAxis<Scalar>::fromRotationMatrix(const
 
   const typename internal::nested_eval<Derived, 3>::type m(mat.derived());
 
-  // Skew-symmetric part gives sin(angle) * axis.
-  const Scalar sx = m.coeff(2, 1) - m.coeff(1, 2);
-  const Scalar sy = m.coeff(0, 2) - m.coeff(2, 0);
-  const Scalar sz = m.coeff(1, 0) - m.coeff(0, 1);
-  const Scalar s = sqrt(sx * sx + sy * sy + sz * sz);  // = 2*sin(angle)
-
-  // trace = 1 + 2*cos(angle)
-  const Scalar c = m.trace() - Scalar(1);  // = 2*cos(angle)
-
-  // Use atan2 for the angle: accurate at all angles including near 0 and pi.
-  m_angle = atan2(s, c);
-
-  // Use the skew-symmetric part only when sin(angle) is large enough for
-  // accurate axis extraction. Near angle=0 or angle=pi, sin(angle) is small
-  // and the axis must be computed differently.
-  const Scalar sin_threshold = sqrt(NumTraits<Scalar>::epsilon());
-  if (s > sin_threshold) {
-    // General case: axis from skew-symmetric part.
-    const Scalar inv_s = Scalar(1) / s;
-    m_axis << sx * inv_s, sy * inv_s, sz * inv_s;
-  } else if (c > Scalar(0)) {
-    // Near identity (angle ≈ 0): axis is arbitrary, use (1,0,0).
-    m_axis << Scalar(1), Scalar(0), Scalar(0);
+  // Compute a (non-unit) quaternion (w, v) proportional to the rotation using
+  // Shoemake's algorithm ("Quaternion Calculus and Fast Animation", 1987), the
+  // same algorithm as Quaternion::operator=(MatrixBase). Both branches of that
+  // algorithm scale all four coefficients by the same factor 1/(2*t), which
+  // cancels in atan2(|v|, |w|) and v/|v| below, so we skip the intermediate
+  // square root and division entirely. The selected branch keeps the entries
+  // of v well above zero (|v| >= 1 for angles >= 2*pi/3), so the axis remains
+  // accurate for rotations near pi, where the skew-symmetric part vanishes.
+  const Scalar m00 = m.coeff(0, 0);
+  const Scalar m11 = m.coeff(1, 1);
+  const Scalar m22 = m.coeff(2, 2);
+  const Scalar t = m00 + m11 + m22;
+  Scalar w;
+  Vector3 v;
+  if (t > Scalar(0)) {
+    w = t + Scalar(1);
+    v << m.coeff(2, 1) - m.coeff(1, 2), m.coeff(0, 2) - m.coeff(2, 0), m.coeff(1, 0) - m.coeff(0, 1);
+  } else if (m00 >= m11 && m00 >= m22) {
+    // Guard against slightly negative values from non-orthogonal matrices.
+    w = m.coeff(2, 1) - m.coeff(1, 2);
+    v << numext::maxi(m00 - m11 - m22 + Scalar(1), Scalar(0)), m.coeff(1, 0) + m.coeff(0, 1),
+        m.coeff(2, 0) + m.coeff(0, 2);
+  } else if (m11 >= m22) {
+    w = m.coeff(0, 2) - m.coeff(2, 0);
+    v << m.coeff(0, 1) + m.coeff(1, 0), numext::maxi(m11 - m22 - m00 + Scalar(1), Scalar(0)),
+        m.coeff(2, 1) + m.coeff(1, 2);
   } else {
-    // Near angle = pi: extract axis from the symmetric part (R + I) / 2.
-    // The axis is the eigenvector corresponding to eigenvalue 1.
-    // Use the column of (R + I) with the largest diagonal entry for robustness.
-    const Scalar d0 = m.coeff(0, 0);
-    const Scalar d1 = m.coeff(1, 1);
-    const Scalar d2 = m.coeff(2, 2);
-    if (d0 >= d1 && d0 >= d2) {
-      // x is the largest component
-      const Scalar x = sqrt(numext::maxi(d0 - d1 - d2 + Scalar(1), Scalar(0)) * Scalar(0.5));
-      const Scalar inv_2x = Scalar(0.5) / (x + NumTraits<Scalar>::epsilon());
-      m_axis << x, (m.coeff(0, 1) + m.coeff(1, 0)) * inv_2x, (m.coeff(0, 2) + m.coeff(2, 0)) * inv_2x;
-    } else if (d1 >= d2) {
-      // y is the largest component
-      const Scalar y = sqrt(numext::maxi(d1 - d0 - d2 + Scalar(1), Scalar(0)) * Scalar(0.5));
-      const Scalar inv_2y = Scalar(0.5) / (y + NumTraits<Scalar>::epsilon());
-      m_axis << (m.coeff(0, 1) + m.coeff(1, 0)) * inv_2y, y, (m.coeff(1, 2) + m.coeff(2, 1)) * inv_2y;
-    } else {
-      // z is the largest component
-      const Scalar z = sqrt(numext::maxi(d2 - d0 - d1 + Scalar(1), Scalar(0)) * Scalar(0.5));
-      const Scalar inv_2z = Scalar(0.5) / (z + NumTraits<Scalar>::epsilon());
-      m_axis << (m.coeff(0, 2) + m.coeff(2, 0)) * inv_2z, (m.coeff(1, 2) + m.coeff(2, 1)) * inv_2z, z;
-    }
-    m_axis.normalize();
+    w = m.coeff(1, 0) - m.coeff(0, 1);
+    v << m.coeff(0, 2) + m.coeff(2, 0), m.coeff(1, 2) + m.coeff(2, 1),
+        numext::maxi(m22 - m00 - m11 + Scalar(1), Scalar(0));
   }
 
+  Scalar n = v.norm();
+  if (n < NumTraits<Scalar>::epsilon()) n = v.stableNorm();
+
+  if (n != Scalar(0)) {
+    m_angle = Scalar(2) * numext::atan2(n, numext::abs(w));
+    if (w < Scalar(0)) n = -n;
+    m_axis = v / n;
+  } else {
+    m_angle = Scalar(0);
+    m_axis << Scalar(1), Scalar(0), Scalar(0);
+  }
   return *this;
 }
 
