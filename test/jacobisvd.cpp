@@ -39,12 +39,12 @@ void jacobisvd_method() {
 template <typename MatrixType>
 void jacobisvd_thin_full_options(const MatrixType& input = MatrixType()) {
   svd_thin_full_option_checks<MatrixType, 0>(input);
-  svd_thin_full_option_checks<MatrixType, AlwaysPrecondition>(input);
+  svd_thin_full_option_checks<MatrixType, PreconditionSquareMatrix>(input);
   svd_thin_full_option_checks<MatrixType, HouseholderQRPreconditioner>(input);
-  svd_thin_full_option_checks<MatrixType, HouseholderQRPreconditioner | AlwaysPrecondition>(input);
+  svd_thin_full_option_checks<MatrixType, HouseholderQRPreconditioner | PreconditionSquareMatrix>(input);
   // FullPiv only used when computing full unitaries
   svd_option_checks_full_only<MatrixType, FullPivHouseholderQRPreconditioner>(input);
-  svd_option_checks_full_only<MatrixType, FullPivHouseholderQRPreconditioner | AlwaysPrecondition>(input);
+  svd_option_checks_full_only<MatrixType, FullPivHouseholderQRPreconditioner | PreconditionSquareMatrix>(input);
 }
 
 template <typename MatrixType>
@@ -341,19 +341,19 @@ EIGEN_DECLARE_TEST(jacobisvd) {
     CALL_SUBTEST_33((jacobisvd_thin_full_options<Matrix<double, 5, 7, RowMajor>>()));
     CALL_SUBTEST_35((jacobisvd_thin_full_options<Matrix<double, 7, 5, RowMajor>>()));
 
-    CALL_SUBTEST_62((svd_always_precondition_accuracy<Matrix2f>(2)));
-    CALL_SUBTEST_62((svd_always_precondition_accuracy<Matrix4d>(4)));
-    CALL_SUBTEST_62((svd_always_precondition_accuracy<MatrixXf>(12)));
-    CALL_SUBTEST_62((svd_always_precondition_accuracy<MatrixXd>(12)));
-    CALL_SUBTEST_62((svd_always_precondition_accuracy<Matrix<double, Dynamic, Dynamic, RowMajor>>(12)));
-    CALL_SUBTEST_63((svd_always_precondition_accuracy<Matrix2cd>(2)));
-    CALL_SUBTEST_63((svd_always_precondition_accuracy<Matrix4cf>(4)));
-    CALL_SUBTEST_63((svd_always_precondition_accuracy<MatrixXcf>(12)));
-    CALL_SUBTEST_63((svd_always_precondition_accuracy<MatrixXcd>(12)));
-    CALL_SUBTEST_64((svd_always_precondition_runtime_options<MatrixXf>(12)));
-    CALL_SUBTEST_64((svd_always_precondition_runtime_options<MatrixXcd>(r)));
+    CALL_SUBTEST_62((svd_precondition_square_matrix_accuracy<Matrix2f>(2)));
+    CALL_SUBTEST_62((svd_precondition_square_matrix_accuracy<Matrix4d>(4)));
+    CALL_SUBTEST_62((svd_precondition_square_matrix_accuracy<MatrixXf>(12)));
+    CALL_SUBTEST_62((svd_precondition_square_matrix_accuracy<MatrixXd>(12)));
+    CALL_SUBTEST_62((svd_precondition_square_matrix_accuracy<Matrix<double, Dynamic, Dynamic, RowMajor>>(12)));
+    CALL_SUBTEST_63((svd_precondition_square_matrix_accuracy<Matrix2cd>(2)));
+    CALL_SUBTEST_63((svd_precondition_square_matrix_accuracy<Matrix4cf>(4)));
+    CALL_SUBTEST_63((svd_precondition_square_matrix_accuracy<MatrixXcf>(12)));
+    CALL_SUBTEST_63((svd_precondition_square_matrix_accuracy<MatrixXcd>(12)));
+    CALL_SUBTEST_64((svd_precondition_square_matrix_runtime_options<MatrixXf>(12)));
+    CALL_SUBTEST_64((svd_precondition_square_matrix_runtime_options<MatrixXcd>(r)));
     CALL_SUBTEST_64((jacobisvd_fullpiv_runtime_thin_asserts<0>(8, 5)));
-    CALL_SUBTEST_64((jacobisvd_fullpiv_runtime_thin_asserts<AlwaysPrecondition>(6, 6)));
+    CALL_SUBTEST_64((jacobisvd_fullpiv_runtime_thin_asserts<PreconditionSquareMatrix>(6, 6)));
     CALL_SUBTEST_64((jacobisvd_thin_full_options<Matrix<double, Dynamic, Dynamic, RowMajor>>(
         Matrix<double, Dynamic, Dynamic, RowMajor>(8, 8))));
 

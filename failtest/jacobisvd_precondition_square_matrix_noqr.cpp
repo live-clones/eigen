@@ -8,4 +8,4 @@
 
 using namespace Eigen;
 
-int main() { JacobiSVD<MatrixXf, QR_OPTION | AlwaysPrecondition> svd(MatrixXf::Random(4, 4)); }
+int main() { JacobiSVD<MatrixXf, QR_OPTION | PreconditionSquareMatrix> svd(MatrixXf::Random(4, 4)); }

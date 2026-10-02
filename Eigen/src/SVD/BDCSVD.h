@@ -55,7 +55,7 @@ struct traits<BDCSVD<MatrixType_, Options> > : svd_traits<MatrixType_, Options> 
  *                  #DisableQRDecomposition. It is not possible to request both the thin and full version of \a U or
  *                  \a V. By default, unitaries are not computed. BDCSVD uses R-Bidiagonalization to improve
  *                  performance on tall and wide matrices. For backwards compatibility, the option
- *                  #DisableQRDecomposition can be used to disable this optimization. #AlwaysPrecondition is
+ *                  #DisableQRDecomposition can be used to disable this optimization. #PreconditionSquareMatrix is
  *                  forwarded to the JacobiSVD that BDCSVD uses for inputs with fewer columns than the switch size,
  *                  and does not affect larger inputs. Like #DisableQRDecomposition, it selects Eigen's implementation
  *                  over LAPACKE's ?gesdd when EIGEN_USE_LAPACKE is defined.
@@ -261,9 +261,9 @@ class BDCSVD : public SVDBase<BDCSVD<MatrixType_, Options_> > {
   void allocate_small(Index rows, Index cols, unsigned int computationOptions);
   internal::bdcsvd_impl<RealScalar> m_impl;
   bool m_isTranspose, m_useQrDecomp;
-  // Only AlwaysPrecondition is forwarded: BDCSVD's QR bits configure its own R-bidiagonalization, and smallSvd needs
-  // its QR preconditioner to reduce non-square inputs. The unitaries are requested at runtime in allocate().
-  JacobiSVD<MatrixX, (Options & int(AlwaysPrecondition))> smallSvd;
+  // Only PreconditionSquareMatrix is forwarded: BDCSVD's QR bits configure its own R-bidiagonalization, and smallSvd
+  // needs its QR preconditioner to reduce non-square inputs. The unitaries are requested at runtime in allocate().
+  JacobiSVD<MatrixX, (Options & int(PreconditionSquareMatrix))> smallSvd;
   HouseholderQR<MatrixX> qrDecomp;
   internal::UpperBidiagonalization<MatrixX> bid;
   MatrixX copyWorkspace;

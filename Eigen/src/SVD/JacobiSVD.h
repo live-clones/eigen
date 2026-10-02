@@ -33,9 +33,9 @@ struct svd_precondition_2x2_block_to_be_real {};
 
 enum { PreconditionIfMoreColsThanRows, PreconditionIfMoreRowsThanCols };
 
-// If option AlwaysPrecondition is set, square matrices take the PreconditionIfMoreRowsThanCols path: A = Q R P^*.
+// If option PreconditionSquareMatrix is set, square matrices take the PreconditionIfMoreRowsThanCols path: A = Q R P^*.
 constexpr bool svd_precondition_more_rows(int options, Index rows, Index cols) {
-  return rows > cols || (should_svd_always_precondition(options) && rows == cols);
+  return rows > cols || (should_svd_precondition_square_matrix(options) && rows == cols);
 }
 
 template <typename MatrixType, int QRPreconditioner, int Case, bool PreconditionSquare>
@@ -51,7 +51,7 @@ struct qr_preconditioner_should_do_anything
 
 template <typename MatrixType, int Options, int QRPreconditioner, int Case,
           bool DoAnything = qr_preconditioner_should_do_anything<MatrixType, QRPreconditioner, Case,
-                                                                 should_svd_always_precondition(Options)>::value>
+                                                                 should_svd_precondition_square_matrix(Options)>::value>
 struct qr_preconditioner_impl {};
 
 template <typename MatrixType, int Options, int QRPreconditioner, int Case>
@@ -547,8 +547,8 @@ struct traits<JacobiSVD<MatrixType_, Options>> : svd_traits<MatrixType_, Options
  * \tparam MatrixType_ the type of the matrix of which we are computing the SVD decomposition
  * \tparam Options this optional parameter allows one to specify the type of QR decomposition that will be used
  * internally for the R-SVD step on rectangular matrices. The R-SVD step can be applied to square matrices using
- * #AlwaysPrecondition. Additionally, it allows one to specify whether to compute thin or full unitaries \a U and \a V.
- * See discussion of possible values below.
+ * #PreconditionSquareMatrix. Additionally, it allows one to specify whether to compute thin or full unitaries \a U and
+ * \a V. See discussion of possible values below.
  *
  * SVD decomposition consists in decomposing any n-by-p matrix \a A as a product
  *   \f[ A = U S V^* \f]
@@ -594,10 +594,10 @@ struct traits<JacobiSVD<MatrixType_, Options>> : svd_traits<MatrixType_, Options
  * significantly speed up computation, since JacobiSVD is always checking if QR preconditioning is needed before
  * applying it anyway.
  *
- * By default, square matrices are not QR preconditioned. Adding #AlwaysPrecondition to the Options template parameter
- * applies the selected QR preconditioner to square matrices too: the Jacobi iteration then runs on the triangular
- * factor \a R of \f$ A P = Q R \f$ instead of on \a A. For example: JacobiSVD<MatrixType,
- * ColPivHouseholderQRPreconditioner | AlwaysPrecondition>. #AlwaysPrecondition cannot be combined with
+ * By default, square matrices are not QR preconditioned. Adding #PreconditionSquareMatrix to the Options template
+ * parameter applies the selected QR preconditioner to square matrices too: the Jacobi iteration then runs on the
+ * triangular factor \a R of \f$ A P = Q R \f$ instead of on \a A. For example: JacobiSVD<MatrixType,
+ * ColPivHouseholderQRPreconditioner | PreconditionSquareMatrix>. #PreconditionSquareMatrix cannot be combined with
  * #NoQRPreconditioner.
  *
  * One may also use the Options template parameter to specify how the unitaries should be computed. The options are
@@ -791,9 +791,9 @@ class JacobiSVD : public SVDBase<JacobiSVD<MatrixType_, Options_>> {
                           !(ShouldComputeThinV && int(QRPreconditioner) == int(FullPivHouseholderQRPreconditioner)),
                       "JacobiSVD: can't compute thin U or thin V with the FullPivHouseholderQR preconditioner. "
                       "Use the ColPivHouseholderQR preconditioner instead.")
-  EIGEN_STATIC_ASSERT(!(internal::should_svd_always_precondition(Options) &&
+  EIGEN_STATIC_ASSERT(!(internal::should_svd_precondition_square_matrix(Options) &&
                         int(QRPreconditioner) == int(NoQRPreconditioner)),
-                      "JacobiSVD: AlwaysPrecondition requires a QR preconditioner other than NoQRPreconditioner.")
+                      "JacobiSVD: PreconditionSquareMatrix requires a QR preconditioner other than NoQRPreconditioner.")
 
   template <typename MatrixType__, int Options__, bool IsComplex_>
   friend struct internal::svd_precondition_2x2_block_to_be_real;
@@ -858,7 +858,7 @@ JacobiSVD<MatrixType, Options>& JacobiSVD<MatrixType, Options>::compute_impl(con
 
   /*** step 1. The R-SVD step: we use a QR decomposition to reduce to the case of a square matrix */
 
-  if (rows() != cols() || internal::should_svd_always_precondition(Options)) {
+  if (rows() != cols() || internal::should_svd_precondition_square_matrix(Options)) {
     factors =
         internal::safe_scaling<RealScalar>::with_scaled(matrix.derived(), maxCoeff, [&](const auto& scaledMatrix) {
           m_qr_precond_morecols.run(*this, scaledMatrix);

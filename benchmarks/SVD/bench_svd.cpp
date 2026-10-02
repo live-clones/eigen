@@ -109,3 +109,17 @@ BENCHMARK(BM_JacobiSVD<double, ComputeThinU | ComputeThinV | HouseholderQRPrecon
 BENCHMARK(BM_JacobiSVD<double, ComputeFullU | ComputeFullV | FullPivHouseholderQRPreconditioner>)
     ->Args({64, 64})
     ->Name("JacobiSVD_double_FullPivQR");
+
+// JacobiSVD - PreconditionSquareMatrix (double)
+BENCHMARK(BM_JacobiSVD<double, PreconditionSquareMatrix>)
+    ->Args({4, 4})
+    ->Args({8, 8})
+    ->Args({16, 16})
+    ->Args({32, 32})
+    ->Name("JacobiSVD_double_PrecondSquare_ValuesOnly");
+BENCHMARK(BM_JacobiSVD<double, PreconditionSquareMatrix | ComputeThinU | ComputeThinV>)
+    ->Args({4, 4})
+    ->Args({8, 8})
+    ->Args({16, 16})
+    ->Args({32, 32})
+    ->Name("JacobiSVD_double_PrecondSquare_ThinUV");

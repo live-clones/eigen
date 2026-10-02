@@ -72,7 +72,7 @@ void compare_bdc_jacobi_instance(bool structure_as_m, int algoswap = 16) {
 template <typename MatrixType>
 void bdcsvd_thin_full_options(const MatrixType& input = MatrixType()) {
   svd_thin_full_option_checks<MatrixType, 0>(input);
-  svd_thin_full_option_checks<MatrixType, AlwaysPrecondition>(input);
+  svd_thin_full_option_checks<MatrixType, PreconditionSquareMatrix>(input);
 }
 
 template <typename MatrixType>
@@ -544,25 +544,25 @@ EIGEN_DECLARE_TEST(bdcsvd) {
         (svd_check_max_size_matrix<Matrix<float, Dynamic, Dynamic, RowMajor, 35, 20>, HouseholderQRPreconditioner>(r,
                                                                                                                    c)));
 
-    CALL_SUBTEST_62((svd_always_precondition_accuracy<Matrix2f>(2)));
-    CALL_SUBTEST_62((svd_always_precondition_accuracy<Matrix4d>(4)));
-    CALL_SUBTEST_62((svd_always_precondition_accuracy<MatrixXf>(12)));
-    CALL_SUBTEST_62((svd_always_precondition_accuracy<MatrixXd>(12)));
-    CALL_SUBTEST_62((svd_always_precondition_accuracy<Matrix<double, Dynamic, Dynamic, RowMajor>>(12)));
-    CALL_SUBTEST_63((svd_always_precondition_accuracy<Matrix2cd>(2)));
-    CALL_SUBTEST_63((svd_always_precondition_accuracy<Matrix4cf>(4)));
-    CALL_SUBTEST_63((svd_always_precondition_accuracy<MatrixXcf>(12)));
-    CALL_SUBTEST_63((svd_always_precondition_accuracy<MatrixXcd>(12)));
-    CALL_SUBTEST_64((svd_always_precondition_runtime_options<MatrixXf>(12)));
-    CALL_SUBTEST_64((svd_always_precondition_runtime_options<MatrixXcd>(internal::random<Index>(1, 30))));
-    CALL_SUBTEST_64((svd_always_precondition_runtime_options<Matrix2f>(2)));
+    CALL_SUBTEST_62((svd_precondition_square_matrix_accuracy<Matrix2f>(2)));
+    CALL_SUBTEST_62((svd_precondition_square_matrix_accuracy<Matrix4d>(4)));
+    CALL_SUBTEST_62((svd_precondition_square_matrix_accuracy<MatrixXf>(12)));
+    CALL_SUBTEST_62((svd_precondition_square_matrix_accuracy<MatrixXd>(12)));
+    CALL_SUBTEST_62((svd_precondition_square_matrix_accuracy<Matrix<double, Dynamic, Dynamic, RowMajor>>(12)));
+    CALL_SUBTEST_63((svd_precondition_square_matrix_accuracy<Matrix2cd>(2)));
+    CALL_SUBTEST_63((svd_precondition_square_matrix_accuracy<Matrix4cf>(4)));
+    CALL_SUBTEST_63((svd_precondition_square_matrix_accuracy<MatrixXcf>(12)));
+    CALL_SUBTEST_63((svd_precondition_square_matrix_accuracy<MatrixXcd>(12)));
+    CALL_SUBTEST_64((svd_precondition_square_matrix_runtime_options<MatrixXf>(12)));
+    CALL_SUBTEST_64((svd_precondition_square_matrix_runtime_options<MatrixXcd>(internal::random<Index>(1, 30))));
+    CALL_SUBTEST_64((svd_precondition_square_matrix_runtime_options<Matrix2f>(2)));
     CALL_SUBTEST_64((bdcsvd_thin_full_options<Matrix<double, Dynamic, Dynamic, RowMajor>>(
         Matrix<double, Dynamic, Dynamic, RowMajor>(8, 8))));
     // smallSvd keeps its QR preconditioner, so small non-square inputs work with DisableQRDecomposition too.
     CALL_SUBTEST_64(
-        (svd_thin_full_option_checks<MatrixXd, DisableQRDecomposition | AlwaysPrecondition>(MatrixXd(10, 5))));
+        (svd_thin_full_option_checks<MatrixXd, DisableQRDecomposition | PreconditionSquareMatrix>(MatrixXd(10, 5))));
     CALL_SUBTEST_64(
-        (svd_thin_full_option_checks<MatrixXd, DisableQRDecomposition | AlwaysPrecondition>(MatrixXd(5, 10))));
+        (svd_thin_full_option_checks<MatrixXd, DisableQRDecomposition | PreconditionSquareMatrix>(MatrixXd(5, 10))));
   }
 
   // test matrixbase method

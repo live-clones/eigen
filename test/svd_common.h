@@ -682,7 +682,7 @@ void svd_check_max_size_matrix(int initialRows, int initialCols) {
 //   |sigma_i - d_i| / d_i <= 4 n eps.
 // For n below BDCSVD's switch size, BDCSVD will invoke JacobiSVD.
 template <typename MatrixType>
-void svd_always_precondition_accuracy(Index n) {
+void svd_precondition_square_matrix_accuracy(Index n) {
   using Scalar = typename MatrixType::Scalar;
   using RealScalar = typename MatrixType::RealScalar;
   // The scaling below spans [1e-12, 1] only for n >= 2.
@@ -691,12 +691,13 @@ void svd_always_precondition_accuracy(Index n) {
   for (Index i = 0; i < n; ++i) scaling(i) = RealScalar(std::pow(1e12, -double(i) / double(n - 1)));
   const MatrixType m = generateRandomUnitaryMatrix<MatrixType>(n) * scaling.template cast<Scalar>().asDiagonal();
 
-  const VectorX<RealScalar> singularValues = SVD_STATIC_OPTIONS(MatrixType, AlwaysPrecondition)(m).singularValues();
+  const VectorX<RealScalar> singularValues =
+      SVD_STATIC_OPTIONS(MatrixType, PreconditionSquareMatrix)(m).singularValues();
   const RealScalar bound = RealScalar(4 * n) * NumTraits<RealScalar>::epsilon();
   VERIFY(((singularValues - scaling).array().abs() / scaling.array()).template maxCoeff<PropagateNaN>() <= bound);
 }
 
-// AlwaysPrecondition in Options must not change what the deprecated runtime options request: U and V are computed
+// PreconditionSquareMatrix in Options must not change what the deprecated runtime options request: U and V are computed
 // exactly when their bits are set, thin or full as requested.
 template <typename SvdType, typename MatrixType>
 void svd_check_runtime_options_match(const MatrixType& m, const SvdType& svd, unsigned int options) {
@@ -719,14 +720,14 @@ void svd_check_runtime_options_match(const MatrixType& m, const SvdType& svd, un
 EIGEN_DIAGNOSTICS(push)
 EIGEN_DISABLE_DEPRECATED_WARNING
 template <typename MatrixType>
-void svd_always_precondition_runtime_options(Index size) {
+void svd_precondition_square_matrix_runtime_options(Index size) {
   MatrixType m(size, size);
   svd_fill_random(m);
   for (unsigned int options : {0u, unsigned(ComputeThinU | ComputeThinV), unsigned(ComputeFullU | ComputeFullV),
                                unsigned(ComputeFullU), unsigned(ComputeThinV)}) {
-    const SVD_STATIC_OPTIONS(MatrixType, AlwaysPrecondition) constructed(m, options);
+    const SVD_STATIC_OPTIONS(MatrixType, PreconditionSquareMatrix) constructed(m, options);
     svd_check_runtime_options_match(m, constructed, options);
-    SVD_STATIC_OPTIONS(MatrixType, AlwaysPrecondition) computed;
+    SVD_STATIC_OPTIONS(MatrixType, PreconditionSquareMatrix) computed;
     computed.compute(m, options);
     svd_check_runtime_options_match(m, computed, options);
   }
