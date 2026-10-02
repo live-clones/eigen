@@ -513,6 +513,22 @@ class DenseBase
 
   template <int RowFactor, int ColFactor>
   EIGEN_DEVICE_FUNC const Replicate<Derived, RowFactor, ColFactor> replicate() const;
+
+  /**
+   * \return an expression of the replication of \c *this
+   *
+   * Repetition factors can be specified at run time or at compile time using \c fix<N>, like in reshaped().
+   *
+   * \sa DenseBase::replicate(Index,Index), class Replicate
+   */
+  template <typename NRowsType, typename NColsType>
+  EIGEN_DEVICE_FUNC const Replicate<Derived, internal::get_fixed_value<NRowsType>::value,
+                                    internal::get_fixed_value<NColsType>::value>
+  replicate(NRowsType nRows, NColsType nCols) const {
+    return Replicate<Derived, internal::get_fixed_value<NRowsType>::value,
+                     internal::get_fixed_value<NColsType>::value>(
+        derived(), internal::get_runtime_value(nRows), internal::get_runtime_value(nCols));
+  }
   /**
    * \return an expression of the replication of \c *this
    *
