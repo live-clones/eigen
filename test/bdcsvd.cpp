@@ -92,14 +92,14 @@ void bdcsvd_check_convergence(const MatrixType& input) {
 }
 
 // Verify SVD of bidiagonal matrix given as diagonal + superdiagonal vectors.
-template <typename RealScalar>
+template <typename RealScalar, int Options = ComputeFullU | ComputeFullV>
 void verify_bidiagonal_svd(const Matrix<RealScalar, Dynamic, 1>& diag,
                            const Matrix<RealScalar, Dynamic, 1>& superdiag) {
   typedef Matrix<RealScalar, Dynamic, Dynamic> MatrixXr;
   typedef Matrix<RealScalar, Dynamic, 1> VectorXr;
   const Index n = diag.size();
 
-  BDCSVD<MatrixXr, ComputeFullU | ComputeFullV> bdcsvd(diag, superdiag);
+  BDCSVD<MatrixXr, Options> bdcsvd(diag, superdiag);
   VERIFY(bdcsvd.info() == Success);
 
   const VectorXr& sv = bdcsvd.singularValues();
@@ -157,8 +157,10 @@ void bdcsvd_bidiagonal_hard_cases() {
   // Use the shared tridiagonal test matrix generators.
   // Each generator fills (diag, offdiag) which we treat as (diagonal, superdiagonal)
   // of a bidiagonal matrix.
-  test::for_all_tridiag_test_matrices<RealScalar>(
-      [](const auto& diag, const auto& offdiag) { verify_bidiagonal_svd<RealScalar>(diag, offdiag); });
+  test::for_all_tridiag_test_matrices<RealScalar>([](const auto& diag, const auto& offdiag) {
+    verify_bidiagonal_svd<RealScalar>(diag, offdiag);
+    verify_bidiagonal_svd<RealScalar, PreconditionSquareMatrix | ComputeFullU | ComputeFullV>(diag, offdiag);
+  });
 
   // Additional SVD-specific test: identity with cross-validation against full matrix SVD.
   test::for_tridiag_sizes<RealScalar>([](auto& diag, auto& offdiag) {
