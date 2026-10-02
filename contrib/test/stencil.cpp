@@ -7,6 +7,7 @@
 #include <complex>
 
 #include "main.h"
+#include "fp_control.h"
 #include <contrib/Eigen/NumericalDiff>
 
 using Eigen::Array;
@@ -119,6 +120,39 @@ void test_polynomial_exactness_float() {
   verify_polynomial_exactness<3>(points);
 }
 
+template <int Derivative, typename Scalar, int Size>
+void verify_power_of_two_scaling(const Array<Scalar, Size, 1>& points) {
+  const Stencil<Derivative, Scalar, Size> reference(points);
+  // Power-of-two scaling is exact while the recurrence stays in the normal range.
+  for (const int exponent : {-27, -20, -40, 0, 20, 27, 40}) {
+    const Scalar step = std::ldexp(Scalar(1), exponent);
+    const Array<Scalar, Size, 1> scaledPoints = points * step;
+    const Stencil<Derivative, Scalar, Size> scaled(scaledPoints);
+    for (Index i = 0; i < Size; ++i) {
+      const Scalar expected = std::ldexp(reference.weight(i), -Derivative * exponent);
+      VERIFY((numext::isfinite)(expected));
+      VERIFY((numext::isfinite)(scaled.weight(i)));
+      VERIFY_IS_EQUAL(scaled.weight(i), expected);
+    }
+  }
+}
+
+template <typename Scalar>
+void test_scaled_points() {
+  const Array<Scalar, 9, 1> points{{-4, -3, -2, -1, 0, 1, 2, 3, 4}};
+  const Array<Scalar, 7, 1> nonuniform{{3, -1, 0, 4, -4, 1, -2}};
+  verify_power_of_two_scaling<0>(points);
+  verify_power_of_two_scaling<1>(points);
+  verify_power_of_two_scaling<2>(points);
+  verify_power_of_two_scaling<0>(nonuniform);
+  verify_power_of_two_scaling<1>(nonuniform);
+  verify_power_of_two_scaling<2>(nonuniform);
+}
+
+void test_scaled_points_flush_modes() {
+  Eigen::forEachFlushToZeroMode([](Eigen::FlushToZeroMode) { test_scaled_points<float>(); });
+}
+
 void test_polynomial_exactness_complex() {
   using Scalar = std::complex<double>;
   const Array<Scalar, 4, 1> points{{Scalar(-1.0, 1.0), Scalar(0.0, 0.0), Scalar(1.0, 1.0), Scalar(2.0, -1.0)}};
@@ -162,6 +196,16 @@ static_assert(centralDiff1.point(0) == -1.0, "");
 static_assert(centralDiff1.point(1) == 0.0, "");
 static_assert(centralDiff1.point(2) == 1.0, "");
 
+constexpr float smallStep = 1.0f / 134217728.0f;  // 2^-27
+constexpr float unitPoints[] = {-4, -3, -2, -1, 0, 1, 2, 3, 4};
+constexpr float smallPoints[] = {-4 * smallStep, -3 * smallStep, -2 * smallStep, -smallStep,   0,
+                                 smallStep,      2 * smallStep,  3 * smallStep,  4 * smallStep};
+constexpr Stencil<2, float, 9> unitDiff2(unitPoints);
+constexpr Stencil<2, float, 9> smallDiff2(smallPoints);
+static_assert(smallDiff2.weight(6) == unitDiff2.weight(6) / (smallStep * smallStep), "");
+static_assert(smallDiff2.weight(7) == unitDiff2.weight(7) / (smallStep * smallStep), "");
+static_assert(smallDiff2.weight(8) == unitDiff2.weight(8) / (smallStep * smallStep), "");
+
 void test_compile_time_smoke() {
   const Array<double, 3, 1> w = centralDiff1.weights();
   VERIFY(numext::abs(w[0] - (-0.5)) <= Eigen::NumTraits<double>::epsilon());
@@ -185,6 +229,9 @@ EIGEN_DECLARE_TEST(stencil) {
   CALL_SUBTEST(test_polynomial_exactness_nonuniform());
   CALL_SUBTEST(test_polynomial_exactness_no_zero());
   CALL_SUBTEST(test_polynomial_exactness_float());
+  CALL_SUBTEST(test_scaled_points<float>());
+  CALL_SUBTEST(test_scaled_points<double>());
+  CALL_SUBTEST(test_scaled_points_flush_modes());
   CALL_SUBTEST(test_polynomial_exactness_complex());
   CALL_SUBTEST(test_order_preservation());
   CALL_SUBTEST(test_repeated_points_assert());

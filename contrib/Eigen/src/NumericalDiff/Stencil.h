@@ -104,24 +104,26 @@ class Stencil {
     Scalar delta[Size][Derivative + 1]{};
     delta[0][0] = Scalar(1);
 
-    Scalar c1(1);
     for (Index n = 1; n < Size; ++n) {
       const Index mn = numext::mini(n, Index(Derivative));
       const Scalar c4 = m_points[n];
-      Scalar c2(1);
+      // c1/c2 = product_{j<n-1} ((x_{n-1}-x_j)/(x_n-x_j)) / (x_n-x_{n-1}).
+      // Form the ratio directly to avoid overflow/underflow of the individual products.
+      Scalar ratio(1);
       for (Index nu = 0; nu < n; ++nu) {
         const Scalar c3 = m_points[n] - m_points[nu];
         eigen_assert(!(c3 == Scalar(0)) && "Stencil points must be pairwise distinct");
-        c2 *= c3;
         if (nu == n - 1) {
-          delta[n][0] = -c1 * m_points[n - 1] * delta[n - 1][0] / c2;
+          ratio /= c3;
+          delta[n][0] = -ratio * (m_points[n - 1] * delta[n - 1][0]);
           for (Index m = mn; m >= 1; --m)
-            delta[n][m] = c1 * (Scalar(m) * delta[n - 1][m - 1] - m_points[n - 1] * delta[n - 1][m]) / c2;
+            delta[n][m] = ratio * (Scalar(m) * delta[n - 1][m - 1] - m_points[n - 1] * delta[n - 1][m]);
+        } else {
+          ratio *= (m_points[n - 1] - m_points[nu]) / c3;
         }
         for (Index m = mn; m >= 1; --m) delta[nu][m] = (c4 * delta[nu][m] - Scalar(m) * delta[nu][m - 1]) / c3;
         delta[nu][0] = c4 * delta[nu][0] / c3;
       }
-      c1 = c2;
     }
 
     for (Index nu = 0; nu < Size; ++nu) m_weights[nu] = delta[nu][Derivative];
