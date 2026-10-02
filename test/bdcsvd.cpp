@@ -131,7 +131,7 @@ void verify_bidiagonal_svd(const Matrix<RealScalar, Dynamic, 1>& diag,
 }
 
 // Verify that bidiagonal API and matrix API produce matching singular values.
-template <typename RealScalar>
+template <typename RealScalar, int Options = 0>
 void verify_bidiagonal_vs_matrix_svd(const Matrix<RealScalar, Dynamic, 1>& diag,
                                      const Matrix<RealScalar, Dynamic, 1>& superdiag) {
   typedef Matrix<RealScalar, Dynamic, Dynamic> MatrixXr;
@@ -142,8 +142,8 @@ void verify_bidiagonal_vs_matrix_svd(const Matrix<RealScalar, Dynamic, 1>& diag,
   B.diagonal() = diag;
   if (n > 1) B.diagonal(1) = superdiag;
 
-  BDCSVD<MatrixXr> bidiag_svd(diag, superdiag);
-  BDCSVD<MatrixXr> matrix_svd(B);
+  BDCSVD<MatrixXr, Options> bidiag_svd(diag, superdiag);
+  BDCSVD<MatrixXr, Options> matrix_svd(B);
 
   VERIFY(bidiag_svd.info() == Success);
   VERIFY(matrix_svd.info() == Success);
@@ -228,31 +228,13 @@ void bdcsvd_switch_size() {
 #endif
 
 #if defined(EIGEN_TEST_PART_62) || defined(EIGEN_TEST_PART_ALL)
-// Inputs with fewer columns than the switch size go to BDCSVD's JacobiSVD, which receives AlwaysPrecondition, so the
-// results match that JacobiSVD bit for bit.
-template <typename MatrixType>
-void bdcsvd_always_precondition_small(const MatrixType& input = MatrixType()) {
-  using MatrixX = Matrix<typename MatrixType::Scalar, Dynamic, Dynamic>;
-  MatrixType m(input.rows(), input.cols());
-  svd_fill_random(m);
-  const BDCSVD<MatrixType, AlwaysPrecondition | ComputeFullU | ComputeFullV> bdc(m);
-  const JacobiSVD<MatrixX, AlwaysPrecondition | ComputeFullU | ComputeFullV> jacobi{MatrixX(m)};
-  VERIFY(bdc.singularValues() == jacobi.singularValues());
-  VERIFY(bdc.matrixU() == jacobi.matrixU());
-  VERIFY(bdc.matrixV() == jacobi.matrixV());
-  svd_check_full(m, bdc);
-}
-
-// Small bidiagonal inputs also go to the small JacobiSVD.
-void bdcsvd_always_precondition_bidiagonal() {
-  using RealScalar = double;
-  VectorXd diagonal = VectorXd::Random(6), superdiagonal = VectorXd::Random(5);
-  BDCSVD<MatrixXd, AlwaysPrecondition | ComputeFullU | ComputeFullV> bidiagonalSvd;
-  bidiagonalSvd.compute(diagonal, superdiagonal);
-  BDCSVD<MatrixXd> reference;
-  reference.compute(diagonal, superdiagonal);
-  VERIFY((bidiagonalSvd.singularValues() - reference.singularValues()).cwiseAbs().maxCoeff() <=
-         RealScalar(16 * 6) * NumTraits<RealScalar>::epsilon() * reference.singularValues()(0));
+// Below the switch size, the bidiagonal API forwards PreconditionSquareMatrix to BDCSVD's JacobiSVD.
+template <typename RealScalar>
+void bdcsvd_precondition_square_matrix_bidiagonal(Index n) {
+  using VectorXr = Matrix<RealScalar, Dynamic, 1>;
+  const VectorXr diagonal = VectorXr::Random(n);
+  const VectorXr superdiagonal = VectorXr::Random(n - 1);
+  verify_bidiagonal_vs_matrix_svd<RealScalar, PreconditionSquareMatrix>(diagonal, superdiagonal);
 }
 #endif
 
@@ -546,6 +528,10 @@ EIGEN_DECLARE_TEST(bdcsvd) {
         (svd_check_max_size_matrix<Matrix<float, Dynamic, Dynamic, RowMajor, 35, 20>, HouseholderQRPreconditioner>(r,
                                                                                                                    c)));
 
+    const Index smallSize = internal::random<Index>(2, 15);
+    TEST_SET_BUT_UNUSED_VARIABLE(smallSize);
+    CALL_SUBTEST_62((bdcsvd_precondition_square_matrix_bidiagonal<double>(smallSize)));
+    CALL_SUBTEST_62((bdcsvd_precondition_square_matrix_bidiagonal<float>(smallSize)));
     CALL_SUBTEST_62((svd_precondition_square_matrix_accuracy<Matrix2f>(2)));
     CALL_SUBTEST_62((svd_precondition_square_matrix_accuracy<Matrix4d>(4)));
     CALL_SUBTEST_62((svd_precondition_square_matrix_accuracy<MatrixXf>(12)));

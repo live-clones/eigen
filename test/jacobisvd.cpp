@@ -148,6 +148,7 @@ void jacobisvd_fullpiv_runtime_thin_asserts(Index rows, Index cols) {
 }
 EIGEN_DIAGNOSTICS(pop)
 
+template <typename = void>
 void jacobisvd_large_tau_regression() {
   Matrix3f m;
   m << 3.7855173218304116745e-07f, 0.0f, 500.0f, -4.9999995231628417969f, -0.0f, -1.9106853686029490191e-12f,
