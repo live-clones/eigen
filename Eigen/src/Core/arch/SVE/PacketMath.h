@@ -1391,15 +1391,13 @@ EIGEN_STRONG_INLINE PacketXd prsqrt<PacketXd>(const PacketXd& a) {
 EIGEN_STRONG_INLINE svbool_t sve_segment_predicate_b32(Index begin, Index count) {
   eigen_assert(begin >= 0 && count >= 0);
   if (begin == 0) return svwhilelt_b32(uint64_t(0), uint64_t(count));
-  return svbic_b_z(svptrue_b32(), svwhilelt_b32(uint64_t(0), uint64_t(begin + count)),
-                   svwhilelt_b32(uint64_t(0), uint64_t(begin)));
+  return svnot_b_z(svwhilelt_b32(uint64_t(0), uint64_t(begin + count)), svwhilelt_b32(uint64_t(0), uint64_t(begin)));
 }
 
 EIGEN_STRONG_INLINE svbool_t sve_segment_predicate_b64(Index begin, Index count) {
   eigen_assert(begin >= 0 && count >= 0);
   if (begin == 0) return svwhilelt_b64(uint64_t(0), uint64_t(count));
-  return svbic_b_z(svptrue_b64(), svwhilelt_b64(uint64_t(0), uint64_t(begin + count)),
-                   svwhilelt_b64(uint64_t(0), uint64_t(begin)));
+  return svnot_b_z(svwhilelt_b64(uint64_t(0), uint64_t(begin + count)), svwhilelt_b64(uint64_t(0), uint64_t(begin)));
 }
 
 /*---------------- int32 ----------------*/
