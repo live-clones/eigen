@@ -657,7 +657,7 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
       stackColumns(S, actualRhs.middleCols(k0, c), m2, m1);
       T.noalias() = svdB.matrixU().adjoint() * S.reshaped(m2, c * m1);
       M.noalias() = T.reshaped(kB * c, m1) * svdA.matrixU().conjugate();
-      for (Index k = 0; k < c; ++k) M.middleRows(k * kB, kB).array() *= inverses.array();
+      M.array() *= inverses.array().replicate(c, fix<1>);
       V.noalias() = svdB.matrixV() * M.reshaped(kB, c * kA);
       X.noalias() = V.reshaped(n2 * c, kA) * svdA.matrixV().transpose();
       for (Index k = 0; k < c; ++k) x.col(k0 + k).reshaped(n2, n1) = X.middleRows(k * n2, n2);
