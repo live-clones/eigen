@@ -127,7 +127,8 @@ struct packet_segment_test_impl {
         data_in.setRandom();
         data_out.setRandom();
         data_ref = data_out;
-        data_ref.segment(begin, count) = data_in.segment(begin, count);
+        // A scalar loop: a segment assignment would run the primitives under test.
+        for (Index i = begin; i < begin + count; ++i) data_ref(i) = data_in(i);
         Packet a = internal::ploaduSegment<Packet>(data_in.data(), begin, count);
         internal::pstoreuSegment<Scalar, Packet>(data_out.data(), a, begin, count);
         VERIFY_IS_CWISE_EQUAL(data_out, data_ref);
