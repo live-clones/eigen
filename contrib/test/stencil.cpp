@@ -26,7 +26,10 @@ void verify_polynomial_exactness(const Array<Scalar, Size, 1> &points) {
   const Array<Scalar, Size, 1> w = s.weights();
   const Array<Scalar, Size, 1> p = s.points();
 
-  for (Index i = 0; i < Size; ++i) VERIFY_IS_EQUAL(p[i], points[i]);
+  for (Index i = 0; i < Size; ++i) {
+    VERIFY_IS_EQUAL(p[i], points[i]);
+    VERIFY((numext::isfinite)(w[i]));
+  }
 
   Scalar fact(1);
   for (Index i = 2; i <= Derivative; ++i) fact *= Scalar(i);
@@ -43,7 +46,10 @@ void verify_polynomial_exactness(const Array<Scalar, Size, 1> &points) {
       magSum += numext::abs(contribution);
     }
     const Scalar expected = (k == Derivative) ? fact : Scalar(0);
-    const RealScalar tol = RealScalar(50) * RealScalar(Size) * (magSum + RealScalar(1)) * Eigen::NumTraits<RealScalar>::epsilon();
+    const RealScalar tol =
+        RealScalar(50) * RealScalar(Size) * (magSum + RealScalar(1)) * Eigen::NumTraits<RealScalar>::epsilon();
+    VERIFY((numext::isfinite)(acc));
+    VERIFY((numext::isfinite)(tol));
     VERIFY(numext::abs(acc - expected) <= tol);
     for (Index i = 0; i < Size; ++i) term[i] *= p[i];
   }
@@ -163,6 +169,15 @@ void test_compile_time_smoke() {
   VERIFY(numext::abs(w[2] - 0.5) <= Eigen::NumTraits<double>::epsilon());
 }
 
+void test_constant_member_linkage() {
+  using StencilType = Stencil<1, double, 3>;
+  // Volatile pointers retain the odr-use even in optimized test builds.
+  const int* volatile pointCount = &StencilType::PointCount;
+  const int* volatile derivativeOrder = &StencilType::DerivativeOrder;
+  VERIFY_IS_EQUAL(*pointCount, 3);
+  VERIFY_IS_EQUAL(*derivativeOrder, 1);
+}
+
 EIGEN_DECLARE_TEST(stencil) {
   CALL_SUBTEST(test_textbook_central());
   CALL_SUBTEST(test_textbook_forward());
@@ -174,4 +189,5 @@ EIGEN_DECLARE_TEST(stencil) {
   CALL_SUBTEST(test_order_preservation());
   CALL_SUBTEST(test_repeated_points_assert());
   CALL_SUBTEST(test_compile_time_smoke());
+  CALL_SUBTEST(test_constant_member_linkage());
 }

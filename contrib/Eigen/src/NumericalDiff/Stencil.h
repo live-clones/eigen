@@ -133,6 +133,14 @@ class Stencil {
   Scalar m_weights[Size]{};
 };
 
+// Redundant out-of-class definitions are required pre-C++17 but deprecated since.
+#if EIGEN_COMP_CXXVER < 17
+template <int Derivative, typename Scalar, int Size>
+constexpr int Stencil<Derivative, Scalar, Size>::DerivativeOrder;
+template <int Derivative, typename Scalar, int Size>
+constexpr int Stencil<Derivative, Scalar, Size>::PointCount;
+#endif
+
 /** \relates Stencil
  * Deduces \a Scalar and \a Size from \a points; \a Derivative must still be supplied explicitly,
  * e.g. `makeStencil<2>(points)`. Exists because C++14 has no class template argument deduction.
