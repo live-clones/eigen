@@ -483,7 +483,7 @@ EIGEN_DECLARE_TEST(bdcsvd) {
   CALL_SUBTEST_3((bdcsvd_asserts<Matrix<float, 10, 7>>()));
   CALL_SUBTEST_4((bdcsvd_asserts<Matrix<float, 7, 10>>()));
   CALL_SUBTEST_5((bdcsvd_asserts<Matrix<std::complex<double>, 6, 9>>()));
-  CALL_SUBTEST_6((bdcsvd_mixed_option_enum_regression()));
+  CALL_SUBTEST_6((bdcsvd_mixed_option_enum_regression<>()));
 
   CALL_SUBTEST_7((bdcsvd_thin_full_options<Matrix2cd>()));
   CALL_SUBTEST_9((bdcsvd_thin_full_options<Matrix2d>()));
