@@ -56,7 +56,11 @@ BENCHMARK(BM_EigenGemm)
     // threshold (k*n*sizeof(Lhs) near L1). mc blocking only takes effect when
     // m is large; hitting the threshold requires sweeping small n=k with large m.
     ->Args({4096, 96, 96})->Args({4096, 128, 128})->Args({4096, 144, 144})
-    ->Args({4096, 160, 160})->Args({4096, 176, 176})->Args({8192, 128, 128});
+    ->Args({4096, 160, 160})->Args({4096, 176, 176})->Args({8192, 128, 128})
+    // Small and thin products on both sides of the SME backend's NEON small-product bound.
+    ->Args({17, 17, 17})->Args({20, 20, 20})->Args({25, 25, 25})->Args({28, 28, 28})->Args({31, 31, 31})
+    ->Args({4, 32, 32})->Args({8, 32, 32})->Args({32, 4, 32})->Args({32, 8, 32})->Args({16, 16, 32})
+    ->Args({24, 24, 48})->Args({12, 12, 64})->Args({2, 64, 64})->Args({8, 64, 128})->Args({64, 8, 128});
 // clang-format on
 
 // The reference below calls sgemm_/dgemm_ directly, so it is real-only.
