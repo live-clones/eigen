@@ -45,9 +45,9 @@ void gemv_bfloat16_strided_tail() {
 }
 #endif
 
-#if defined(EIGEN_VECTORIZE_AVX512) && EIGEN_USE_AVX512_GEMM_KERNELS
+#if (defined(EIGEN_VECTORIZE_AVX512) && EIGEN_USE_AVX512_GEMM_KERNELS) || defined(EIGEN_VECTORIZE_VSX)
 // Place packed A, packed B, and C right before PROT_NONE guard pages to catch
-// any out-of-bounds lookahead or tail over-read in AVX-512 GEBP kernels.
+// any out-of-bounds lookahead or tail over-read in GEBP kernels.
 template <typename Scalar>
 void gebp_guard_page_tail() {
   struct GuardedArena {
@@ -466,9 +466,12 @@ EIGEN_DECLARE_TEST(product_large) {
   CALL_SUBTEST_6(gemv_small_cols_systematic<0>());
   CALL_SUBTEST_6(gemv_rowmajor_large_stride_varied_rows<0>());
   CALL_SUBTEST_6(product_extreme_aspect_ratios<0>());
-#if defined(__unix__) && defined(EIGEN_VECTORIZE_AVX512) && EIGEN_USE_AVX512_GEMM_KERNELS
+#if defined(__unix__) && \
+    ((defined(EIGEN_VECTORIZE_AVX512) && EIGEN_USE_AVX512_GEMM_KERNELS) || defined(EIGEN_VECTORIZE_VSX))
   CALL_SUBTEST_6(gebp_guard_page_tail<float>());
   CALL_SUBTEST_6(gebp_guard_page_tail<double>());
+  CALL_SUBTEST_6(gebp_guard_page_tail<std::complex<float>>());
+  CALL_SUBTEST_6(gebp_guard_page_tail<std::complex<double>>());
 #endif
 
   // Regression test for bug 714:
