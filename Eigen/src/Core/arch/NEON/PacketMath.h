@@ -2643,7 +2643,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet2f pgather<float, Packet2f>(const fl
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4f pgather<float, Packet4f>(const float* from, Index stride) {
   if (stride == 2) {
-    // Both loads end at from[6], the last gathered coefficient.
+    // Overlap the loads so the second ends at the last gathered coefficient, from[6].
 #if EIGEN_ARCH_ARM64
     // lo = [0 1 2 3], hi = [3 4 5 6]. GCC turns the equivalent vuzp2q(vrev64q(lo), hi) into a slower TBL.
     Packet4f lo = vld1q_f32(from);
