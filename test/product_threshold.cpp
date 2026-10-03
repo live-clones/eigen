@@ -17,9 +17,17 @@ static_assert(EIGEN_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD == 40,
 
 template <typename Scalar>
 void fixed_size_threshold_is_independent() {
-  using Below = Matrix<Scalar, 13, 13>;
-  using At = Matrix<Scalar, 14, 14>;
-  STATIC_CHECK((internal::product_type<At, At>::FixedSizeThreshold == 40));
+#ifdef EIGEN_VECTORIZE_SME
+  constexpr int kThreshold = internal::sme_has_gebp_kernel<Scalar, Scalar>::value
+                                 ? EIGEN_SME_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD
+                                 : EIGEN_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD;
+#else
+  constexpr int kThreshold = EIGEN_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD;
+#endif
+  constexpr int kGemmSide = (kThreshold + 2) / 3;
+  using Below = Matrix<Scalar, kGemmSide - 1, kGemmSide - 1>;
+  using At = Matrix<Scalar, kGemmSide, kGemmSide>;
+  STATIC_CHECK((internal::product_type<At, At>::FixedSizeThreshold == kThreshold));
   STATIC_CHECK((internal::product_type<Below, Below>::value == CoeffBasedProductMode));
   STATIC_CHECK((internal::product_type<At, At>::value == GemmProduct));
 
@@ -27,7 +35,7 @@ void fixed_size_threshold_is_independent() {
   Below c;
   c.noalias() = a * b;
   VERIFY_IS_APPROX(c, a.lazyProduct(b));
-  // 3 * 14 >= 30: the run-time bound keeps it on the GEMM path.
+  // 3 * kGemmSide >= 30: the run-time bound keeps it on the GEMM path.
   const At d = At::Random(), e = At::Random();
   At f;
   f.noalias() = d * e;

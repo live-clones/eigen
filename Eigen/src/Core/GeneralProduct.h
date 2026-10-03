@@ -25,7 +25,7 @@ enum { Large = 2, Small = 3 };
 // products/GeneralMatrixMatrix.h for more details.
 // The crossover belongs to the kernel the GEMM path would select, not to the
 // build: a scalar type that falls back to the generic gebp kernel keeps this
-// value even in an SME build. The SME kernels have their own, larger crossovers
+// value even in an SME build. The SME kernels have their own crossovers
 // -- sme_gemm_to_coeffbased_threshold and
 // EIGEN_SME_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD below.
 #ifndef EIGEN_GEMM_TO_COEFFBASED_THRESHOLD
@@ -44,13 +44,13 @@ enum { Large = 2, Small = 3 };
 #endif
 
 #ifdef EIGEN_VECTORIZE_SME
-// Kept as a separate knob for the scalar pairs the SME kernel claims. With the
-// NEON small-block path those products run NEON packers and kernel below the
-// crossover, so the generic fixed-size value applies; int, half, bfloat16,
-// mixed real x complex, and double / complex<double> without FEAT_SME_F64F64
-// run the generic kernel and never read this one.
+// Separate knob for the scalar pairs the SME kernel claims, whose GEMM path
+// overtakes the coeff-based product later than the generic one (fitted on
+// Apple M4 Pro, #3119); int, half, bfloat16, mixed real x complex, and double /
+// complex<double> without FEAT_SME_F64F64 run the generic kernel and never
+// read this one.
 #ifndef EIGEN_SME_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD
-#define EIGEN_SME_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD EIGEN_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD
+#define EIGEN_SME_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD 61
 #endif
 #endif
 
