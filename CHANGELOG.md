@@ -15,6 +15,7 @@ Bug fixes:
 - `numext::arithmetic_shift_right()` sign-extended unsigned scalars, so the scalar and vectorized paths of one shift expression disagreed [!2814]
 - `Transform::inverse(Projective)` returned an uninitialized result for every mode other than `Projective` [!2814]
 - `DGMRES::iterations()` returned `maxIterations()` after every solve, including converged ones [!2814]
+- `maxCoeff(&i)`/`minCoeff(&i)` (and so `JacobiSVD`) did not compile for vectorizable custom scalars without packet comparison [#3195, !3266]
 
 Deprecations:
 - `ArrayBase::shiftRight<N>()` and `ArrayBase::shiftLeft<N>()`, in favour of `arithmeticShiftRight<N>()` and `logicalShiftLeft<N>()` [!2816]

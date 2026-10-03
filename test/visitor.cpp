@@ -560,6 +560,45 @@ void visitor_vec_boundary() {
   }
 }
 
+// A vectorizable scalar whose packet has no comparison operations; maxCoeff/minCoeff must use the scalar loop.
+struct NoCmpScalar {
+  double v;
+  NoCmpScalar(double x = 0) : v(x) {}
+  friend bool operator<(NoCmpScalar a, NoCmpScalar b) { return a.v < b.v; }
+  friend bool operator>(NoCmpScalar a, NoCmpScalar b) { return a.v > b.v; }
+};
+struct NoCmpPacket {
+  NoCmpScalar v[2];
+};
+namespace Eigen {
+template <>
+struct NumTraits<NoCmpScalar> : GenericNumTraits<NoCmpScalar> {};
+namespace internal {
+template <>
+struct packet_traits<NoCmpScalar> : default_packet_traits {
+  using type = NoCmpPacket;
+  using half = NoCmpPacket;
+  enum { Vectorizable = 1, AlignedOnScalar = 1, size = 2 };
+};
+template <>
+struct unpacket_traits<NoCmpPacket> : default_unpacket_traits {
+  using type = NoCmpScalar;
+  using half = NoCmpPacket;
+  enum { size = 2, alignment = Unaligned };
+};
+}  // namespace internal
+}  // namespace Eigen
+
+void checkFindCoeffWithoutPacketCmp() {
+  Matrix<NoCmpScalar, Dynamic, 1> v(9);
+  for (Index i = 0; i < v.size(); ++i) v(i) = NoCmpScalar(double((i * 5) % 9));
+  Index index;
+  VERIFY_IS_EQUAL(v.maxCoeff(&index).v, 8.0);
+  VERIFY_IS_EQUAL(index, 7);
+  VERIFY_IS_EQUAL(v.minCoeff(&index).v, 0.0);
+  VERIFY_IS_EQUAL(index, 0);
+}
+
 EIGEN_DECLARE_TEST(visitor) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(matrixVisitor(Matrix<float, 1, 1>()));
@@ -595,4 +634,5 @@ EIGEN_DECLARE_TEST(visitor) {
   CALL_SUBTEST_14(checkVisitorShortCircuit<RowMajor>());
   CALL_SUBTEST_14((checkVisitorShortCircuit<ColMajor, true>()));
   CALL_SUBTEST_14((checkVisitorShortCircuit<RowMajor, true>()));
+  CALL_SUBTEST_15(checkFindCoeffWithoutPacketCmp());
 }
