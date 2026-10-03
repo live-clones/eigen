@@ -295,7 +295,7 @@ void eulerangles_data_constructor() {
   const auto alpha = Scalar{123.4567};
   const auto beta = Scalar{-98.7654};
   const auto gamma = Scalar{4856.2954};
-  const Scalar data[] {alpha, beta, gamma};
+  const Scalar data[]{alpha, beta, gamma};
   const EulerAnglesType e(data);
   VERIFY_IS_APPROX(e.alpha(), alpha);
   VERIFY_IS_APPROX(e.beta(), beta);
