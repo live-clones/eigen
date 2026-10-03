@@ -99,6 +99,37 @@ void schur(int size = MatrixType::ColsAtCompileTime) {
   }
 }
 
+// Structured inputs larger than one window of the Francis step's deferred left updates (32 reflectors). The
+// permutation, companion and Jordan matrices give reflectors with exactly zero bulges (tau == 0), which the deferred
+// path must skip as the immediate one does.
+template <typename Scalar>
+void real_schur_structured_windows() {
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  const Scalar eps = NumTraits<Scalar>::epsilon();
+  for (Index n : {Index(40), Index(70)}) {
+    MatrixType cyclic = MatrixType::Zero(n, n);
+    for (Index i = 0; i < n; ++i) cyclic(i, (i + 1) % n) = Scalar(1);
+    MatrixType companion = MatrixType::Zero(n, n);
+    companion.diagonal(-1).setOnes();
+    companion.col(n - 1).setRandom();
+    MatrixType jordan = MatrixType::Identity(n, n) * Scalar(2);
+    jordan.diagonal(1).setOnes();
+    MatrixType decoupled = MatrixType::Random(n, n).template triangularView<Upper>();
+    decoupled.diagonal(-1).setRandom();
+    decoupled(n / 2, n / 2 - 1) = Scalar(0);
+    for (const MatrixType* a : {&cyclic, &companion, &jordan, &decoupled}) {
+      RealSchur<MatrixType> rs(*a);
+      VERIFY_IS_EQUAL(rs.info(), Success);
+      const MatrixType& T = rs.matrixT();
+      const MatrixType& U = rs.matrixU();
+      verifyIsQuasiTriangular(T);
+      // Backward stable: ||A - U T U^T|| and ||U^T U - I|| are O(n eps) relative to ||A|| and 1.
+      VERIFY((*a - U * T * U.transpose()).norm() <= Scalar(10) * Scalar(n) * eps * a->norm());
+      VERIFY((U.transpose() * U - MatrixType::Identity(n, n)).norm() <= Scalar(10) * Scalar(n) * eps);
+    }
+  }
+}
+
 template <typename = void>
 void test_bug2633() {
   Eigen::MatrixXd A(4, 4);
@@ -289,4 +320,6 @@ EIGEN_DECLARE_TEST(schur_real) {
   CALL_SUBTEST_12((schur_workspace_ref<double, ColMajor>()));
   CALL_SUBTEST_13((schur_workspace_ref<float, RowMajor>()));
   CALL_SUBTEST_14((schur_workspace_ref<double, RowMajor>()));
+  CALL_SUBTEST_15((real_schur_structured_windows<float>()));
+  CALL_SUBTEST_15((real_schur_structured_windows<double>()));
 }
