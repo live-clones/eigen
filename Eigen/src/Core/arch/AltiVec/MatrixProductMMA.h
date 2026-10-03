@@ -64,12 +64,17 @@ EIGEN_ALWAYS_INLINE void storeComplexAccumulator(Index i, const DataMapper& data
                                                  const Packet& alphaImag, const Packet& pMask, __vector_quad* accReal,
                                                  __vector_quad* accImag) {
   constexpr bool full = (accCols2 > accColsC);
+  constexpr bool odd = (accCols != accCols2) && (sizeof(__UNPACK_TYPE__(Packet)) == sizeof(float)) && (accCols2 & 1);
   PacketBlock<Packet, 4> resultReal, resultImag;
   __builtin_mma_disassemble_acc(&resultReal.packet, accReal);
   __builtin_mma_disassemble_acc(&resultImag.packet, accImag);
 
   PacketBlock<Packetc, 8> tRes;
-  bload<DataMapper, Packetc, accColsC, ColMajor, true, 4, full>(tRes, data, i, 0);
+  if (odd) {
+    bload_partial<DataMapper, Packetc, accColsC, true, 4, full>(tRes, data, i, 1);
+  } else {
+    bload<DataMapper, Packetc, accColsC, ColMajor, true, 4, full>(tRes, data, i, 0);
+  }
 
   PacketBlock<Packet, 4> taccReal, taccImag;
   bscalec<Packet, 4, (accCols != accCols2)>(resultReal, resultImag, alphaReal, alphaImag, taccReal, taccImag, pMask);
@@ -77,9 +82,17 @@ EIGEN_ALWAYS_INLINE void storeComplexAccumulator(Index i, const DataMapper& data
   PacketBlock<Packetc, 4> acc1, acc2;
   bcouple<Packet, Packetc, 4, full>(taccReal, taccImag, tRes, acc1, acc2);
 
-  bstore<DataMapper, Packetc, 4>(acc1, data, i);
+  if (odd && !full) {
+    bstore_partial<DataMapper, Packetc, 4>(acc1, data, i, 1);
+  } else {
+    bstore<DataMapper, Packetc, 4>(acc1, data, i);
+  }
   if (full) {
-    bstore<DataMapper, Packetc, 4>(acc2, data, i + accColsC);
+    if (odd) {
+      bstore_partial<DataMapper, Packetc, 4>(acc2, data, i + accColsC, 1);
+    } else {
+      bstore<DataMapper, Packetc, 4>(acc2, data, i + accColsC);
+    }
   }
 }
 
@@ -195,8 +208,8 @@ EIGEN_ALWAYS_INLINE void ploadLhsMMA(const double* lhs, __vector_pair& lhsV) { p
       __builtin_vsx_disassemble_pair(reinterpret_cast<void*>(&lhsV2##left.packet), &plhsV##left); \
       lhs_ptr##left += accCols * 2;                                                               \
     } else {                                                                                      \
-      lhsV2##left.packet[0] = ploadLhs<Packet>(lhs_ptr##left);                                    \
-      lhsV2##left.packet[1] = ploadLhs<Packet>(lhs_ptr##left + accCols2);                         \
+      lhsV2##left.packet[0] = ploadu_partial<Packet>(lhs_ptr##left, accCols2);                    \
+      lhsV2##left.packet[1] = ploadu_partial<Packet>(lhs_ptr##left + accCols2, accCols2);         \
       lhs_ptr##left += accCols2 * 2;                                                              \
       EIGEN_UNUSED_VARIABLE(plhsV##left);                                                         \
     }                                                                                             \
@@ -541,20 +554,20 @@ void gemmMMA(const DataMapper& res, const Scalar* blockA, const Scalar* blockB, 
         rhsV##right[peel], rhsVi##right[peel]);                                                      \
   }
 
-#define MICRO_COMPLEX_MMA_LOAD1_TWO(lhs_ptr, left)                                                  \
-  if (!LhsIsReal && (unroll_factor > left)) {                                                       \
-    if (MICRO_NORMAL(left)) {                                                                       \
-      ploadLhsMMA(reinterpret_cast<const double*>(lhs_ptr_real##left + imag_delta), plhsVi##left);  \
-      __builtin_vsx_disassemble_pair(reinterpret_cast<void*>(&lhsVi2##left.packet), &plhsVi##left); \
-    } else {                                                                                        \
-      lhsVi2##left.packet[0] = ploadLhs<Packet>(lhs_ptr_real##left + imag_delta2);                  \
-      lhsVi2##left.packet[1] = ploadLhs<Packet>(lhs_ptr_real##left + imag_delta2 + accCols2);       \
-      EIGEN_UNUSED_VARIABLE(plhsVi##left);                                                          \
-    }                                                                                               \
-  } else {                                                                                          \
-    EIGEN_UNUSED_VARIABLE(lhsVi2##left);                                                            \
-    EIGEN_UNUSED_VARIABLE(plhsVi##left);                                                            \
-  }                                                                                                 \
+#define MICRO_COMPLEX_MMA_LOAD1_TWO(lhs_ptr, left)                                                            \
+  if (!LhsIsReal && (unroll_factor > left)) {                                                                 \
+    if (MICRO_NORMAL(left)) {                                                                                 \
+      ploadLhsMMA(reinterpret_cast<const double*>(lhs_ptr_real##left + imag_delta), plhsVi##left);            \
+      __builtin_vsx_disassemble_pair(reinterpret_cast<void*>(&lhsVi2##left.packet), &plhsVi##left);           \
+    } else {                                                                                                  \
+      lhsVi2##left.packet[0] = ploadu_partial<Packet>(lhs_ptr_real##left + imag_delta2, accCols2);            \
+      lhsVi2##left.packet[1] = ploadu_partial<Packet>(lhs_ptr_real##left + imag_delta2 + accCols2, accCols2); \
+      EIGEN_UNUSED_VARIABLE(plhsVi##left);                                                                    \
+    }                                                                                                         \
+  } else {                                                                                                    \
+    EIGEN_UNUSED_VARIABLE(lhsVi2##left);                                                                      \
+    EIGEN_UNUSED_VARIABLE(plhsVi##left);                                                                      \
+  }                                                                                                           \
   MICRO_MMA_LOAD1_TWO(lhs_ptr_real, left)
 
 #define MICRO_COMPLEX_MMA_LOAD_TWO(left) MICRO_COMPLEX_MMA_LOAD1_TWO(lhs_ptr, left)

@@ -1503,8 +1503,9 @@ EIGEN_ALWAYS_INLINE void pger_common(PacketBlock<Packet, N>* acc, const Packet& 
 }
 
 template <int N, typename Scalar, typename Packet, bool NegativeAccumulate>
-EIGEN_ALWAYS_INLINE void pger(PacketBlock<Packet, N>* acc, const Scalar* lhs, const Packet* rhsV) {
-  Packet lhsV = pload<Packet>(lhs);
+EIGEN_ALWAYS_INLINE void pger(PacketBlock<Packet, N>* acc, const Scalar* lhs, const Packet* rhsV,
+                              Index remaining_rows) {
+  Packet lhsV = ploadu_partial<Packet>(lhs, remaining_rows);
 
   pger_common<Packet, NegativeAccumulate, N>(acc, lhsV, rhsV);
 }
@@ -1531,11 +1532,12 @@ EIGEN_ALWAYS_INLINE void pgerc_common(PacketBlock<Packet, N>* accReal, PacketBlo
 
 template <int N, typename Scalar, typename Packet, bool ConjugateLhs, bool ConjugateRhs, bool LhsIsReal, bool RhsIsReal>
 EIGEN_ALWAYS_INLINE void pgerc(PacketBlock<Packet, N>* accReal, PacketBlock<Packet, N>* accImag, const Scalar* lhs_ptr,
-                               const Scalar* lhs_ptr_imag, const Packet* rhsV, const Packet* rhsVi) {
-  Packet lhsV = ploadLhs<Packet>(lhs_ptr);
+                               const Scalar* lhs_ptr_imag, const Packet* rhsV, const Packet* rhsVi,
+                               Index remaining_rows) {
+  Packet lhsV = ploadu_partial<Packet>(lhs_ptr, remaining_rows);
   Packet lhsVi;
   EIGEN_IF_CONSTEXPR (!LhsIsReal)
-    lhsVi = ploadLhs<Packet>(lhs_ptr_imag);
+    lhsVi = ploadu_partial<Packet>(lhs_ptr_imag, remaining_rows);
   else
     EIGEN_UNUSED_VARIABLE(lhs_ptr_imag);
 
@@ -1629,12 +1631,14 @@ EIGEN_ALWAYS_INLINE void bstore(PacketBlock<Packet, N>& acc, const DataMapper& r
 template <typename DataMapper, typename Packet, const Index accCols, bool Complex, Index N, bool full>
 EIGEN_ALWAYS_INLINE void bload_partial(PacketBlock<Packet, N*(Complex ? 2 : 1)>& acc, const DataMapper& res, Index row,
                                        Index elements) {
-  for (Index M = 0; M < N; M++) {
-    acc.packet[M] = res.template loadPacketPartial<Packet>(row, M, elements);
-  }
   EIGEN_IF_CONSTEXPR (Complex && full) {
     for (Index M = 0; M < N; M++) {
+      acc.packet[M] = res.template loadPacket<Packet>(row, M);
       acc.packet[M + N] = res.template loadPacketPartial<Packet>(row + accCols, M, elements);
+    }
+  } else {
+    for (Index M = 0; M < N; M++) {
+      acc.packet[M] = res.template loadPacketPartial<Packet>(row, M, elements);
     }
   }
 }
@@ -1857,12 +1861,13 @@ EIGEN_ALWAYS_INLINE void bcouple(PacketBlock<Packet, N>& taccReal, PacketBlock<P
 
 #define MICRO_ZERO_PEEL_ROW MICRO_UNROLL(MICRO_ZERO_PEEL)
 
-#define MICRO_WORK_PEEL(peel)                                                                            \
-  EIGEN_IF_CONSTEXPR (PEEL_ROW > peel) {                                                                 \
-    MICRO_BROADCAST(peel)                                                                                \
-    pger<accRows, Scalar, Packet, false>(&accZero##peel, lhs_ptr + (remaining_rows * peel), rhsV##peel); \
-  } else {                                                                                               \
-    EIGEN_UNUSED_VARIABLE(rhsV##peel);                                                                   \
+#define MICRO_WORK_PEEL(peel)                                                                           \
+  EIGEN_IF_CONSTEXPR (PEEL_ROW > peel) {                                                                \
+    MICRO_BROADCAST(peel)                                                                               \
+    pger<accRows, Scalar, Packet, false>(&accZero##peel, lhs_ptr + (remaining_rows * peel), rhsV##peel, \
+                                         remaining_rows);                                               \
+  } else {                                                                                              \
+    EIGEN_UNUSED_VARIABLE(rhsV##peel);                                                                  \
   }
 
 #define MICRO_WORK_PEEL_ROW                                                              \
@@ -1904,7 +1909,7 @@ template <typename Scalar, typename Packet, const Index accRows, const Index rem
 EIGEN_ALWAYS_INLINE void MICRO_EXTRA_ROW(const Scalar*& lhs_ptr, const Scalar*& rhs_ptr0, const Scalar*& rhs_ptr1,
                                          const Scalar*& rhs_ptr2, PacketBlock<Packet, accRows>& accZero) {
   MICRO_BROADCAST_EXTRA
-  pger<accRows, Scalar, Packet, false>(&accZero, lhs_ptr, rhsV);
+  pger<accRows, Scalar, Packet, false>(&accZero, lhs_ptr, rhsV, remaining_rows);
   lhs_ptr += remaining_rows;
 }
 
@@ -2271,15 +2276,15 @@ EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const Scalar* blockA, const
 
 #define MICRO_COMPLEX_ZERO_PEEL_ROW MICRO_COMPLEX_UNROLL(MICRO_COMPLEX_ZERO_PEEL)
 
-#define MICRO_COMPLEX_WORK_PEEL(peel)                                                 \
-  EIGEN_IF_CONSTEXPR (PEEL_COMPLEX_ROW > peel) {                                      \
-    MICRO_COMPLEX_BROADCAST(peel)                                                     \
-    pgerc<accRows, Scalar, Packet, ConjugateLhs, ConjugateRhs, LhsIsReal, RhsIsReal>( \
-        &accReal##peel, &accImag##peel, lhs_ptr_real + (remaining_rows * peel),       \
-        lhs_ptr_imag + (remaining_rows * peel), rhsV##peel, rhsVi##peel);             \
-  } else {                                                                            \
-    EIGEN_UNUSED_VARIABLE(rhsV##peel);                                                \
-    EIGEN_UNUSED_VARIABLE(rhsVi##peel);                                               \
+#define MICRO_COMPLEX_WORK_PEEL(peel)                                                     \
+  EIGEN_IF_CONSTEXPR (PEEL_COMPLEX_ROW > peel) {                                          \
+    MICRO_COMPLEX_BROADCAST(peel)                                                         \
+    pgerc<accRows, Scalar, Packet, ConjugateLhs, ConjugateRhs, LhsIsReal, RhsIsReal>(     \
+        &accReal##peel, &accImag##peel, lhs_ptr_real + (remaining_rows * peel),           \
+        lhs_ptr_imag + (remaining_rows * peel), rhsV##peel, rhsVi##peel, remaining_rows); \
+  } else {                                                                                \
+    EIGEN_UNUSED_VARIABLE(rhsV##peel);                                                    \
+    EIGEN_UNUSED_VARIABLE(rhsVi##peel);                                                   \
   }
 
 #define MICRO_COMPLEX_ADD_COLS(size)         \
@@ -2316,8 +2321,8 @@ EIGEN_ALWAYS_INLINE void MICRO_COMPLEX_EXTRA_ROW(const Scalar*& lhs_ptr_real, co
                                                  PacketBlock<Packet, accRows>& accReal,
                                                  PacketBlock<Packet, accRows>& accImag) {
   MICRO_COMPLEX_BROADCAST_EXTRA
-  pgerc<accRows, Scalar, Packet, ConjugateLhs, ConjugateRhs, LhsIsReal, RhsIsReal>(&accReal, &accImag, lhs_ptr_real,
-                                                                                   lhs_ptr_imag, rhsV, rhsVi);
+  pgerc<accRows, Scalar, Packet, ConjugateLhs, ConjugateRhs, LhsIsReal, RhsIsReal>(
+      &accReal, &accImag, lhs_ptr_real, lhs_ptr_imag, rhsV, rhsVi, remaining_rows);
   MICRO_COMPLEX_ADD_COLS(1)
 }
 
@@ -2367,30 +2372,26 @@ EIGEN_ALWAYS_INLINE void gemm_unrolled_complex_row_iteration(const DataMapper& r
         rhs_ptr_imag2, accReal0, accImag0);
   }
 
+  EIGEN_UNUSED_VARIABLE(rows);
   constexpr bool full = (remaining_rows > accColsC);
-  bload<DataMapper, Packetc, accColsC, ColMajor, true, accRows, full>(tRes, res, row, 0);
-  if ((accRows == 1) || (rows >= accCols)) {
-    bscalec<Packet, accRows, true>(accReal0, accImag0, pAlphaReal, pAlphaImag, taccReal, taccImag, pMask);
-    bcouple<Packet, Packetc, accRows, full>(taccReal, taccImag, tRes, acc0, acc1);
-    bstore<DataMapper, Packetc, accRows>(acc0, res, row + 0);
-    EIGEN_IF_CONSTEXPR (full) {
-      bstore<DataMapper, Packetc, accRows>(acc1, res, row + accColsC);
-    }
+  constexpr bool odd = (sizeof(Scalar) == sizeof(float)) && (remaining_rows & 1);
+  EIGEN_IF_CONSTEXPR (odd) {
+    bload_partial<DataMapper, Packetc, accColsC, true, accRows, full>(tRes, res, row, 1);
   } else {
-    bscalec<Packet, accRows, false>(accReal0, accImag0, pAlphaReal, pAlphaImag, taccReal, taccImag, pMask);
-    bcouple<Packet, Packetc, accRows, full>(taccReal, taccImag, tRes, acc0, acc1);
-
-    if ((sizeof(Scalar) == sizeof(float)) && (remaining_rows == 1)) {
-      for (Index j = 0; j < accRows; j++) {
-        res(row + 0, j) = pfirst<Packetc>(acc0.packet[j]);
-      }
+    bload<DataMapper, Packetc, accColsC, ColMajor, true, accRows, full>(tRes, res, row, 0);
+  }
+  bscalec<Packet, accRows, true>(accReal0, accImag0, pAlphaReal, pAlphaImag, taccReal, taccImag, pMask);
+  bcouple<Packet, Packetc, accRows, full>(taccReal, taccImag, tRes, acc0, acc1);
+  EIGEN_IF_CONSTEXPR (odd && !full) {
+    bstore_partial<DataMapper, Packetc, accRows>(acc0, res, row + 0, 1);
+  } else {
+    bstore<DataMapper, Packetc, accRows>(acc0, res, row + 0);
+  }
+  EIGEN_IF_CONSTEXPR (full) {
+    EIGEN_IF_CONSTEXPR (odd) {
+      bstore_partial<DataMapper, Packetc, accRows>(acc1, res, row + accColsC, 1);
     } else {
-      bstore<DataMapper, Packetc, accRows>(acc0, res, row + 0);
-      EIGEN_IF_CONSTEXPR (full) {
-        for (Index j = 0; j < accRows; j++) {
-          res(row + accColsC, j) = pfirst<Packetc>(acc1.packet[j]);
-        }
-      }
+      bstore<DataMapper, Packetc, accRows>(acc1, res, row + accColsC);
     }
   }
 }
@@ -2465,13 +2466,26 @@ EIGEN_ALWAYS_INLINE void gemm_complex_extra_row(const DataMapper& res, const Sca
 #define MICRO_COMPLEX_STORE_ONE(iter)                                                                               \
   EIGEN_IF_CONSTEXPR (unroll_factor > iter) {                                                                       \
     constexpr bool full = ((MICRO_NORMAL(iter)) || (accCols2 > accColsC));                                          \
-    bload<DataMapper, Packetc, accColsC, ColMajor, true, accRows, full>(tRes, res, row + iter * accCols, 0);        \
+    constexpr bool odd = !(MICRO_NORMAL(iter)) && (sizeof(Scalar) == sizeof(float)) && (accCols2 & 1);              \
+    EIGEN_IF_CONSTEXPR (odd) {                                                                                      \
+      bload_partial<DataMapper, Packetc, accColsC, true, accRows, full>(tRes, res, row + iter * accCols, 1);        \
+    } else {                                                                                                        \
+      bload<DataMapper, Packetc, accColsC, ColMajor, true, accRows, full>(tRes, res, row + iter * accCols, 0);      \
+    }                                                                                                               \
     bscalec<Packet, accRows, !(MICRO_NORMAL(iter))>(accReal##iter, accImag##iter, pAlphaReal, pAlphaImag, taccReal, \
                                                     taccImag, pMask);                                               \
     bcouple<Packet, Packetc, accRows, full>(taccReal, taccImag, tRes, acc0, acc1);                                  \
-    bstore<DataMapper, Packetc, accRows>(acc0, res, row + iter * accCols + 0);                                      \
+    EIGEN_IF_CONSTEXPR (odd && !full) {                                                                             \
+      bstore_partial<DataMapper, Packetc, accRows>(acc0, res, row + iter * accCols + 0, 1);                         \
+    } else {                                                                                                        \
+      bstore<DataMapper, Packetc, accRows>(acc0, res, row + iter * accCols + 0);                                    \
+    }                                                                                                               \
     EIGEN_IF_CONSTEXPR (full) {                                                                                     \
-      bstore<DataMapper, Packetc, accRows>(acc1, res, row + iter * accCols + accColsC);                             \
+      EIGEN_IF_CONSTEXPR (odd) {                                                                                    \
+        bstore_partial<DataMapper, Packetc, accRows>(acc1, res, row + iter * accCols + accColsC, 1);                \
+      } else {                                                                                                      \
+        bstore<DataMapper, Packetc, accRows>(acc1, res, row + iter * accCols + accColsC);                           \
+      }                                                                                                             \
     }                                                                                                               \
   }
 

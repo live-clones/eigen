@@ -11,9 +11,7 @@
 #define EIGEN_POWER_PREFETCH(p)
 #endif
 
-#if defined(_ARCH_PWR9) || defined(EIGEN_ALTIVEC_MMA_DYNAMIC_DISPATCH)
 #define USE_PARTIAL_PACKETS
-#endif
 
 // IWYU pragma: private
 #include "../../InternalHeaderCheck.h"
@@ -149,22 +147,31 @@ EIGEN_ALWAYS_INLINE void bcouple(PacketBlock<Packet, N>& taccReal, PacketBlock<P
 
 #define MICRO_NORMAL_COLS(iter, a, b) ((MICRO_NORMAL(iter)) ? a : b)
 
-#define MICRO_LOAD1(lhs_ptr, iter)                               \
-  if (unroll_factor > iter) {                                    \
-    lhsV##iter = ploadLhs<Packet>(lhs_ptr##iter);                \
-    lhs_ptr##iter += MICRO_NORMAL_COLS(iter, accCols, accCols2); \
-  } else {                                                       \
-    EIGEN_UNUSED_VARIABLE(lhsV##iter);                           \
+#define MICRO_LOAD1(lhs_ptr, iter)                                  \
+  if (unroll_factor > iter) {                                       \
+    if (MICRO_NORMAL(iter)) {                                       \
+      lhsV##iter = ploadLhs<Packet>(lhs_ptr##iter);                 \
+      lhs_ptr##iter += accCols;                                     \
+    } else {                                                        \
+      lhsV##iter = ploadu_partial<Packet>(lhs_ptr##iter, accCols2); \
+      lhs_ptr##iter += accCols2;                                    \
+    }                                                               \
+  } else {                                                          \
+    EIGEN_UNUSED_VARIABLE(lhsV##iter);                              \
   }
 
 #define MICRO_LOAD_ONE(iter) MICRO_LOAD1(lhs_ptr, iter)
 
-#define MICRO_COMPLEX_LOAD_ONE(iter)                                                                       \
-  if (!LhsIsReal && (unroll_factor > iter)) {                                                              \
-    lhsVi##iter = ploadLhs<Packet>(lhs_ptr_real##iter + MICRO_NORMAL_COLS(iter, imag_delta, imag_delta2)); \
-  } else {                                                                                                 \
-    EIGEN_UNUSED_VARIABLE(lhsVi##iter);                                                                    \
-  }                                                                                                        \
+#define MICRO_COMPLEX_LOAD_ONE(iter)                                                    \
+  if (!LhsIsReal && (unroll_factor > iter)) {                                           \
+    if (MICRO_NORMAL(iter)) {                                                           \
+      lhsVi##iter = ploadLhs<Packet>(lhs_ptr_real##iter + imag_delta);                  \
+    } else {                                                                            \
+      lhsVi##iter = ploadu_partial<Packet>(lhs_ptr_real##iter + imag_delta2, accCols2); \
+    }                                                                                   \
+  } else {                                                                              \
+    EIGEN_UNUSED_VARIABLE(lhsVi##iter);                                                 \
+  }                                                                                     \
   MICRO_LOAD1(lhs_ptr_real, iter)
 
 #define MICRO_SRC_PTR1(lhs_ptr, advRows, iter)                                  \
