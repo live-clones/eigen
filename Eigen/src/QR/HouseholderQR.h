@@ -463,7 +463,14 @@ struct householder_qr_inplace_blocked {
       tempData = tempVector.data();
     }
 
+    // Each panel is factored column by column, which costs O(rows * blockSize^2) level-2 work, while the trailing
+    // update gets more efficient with blockSize as its inner dimension. Small matrices are fastest unblocked; below a
+    // few hundred columns the panel work dominates and 16-column panels win, most on tall matrices.
     Index blockSize = (std::min)(maxBlockSize, size);
+    if (rows * cols <= 96 * 96)
+      blockSize = size;
+    else if (cols < 512)
+      blockSize = (std::min)(blockSize, Index(16));
 
     Index k = 0;
     for (k = 0; k < size; k += blockSize) {
