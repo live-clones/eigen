@@ -400,9 +400,8 @@ void structured_fft_apply(Dest& dst, const Matrix<std::complex<typename NumTrait
   eigen_assert(rhs.rows() <= p && outSize <= p);
   if (p == 1) {
     // The length-one DFT is the identity and is unsupported by kissfft.
-    for (Index k = 0; k < rhs.cols(); ++k)
-      dst.coeffRef(0, k) +=
-          alpha * structured_scalar_part_impl<Scalar>::run_scalar(Complex(symbol.coeff(0) * Complex(rhs.coeff(0, k))));
+    dst.row(0) += alpha * structured_scalar_part_impl<Scalar>::run(Complex(symbol.coeff(0)) *
+                                                                   rhs.row(0).template cast<Complex>());
     return;
   }
 
