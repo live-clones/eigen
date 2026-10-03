@@ -67,6 +67,12 @@ void test_cauchy_product(Index m, Index n) {
   Vec w0 = w;
   w.noalias() += C * v;
   VERIFY_IS_APPROX(w, (w0 + dense * v).eval());
+
+  // Several right-hand sides share each reciprocal column; -= passes alpha = -1.
+  Mat W = Mat::Random(m, 3);
+  const Mat W0 = W;
+  W.noalias() -= C * V;
+  VERIFY_IS_APPROX(W, (W0 - dense * V).eval());
 }
 
 template <typename Scalar>
@@ -385,6 +391,12 @@ void test_cauchy_mixed_scalar(Index m, Index n) {
   w.noalias() += C * v;
   VERIFY_IS_APPROX(w, (w0 + dense * v).eval());
 
+  CMat V = CMat::Random(n, 3);
+  CMat W = CMat::Random(m, 3);
+  const CMat W0 = W;
+  W.noalias() -= C * V;
+  VERIFY_IS_APPROX(W, (W0 - dense * V).eval());
+
   CVec xc, yc;
   separated_nodes<Complex>(m, n, xc, yc);
   Cauchy<Complex> Cc(xc, yc);
@@ -534,6 +546,12 @@ void test_cauchy_fixed() {
   Matrix<Scalar, M, 1> w2;
   w2.noalias() = C * v;
   VERIFY_IS_APPROX(w2, (dense * v).eval());
+
+  // Several right-hand sides take the fixed-size reciprocal workspace.
+  const Matrix<Scalar, N, 3> V = Matrix<Scalar, N, 3>::Random();
+  Matrix<Scalar, M, 3> W;
+  W.noalias() = C * V;
+  VERIFY_IS_APPROX(W, (dense * V).eval());
 }
 
 EIGEN_DECLARE_TEST(structured_cauchy) {
