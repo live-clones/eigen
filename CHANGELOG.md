@@ -15,6 +15,7 @@ Bug fixes:
 - `numext::arithmetic_shift_right()` sign-extended unsigned scalars, so the scalar and vectorized paths of one shift expression disagreed [!2814]
 - `Transform::inverse(Projective)` returned an uninitialized result for every mode other than `Projective` [!2814]
 - `DGMRES::iterations()` returned `maxIterations()` after every solve, including converged ones [!2814]
+- `HouseholderQR` (and the decompositions and `SplineFitting` built on it) and `JacobiSVD` did not compile with `AutoDiffScalar` [#3192, !3265]
 
 Deprecations:
 - `ArrayBase::shiftRight<N>()` and `ArrayBase::shiftLeft<N>()`, in favour of `arithmeticShiftRight<N>()` and `logicalShiftLeft<N>()` [!2816]
