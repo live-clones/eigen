@@ -9,6 +9,7 @@
 #define EIGEN_CACHEFRIENDLY_PRODUCT_THRESHOLD 2
 #define EIGEN_GEMM_TO_COEFFBASED_THRESHOLD 0
 #define EIGEN_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD 0
+#define EIGEN_SME_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD 0
 #define EIGEN_SME_GEMM_TO_COEFFBASED_OUTPUT_AREA_THRESHOLD(Scalar) 0
 #endif
 
@@ -22,6 +23,10 @@ using namespace Eigen;
 #endif
 
 typedef SCALAR Scalar;
+#ifdef EIGEN_BENCH_FORCE_GEMM
+static_assert(internal::product_type<Matrix<Scalar, 16, 16>, Matrix<Scalar, 16, 16>>::value == GemmProduct,
+              "the *_gemm targets must not leave any fixed-size product on the coeff-based path");
+#endif
 using RealScalar = NumTraits<Scalar>::Real;
 
 // A complex multiply-add is four real multiplies and four real adds.
