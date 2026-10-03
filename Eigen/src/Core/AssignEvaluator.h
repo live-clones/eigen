@@ -156,7 +156,12 @@ struct copy_using_evaluator_traits {
       : Traversal == SliceVectorizedTraversal ? (MayUnrollInner ? InnerUnrolling : NoUnrolling)
 #endif
                                               : NoUnrolling;
-  static constexpr bool UsePacketSegment = has_packet_segment<PacketType>::value;
+  // Expressions bounded at compile time to a few packets (runtime-sized blocks of small fixed matrices, as in the
+  // column steps of a 4x4 Cholesky) take scalar tails: their results are reread almost at once, and a masked store
+  // does not forward to the following loads (5.7x on a 3x3 double LLT, AVX2).
+  static constexpr bool UsePacketSegment =
+      has_packet_segment<PacketType>::value &&
+      !(MaxSizeAtCompileTime != Dynamic && MaxSizeAtCompileTime <= 4 * int(unpacket_traits<PacketType>::size));
 
 #ifdef EIGEN_DEBUG_ASSIGN
   static void debug() {
@@ -515,8 +520,15 @@ struct dense_assignment_loop_impl<Kernel, LinearVectorizedTraversal, NoUnrolling
       unaligned_dense_assignment_loop<PacketType, DstAlignment, SrcAlignment, UsePacketSegment, DstIsAligned>;
   using tail_loop = unaligned_dense_assignment_loop<PacketType, Alignment, SrcAlignment, UsePacketSegment, false>;
 
+  static constexpr int MaxSize = Kernel::AssignmentTraits::MaxSizeAtCompileTime;
+
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(Kernel& kernel) {
-    const Index size = kernel.size();
+    // Where packet segments exist but a small bound turned them off, the scalar head and tail loops trip GCC's
+    // -Waggressive-loop-optimizations unless they see the compile-time bound; this no-op clamp hands it over.
+    // Backends without segments keep the plain size, which is what they always compiled.
+    constexpr bool ClampToMaxSize = has_packet_segment<PacketType>::value && !UsePacketSegment && MaxSize != Dynamic;
+    eigen_assert(MaxSize == Dynamic || kernel.size() <= MaxSize);
+    const Index size = ClampToMaxSize ? numext::mini(kernel.size(), Index(MaxSize)) : kernel.size();
     const Index alignedStart = DstIsAligned ? 0 : first_aligned<Alignment>(kernel.dstDataPtr(), size);
 
     head_loop::run(kernel, 0, alignedStart);
