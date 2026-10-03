@@ -114,8 +114,9 @@ run time. However, these assertions do cost time and can thus be turned off.
    falls back at run time to the coefficient-based product when rows + cols + depth is below this value. Default is 20.
  - \b \c EIGEN_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD - a product that would take the GEMM path and whose three
    dimensions are all fixed at compile time uses the coefficient-based product instead, selected at compile time,
-   when rows + cols + depth is below this value. Default is 40. It does not follow \c EIGEN_GEMM_TO_COEFFBASED_THRESHOLD, which still applies at run time to the
-   fixed-size products this one sends to the GEMM path, so their crossover is the larger of the two values.
+   when rows + cols + depth is below this value. Default is 40. It does not follow
+   \c EIGEN_GEMM_TO_COEFFBASED_THRESHOLD, which still applies at run time to the fixed-size products this one sends to
+   the GEMM path, so their crossover is the larger of the two values.
  - \b \c EIGEN_SME_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD - the same compile-time bound for the scalar types the ARM
    SME GEMM kernel handles (\c float, \c std::complex<float>, and with FEAT_SME_F64F64 \c double and
    \c std::complex<double>). Default is 61, measured on Apple M4 Pro; other scalar types use
