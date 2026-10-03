@@ -653,6 +653,9 @@ if(EIGEN_GPU_TEST_MODE MATCHES "^(cuda|hip)")
 
   ei_add_test(gpu_example)
   ei_add_test(gpu_basic)
+  ei_add_test(gpu_matrix)
+  ei_add_test(gpu_cholesky)
+  ei_add_test(gpu_lu)
   ei_add_test(packetmath_gpu)
 
   unset(EIGEN_ADD_TEST_FILENAME_EXTENSION)
