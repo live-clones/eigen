@@ -16,8 +16,8 @@ Bug fixes:
 - `numext::arithmetic_shift_right()` sign-extended unsigned scalars, so the scalar and vectorized paths of one shift expression disagreed [!2814]
 - `Transform::inverse(Projective)` returned an uninitialized result for every mode other than `Projective` [!2814]
 - `DGMRES::iterations()` returned `maxIterations()` after every solve, including converged ones [!2814]
-- `BDCSVD` with preconditioner options set, such as `DisableQRDecomposition`, dropped runtime unitary requests for inputs below the switch size [!3212]
-- `JacobiSVD` with `FullPivHouseholderQRPreconditioner` does not support computing thin unitaries, but did not properly disallow users from setting `ComputeThinV` [!3212]
+- `BDCSVD` with QR-only `Options`, such as `DisableQRDecomposition`, dropped runtime unitary requests for inputs below the switch size, so `matrixU()` asserted, or returned an empty `U` and `V` under `NDEBUG` [!3212]
+- `JacobiSVD` with `FullPivHouseholderQRPreconditioner` accepted `ComputeThinV` and returned a non-orthogonal `V` for wide inputs; it now fails to compile, or asserts when requested at runtime [!3212]
 
 Deprecations:
 - `ArrayBase::shiftRight<N>()` and `ArrayBase::shiftLeft<N>()`, in favour of `arithmeticShiftRight<N>()` and `logicalShiftLeft<N>()` [!2816]

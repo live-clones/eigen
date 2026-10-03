@@ -57,7 +57,7 @@ struct traits<BDCSVD<MatrixType_, Options> > : svd_traits<MatrixType_, Options> 
  *                  performance on tall and wide matrices. For backwards compatibility, the option
  *                  #DisableQRDecomposition can be used to disable this optimization. #PreconditionSquareMatrix is
  *                  forwarded to the JacobiSVD that BDCSVD uses for inputs with fewer columns than the switch size,
- *                  and does not affect larger inputs. 
+ *                  and does not affect larger inputs.
  *
  * This class first reduces the input matrix to bi-diagonal form using class UpperBidiagonalization,
  * and then performs a divide-and-conquer diagonalization. Small blocks are diagonalized using class JacobiSVD.
