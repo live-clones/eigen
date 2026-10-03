@@ -112,6 +112,9 @@ run time. However, these assertions do cost time and can thus be turned off.
    correspond to the number of iterations or the number of instructions. The default is value 110.
  - \b \c EIGEN_GEMM_TO_COEFFBASED_THRESHOLD - a matrix-matrix product that reaches the general (GEMM) product path
    falls back at run time to the coefficient-based product when rows + cols + depth is below this value. Default is 20.
+   In an ARM SME build, the scalar types the SME GEMM kernel handles use \c EIGEN_SME_GEMM_TO_COEFFBASED_THRESHOLD
+   instead when it is defined, and also fall back when the result is not a vector and has at most
+   \c EIGEN_SME_GEMM_TO_COEFFBASED_OUTPUT_AREA_THRESHOLD(Scalar) coefficients (default 96 / sizeof(Scalar)).
  - \b \c EIGEN_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD - a product that would take the GEMM path and whose three
    dimensions are all fixed at compile time uses the coefficient-based product instead, selected at compile time,
    when rows + cols + depth is below this value. Default is 40. It does not follow

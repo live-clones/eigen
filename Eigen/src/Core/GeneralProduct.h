@@ -44,11 +44,7 @@ enum { Large = 2, Small = 3 };
 #endif
 
 #ifdef EIGEN_VECTORIZE_SME
-// Separate knob for the scalar pairs the SME kernel claims, whose GEMM path
-// overtakes the coeff-based product later than the generic one (fitted on
-// Apple M4 Pro, #3119); int, half, bfloat16, mixed real x complex, and double /
-// complex<double> without FEAT_SME_F64F64 run the generic kernel and never
-// read this one.
+// Read only for SME-kernel scalar pairs; fitted on Apple M4 Pro to today's NEON small-block bounds (re-measure: #3194).
 #ifndef EIGEN_SME_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD
 #define EIGEN_SME_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD 61
 #endif
