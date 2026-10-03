@@ -95,6 +95,28 @@ void qr_invertible() {
   VERIFY_IS_APPROX(absdet, qr.absDeterminant());
 }
 
+// householder_qr_inplace_blocked picks its panel width from the shape: unblocked up to 96 x 96 coefficients,
+// 16-column panels below 512 columns, and the caller's 48 otherwise. Each shape here sits on one side of a threshold;
+// A = QR is checked against a normwise backward-error bound.
+template <int>
+void qr_blocking_shapes() {
+  using MatrixType = Matrix<double, Dynamic, Dynamic>;
+  const Index shapes[][2] = {{96, 96}, {97, 96}, {96, 97}, {600, 40}, {3000, 17}, {64, 700}, {530, 520}};
+  for (const auto& shape : shapes) {
+    const Index rows = shape[0], cols = shape[1];
+    const MatrixType a = MatrixType::Random(rows, cols);
+    const Index k = (std::min)(rows, cols);
+    HouseholderQR<MatrixType> qr(a);
+    // The thin factors: the first k columns of Q and the top k rows of R.
+    const MatrixType q = qr.householderQ() * MatrixType::Identity(rows, k);
+    const MatrixType r = qr.matrixQR().topRows(k).template triangularView<Upper>();
+    // Householder QR is backward stable: ||A - QR|| <= c * max(rows, cols) * eps * ||A||.
+    const double eps = NumTraits<double>::epsilon();
+    VERIFY((a - q * r).norm() <= 4 * double((std::max)(rows, cols)) * eps * a.norm());
+    VERIFY((q.adjoint() * q - MatrixType::Identity(k, k)).norm() <= 4 * double(rows) * eps * std::sqrt(double(k)));
+  }
+}
+
 template <typename MatrixType>
 void qr_verify_assert() {
   MatrixType tmp;
@@ -138,4 +160,6 @@ EIGEN_DECLARE_TEST(qr) {
 
   // Test problem size constructors
   CALL_SUBTEST_12(HouseholderQR<MatrixXf>(10, 20));
+
+  CALL_SUBTEST_13(qr_blocking_shapes<0>());
 }
