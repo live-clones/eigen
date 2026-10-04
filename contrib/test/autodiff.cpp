@@ -212,73 +212,34 @@ void test_autodiff_vector() {
   VERIFY_IS_APPROX(res.value(), foo(p));
 }
 
-template <int>
-void test_autodiff_vector_derivative() {
-  // Get a random p avoiding divide by 0
-  const Vector2f p = [] {
-      Vector2f value = Vector2f::Random();
-      if (std::abs(value.x() + 1.0f) < 0.01f) value.x() = -0.9f;
-      return value;
-  }();
-
-  const auto norm {std::sqrt((p.x() + 1.0f) * (p.x() + 1.0f) + (p.y() - 1.0f) * (p.y() - 1.0f))};
-  const auto expected_result {norm + 2.0f * p.x() * p.x() + 2.0f * p.y() * p.y()};
-  const Vector2f expected_vector {
-    (p.x() + 1.0f) / norm + 4.0f * p.x(),
-    (p.y() - 1.0f) / norm + 4.0f * p.y()
-  };
-
-  typedef AutoDiffScalar<Vector2f> AD;
-  typedef Matrix<AD, 2, 1> VectorAD;
+// foo(p) = |p - (-1, 1)| + 2 |p|^2, so grad foo(p) = (p - (-1, 1)) / |p - (-1, 1)| + 4 p.
+inline void check_autodiff_vector_derivative(const Vector2f& p, float expected_value,
+                                             const Vector2f& expected_gradient) {
+  using AD = AutoDiffScalar<Vector2f>;
+  using VectorAD = Matrix<AD, 2, 1>;
   VectorAD ap = p.cast<AD>();
   ap.x().derivatives() = Vector2f::UnitX();
   ap.y().derivatives() = Vector2f::UnitY();
-  AD res = foo<VectorAD>(ap);
+  const AD res = foo<VectorAD>(ap);
+  VERIFY_IS_APPROX(res.value(), expected_value);
+  VERIFY_IS_APPROX(res.derivatives(), expected_gradient);
+}
 
-  VERIFY_IS_APPROX(res.value(), expected_result);
-  VERIFY_IS_APPROX(res.derivatives(), expected_vector);
+template <int>
+void test_autodiff_vector_derivative() {
+  Vector2f p = Vector2f::Random();
+  // Stay away from the kink of the norm term at (-1, 1).
+  if (numext::abs(p.x() + 1.0f) < 0.01f) p.x() = -0.9f;
+  const float x = p.x(), y = p.y();
+  const float norm = std::sqrt((x + 1.0f) * (x + 1.0f) + (y - 1.0f) * (y - 1.0f));
+  check_autodiff_vector_derivative(p, norm + 2.0f * (x * x + y * y),
+                                   Vector2f((x + 1.0f) / norm + 4.0f * x, (y - 1.0f) / norm + 4.0f * y));
 }
 
 template <int>
 void test_autodiff_vector_derivative_specific_values() {
-  // norm = sqrt((x + 1)**2 + (y - 1)**2)
-  // expected_result = norm + 2*x**2 + 2*y**2
-  // expected.x() = (x + 1) / norm + 4 * x, expected.y() = (y - 1) / norm + 4 * y
-  {
-    const auto x {2.0f};
-    const auto y {3.0f};
-    const auto expected_result {29.605551f};
-    const Vector2f expected_vector {8.832050f, 12.554700f};
-
-    const Vector2f p {x, y};
-    typedef AutoDiffScalar<Vector2f> AD;
-    typedef Matrix<AD, 2, 1> VectorAD;
-    VectorAD ap = p.cast<AD>();
-    ap.x().derivatives() = Vector2f::UnitX();
-    ap.y().derivatives() = Vector2f::UnitY();
-    AD res = foo<VectorAD>(ap);
-
-    VERIFY_IS_APPROX(res.value(), expected_result);
-    VERIFY_IS_APPROX(res.derivatives(), expected_vector);
-  }
-
-  {
-    const auto x {-3.4f};
-    const auto y {7.2f};
-    const auto expected_result {133.448308f};
-    const Vector2f expected_vector {-13.960994f, 29.732568f};
-
-    const Vector2f p {x, y};
-    typedef AutoDiffScalar<Vector2f> AD;
-    typedef Matrix<AD, 2, 1> VectorAD;
-    VectorAD ap = p.cast<AD>();
-    ap.x().derivatives() = Vector2f::UnitX();
-    ap.y().derivatives() = Vector2f::UnitY();
-    AD res = foo<VectorAD>(ap);
-
-    VERIFY_IS_APPROX(res.value(), expected_result);
-    VERIFY_IS_APPROX(res.derivatives(), expected_vector);
-  }
+  check_autodiff_vector_derivative(Vector2f(2.0f, 3.0f), 29.605551f, Vector2f(8.832050f, 12.554700f));
+  check_autodiff_vector_derivative(Vector2f(-3.4f, 7.2f), 133.448308f, Vector2f(-13.960994f, 29.732568f));
 }
 
 template <int>
