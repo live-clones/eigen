@@ -74,10 +74,12 @@ int main() {
 
   ConjugateGradient<SparseMatrix<double>, Lower | Upper, IdentityPreconditioner> plain(H);
   ConjugateGradient<SparseMatrix<double>, Lower | Upper, DiagonalPreconditioner<double>> jacobi(H);
-  ConjugateGradient<SparseMatrix<double>, Lower | Upper, SeparablePreconditioner> separable(H);
+  // The preconditioner gets its operator before compute(), which reads its info().
+  ConjugateGradient<SparseMatrix<double>, Lower | Upper, SeparablePreconditioner> separable;
   SparseMatrix<double> I(n, n);
   I.setIdentity();
   separable.preconditioner().setOperator(makeKroneckerSum(SparseMatrix<double>(D + V.mean() * I), D));
+  separable.compute(H);
 
   const VectorXd u0 = plain.solve(f), u1 = jacobi.solve(f), u2 = separable.solve(f);
   std::cout << n * n << " unknowns, CG iterations to relative residual " << plain.tolerance() << ":\n";

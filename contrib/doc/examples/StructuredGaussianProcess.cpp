@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: The Eigen Authors
 // SPDX-License-Identifier: MPL-2.0
 
-// The log-likelihood of observations y under a Gaussian process with k random
-// Fourier features and noise variance s^2,
+// The log-likelihood of observations y under a Gaussian process with k Fourier
+// features on a fixed frequency grid and noise variance s^2,
 //   log N(y | 0, S) = -(y^T S^{-1} y + log det S + n log(2 pi)) / 2,
 //   S = s^2 I + U U^T,  U = (n x k feature matrix),
 // costs O(n k^2) with DiagonalPlusLowRank: the Woodbury identity for the solve
