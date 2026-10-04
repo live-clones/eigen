@@ -488,9 +488,10 @@ void lu_partial_piv_fixed() {
     const Fixed a = Fixed::Random();
     const RealScalar bound = check(a);
     VERIFY_IS_EQUAL(first_zero_pivot(a), Index(-1));
-    VERIFY_IS_APPROX(PartialPivLU<Fixed>(a).determinant(), PartialPivLU<Dyn>(a).determinant());
+    const PartialPivLU<Fixed> lu(a);
+    VERIFY_IS_APPROX(lu.determinant(), PartialPivLU<Dyn>(a).determinant());
     const Vector b = Vector::Random();
-    const Vector x = PartialPivLU<Fixed>(a).solve(b);
+    const Vector x = lu.solve(b);
     VERIFY((a * x - b).norm() <= bound * x.norm());
   }
 

@@ -419,7 +419,11 @@ struct generic_partial_lu_impl {
   static constexpr int UnBlockedBound = 16;
   static constexpr bool UnBlockedAtCompileTime = SizeAtCompileTime != Dynamic && SizeAtCompileTime <= UnBlockedBound;
   static constexpr int ActualSizeAtCompileTime = UnBlockedAtCompileTime ? SizeAtCompileTime : Dynamic;
-  static constexpr bool UnrolledAtCompileTime = UnBlockedAtCompileTime && SizeAtCompileTime <= 12;
+  // Unrolling gives the pivot search, scaling and update of every step compile-time extents; runtime-sized blocks'
+  // vectorized loops cost more than their arithmetic (1.5-4.6x for 3x3 to 6x6 double, gcc and clang, AVX2). At 16,
+  // gcc's unrolled code is slower than the loop.
+  static constexpr int UnrolledBound = 12;
+  static constexpr bool UnrolledAtCompileTime = UnBlockedAtCompileTime && SizeAtCompileTime <= UnrolledBound;
   // Remaining rows and columns at compile-time:
   static constexpr int RRows = SizeAtCompileTime == 2 ? 1 : Dynamic;
   static constexpr int RCols = SizeAtCompileTime == 2 ? 1 : Dynamic;
@@ -452,9 +456,6 @@ struct generic_partial_lu_impl {
   static Index unblocked_lu(MatrixTypeRef& lu, PivIndex* row_transpositions, PivIndex& nb_transpositions) {
     using Scoring = scalar_score_coeff_op<Scalar>;
     using Score = typename Scoring::result_type;
-    // Fixed sizes up to 12: unroll the elimination so that the pivot search, scaling and update of each step have
-    // compile-time extents, instead of runtime-sized blocks whose vectorized loops cost more than their arithmetic
-    // (1.5-4.6x for 3x3 to 6x6 double, gcc and clang, AVX2). At 16, gcc's unrolled code is slower than the loop.
     {
       Index first_zero_pivot;
       if (unrolled_partial_lu<UnrolledAtCompileTime, SizeAtCompileTime>::run(lu, row_transpositions, nb_transpositions,
