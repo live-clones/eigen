@@ -152,6 +152,9 @@ struct traits<BjorckPereyra<Scalar_>> : traits<Matrix<Scalar_, Dynamic, Dynamic>
  * \tparam Rows_ the number of rows (nodes) at compile time, or \c Dynamic.
  * \tparam Cols_ the number of columns (powers) at compile time, or \c Dynamic.
  *
+ * \par Examples
+ * \ref StructuredExampleQuadrature "interpolatory quadrature".
+ *
  * \sa class BjorckPereyra, makeVandermonde()
  */
 template <typename Scalar_, int Rows_, int Cols_>
@@ -390,6 +393,9 @@ Vandermonde<typename Derived::Scalar, Derived::SizeAtCompileTime, Derived::SizeA
  * \tparam Scalar_ a floating-point-like real or complex scalar supporting
  * Eigen's scalar math hooks, including \c isfinite (and \c abs and \c log for
  * complex node ordering). Integer types are rejected.
+ *
+ * \par Examples
+ * \ref StructuredExampleQuadrature "interpolatory quadrature".
  *
  * \sa class Vandermonde
  */

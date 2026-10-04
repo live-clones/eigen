@@ -67,6 +67,9 @@ namespace Eigen {
  *    Scaling by a power of two is exact, the property the problem scaling
  *    relies on.
  *
+ * \par Examples
+ * \ref StructuredExampleImpurity "an impurity bound state".
+ *
  * \sa class SelfAdjointEigenSolver
  */
 template <typename RealScalar_>
