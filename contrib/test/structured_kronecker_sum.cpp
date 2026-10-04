@@ -291,8 +291,21 @@ void test_ksum_solve(Index n1, Index n2) {
   check_ksum_solves(hilbert<Mat>(n1), Mat(delta * Mat::Identity(n1, n1) - hilbert<Mat>(n1)));
   check_ksum_solves(jordan_block<Mat>(n1, Scalar(1), Scalar(1000)), jordan_block<Mat>(n2, Scalar(1), Scalar(-1000)));
   check_ksum_solves(Mat(RealScalar(1e6) * A), B);
+}
 
-  // Three factors, either path, through the nested sum.
+// Three factors through the nested sum, either path, and non-finite factors,
+// also as a KroneckerOperator factor; separate from test_ksum_solve to keep
+// each part's compile small.
+template <typename Scalar>
+void test_ksum_solve_nested(Index n1, Index n2) {
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  const Mat A = Mat::Random(n1, n1) + RealScalar(3) * Mat::Identity(n1, n1);
+  const Mat B = Mat::Random(n2, n2) + RealScalar(3) * Mat::Identity(n2, n2);
+  const Mat H1 = hermitian_spd<Mat>(n1), H2 = hermitian_spd<Mat>(n2);
+  const Vec b = Vec::Random(n1 * n2);
   const Index n3 = 3;
   const Mat C = jordan_block<Mat>(n3, Scalar(2), Scalar(100)), H3 = hermitian_spd<Mat>(n3);
   const Vec b3 = Vec::Random(n1 * n2 * n3);
@@ -316,6 +329,79 @@ void test_ksum_solve(Index n1, Index n2) {
   VERIFY((Vec(makeKroneckerSum(Hbad, H2).solve(b)).array().isNaN()).all());
   const Vec bn = Vec::Random(n2 * n1 * n2);
   VERIFY(!Vec(makeKroneckerOperator(Mat::Identity(n2, n2), makeKroneckerSum(Abad, B)).solve(bn)).allFinite());
+}
+
+// A real n x n matrix far from normal whose eigenvalues are alpha +- i beta_j:
+// Q (blockdiag([alpha, beta_j; -beta_j, alpha]) + U) Q^T with U strictly upper
+// triangular and Q orthogonal, so the real Schur form has 2x2 blocks coupled by
+// a nonzero upper part (plus a 1x1 block alpha when n is odd).
+template <typename Mat>
+Mat rotational_nonnormal(Index n, typename Mat::Scalar alpha) {
+  using RealScalar = typename Mat::Scalar;
+  Mat B = alpha * Mat::Identity(n, n);
+  for (Index i = 0; i + 1 < n; i += 2) {
+    const RealScalar beta = RealScalar(1) + internal::random<RealScalar>(RealScalar(0), RealScalar(1));
+    B(i, i + 1) = beta;
+    B(i + 1, i) = -beta;
+  }
+  for (Index j = 0; j < n; ++j)
+    for (Index i = 0; i < j; ++i)
+      if (!(i % 2 == 0 && j == i + 1)) B(i, j) = RealScalar(2) * internal::random<RealScalar>();
+  const Mat Q = HouseholderQR<Mat>(Mat::Random(n, n)).householderQ();
+  return Q * B * Q.transpose();
+}
+
+// Whether the real Schur form of A has a 2x2 block, i.e. the case under test.
+template <typename Mat>
+bool has_complex_pair(const Mat& A) {
+  const Mat T = RealSchur<Mat>(A).matrixT();
+  return (T.diagonal(-1).array() != typename Mat::Scalar(0)).any();
+}
+
+// Real factors with complex conjugate eigenvalue pairs take the real Schur path.
+// Up to four factors couple the 2x2 blocks in systems up to 16 wide, with the
+// updates across blocks running at every inner factor; five fall back to the
+// complex Schur path.
+template <typename RealScalar>
+void test_ksum_real_schur() {
+  using Mat = Matrix<RealScalar, Dynamic, Dynamic>;
+  using Vec = Matrix<RealScalar, Dynamic, 1>;
+  const Mat A = rotational_nonnormal<Mat>(4, RealScalar(1)), B = rotational_nonnormal<Mat>(3, RealScalar(2));
+  const Mat C = rotational_nonnormal<Mat>(2, RealScalar(-0.5)), D = rotational_nonnormal<Mat>(3, RealScalar(1.5));
+  const Mat E = rotational_nonnormal<Mat>(2, RealScalar(1));
+  VERIFY(has_complex_pair(A) && has_complex_pair(B) && has_complex_pair(C) && has_complex_pair(D));
+  check_ksum_solves(A, B);
+  check_ksum_solves(B, C);
+
+  const Mat ABC = reference_ksum<RealScalar>(A, reference_ksum<RealScalar>(B, C));
+  const Vec b3 = Vec::Random(ABC.rows());
+  check_ksum_residual(ABC, Vec(makeKroneckerSum(A, B, C).solve(b3)), b3, 9, A.norm() + B.norm() + C.norm());
+
+  const Mat ABCD = reference_ksum<RealScalar>(A, reference_ksum<RealScalar>(B, reference_ksum<RealScalar>(C, D)));
+  const auto K4 = makeKroneckerSum(A, B, C, D);
+  const BartelsStewart<std::decay_t<decltype(K4)>> solver4(K4);
+  VERIFY(!solver4.isHermitian());
+  const Mat B4 = Mat::Random(ABCD.rows(), 2);
+  const Mat X4 = solver4.solve(B4);
+  for (Index j = 0; j < B4.cols(); ++j)
+    check_ksum_residual(ABCD, Vec(X4.col(j)), Vec(B4.col(j)), 12, A.norm() + B.norm() + C.norm() + D.norm());
+
+  const Mat ABCDE = reference_ksum<RealScalar>(
+      A, reference_ksum<RealScalar>(B, reference_ksum<RealScalar>(C, reference_ksum<RealScalar>(D, E))));
+  const Vec b5 = Vec::Random(ABCDE.rows());
+  check_ksum_residual(ABCDE, Vec(makeKroneckerSum(A, B, C, D, E).solve(b5)), b5, 14,
+                      A.norm() + B.norm() + C.norm() + D.norm() + E.norm());
+
+  // Nearly singular coupled systems 8 and 16 wide: A (+) (-A^T) (+) delta C has
+  // eigenvalue sums delta mu_j, A (+) (-A^T) (+) C (+) (delta I - C^T) sums delta.
+  const RealScalar delta = numext::sqrt(NumTraits<RealScalar>::epsilon());
+  const Mat At = -A.transpose(), Cd = delta * C, Ct = delta * Mat::Identity(2, 2) - C.transpose();
+  const Mat S3 = reference_ksum<RealScalar>(A, reference_ksum<RealScalar>(At, Cd));
+  const Vec s3 = Vec::Random(S3.rows());
+  check_ksum_residual(S3, Vec(makeKroneckerSum(A, At, Cd).solve(s3)), s3, 10, 2 * A.norm() + Cd.norm());
+  const Mat S4 = reference_ksum<RealScalar>(A, reference_ksum<RealScalar>(At, reference_ksum<RealScalar>(C, Ct)));
+  const Vec s4 = Vec::Random(S4.rows());
+  check_ksum_residual(S4, Vec(makeKroneckerSum(A, At, C, Ct).solve(s4)), s4, 12, 2 * A.norm() + C.norm() + Ct.norm());
 }
 
 // The fast path is gated on exact Hermitian symmetry: complex symmetric
@@ -436,18 +522,23 @@ void test_ksum_fixed() {
 EIGEN_DECLARE_TEST(structured_kronecker_sum) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1((test_ksum_product<double>(3, 4)));
-    CALL_SUBTEST_1((test_ksum_product<float>(4, 3)));
-    CALL_SUBTEST_1((test_ksum_product<std::complex<double>>(3, 3)));
     CALL_SUBTEST_1((test_ksum_product<double>(1, 1)));
     CALL_SUBTEST_1(test_ksum_fixed());
+    CALL_SUBTEST_5((test_ksum_product<float>(4, 3)));
+    CALL_SUBTEST_6((test_ksum_product<std::complex<double>>(3, 3)));
     CALL_SUBTEST_2((test_ksum_nested<double>(2, 3, 4)));
-    CALL_SUBTEST_5((test_ksum_nested<std::complex<double>>(3, 2, 2)));
+    CALL_SUBTEST_7((test_ksum_nested<std::complex<double>>(3, 2, 2)));
     CALL_SUBTEST_3((test_ksum_solve<double>(5, 7)));
-    CALL_SUBTEST_3((test_ksum_solve<float>(4, 5)));
-    CALL_SUBTEST_3((test_ksum_solve<std::complex<double>>(4, 6)));
     CALL_SUBTEST_3((test_ksum_solve<double>(1, 1)));
-    CALL_SUBTEST_3((test_ksum_hermitian_gate<std::complex<double>>(4, 3)));
-    CALL_SUBTEST_3((test_ksum_hermitian_gate<std::complex<float>>(3, 4)));
+    CALL_SUBTEST_3((test_ksum_solve_nested<double>(5, 7)));
+    CALL_SUBTEST_3((test_ksum_real_schur<double>()));
+    CALL_SUBTEST_8((test_ksum_solve<float>(4, 5)));
+    CALL_SUBTEST_12((test_ksum_solve_nested<float>(4, 5)));
+    CALL_SUBTEST_10((test_ksum_real_schur<float>()));
+    CALL_SUBTEST_9((test_ksum_solve<std::complex<double>>(4, 6)));
+    CALL_SUBTEST_9((test_ksum_solve_nested<std::complex<double>>(4, 6)));
+    CALL_SUBTEST_9((test_ksum_hermitian_gate<std::complex<double>>(4, 3)));
+    CALL_SUBTEST_11((test_ksum_hermitian_gate<std::complex<float>>(3, 4)));
     CALL_SUBTEST_4((test_ksum_eigenvalues<double>(3, 4)));
     CALL_SUBTEST_4((test_ksum_eigenvalues<std::complex<float>>(3, 2)));
     CALL_SUBTEST_4(test_ksum_finite_difference(12, 9));
