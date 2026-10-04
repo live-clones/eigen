@@ -320,7 +320,6 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, ConjugateLh
   // 8-packet blocks stop while at least 2 packets remain for the final pass, so no pass is a lone packet whose
   // accumulator chain is bound by the FMA latency.
   const Index n8 = rows - 10 * ResPacketSize + 1;
-  using UnsignedIndex = std::make_unsigned_t<Index>;
   const Index n_half = rows - 1 * ResPacketSizeHalf + 1;
   const Index n_quarter = rows - 1 * ResPacketSizeQuarter + 1;
 
@@ -338,6 +337,7 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, ConjugateLh
     Index jend = numext::mini(j2 + block_cols, cols);
     Index i = 0;
     for (; i < n8; i += ResPacketSize * 8) process_rows<8>(i, j2, jend, lhs, rhs, res, palpha, pcj);
+    using UnsignedIndex = std::make_unsigned_t<Index>;
     // The rows - i < 10 * ResPacketSize remaining rows take one pass rather than several narrower ones.
     const UnsignedIndex remaining = UnsignedIndex(rows - i);
     const Index full_packets = Index(remaining / ResPacketSize);
@@ -510,9 +510,7 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLh
     LhsPacketSizeQuarter = QuarterTraits::LhsPacketSize,
     HasHalf = (int)ResPacketSizeHalf < (int)ResPacketSize,
     HasQuarter = (int)ResPacketSizeQuarter < (int)ResPacketSizeHalf,
-    UseSegment = gemv_use_packet_segment<LhsPacket, RhsPacket, ResPacket>::value &&
-                 gemv_mapper_is_contiguous<LhsMapper, RowMajor>::value &&
-                 gemv_mapper_is_contiguous<RhsMapper, ColMajor>::value
+    UseSegment = UseSegment_
   };
 
   using UnsignedIndex = std::make_unsigned_t<Index>;
