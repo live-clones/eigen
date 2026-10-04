@@ -243,11 +243,9 @@ void check_kron_chunked_product(const KroneckerOperator<Lhs, Rhs>& K) {
 }
 
 template <typename Scalar>
-void test_kron_chunked() {
-  using RealScalar = typename NumTraits<Scalar>::Real;
+void test_kron_chunked_products() {
   using Vec = Matrix<Scalar, Dynamic, 1>;
   using Mat = Matrix<Scalar, Dynamic, Dynamic>;
-  using RowMat = Matrix<Scalar, Dynamic, Dynamic, RowMajor>;
   using Sparse = SparseMatrix<Scalar>;
   using Diag = DiagonalMatrix<Scalar, Dynamic>;
   const std::ptrdiff_t l1 = l1CacheSize(), l2 = l2CacheSize(), l3 = l3CacheSize();
@@ -266,6 +264,22 @@ void test_kron_chunked() {
   check_kron_chunked_product(makeKroneckerOperator(Mat::Identity(2, 3), B));
   check_kron_chunked_product(makeKroneckerOperator(Mat::Identity(2, 2), Mat::Identity(2, 2)));
   check_kron_chunked_product(makeKroneckerOperator(Mat::Random(1, 2), As, Mat::Random(2, 1)));
+
+  setCpuCacheSizes(l1, l2, l3);
+}
+
+template <typename Scalar>
+void test_kron_chunked_solves() {
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using RowMat = Matrix<Scalar, Dynamic, Dynamic, RowMajor>;
+  using Sparse = SparseMatrix<Scalar>;
+  using Diag = DiagonalMatrix<Scalar, Dynamic>;
+  const std::ptrdiff_t l1 = l1CacheSize(), l2 = l2CacheSize(), l3 = l3CacheSize();
+  // A budget of 32 stacked entries: 2 columns of the 16-entry workspace of
+  // 3x2 (x) 2x3, chunks of 2, 2, 1 for 5 right-hand sides.
+  setCpuCacheSizes(l1, std::ptrdiff_t(8 * 32 * sizeof(Scalar)), l3);
 
   const RowMat b = RowMat::Random(4, 5);
   const Mat Ad = Mat::Random(2, 2) + RealScalar(4) * Mat::Identity(2, 2);
@@ -888,31 +902,52 @@ void test_kron_diag_inverse_determinant(Index n1, Index n2) {
 // factor decompositions): eigen-residual, SVD reconstruction, rank and
 // minimum-norm least squares against the dense references.
 template <typename Scalar>
-void test_kron_diag_decompositions(Index n1, Index n2) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef std::complex<RealScalar> Complex;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
-  typedef Matrix<Complex, Dynamic, Dynamic> CMat;
-  typedef Matrix<Complex, Dynamic, 1> CVec;
-  typedef DiagonalMatrix<Scalar, Dynamic> Diag;
+struct DiagKronecker {
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Diag = DiagonalMatrix<Scalar, Dynamic>;
+  DiagKronecker(Index n1, Index n2)
+      : D(Vec::Random(n1)), B(Mat::Random(n2, n2)), K(D, B), dense(reference_kron<Scalar>(D.toDenseMatrix(), B)) {}
+  Diag D;
+  Mat B;
+  KroneckerOperator<Diag, Mat> K;
+  Mat dense;
+};
 
-  const Diag D(Vec::Random(n1));
-  Mat B = Mat::Random(n2, n2);
-  KroneckerOperator<Diag, Mat> K(D, B);
-  Mat dense = reference_kron<Scalar>(D.toDenseMatrix(), B);
+// The decomposition family on a diagonal factor, one test per decomposition to
+// keep each part's compile small.
+template <typename Scalar>
+void test_kron_diag_eigen(Index n1, Index n2) {
+  using Complex = std::complex<typename NumTraits<Scalar>::Real>;
+  using CMat = Matrix<Complex, Dynamic, Dynamic>;
+  using CVec = Matrix<Complex, Dynamic, 1>;
+  const DiagKronecker<Scalar> f(n1, n2);
+  const CVec lambda = f.K.eigenvalues();
+  const CMat V = f.K.eigenvectors();
+  VERIFY_IS_APPROX((f.dense.template cast<Complex>() * V).eval(), (V * lambda.asDiagonal()).eval());
+}
 
-  CVec lambda = K.eigenvalues();
-  CMat V = K.eigenvectors();
-  VERIFY_IS_APPROX((dense.template cast<Complex>() * V).eval(), (V * lambda.asDiagonal()).eval());
+template <typename Scalar>
+void test_kron_diag_svd(Index n1, Index n2) {
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  const DiagKronecker<Scalar> f(n1, n2);
+  const Matrix<typename NumTraits<Scalar>::Real, Dynamic, 1> sv = f.K.singularValues();
+  const Mat U = f.K.matrixU(), W = f.K.matrixV();
+  VERIFY_IS_APPROX((U * sv.template cast<Scalar>().asDiagonal() * W.adjoint()).eval(), f.dense);
+}
 
-  Matrix<RealScalar, Dynamic, 1> sv = K.singularValues();
-  Mat U = K.matrixU(), W = K.matrixV();
-  VERIFY_IS_APPROX((U * sv.template cast<Scalar>().asDiagonal() * W.adjoint()).eval(), dense);
+template <typename Scalar>
+void test_kron_diag_rank(Index n1, Index n2) {
+  const DiagKronecker<Scalar> f(n1, n2);
+  VERIFY_IS_EQUAL(f.K.rank(), f.dense.completeOrthogonalDecomposition().rank());
+}
 
-  VERIFY_IS_EQUAL(K.rank(), dense.completeOrthogonalDecomposition().rank());
-  Vec b = Vec::Random(n1 * n2);
-  VERIFY_IS_APPROX(K.leastSquaresSolve(b), dense.completeOrthogonalDecomposition().solve(b).eval());
+template <typename Scalar>
+void test_kron_diag_least_squares(Index n1, Index n2) {
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  const DiagKronecker<Scalar> f(n1, n2);
+  const Vec b = Vec::Random(n1 * n2);
+  VERIFY_IS_APPROX(f.K.leastSquaresSolve(b), f.dense.completeOrthogonalDecomposition().solve(b).eval());
 }
 
 // Through diagonal factors, the balanced determinant survives partial products
@@ -1433,33 +1468,62 @@ void test_kron_sparse_solve_laplacian(Index n, Index p) {
 }
 
 // The decomposition family on a sparse factor (materialized densely for the
-// factor decompositions): eigen-residual, SVD reconstruction, rank and
-// minimum-norm least squares against the dense references.
+// factor decompositions) against the dense references, one test per
+// decomposition to keep each part's compile small.
 template <typename Scalar>
-void test_kron_sparse_decompositions(Index n1, Index n2) {
+void test_kron_sparse_eigen(Index n1, Index n2) {
   using RealScalar = typename NumTraits<Scalar>::Real;
   using Complex = std::complex<RealScalar>;
-  using Vec = Matrix<Scalar, Dynamic, 1>;
   using Mat = Matrix<Scalar, Dynamic, Dynamic>;
   using CMat = Matrix<Complex, Dynamic, Dynamic>;
   using CVec = Matrix<Complex, Dynamic, 1>;
   using Sparse = SparseMatrix<Scalar>;
 
   const Sparse S = random_sparse_dominant<Scalar>(n1);
-  Mat B = Mat::Random(n2, n2);
-  KroneckerOperator<Sparse, Mat> K(S, B);
-  Mat dense = reference_kron<Scalar>(Mat(S), B);
-
-  CVec lambda = K.eigenvalues();
-  CMat V = K.eigenvectors();
+  const Mat B = Mat::Random(n2, n2);
+  const KroneckerOperator<Sparse, Mat> K(S, B);
+  const Mat dense = reference_kron<Scalar>(Mat(S), B);
+  const CVec lambda = K.eigenvalues();
+  const CMat V = K.eigenvectors();
   VERIFY_IS_APPROX((dense.template cast<Complex>() * V).eval(), (V * lambda.asDiagonal()).eval());
+}
 
-  Matrix<RealScalar, Dynamic, 1> sv = K.singularValues();
-  Mat U = K.matrixU(), W = K.matrixV();
+template <typename Scalar>
+void test_kron_sparse_svd(Index n1, Index n2) {
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Sparse = SparseMatrix<Scalar>;
+
+  const Sparse S = random_sparse_dominant<Scalar>(n1);
+  const Mat B = Mat::Random(n2, n2);
+  const KroneckerOperator<Sparse, Mat> K(S, B);
+  const Mat dense = reference_kron<Scalar>(Mat(S), B);
+  const Matrix<RealScalar, Dynamic, 1> sv = K.singularValues();
+  const Mat U = K.matrixU(), W = K.matrixV();
   VERIFY_IS_APPROX((U * sv.template cast<Scalar>().asDiagonal() * W.adjoint()).eval(), dense);
+}
 
-  VERIFY_IS_EQUAL(K.rank(), dense.completeOrthogonalDecomposition().rank());
-  Vec b = Vec::Random(n1 * n2);
+template <typename Scalar>
+void test_kron_sparse_rank(Index n1, Index n2) {
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Sparse = SparseMatrix<Scalar>;
+
+  const Sparse S = random_sparse_dominant<Scalar>(n1);
+  const KroneckerOperator<Sparse, Mat> K(S, Mat::Random(n2, n2));
+  VERIFY_IS_EQUAL(K.rank(), Mat(K).completeOrthogonalDecomposition().rank());
+}
+
+template <typename Scalar>
+void test_kron_sparse_least_squares(Index n1, Index n2) {
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Sparse = SparseMatrix<Scalar>;
+
+  const Sparse S = random_sparse_dominant<Scalar>(n1);
+  const Mat B = Mat::Random(n2, n2);
+  const KroneckerOperator<Sparse, Mat> K(S, B);
+  const Mat dense = reference_kron<Scalar>(Mat(S), B);
+  const Vec b = Vec::Random(n1 * n2);
   VERIFY_IS_APPROX(K.leastSquaresSolve(b), dense.completeOrthogonalDecomposition().solve(b).eval());
 }
 
@@ -1856,95 +1920,134 @@ void test_kron_identity_factor(Index p, Index m2, Index n2) {
 }
 
 // Nested factors: A (x) (B (x) C) and (A (x) B) (x) C against the dense
-// reference for every operation, with dense, sparse and identity leaves.
+// reference, with dense, sparse and identity leaves. Moderate diagonal boost:
+// invertible, with determinants tame enough for a relative comparison. The
+// operation families are separate tests to keep each part's compile small.
 template <typename Scalar>
-void test_kron_nested(Index n1, Index n2, Index n3) {
+struct NestedKronecker {
   using RealScalar = typename NumTraits<Scalar>::Real;
-  using Complex = std::complex<RealScalar>;
-  using Vec = Matrix<Scalar, Dynamic, 1>;
   using Mat = Matrix<Scalar, Dynamic, Dynamic>;
-  using CMat = Matrix<Complex, Dynamic, Dynamic>;
-  using CVec = Matrix<Complex, Dynamic, 1>;
-  using RealVec = Matrix<RealScalar, Dynamic, 1>;
+  using Sparse = SparseMatrix<Scalar>;
+  using RightNested = KroneckerOperator<Mat, KroneckerOperator<Sparse, Mat>>;
+  using LeftNested = KroneckerOperator<KroneckerOperator<Mat, Sparse>, Mat>;
+
+  NestedKronecker(Index n1, Index n2, Index n3)
+      : A(Mat::Random(n1, n1) + RealScalar(2) * Mat::Identity(n1, n1)),
+        Bs(random_sparse_dominant<Scalar>(n2)),
+        C(Mat::Random(n3, n3) + RealScalar(2) * Mat::Identity(n3, n3)),
+        Bd(Bs),
+        ref(reference_kron<Scalar>(A, reference_kron<Scalar>(Bd, C))),
+        KR(makeKroneckerOperator(A, Bs, C)),
+        KL(makeKroneckerOperator(A, Bs), C) {}
+
+  Mat A;
+  Sparse Bs;
+  Mat C, Bd, ref;
+  RightNested KR;
+  LeftNested KL;
+};
+
+template <typename Scalar>
+void test_kron_nested_products(Index n1, Index n2, Index n3) {
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
   using Sparse = SparseMatrix<Scalar>;
   using RowSparse = SparseMatrix<Scalar, RowMajor>;
   using Id = typename Mat::IdentityReturnType;
+  const NestedKronecker<Scalar> f(n1, n2, n3);
+  const Mat& ref = f.ref;
 
-  // Moderate diagonal boost: invertible, with determinants tame enough for a
-  // relative comparison.
-  const Mat A = Mat::Random(n1, n1) + RealScalar(2) * Mat::Identity(n1, n1);
-  const Sparse Bs = random_sparse_dominant<Scalar>(n2);
-  const Mat C = Mat::Random(n3, n3) + RealScalar(2) * Mat::Identity(n3, n3);
-  const Mat Bd = Bs;
-  const Mat ref = reference_kron<Scalar>(A, reference_kron<Scalar>(Bd, C));
-
-  auto KR = makeKroneckerOperator(A, Bs, C);
-  STATIC_CHECK((std::is_same<decltype(KR), KroneckerOperator<Mat, KroneckerOperator<Sparse, Mat>>>::value));
-  const KroneckerOperator<KroneckerOperator<Mat, Sparse>, Mat> KL(makeKroneckerOperator(A, Bs), C);
-  VERIFY_IS_EQUAL(KR.rows(), n1 * n2 * n3);
-  VERIFY_IS_EQUAL(KL.cols(), n1 * n2 * n3);
-
-  check_kron_products(KR, ref);
-  check_kron_products(KL, ref);
-  VERIFY_IS_APPROX(Mat(KR), ref);
-  VERIFY_IS_APPROX(Mat(KL), ref);
+  STATIC_CHECK((std::is_same<decltype(makeKroneckerOperator(f.A, f.Bs, f.C)),
+                             typename NestedKronecker<Scalar>::RightNested>::value));
+  VERIFY_IS_EQUAL(f.KR.rows(), n1 * n2 * n3);
+  VERIFY_IS_EQUAL(f.KL.cols(), n1 * n2 * n3);
+  check_kron_products(f.KR, ref);
+  check_kron_products(f.KL, ref);
+  VERIFY_IS_APPROX(Mat(f.KR), ref);
+  VERIFY_IS_APPROX(Mat(f.KL), ref);
   Mat acc = Mat::Random(ref.rows(), ref.cols());
   const Mat acc0 = acc;
-  acc += KL;
-  acc -= KR;
+  acc += f.KL;
+  acc -= f.KR;
   VERIFY_IS_APPROX(acc, acc0);
   for (Index t = 0; t < 5; ++t) {
     const Index i = internal::random<Index>(0, ref.rows() - 1), j = internal::random<Index>(0, ref.cols() - 1);
-    VERIFY_IS_APPROX(KR.coeff(i, j), ref(i, j));
-    VERIFY_IS_APPROX(KL.coeff(i, j), ref(i, j));
+    VERIFY_IS_APPROX(f.KR.coeff(i, j), ref(i, j));
+    VERIFY_IS_APPROX(f.KL.coeff(i, j), ref(i, j));
   }
 
   // Sparse materialization stores the products of the leaves' stored entries.
-  const Index nnz = n1 * n1 * Bs.nonZeros() * n3 * n3;
+  const Index nnz = n1 * n1 * f.Bs.nonZeros() * n3 * n3;
   Sparse M;
-  M = KR;
+  M = f.KR;
   VERIFY_IS_EQUAL(M.nonZeros(), nnz);
   VERIFY_IS_APPROX(Mat(M), ref);
   RowSparse MR;
-  MR = KL;
+  MR = f.KL;
   VERIFY_IS_EQUAL(MR.nonZeros(), nnz);
   VERIFY_IS_APPROX(Mat(MR), ref);
 
   // The transposition family recurses into the nested factor.
-  check_kron_products(KR.transpose(), Mat(ref.transpose()));
-  check_kron_products(KL.adjoint(), Mat(ref.adjoint()));
-  check_kron_products(KR.conjugate(), Mat(ref.conjugate()));
-
-  // Solves factorize each leaf once; the inverse and determinant recurse.
-  const Vec b = Vec::Random(ref.rows());
-  VERIFY_IS_APPROX((ref * KR.solve(b)).eval(), b);
-  const Mat Bm = Mat::Random(ref.rows(), 3);
-  VERIFY_IS_APPROX((ref * KL.solve(Bm)).eval(), Bm);
-  VERIFY_IS_APPROX((Mat(KR.inverse()) * ref).eval(), Mat(Mat::Identity(ref.rows(), ref.cols())));
-  VERIFY_IS_APPROX(KR.determinant(), ref.determinant());
-  VERIFY_IS_APPROX(KL.determinant(), ref.determinant());
-
-  // The decomposition family materializes the nested factor.
-  const CVec lambda = KL.eigenvalues();
-  const CMat V = KL.eigenvectors();
-  VERIFY_IS_APPROX((ref.template cast<Complex>() * V).eval(), (V * lambda.asDiagonal()).eval());
-  RealVec sv = KR.singularValues();
-  std::sort(sv.data(), sv.data() + sv.size(), std::greater<RealScalar>());
-  VERIFY_IS_APPROX(sv, RealVec(BDCSVD<Mat>(ref).singularValues()));
-  VERIFY_IS_EQUAL(KR.rank(), ref.rows());
+  check_kron_products(f.KR.transpose(), Mat(ref.transpose()));
+  check_kron_products(f.KL.adjoint(), Mat(ref.adjoint()));
+  check_kron_products(f.KR.conjugate(), Mat(ref.conjugate()));
 
   // The identity sandwich I_p (x) S (x) I_q of a 3-D finite-difference term.
   const Index p = n1, q = n3;
-  auto K3 = makeKroneckerOperator(Mat::Identity(p, p), Bs, Mat::Identity(q, q));
+  auto K3 = makeKroneckerOperator(Mat::Identity(p, p), f.Bs, Mat::Identity(q, q));
   STATIC_CHECK((std::is_same<decltype(K3), KroneckerOperator<Id, KroneckerOperator<Sparse, Id>>>::value));
-  const Mat ref3 = reference_kron<Scalar>(Mat::Identity(p, p), reference_kron<Scalar>(Bd, Mat::Identity(q, q)));
+  const Mat ref3 = reference_kron<Scalar>(Mat::Identity(p, p), reference_kron<Scalar>(f.Bd, Mat::Identity(q, q)));
   check_kron_products(K3, ref3);
   Sparse M3;
   M3 = K3;
-  VERIFY_IS_EQUAL(M3.nonZeros(), p * q * Bs.nonZeros());
+  VERIFY_IS_EQUAL(M3.nonZeros(), p * q * f.Bs.nonZeros());
   VERIFY_IS_EQUAL(Mat(M3), ref3);
+}
+
+// Solves factorize each leaf once; the inverse and determinant recurse.
+template <typename Scalar>
+void test_kron_nested_solve(Index n1, Index n2, Index n3) {
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  const NestedKronecker<Scalar> f(n1, n2, n3);
+  const Mat& ref = f.ref;
+  const Vec b = Vec::Random(ref.rows());
+  VERIFY_IS_APPROX((ref * f.KR.solve(b)).eval(), b);
+  const Mat Bm = Mat::Random(ref.rows(), 3);
+  VERIFY_IS_APPROX((ref * f.KL.solve(Bm)).eval(), Bm);
+  VERIFY_IS_APPROX((Mat(f.KR.inverse()) * ref).eval(), Mat(Mat::Identity(ref.rows(), ref.cols())));
+  VERIFY_IS_APPROX(f.KR.determinant(), ref.determinant());
+  VERIFY_IS_APPROX(f.KL.determinant(), ref.determinant());
+
+  const Index p = n1, q = n3;
+  const auto K3 = makeKroneckerOperator(Mat::Identity(p, p), f.Bs, Mat::Identity(q, q));
+  const Mat ref3 = reference_kron<Scalar>(Mat::Identity(p, p), reference_kron<Scalar>(f.Bd, Mat::Identity(q, q)));
   const Vec b3 = Vec::Random(ref3.rows());
   VERIFY_IS_APPROX((ref3 * K3.solve(b3)).eval(), b3);
+}
+
+// The decomposition family materializes the nested factor.
+template <typename Scalar>
+void test_kron_nested_eigen(Index n1, Index n2, Index n3) {
+  using Complex = std::complex<typename NumTraits<Scalar>::Real>;
+  using CMat = Matrix<Complex, Dynamic, Dynamic>;
+  using CVec = Matrix<Complex, Dynamic, 1>;
+  const NestedKronecker<Scalar> f(n1, n2, n3);
+  const CVec lambda = f.KL.eigenvalues();
+  const CMat V = f.KL.eigenvectors();
+  VERIFY_IS_APPROX((f.ref.template cast<Complex>() * V).eval(), (V * lambda.asDiagonal()).eval());
+}
+
+template <typename Scalar>
+void test_kron_nested_svd(Index n1, Index n2, Index n3) {
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using RealVec = Matrix<RealScalar, Dynamic, 1>;
+  const NestedKronecker<Scalar> f(n1, n2, n3);
+  const Mat& ref = f.ref;
+  RealVec sv = f.KR.singularValues();
+  std::sort(sv.data(), sv.data() + sv.size(), std::greater<RealScalar>());
+  VERIFY_IS_APPROX(sv, RealVec(BDCSVD<Mat>(ref).singularValues()));
+  VERIFY_IS_EQUAL(f.KR.rank(), ref.rows());
 }
 
 EIGEN_DECLARE_TEST(structured_kronecker) {
@@ -1973,12 +2076,12 @@ EIGEN_DECLARE_TEST(structured_kronecker) {
     // Minimum-norm least squares through factor pseudo-inverses.
     CALL_SUBTEST_3((test_kron_least_squares<double>(8, 5, 7, 4)));  // tall x tall
     CALL_SUBTEST_3((test_kron_least_squares<double>(8, 5, 3, 6)));  // tall x wide
-    CALL_SUBTEST_15((test_kron_least_squares<std::complex<double>>(6, 4, 5, 3)));
+    CALL_SUBTEST_26((test_kron_least_squares<std::complex<double>>(6, 4, 5, 3)));
     CALL_SUBTEST_3((test_kron_least_squares_rank_deficient<double>(6, 4, 5, 3)));
-    CALL_SUBTEST_15((test_kron_least_squares_rank_deficient<std::complex<double>>(5, 3, 4, 4)));
+    CALL_SUBTEST_27((test_kron_least_squares_rank_deficient<std::complex<double>>(5, 3, 4, 4)));
     CALL_SUBTEST_3((test_kron_least_squares<float>(6, 4, 5, 3)));
     CALL_SUBTEST_3((test_kron_least_squares_scaling<double>(6, 4, 3, 5)));
-    CALL_SUBTEST_15((test_kron_least_squares_scaling<std::complex<float>>(4, 5, 6, 3)));
+    CALL_SUBTEST_28((test_kron_least_squares_scaling<std::complex<float>>(4, 5, 6, 3)));
 
     // Eigendecomposition, SVD, inverse, determinant.
     CALL_SUBTEST_4((test_kron_eigen<double>(4, 5)));
@@ -1987,9 +2090,9 @@ EIGEN_DECLARE_TEST(structured_kronecker) {
     CALL_SUBTEST_4((test_kron_svd<double>(4, 4, 5, 5)));
     CALL_SUBTEST_4((test_kron_svd<double>(6, 4, 3, 5)));  // rectangular: structural zeros
     CALL_SUBTEST_20((test_kron_svd<std::complex<double>>(4, 3, 4, 4)));
-    CALL_SUBTEST_16((test_kron_svd<float>(4, 4, 4, 4)));
+    CALL_SUBTEST_29((test_kron_svd<float>(4, 4, 4, 4)));
     CALL_SUBTEST_4((test_kron_inverse_determinant<double>(4, 5)));
-    CALL_SUBTEST_16((test_kron_inverse_determinant<std::complex<double>>(3, 4)));
+    CALL_SUBTEST_30((test_kron_inverse_determinant<std::complex<double>>(3, 4)));
 
     // Matrix-free iterative solve and fixed-size factors.
     CALL_SUBTEST_5((test_kron_matrix_free_cg<double>(6, 7)));
@@ -2007,9 +2110,11 @@ EIGEN_DECLARE_TEST(structured_kronecker) {
     CALL_SUBTEST_18((test_kron_delayed_product<std::complex<float>>(3, 3, 4, 2)));
     CALL_SUBTEST_6((test_kron_mixed_scalar<double>(4, 3, 3, 5)));
     CALL_SUBTEST_18((test_kron_mixed_scalar<float>(3, 4, 2, 3)));
-    CALL_SUBTEST_19((test_kron_chunked<double>()));
-    CALL_SUBTEST_19((test_kron_chunked<std::complex<double>>()));
-    CALL_SUBTEST_19((test_kron_chunked_mixed_scalar<double>()));
+    CALL_SUBTEST_19((test_kron_chunked_products<double>()));
+    CALL_SUBTEST_31((test_kron_chunked_solves<double>()));
+    CALL_SUBTEST_32((test_kron_chunked_products<std::complex<double>>()));
+    CALL_SUBTEST_33((test_kron_chunked_solves<std::complex<double>>()));
+    CALL_SUBTEST_31((test_kron_chunked_mixed_scalar<double>()));
 
     // Numerical boundaries: product-level rank truncation, balanced determinant
     // and ratio-space rank thresholds.
@@ -2038,26 +2143,32 @@ EIGEN_DECLARE_TEST(structured_kronecker) {
     CALL_SUBTEST_21((test_kron_diag_solve<float>(5, 4)));
     CALL_SUBTEST_21((test_kron_diag_solve<std::complex<double>>(6, 4)));
     CALL_SUBTEST_9((test_kron_diag_inverse_determinant<double>(4, 5)));
-    CALL_SUBTEST_21((test_kron_diag_inverse_determinant<std::complex<double>>(3, 4)));
-    CALL_SUBTEST_9((test_kron_diag_decompositions<double>(4, 5)));
-    CALL_SUBTEST_21((test_kron_diag_decompositions<std::complex<double>>(3, 4)));
+    CALL_SUBTEST_30((test_kron_diag_inverse_determinant<std::complex<double>>(3, 4)));
+    CALL_SUBTEST_9((test_kron_diag_eigen<double>(4, 5)));
+    CALL_SUBTEST_9((test_kron_diag_svd<double>(4, 5)));
+    CALL_SUBTEST_9((test_kron_diag_rank<double>(4, 5)));
+    CALL_SUBTEST_9((test_kron_diag_least_squares<double>(4, 5)));
+    CALL_SUBTEST_34((test_kron_diag_eigen<std::complex<double>>(3, 4)));
+    CALL_SUBTEST_35((test_kron_diag_svd<std::complex<double>>(3, 4)));
+    CALL_SUBTEST_36((test_kron_diag_rank<std::complex<double>>(3, 4)));
+    CALL_SUBTEST_37((test_kron_diag_least_squares<std::complex<double>>(3, 4)));
     CALL_SUBTEST_9(test_kron_diag_determinant_scaling());
     CALL_SUBTEST_9(test_kron_diag_matrix_free_cg(6, 7));
 
     // Sparse factors: products, materialization, the identity-Kronecker
     // operators, the transposition family, mixed-scalar promotion.
     CALL_SUBTEST_10((test_kron_sparse_product<double>(4, 5, 3, 4)));
-    CALL_SUBTEST_10((test_kron_sparse_product<float>(3, 4, 4, 2)));
-    CALL_SUBTEST_10((test_kron_sparse_product<std::complex<double>>(3, 4, 2, 3)));
+    CALL_SUBTEST_38((test_kron_sparse_product<float>(3, 4, 4, 2)));
+    CALL_SUBTEST_39((test_kron_sparse_product<std::complex<double>>(3, 4, 2, 3)));
     CALL_SUBTEST_10((test_kron_sparse_product<double>(1, 1, 1, 1)));
     CALL_SUBTEST_10((test_kron_sparse_materialize<double>(4, 5, 3, 4)));
-    CALL_SUBTEST_10((test_kron_sparse_materialize<std::complex<float>>(3, 2, 4, 3)));
+    CALL_SUBTEST_38((test_kron_sparse_materialize<std::complex<float>>(3, 2, 4, 3)));
     CALL_SUBTEST_10((test_kron_sparse_identity<double>(5, 4, 3, 2)));
-    CALL_SUBTEST_10((test_kron_sparse_identity<std::complex<double>>(3, 3, 4, 2)));
+    CALL_SUBTEST_39((test_kron_sparse_identity<std::complex<double>>(3, 3, 4, 2)));
     CALL_SUBTEST_10((test_kron_sparse_transpose<double>(4, 5, 3, 2)));
-    CALL_SUBTEST_10((test_kron_sparse_transpose<std::complex<double>>(3, 4, 2, 5)));
+    CALL_SUBTEST_40((test_kron_sparse_transpose<std::complex<double>>(3, 4, 2, 5)));
     CALL_SUBTEST_10((test_kron_sparse_mixed_scalar<double>(4, 3, 5)));
-    CALL_SUBTEST_10((test_kron_sparse_mixed_scalar<float>(3, 4, 2)));
+    CALL_SUBTEST_40((test_kron_sparse_mixed_scalar<float>(3, 4, 2)));
     CALL_SUBTEST_10(test_kron_sparse_stored_zeros(4, 3));
 
     // Sparse factors through the solvers, inverse/determinant, the
@@ -2067,8 +2178,14 @@ EIGEN_DECLARE_TEST(structured_kronecker) {
     CALL_SUBTEST_22((test_kron_sparse_solve<std::complex<double>>(6, 4)));
     CALL_SUBTEST_11((test_kron_sparse_inverse_determinant<double>(4, 5)));
     CALL_SUBTEST_22((test_kron_sparse_inverse_determinant<std::complex<double>>(3, 4)));
-    CALL_SUBTEST_11((test_kron_sparse_decompositions<double>(4, 5)));
-    CALL_SUBTEST_23((test_kron_sparse_decompositions<std::complex<double>>(3, 4)));
+    CALL_SUBTEST_11((test_kron_sparse_eigen<double>(4, 5)));
+    CALL_SUBTEST_11((test_kron_sparse_svd<double>(4, 5)));
+    CALL_SUBTEST_11((test_kron_sparse_rank<double>(4, 5)));
+    CALL_SUBTEST_11((test_kron_sparse_least_squares<double>(4, 5)));
+    CALL_SUBTEST_23((test_kron_sparse_eigen<std::complex<double>>(3, 4)));
+    CALL_SUBTEST_41((test_kron_sparse_svd<std::complex<double>>(3, 4)));
+    CALL_SUBTEST_42((test_kron_sparse_rank<std::complex<double>>(3, 4)));
+    CALL_SUBTEST_43((test_kron_sparse_least_squares<std::complex<double>>(3, 4)));
     CALL_SUBTEST_11(test_kron_sparse_solve_laplacian(64, 4));
     CALL_SUBTEST_11(test_kron_sparse_degenerate(4, 3));
     CALL_SUBTEST_11(test_kron_sparse_determinant_scaling());
@@ -2095,11 +2212,20 @@ EIGEN_DECLARE_TEST(structured_kronecker) {
 
     // Identity() factors and nested Kronecker factors.
     CALL_SUBTEST_24((test_kron_identity_factor<double>(3, 4, 5)));
-    CALL_SUBTEST_24((test_kron_identity_factor<float>(4, 3, 2)));
-    CALL_SUBTEST_24((test_kron_identity_factor<std::complex<double>>(2, 3, 4)));
+    CALL_SUBTEST_44((test_kron_identity_factor<float>(4, 3, 2)));
+    CALL_SUBTEST_45((test_kron_identity_factor<std::complex<double>>(2, 3, 4)));
     CALL_SUBTEST_24((test_kron_identity_factor<double>(1, 1, 1)));
-    CALL_SUBTEST_25((test_kron_nested<double>(3, 4, 2)));
-    CALL_SUBTEST_25((test_kron_nested<std::complex<double>>(2, 3, 3)));
-    CALL_SUBTEST_25((test_kron_nested<float>(2, 2, 3)));
+    CALL_SUBTEST_25((test_kron_nested_products<double>(3, 4, 2)));
+    CALL_SUBTEST_31((test_kron_nested_solve<double>(3, 4, 2)));
+    CALL_SUBTEST_46((test_kron_nested_eigen<double>(3, 4, 2)));
+    CALL_SUBTEST_31((test_kron_nested_svd<double>(3, 4, 2)));
+    CALL_SUBTEST_47((test_kron_nested_products<std::complex<double>>(2, 3, 3)));
+    CALL_SUBTEST_48((test_kron_nested_solve<std::complex<double>>(2, 3, 3)));
+    CALL_SUBTEST_49((test_kron_nested_eigen<std::complex<double>>(2, 3, 3)));
+    CALL_SUBTEST_50((test_kron_nested_svd<std::complex<double>>(2, 3, 3)));
+    CALL_SUBTEST_51((test_kron_nested_products<float>(2, 2, 3)));
+    CALL_SUBTEST_52((test_kron_nested_solve<float>(2, 2, 3)));
+    CALL_SUBTEST_53((test_kron_nested_eigen<float>(2, 2, 3)));
+    CALL_SUBTEST_54((test_kron_nested_svd<float>(2, 2, 3)));
   }
 }
