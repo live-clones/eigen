@@ -475,9 +475,8 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLh
     UseSegment_ = gemv_use_packet_segment<LhsPacket, RhsPacket, ResPacket>::value &&
                   gemv_mapper_is_contiguous<LhsMapper, RowMajor>::value &&
                   gemv_mapper_is_contiguous<RhsMapper, ColMajor>::value,
-    // With segments, one masked full packet per row beats a half packet followed by three or more scalar columns.
-    // With two, it is faster only from about 20 rows on.
-    SmallColsEnd_ = UseSegment_ ? (int)HalfTraits::LhsPacketSize + 3 : (int)LhsPacketSize_
+    // With segments, one masked full packet per row beats a half packet followed by two or more scalar columns.
+    SmallColsEnd_ = UseSegment_ ? (int)HalfTraits::LhsPacketSize + 2 : (int)LhsPacketSize_
   };
   EIGEN_IF_CONSTEXPR (HasSubPackets_) {
     if (cols >= MinUsefulCols_) {
