@@ -587,16 +587,14 @@ struct functor_traits<count_visitor<Scalar>> {
   };
 };
 
-// Reduces pisfinite masks directly. Their lanes are all-ones or zero, so a lane is false exactly when its complement is
-// nonzero; all() on isFiniteTyped() instead compares each lane against zero, which a compiler can only fold away when
-// it can prove the operand is a mask.
+// Reduces pisfinite masks directly: their lanes are all-ones or zero, so the coefficients are all finite exactly when
+// no lane of the complement is set. predux_all, which all() on isFiniteTyped() uses, compares each lane against zero
+// instead, which a compiler can only fold away when it can prove the operand is a mask.
 template <typename Scalar>
 struct all_finite_visitor {
   using result_type = bool;
   using Packet = typename packet_traits<Scalar>::type;
-  EIGEN_DEVICE_FUNC inline bool finite_predux(const Packet& p) const {
-    return !predux_any(pandnot(ptrue(p), pisfinite(p)));
-  }
+  EIGEN_DEVICE_FUNC inline bool finite_predux(const Packet& p) const { return !predux_any(pnot(pisfinite(p))); }
   EIGEN_DEVICE_FUNC inline void init(const Scalar& value, Index, Index) { res = (numext::isfinite)(value); }
   EIGEN_DEVICE_FUNC inline void init(const Scalar& value, Index) { res = (numext::isfinite)(value); }
   EIGEN_DEVICE_FUNC inline void initpacket(const Packet& p, Index, Index) { res = finite_predux(p); }
