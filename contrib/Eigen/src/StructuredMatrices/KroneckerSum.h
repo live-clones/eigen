@@ -90,14 +90,10 @@ struct kron_factor_ops<KroneckerSum<LhsMatrix, RhsMatrix>, kKronSumFactor> {
   }
   template <typename Visitor>
   static void forEachNonZero(const Factor& f, Visitor&& visit) {
-    SparseFactor S;
-    S = f;
-    kron_factor_ops<SparseFactor>::forEachNonZero(S, visit);
+    kron_factor_ops<SparseFactor>::forEachNonZero(kron_factor_visitable<Factor>::get(f), visit);
   }
   static Matrix<Index, Dynamic, 1> innerNonZeros(const Factor& f, bool rowMajor) {
-    SparseFactor S;
-    S = f;
-    return kron_factor_ops<SparseFactor>::innerNonZeros(S, rowMajor);
+    return kron_factor_ops<SparseFactor>::innerNonZeros(kron_factor_visitable<Factor>::get(f), rowMajor);
   }
   static TransposedFactor transposed(const Factor& f) { return f.transpose(); }
   static Factor conjugated(const Factor& f) { return f.conjugate(); }
@@ -116,6 +112,17 @@ struct kron_factor_ops<KroneckerSum<LhsMatrix, RhsMatrix>, kKronSumFactor> {
   }
   static Scalar balancedDet(const Factor& f, Index& exponent) {
     return kron_factor_ops<DenseMatrix>::balancedDet(denseFactor(f), exponent);
+  }
+};
+
+template <typename LhsMatrix, typename RhsMatrix>
+struct kron_factor_visitable<KroneckerSum<LhsMatrix, RhsMatrix>, kKronSumFactor> {
+  using Factor = KroneckerSum<LhsMatrix, RhsMatrix>;
+  using type = SparseMatrix<typename Factor::Scalar>;
+  static type get(const Factor& f) {
+    type S;
+    S = f;
+    return S;
   }
 };
 
@@ -374,18 +381,24 @@ class KroneckerSum : public EigenBase<KroneckerSum<LhsMatrix, RhsMatrix>> {
   template <typename Dest>
   void evalToImpl(Dest& S, std::true_type) const {
     using IndexVector = Matrix<Index, Dynamic, 1>;
+    using LhsVisitable = internal::kron_factor_visitable<LhsMatrix>;
+    using RhsVisitable = internal::kron_factor_visitable<RhsMatrix>;
+    using VisitedLhsOps = internal::kron_factor_ops<typename LhsVisitable::type>;
+    using VisitedRhsOps = internal::kron_factor_ops<typename RhsVisitable::type>;
     const Index n1 = m_A.rows(), n2 = m_B.rows();
-    const IndexVector nnzA = LhsOps::innerNonZeros(m_A, Dest::IsRowMajor);
-    const IndexVector nnzB = RhsOps::innerNonZeros(m_B, Dest::IsRowMajor);
+    const auto& A = LhsVisitable::get(m_A);
+    const auto& B = RhsVisitable::get(m_B);
+    const IndexVector nnzA = VisitedLhsOps::innerNonZeros(A, Dest::IsRowMajor);
+    const IndexVector nnzB = VisitedRhsOps::innerNonZeros(B, Dest::IsRowMajor);
     Dest SA(rows(), cols()), SB(rows(), cols());
     SA.reserve(IndexVector(nnzA.transpose().replicate(n2, 1).reshaped()));
-    LhsOps::forEachNonZero(m_A, [&SA, n2](Index i, Index j, const Scalar& a) {
+    VisitedLhsOps::forEachNonZero(A, [&SA, n2](Index i, Index j, const Scalar& a) {
       for (Index k = 0; k < n2; ++k) SA.insert(i * n2 + k, j * n2 + k) = a;
     });
     SB.reserve(IndexVector(nnzB.replicate(n1, 1)));
     for (Index k = 0; k < n1; ++k)
-      RhsOps::forEachNonZero(
-          m_B, [&SB, n2, k](Index i, Index j, const Scalar& b) { SB.insert(k * n2 + i, k * n2 + j) = b; });
+      VisitedRhsOps::forEachNonZero(
+          B, [&SB, n2, k](Index i, Index j, const Scalar& b) { SB.insert(k * n2 + i, k * n2 + j) = b; });
     S = SA + SB;
   }
 
@@ -409,11 +422,7 @@ class KroneckerSum : public EigenBase<KroneckerSum<LhsMatrix, RhsMatrix>> {
   }
   template <typename Factor>
   static ComplexVector factorEigenvalues(const Factor& f, std::false_type) {
-    using ComplexMatrix = Matrix<ComplexScalar, Dynamic, Dynamic, ColMajor>;
-    const ComplexMatrix dense = internal::kron_factor_ops<Factor>::denseFactor(f).template cast<ComplexScalar>();
-    ComplexEigenSolver<ComplexMatrix> es(dense, /*computeEigenvectors=*/false);
-    eigen_assert(es.info() == Success);
-    return es.eigenvalues();
+    return internal::kron_factor_spectrum<Factor>::eigenvalues(f);
   }
 
   LhsMatrix m_A;

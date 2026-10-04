@@ -171,6 +171,16 @@ struct kron_factor_storage<CwiseNullaryOp<scalar_identity_op<Scalar>, PlainObjec
   using type = kron_identity_factor<Scalar, PlainObjectType::RowsAtCompileTime, PlainObjectType::ColsAtCompileTime>;
 };
 
+/** \internal The form in which a sparse materialization visits a factor: the
+ * factor itself, except for a kind whose visit has to materialize it first (a
+ * KroneckerSum, see KroneckerSum.h), which is materialized once up front
+ * instead of on every visit from inside the loop over the other factor. */
+template <typename Factor, int Kind = kron_factor_kind<Factor>()>
+struct kron_factor_visitable {
+  using type = Factor;
+  static const Factor& get(const Factor& f) { return f; }
+};
+
 /** \internal Writes the columns of \a x, each reshaped to \a rows x \a cols,
  * as the block rows of \a stacked, (\a rows * \c x.cols()) x \a cols. In this
  * layout a factor applies to all columns with a single product: from the left
@@ -509,11 +519,14 @@ struct kron_factor_ops<KroneckerOperator<LhsMatrix, RhsMatrix>, kKronKroneckerFa
   // the order the sparse materialization inserts in.
   template <typename Visitor>
   static void forEachNonZero(const Factor& f, Visitor&& visit) {
+    using RhsVisitable = kron_factor_visitable<RhsMatrix>;
     const Index m2 = f.rhs().rows(), n2 = f.rhs().cols();
-    LhsOps::forEachNonZero(f.lhs(), [&f, &visit, m2, n2](Index iA, Index jA, const Scalar& a) {
-      RhsOps::forEachNonZero(f.rhs(), [&visit, m2, n2, iA, jA, &a](Index iB, Index jB, const Scalar& b) {
-        visit(iA * m2 + iB, jA * n2 + jB, a * b);
-      });
+    const auto& R = RhsVisitable::get(f.rhs());
+    LhsOps::forEachNonZero(f.lhs(), [&R, &visit, m2, n2](Index iA, Index jA, const Scalar& a) {
+      kron_factor_ops<typename RhsVisitable::type>::forEachNonZero(
+          R, [&visit, m2, n2, iA, jA, &a](Index iB, Index jB, const Scalar& b) {
+            visit(iA * m2 + iB, jA * n2 + jB, a * b);
+          });
     });
   }
   static Matrix<Index, Dynamic, 1> innerNonZeros(const Factor& f, bool rowMajor) {
@@ -1239,17 +1252,23 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
    * in <tt>(iA, iB)</tt>, and those to a fixed row in <tt>(jA, jB)</tt>. */
   template <typename Dest>
   void evalToImpl(Dest& S, std::true_type) const {
+    using LhsVisitable = internal::kron_factor_visitable<LhsMatrix>;
+    using RhsVisitable = internal::kron_factor_visitable<RhsMatrix>;
+    using VisitedLhsOps = internal::kron_factor_ops<typename LhsVisitable::type>;
+    using VisitedRhsOps = internal::kron_factor_ops<typename RhsVisitable::type>;
     const Index m2 = m_B.rows(), n2 = m_B.cols();
+    const auto& A = LhsVisitable::get(m_A);
+    const auto& B = RhsVisitable::get(m_B);
     S.resize(rows(), cols());
     using IndexVector = Matrix<Index, Dynamic, 1>;
-    const IndexVector nnzA = LhsOps::innerNonZeros(m_A, Dest::IsRowMajor);
-    const IndexVector nnzB = RhsOps::innerNonZeros(m_B, Dest::IsRowMajor);
+    const IndexVector nnzA = VisitedLhsOps::innerNonZeros(A, Dest::IsRowMajor);
+    const IndexVector nnzB = VisitedRhsOps::innerNonZeros(B, Dest::IsRowMajor);
     // Inner vectors kA of A and kB of B meet in inner vector kA * nnzB.size() + kB
     // of the product: the column-major stacking of the count outer product.
     const Matrix<Index, Dynamic, Dynamic, ColMajor> counts = nnzB * nnzA.transpose();
     S.reserve(counts.reshaped());
-    LhsOps::forEachNonZero(m_A, [&S, m2, n2, this](Index iA, Index jA, const Scalar& a) {
-      RhsOps::forEachNonZero(m_B, [&S, m2, n2, iA, jA, &a](Index iB, Index jB, const Scalar& b) {
+    VisitedLhsOps::forEachNonZero(A, [&S, &B, m2, n2](Index iA, Index jA, const Scalar& a) {
+      VisitedRhsOps::forEachNonZero(B, [&S, m2, n2, iA, jA, &a](Index iB, Index jB, const Scalar& b) {
         S.insert(iA * m2 + iB, jA * n2 + jB) = a * b;
       });
     });

@@ -366,6 +366,16 @@ void test_ksum_eigenvalues(Index n1, Index n2) {
   const CVec mu = makeKroneckerSum(A, B).eigenvalues();
   for (Index i1 = 0; i1 < n1; ++i1)
     for (Index i2 = 0; i2 < n2; ++i2) VERIFY_IS_EQUAL(mu[i1 * n2 + i2], a[i1] + c[i2]);
+
+  // A Kronecker-product factor contributes the products of its factors'
+  // eigenvalues, in its own Kronecker order: entry (i1 n2 + i2) n1 + i3 of
+  // A (+) (B (x) A) is a[i1] + c[i2] a[i3].
+  const CVec nu = makeKroneckerSum(A, makeKroneckerOperator(B, A)).eigenvalues();
+  CVec expectedNu(n1 * n2 * n1);
+  for (Index i1 = 0; i1 < n1; ++i1)
+    for (Index i2 = 0; i2 < n2; ++i2)
+      for (Index i3 = 0; i3 < n1; ++i3) expectedNu[(i1 * n2 + i2) * n1 + i3] = a[i1] + c[i2] * a[i3];
+  VERIFY_IS_APPROX(nu, expectedNu);
 }
 
 // The finite-difference use case: an implicit Euler step of the heat equation

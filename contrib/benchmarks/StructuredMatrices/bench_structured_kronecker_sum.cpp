@@ -171,3 +171,30 @@ static void BM_KroneckerSumSolveConvection2DSparseLU(benchmark::State& state) {
   }
 }
 BENCHMARK(BM_KroneckerSumSolveConvection2DSparseLU)->Arg(64)->Arg(128)->Arg(256);
+
+// --- Sparse assembly: M = Dz (+) Dy (+) Dx and M = I (x) (Dy (+) Dx) ---
+// A Kronecker-sum factor is materialized once, not once per entry of the
+// factor it meets.
+static void BM_KroneckerSumAssemble3D(benchmark::State& state) {
+  const Index n = state.range(0);
+  const SpMat D = tridiagonal(n);
+  const auto L = makeKroneckerSum(D, D, D);
+  SpMat M;
+  for (auto _ : state) {
+    M = L;
+    benchmark::DoNotOptimize(M.valuePtr());
+  }
+}
+BENCHMARK(BM_KroneckerSumAssemble3D)->Arg(32)->Arg(64)->Arg(96);
+
+static void BM_KroneckerSumAssembleIdentityKron(benchmark::State& state) {
+  const Index n = state.range(0);
+  const SpMat D = tridiagonal(n);
+  const auto K = makeKroneckerOperator(MatrixXd::Identity(n, n), makeKroneckerSum(D, D));
+  SpMat M;
+  for (auto _ : state) {
+    M = K;
+    benchmark::DoNotOptimize(M.valuePtr());
+  }
+}
+BENCHMARK(BM_KroneckerSumAssembleIdentityKron)->Arg(32)->Arg(64)->Arg(96);
