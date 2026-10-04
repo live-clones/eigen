@@ -1841,8 +1841,8 @@ void check_kron_products(const Op& K, const Mat& ref) {
   VERIFY_IS_APPROX((K * xc).eval(), (ref.template cast<Complex>() * xc).eval());
 }
 
-// Identity() factors are stored as the nullary expression (dimensions only)
-// and skipped in products, square or rectangular, on either side.
+// Identity() factors are stored as their dimensions and skipped in products,
+// square or rectangular, on either side.
 template <typename Scalar>
 void test_kron_identity_factor(Index p, Index m2, Index n2) {
   using RealScalar = typename NumTraits<Scalar>::Real;
@@ -1850,7 +1850,7 @@ void test_kron_identity_factor(Index p, Index m2, Index n2) {
   using Mat = Matrix<Scalar, Dynamic, Dynamic>;
   using Sparse = SparseMatrix<Scalar>;
   using RowSparse = SparseMatrix<Scalar, RowMajor>;
-  using Id = typename Mat::IdentityReturnType;
+  using Id = internal::kron_identity_factor<Scalar, Dynamic, Dynamic>;
 
   const Mat A = Mat::Random(m2, n2);
   const Sparse S = random_sparse<Scalar>(m2, n2);
@@ -1865,6 +1865,12 @@ void test_kron_identity_factor(Index p, Index m2, Index n2) {
   check_kron_products(IK, refK);
   const Vec x = Vec::Random(p * n2);
   VERIFY_IS_APPROX((KI * x).eval(), (makeKroneckerOperator(Vec::Ones(p).asDiagonal(), A) * x).eval());
+
+  // Unlike the Identity() expression, the stored identity is assignable, and so
+  // is an operator holding one.
+  auto KA = makeKroneckerOperator(Mat::Identity(p + 1, p + 1), A);
+  KA = KI;
+  VERIFY_IS_EQUAL(Mat(KA), refI);
 
   // Materialization copies the other factor's entries, with p copies of each.
   VERIFY_IS_EQUAL(Mat(KI), refI);
@@ -1952,7 +1958,7 @@ void test_kron_nested_products(Index n1, Index n2, Index n3) {
   using Mat = Matrix<Scalar, Dynamic, Dynamic>;
   using Sparse = SparseMatrix<Scalar>;
   using RowSparse = SparseMatrix<Scalar, RowMajor>;
-  using Id = typename Mat::IdentityReturnType;
+  using Id = internal::kron_identity_factor<Scalar, Dynamic, Dynamic>;
   const NestedKronecker<Scalar> f(n1, n2, n3);
   const Mat& ref = f.ref;
 
@@ -2025,16 +2031,22 @@ void test_kron_nested_solve(Index n1, Index n2, Index n3) {
   VERIFY_IS_APPROX((ref3 * K3.solve(b3)).eval(), b3);
 }
 
-// The decomposition family materializes the nested factor.
+// The eigendecomposition and the SVD recurse into the nested factor.
 template <typename Scalar>
 void test_kron_nested_eigen(Index n1, Index n2, Index n3) {
   using Complex = std::complex<typename NumTraits<Scalar>::Real>;
   using CMat = Matrix<Complex, Dynamic, Dynamic>;
   using CVec = Matrix<Complex, Dynamic, 1>;
+  using ColMajorCMat = Matrix<Complex, Dynamic, Dynamic, ColMajor>;
   const NestedKronecker<Scalar> f(n1, n2, n3);
   const CVec lambda = f.KL.eigenvalues();
   const CMat V = f.KL.eigenvectors();
   VERIFY_IS_APPROX((f.ref.template cast<Complex>() * V).eval(), (V * lambda.asDiagonal()).eval());
+  STATIC_CHECK((std::is_same<decltype(f.KR.eigenvectors()),
+                             KroneckerOperator<ColMajorCMat, KroneckerOperator<ColMajorCMat, ColMajorCMat>>>::value));
+  const CVec mu = f.KR.eigenvalues();
+  const CMat W = f.KR.eigenvectors();
+  VERIFY_IS_APPROX((f.ref.template cast<Complex>() * W).eval(), (W * mu.asDiagonal()).eval());
 }
 
 template <typename Scalar>
@@ -2044,10 +2056,17 @@ void test_kron_nested_svd(Index n1, Index n2, Index n3) {
   using RealVec = Matrix<RealScalar, Dynamic, 1>;
   const NestedKronecker<Scalar> f(n1, n2, n3);
   const Mat& ref = f.ref;
-  RealVec sv = f.KR.singularValues();
+  const RealVec s = f.KR.singularValues();
+  RealVec sv = s;
   std::sort(sv.data(), sv.data() + sv.size(), std::greater<RealScalar>());
   VERIFY_IS_APPROX(sv, RealVec(BDCSVD<Mat>(ref).singularValues()));
   VERIFY_IS_EQUAL(f.KR.rank(), ref.rows());
+  // U and V nest like the operator and pair with the unsorted singular values.
+  const Mat U = f.KR.matrixU(), V = f.KR.matrixV();
+  VERIFY_IS_APPROX((U * s.asDiagonal() * V.adjoint()).eval(), ref);
+  VERIFY_IS_APPROX((U.adjoint() * U).eval(), Mat(Mat::Identity(ref.cols(), ref.cols())));
+  const Mat UL = f.KL.matrixU(), VL = f.KL.matrixV();
+  VERIFY_IS_APPROX((UL * f.KL.singularValues().asDiagonal() * VL.adjoint()).eval(), ref);
 }
 
 EIGEN_DECLARE_TEST(structured_kronecker) {
