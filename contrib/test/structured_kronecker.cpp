@@ -2009,6 +2009,21 @@ void test_kron_nested_products(Index n1, Index n2, Index n3) {
   VERIFY_IS_EQUAL(Mat(M3), ref3);
 }
 
+// A left-nested factor applies from the right: with a square identity on
+// either side of it, and with a nested factor of its own.
+template <typename Scalar>
+void test_kron_left_nested_products(Index n1, Index n2, Index n3) {
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  const NestedKronecker<Scalar> f(n1, n2, n3);
+  const Index p = n1, q = n3;
+  const Mat Ip = Mat::Identity(p, p), Iq = Mat::Identity(q, q);
+  check_kron_products(makeKroneckerOperator(makeKroneckerOperator(Mat::Identity(p, p), f.Bs), Mat::Identity(q, q)),
+                      reference_kron<Scalar>(reference_kron<Scalar>(Ip, f.Bd), Iq));
+  check_kron_products(makeKroneckerOperator(makeKroneckerOperator(f.Bs, Mat::Identity(q, q)), f.C),
+                      reference_kron<Scalar>(reference_kron<Scalar>(f.Bd, Iq), f.C));
+  check_kron_products(makeKroneckerOperator(f.KR, f.C), reference_kron<Scalar>(f.ref, f.C));
+}
+
 // Solves factorize each leaf once; the inverse and determinant recurse.
 template <typename Scalar>
 void test_kron_nested_solve(Index n1, Index n2, Index n3) {
@@ -2246,5 +2261,7 @@ EIGEN_DECLARE_TEST(structured_kronecker) {
     CALL_SUBTEST_52((test_kron_nested_solve<float>(2, 2, 3)));
     CALL_SUBTEST_53((test_kron_nested_eigen<float>(2, 2, 3)));
     CALL_SUBTEST_54((test_kron_nested_svd<float>(2, 2, 3)));
+    CALL_SUBTEST_55((test_kron_left_nested_products<double>(3, 4, 2)));
+    CALL_SUBTEST_56((test_kron_left_nested_products<std::complex<double>>(2, 3, 3)));
   }
 }

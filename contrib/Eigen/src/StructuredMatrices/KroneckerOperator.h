@@ -196,12 +196,13 @@ struct kron_factor_ops {
   static const Factor& blockOperand(const Factor& f) { return f; }
   static bool isSquareIdentity(const Factor&) { return false; }
   // dst += alpha F X and dst += alpha X F^T: the two sides of the vec-trick product B X A^T.
+  // work: scratch for a nested factor's right product, owned by the caller's loop.
   template <typename Dst, typename Alpha, typename Xpr>
   static void addLeftProduct(Dst& dst, const Alpha& alpha, const Factor& f, const Xpr& X) {
     dst.noalias() += alpha * (f * X);
   }
-  template <typename Dst, typename Alpha, typename Xpr>
-  static void addRightProduct(Dst& dst, const Alpha& alpha, const Xpr& X, const Factor& f) {
+  template <typename Dst, typename Alpha, typename Xpr, typename Work>
+  static void addRightProduct(Dst& dst, const Alpha& alpha, const Xpr& X, const Factor& f, Work&) {
     dst.noalias() += alpha * (X * f.transpose());
   }
   static int exponentBound(const Factor& f) { return structured_exponent_bound(f); }
@@ -259,8 +260,8 @@ struct kron_factor_ops<Factor, kKronDiagonalFactor> {
   static void addLeftProduct(Dst& dst, const Alpha& alpha, const Factor& f, const Xpr& X) {
     dst.noalias() += alpha * (f * X);
   }
-  template <typename Dst, typename Alpha, typename Xpr>
-  static void addRightProduct(Dst& dst, const Alpha& alpha, const Xpr& X, const Factor& f) {
+  template <typename Dst, typename Alpha, typename Xpr, typename Work>
+  static void addRightProduct(Dst& dst, const Alpha& alpha, const Xpr& X, const Factor& f, Work&) {
     dst.noalias() += alpha * (X * f);
   }
   static int exponentBound(const Factor& f) { return structured_exponent_bound(f.diagonal()); }
@@ -360,8 +361,8 @@ struct kron_factor_ops<Factor, kKronSparseFactor> {
   static void addLeftProduct(Dst& dst, const Alpha& alpha, const Factor& f, const Xpr& X) {
     dst.noalias() += alpha * (f * X);
   }
-  template <typename Dst, typename Alpha, typename Xpr>
-  static void addRightProduct(Dst& dst, const Alpha& alpha, const Xpr& X, const Factor& f) {
+  template <typename Dst, typename Alpha, typename Xpr, typename Work>
+  static void addRightProduct(Dst& dst, const Alpha& alpha, const Xpr& X, const Factor& f, Work&) {
     dst.noalias() += alpha * (X * f.transpose());
   }
   static int exponentBound(const Factor& f) { return structured_exponent_bound(f.coeffs()); }
@@ -427,8 +428,8 @@ struct kron_factor_ops<Factor, kKronIdentityFactor> {
     const Index k = numext::mini(f.rows(), f.cols());
     dst.topRows(k) += alpha * X.topRows(k);
   }
-  template <typename Dst, typename Alpha, typename Xpr>
-  static void addRightProduct(Dst& dst, const Alpha& alpha, const Xpr& X, const Factor& f) {
+  template <typename Dst, typename Alpha, typename Xpr, typename Work>
+  static void addRightProduct(Dst& dst, const Alpha& alpha, const Xpr& X, const Factor& f, Work&) {
     const Index k = numext::mini(f.rows(), f.cols());
     dst.leftCols(k) += alpha * X.leftCols(k);
   }
@@ -485,14 +486,29 @@ struct kron_factor_ops<KroneckerOperator<LhsMatrix, RhsMatrix>, kKronKroneckerFa
   static void addLeftProduct(Dst& dst, const Alpha& alpha, const Factor& f, const Xpr& X) {
     f.addProduct(dst, X, alpha);
   }
-  // X K^T = (K X^T)^T: the operator applies from the left only.
-  template <typename Dst, typename Alpha, typename Xpr>
-  static void addRightProduct(Dst& dst, const Alpha& alpha, const Xpr& X, const Factor& f) {
-    using Work = Matrix<typename Dst::Scalar, Dynamic, Dynamic, ColMajor>;
-    const Work Xt = X.transpose();
-    Work Yt = Work::Zero(f.rows(), X.rows());
-    f.addProduct(Yt, Xt, alpha);
-    dst += Yt.transpose();
+  // X K^T without forming X^T: with X_j = X(:, j nR : (j+1) nR - 1), j < nL,
+  //   X (L (x) R)^T = W L^T,  W(:, j) = vec(X_j R^T),  W (p mR) x nL in work,
+  // and W = X_{[p nR x nL]} when R is a square identity.
+  template <typename Dst, typename Alpha, typename Xpr, typename Work>
+  static void addRightProduct(Dst& dst, const Alpha& alpha, const Xpr& X, const Factor& f, Work& work) {
+    const Index p = X.rows(), mL = f.lhs().rows(), nL = f.lhs().cols(), mR = f.rhs().rows(), nR = f.rhs().cols();
+    auto dstL = dst.reshaped(p * mR, mL);
+    if (RhsOps::isSquareIdentity(f.rhs())) {
+      LhsOps::addRightProduct(dstL, alpha, X.reshaped(p * nR, nL), f.lhs(), work);
+    } else if (LhsOps::isSquareIdentity(f.lhs())) {
+      for (Index j = 0; j < nL; ++j) {
+        auto dstj = dst.middleCols(j * mR, mR);
+        RhsOps::addRightProduct(dstj, alpha, X.middleCols(j * nR, nR), f.rhs(), work);
+      }
+    } else {
+      Work inner;  // scratch for L and R while work holds W; allocated only if one is nested
+      work.setZero(p * mR, nL);
+      for (Index j = 0; j < nL; ++j) {
+        auto Wj = work.col(j).reshaped(p, mR);
+        RhsOps::addRightProduct(Wj, Alpha(1), X.middleCols(j * nR, nR), f.rhs(), inner);
+      }
+      LhsOps::addRightProduct(dstL, alpha, work, f.lhs(), inner);
+    }
   }
   static Scalar balancedDet(const Factor& f, Index& exponent) { return f.balancedDeterminant(exponent); }
 };
@@ -1247,7 +1263,7 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
     eigen_assert(rhs.rows() == n1 * n2 && "invalid product: dimensions do not match");
     typename internal::nested_eval<Rhs, 1>::type actualRhs(rhs);
     const bool skipA = LhsOps::isSquareIdentity(m_A), skipB = RhsOps::isSquareIdentity(m_B);
-    ProductMatrix X, BX, Y;
+    ProductMatrix X, BX, Y, work;
     const Index chunk = rhsChunk<ProductScalar>(n1 * n2 + m2 * n1 + m2 * m1);
     for (Index k0 = 0; k0 < r; k0 += chunk) {
       const Index c = numext::mini(chunk, r - k0);
@@ -1257,11 +1273,11 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
         if (skipA) {
           RhsOps::addLeftProduct(Yk, alpha, m_B, Xk);
         } else if (skipB) {
-          LhsOps::addRightProduct(Yk, alpha, Xk, m_A);
+          LhsOps::addRightProduct(Yk, alpha, Xk, m_A, work);
         } else {
           BX.setZero(m2, n1);
           RhsOps::addLeftProduct(BX, ProductScalar(1), m_B, Xk);
-          LhsOps::addRightProduct(Yk, alpha, BX, m_A);
+          LhsOps::addRightProduct(Yk, alpha, BX, m_A, work);
         }
         continue;
       }
@@ -1273,7 +1289,7 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
       const auto BXhat = (skipB ? X : BX).reshaped(m2 * c, n1);
       if (!skipA) {
         Y.setZero(m2 * c, m1);
-        LhsOps::addRightProduct(Y, ProductScalar(1), BXhat, m_A);
+        LhsOps::addRightProduct(Y, ProductScalar(1), BXhat, m_A, work);
       }
       for (Index k = 0; k < c; ++k) {
         auto Yk = dst.col(k0 + k).reshaped(m2, m1);
