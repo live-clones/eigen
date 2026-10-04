@@ -267,11 +267,14 @@ class DiagonalPlusLowRank : public EigenBase<DiagonalPlusLowRank<Scalar_, Size_,
    * diagonal entries and the LU pivots of the capacitance matrix are
    * renormalized to unit magnitude one at a time [4], with the powers of two tracked
    * in a shared exponent
-   * -- so no partial product, in particular neither ordinary determinant on its
-   * own, can overflow or underflow when the combined determinant is
-   * representable, whatever the ordering and magnitudes of the entries.
-   * Genuinely out-of-range determinants still saturate to (signed) zero or
-   * infinity.
+   * -- so neither ordinary determinant on its own can overflow or underflow
+   * when the combined determinant is representable, whatever the ordering and
+   * magnitudes of the entries. Genuinely out-of-range determinants still
+   * saturate to (signed) zero or infinity. The capacitance entries themselves
+   * are formed in plain arithmetic (see \ref capacitance): at extreme factor
+   * magnitudes such as \c d = 1e-200, \c U = 1e-200, \c V = 1e200 they, and
+   * with them the determinant, overflow although the determinant (~1) is
+   * representable.
    * \warning The diagonal must have no zero entries (use the lemma symmetrically
    * or a dense fallback for that case), and, as with \ref solve and \ref inverse,
    * its reciprocals must be finite: a subnormal diagonal entry overflows
