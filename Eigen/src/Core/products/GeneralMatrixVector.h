@@ -131,11 +131,17 @@ struct general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, Conj
       Index i, Index j2, Index jend, const LhsMapper& lhs, const RhsMapper& rhs, ResScalar* res,
       const ResPacket& palpha, conj_helper<LhsPacket, RhsPacket, ConjugateLhs, ConjugateRhs>& pcj, Index count = 0);
 
-  // Dispatches the rows left over after the 8-packet blocks, fewer than 10 full packets, to one process_rows pass.
-  template <bool Segment>
-  EIGEN_DEVICE_FUNC static EIGEN_ALWAYS_INLINE void process_remaining_rows(
-      Index full_packets, Index i, Index j2, Index jend, const LhsMapper& lhs, const RhsMapper& rhs, ResScalar* res,
-      const ResPacket& palpha, conj_helper<LhsPacket, RhsPacket, ConjugateLhs, ConjugateRhs>& pcj, Index count);
+  // Finishes the rows from i on, full_packets < 10 full packets followed by 0 < count < ResPacketSize rows, in one
+  // process_rows pass. Out of line: it runs at most once per column block, and only when rows is not a multiple of
+  // the packet size. lhs is taken by value: a reference would make run() keep its copy in memory, which clang fills
+  // with a load that cannot be forwarded from the caller's stores.
+  EIGEN_DEVICE_FUNC static EIGEN_DONT_INLINE void process_segment_tail(
+      std::true_type, Index full_packets, Index i, Index j2, Index jend, LhsMapper lhs, const RhsMapper& rhs,
+      ResScalar* res, const ResPacket& palpha, conj_helper<LhsPacket, RhsPacket, ConjugateLhs, ConjugateRhs>& pcj,
+      Index count);
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void process_segment_tail(
+      std::false_type, Index, Index, Index, Index, const LhsMapper&, const RhsMapper&, ResScalar*, const ResPacket&,
+      conj_helper<LhsPacket, RhsPacket, ConjugateLhs, ConjugateRhs>&, Index) {}
 };
 
 // Integer-sequence helper for col-major GEMV full-packet row blocks.
@@ -218,64 +224,62 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, ConjugateLh
   using Unroller = gemv_colmajor_unroller<N>;
   const Index iseg = i + N * ResPacketSize;
 
-  // c[N] accumulates the masked partial packet when Segment is set.
-  ResPacket c[N + 1];
+  // c_seg accumulates the masked partial packet when Segment is set. It is not part of c: a wider array grows the
+  // stack frame GCC estimates for run() and stops it from being inlined.
+  ResPacket c[N > 0 ? N : 1];
   Unroller::init_zero(c);
-  c[N] = pzero(ResPacket{});
+  ResPacket c_seg = pzero(ResPacket{});
   for (Index j = j2; j < jend; ++j) {
     RhsPacket b0 = pset1<RhsPacket>(rhs(j, 0));
     Unroller::template madd<LhsPacket, LhsPacketSize, LhsAlignment>(c, lhs, i, j, b0, pcj);
     EIGEN_IF_CONSTEXPR (Segment) {
-      c[N] = pcj.pmadd(gemv_segment_loader<LhsPacket, ColMajor, LhsMapper>::run(lhs, iseg, j, count), b0, c[N]);
+      c_seg = pcj.pmadd(gemv_segment_loader<LhsPacket, ColMajor, LhsMapper>::run(lhs, iseg, j, count), b0, c_seg);
     }
   }
   Unroller::template store<ResPacket, ResPacketSize>(c, res, i, palpha);
   EIGEN_IF_CONSTEXPR (Segment) {
-    pstoreuSegment(res + iseg, pmadd(c[N], palpha, ploaduSegment<ResPacket>(res + iseg, 0, count)), 0, count);
+    pstoreuSegment(res + iseg, pmadd(c_seg, palpha, ploaduSegment<ResPacket>(res + iseg, 0, count)), 0, count);
   }
 }
 
 template <typename Index, typename LhsScalar, typename LhsMapper, bool ConjugateLhs, typename RhsScalar,
           typename RhsMapper, bool ConjugateRhs, int Version>
-template <bool Segment>
-EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void general_matrix_vector_product<
+EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void general_matrix_vector_product<
     Index, LhsScalar, LhsMapper, ColMajor, ConjugateLhs, RhsScalar, RhsMapper, ConjugateRhs,
-    Version>::process_remaining_rows(Index full_packets, Index i, Index j2, Index jend, const LhsMapper& lhs,
-                                     const RhsMapper& rhs, ResScalar* res, const ResPacket& palpha,
-                                     conj_helper<LhsPacket, RhsPacket, ConjugateLhs, ConjugateRhs>& pcj, Index count) {
+    Version>::process_segment_tail(std::true_type, Index full_packets, Index i, Index j2, Index jend, LhsMapper lhs,
+                                   const RhsMapper& rhs, ResScalar* res, const ResPacket& palpha,
+                                   conj_helper<LhsPacket, RhsPacket, ConjugateLhs, ConjugateRhs>& pcj, Index count) {
   switch (full_packets) {
     case 0:
-      EIGEN_IF_CONSTEXPR (Segment) {
-        process_rows<0, Segment>(i, j2, jend, lhs, rhs, res, palpha, pcj, count);
-      }
+      process_rows<0, true>(i, j2, jend, lhs, rhs, res, palpha, pcj, count);
       break;
     case 1:
-      process_rows<1, Segment>(i, j2, jend, lhs, rhs, res, palpha, pcj, count);
+      process_rows<1, true>(i, j2, jend, lhs, rhs, res, palpha, pcj, count);
       break;
     case 2:
-      process_rows<2, Segment>(i, j2, jend, lhs, rhs, res, palpha, pcj, count);
+      process_rows<2, true>(i, j2, jend, lhs, rhs, res, palpha, pcj, count);
       break;
     case 3:
-      process_rows<3, Segment>(i, j2, jend, lhs, rhs, res, palpha, pcj, count);
+      process_rows<3, true>(i, j2, jend, lhs, rhs, res, palpha, pcj, count);
       break;
     case 4:
-      process_rows<4, Segment>(i, j2, jend, lhs, rhs, res, palpha, pcj, count);
+      process_rows<4, true>(i, j2, jend, lhs, rhs, res, palpha, pcj, count);
       break;
     case 5:
-      process_rows<5, Segment>(i, j2, jend, lhs, rhs, res, palpha, pcj, count);
+      process_rows<5, true>(i, j2, jend, lhs, rhs, res, palpha, pcj, count);
       break;
     case 6:
-      process_rows<6, Segment>(i, j2, jend, lhs, rhs, res, palpha, pcj, count);
+      process_rows<6, true>(i, j2, jend, lhs, rhs, res, palpha, pcj, count);
       break;
     case 7:
-      process_rows<7, Segment>(i, j2, jend, lhs, rhs, res, palpha, pcj, count);
+      process_rows<7, true>(i, j2, jend, lhs, rhs, res, palpha, pcj, count);
       break;
     case 8:
-      process_rows<8, Segment>(i, j2, jend, lhs, rhs, res, palpha, pcj, count);
+      process_rows<8, true>(i, j2, jend, lhs, rhs, res, palpha, pcj, count);
       break;
     default:
       eigen_internal_assert(full_packets == 9);
-      process_rows<9, Segment>(i, j2, jend, lhs, rhs, res, palpha, pcj, count);
+      process_rows<9, true>(i, j2, jend, lhs, rhs, res, palpha, pcj, count);
       break;
   }
 }
@@ -317,9 +321,17 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, ConjugateLh
                  gemv_mapper_is_contiguous<LhsMapper, ColMajor>::value
   };
 
-  // 8-packet blocks stop while at least 2 packets remain for the final pass, so no pass is a lone packet whose
-  // accumulator chain is bound by the FMA latency.
-  const Index n8 = rows - 10 * ResPacketSize + 1;
+  using UnsignedIndex = std::make_unsigned_t<Index>;
+  // With segments, the count trailing rows of a partial packet take one masked pass together with the full packets
+  // before them. The 8-packet blocks then stop while at least 2 full packets remain, so that pass is never a lone
+  // packet whose accumulator chain is bound by the FMA latency. Exact multiples of the packet size keep the 4, 3, 2
+  // and 1-packet passes.
+  const Index count = UseSegment ? Index(UnsignedIndex(rows) % ResPacketSize) : Index(0);
+  const Index n8 = rows - (count > 0 ? 10 : 8) * ResPacketSize + 1;
+  const Index n4 = rows - 4 * ResPacketSize + 1;
+  const Index n3 = rows - 3 * ResPacketSize + 1;
+  const Index n2 = rows - 2 * ResPacketSize + 1;
+  const Index n1 = rows - 1 * ResPacketSize + 1;
   const Index n_half = rows - 1 * ResPacketSizeHalf + 1;
   const Index n_quarter = rows - 1 * ResPacketSizeQuarter + 1;
 
@@ -337,21 +349,25 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, ConjugateLh
     Index jend = numext::mini(j2 + block_cols, cols);
     Index i = 0;
     for (; i < n8; i += ResPacketSize * 8) process_rows<8>(i, j2, jend, lhs, rhs, res, palpha, pcj);
-    using UnsignedIndex = std::make_unsigned_t<Index>;
-    // The rows - i < 10 * ResPacketSize remaining rows take one pass rather than several narrower ones.
-    const UnsignedIndex remaining = UnsignedIndex(rows - i);
-    const Index full_packets = Index(remaining / ResPacketSize);
-    const Index count = Index(remaining % ResPacketSize);
-    EIGEN_IF_CONSTEXPR (UseSegment) {
-      if (count > 0) {
-        process_remaining_rows<true>(full_packets, i, j2, jend, lhs, rhs, res, palpha, pcj, count);
-      } else if (full_packets > 0) {
-        process_remaining_rows<false>(full_packets, i, j2, jend, lhs, rhs, res, palpha, pcj, 0);
-      }
+    if (count > 0) {
+      process_segment_tail(bool_constant<UseSegment>(), Index(UnsignedIndex(rows - i) / ResPacketSize), i, j2, jend,
+                           lhs, rhs, res, palpha, pcj, count);
     } else {
-      if (full_packets > 0) {
-        process_remaining_rows<false>(full_packets, i, j2, jend, lhs, rhs, res, palpha, pcj, 0);
-        i += full_packets * ResPacketSize;
+      if (i < n4) {
+        process_rows<4>(i, j2, jend, lhs, rhs, res, palpha, pcj);
+        i += ResPacketSize * 4;
+      }
+      if (i < n3) {
+        process_rows<3>(i, j2, jend, lhs, rhs, res, palpha, pcj);
+        i += ResPacketSize * 3;
+      }
+      if (i < n2) {
+        process_rows<2>(i, j2, jend, lhs, rhs, res, palpha, pcj);
+        i += ResPacketSize * 2;
+      }
+      if (i < n1) {
+        process_rows<1>(i, j2, jend, lhs, rhs, res, palpha, pcj);
+        i += ResPacketSize;
       }
       EIGEN_IF_CONSTEXPR (HasHalf) {
         if (i < n_half) {
@@ -378,17 +394,9 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, ConjugateLh
         }
       }
       for (; i < rows; ++i) {
-        // Four partial sums break the FMA latency chain along the row.
-        ResScalar c0(0), c1(0), c2(0), c3(0);
-        Index j = j2;
-        for (; j + 3 < jend; j += 4) {
-          c0 += cj.pmul(lhs(i, j + 0), rhs(j + 0, 0));
-          c1 += cj.pmul(lhs(i, j + 1), rhs(j + 1, 0));
-          c2 += cj.pmul(lhs(i, j + 2), rhs(j + 2, 0));
-          c3 += cj.pmul(lhs(i, j + 3), rhs(j + 3, 0));
-        }
-        for (; j < jend; ++j) c0 += cj.pmul(lhs(i, j), rhs(j, 0));
-        res[i] += alpha * ((c0 + c1) + (c2 + c3));
+        ResScalar c0(0);
+        for (Index j = j2; j < jend; j += 1) c0 += cj.pmul(lhs(i, j), rhs(j, 0));
+        res[i] += alpha * c0;
       }
     }
   }
@@ -467,8 +475,9 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLh
     UseSegment_ = gemv_use_packet_segment<LhsPacket, RhsPacket, ResPacket>::value &&
                   gemv_mapper_is_contiguous<LhsMapper, RowMajor>::value &&
                   gemv_mapper_is_contiguous<RhsMapper, ColMajor>::value,
-    // With segments, one masked full packet per row beats a half packet followed by two or more scalar columns.
-    SmallColsEnd_ = UseSegment_ ? (int)HalfTraits::LhsPacketSize + 2 : (int)LhsPacketSize_
+    // With segments, one masked full packet per row beats a half packet followed by three or more scalar columns.
+    // With two, it is faster only from about 20 rows on.
+    SmallColsEnd_ = UseSegment_ ? (int)HalfTraits::LhsPacketSize + 3 : (int)LhsPacketSize_
   };
   EIGEN_IF_CONSTEXPR (HasSubPackets_) {
     if (cols >= MinUsefulCols_) {
