@@ -249,39 +249,26 @@ EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void general_matrix_vector_product<
     Version>::process_segment_tail(std::true_type, Index full_packets, Index i, Index j2, Index jend, LhsMapper lhs,
                                    const RhsMapper& rhs, ResScalar* res, const ResPacket& palpha,
                                    conj_helper<LhsPacket, RhsPacket, ConjugateLhs, ConjugateRhs>& pcj, Index count) {
+#define EIGEN_GEMV_PROCESS_ROW(n)                                          \
+  case n:                                                                  \
+    process_rows<n, true>(i, j2, jend, lhs, rhs, res, palpha, pcj, count); \
+    break
   switch (full_packets) {
-    case 0:
-      process_rows<0, true>(i, j2, jend, lhs, rhs, res, palpha, pcj, count);
-      break;
-    case 1:
-      process_rows<1, true>(i, j2, jend, lhs, rhs, res, palpha, pcj, count);
-      break;
-    case 2:
-      process_rows<2, true>(i, j2, jend, lhs, rhs, res, palpha, pcj, count);
-      break;
-    case 3:
-      process_rows<3, true>(i, j2, jend, lhs, rhs, res, palpha, pcj, count);
-      break;
-    case 4:
-      process_rows<4, true>(i, j2, jend, lhs, rhs, res, palpha, pcj, count);
-      break;
-    case 5:
-      process_rows<5, true>(i, j2, jend, lhs, rhs, res, palpha, pcj, count);
-      break;
-    case 6:
-      process_rows<6, true>(i, j2, jend, lhs, rhs, res, palpha, pcj, count);
-      break;
-    case 7:
-      process_rows<7, true>(i, j2, jend, lhs, rhs, res, palpha, pcj, count);
-      break;
-    case 8:
-      process_rows<8, true>(i, j2, jend, lhs, rhs, res, palpha, pcj, count);
-      break;
+    EIGEN_GEMV_PROCESS_ROW(0);
+    EIGEN_GEMV_PROCESS_ROW(1);
+    EIGEN_GEMV_PROCESS_ROW(2);
+    EIGEN_GEMV_PROCESS_ROW(3);
+    EIGEN_GEMV_PROCESS_ROW(4);
+    EIGEN_GEMV_PROCESS_ROW(5);
+    EIGEN_GEMV_PROCESS_ROW(6);
+    EIGEN_GEMV_PROCESS_ROW(7);
+    EIGEN_GEMV_PROCESS_ROW(8);
+    EIGEN_GEMV_PROCESS_ROW(9);
     default:
-      eigen_internal_assert(full_packets == 9);
-      process_rows<9, true>(i, j2, jend, lhs, rhs, res, palpha, pcj, count);
+      eigen_internal_assert(false);
       break;
   }
+#undef EIGEN_GEMV_PROCESS_ROW
 }
 
 template <typename Index, typename LhsScalar, typename LhsMapper, bool ConjugateLhs, typename RhsScalar,
@@ -353,22 +340,17 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, ConjugateLh
       process_segment_tail(bool_constant<UseSegment>(), Index(UnsignedIndex(rows - i) / ResPacketSize), i, j2, jend,
                            lhs, rhs, res, palpha, pcj, count);
     } else {
-      if (i < n4) {
-        process_rows<4>(i, j2, jend, lhs, rhs, res, palpha, pcj);
-        i += ResPacketSize * 4;
-      }
-      if (i < n3) {
-        process_rows<3>(i, j2, jend, lhs, rhs, res, palpha, pcj);
-        i += ResPacketSize * 3;
-      }
-      if (i < n2) {
-        process_rows<2>(i, j2, jend, lhs, rhs, res, palpha, pcj);
-        i += ResPacketSize * 2;
-      }
-      if (i < n1) {
-        process_rows<1>(i, j2, jend, lhs, rhs, res, palpha, pcj);
-        i += ResPacketSize;
-      }
+#define EIGEN_GEMV_PROCESS_ROW(k)                             \
+  if (i < n##k) {                                             \
+    process_rows<k>(i, j2, jend, lhs, rhs, res, palpha, pcj); \
+    i += ResPacketSize * (k);                                 \
+  }                                                           \
+  static_assert(true, "Trailing semicolon required")
+      EIGEN_GEMV_PROCESS_ROW(4);
+      EIGEN_GEMV_PROCESS_ROW(3);
+      EIGEN_GEMV_PROCESS_ROW(2);
+      EIGEN_GEMV_PROCESS_ROW(1);
+#undef EIGEN_GEMV_PROCESS_ROW
       EIGEN_IF_CONSTEXPR (HasHalf) {
         if (i < n_half) {
           ResPacketHalf c0 = pzero(ResPacketHalf{});
