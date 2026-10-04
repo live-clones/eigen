@@ -95,8 +95,8 @@ void qr_invertible() {
   VERIFY_IS_APPROX(absdet, qr.absDeterminant());
 }
 
-// householder_qr_inplace_blocked picks its panel width from the shape: unblocked up to 96 x 96 coefficients,
-// 16-column panels below 512 columns, and the caller's 48 otherwise. Each shape here sits on one side of a threshold;
+// HouseholderQR picks its panel width from the shape: unblocked up to 96 x 96 coefficients, 16-column panels below
+// 512 columns, and 48 otherwise. Each shape here sits on one side of a threshold;
 // A = QR is checked against a normwise backward-error bound.
 template <int>
 void qr_blocking_shapes() {
