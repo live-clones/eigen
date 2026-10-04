@@ -158,12 +158,13 @@ struct copy_using_evaluator_traits {
                                               : NoUnrolling;
   // Expressions bounded at compile time to a few packets (runtime-sized blocks of small fixed matrices, as in the
   // column steps of a 4x4 Cholesky) take scalar tails: their results are reread almost at once, and a masked store
-  // does not forward to the following loads (5.7x on a 3x3 double LLT, AVX2). The tail of a 16-lane packet can be 15
-  // scalar stores, which cost about as much as the stall they avoid, so those keep masked tails.
+  // does not forward to the following loads. That pays only while a tail is a few cheap scalar coefficients, so it
+  // requires packets of at most 8 lanes and a source whose coefficient cost is bounded at compile time; a lazy
+  // product with a runtime inner size (HugeCost) computes a whole dot product per scalar coefficient.
   static constexpr bool UsePacketSegment =
       has_packet_segment<PacketType>::value &&
       !(MaxSizeAtCompileTime != Dynamic && MaxSizeAtCompileTime <= 4 * int(unpacket_traits<PacketType>::size) &&
-        unpacket_traits<PacketType>::size <= 8);
+        unpacket_traits<PacketType>::size <= 8 && int(SrcEvaluator::CoeffReadCost) < HugeCost);
 
 #ifdef EIGEN_DEBUG_ASSIGN
   static void debug() {
