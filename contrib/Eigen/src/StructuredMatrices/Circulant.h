@@ -92,6 +92,10 @@ struct evaluator_traits<Circulant<Scalar_, Size_>> {
  * \tparam Scalar_ the scalar type, real or complex.
  * \tparam Size_ the dimension at compile time, or \c Dynamic (the default).
  *
+ * \par Examples
+ * \ref StructuredExampleLoveEquation "Love's integral equation and a preconditioned Toeplitz system",
+ * \ref StructuredExampleTorusHelmholtz "the screened Poisson equation on a torus".
+ *
  * \sa class Toeplitz, makeCirculant()
  */
 template <typename Scalar_, int Size_>
