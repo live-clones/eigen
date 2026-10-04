@@ -156,11 +156,10 @@ struct copy_using_evaluator_traits {
       : Traversal == SliceVectorizedTraversal ? (MayUnrollInner ? InnerUnrolling : NoUnrolling)
 #endif
                                               : NoUnrolling;
-  // Expressions bounded at compile time to a few packets (runtime-sized blocks of small fixed matrices, as in the
-  // column steps of a 4x4 Cholesky) take scalar tails: their results are reread almost at once, and a masked store
-  // does not forward to the following loads. That pays only while a tail is a few cheap scalar coefficients, so it
-  // requires packets of at most 8 lanes and a source whose coefficient cost is bounded at compile time; a lazy
-  // product with a runtime inner size (HugeCost) computes a whole dot product per scalar coefficient.
+  // Scalar tails for expressions bounded to <= 4 packets (runtime-sized blocks of small fixed matrices, as in the
+  // column steps of a 4x4 Cholesky): their results are reread almost at once, and a masked store does not forward to
+  // the following loads. That pays only while a tail is a few cheap coefficients: packets of <= 8 lanes, and a source
+  // cost below HugeCost (a lazy product with a runtime inner size computes a dot product per coefficient).
   static constexpr bool UsePacketSegment =
       has_packet_segment<PacketType>::value &&
       !(MaxSizeAtCompileTime != Dynamic && MaxSizeAtCompileTime <= 4 * int(unpacket_traits<PacketType>::size) &&
@@ -523,12 +522,11 @@ struct dense_assignment_loop_impl<Kernel, LinearVectorizedTraversal, NoUnrolling
       unaligned_dense_assignment_loop<PacketType, DstAlignment, SrcAlignment, UsePacketSegment, DstIsAligned>;
   using tail_loop = unaligned_dense_assignment_loop<PacketType, Alignment, SrcAlignment, UsePacketSegment, false>;
 
-  static constexpr int MaxSize = Kernel::AssignmentTraits::MaxSizeAtCompileTime;
-
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(Kernel& kernel) {
-    // Where packet segments exist but a small bound turned them off, the scalar head and tail loops trip GCC's
-    // -Waggressive-loop-optimizations unless they see the compile-time bound; this no-op clamp hands it over.
-    // Backends without segments keep the plain size, which is what they always compiled.
+    // When a small bound disables available packet segments, GCC's -Waggressive-loop-optimizations fires on the
+    // scalar head and tail loops unless they see that bound; the no-op clamp supplies it. Backends without segments
+    // keep the unclamped size and their existing codegen.
+    constexpr int MaxSize = Kernel::AssignmentTraits::MaxSizeAtCompileTime;
     constexpr bool ClampToMaxSize = has_packet_segment<PacketType>::value && !UsePacketSegment && MaxSize != Dynamic;
     eigen_assert(MaxSize == Dynamic || kernel.size() <= MaxSize);
     const Index size = ClampToMaxSize ? numext::mini(kernel.size(), Index(MaxSize)) : kernel.size();
