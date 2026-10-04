@@ -63,9 +63,10 @@ struct traits<BartelsStewart<KroneckerSumType>> : traits<Matrix<typename Kroneck
 };
 
 /** \internal A Kronecker sum S = L (+) R as a factor of a KroneckerOperator or
- * of another KroneckerSum. Products go through S itself; the visitors read the
- * sparse materialization, solves go through BartelsStewart, and the inverse and
- * determinant through the dense matrix. */
+ * of another KroneckerSum. Left products go through S itself, right products
+ * through its factors; the visitors read the sparse materialization, solves go
+ * through BartelsStewart, and the inverse and determinant through the dense
+ * matrix. */
 template <typename LhsMatrix, typename RhsMatrix>
 struct kron_factor_ops<KroneckerSum<LhsMatrix, RhsMatrix>, kKronSumFactor> {
   using Factor = KroneckerSum<LhsMatrix, RhsMatrix>;
@@ -106,9 +107,17 @@ struct kron_factor_ops<KroneckerSum<LhsMatrix, RhsMatrix>, kKronSumFactor> {
   static void addLeftProduct(Dst& dst, const Alpha& alpha, const Factor& f, const Xpr& X) {
     f.addProduct(dst, X, alpha);
   }
+  // With X_j = X(:, j n2 : (j+1) n2 - 1), j < n1, the p x n2 slices of X,
+  //   X (L (+) R)^T = X (L (x) I)^T + X (I (x) R)^T = X_{[p n2 x n1]} L^T + [X_j R^T]_j.
   template <typename Dst, typename Alpha, typename Xpr, typename Work>
-  static void addRightProduct(Dst& dst, const Alpha& alpha, const Xpr& X, const Factor& f, Work&) {
-    kron_add_right_product_transposed(dst, alpha, X, f);
+  static void addRightProduct(Dst& dst, const Alpha& alpha, const Xpr& X, const Factor& f, Work& work) {
+    const Index p = X.rows(), n1 = f.lhs().rows(), n2 = f.rhs().rows();
+    auto dstL = dst.reshaped(p * n2, n1);
+    LhsOps::addRightProduct(dstL, alpha, X.reshaped(p * n2, n1), f.lhs(), work);
+    for (Index j = 0; j < n1; ++j) {
+      auto dstj = dst.middleCols(j * n2, n2);
+      RhsOps::addRightProduct(dstj, alpha, X.middleCols(j * n2, n2), f.rhs(), work);
+    }
   }
   static Scalar balancedDet(const Factor& f, Index& exponent) {
     return kron_factor_ops<DenseMatrix>::balancedDet(denseFactor(f), exponent);
@@ -529,8 +538,9 @@ class BartelsStewart : public SolverBase<BartelsStewart<KroneckerSumType>> {
     if (m_info != Success) return *this;
     if (m_hermitian) {
       m_spectrum = RealVector::Zero(1);
+      SelfAdjointEigenSolver<DenseMatrix> es;
       for (std::size_t k = 0; k < d; ++k) {
-        SelfAdjointEigenSolver<DenseMatrix> es(leaves[k]);
+        es.compute(leaves[k]);
         if (es.info() != Success) m_info = NoConvergence;
         m_basis.push_back(es.eigenvectors());
         // Kronecker order: the new factor's index runs fastest.
@@ -540,8 +550,9 @@ class BartelsStewart : public SolverBase<BartelsStewart<KroneckerSumType>> {
             (lambda.replicate(1, previous.size()) + previous.transpose().replicate(lambda.size(), 1)).reshaped();
       }
     } else {
+      ComplexSchur<ComplexMatrix> schur;
       for (std::size_t k = 0; k < d; ++k) {
-        ComplexSchur<ComplexMatrix> schur(leaves[k].template cast<ComplexScalar>());
+        schur.compute(leaves[k].template cast<ComplexScalar>());
         if (schur.info() != Success) m_info = NoConvergence;
         m_unitary.push_back(schur.matrixU());
         m_triangular.push_back(schur.matrixT());

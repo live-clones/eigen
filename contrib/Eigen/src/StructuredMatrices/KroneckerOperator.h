@@ -205,17 +205,6 @@ Index kron_rhs_chunk(Index perColumn) {
   return numext::maxi(Index(1), budget / numext::maxi(perColumn, Index(1)));
 }
 
-/** \internal dst += alpha X F^T for an operator F that applies from the left
- * only, as (F X^T)^T. */
-template <typename Dst, typename Alpha, typename Xpr, typename Factor>
-void kron_add_right_product_transposed(Dst& dst, const Alpha& alpha, const Xpr& X, const Factor& f) {
-  using Work = Matrix<typename Dst::Scalar, Dynamic, Dynamic, ColMajor>;
-  const Work Xt = X.transpose();
-  Work Yt = Work::Zero(f.rows(), X.rows());
-  f.addProduct(Yt, Xt, alpha);
-  dst += Yt.transpose();
-}
-
 template <typename Factor, int Kind = kron_factor_kind<Factor>()>
 struct kron_factor_ops {
   // Dense factor.

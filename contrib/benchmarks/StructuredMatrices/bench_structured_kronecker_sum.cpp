@@ -57,6 +57,20 @@ static void BM_KroneckerSumProduct2DMaterialized(benchmark::State& state) {
 }
 BENCHMARK(BM_KroneckerSumProduct2DMaterialized)->Arg(64)->Arg(256)->Arg(1024);
 
+// --- y = ((Dz (+) Dy) (+) Dx) x on an n^3 grid: a left-nested sum, applied
+// from the right inside the outer sum ---
+static void BM_KroneckerSumProduct3DLeftNested(benchmark::State& state) {
+  const Index n = state.range(0);
+  const KroneckerSum<KroneckerSum<SpMat, SpMat>, SpMat> L(makeKroneckerSum(tridiagonal(n), tridiagonal(n)),
+                                                          tridiagonal(n));
+  Vec x = Vec::Random(n * n * n), y(n * n * n);
+  for (auto _ : state) {
+    y.noalias() = L * x;
+    benchmark::DoNotOptimize(y.data());
+  }
+}
+BENCHMARK(BM_KroneckerSumProduct3DLeftNested)->Arg(32)->Arg(64)->Arg(128);
+
 // --- Implicit Euler step (I + tau D) u = b, D = -L the SPD negated Laplacian,
 // decompositions set up once. Symmetric factors: the fast diagonalization path.
 static auto heatStep2D(Index n, double tau) {

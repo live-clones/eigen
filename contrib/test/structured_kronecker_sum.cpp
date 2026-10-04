@@ -195,6 +195,11 @@ void test_ksum_nested(Index n1, Index n2, Index n3) {
   VERIFY_IS_APPROX(IS.determinant(), refIS.determinant());
   VERIFY_IS_APPROX((Mat(IS.inverse()) * refIS).eval(), Mat(Mat::Identity(refIS.rows(), refIS.cols())));
   check_products(IS.adjoint(), Mat(refIS.adjoint()));
+  // (A (+) C) (x) I_p and (A (+) C) (x) B apply the sum from the right.
+  check_products(makeKroneckerOperator(makeKroneckerSum(Ad, Cd), Mat::Identity(p, p)),
+                 reference_kron<Scalar>(reference_ksum<Scalar>(Ad, Cd), Mat::Identity(p, p)));
+  check_products(makeKroneckerOperator(makeKroneckerSum(Ad, Cd), B),
+                 reference_kron<Scalar>(reference_ksum<Scalar>(Ad, Cd), Bd));
 
   // A (+) (B (x) C): a KroneckerOperator as a Kronecker-sum factor.
   auto SK = makeKroneckerSum(Ad, makeKroneckerOperator(B, Cd));
@@ -436,7 +441,7 @@ EIGEN_DECLARE_TEST(structured_kronecker_sum) {
     CALL_SUBTEST_1((test_ksum_product<double>(1, 1)));
     CALL_SUBTEST_1(test_ksum_fixed());
     CALL_SUBTEST_2((test_ksum_nested<double>(2, 3, 4)));
-    CALL_SUBTEST_2((test_ksum_nested<std::complex<double>>(3, 2, 2)));
+    CALL_SUBTEST_5((test_ksum_nested<std::complex<double>>(3, 2, 2)));
     CALL_SUBTEST_3((test_ksum_solve<double>(5, 7)));
     CALL_SUBTEST_3((test_ksum_solve<float>(4, 5)));
     CALL_SUBTEST_3((test_ksum_solve<std::complex<double>>(4, 6)));
