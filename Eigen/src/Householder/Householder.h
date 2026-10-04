@@ -324,7 +324,7 @@ struct householder_apply_right_impl<Derived, EssentialPart, true> {
       pv[j] = pset1<Packet>(v[j]);
       pvc[j] = pset1<Packet>(vc[j]);
     }
-    const Index vectorEnd = rows - rows % PacketSize;
+    const Index vectorEnd = numext::round_down(rows, PacketSize);
     for (Index i = 0; i < vectorEnd; i += PacketSize) {
       Packet x[K + 1];
       for (int j = 0; j <= K; ++j) x[j] = ploadu<Packet>(col[j] + i);
@@ -337,7 +337,7 @@ struct householder_apply_right_impl<Derived, EssentialPart, true> {
     for (Index i = vectorEnd; i < rows; ++i) {
       Scalar t = col[0][i];
       for (int j = 0; j < K; ++j) t += col[j + 1][i] * v[j];
-      t = t * tauValue;
+      t *= tauValue;
       col[0][i] -= t;
       for (int j = 0; j < K; ++j) col[j + 1][i] -= t * vc[j];
     }
