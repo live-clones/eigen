@@ -105,8 +105,10 @@ void schur(int size = MatrixType::ColsAtCompileTime) {
 template <typename Scalar>
 void real_schur_structured_windows() {
   using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
-  const Scalar eps = NumTraits<Scalar>::epsilon();
   for (Index n : {Index(40), Index(70)}) {
+    const MatrixType identity = MatrixType::Identity(n, n);
+    // Backward stable: ||A - U T U^T|| and ||U^T U - I|| are O(n eps) relative to ||A|| and 1.
+    const Scalar bound = Scalar(10 * n) * NumTraits<Scalar>::epsilon();
     MatrixType cyclic = MatrixType::Zero(n, n);
     for (Index i = 0; i < n; ++i) cyclic(i, (i + 1) % n) = Scalar(1);
     MatrixType companion = MatrixType::Zero(n, n);
@@ -123,9 +125,8 @@ void real_schur_structured_windows() {
       const MatrixType& T = rs.matrixT();
       const MatrixType& U = rs.matrixU();
       verifyIsQuasiTriangular(T);
-      // Backward stable: ||A - U T U^T|| and ||U^T U - I|| are O(n eps) relative to ||A|| and 1.
-      VERIFY((*a - U * T * U.transpose()).norm() <= Scalar(10) * Scalar(n) * eps * a->norm());
-      VERIFY((U.transpose() * U - MatrixType::Identity(n, n)).norm() <= Scalar(10) * Scalar(n) * eps);
+      VERIFY((*a - U * T * U.transpose()).norm() <= bound * a->norm());
+      VERIFY((U.transpose() * U - identity).norm() <= bound);
     }
   }
 }

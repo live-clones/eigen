@@ -590,11 +590,10 @@ inline void RealSchur<MatrixType>::performFrancisQRStep(TMatrix& matT, Index il,
 
   const Index size = matT.cols();
 
-  // The reflectors are chased in windows of up to WindowSize. Reflector k reads column k - 1 and its right-hand
-  // updates reach column k + 2, so within a window only the columns up to the window's last k + 2 feed later
-  // reflectors. The left-hand updates of the columns beyond them are deferred to the end of the window and then
-  // applied column by column: each such column then sees the same updates in the same order, but on a contiguous
-  // segment, instead of one strided three-row pass over all the remaining columns per reflector.
+  // Reflectors are chased in windows k0 <= k < k1 of at most WindowSize. Reflector k reads column k - 1 and its
+  // right-hand update reaches column k + 2, so only columns < k1 + 2 feed later reflectors of the window. The left
+  // updates of the columns beyond are deferred to the window's end and applied column by column in the original
+  // order: the same arithmetic, on contiguous segments instead of one strided three-row pass per reflector.
   constexpr Index WindowSize = 32;
   constexpr bool deferLeft = !TMatrix::IsRowMajor && int(TMatrix::InnerStrideAtCompileTime) == 1;
   Index windowK[WindowSize];
@@ -602,7 +601,7 @@ inline void RealSchur<MatrixType>::performFrancisQRStep(TMatrix& matT, Index il,
   Matrix<Scalar, 2, 1> windowEss[WindowSize];
 
   for (Index k0 = im; k0 <= iu - 2; k0 += WindowSize) {
-    const Index k1 = (std::min)(k0 + WindowSize, iu - 1);  // the window is k0 <= k < k1
+    const Index k1 = (std::min)(k0 + WindowSize, iu - 1);
     const Index nearEnd = deferLeft ? (std::min)(size, k1 + 2) : size;
     Index numDeferred = 0;
     for (Index k = k0; k < k1; ++k) {
