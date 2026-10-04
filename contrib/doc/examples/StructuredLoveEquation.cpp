@@ -10,7 +10,7 @@
 // Toeplitz K, K_ij = h / (pi (1 + (x_i - x_j)^2)), which LookAheadLevinson
 // solves directly in O(n^2).
 //
-// A large ill-conditioned Toeplitz system, T_ij = (1 + |i - j|)^(-1.1), solved
+// A large dense Toeplitz system, T_ij = (1 + |i - j|)^(-1.1), solved
 // by conjugate gradients: the Toeplitz product costs O(n log n) through the
 // FFT, and the Strang preconditioner -- the central diagonals of T wrapped into
 // a circulant C, inverted by Circulant::solve in O(n log n) -- clusters the

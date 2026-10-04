@@ -171,7 +171,8 @@ Toeplitz product and Strang's \ref Circulant preconditioner [12], [13], \f$ O(n 
 \subsection StructuredExamplePade Pade approximation
 
 The denominator of a Pade approximant [14] solves a \ref Hankel system in the Taylor coefficients, solved in
-\f$ O(n^2) \f$ through its Toeplitz equivalent.
+\f$ O(n^2) \f$ through its Toeplitz equivalent. Rescaling the variable equilibrates the coefficients and keeps the
+system Hankel.
 
 <table class="example">
 <tr><th>Example:</th><th>Output:</th></tr>
