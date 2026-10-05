@@ -529,7 +529,10 @@ class BlockSparseMatrix
   BlockSparseMatrix operator/(const Scalar& s) const {
     return withValues_([&s](const auto& v) { return v / s; });
   }
-  BlockSparseMatrix& operator/=(const Scalar& s) { return *this *= (Scalar(1) / s); }
+  BlockSparseMatrix& operator/=(const Scalar& s) {
+    m_values.head(nonZeros()) /= s;
+    return *this;
+  }
 
   /** Scalar-on-left multiplication. */
   friend BlockSparseMatrix operator*(const Scalar& s, const BlockSparseMatrix& m) { return m * s; }
