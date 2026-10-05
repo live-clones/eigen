@@ -248,23 +248,26 @@ EIGEN_STRONG_INLINE Packet2ul pcast<Packet2f, Packet2ul>(const Packet2f& a) {
   return vcvtq_u64_f64(vcvt_f64_f32(a));
 }
 #else
+// A 32-bit conversion would saturate at 2^31 (2^32), so convert each lane in scalar.
+template <>
+EIGEN_STRONG_INLINE Packet2l pcast<Packet2f, Packet2l>(const Packet2f& a) {
+  return vcombine_s64(vdup_n_s64(static_cast<int64_t>(vget_lane_f32(a, 0))),
+                      vdup_n_s64(static_cast<int64_t>(vget_lane_f32(a, 1))));
+}
 template <>
 EIGEN_STRONG_INLINE Packet2l pcast<Packet4f, Packet2l>(const Packet4f& a) {
   // Discard second half of input.
-  return vmovl_s32(vget_low_s32(vcvtq_s32_f32(a)));
+  return pcast<Packet2f, Packet2l>(vget_low_f32(a));
 }
 template <>
-EIGEN_STRONG_INLINE Packet2l pcast<Packet2f, Packet2l>(const Packet2f& a) {
-  return vmovl_s32(vcvt_s32_f32(a));
+EIGEN_STRONG_INLINE Packet2ul pcast<Packet2f, Packet2ul>(const Packet2f& a) {
+  return vcombine_u64(vdup_n_u64(static_cast<uint64_t>(vget_lane_f32(a, 0))),
+                      vdup_n_u64(static_cast<uint64_t>(vget_lane_f32(a, 1))));
 }
 template <>
 EIGEN_STRONG_INLINE Packet2ul pcast<Packet4f, Packet2ul>(const Packet4f& a) {
   // Discard second half of input.
-  return vmovl_u32(vget_low_u32(vcvtq_u32_f32(a)));
-}
-template <>
-EIGEN_STRONG_INLINE Packet2ul pcast<Packet2f, Packet2ul>(const Packet2f& a) {
-  return vmovl_u32(vcvt_u32_f32(a));
+  return pcast<Packet2f, Packet2ul>(vget_low_f32(a));
 }
 #endif  // EIGEN_ARCH_ARM64
 
