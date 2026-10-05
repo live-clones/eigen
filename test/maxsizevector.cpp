@@ -88,6 +88,23 @@ EIGEN_DECLARE_TEST(maxsizevector) {
     Foo::copy_limit = NumTraits<Index>::highest();
     VERIFY(exception_raised);
     VERIFY_IS_EQUAL(Index(0), Foo::object_count);
+
+    // A throwing push_back leaves the vector unchanged.
+    {
+      VectorX vect4(rows);
+      vect4.push_back(Foo());
+      exception_raised = false;
+      Foo::copy_limit = 0;
+      try {
+        vect4.push_back(Foo());
+      } catch (const Foo::Fail&) {
+        exception_raised = true;
+      }
+      Foo::copy_limit = NumTraits<Index>::highest();
+      VERIFY(exception_raised);
+      VERIFY_IS_EQUAL(vect4.size(), size_t(1));
+    }
+    VERIFY_IS_EQUAL(Index(0), Foo::object_count);
 #endif
     std::cout << '\n';
   }

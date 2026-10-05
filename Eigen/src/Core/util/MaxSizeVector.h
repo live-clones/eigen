@@ -78,13 +78,15 @@ class MaxSizeVector {
   // Append new elements (up to reserved size).
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void push_back(const T& t) {
     eigen_assert(m_size < m_reserve);
-    new (&m_data[m_size++]) T(t);
+    new (&m_data[m_size]) T(t);
+    ++m_size;
   }
 
   template <class X>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void emplace_back(const X& x) {
     eigen_assert(m_size < m_reserve);
-    new (&m_data[m_size++]) T(x);
+    new (&m_data[m_size]) T(x);
+    ++m_size;
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const T& operator[](size_t i) const {
