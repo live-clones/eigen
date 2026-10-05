@@ -35,10 +35,10 @@ int main() {
   SparseMatrix<double> I(n, n);
   I.setIdentity();
   const auto Id = MatrixXd::Identity(n, n);
-  const auto implicitX = makeKroneckerOperator(Id, SparseMatrix<double>(I + tau / 2 * D));
-  const auto implicitY = makeKroneckerOperator(SparseMatrix<double>(I + tau / 2 * D), Id);
-  const auto explicitX = makeKroneckerOperator(Id, SparseMatrix<double>(I - tau / 2 * D));
-  const auto explicitY = makeKroneckerOperator(SparseMatrix<double>(I - tau / 2 * D), Id);
+  const auto xImplicit = makeKroneckerOperator(Id, SparseMatrix<double>(I + tau / 2 * D));
+  const auto yImplicit = makeKroneckerOperator(SparseMatrix<double>(I + tau / 2 * D), Id);
+  const auto xExplicit = makeKroneckerOperator(Id, SparseMatrix<double>(I - tau / 2 * D));
+  const auto yExplicit = makeKroneckerOperator(SparseMatrix<double>(I - tau / 2 * D), Id);
 
   // u0 = sin(pi x) sin(2 pi y), an eigenvector of both directions.
   VectorXd sx(n), sy(n);
@@ -49,8 +49,8 @@ int main() {
   const VectorXd u0 = (sx * sy.transpose()).reshaped();  // entry j*n + i is (x_i, y_j)
   VectorXd u = u0;
   for (int k = 0; k < steps; ++k) {
-    const VectorXd half = implicitX.solve(explicitY * u);
-    u = implicitY.solve(explicitX * half);
+    const VectorXd half = xImplicit.solve(yExplicit * u);
+    u = yImplicit.solve(xExplicit * half);
   }
   const auto factor = [&](double lambda) { return (1 - tau / 2 * lambda) / (1 + tau / 2 * lambda); };
   const double lx = 4 / (h * h) * std::pow(std::sin(pi * h / 2), 2), ly = 4 / (h * h) * std::pow(std::sin(pi * h), 2);
