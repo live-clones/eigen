@@ -24,6 +24,8 @@ EIGEN_LAPACK_FUNC(gesdd)
  int *info) {
   // TODO exploit the work buffer
   bool query_size = *lwork == -1;
+  const char jobz_upper = static_cast<char>(std::toupper(static_cast<unsigned char>(*jobz)));
+  jobz = &jobz_upper;
   int diag_size = (std::min)(*m, *n);
 
   *info = 0;
@@ -95,6 +97,10 @@ EIGEN_LAPACK_FUNC(gesvd)
  EIGEN_LAPACK_ARG_IF_COMPLEX(RealScalar * /*rwork*/) int *info) {
   // TODO exploit the work buffer
   bool query_size = *lwork == -1;
+  const char jobu_upper = static_cast<char>(std::toupper(static_cast<unsigned char>(*jobu)));
+  jobu = &jobu_upper;
+  const char jobv_upper = static_cast<char>(std::toupper(static_cast<unsigned char>(*jobv)));
+  jobv = &jobv_upper;
   int diag_size = (std::min)(*m, *n);
 
   *info = 0;

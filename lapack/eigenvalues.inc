@@ -17,6 +17,8 @@ EIGEN_LAPACK_FUNC(syev)
  int* info) {
   // TODO exploit the work buffer
   bool query_size = *lwork == -1;
+  const char jobz_upper = static_cast<char>(std::toupper(static_cast<unsigned char>(*jobz)));
+  jobz = &jobz_upper;
 
   *info = 0;
   if (*jobz != 'N' && *jobz != 'V')
