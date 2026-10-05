@@ -46,6 +46,8 @@ void covar(Matrix<Scalar, Dynamic, Dynamic>& r, const VectorXi& ipvt,
         r.col(k).head(j + 1) -= r.col(j).head(j + 1) * temp;
       }
       l = k;
+    } else {
+      break;  // MINPACK: the rank ends at the first negligible pivot
     }
 
   /* form the full upper triangle of the inverse of (r transpose)*r */

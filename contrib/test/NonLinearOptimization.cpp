@@ -453,6 +453,18 @@ void testLmstrScaling() {
   VERIFY_IS_APPROX(lm.diag, VectorXd(jac.colwise().norm().transpose()));
 }
 
+// covar() takes the rank to end at the first pivot below tol * |r(0,0)| (MINPACK) and zeroes the rest.
+void testCovarRankDeficient() {
+  MatrixXd r(3, 3);
+  r << 2, 1, 1, 0, 1e-20, 1, 0, 0, 3;
+  VectorXi ipvt(3);
+  ipvt << 0, 1, 2;
+  internal::covar(r, ipvt);
+  MatrixXd expected = MatrixXd::Zero(3, 3);
+  expected(0, 0) = 0.25;
+  VERIFY_IS_APPROX(r, expected);
+}
+
 void testLmdif1() {
   const int n = 3;
   int info;
@@ -1271,6 +1283,7 @@ EIGEN_DECLARE_TEST(NonLinearOptimization) {
   CALL_SUBTEST /*_3*/ (testLmstr1());
   CALL_SUBTEST /*_3*/ (testLmstr());
   CALL_SUBTEST /*_3*/ (testLmstrScaling());
+  CALL_SUBTEST /*_3*/ (testCovarRankDeficient());
   CALL_SUBTEST /*_3*/ (testLmdif1());
   CALL_SUBTEST /*_3*/ (testLmdif());
 
