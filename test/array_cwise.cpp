@@ -1104,6 +1104,9 @@ void array_complex(const ArrayType& m) {
     const Scalar l1 = numext::log1p(Scalar(RealScalar(-1), RealScalar(0)));
     VERIFY(l0.real() == inf && l0.imag() == RealScalar(0));
     VERIFY(l1.real() == -inf && l1.imag() == RealScalar(0));
+    // log2(0) is (-inf, 0) on both the vectorized and the scalar path.
+    const Array<Scalar, Dynamic, 1> log2_zero = Array<Scalar, Dynamic, 1>::Zero(17).log2();
+    VERIFY((log2_zero.real() == -inf).all() && (log2_zero.imag() == RealScalar(0)).all());
   }
 
   for (Index i = 0; i < m.rows(); ++i)
