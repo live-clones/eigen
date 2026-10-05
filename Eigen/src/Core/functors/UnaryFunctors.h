@@ -561,7 +561,7 @@ template <typename Scalar>
 struct scalar_log2_op {
   using RealScalar = typename NumTraits<Scalar>::Real;
   EIGEN_DEVICE_FUNC constexpr inline Scalar operator()(const Scalar& a) const {
-    return Scalar(RealScalar(EIGEN_LOG2E)) * numext::log(a);
+    return internal::mul(RealScalar(EIGEN_LOG2E), numext::log(a));
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC inline Packet packetOp(const Packet& a) const {
