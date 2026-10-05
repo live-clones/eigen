@@ -1168,13 +1168,13 @@ struct igamma_generic_impl {
     const Scalar one = 1;
     const Scalar nan = NumTraits<Scalar>::quiet_NaN();
 
-    if (x == zero) return zero;
-
-    if ((x < zero) || (a <= zero)) {  // domain error
+    if ((numext::isnan)(a) || (numext::isnan)(x)) {  // propagate nans
       return nan;
     }
 
-    if ((numext::isnan)(a) || (numext::isnan)(x)) {  // propagate nans
+    if (x == zero) return zero;
+
+    if ((x < zero) || (a <= zero)) {  // domain error
       return nan;
     }
 
