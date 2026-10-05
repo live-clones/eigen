@@ -2656,13 +2656,7 @@ EIGEN_STRONG_INLINE Packet16f Bf16ToF32(const Packet16bf& a) {
 EIGEN_STRONG_INLINE Packet16bf F32ToBf16(const Packet16f& a) {
   Packet16bf r;
 
-#if defined(EIGEN_VECTORIZE_AVX512BF16) && EIGEN_GNUC_STRICT_AT_LEAST(10, 1, 0)
-  // Since GCC 10.1 supports avx512bf16 and C style explicit cast
-  // (C++ static_cast is not supported yet), do conversion via intrinsic
-  // and register path for performance.
-  r = (__m256i)(_mm512_cvtneps_pbh(a));
-
-#else
+  // Not _mm512_cvtneps_pbh: VCVTNEPS2BF16 flushes subnormal inputs to zero regardless of MXCSR.
   __m512i t;
   __m512i input = _mm512_castps_si512(a);
   __m512i nan = _mm512_set1_epi32(0x7fc0);
@@ -2682,7 +2676,6 @@ EIGEN_STRONG_INLINE Packet16bf F32ToBf16(const Packet16f& a) {
   t = _mm512_mask_blend_epi32(mask, nan, t);
   // output.value = static_cast<uint16_t>(input);
   r = _mm512_cvtepi32_epi16(t);
-#endif  // EIGEN_VECTORIZE_AVX512BF16
 
   return r;
 }
