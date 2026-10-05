@@ -566,6 +566,11 @@ void test_special_functions_edge_cases() {
   VERIFY((numext::isnan)(numext::igamma_der_a(nan, Scalar(0))));
   VERIFY((numext::isnan)(numext::gamma_sample_der_alpha(nan, Scalar(0))));
 
+  // betainc propagates NaN past its a = 0 and b = 0 shortcuts.
+  VERIFY((numext::isnan)(numext::betainc(Scalar(0), Scalar(0.5), nan)));
+  VERIFY((numext::isnan)(numext::betainc(Scalar(0.5), Scalar(0), nan)));
+  VERIFY((numext::isnan)(numext::betainc(nan, Scalar(0.5), Scalar(0))));
+
   if (sizeof(Scalar) >= 8) {
     VERIFY_IS_EQUAL(numext::erf(Scalar(1e200)), Scalar(1.0));
     VERIFY_IS_EQUAL(numext::erf(Scalar(-1e200)), Scalar(-1.0));

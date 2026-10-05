@@ -1825,6 +1825,7 @@ struct betainc_impl<float> {
     const float nan = NumTraits<float>::quiet_NaN();
     float ans, t;
 
+    if ((numext::isnan)(a) || (numext::isnan)(b) || (numext::isnan)(x)) return nan;
     if (a == 0.0f && b == 0.0f) return nan;
     if (x < 0.0f || x > 1.0f) return nan;
     if (a < 0.0f) return nan;
@@ -1894,6 +1895,7 @@ struct betainc_impl<double> {
     double a, b, t, x, xc, w, y;
     bool reversed_a_b = false;
 
+    if ((numext::isnan)(aa) || (numext::isnan)(bb) || (numext::isnan)(xx)) return nan;
     if (aa == 0.0 && bb == 0.0) return nan;
     if (xx < 0.0 || xx > 1.0) return nan;
     if (aa < 0.0) return nan;
