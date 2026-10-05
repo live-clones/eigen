@@ -1231,8 +1231,19 @@ void testR1mpyq() {
   VERIFY_IS_APPROX(qtf.transpose(), expected.row(0));
 }
 
+// dogleg() replaces a zero pivot r(j,j) by epsmch * max_i |r(i,j)| (MINPACK), not by the signed maximum.
+void testDoglegZeroPivot() {
+  MatrixXd r(2, 2);
+  r << -4, -2, 0, 0;
+  VectorXd diag = VectorXd::Ones(2), qtb = VectorXd::Ones(2), x(2);
+  internal::dogleg<double>(r, diag, qtb, 1e300, x);
+  const double x1 = 1 / (2 * NumTraits<double>::epsilon());
+  VERIFY_IS_APPROX(x, Vector2d(-(1 + 2 * x1) / 4, x1));
+}
+
 EIGEN_DECLARE_TEST(NonLinearOptimization) {
   CALL_SUBTEST /*_2*/ (testR1mpyq());
+  CALL_SUBTEST /*_2*/ (testDoglegZeroPivot());
 
   // Tests using the examples provided by (c)minpack
   CALL_SUBTEST /*_1*/ (testChkder());
