@@ -13,7 +13,7 @@
 
 // computes eigen values and vectors of a general N-by-N matrix A
 EIGEN_LAPACK_FUNC(syev)
-(const char* jobz, const char* uplo, int* n, RealScalar* ra, int* lda, RealScalar* rw, RealScalar* /*work*/, int* lwork,
+(const char* jobz, const char* uplo, int* n, RealScalar* ra, int* lda, RealScalar* rw, RealScalar* work, int* lwork,
  int* info) {
   // TODO exploit the work buffer
   bool query_size = *lwork == -1;
@@ -36,7 +36,7 @@ EIGEN_LAPACK_FUNC(syev)
   }
 
   if (query_size) {
-    *lwork = 0;
+    work[0] = RealScalar(std::max(1, 3 * *n - 1));
     return;
   }
 
