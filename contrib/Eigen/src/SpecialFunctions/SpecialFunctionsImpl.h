@@ -1345,7 +1345,7 @@ struct zeta_impl_series<float> {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE bool run(float& a, float& b, float& s, const float x,
                                                         const float machep) {
     int i = 0;
-    while (i < 9) {
+    while ((i < 9) || (a <= 9.0f)) {
       i += 1;
       a += 1.0f;
       b = numext::pow(a, -x);

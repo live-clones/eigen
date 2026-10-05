@@ -571,6 +571,13 @@ void test_special_functions_edge_cases() {
   VERIFY((numext::isnan)(numext::betainc(Scalar(0.5), Scalar(0), nan)));
   VERIFY((numext::isnan)(numext::betainc(nan, Scalar(0.5), Scalar(0))));
 
+  // A negative q sums until n + q > 9. zeta(2, -20.5) = pi^2/2 + sum_{j=0}^{20} (j + 1/2)^-2.
+  {
+    double ref = EIGEN_PI * EIGEN_PI / 2;
+    for (int j = 0; j <= 20; ++j) ref += 1 / ((j + 0.5) * (j + 0.5));
+    VERIFY_IS_APPROX(numext::zeta(Scalar(2), Scalar(-20.5)), Scalar(ref));
+  }
+
   if (sizeof(Scalar) >= 8) {
     VERIFY_IS_EQUAL(numext::erf(Scalar(1e200)), Scalar(1.0));
     VERIFY_IS_EQUAL(numext::erf(Scalar(-1e200)), Scalar(-1.0));
