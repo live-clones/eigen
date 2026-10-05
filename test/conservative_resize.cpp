@@ -134,6 +134,15 @@ void noncopyable() {
   VERIFY(AnnoyingScalar::instances == 0 && "global memory leak detected in noncopyable");
 }
 
+// Growing past the compile-time maximum sizes is caught as resize() catches it.
+template <int>
+void max_size_checks() {
+  Matrix<double, Dynamic, Dynamic, ColMajor, 4, 4> m(4, 2);
+  VERIFY_RAISES_ASSERT(m.conservativeResize(4, 6));
+  Matrix<double, Dynamic, 1, ColMajor, 4, 1> v(2);
+  VERIFY_RAISES_ASSERT(v.conservativeResize(8));
+}
+
 EIGEN_DECLARE_TEST(conservative_resize) {
   for (int i = 0; i < g_repeat; ++i) {
     CALL_SUBTEST_1((run_matrix_tests<int, Eigen::RowMajor>()));
@@ -151,6 +160,7 @@ EIGEN_DECLARE_TEST(conservative_resize) {
     CALL_SUBTEST_1((run_vector_tests<int>()));
     CALL_SUBTEST_2((run_vector_tests<float>()));
     CALL_SUBTEST_3((run_vector_tests<double>()));
+    CALL_SUBTEST_3((max_size_checks<0>()));
     CALL_SUBTEST_4((run_vector_tests<std::complex<float> >()));
     CALL_SUBTEST_5((run_vector_tests<std::complex<double> >()));
 
