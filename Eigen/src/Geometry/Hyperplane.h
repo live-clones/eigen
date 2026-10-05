@@ -206,7 +206,7 @@ class Hyperplane {
   template <typename XprType>
   EIGEN_DEVICE_FUNC inline Hyperplane& transform(const MatrixBase<XprType>& mat, TransformTraits traits = Affine) {
     if (traits == Affine) {
-      normal() = mat.inverse().transpose() * normal();
+      normal() = mat.inverse().adjoint() * normal();
       m_coeffs /= normal().norm();
     } else if (traits == Isometry)
       normal() = mat * normal();

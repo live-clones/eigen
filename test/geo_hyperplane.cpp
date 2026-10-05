@@ -36,6 +36,14 @@ void hyperplane_complex_scaling(const HyperplaneType &plane, std::true_type) {
     const VectorType p = VectorType::Random(plane.dim());
     VERIFY_IS_APPROX(rescaled.signedDistance(p), gamma * plane.signedDistance(p));
   }
+
+  // An affine map M carries the normal to M^{-H} n, since signedDistance() conjugates the normal.
+  using MatrixType = Matrix<Scalar, HyperplaneType::AmbientDimAtCompileTime, HyperplaneType::AmbientDimAtCompileTime>;
+  const MatrixType m = MatrixType::Random(plane.dim(), plane.dim());
+  const VectorType p = plane.projection(VectorType::Random(plane.dim()));
+  HyperplaneType transformed = plane;
+  VERIFY_IS_MUCH_SMALLER_THAN(numext::abs(transformed.transform(m).signedDistance(m * p)),
+                              typename HyperplaneType::RealScalar(1));
 }
 
 template <typename HyperplaneType>
