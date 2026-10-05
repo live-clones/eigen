@@ -9,7 +9,6 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
-#include <Eigen/Core>
 
 template <typename MatrixType>
 void replicate(const MatrixType& m) {
