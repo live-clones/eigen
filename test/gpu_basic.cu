@@ -71,6 +71,15 @@ struct coeff_wise {
   }
 };
 
+// The static Map() helpers of the plain types are device-callable.
+template <typename T>
+struct static_map {
+  EIGEN_DEVICE_FUNC void operator()(int i, const typename T::Scalar* in, typename T::Scalar* out) const {
+    T::Map(out + i * T::SizeAtCompileTime) =
+        2 * T::Map(in + i) + T::Map(in + i, T::RowsAtCompileTime, T::ColsAtCompileTime);
+  }
+};
+
 template <int Order>
 struct scaled_structured_product {
   EIGEN_DEVICE_FUNC void operator()(int i, const float* in, float* out) const {
@@ -824,6 +833,7 @@ EIGEN_DECLARE_TEST(gpu_basic) {
 
   CALL_SUBTEST(run_and_compare_to_gpu(coeff_wise<Vector3f>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(coeff_wise<Array44f>(), nthreads, in, out));
+  CALL_SUBTEST(run_and_compare_to_gpu(static_map<Matrix3f>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(make_householder_small_tail(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(make_householder_complex_zero_tail(), nthreads, cfin, cfout));
 
