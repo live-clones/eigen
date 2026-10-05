@@ -223,6 +223,21 @@ void test_pruning() {
   VERIFY_IS_EQUAL(vec.coeff(5), 1.0);
 }
 
+void test_swap_with_matrix() {
+  // The matrix may be uncompressed and holds a different number of nonzeros than the vector.
+  SparseMatrix<double> m(5, 1);
+  m.reserve(VectorXi::Constant(1, 4));
+  m.insert(1, 0) = 1;
+  SparseVector<double> v(5);
+  v.insert(0) = 2;
+  v.insert(4) = 3;
+  const VectorXd refM = m.toDense(), refV = v.toDense();
+  v.swap(m);
+  VERIFY_IS_EQUAL(m.nonZeros(), 2);
+  VERIFY_IS_EQUAL(VectorXd(m.toDense()), refV);
+  VERIFY_IS_EQUAL(VectorXd(v.toDense()), refM);
+}
+
 EIGEN_DECLARE_TEST(sparse_vector) {
   for (int i = 0; i < g_repeat; i++) {
     int r = Eigen::internal::random<int>(1, 500), c = Eigen::internal::random<int>(1, 500);
@@ -238,4 +253,5 @@ EIGEN_DECLARE_TEST(sparse_vector) {
   }
 
   CALL_SUBTEST_1(test_pruning());
+  CALL_SUBTEST_1(test_swap_with_matrix());
 }
