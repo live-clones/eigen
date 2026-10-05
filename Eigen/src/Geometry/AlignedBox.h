@@ -196,7 +196,7 @@ class AlignedBox {
   EIGEN_DEVICE_FUNC inline VectorType corner(CornerType corner) const {
     EIGEN_STATIC_ASSERT(AmbientDim_ <= 3, THIS_METHOD_IS_ONLY_FOR_VECTORS_OF_A_SPECIFIC_SIZE);
 
-    VectorType res;
+    VectorType res(dim());
 
     Index mult = 1;
     for (Index d = 0; d < dim(); ++d) {

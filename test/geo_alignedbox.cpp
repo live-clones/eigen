@@ -499,6 +499,9 @@ void specificTest2() {
   topLeftFloor << m[0], M[1], m[2];
   VERIFY_IS_APPROX(bottomRightFloor, box.corner(BoxType::BottomRightFloor));
   VERIFY_IS_APPROX(topLeftFloor, box.corner(BoxType::TopLeftFloor));
+
+  AlignedBox<int, Dynamic> dynBox(m, M);
+  VERIFY_IS_EQUAL(VectorXi(bottomRightFloor), dynBox.corner(AlignedBox<int, Dynamic>::BottomRightFloor));
 }
 
 EIGEN_DECLARE_TEST(geo_alignedbox) {
