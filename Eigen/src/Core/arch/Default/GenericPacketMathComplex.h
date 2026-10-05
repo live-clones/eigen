@@ -257,12 +257,17 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet phypot_complex(const 
   const RealPacket cst_two_rp = pset1<RealPacket>(static_cast<RealScalar>(2.0));
   const RealPacket evenmask = peven_mask(a.v);
 
-  RealPacket a_abs = pabs(a.v);
+  // Scale by 2^-e, exactly, with max(|a|, |b|) = m * 2^e and m in [0.5, 1), so the squares below
+  // neither overflow nor underflow.
+  RealPacket exponent;
+  pfrexp(pmax(pabs(a.v), pcplxflip(Packet(pabs(a.v))).v), exponent);
+  const RealPacket a_v = pldexp(a.v, pnegate(exponent));
+  RealPacket a_abs = pabs(a_v);
   RealPacket a_flip = pcplxflip(Packet(a_abs)).v;       // |b|, |a|
   RealPacket a_all = pselect(evenmask, a_abs, a_flip);  // |a|, |a|
   RealPacket b_all = pselect(evenmask, a_flip, a_abs);  // |b|, |b|
 
-  RealPacket a2 = pmul(a.v, a.v);                    // |a^2, b^2|
+  RealPacket a2 = pmul(a_v, a_v);                    // |a^2, b^2|
   RealPacket a2_flip = pcplxflip(Packet(a2)).v;      // |b^2, a^2|
   RealPacket h = psqrt(padd(a2, a2_flip));           // |sqrt(a^2 + b^2), sqrt(a^2 + b^2)|
   RealPacket h_sq = pmul(h, h);                      // |a^2 + b^2, a^2 + b^2|
@@ -275,8 +280,8 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet phypot_complex(const 
   // handle zero-case
   RealPacket iszero = pcmp_eq(por(a_abs, a_flip), cst_zero_rp);
 
-  h = pandnot(h, iszero);  // |sqrt(a^2+b^2), sqrt(a^2+b^2)|
-  return Packet(h);        // |sqrt(a^2+b^2), sqrt(a^2+b^2)|
+  h = pandnot(h, iszero);              // |sqrt(a^2+b^2), sqrt(a^2+b^2)|
+  return Packet(pldexp(h, exponent));  // |sqrt(a^2+b^2), sqrt(a^2+b^2)|
 }
 
 EIGEN_GCC_FAST_MATH_COMPLEX_VECTORIZE_WORKAROUND_POP

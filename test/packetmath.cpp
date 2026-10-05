@@ -2317,6 +2317,14 @@ void packetmath_complex() {
         CHECK_CWISE1_IM1ULP_N(std::log, internal::plog, 4);
       }
     }
+    // |z|^2 overflows or underflows while log|z| is finite.
+    const RealScalar big = numext::sqrt(NumTraits<RealScalar>::highest()) * RealScalar(4);
+    const RealScalar tiny = numext::sqrt((std::numeric_limits<RealScalar>::min)()) / RealScalar(4);
+    data1[0] = Scalar(big, one);
+    data1[1] = Scalar(-big, big);
+    data1[2] = Scalar(tiny, zero);
+    data1[3] = Scalar(tiny, -tiny);
+    CHECK_CWISE1_N(std::log, internal::plog, 4);
     // Set reference results to nan.
     // Some architectures don't handle IEEE edge cases correctly
     ref[0] = Scalar(nan, nan);
