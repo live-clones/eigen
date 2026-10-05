@@ -186,9 +186,9 @@ void test_ksum_nested(Index n1, Index n2, Index n3) {
   STATIC_CHECK((std::is_same<decltype(IS), KroneckerOperator<Id, KroneckerSum<Mat, Mat>>>::value));
   const Mat refIS = reference_kron<Scalar>(Mat::Identity(p, p), reference_ksum<Scalar>(Ad, Cd));
   check_products(IS, refIS);
-  Sparse MIS;
-  MIS = IS;
-  VERIFY_IS_APPROX(Mat(MIS), refIS);
+  Sparse sparseIS;
+  sparseIS = IS;
+  VERIFY_IS_APPROX(Mat(sparseIS), refIS);
   VERIFY_IS_APPROX(Mat(IS), refIS);
   const Vec b = Vec::Random(refIS.rows());
   VERIFY_IS_APPROX((refIS * IS.solve(b)).eval(), b);
