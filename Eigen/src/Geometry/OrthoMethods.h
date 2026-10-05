@@ -185,7 +185,7 @@ struct unitOrthogonal_selector {
     Index sndi = 0;
     src.cwiseAbs().maxCoeff(&maxi);
     if (maxi == 0) sndi = 1;
-    RealScalar invnm = RealScalar(1) / (Vector2() << src.coeff(sndi), src.coeff(maxi)).finished().norm();
+    RealScalar invnm = RealScalar(1) / (Vector2() << src.coeff(sndi), src.coeff(maxi)).finished().stableNorm();
     perp.coeffRef(maxi) = -numext::conj(src.coeff(sndi)) * invnm;
     perp.coeffRef(sndi) = numext::conj(src.coeff(maxi)) * invnm;
 
@@ -208,7 +208,7 @@ struct unitOrthogonal_selector<Derived, 3> {
      * simply take ( -y, x, 0 ) and normalize it.
      */
     if ((!isMuchSmallerThan(src.x(), src.z())) || (!isMuchSmallerThan(src.y(), src.z()))) {
-      RealScalar invnm = RealScalar(1) / src.template head<2>().norm();
+      RealScalar invnm = RealScalar(1) / src.template head<2>().stableNorm();
       perp.coeffRef(0) = -numext::conj(src.y()) * invnm;
       perp.coeffRef(1) = numext::conj(src.x()) * invnm;
       perp.coeffRef(2) = 0;
@@ -218,7 +218,7 @@ struct unitOrthogonal_selector<Derived, 3> {
      * So we take the crossed product with (1,0,0) and normalize it.
      */
     else {
-      RealScalar invnm = RealScalar(1) / src.template tail<2>().norm();
+      RealScalar invnm = RealScalar(1) / src.template tail<2>().stableNorm();
       perp.coeffRef(0) = 0;
       perp.coeffRef(1) = -numext::conj(src.z()) * invnm;
       perp.coeffRef(2) = numext::conj(src.y()) * invnm;
@@ -232,7 +232,7 @@ template <typename Derived>
 struct unitOrthogonal_selector<Derived, 2> {
   using VectorType = typename plain_matrix_type<Derived>::type;
   EIGEN_DEVICE_FUNC static inline VectorType run(const Derived& src) {
-    return VectorType(-numext::conj(src.y()), numext::conj(src.x())).normalized();
+    return VectorType(-numext::conj(src.y()), numext::conj(src.x())).stableNormalized();
   }
 };
 

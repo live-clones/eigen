@@ -116,6 +116,10 @@ void orthomethods(int size = Size) {
   // unitOrthogonal
   VERIFY_IS_MUCH_SMALLER_THAN(v0.unitOrthogonal().dot(v0), Scalar(1));
   VERIFY_IS_APPROX(v0.unitOrthogonal().norm(), RealScalar(1));
+  // still a unit vector where squaredNorm() underflows or overflows
+  for (const RealScalar s : {numext::sqrt((std::numeric_limits<RealScalar>::min)()) * RealScalar(1e-4),
+                             numext::sqrt((std::numeric_limits<RealScalar>::max)()) * RealScalar(1e2)})
+    VERIFY_IS_APPROX((v0 * s).unitOrthogonal().norm(), RealScalar(1));
 
   if (size >= 3) {
     v0.template head<2>().setZero();
