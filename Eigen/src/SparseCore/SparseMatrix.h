@@ -123,6 +123,7 @@ class SparseMatrix : public SparseCompressedBase<SparseMatrix<Scalar_, Options_,
   using Base = SparseCompressedBase<SparseMatrix>;
   using Base::convert_index;
   friend class SparseVector<Scalar_, 0, StorageIndex_>;
+  friend class SparseVector<Scalar_, RowMajor, StorageIndex_>;
   template <typename, typename, typename, typename, typename>
   friend struct internal::Assignment;
 

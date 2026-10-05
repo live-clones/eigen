@@ -236,6 +236,14 @@ void test_swap_with_matrix() {
   VERIFY_IS_EQUAL(m.nonZeros(), 2);
   VERIFY_IS_EQUAL(VectorXd(m.toDense()), refV);
   VERIFY_IS_EQUAL(VectorXd(v.toDense()), refM);
+
+  SparseMatrix<double, RowMajor> mr(1, 5);
+  mr.insert(0, 1) = 1;
+  SparseVector<double, RowMajor> vr(5);
+  vr.insert(3) = 2;
+  vr.swap(mr);
+  VERIFY_IS_EQUAL(mr.coeff(0, 3), 2.0);
+  VERIFY_IS_EQUAL(vr.coeff(1), 1.0);
 }
 
 EIGEN_DECLARE_TEST(sparse_vector) {
