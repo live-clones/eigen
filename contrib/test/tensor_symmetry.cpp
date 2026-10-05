@@ -136,6 +136,11 @@ static void test_symgroups_selection() {
     VERIFY_IS_EQUAL(group.globalFlags(), GlobalImagFlag);
     group.apply<checkIdx, int>(identity7, 0, found, expected);
     VERIFY_IS_EQUAL(found.size(), 6u);
+
+    // Extra trailing indices are passed through for a std::vector as for a std::array.
+    found.clear();
+    group.apply<checkIdx, int>(std::vector<int>(identity7.begin(), identity7.end()), 0, found, expected);
+    VERIFY_IS_EQUAL(found.size(), 6u);
   }
 
   {
