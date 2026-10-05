@@ -1468,6 +1468,22 @@ void cast_truncation_test() {
   for (Index k = 0; k < Size; ++k) VERIFY_IS_EQUAL(dst(k), static_cast<int>(src(k)));
 }
 
+// cast_test compares approximately. A 64-bit integer must round to float once: 2^60 + 2^36 + 1 rounds up, but
+// rounding through double first lands on the midpoint 2^60 + 2^36, which ties down to 2^60.
+template <typename = void>
+void int64_to_float_cast_test() {
+  const int64_t big = (int64_t(1) << 60) + (int64_t(1) << 36) + 1;
+  const ArrayX<int64_t> a =
+      ArrayX<int64_t>::LinSpaced(17, 0, 16).unaryExpr([&](int64_t i) { return i % 2 ? big : -big; });
+  const ArrayXf f = a.cast<float>(), g = a.abs().cast<uint64_t>().cast<float>();
+  // 2^60 + 2^37, spelled exactly: MSVC folds a constant int64-to-float conversion through double.
+  const float rounded = std::ldexp(1.f + std::ldexp(1.f, -23), 60);
+  for (Index i = 0; i < a.size(); ++i) {
+    VERIFY_IS_EQUAL(f(i), i % 2 ? rounded : -rounded);
+    VERIFY_IS_EQUAL(g(i), rounded);
+  }
+}
+
 template <typename = void>
 void bool_logical_ops() {
   const Index size = 67;
@@ -1643,6 +1659,7 @@ EIGEN_DECLARE_TEST(array_cwise) {
     CALL_SUBTEST_28((cast_truncation_test<double, 8>()));
     CALL_SUBTEST_28((cast_truncation_test<double, 16>()));
     CALL_SUBTEST_28((cast_truncation_test<float, 16>()));
+    CALL_SUBTEST_28(int64_to_float_cast_test<>());
     CALL_SUBTEST_29((cast_test<3, 1>()));
     CALL_SUBTEST_30((cast_test<5, 1>()));
     CALL_SUBTEST_31((cast_test<9, 1>()));
