@@ -136,6 +136,16 @@ void testSingular(const MatrixType& m_const, const typename MatrixType::RealScal
   }
 }
 
+// Zero eigenvalues found below the leading 2x2 block of the Schur factor were not all split off.
+void testSingularTrailingZero() {
+  Matrix3d A;
+  A << 1, 1, 1, 0, 4, 1, 0, 0, 0;
+  Matrix3d R = A.pow(0.5);
+  VERIFY_IS_APPROX(R * R, A);
+  A << 0, 1, 1, 0, 1, 1, 0, 0, 0;  // idempotent
+  VERIFY_IS_APPROX(A.pow(0.5), A);
+}
+
 template <typename MatrixType>
 void testLogThenExp(const MatrixType& m_const, const typename MatrixType::RealScalar& tol) {
   // we need to pass by reference in order to prevent errors with
@@ -202,6 +212,7 @@ EIGEN_DECLARE_TEST(matrix_power) {
   CALL_SUBTEST_6(testSingular(MatrixXf(2, 2), 8 * NumTraits<float>::epsilon()));
   CALL_SUBTEST_9(testSingular(MatrixXe(7, 7), 256 * NumTraits<long double>::epsilon()));
   CALL_SUBTEST_10(testSingular(Matrix3d(), 1024 * NumTraits<double>::epsilon()));
+  CALL_SUBTEST_10(testSingularTrailingZero());
   CALL_SUBTEST_11(testSingular(Matrix3f(), 2048 * NumTraits<float>::epsilon()));
   CALL_SUBTEST_12(testSingular(Matrix3e(), 1024 * NumTraits<long double>::epsilon()));
 

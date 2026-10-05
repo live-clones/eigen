@@ -500,8 +500,8 @@ void MatrixPower<MatrixType>::initialize() {
   m_conditionNumber = m_T.diagonal().array().abs().maxCoeff() / m_T.diagonal().array().abs().minCoeff();
 
   // Move zero eigenvalues to the bottom right corner.
+  if (cols() <= 2) return;
   for (Index i = cols() - 1; i >= 0; --i) {
-    if (m_rank <= 2) return;
     if (m_T.coeff(i, i) == RealScalar(0)) {
       for (Index j = i + 1; j < m_rank; ++j) {
         eigenvalue = m_T.coeff(j, j);
