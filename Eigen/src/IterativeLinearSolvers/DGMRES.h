@@ -47,8 +47,8 @@ void sortWithPermutation(VectorType& vec, IndexType& perm, typename IndexType::S
         std::swap(perm(j), perm(j + 1));
         flag = true;
       }
-      if (!flag) break;  // The vector is in sorted order
     }
+    if (!flag) break;  // The vector is in sorted order
   }
 }
 
