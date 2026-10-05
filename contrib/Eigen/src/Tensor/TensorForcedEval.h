@@ -177,6 +177,8 @@ struct TensorEvaluator<const TensorForcedEvalOp<ArgType_>, Device> {
     m_buffer_holder = std::make_shared<DeviceTempPointerHolder<Device>>(m_device, numValues * sizeof(CoeffReturnType));
     m_buffer = static_cast<EvaluatorPointerType>(m_buffer_holder->ptr());
 
+    m_placement_constructed = internal::non_integral_type_placement_new<Device, CoeffReturnType>()(numValues, m_buffer);
+
     typedef TensorEvalToOp<const std::remove_const_t<ArgType>> EvalTo;
     EvalTo evalToTmp(m_device.get(m_buffer), m_op);
 
