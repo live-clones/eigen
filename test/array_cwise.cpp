@@ -1460,6 +1460,14 @@ void cast_test() {
                   uint32_t, uint64_t, float, double, /*long double, */ half, bfloat16>::run();
 }
 
+// Floating-point to integer casts truncate toward zero at every packet width.
+template <typename SrcType, int Size>
+void cast_truncation_test() {
+  const Array<SrcType, Size, 1> src = Array<SrcType, Size, 1>::LinSpaced(SrcType(-3.75), SrcType(3.75));
+  const Array<int, Size, 1> dst = src.template cast<int>();
+  for (Index k = 0; k < Size; ++k) VERIFY_IS_EQUAL(dst(k), static_cast<int>(src(k)));
+}
+
 template <typename = void>
 void bool_logical_ops() {
   const Index size = 67;
@@ -1631,6 +1639,10 @@ EIGEN_DECLARE_TEST(array_cwise) {
 
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_28((cast_test<1, 1>()));
+    CALL_SUBTEST_28((cast_truncation_test<double, 4>()));
+    CALL_SUBTEST_28((cast_truncation_test<double, 8>()));
+    CALL_SUBTEST_28((cast_truncation_test<double, 16>()));
+    CALL_SUBTEST_28((cast_truncation_test<float, 16>()));
     CALL_SUBTEST_29((cast_test<3, 1>()));
     CALL_SUBTEST_30((cast_test<5, 1>()));
     CALL_SUBTEST_31((cast_test<9, 1>()));
