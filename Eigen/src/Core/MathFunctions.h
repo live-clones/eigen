@@ -1099,6 +1099,21 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool is_exactly_zero_no_flush_impl(const S
   return is_zero_magnitude_bits<Scalar>(binary_floating_point_traits<Scalar>::magnitude(value));
 }
 
+// |x - y|, as the packet path computes it: abs keeps the +0 of (+0, -0) and the NaN of (inf, inf).
+template <typename T, bool IsInteger = NumTraits<T>::IsInteger>
+struct absdiff_impl {
+  EIGEN_DEVICE_FUNC static EIGEN_ALWAYS_INLINE T run(const T& x, const T& y) {
+    EIGEN_USING_STD(abs);
+    return abs(x - y);
+  }
+};
+
+// Unsigned x - y wraps, so integers order the operands.
+template <typename T>
+struct absdiff_impl<T, true> {
+  EIGEN_DEVICE_FUNC static EIGEN_ALWAYS_INLINE T run(const T& x, const T& y) { return x > y ? x - y : y - x; }
+};
+
 }  // end namespace internal
 
 /****************************************************************************
@@ -1295,7 +1310,7 @@ EIGEN_DEVICE_FUNC inline bool abs2(bool x) { return x; }
 
 template <typename T>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE T absdiff(const T& x, const T& y) {
-  return x > y ? x - y : y - x;
+  return internal::absdiff_impl<T>::run(x, y);
 }
 template <>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE float absdiff(const float& x, const float& y) {

@@ -954,6 +954,10 @@ void array_real(const ArrayType& m) {
   VERIFY((abs(m1) == m1 || abs(m1) == -m1).all());
   VERIFY_IS_APPROX(m3, sqrt(abs2(m3)));
   VERIFY_IS_APPROX(m1.absolute_difference(m2), (m1 > m2).select(m1 - m2, m2 - m1));
+  // |(+0) - (-0)| is +0, as on the vectorized path.
+  VERIFY(!(std::signbit)(static_cast<double>(numext::absdiff(Scalar(0), -Scalar(0)))));
+  // and NaN for (inf, inf), as inf - inf is.
+  VERIFY((numext::isnan)(numext::absdiff(NumTraits<Scalar>::infinity(), NumTraits<Scalar>::infinity())));
   VERIFY_IS_APPROX(m1.sign(), -(-m1).sign());
   VERIFY_IS_APPROX(m1 * m1.sign(), m1.abs());
   VERIFY_IS_APPROX(m1.sign() * m1.abs(), m1);
