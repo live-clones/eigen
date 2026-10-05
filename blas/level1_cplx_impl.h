@@ -90,11 +90,11 @@ EIGEN_BLAS_FUNC(dotcw)
 
   if (*incx == 1 && *incy == 1)
     *res = (make_vector(x, *n).dot(make_vector(y, *n)));
-  else if (*incx > 0 && *incy > 0)
+  else if (*incx >= 0 && *incy >= 0)
     *res = (make_vector(x, *n, *incx).dot(make_vector(y, *n, *incy)));
-  else if (*incx < 0 && *incy > 0)
+  else if (*incx < 0 && *incy >= 0)
     *res = (make_vector(x, *n, -*incx).reverse().dot(make_vector(y, *n, *incy)));
-  else if (*incx > 0 && *incy < 0)
+  else if (*incx >= 0 && *incy < 0)
     *res = (make_vector(x, *n, *incx).dot(make_vector(y, *n, -*incy).reverse()));
   else if (*incx < 0 && *incy < 0)
     *res = (make_vector(x, *n, -*incx).reverse().dot(make_vector(y, *n, -*incy).reverse()));
@@ -115,11 +115,11 @@ EIGEN_BLAS_FUNC(dotuw)
 
   if (*incx == 1 && *incy == 1)
     *res = (make_vector(x, *n).cwiseProduct(make_vector(y, *n))).sum();
-  else if (*incx > 0 && *incy > 0)
+  else if (*incx >= 0 && *incy >= 0)
     *res = (make_vector(x, *n, *incx).cwiseProduct(make_vector(y, *n, *incy))).sum();
-  else if (*incx < 0 && *incy > 0)
+  else if (*incx < 0 && *incy >= 0)
     *res = (make_vector(x, *n, -*incx).reverse().cwiseProduct(make_vector(y, *n, *incy))).sum();
-  else if (*incx > 0 && *incy < 0)
+  else if (*incx >= 0 && *incy < 0)
     *res = (make_vector(x, *n, *incx).cwiseProduct(make_vector(y, *n, -*incy).reverse())).sum();
   else if (*incx < 0 && *incy < 0)
     *res = (make_vector(x, *n, -*incx).reverse().cwiseProduct(make_vector(y, *n, -*incy).reverse())).sum();

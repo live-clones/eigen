@@ -63,11 +63,11 @@ extern "C" Scalar EIGEN_BLAS_FUNC_NAME(dot)(EIGEN_BLAS_INT *n, Scalar *px, EIGEN
 
   if (*incx == 1 && *incy == 1)
     return make_vector(x, *n).dot(make_vector(y, *n));
-  else if (*incx > 0 && *incy > 0)
+  else if (*incx >= 0 && *incy >= 0)
     return make_vector(x, *n, *incx).dot(make_vector(y, *n, *incy));
-  else if (*incx < 0 && *incy > 0)
+  else if (*incx < 0 && *incy >= 0)
     return make_vector(x, *n, -*incx).reverse().dot(make_vector(y, *n, *incy));
-  else if (*incx > 0 && *incy < 0)
+  else if (*incx >= 0 && *incy < 0)
     return make_vector(x, *n, *incx).dot(make_vector(y, *n, -*incy).reverse());
   else if (*incx < 0 && *incy < 0)
     return make_vector(x, *n, -*incx).reverse().dot(make_vector(y, *n, -*incy).reverse());
