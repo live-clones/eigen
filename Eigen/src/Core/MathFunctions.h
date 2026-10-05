@@ -2304,11 +2304,31 @@ struct expm1_impl<std::complex<RealScalar>> {
     //          = expm1(x) + exp(x) * (2 * sin(y / 2) ** 2)
     RealScalar erm1 = numext::expm1<RealScalar>(xr);
     RealScalar er = erm1 + RealScalar(1.);
-    RealScalar sin2 = numext::sin(xi / RealScalar(2.));
-    sin2 = sin2 * sin2;
-    RealScalar s = numext::sin(xi);
-    RealScalar real_part = erm1 - RealScalar(2.) * er * sin2;
-    return std::complex<RealScalar>(real_part, er * s);
+    // C99 Annex G for exp, less one: (+inf, inf or NaN) -> (inf, NaN) and (-inf, inf or NaN) -> (-1, 0).
+    // xi * 0 is that NaN, raising FE_INVALID for xi = inf as Annex G asks.
+    if ((numext::isinf)(xr) && !(numext::isfinite)(xi)) {
+      return xr > RealScalar(0) ? std::complex<RealScalar>(xr, xi * RealScalar(0))
+                                : std::complex<RealScalar>(RealScalar(-1), RealScalar(0));
+    }
+    const RealScalar s = numext::sin(xi);
+    const RealScalar c = numext::cos(xi);
+    // 1 - cos(y) = 2 sin(y / 2)^2, taken as sin(y)^2 / (1 + cos(y)) where the difference would cancel.
+    const RealScalar one_minus_c = c > RealScalar(0) ? s * s / (RealScalar(1) + c) : RealScalar(1) - c;
+    // exp(x) overflows where exp(x) cos(y) and exp(x) sin(y) need not; multiply exp(x / 2) in twice then, or
+    // exp(x / 3) three times where that overflows too, and exp(x) sin(y) is finite only for denormal y.
+    if ((numext::isinf)(er) && (numext::isfinite)(xr)) {
+      const RealScalar h = numext::exp(xr / RealScalar(2));
+      if (!(numext::isinf)(h)) {
+        return std::complex<RealScalar>((h * c) * h - RealScalar(1), numext::is_exactly_zero(xi) ? xi : (h * s) * h);
+      }
+      const RealScalar h3 = numext::exp(xr / RealScalar(3));
+      return std::complex<RealScalar>(((h3 * c) * h3) * h3, numext::is_exactly_zero(xi) ? xi : ((h3 * s) * h3) * h3);
+    }
+    // For x < 0 both terms of expm1(x) - exp(x) (1 - cos(y)) are <= 0, and the result is -1 exactly once exp(x) is
+    // negligible. For x >= 0, expm1(x) cos(y) - (1 - cos(y)) has the smaller terms, and no inf - inf at x = inf.
+    const RealScalar real_part = xr < RealScalar(0) ? erm1 - er * one_minus_c : erm1 * c - one_minus_c;
+    // exp(x) * sin(0) is NaN for infinite exp(x); keep the exact zero instead.
+    return std::complex<RealScalar>(real_part, numext::is_exactly_zero(xi) ? xi : er * s);
   }
 };
 

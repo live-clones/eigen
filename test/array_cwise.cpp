@@ -1081,6 +1081,34 @@ void array_complex(const ArrayType& m) {
     VERIFY_IS_APPROX(logistic(m1), (1.0 / (1.0 + exp(-m1))));
     m1(0, 0) = old_m1_val;  // Restore value for future tests.
   }
+  {
+    // expm1 where exp(real) overflows: exp(z) - 1 is (inf, 0) and (-inf, -inf), not NaN.
+    const RealScalar inf = NumTraits<RealScalar>::infinity();
+    const Scalar e0 = numext::expm1(Scalar(inf, RealScalar(0)));
+    const Scalar e1 = numext::expm1(Scalar(RealScalar(1000), RealScalar(-2)));
+    // Where exp(x) overflows and exp(x) cos(y) does not, and where exp(x) is negligible: exactly -1.
+    const RealScalar x_big = numext::log((std::numeric_limits<RealScalar>::max)()) + RealScalar(0.5);
+    const RealScalar y_third = RealScalar(EIGEN_PI / 3);
+    const Scalar e2 = numext::expm1(Scalar(x_big, y_third));
+    VERIFY_IS_APPROX(e2.real(), numext::exp(x_big - RealScalar(EIGEN_LN2)) * (RealScalar(2) * numext::cos(y_third)));
+    VERIFY(e2.imag() == inf);
+    VERIFY_IS_EQUAL(numext::expm1(Scalar(-inf, RealScalar(EIGEN_PI / 2))), Scalar(RealScalar(-1), RealScalar(0)));
+    VERIFY_IS_EQUAL(numext::expm1(Scalar(RealScalar(-200), RealScalar(2))).real(), RealScalar(-1));
+    const Scalar e3 = numext::expm1(Scalar(inf, inf));
+    VERIFY(e3.real() == inf && (numext::isnan)(e3.imag()));
+    VERIFY_IS_EQUAL(numext::expm1(Scalar(-inf, inf)), Scalar(RealScalar(-1), RealScalar(0)));
+#if !EIGEN_ARCH_ARM  // 32-bit ARM flushes subnormals.
+    // Where exp(x / 2) overflows too, exp(x) sin(y) is still finite for denormal y.
+    const RealScalar x_huge = RealScalar(2) * numext::log((std::numeric_limits<RealScalar>::max)()) + RealScalar(1);
+    const RealScalar y_tiny = (std::numeric_limits<RealScalar>::min)() / RealScalar(64);
+    const Scalar e4 = numext::expm1(Scalar(x_huge, y_tiny));
+    const RealScalar q = numext::exp(x_huge / RealScalar(4));
+    VERIFY(e4.real() == inf);
+    VERIFY_IS_APPROX(e4.imag(), (((q * y_tiny) * q) * q) * q);
+#endif
+    VERIFY(e0.real() == inf && e0.imag() == RealScalar(0));
+    VERIFY(e1.real() == -inf && e1.imag() == -inf);
+  }
 
   for (Index i = 0; i < m.rows(); ++i)
     for (Index j = 0; j < m.cols(); ++j) m3(i, j) = std::atan2(m1(i, j).imag(), m1(i, j).real());
