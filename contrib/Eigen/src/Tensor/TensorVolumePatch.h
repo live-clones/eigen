@@ -272,9 +272,10 @@ struct TensorEvaluator<const TensorVolumePatchOp<Planes, Rows, Cols, ArgType>, D
           const Index dz = (m_outputPlanes - 1) * m_plane_strides + m_patch_planes_eff - m_input_planes_eff;
           const Index dy = (m_outputRows - 1) * m_row_strides + m_patch_rows_eff - m_input_rows_eff;
           const Index dx = (m_outputCols - 1) * m_col_strides + m_patch_cols_eff - m_input_cols_eff;
-          m_planePaddingTop = dz / 2;
-          m_rowPaddingTop = dy / 2;
-          m_colPaddingLeft = dx / 2;
+          // Clip negative padding to zero, as TensorFlow and the image-patch op do.
+          m_planePaddingTop = numext::maxi<Index>(0, dz) / 2;
+          m_rowPaddingTop = numext::maxi<Index>(0, dy) / 2;
+          m_colPaddingLeft = numext::maxi<Index>(0, dx) / 2;
           break;
         }
         default: {
