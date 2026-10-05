@@ -132,6 +132,17 @@ class SparseMapBase<Derived, ReadOnlyAccessors> : public SparseCompressedBase<De
         m_values(valuePtr),
         m_innerNonZeros(0) {}
 
+  // A vector map points m_outerIndex at its own m_zero_nnz, which a copy must not share.
+  inline SparseMapBase(const SparseMapBase& other)
+      : Base(other),
+        m_outerSize(other.m_outerSize),
+        m_innerSize(other.m_innerSize),
+        m_zero_nnz(other.m_zero_nnz),
+        m_outerIndex(other.m_outerIndex == other.m_zero_nnz.data() ? m_zero_nnz.data() : other.m_outerIndex),
+        m_innerIndices(other.m_innerIndices),
+        m_values(other.m_values),
+        m_innerNonZeros(other.m_innerNonZeros) {}
+
  protected:
   inline SparseMapBase() = default;
 };
