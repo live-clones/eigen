@@ -194,6 +194,14 @@ void test_pattern_value_separation() {
   VERIFY(ilut.info() == Eigen::Success);
 }
 
+// A 0x0 matrix divided by its size when computing the fill-in per row.
+template <typename T>
+void test_empty() {
+  IncompleteLUT<T> ilut(SparseMatrix<T>(0, 0));
+  VERIFY_IS_EQUAL(ilut.info(), Success);
+  VERIFY_IS_EQUAL(ilut.solve(Matrix<T, Dynamic, 1>()).size(), 0);
+}
+
 EIGEN_DECLARE_TEST(incomplete_LUT) {
   CALL_SUBTEST_1((test_incompleteLUT_T<double, int>()));
   CALL_SUBTEST_1((test_incompleteLUT_T<float, int>()));
@@ -208,4 +216,5 @@ EIGEN_DECLARE_TEST(incomplete_LUT) {
   CALL_SUBTEST_5(test_structurally_singular<double>());
   CALL_SUBTEST_5(test_zero_pivot_numerical_issue<double>());
   CALL_SUBTEST_5(test_pattern_value_separation<double>());
+  CALL_SUBTEST_5(test_empty<double>());
 }
