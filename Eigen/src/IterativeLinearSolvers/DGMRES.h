@@ -213,7 +213,7 @@ class DGMRES : public IterativeSolverBase<DGMRES<MatrixType_, Preconditioner_> >
   mutable StorageIndex m_neig;              // Number of eigenvalues to extract at each restart
   mutable Index m_r;                        // Current number of deflated eigenvalues, size of m_U
   mutable Index m_maxNeig;                  // Maximum number of eigenvalues to deflate
-  mutable RealScalar m_lambdaN;             // Modulus of the largest eigenvalue of A
+  mutable RealScalar m_lambdaN = 0;         // Modulus of the largest eigenvalue of A
   mutable bool m_isDeflAllocated;
   mutable bool m_isDeflInitialized;
 
