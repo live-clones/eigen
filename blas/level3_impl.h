@@ -987,6 +987,8 @@ EIGEN_BLAS_FUNC(her2k)
           alpha * matrix(a, *k, *n, *lda).adjoint() * matrix(b, *k, *n, *ldb) +
           Eigen::numext::conj(alpha) * matrix(b, *k, *n, *ldb).adjoint() * matrix(a, *k, *n, *lda);
   }
+  // The two products round differently, so force the documented real diagonal on exit.
+  if (alpha != Scalar(0)) matrix(c, *n, *n, *ldc).diagonal().imag().setZero();
 }
 
 #endif
