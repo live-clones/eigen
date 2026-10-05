@@ -237,8 +237,8 @@ void matrix_log_compute_big(const MatrixType& A, MatrixType& result) {
   // The matrix logarithm is undefined for singular matrices. Without this
   // guard, a zero diagonal entry (eigenvalue) is a fixed point of the
   // square-rooting loop below (sqrt(0) = 0), so the loop never terminates
-  // (bug #1613).
-  if ((T.diagonal().array() == Scalar(0)).any()) {
+  // (bug #1613). A nonfinite entry likewise never reaches the Pade region.
+  if ((T.diagonal().array() == Scalar(0)).any() || !T.allFinite()) {
     result.setConstant(T.rows(), T.rows(), NumTraits<RealScalar>::quiet_NaN());
     return;
   }

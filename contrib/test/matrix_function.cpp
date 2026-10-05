@@ -205,6 +205,10 @@ void testMatrixLogarithmSingular() {
   // in matrix_log_compute_big(). The implementation now returns NaN.
   MatrixType A = MatrixType::Zero(5, 5);
   VERIFY(A.log().array().isNaN().all());
+  // An infinite entry of an atomic block also used to hang that loop.
+  A.setIdentity();
+  A(0, 4) = std::numeric_limits<typename MatrixType::RealScalar>::infinity();
+  VERIFY(A.log().array().isNaN().all());
 }
 
 EIGEN_DECLARE_TEST(matrix_function) {
