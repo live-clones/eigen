@@ -1440,6 +1440,9 @@ class BlockSparseTriangularView {
     for (Index k = outerStart; k != outerEnd; k += kStep) {
       const StorageIndex* beg = innerPtr + outerPtr[k];
       const StorageIndex* end = innerPtr + outerPtr[k + 1];
+      // A general stored matrix also holds blocks of the opposite triangle; skip them.
+      if (diagFirst) beg = std::lower_bound(beg, end, StorageIndex(k));
+      if (!diagFirst) end = std::upper_bound(beg, end, StorageIndex(k));
       if (beg == end) continue;
       const StorageIndex* diag_ptr = diagFirst ? beg : end - 1;
       const StorageIndex* off_beg = diagFirst ? beg + 1 : beg;
@@ -1486,6 +1489,9 @@ class BlockSparseTriangularView {
     for (Index k = outerStart; k != outerEnd; k += kStep) {
       const StorageIndex* beg = innerPtr + outerPtr[k];
       const StorageIndex* end = innerPtr + outerPtr[k + 1];
+      // A general stored matrix also holds blocks of the opposite triangle; skip them.
+      if (diagFirst) beg = std::lower_bound(beg, end, StorageIndex(k));
+      if (!diagFirst) end = std::upper_bound(beg, end, StorageIndex(k));
       if (beg == end) continue;
       const StorageIndex* diag_ptr = diagFirst ? beg : end - 1;
       const StorageIndex* off_beg = diagFirst ? beg + 1 : beg;

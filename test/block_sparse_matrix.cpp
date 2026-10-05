@@ -570,6 +570,18 @@ void test_block_sparse_triangular_solve(int bN) {
     }
     VERIFY_IS_APPROX(x1, x2);
   }
+
+  // A general stored matrix seen through a triangular view.
+  {
+    DenseMat dU = makeDenseUpper();
+    DenseMat dG = makeDenseLower() + DenseMat(dU.template triangularView<StrictlyUpper>());
+    BSM G = denseToBlock<B, B, Scalar, Options, StorageIndex>(dG);
+    DenseMat b = DenseMat::Random(N, 2), x = b, y = b;
+    G.template triangularView<Lower>().solveInPlace(x);
+    VERIFY_IS_APPROX(DenseMat(dG.template triangularView<Lower>()) * x, b);
+    G.template triangularView<Upper>().transpose().solveInPlace(y);
+    VERIFY_IS_APPROX(DenseMat(dG.template triangularView<Upper>()).transpose() * y, b);
+  }
 }
 
 // ---------------------------------------------------------------------------
