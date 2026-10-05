@@ -2301,6 +2301,19 @@ void packetmath_complex() {
     data1[2] = Scalar(inf, -zero);
     data1[3] = Scalar(inf, -one);
     CHECK_CWISE1_N(numext::sqrt, internal::psqrt, 4);
+    // |x| + |z| overflows, or |z| / 2 underflows to zero.
+    const RealScalar big = NumTraits<RealScalar>::highest();
+#if !EIGEN_ARCH_ARM
+    const RealScalar denorm = (std::numeric_limits<RealScalar>::denorm_min)();
+#else
+    // 32-bit ARM flushes denormal inputs to zero.
+    const RealScalar denorm = (std::numeric_limits<RealScalar>::min)();
+#endif
+    data1[0] = Scalar(big, zero);
+    data1[1] = Scalar(-big, big);
+    data1[2] = Scalar(denorm, zero);
+    data1[3] = Scalar(zero, -denorm);
+    CHECK_CWISE1_N(numext::sqrt, internal::psqrt, 4);
     data1[0] = Scalar(nan, zero);
     data1[1] = Scalar(zero, nan);
     data1[2] = Scalar(nan, one);

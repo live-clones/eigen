@@ -132,10 +132,17 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_complex(const Pa
 }
 
 template <typename Packet>
-EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psqrt_complex(const Packet& a) {
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psqrt_complex(const Packet& z) {
   using Scalar = typename unpacket_traits<Packet>::type;
   using RealScalar = typename Scalar::value_type;
   using RealPacket = typename unpacket_traits<Packet>::as_real;
+
+  // sqrt(z) = 2^k * sqrt(a) for a = z * 4^-k, exact, where max(|x|, |y|) = m * 2^e and k = floor(e / 2): the steps
+  // below would overflow in |x| + l for |x| near the largest value and lose a subnormal to zero in 0.5 * l.
+  RealPacket e;
+  pfrexp(pmax(pabs(z.v), pcplxflip(Packet(pabs(z.v))).v), e);
+  const RealPacket k = pfloor(pmul(pset1<RealPacket>(RealScalar(0.5)), e));
+  const Packet a(pldexp(z.v, pmul(pset1<RealPacket>(RealScalar(-2)), k)));
 
   // Computes the principal sqrt of the complex numbers in the input.
   //
@@ -215,6 +222,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psqrt_complex(const P
   negative_real_mask.v = pcmp_lt(pand(real_mask, a.v), pzero(a.v));
   negative_real_mask.v = por(negative_real_mask.v, pcplxflip(negative_real_mask).v);
   Packet result = pselect(negative_real_mask, negative_real_result, positive_real_result);
+  result.v = pldexp(result.v, k);
 
   // Step 6. Handle special cases for infinities:
   // * If z is (x,+∞), the result is (+∞,+∞) even if x is NaN
