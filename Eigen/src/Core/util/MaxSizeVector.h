@@ -49,7 +49,7 @@ class MaxSizeVector {
     }
     EIGEN_CATCH(...) {
       // Construction failed, destruct in reverse order:
-      for (; (i + 1) > 0; --i) {
+      for (; i > 0; --i) {
         m_data[i - 1].~T();
       }
       internal::handmade_aligned_free(m_data);
