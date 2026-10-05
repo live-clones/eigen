@@ -886,6 +886,18 @@ void test_ambivector_failed_reallocation() {
 #endif  // EIGEN_EXCEPTIONS
 
 template <typename = void>
+void test_pruned_product_row_vector() {
+  SparseMatrix<double> A(4, 3);
+  A.insert(0, 1) = 1;
+  A.insert(3, 0) = 3;
+  SparseVector<double, RowMajor> r(4);
+  r.insert(0) = 2;
+  r.insert(3) = 5;
+  SparseVector<double, RowMajor> c = (r * A).pruned();
+  VERIFY_IS_APPROX(MatrixXd(c.toDense()), MatrixXd(r.toDense() * A.toDense()));
+}
+
+template <typename = void>
 void test_sparse_vector_dense_product() {
   SparseVector<double> sv(3);
   sv.insert(0) = 1.0;
@@ -903,6 +915,7 @@ EIGEN_DECLARE_TEST(sparse_product) {
 
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1((test_sparse_vector_dense_product<>()));
+    CALL_SUBTEST_1((test_pruned_product_row_vector<>()));
     CALL_SUBTEST_1((sparse_product<SparseMatrix<double, ColMajor>>()));
     CALL_SUBTEST_1((sparse_product<SparseMatrix<double, RowMajor>>()));
     CALL_SUBTEST_1((bug_942<double>()));
