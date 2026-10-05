@@ -312,7 +312,7 @@ Index DGMRES<MatrixType_, Preconditioner_>::dgmresCycle(const MatrixType& mat, c
     // Orthogonalize it with the previous basis in the basis using modified Gram-Schmidt
     Scalar coef;
     for (Index i = 0; i <= it; ++i) {
-      coef = tv1.dot(m_V.col(i));
+      coef = m_V.col(i).dot(tv1);
       tv1 = tv1 - coef * m_V.col(i);
       m_H(i, it) = coef;
       m_Hes(i, it) = coef;

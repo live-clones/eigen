@@ -140,6 +140,24 @@ void test_dgmres_iterations_T() {
   }
 }
 
+// The Arnoldi coefficient is h(i,j) = v_i^H A v_j; computing its conjugate broke the orthogonalization for complex
+// scalars, so restarted DGMRES needed about twice the iterations of the equivalent GMRES(30).
+void test_dgmres_complex_arnoldi() {
+  using T = std::complex<double>;
+  const Index n = 60;
+  SparseMatrix<T> A(n, n);
+  for (Index i = 0; i < n; ++i) {
+    A.insert(i, i) = T(4, 1.0 + 0.05 * double(i));
+    if (i > 0) A.insert(i, i - 1) = T(-1, 0.7);
+    if (i + 1 < n) A.insert(i, i + 1) = T(0.5, -1.3);
+  }
+  DGMRES<SparseMatrix<T>, IdentityPreconditioner> solver(A);
+  solver.setTolerance(1e-12);
+  VectorXcd x = solver.solve(VectorXcd::Ones(n));
+  VERIFY_IS_EQUAL(solver.info(), Success);
+  VERIFY(solver.iterations() <= 45);
+}
+
 EIGEN_DECLARE_TEST(dgmres) {
   CALL_SUBTEST_1(test_dgmres_T<double>());
   CALL_SUBTEST_2(test_dgmres_T<std::complex<double> >());
@@ -147,4 +165,5 @@ EIGEN_DECLARE_TEST(dgmres) {
   CALL_SUBTEST_4(test_dgmres_breakdown_T<std::complex<double> >());
   CALL_SUBTEST_5(test_dgmres_iterations_T<double>());
   CALL_SUBTEST_6(test_dgmres_iterations_T<std::complex<double> >());
+  CALL_SUBTEST_6(test_dgmres_complex_arnoldi());
 }
