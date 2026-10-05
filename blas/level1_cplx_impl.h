@@ -24,7 +24,8 @@ struct functor_traits<scalar_norm1_op> {
 }  // namespace Eigen
 
 // computes |Re(z)| + |Im(z)| of a complex number z.
-extern "C" RealScalar EIGEN_CAT(REAL_SCALAR_SUFFIX, EIGEN_CAT(cabs1, EIGEN_BLAS_FUNC_SUFFIX))(Complex *z) {
+extern "C" EIGEN_BLAS_API RealScalar EIGEN_CAT(REAL_SCALAR_SUFFIX,
+                                               EIGEN_CAT(cabs1, EIGEN_BLAS_FUNC_SUFFIX))(Complex *z) {
   return Eigen::numext::norm1(*z);
 }
 
