@@ -211,6 +211,14 @@ void testMatrixLogarithmSingular() {
   VERIFY(A.log().array().isNaN().all());
 }
 
+// An empty matrix has no eigenvalue clusters, but the start of the first block was written anyway.
+template <typename MatrixType>
+void testEmptyMatrix() {
+  const MatrixType A(0, 0);
+  VERIFY_IS_EQUAL(MatrixType(A.sin()).size(), 0);
+  VERIFY_IS_EQUAL(MatrixType(A.log()).size(), 0);
+}
+
 EIGEN_DECLARE_TEST(matrix_function) {
   CALL_SUBTEST_1(testMatrixType(Matrix<float, 1, 1>()));
   CALL_SUBTEST_2(testMatrixType(Matrix3cf()));
@@ -227,4 +235,6 @@ EIGEN_DECLARE_TEST(matrix_function) {
 
   CALL_SUBTEST_3(testMatrixLogarithmSingular<MatrixXf>());
   CALL_SUBTEST_7(testMatrixLogarithmSingular<MatrixXd>());
+  CALL_SUBTEST_3(testEmptyMatrix<MatrixXf>());
+  CALL_SUBTEST_7(testEmptyMatrix<MatrixXcd>());
 }
