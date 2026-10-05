@@ -1473,6 +1473,26 @@ void packetmath_real() {
     VERIFY_IS_EQUAL(data2[0], zero);
     VERIFY_IS_EQUAL(data2[1], -zero);
   }
+  // inverse() takes preciprocal wherever division vectorizes, including NEON's estimate-based one. Approximations that
+  // flush denormals must not lose a finite or nonzero reciprocal, nor the sign of an infinite one.
+#if !EIGEN_ARCH_ARM  // 32-bit ARM flushes subnormals.
+  if (PacketTraits::HasDiv && PacketSize >= 2) {
+    test::packet_helper<PacketTraits::HasDiv, Packet> h;
+    const Scalar inf = NumTraits<Scalar>::infinity();
+    const Scalar tiny = (std::numeric_limits<Scalar>::min)() / Scalar(2);
+    const Scalar huge = Scalar(1) / tiny;
+    data1[0] = tiny;
+    data1[1] = -huge;
+    h.store(data2, internal::preciprocal(h.load(data1)));
+    VERIFY_IS_EQUAL(data2[0], huge);
+    VERIFY_IS_EQUAL(data2[1], -tiny);
+    data1[0] = (std::numeric_limits<Scalar>::denorm_min)();
+    data1[1] = -(std::numeric_limits<Scalar>::denorm_min)();
+    h.store(data2, internal::preciprocal(h.load(data1)));
+    VERIFY_IS_EQUAL(data2[0], inf);
+    VERIFY_IS_EQUAL(data2[1], -inf);
+  }
+#endif
 }
 
 template <typename Scalar>
