@@ -215,13 +215,13 @@ class QR {
   bool begin_compute(const DeviceMatrix<Scalar>& d_A) {
     m_ = d_A.rows();
     n_ = d_A.cols();
+    transposed_ = (m_ < n_);
+    lda_ = (std::max)(int64_t(1), static_cast<int64_t>(transposed_ ? n_ : m_));
     if (!solver_ctx_.begin_compute(m_ != 0 && n_ != 0)) {
       d_qr_ = internal::DeviceBuffer();
       d_tau_ = internal::DeviceBuffer();
       return false;
     }
-    transposed_ = (m_ < n_);
-    lda_ = static_cast<int64_t>(transposed_ ? n_ : m_);
     d_A.waitReady(solver_ctx_.stream());
     return true;
   }
