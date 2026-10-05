@@ -1472,6 +1472,22 @@ void packetmath_real() {
     h.store(data2, internal::preciprocal(h.load(data1)));
     VERIFY_IS_EQUAL(data2[0], zero);
     VERIFY_IS_EQUAL(data2[1], -zero);
+
+    // Approximations that flush denormals to zero must not lose a finite or nonzero reciprocal.
+#if !EIGEN_ARCH_ARM  // 32-bit ARM flushes subnormals.
+    const Scalar tiny = (std::numeric_limits<Scalar>::min)() / Scalar(2);
+    const Scalar huge = Scalar(1) / tiny;
+    data1[0] = tiny;
+    data1[1] = -huge;
+    h.store(data2, internal::preciprocal(h.load(data1)));
+    VERIFY_IS_EQUAL(data2[0], huge);
+    VERIFY_IS_EQUAL(data2[1], -tiny);
+    data1[0] = (std::numeric_limits<Scalar>::denorm_min)();
+    data1[1] = -(std::numeric_limits<Scalar>::denorm_min)();
+    h.store(data2, internal::preciprocal(h.load(data1)));
+    VERIFY_IS_EQUAL(data2[0], inf);
+    VERIFY_IS_EQUAL(data2[1], -inf);
+#endif
   }
 }
 
