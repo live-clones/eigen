@@ -107,7 +107,7 @@ EIGEN_BLAS_FUNC(rotg)(RealScalar *pa, RealScalar *pb, RealScalar *pc, RealScalar
     r = 0;
     z = 0;
   } else {
-    r = sqrt(a * a + b * b);
+    r = Eigen::numext::hypot(a, b);
     Scalar amax = aa > ab ? a : b;
     r = amax > 0 ? r : -r;
     *c = a / r;
