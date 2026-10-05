@@ -223,6 +223,17 @@ void test_pruning() {
   VERIFY_IS_EQUAL(vec.coeff(5), 1.0);
 }
 
+// Reductions of empty sparse objects are zero, as for dense ones.
+void test_empty_reductions() {
+  SparseMatrix<double> m(0, 3), m2(0, 3);
+  SparseVector<double> v(0);
+  VERIFY_IS_EQUAL(m.sum(), 0.0);
+  VERIFY_IS_EQUAL(m.norm(), 0.0);
+  VERIFY(m.isApprox(m2));
+  VERIFY_IS_EQUAL(v.squaredNorm(), 0.0);
+  VERIFY_IS_EQUAL(v.dot(VectorXd(0)), 0.0);
+}
+
 void test_swap_with_matrix() {
   // The matrix may be uncompressed and holds a different number of nonzeros than the vector.
   SparseMatrix<double> m(5, 1);
@@ -262,4 +273,5 @@ EIGEN_DECLARE_TEST(sparse_vector) {
 
   CALL_SUBTEST_1(test_pruning());
   CALL_SUBTEST_1(test_swap_with_matrix());
+  CALL_SUBTEST_1(test_empty_reductions());
 }
