@@ -167,6 +167,20 @@ void check_inner_panel_compressed_api() {
       [](auto& xpr, auto& matrix, int variant) { verify_inner_vector_reverse_and_sortedness(xpr, matrix, variant); });
 }
 
+// Assigning an inner panel of a matrix to another inner panel of the same matrix.
+void check_aliased_inner_panel_assignment() {
+  SparseMatrix<double> A(5, 5);
+  for (Index k = 0; k < 5; ++k) A.insert(k, k) = double(k + 1);
+  A.insert(0, 2) = 3;
+  A.insert(3, 2) = 5;
+  A.insert(4, 2) = 7;
+  A.makeCompressed();
+  MatrixXd D = A.toDense();
+  A.col(0) = A.col(2);
+  D.col(0) = D.col(2);
+  VERIFY_IS_EQUAL(MatrixXd(A.toDense()), D);
+}
+
 template <typename SparseMatrixType>
 void sparse_block(const SparseMatrixType& ref) {
   const Index rows = ref.rows();
@@ -445,6 +459,7 @@ EIGEN_DECLARE_TEST(sparse_block) {
     }
     EIGEN_UNUSED_VARIABLE(r + c);
     CALL_SUBTEST_1((sparse_block(SparseMatrix<double>(1, 1))));
+    CALL_SUBTEST_1(check_aliased_inner_panel_assignment());
     CALL_SUBTEST_1((sparse_block(SparseMatrix<double>(8, 8))));
     CALL_SUBTEST_1((sparse_block(SparseMatrix<double>(r, c))));
     CALL_SUBTEST_2((sparse_block(SparseMatrix<std::complex<double>, ColMajor>(r, c))));
