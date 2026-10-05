@@ -102,6 +102,16 @@ static void test_symgroups_dynamic() {
 
   group.apply<checkIdx, int>(identity, 0, found, expected);
   VERIFY_IS_EQUAL(found.size(), 6u);
+
+  // The same group, with each generator's larger index given first.
+  DynamicSGroup reversed;
+  reversed.add(1, 0, NegationFlag);
+  reversed.add(2, 0, ConjugationFlag);
+  VERIFY_IS_EQUAL(reversed.size(), 6u);
+  VERIFY_IS_EQUAL(reversed.globalFlags(), GlobalImagFlag);
+  found.clear();
+  reversed.apply<checkIdx, int>(identity, 0, found, expected);
+  VERIFY_IS_EQUAL(found.size(), 6u);
 }
 
 static void test_symgroups_selection() {
