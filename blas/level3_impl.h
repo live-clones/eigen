@@ -550,7 +550,7 @@ EIGEN_BLAS_FUNC(symm)
       matrix(c, *m, *n, *ldc) *= beta;
   }
 
-  if (*m == 0 || *n == 0) return;
+  if (*m == 0 || *n == 0 || alpha == Scalar(0)) return;
 
   EIGEN_BLAS_INT size = (SIDE(*side) == LEFT) ? (*m) : (*n);
   using Eigen::ColMajor;
@@ -673,7 +673,7 @@ EIGEN_BLAS_FUNC(syrk)
       matrix(c, *n, *n, *ldc).triangularView<Lower>() *= beta;
   }
 
-  if (*n == 0 || *k == 0) return;
+  if (*n == 0 || *k == 0 || alpha == Scalar(0)) return;
 
 #if ISCOMPLEX
   // FIXME add support for symmetric complex matrix
@@ -803,7 +803,7 @@ EIGEN_BLAS_FUNC(hemm)
   else if (beta != Scalar(1))
     matrix(c, *m, *n, *ldc) *= beta;
 
-  if (*m == 0 || *n == 0) return;
+  if (*m == 0 || *n == 0 || alpha == Scalar(0)) return;
 
   using Eigen::ColMajor;
   using Eigen::DenseIndex;
