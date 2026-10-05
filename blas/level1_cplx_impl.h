@@ -33,7 +33,7 @@ extern "C" EIGEN_BLAS_API RealScalar EIGEN_CAT(REAL_SCALAR_SUFFIX,
 // res = |Rex1| + |Imx1| + |Rex2| + |Imx2| + ... + |Rexn| + |Imxn|, where x is a vector of order n
 extern "C" RealScalar EIGEN_CAT(REAL_SCALAR_SUFFIX, EIGEN_BLAS_FUNC_NAME(asum))(EIGEN_BLAS_INT *n, RealScalar *px,
                                                                                 EIGEN_BLAS_INT *incx) {
-  if (*n <= 0) return 0;
+  if (*n <= 0 || *incx <= 0) return 0;
 
   // std::complex<T> is layout-compatible with T[2], so we can reinterpret
   // a complex vector of length n as a real vector of length 2*n and use
@@ -50,7 +50,7 @@ extern "C" RealScalar EIGEN_CAT(REAL_SCALAR_SUFFIX, EIGEN_BLAS_FUNC_NAME(asum))(
 
 extern "C" EIGEN_BLAS_INT EIGEN_CAT(i, EIGEN_BLAS_FUNC_NAME(amax))(EIGEN_BLAS_INT *n, RealScalar *px,
                                                                    EIGEN_BLAS_INT *incx) {
-  if (*n <= 0) return 0;
+  if (*n <= 0 || *incx <= 0) return 0;
   Scalar *x = reinterpret_cast<Scalar *>(px);
 
   Eigen::DenseIndex ret;
@@ -164,7 +164,7 @@ EIGEN_BLAS_FUNC(EIGEN_CAT(REAL_SCALAR_SUFFIX, rot))
 
 EIGEN_BLAS_FUNC(EIGEN_CAT(REAL_SCALAR_SUFFIX, scal))
 (EIGEN_BLAS_INT *n, RealScalar *palpha, RealScalar *px, EIGEN_BLAS_INT *incx) {
-  if (*n <= 0) return;
+  if (*n <= 0 || *incx <= 0) return;
 
   Scalar *x = reinterpret_cast<Scalar *>(px);
   RealScalar alpha = *palpha;

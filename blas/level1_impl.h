@@ -142,7 +142,7 @@ EIGEN_BLAS_FUNC(rotg)(RealScalar *pa, RealScalar *pb, RealScalar *pc, RealScalar
 }
 
 EIGEN_BLAS_FUNC(scal)(EIGEN_BLAS_INT *n, RealScalar *palpha, RealScalar *px, EIGEN_BLAS_INT *incx) {
-  if (*n <= 0) return;
+  if (*n <= 0 || *incx <= 0) return;
 
   Scalar *x = reinterpret_cast<Scalar *>(px);
   Scalar alpha = *reinterpret_cast<Scalar *>(palpha);
