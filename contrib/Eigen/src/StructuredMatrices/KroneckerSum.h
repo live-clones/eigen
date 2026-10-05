@@ -714,8 +714,9 @@ class BartelsStewart : public SolverBase<BartelsStewart<KroneckerSumType>> {
   using RealMatrix = Matrix<RealScalar, Dynamic, Dynamic, ColMajor>;
 
   void computeRealSchur(const std::vector<DenseMatrix>& leaves, std::true_type) {
+    RealSchur<DenseMatrix> schur;
     for (const DenseMatrix& leaf : leaves) {
-      RealSchur<DenseMatrix> schur(leaf);
+      schur.compute(leaf);
       if (schur.info() != Success) m_info = NoConvergence;
       m_basis.push_back(schur.matrixU());
       m_quasiTriangular.push_back(schur.matrixT());
