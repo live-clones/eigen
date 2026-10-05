@@ -367,6 +367,14 @@ double bug_1281() {
   return (y1 + y2 + y3).value();
 }
 
+// atan2 must pad the empty derivatives of a constant, as the arithmetic operators do.
+void test_autodiff_atan2_constant() {
+  typedef AutoDiffScalar<VectorXd> AD;
+  const AD x(1.0, 2, 0), c(2.0);
+  VERIFY_IS_APPROX(atan2(x, c).derivatives(), Vector2d(0.4, 0));
+  VERIFY_IS_APPROX(atan2(c, x).derivatives(), Vector2d(-0.4, 0));
+}
+
 // The zero-padded derivatives of a sum must read column 0 of a non-plain derivative expression.
 void test_autodiff_padded_block_derivatives() {
   MatrixXd store(3, 2);
@@ -505,6 +513,7 @@ EIGEN_DECLARE_TEST(autodiff) {
   CALL_SUBTEST_5(bug_1281());
   CALL_SUBTEST_5(test_autodiff_selfadjoint_l1norm());
   CALL_SUBTEST_5(test_autodiff_padded_block_derivatives());
+  CALL_SUBTEST_5(test_autodiff_atan2_constant());
   CALL_SUBTEST_6(test_autodiff_makegivens<Vector2d>());
   CALL_SUBTEST_6(test_autodiff_makegivens<VectorXd>());
   CALL_SUBTEST_7(test_autodiff_householder_qr<Vector4d>());
