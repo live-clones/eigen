@@ -387,7 +387,9 @@ struct FullReducer {
 // Multithreaded full reducer
 template <typename Self, typename Op, bool Vectorizable>
 struct FullReducer<Self, Op, ThreadPoolDevice, Vectorizable> {
-  static constexpr bool HasOptimizedImplementation = !Self::ReducerTraits::IsStateful;
+  // Shards are merged by feeding them back through reduce(), which needs a pure, reorderable combine.
+  static constexpr bool HasOptimizedImplementation =
+      !Self::ReducerTraits::IsStateful && reducer_can_reorder_accumulators<Op>::value;
   static constexpr Index PacketSize = unpacket_traits<typename Self::PacketReturnType>::size;
 
   // launch one reducer per thread and accumulate the result.
