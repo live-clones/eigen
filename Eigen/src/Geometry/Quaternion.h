@@ -703,15 +703,11 @@ EIGEN_DEVICE_FUNC inline Derived& QuaternionBase<Derived>::setFromTwoVectors(con
   Vector3 v1 = b.normalized();
   Scalar c = v1.dot(v0);
 
-  // if dot == -1, vectors are nearly opposites
-  // => any axis perpendicular to v0 will do for a ~180 degree rotation.
+  // if dot == -1, vectors are nearly opposites: an axis orthogonal to v0 alone does not send v0 to v1.
+  // => rotate through a direction m orthogonal to v0, so that both v0 -> m and m -> v1 are ~90 degree rotations.
   if (c < Scalar(-1) + NumTraits<Scalar>::dummy_precision()) {
-    c = numext::maxi(c, Scalar(-1));
-    Vector3 axis = v0.unitOrthogonal();
-
-    Scalar w2 = (Scalar(1) + c) * Scalar(0.5);
-    this->w() = sqrt(w2);
-    this->vec() = axis * sqrt(Scalar(1) - w2);
+    const Vector3 m = v0.unitOrthogonal();
+    coeffs() = (Quaternion<Scalar>::FromTwoVectors(m, v1) * Quaternion<Scalar>::FromTwoVectors(v0, m)).coeffs();
     return derived();
   }
   Vector3 axis = v0.cross(v1);
