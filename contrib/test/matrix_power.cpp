@@ -153,6 +153,13 @@ void testComputeOneByOne() {
   VERIFY_IS_APPROX(r, MatrixXd::Constant(1, 1, 2));
 }
 
+// An infinite entry used to hang the square-rooting loop for atomic blocks larger than 2x2.
+void testInfiniteEntry() {
+  Matrix3d a = Matrix3d::Identity();
+  a(0, 2) = std::numeric_limits<double>::infinity();
+  VERIFY(a.pow(0.5).array().isNaN().all());
+}
+
 template <typename MatrixType>
 void testLogThenExp(const MatrixType& m_const, const typename MatrixType::RealScalar& tol) {
   // we need to pass by reference in order to prevent errors with
@@ -221,6 +228,7 @@ EIGEN_DECLARE_TEST(matrix_power) {
   CALL_SUBTEST_9(testSingular(MatrixXe(7, 7), 256 * NumTraits<long double>::epsilon()));
   CALL_SUBTEST_10(testSingular(Matrix3d(), 1024 * NumTraits<double>::epsilon()));
   CALL_SUBTEST_10(testSingularTrailingZero());
+  CALL_SUBTEST_10(testInfiniteEntry());
   CALL_SUBTEST_11(testSingular(Matrix3f(), 2048 * NumTraits<float>::epsilon()));
   CALL_SUBTEST_12(testSingular(Matrix3e(), 1024 * NumTraits<long double>::epsilon()));
 
