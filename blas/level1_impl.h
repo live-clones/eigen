@@ -114,7 +114,7 @@ EIGEN_BLAS_FUNC(rotg)(RealScalar *pa, RealScalar *pb, RealScalar *pc, RealScalar
     *s = b / r;
     z = 1;
     if (aa > ab) z = *s;
-    if (ab > aa && *c != RealScalar(0)) z = Scalar(1) / *c;
+    if (ab >= aa && *c != RealScalar(0)) z = Scalar(1) / *c;
   }
   *pa = r;
   *pb = z;
