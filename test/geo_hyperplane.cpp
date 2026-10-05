@@ -203,6 +203,10 @@ void lines() {
     CoeffsType converted_coeffs = line_u2.coeffs();
     if (line_u2.normal().dot(line_u.normal()) < Scalar(0)) converted_coeffs = -line_u2.coeffs();
     VERIFY(line_u.coeffs().isApprox(converted_coeffs));
+
+    // a dynamic-size hyperplane must size its coefficients from the line (its normal may be flipped)
+    Hyperplane<Scalar, Dynamic> line_dyn(ParametrizedLine<Scalar, Dynamic>(pl.origin(), pl.direction()));
+    VERIFY_IS_APPROX(line_dyn.coeffs().cwiseAbs(), line_u2.coeffs().cwiseAbs());
   }
 }
 

@@ -113,7 +113,8 @@ class Hyperplane {
    * so an arbitrary choice is made.
    */
   // FIXME: for consistency, consider implementing as a static Through function.
-  EIGEN_DEVICE_FUNC explicit Hyperplane(const ParametrizedLine<Scalar, AmbientDimAtCompileTime>& parametrized) {
+  EIGEN_DEVICE_FUNC explicit Hyperplane(const ParametrizedLine<Scalar, AmbientDimAtCompileTime>& parametrized)
+      : m_coeffs(parametrized.dim() + 1) {
     normal() = parametrized.direction().unitOrthogonal();
     offset() = -parametrized.origin().dot(normal());
   }
