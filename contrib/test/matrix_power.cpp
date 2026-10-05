@@ -160,6 +160,14 @@ void testInfiniteEntry() {
   VERIFY(a.pow(0.5).array().isNaN().all());
 }
 
+// A nonfinite exponent used to hang the binary powering of the integral part.
+void testNonFiniteExponent() {
+  Matrix3d a;
+  a << 1, 2, 3, 4, 5, 6, 7, 8, 10;
+  VERIFY(a.pow(std::numeric_limits<double>::quiet_NaN()).array().isNaN().all());
+  VERIFY(a.pow(std::numeric_limits<double>::infinity()).array().isNaN().all());
+}
+
 template <typename MatrixType>
 void testLogThenExp(const MatrixType& m_const, const typename MatrixType::RealScalar& tol) {
   // we need to pass by reference in order to prevent errors with
@@ -229,6 +237,7 @@ EIGEN_DECLARE_TEST(matrix_power) {
   CALL_SUBTEST_10(testSingular(Matrix3d(), 1024 * NumTraits<double>::epsilon()));
   CALL_SUBTEST_10(testSingularTrailingZero());
   CALL_SUBTEST_10(testInfiniteEntry());
+  CALL_SUBTEST_10(testNonFiniteExponent());
   CALL_SUBTEST_11(testSingular(Matrix3f(), 2048 * NumTraits<float>::epsilon()));
   CALL_SUBTEST_12(testSingular(Matrix3e(), 1024 * NumTraits<long double>::epsilon()));
 

@@ -466,6 +466,11 @@ void MatrixPower<MatrixType>::compute(ResultType& res, RealScalar p) {
       res(0, 0) = pow(m_A.coeff(0, 0), p);
       break;
     default:
+      // The binary powering in computeIntPower() never terminates for a nonfinite exponent.
+      if (!(numext::isfinite)(p)) {
+        res = MatrixType::Constant(rows(), cols(), Scalar(NumTraits<RealScalar>::quiet_NaN()));
+        break;
+      }
       RealScalar intpart;
       split(p, intpart);
 
