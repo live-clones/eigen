@@ -499,9 +499,10 @@ struct householder_qr_inplace_blocked {
  *   ~ c_p * b * P + c_t * Q / b,   P = sum_{k<s} (rows - k),   Q = sum_{k<s} (rows - k) * (cols - k)
  * coefficients (P and Q to leading order below), least at b = sqrt(kappa * Q / P); peak flop rate cancels, and
  * kappa = 3 fits the measured optimum on AVX-512, NEON and SME. The cost is flat in log(b) near the minimum, so b is
- * the nearest of 8, 16, 24, 32, 48 that is a whole number of packets: b is the row count of the product V^* * C, which
- * slows sharply on a partial packet. Panels wider than 48 measured no faster. Up to rows * cols * s = 64^3 the
- * per-panel overhead (forming T, product setup) outweighs the traffic saved, and a single panel of width s is returned.
+ * the nearest of 8, 16, 24, 32, 48 that is a whole number of packets, or one packet if none is: b is the row count of
+ * the product V^* * C, which slows sharply on a partial packet. Panels wider than 48 measured no faster. Up to
+ * rows * cols * s = 64^3 the per-panel overhead (forming T, product setup) outweighs the traffic saved, and a single
+ * panel of width s is returned.
  */
 template <typename Scalar>
 Index householder_qr_panel_width(Index rows, Index cols) {

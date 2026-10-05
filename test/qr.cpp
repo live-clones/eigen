@@ -121,6 +121,13 @@ void qr_blocking_shapes() {
     VERIFY(internal::householder_qr_panel_width<double>(65, 64) < 64);
     VERIFY(internal::householder_qr_panel_width<double>(64, 65) < 64);
   }
+  // Blocked widths are whole packets: with 16-float packets (AVX-512) that rules out the 8 and 24 these shapes get for
+  // double.
+  const Index packetShapes[][2] = {{65, 64}, {3000, 40}, {300, 300}};
+  for (const auto& shape : packetShapes) {
+    const Index width = internal::householder_qr_panel_width<float>(shape[0], shape[1]);
+    VERIFY_IS_EQUAL(width % Index(internal::packet_traits<float>::size), Index(0));
+  }
   const Index shapes[][2] = {{64, 64}, {65, 64}, {64, 65}, {1024, 16}, {3000, 40}, {300, 300}, {530, 520}, {100, 4000}};
   for (const auto& shape : shapes) qr_check_thin_factors(MatrixType(MatrixType::Random(shape[0], shape[1])));
 
