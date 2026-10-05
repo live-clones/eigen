@@ -968,6 +968,12 @@ void generalizedselfadjointeigensolver_no_malloc() {
   GeneralizedSelfAdjointEigenSolver<MatrixType> fresh(symmA, symmB);
   VERIFY_IS_APPROX(reused.eigenvalues(), fresh.eigenvalues());
   VERIFY_IS_APPROX(symmA * reused.eigenvectors(), symmB * reused.eigenvectors() * reused.eigenvalues().asDiagonal());
+
+  // A B that is not positive definite must not be reported as a successful decomposition.
+  for (int type : types) {
+    GeneralizedSelfAdjointEigenSolver<MatrixType> indefinite(symmA, -symmB, ComputeEigenvectors | type);
+    VERIFY_IS_EQUAL(indefinite.info(), NumericalIssue);
+  }
 }
 
 #if defined(EIGEN_TEST_PART_20) || defined(EIGEN_TEST_PART_ALL)
