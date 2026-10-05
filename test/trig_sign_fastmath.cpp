@@ -34,12 +34,37 @@ struct packet_trig_sign_check<Scalar, Func, true> {
   }
 };
 
+// pexp of a complex packet reaches psincos_*<SinCos>, which has its own sign logic.
+template <typename Scalar, bool Enabled = internal::packet_traits<std::complex<Scalar>>::Vectorizable &&
+                                          internal::packet_traits<std::complex<Scalar>>::HasExp>
+struct packet_cexp_sign_check {
+  static void run() {}
+};
+
+template <typename Scalar>
+struct packet_cexp_sign_check<Scalar, true> {
+  static void run() {
+    using Complex = std::complex<Scalar>;
+    using Packet = typename internal::packet_traits<Complex>::type;
+    constexpr Index kSize = internal::unpacket_traits<Packet>::size;
+    const Index n = numext::maxi<Index>(32, kSize);
+    std::vector<Complex> x(n), y(n);
+    for (Index i = 0; i < n; ++i)
+      x[i] = Complex(Scalar(0.25), Scalar((i / 16) % 2 ? 1 : -1) * (Scalar(0.3) + Scalar(0.7) * Scalar(i % 16)));
+    for (Index i = 0; i < n; i += kSize) {
+      internal::pstoreu(&y[i], internal::pexp(internal::ploadu<Packet>(&x[i])));
+    }
+    for (Index i = 0; i < n; ++i) VERIFY_IS_APPROX(y[i], std::exp(x[i]));
+  }
+};
+
 template <typename Scalar>
 void check_packet_trig_signs() {
   using Traits = internal::packet_traits<Scalar>;
   packet_trig_sign_check<Scalar, 0, Traits::Vectorizable && Traits::HasSin>::run();
   packet_trig_sign_check<Scalar, 1, Traits::Vectorizable && Traits::HasCos>::run();
   packet_trig_sign_check<Scalar, 2, Traits::Vectorizable && Traits::HasTan>::run();
+  packet_cexp_sign_check<Scalar>::run();
 }
 
 EIGEN_DECLARE_TEST(trig_sign_fastmath) {
