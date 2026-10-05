@@ -666,6 +666,28 @@ void test_half_nan_not_equal() {
 #endif
 }
 
+// exp of a real-axis complex keeps the zero imaginary part where the real part overflows.
+struct complex_exp_overflow_test {
+  EIGEN_DEVICE_FUNC void operator()(int i, const float* in, float* out) const {
+    EIGEN_UNUSED_VARIABLE(i);
+    const std::complex<float> e = numext::exp(std::complex<float>(in[0], 0.f));
+    const std::complex<double> e2 = numext::exp2(std::complex<double>(in[0] * 20, 0.0));
+    out[0] = e.imag();
+    out[1] = float(e2.imag());
+  }
+};
+
+void test_complex_exp_overflow() {
+  Eigen::ArrayXf in(1), out_ref(2), out_gpu(2);
+  in << 100.f;
+  run_on_cpu(complex_exp_overflow_test(), 1, in, out_ref);
+  run_on_gpu(complex_exp_overflow_test(), 1, in, out_gpu);
+#if !defined(EIGEN_GPU_COMPILE_PHASE)
+  VERIFY_IS_CWISE_EQUAL(out_ref, Eigen::Array2f::Zero());
+  VERIFY_IS_CWISE_EQUAL(out_gpu, Eigen::Array2f::Zero());
+#endif
+}
+
 template <typename Type1, typename Type2>
 bool verifyIsApproxWithInfsNans(const Type1& a, const Type2& b,
                                 typename Type1::Scalar* = 0)  // Enabled for Eigen's type only
@@ -873,6 +895,7 @@ EIGEN_DECLARE_TEST(gpu_basic) {
   CALL_SUBTEST(test_custom_less_scalar_minmax());
   CALL_SUBTEST(test_float_nan_minmax());
   CALL_SUBTEST(test_half_nan_not_equal());
+  CALL_SUBTEST(test_complex_exp_overflow());
 
   // `preverse` on every GPU packet type. 32 elements cover several packets of
   // each, including `Packet4h2`, the widest at 8.
