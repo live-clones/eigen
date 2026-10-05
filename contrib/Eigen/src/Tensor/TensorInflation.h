@@ -326,7 +326,7 @@ struct TensorEvaluator<const TensorInflationOp<Strides, ArgType>, Device> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE double latticeDensity() const {
     const double output_size = static_cast<double>(m_dimensions.TotalSize());
     if (output_size == 0) return 0.0;
-    return static_cast<double>(m_impl.dimensions().TotalSize()) / output_size;
+    return static_cast<double>(internal::array_prod(m_impl.dimensions())) / output_size;
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void extract_coordinates(Index index, array<Index, NumDims>& coords) const {
