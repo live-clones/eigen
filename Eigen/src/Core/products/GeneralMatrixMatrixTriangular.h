@@ -253,11 +253,17 @@ struct general_product_to_triangular_selector<MatrixType, ProductType, UpLo, tru
       Map<typename ActualRhs_::PlainObject>(actualRhsPtr, actualRhs.size()) = actualRhs;
     }
 
-    selfadjoint_rank1_update<
-        Scalar, Index, StorageOrder, UpLo, LhsBlasTraits::NeedToConjugate && NumTraits<Scalar>::IsComplex,
-        RhsBlasTraits::NeedToConjugate && NumTraits<Scalar>::IsComplex>::run(actualLhs.size(), mat.data(),
-                                                                             mat.outerStride(), actualLhsPtr,
-                                                                             actualRhsPtr, actualAlpha);
+    // A strictly triangular part is the triangle of the trailing (size-1) block one step off the diagonal.
+    const bool skipDiag = (UpLo & ZeroDiag) != 0, isLower = (UpLo & Lower) != 0;
+    const Index size = actualLhs.size() - skipDiag;
+    if (size <= 0) return;
+    Scalar* res = mat.data() + (!skipDiag ? 0 : (StorageOrder == RowMajor) != isLower ? 1 : mat.outerStride());
+    selfadjoint_rank1_update<Scalar, Index, StorageOrder, UpLo&(Lower | Upper),
+                             LhsBlasTraits::NeedToConjugate && NumTraits<Scalar>::IsComplex,
+                             RhsBlasTraits::NeedToConjugate &&
+                                 NumTraits<Scalar>::IsComplex>::run(size, res, mat.outerStride(),
+                                                                    actualLhsPtr + (skipDiag && isLower),
+                                                                    actualRhsPtr + (skipDiag && !isLower), actualAlpha);
   }
 };
 

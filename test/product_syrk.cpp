@@ -151,6 +151,18 @@ void syrk(const MatrixType& m) {
     VERIFY_IS_APPROX((map1.template selfadjointView<Lower>().rankUpdate(rhs2, s1)._expression()),
                      ((s1 * rhs2 * rhs2.adjoint()).eval().template triangularView<Lower>().toDenseMatrix()));
   }
+
+  // outer products into a strictly triangular part
+  {
+    using VectorX = Matrix<Scalar, Dynamic, 1>;
+    VectorX u = VectorX::Random(rows), v = VectorX::Random(rows);
+    m2.setZero();
+    m2.template triangularView<StrictlyLower>() = s1 * u * v.adjoint();
+    VERIFY_IS_APPROX(m2, (s1 * u * v.adjoint()).eval().template triangularView<StrictlyLower>().toDenseMatrix());
+    rm2.setZero();
+    rm2.template triangularView<StrictlyUpper>() += u * v.adjoint();
+    VERIFY_IS_APPROX(rm2, (u * v.adjoint()).eval().template triangularView<StrictlyUpper>().toDenseMatrix());
+  }
 }
 
 template <typename MatrixType>
