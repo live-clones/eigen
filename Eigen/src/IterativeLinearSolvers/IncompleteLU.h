@@ -29,6 +29,9 @@ class IncompleteLU : public SparseSolverBase<IncompleteLU<Scalar_> > {
 
  public:
   using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using StorageIndex = typename FactorType::StorageIndex;
+  static constexpr int ColsAtCompileTime = Dynamic;
+  static constexpr int MaxColsAtCompileTime = Dynamic;
 
   IncompleteLU() {}
 
