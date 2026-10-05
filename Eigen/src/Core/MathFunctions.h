@@ -1295,7 +1295,8 @@ EIGEN_DEVICE_FUNC inline bool abs2(bool x) { return x; }
 
 template <typename T>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE T absdiff(const T& x, const T& y) {
-  return x > y ? x - y : y - x;
+  // Adding +0 turns the -0 of y - x for (x, y) = (+0, -0) into the +0 of |x - y|; NaNs, as of (inf, inf), stay.
+  return x > y ? x - y : (y - x) + T(0);
 }
 template <>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE float absdiff(const float& x, const float& y) {
