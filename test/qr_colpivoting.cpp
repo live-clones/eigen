@@ -432,6 +432,17 @@ void qr_rank_gap_test() {
   }
 }
 
+// Regression: a matrix without columns has no column norm to take the maximum of.
+template <typename MatrixType>
+void qr_empty() {
+  ColPivHouseholderQR<MatrixType> qr{MatrixType(3, 0)};
+  VERIFY_IS_EQUAL(qr.rank(), Index(0));
+  qr.compute(MatrixType(0, 0));
+  VERIFY_IS_EQUAL(qr.rank(), Index(0));
+  CompleteOrthogonalDecomposition<MatrixType> cod{MatrixType(3, 0)};
+  VERIFY_IS_EQUAL(cod.rank(), Index(0));
+}
+
 EIGEN_DECLARE_TEST(qr_colpivoting) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(qr<MatrixXf>());
@@ -476,6 +487,7 @@ EIGEN_DECLARE_TEST(qr_colpivoting) {
 
   // Test problem size constructors
   CALL_SUBTEST_9(ColPivHouseholderQR<MatrixXf>(10, 20));
+  CALL_SUBTEST_2(qr_empty<MatrixXd>());
 
   CALL_SUBTEST_1(qr_kahan_matrix<MatrixXf>());
   CALL_SUBTEST_2(qr_kahan_matrix<MatrixXd>());
