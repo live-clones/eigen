@@ -430,6 +430,25 @@ void quaternion_from_non_orthogonal_matrix() {
     VERIFY(!(numext::isnan)(q.y()));
     VERIFY(!(numext::isnan)(q.z()));
   }
+
+  // Pivot component must be rounded as 0.5 * sqrt(t) (single rounding, <= 0.5 ULP)
+  // rather than t * (0.5 / sqrt(t)) (which loses 1 ULP for e.g. t = 2 in double
+  // and t = 3 in float, degrading downstream asin/acos extraction on 90-deg rotations).
+  {
+    Matrix3 r90;
+    r90 << Scalar(0), Scalar(0), Scalar(1), Scalar(0), Scalar(1), Scalar(0), Scalar(-1), Scalar(0), Scalar(0);
+    Quaternionx q90(r90);
+    VERIFY_IS_EQUAL(q90.w(), Scalar(0.5) * numext::sqrt(Scalar(2)));
+
+    Matrix3 r180_xy;
+    r180_xy << Scalar(0), Scalar(1), Scalar(0), Scalar(1), Scalar(0), Scalar(0), Scalar(0), Scalar(0), Scalar(-1);
+    Quaternionx q180(r180_xy);
+    VERIFY_IS_EQUAL(q180.x(), Scalar(0.5) * numext::sqrt(Scalar(2)));
+
+    Matrix3 r60 = AngleAxis<Scalar>(Scalar(EIGEN_PI) / Scalar(3), Matrix<Scalar, 3, 1>::UnitZ()).toRotationMatrix();
+    Quaternionx q60(r60);
+    VERIFY_IS_EQUAL(q60.w(), Scalar(0.5) * numext::sqrt(r60.trace() + Scalar(1)));
+  }
 }
 
 template <typename Scalar>

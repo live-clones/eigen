@@ -969,16 +969,22 @@ template <typename Other>
 struct quaternionbase_assign_impl<Other, 3, 3> {
   using Scalar = typename Other::Scalar;
 
-  template <int AxisI, int AxisJ, int AxisK, class Derived, class Mat>
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar assign_branch(QuaternionBase<Derived>& q, const Mat& mat,
-                                                                    Scalar mii, Scalar mjj, Scalar mkk) {
+  template <int AxisI, int AxisJ, int AxisK, bool Normalize, class Derived, class Mat>
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void assign_branch(QuaternionBase<Derived>& q, const Mat& mat,
+                                                                  Scalar mii, Scalar mjj, Scalar mkk) {
+    EIGEN_USING_STD(sqrt)
     // Guard against slightly negative argument from non-orthogonal matrices.
     Scalar t = numext::maxi(mii - mjj - mkk + Scalar(1.0), Scalar(0));
+    Scalar s = Scalar(1);
+    if (Normalize) {
+      t = sqrt(t);
+      s = Scalar(0.5) / t;
+      t = Scalar(0.5) * t;
+    }
     q.coeffs().coeffRef(AxisI) = t;
-    q.w() = mat.coeff(AxisK, AxisJ) - mat.coeff(AxisJ, AxisK);
-    q.coeffs().coeffRef(AxisJ) = mat.coeff(AxisJ, AxisI) + mat.coeff(AxisI, AxisJ);
-    q.coeffs().coeffRef(AxisK) = mat.coeff(AxisK, AxisI) + mat.coeff(AxisI, AxisK);
-    return t;
+    q.w() = (mat.coeff(AxisK, AxisJ) - mat.coeff(AxisJ, AxisK)) * s;
+    q.coeffs().coeffRef(AxisJ) = (mat.coeff(AxisJ, AxisI) + mat.coeff(AxisI, AxisJ)) * s;
+    q.coeffs().coeffRef(AxisK) = (mat.coeff(AxisK, AxisI) + mat.coeff(AxisI, AxisK)) * s;
   }
 
   template <bool Normalize = true, class Derived>
@@ -990,22 +996,25 @@ struct quaternionbase_assign_impl<Other, 3, 3> {
     const Scalar m00 = mat.coeff(0, 0);
     const Scalar m11 = mat.coeff(1, 1);
     const Scalar m22 = mat.coeff(2, 2);
-    Scalar t = m00 + m11 + m22;
+    Scalar t = m00 + (m11 + m22);
     if (t > Scalar(0)) {
       t = numext::maxi(t + Scalar(1.0), Scalar(0));
+      Scalar s = Scalar(1);
+      if (Normalize) {
+        t = sqrt(t);
+        s = Scalar(0.5) / t;
+        t = Scalar(0.5) * t;
+      }
       q.w() = t;
-      q.x() = mat.coeff(2, 1) - mat.coeff(1, 2);
-      q.y() = mat.coeff(0, 2) - mat.coeff(2, 0);
-      q.z() = mat.coeff(1, 0) - mat.coeff(0, 1);
+      q.x() = (mat.coeff(2, 1) - mat.coeff(1, 2)) * s;
+      q.y() = (mat.coeff(0, 2) - mat.coeff(2, 0)) * s;
+      q.z() = (mat.coeff(1, 0) - mat.coeff(0, 1)) * s;
     } else if (m00 >= m11 && m00 >= m22) {
-      t = assign_branch<0, 1, 2>(q, mat, m00, m11, m22);
+      assign_branch<0, 1, 2, Normalize>(q, mat, m00, m11, m22);
     } else if (m11 >= m22) {
-      t = assign_branch<1, 2, 0>(q, mat, m11, m22, m00);
+      assign_branch<1, 2, 0, Normalize>(q, mat, m11, m22, m00);
     } else {
-      t = assign_branch<2, 0, 1>(q, mat, m22, m00, m11);
-    }
-    if (Normalize) {
-      q.coeffs() *= Scalar(0.5) / sqrt(t);
+      assign_branch<2, 0, 1, Normalize>(q, mat, m22, m00, m11);
     }
   }
 };
