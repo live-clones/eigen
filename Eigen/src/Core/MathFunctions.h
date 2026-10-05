@@ -536,6 +536,10 @@ struct log1p_impl<std::complex<RealScalar>> {
   }
 };
 
+// numext::exp2 of a complex argument; defined after the numext functions it is built from.
+template <typename RealScalar>
+struct complex_exp2_impl;
+
 /****************************************************************************
  * Implementation of pow                                                  *
  ****************************************************************************/
@@ -1688,24 +1692,11 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE T exp2(const T& x) {
   return exp2(x);
 }
 
-// MSVC screws up some edge-cases for std::exp2(complex).
-#ifdef EIGEN_COMP_MSVC
+// There is no std::exp2 for complex arguments.
 template <typename RealScalar>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE std::complex<RealScalar> exp2(const std::complex<RealScalar>& x) {
-  EIGEN_USING_STD(exp);
-  // If z is (x,±∞) (for any finite x), the result is (NaN,NaN) and FE_INVALID is raised.
-  // If z is (x,NaN) (for any finite x), the result is (NaN,NaN) and FE_INVALID may be raised.
-  if ((isfinite)(real_ref(x)) && !(isfinite)(imag_ref(x))) {
-    return std::complex<RealScalar>(NumTraits<RealScalar>::quiet_NaN(), NumTraits<RealScalar>::quiet_NaN());
-  }
-  // If z is (+∞,±∞), the result is (±∞,NaN) and FE_INVALID is raised (the sign of the real part is unspecified)
-  // If z is (+∞,NaN), the result is (±∞,NaN) (the sign of the real part is unspecified)
-  if ((real_ref(x) == NumTraits<RealScalar>::infinity() && !(isfinite)(imag_ref(x)))) {
-    return std::complex<RealScalar>(NumTraits<RealScalar>::infinity(), NumTraits<RealScalar>::quiet_NaN());
-  }
-  return exp2(x);
+  return internal::complex_exp2_impl<RealScalar>::run(x);
 }
-#endif
 
 #if defined(SYCL_DEVICE_ONLY)
 SYCL_SPECIALIZE_FLOATING_TYPES_UNARY(exp2, exp2)
@@ -1720,22 +1711,6 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE float exp2(const float& x) {
 template <>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE double exp2(const double& x) {
   return ::exp2(x);
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE std::complex<float> exp2(const std::complex<float>& x) {
-  float com = ::exp2f(x.real());
-  float res_real = com * ::cosf(static_cast<float>(EIGEN_LN2) * x.imag());
-  float res_imag = com * ::sinf(static_cast<float>(EIGEN_LN2) * x.imag());
-  return std::complex<float>(res_real, res_imag);
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE std::complex<double> exp2(const std::complex<double>& x) {
-  double com = ::exp2(x.real());
-  double res_real = com * ::cos(static_cast<double>(EIGEN_LN2) * x.imag());
-  double res_imag = com * ::sin(static_cast<double>(EIGEN_LN2) * x.imag());
-  return std::complex<double>(res_real, res_imag);
 }
 #endif
 
@@ -2331,6 +2306,64 @@ struct expm1_impl<std::complex<RealScalar>> {
     const RealScalar real_part = xr < RealScalar(0) ? erm1 - er * one_minus_c : erm1 * c - one_minus_c;
     // exp(x) * sin(0) is NaN for infinite exp(x); keep the exact zero instead.
     return std::complex<RealScalar>(real_part, numext::is_exactly_zero(xi) ? xi : er * s);
+  }
+};
+
+// 2^(a + ib) = 2^a (cos(t) + i sin(t)) with t = b ln(2). The modulus is the real exp2, so 2^n is exact. Rounding t
+// would cost |t| eps in the phase, so b ln(2) = t_hi + t_lo is kept in double-word precision, ln(2) = ln2_hi + ln2_lo:
+//   cos(t) = cos(t_hi) + (cos(t_hi) (cos(t_lo) - 1) - sin(t_hi) sin(t_lo)),
+//   sin(t) = sin(t_hi) + (sin(t_hi) (cos(t_lo) - 1) + cos(t_hi) sin(t_lo)).
+// Special values are those of exp(z) in C99 Annex G, since ln(2) > 0.
+template <typename RealScalar>
+struct complex_exp2_impl {
+  EIGEN_STATIC_ASSERT_NON_INTEGER(RealScalar)
+
+  EIGEN_DEVICE_FUNC static inline std::complex<RealScalar> run(const std::complex<RealScalar>& x) {
+    using Complex = std::complex<RealScalar>;
+    const RealScalar a = x.real();
+    const RealScalar b = x.imag();
+    // (a, +-0) -> (2^a, +-0), also for a = +-inf and NaN.
+    if (numext::is_exactly_zero(b)) return Complex(numext::exp2(a), b);
+    // (+inf, inf or NaN) -> (inf, NaN) and (-inf, inf or NaN) -> (0, 0), where 2^a cos(t) would be NaN.
+    // b * 0 is that NaN, raising FE_INVALID for b = inf as Annex G asks.
+    if ((numext::isinf)(a) && !(numext::isfinite)(b)) {
+      return a > RealScalar(0) ? Complex(a, b * RealScalar(0)) : Complex(RealScalar(0), RealScalar(0));
+    }
+    // ln2_lo = (double(ln(2)) - ln2_hi) + (ln(2) - double(ln(2))), the first difference exact in Wide.
+    using Wide =
+        std::conditional_t<(NumTraits<RealScalar>::digits() > NumTraits<double>::digits()), RealScalar, double>;
+    const RealScalar ln2_hi = RealScalar(EIGEN_LN2);
+    const RealScalar ln2_lo = RealScalar((Wide(static_cast<double>(EIGEN_LN2)) - Wide(ln2_hi)) +
+                                         Wide(2.3190468138462996154948554638754786504e-17L));
+    const RealScalar t_hi = b * ln2_hi;
+    const RealScalar t_lo = numext::fma(b, ln2_hi, -t_hi) + b * ln2_lo;
+    // |t_lo| <= ulp(t_hi) / 2, so the Taylor terms below are exact to rounding unless |t| exceeds about 2 / sqrt(eps).
+    // The phase is within an ulp of b ln(2) while |t| < 1 / eps.
+    RealScalar sin_lo = t_lo;
+    RealScalar cos_lo_m1 = -t_lo * t_lo / RealScalar(2);
+    if (numext::abs(t_lo) > numext::sqrt(NumTraits<RealScalar>::epsilon())) {
+      sin_lo = numext::sin(t_lo);
+      const RealScalar sin_half = numext::sin(t_lo / RealScalar(2));
+      cos_lo_m1 = RealScalar(-2) * sin_half * sin_half;
+    }
+    const RealScalar cos_hi = numext::cos(t_hi);
+    const RealScalar sin_hi = numext::sin(t_hi);
+    const RealScalar c = cos_hi + (cos_hi * cos_lo_m1 - sin_hi * sin_lo);
+    const RealScalar s = sin_hi + (sin_hi * cos_lo_m1 + cos_hi * sin_lo);
+    // 2^a overflows or is denormal where 2^a cos(t) and 2^a sin(t) need not be; apply 2^e after the products then.
+    // Past 2 e_max, a part is finite only for denormal t.
+    const int e_max = NumTraits<RealScalar>::max_exponent() - 1;
+    const int e = a > RealScalar(e_max) ? (a > RealScalar(2 * e_max) ? 2 * e_max : e_max)
+                                        : (a < RealScalar(NumTraits<RealScalar>::min_exponent()) ? -e_max : 0);
+    const RealScalar m = numext::exp2(a - RealScalar(e));
+    if (numext::abs(t_hi) < (numext::numeric_limits<RealScalar>::min)()) {
+      // A denormal t has lost bits that 2^a can bring back. There cos(t) = 1 and sin(t) = t, taken from b 2^digits.
+      const int p = NumTraits<RealScalar>::digits();
+      const RealScalar b_p = numext::ldexp(b, p);
+      return Complex(numext::ldexp(m, e), numext::ldexp(m * numext::fma(b_p, ln2_hi, b_p * ln2_lo), e - p));
+    }
+    if (e == 0) return Complex(m * c, m * s);
+    return Complex(numext::ldexp(m * c, e), numext::ldexp(m * s, e));
   }
 };
 
