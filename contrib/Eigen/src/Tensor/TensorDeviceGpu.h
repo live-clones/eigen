@@ -208,7 +208,8 @@ class GpuStreamDevice : public StreamInterface {
     EIGEN_GPU_RUNTIME_CHECK(gpuSetDevice(device_));
     void* result = nullptr;
     EIGEN_GPU_RUNTIME_CHECK(gpuMalloc(&result, num_bytes));
-    gpu_assert(result != nullptr);
+    // A zero-byte request (an empty tensor's temporary) succeeds with a null pointer.
+    gpu_assert(result != nullptr || num_bytes == 0);
     return result;
   }
   void deallocate(void* buffer) const override {
