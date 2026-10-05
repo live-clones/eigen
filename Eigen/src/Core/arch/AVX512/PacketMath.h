@@ -1131,7 +1131,7 @@ EIGEN_STRONG_INLINE Packet8l ploaddup<Packet8l>(const int64_t* from) {
 // {a0, a0  a1, a1, a2, a2, a3, a3, a4, a4, a5, a5, a6, a6, a7, a7}
 template <>
 EIGEN_STRONG_INLINE Packet16i ploaddup<Packet16i>(const int* from) {
-  __m256i low_half = _mm256_load_si256(reinterpret_cast<const __m256i*>(from));
+  __m256i low_half = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(from));
   __m512 even_elements = _mm512_castsi512_ps(_mm512_cvtepu32_epi64(low_half));
   __m512 pairs = _mm512_permute_ps(even_elements, _MM_SHUFFLE(2, 2, 0, 0));
   return _mm512_castps_si512(pairs);
