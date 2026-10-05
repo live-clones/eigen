@@ -231,6 +231,8 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psqrt_complex(const P
   Packet real_inf_result;
   real_inf_result.v = pmul(a_abs, pset1<Packet>(Scalar(RealScalar(1.0), RealScalar(0.0))).v);
   real_inf_result.v = pselect(negative_real_mask.v, pcplxflip(real_inf_result).v, real_inf_result.v);
+  // The imaginary part takes the sign of y: (0, -inf) for (-inf, -y) and (+inf, -0) for (+inf, -y).
+  real_inf_result.v = por(real_inf_result.v, imag_signs);
   // prepare packet of (+∞,+∞) or (+∞,-∞), depending on the sign of the infinite imaginary part.
   Packet is_imag_inf;
   is_imag_inf.v = pandnot(is_inf.v, real_mask);

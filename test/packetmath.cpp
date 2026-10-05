@@ -2290,6 +2290,11 @@ void packetmath_complex() {
     data1[2] = Scalar(inf, -inf);
     data1[3] = Scalar(-inf, -inf);
     CHECK_CWISE1_N(numext::sqrt, internal::psqrt, 4);
+    data1[0] = Scalar(-inf, -zero);
+    data1[1] = Scalar(-inf, -one);
+    data1[2] = Scalar(inf, -zero);
+    data1[3] = Scalar(inf, -one);
+    CHECK_CWISE1_N(numext::sqrt, internal::psqrt, 4);
     data1[0] = Scalar(nan, zero);
     data1[1] = Scalar(zero, nan);
     data1[2] = Scalar(nan, one);
