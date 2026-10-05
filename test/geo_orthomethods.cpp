@@ -138,6 +138,12 @@ void orthomethods(int size = Size) {
   matN3.setRandom();
   mcrossN3 = matN3.rowwise().cross(vec3);
   VERIFY_IS_APPROX(mcrossN3.row(i), matN3.row(i).cross(vec3));
+
+  // the same with run-time sized matrices that have 3 rows (columns)
+  using MatrixX = Matrix<Scalar, Dynamic, Dynamic>;
+  MatrixX matX3N(mat3N), matXN3(matN3);
+  VERIFY_IS_APPROX(MatrixX(matX3N.colwise().cross(vec3)), MatrixX(mcross3N));
+  VERIFY_IS_APPROX(MatrixX(matXN3.rowwise().cross(vec3)), MatrixX(mcrossN3));
 }
 
 EIGEN_DECLARE_TEST(geo_orthomethods) {
