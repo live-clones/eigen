@@ -841,6 +841,17 @@ void test_memcpy() {
   }
 }
 
+// The executors copy the evaluator per task; a copy must not destroy the forced-eval buffer's elements.
+template <typename = void>
+void test_multithread_forced_eval_non_pod() {
+  Eigen::ThreadPool tp(4);
+  Eigen::ThreadPoolDevice thread_pool_device(&tp, 4);
+  Tensor<std::string, 1> in(64), out(64);
+  for (int i = 0; i < 64; ++i) in(i) = std::string(40, static_cast<char>('a' + i % 26));
+  out.device(thread_pool_device) = in.eval();
+  for (int i = 0; i < 64; ++i) VERIFY_IS_EQUAL(out(i), in(i));
+}
+
 template <typename = void>
 void test_multithread_random() {
   Eigen::ThreadPool tp(2);
@@ -1197,6 +1208,7 @@ EIGEN_DECLARE_TEST(tensor_thread_pool) {
 
   CALL_SUBTEST_12(test_memcpy<>());
   CALL_SUBTEST_12(test_multithread_random<>());
+  CALL_SUBTEST_12(test_multithread_forced_eval_non_pod<>());
 
   TestAllocator test_allocator;
   CALL_SUBTEST_13(test_multithread_shuffle<ColMajor>(nullptr));

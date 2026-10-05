@@ -190,7 +190,8 @@ struct TensorEvaluator<const TensorForcedEvalOp<ArgType_>, Device> {
 #endif
 
   EIGEN_STRONG_INLINE void cleanup() {
-    if (m_placement_constructed) {
+    // Executors copy evaluators per task; only the last owner of the shared buffer destroys its elements.
+    if (m_placement_constructed && m_buffer_holder.use_count() == 1) {
       internal::destruct_elements_of_array(m_buffer, internal::array_prod(m_impl.dimensions()));
       m_placement_constructed = false;
     }
