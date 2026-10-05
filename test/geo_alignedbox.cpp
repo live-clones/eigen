@@ -132,6 +132,11 @@ void alignedboxTranslatable(const BoxType& box) {
   VERIFY_IS_APPROX((c.min)(), Ones * Scalar(-2) - UnitX);
   VERIFY_IS_APPROX((c.max)(), -UnitX);
 
+  c.transform(Translation<Scalar, BoxType::AmbientDimAtCompileTime>(translate));
+  VERIFY_IS_APPROX((c.min)(), -Ones);
+  VERIFY_IS_APPROX((c.max)(), Ones);
+  c.transform(tf);
+
   // Scaling
 
   AffineTransform atf = AffineTransform::Identity();

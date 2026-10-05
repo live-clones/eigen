@@ -331,10 +331,8 @@ class AlignedBox {
   /**
    * Specialization of transform for pure translation.
    */
-  template <int Mode, int Options>
-  EIGEN_DEVICE_FUNC inline void transform(
-      const typename Transform<Scalar, AmbientDimAtCompileTime, Mode, Options>::TranslationType& translation) {
-    this->translate(translation);
+  EIGEN_DEVICE_FUNC inline void transform(const Translation<Scalar, AmbientDimAtCompileTime>& translation) {
+    this->translate(translation.vector());
   }
 
   /**
