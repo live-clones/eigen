@@ -39,7 +39,7 @@ EIGEN_LAPACK_FUNC(gesdd)
     *info = -5;
   else if (*lda < std::max(1, *m))
     *info = -8;
-  else if (*ldu < 1 || (*jobz == 'A' && *ldu < *m) || (*jobz == 'O' && *m < *n && *ldu < *m))
+  else if (*ldu < 1 || ((*jobz == 'A' || *jobz == 'S') && *ldu < *m) || (*jobz == 'O' && *m < *n && *ldu < *m))
     *info = -8;
   else if (*ldvt < 1 || (*jobz == 'A' && *ldvt < *n) || (*jobz == 'S' && *ldvt < diag_size) ||
            (*jobz == 'O' && *m >= *n && *ldvt < *n))
