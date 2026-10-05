@@ -338,6 +338,16 @@ TriangularViewImpl<MatrixType_, Mode_, Dense>::_assignProduct(
   EIGEN_STATIC_ASSERT((Mode_ & UnitDiag) == 0, WRITING_TO_TRIANGULAR_PART_WITH_UNIT_DIAGONAL_IS_NOT_SUPPORTED);
   eigen_assert(derived().nestedExpression().rows() == prod.rows() && derived().cols() == prod.cols());
 
+  // The rank-k and rank-1 kernels below update a square triangle.
+  if (derived().rows() != derived().cols()) {
+    typename ProductType::PlainObject tmp(alpha * prod);
+    if (beta)
+      derived() += tmp;
+    else
+      derived() = tmp;
+    return derived();
+  }
+
   general_product_to_triangular_selector<MatrixType_, ProductType, Mode_,
                                          internal::traits<ProductType>::InnerSize == 1>::run(derived()
                                                                                                  .nestedExpression()

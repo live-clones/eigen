@@ -176,6 +176,17 @@ void syrk(const MatrixType& m) {
     rm2.template triangularView<StrictlyUpper>() += u * v.adjoint();
     VERIFY_IS_APPROX(rm2, (u * v.adjoint()).eval().template triangularView<StrictlyUpper>().toDenseMatrix());
   }
+
+  // products assigned to a triangular part of a rectangular matrix
+  {
+    using MatrixX = Matrix<Scalar, Dynamic, Dynamic>;
+    MatrixX lhs = MatrixX::Random(rows + 2, 3), rhs = MatrixX::Random(3, rows), tall = MatrixX::Zero(rows + 2, rows);
+    tall.template triangularView<Lower>() = lhs * rhs;
+    VERIFY_IS_APPROX(tall, (lhs * rhs).eval().template triangularView<Lower>().toDenseMatrix());
+    tall.setZero();
+    tall.template triangularView<Upper>() += lhs.col(0) * rhs.row(0);
+    VERIFY_IS_APPROX(tall, (lhs.col(0) * rhs.row(0)).eval().template triangularView<Upper>().toDenseMatrix());
+  }
 }
 
 template <typename MatrixType>
