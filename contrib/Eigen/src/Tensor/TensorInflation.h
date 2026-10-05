@@ -109,7 +109,7 @@ struct TensorEvaluator<const TensorInflationOp<Strides, ArgType>, Device> {
     m_dimensions = m_impl.dimensions();
     // Expand each dimension to the inflated dimension.
     for (int i = 0; i < NumDims; ++i) {
-      m_dimensions[i] = (m_dimensions[i] - 1) * op.strides()[i] + 1;
+      m_dimensions[i] = m_dimensions[i] > 0 ? (m_dimensions[i] - 1) * op.strides()[i] + 1 : 0;
     }
 
     // Remember the strides for fast division.
