@@ -247,7 +247,7 @@ void DGMRES<MatrixType_, Preconditioner_>::dgmres(const MatrixType& mat, const R
   DenseVector r0(n);
   Index nbIts = 0;
   m_H.resize(m_restart + 1, m_restart);
-  m_Hes.resize(m_restart, m_restart);
+  m_Hes.setZero(m_restart, m_restart);
   m_V.resize(n, m_restart + 1);
   // Initial residual vector and initial norm
   if (x.squaredNorm() == 0) x = precond.solve(rhs);
@@ -327,6 +327,7 @@ Index DGMRES<MatrixType_, Preconditioner_>::dgmresCycle(const MatrixType& mat, c
       m_V.col(it + 1) = tv1 / coef;
     }
     m_H(it + 1, it) = coef;
+    if (it + 1 < m_restart) m_Hes(it + 1, it) = coef;
 
     // Update Hessenberg matrix with Givens rotations
     for (Index i = 1; i <= it; ++i) {
