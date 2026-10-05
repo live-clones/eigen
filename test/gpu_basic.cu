@@ -80,6 +80,16 @@ struct static_map {
   }
 };
 
+// A transform times a diagonal matrix scales the linear part through MatrixBase::operator*=.
+struct transform_times_diagonal {
+  EIGEN_DEVICE_FUNC void operator()(int i, const float* in, float* out) const {
+    using namespace Eigen;
+    Affine3f T;
+    T.matrix() = Matrix4f(in + i);
+    Map<Matrix4f>(out + i * 16) = (T * DiagonalMatrix<float, 3>(in[i], in[i + 1], in[i + 2])).matrix();
+  }
+};
+
 template <int Order>
 struct scaled_structured_product {
   EIGEN_DEVICE_FUNC void operator()(int i, const float* in, float* out) const {
@@ -834,6 +844,7 @@ EIGEN_DECLARE_TEST(gpu_basic) {
   CALL_SUBTEST(run_and_compare_to_gpu(coeff_wise<Vector3f>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(coeff_wise<Array44f>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(static_map<Matrix3f>(), nthreads, in, out));
+  CALL_SUBTEST(run_and_compare_to_gpu(transform_times_diagonal(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(make_householder_small_tail(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(make_householder_complex_zero_tail(), nthreads, cfin, cfout));
 
