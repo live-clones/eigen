@@ -2304,11 +2304,27 @@ struct expm1_impl<std::complex<RealScalar>> {
     //          = expm1(x) + exp(x) * (2 * sin(y / 2) ** 2)
     RealScalar erm1 = numext::expm1<RealScalar>(xr);
     RealScalar er = erm1 + RealScalar(1.);
+    // C99 Annex G for exp, less one: (+inf, inf or NaN) -> (inf, NaN) and (-inf, inf or NaN) -> (-1, 0).
+    // xi - xi is that NaN, raising FE_INVALID for xi = inf as Annex G asks.
+    if ((numext::isinf)(xr) && !(numext::isfinite)(xi)) {
+      return xr > RealScalar(0) ? std::complex<RealScalar>(xr, xi - xi)
+                                : std::complex<RealScalar>(RealScalar(-1), RealScalar(0));
+    }
     RealScalar sin2 = numext::sin(xi / RealScalar(2.));
     sin2 = sin2 * sin2;
     RealScalar s = numext::sin(xi);
-    RealScalar real_part = erm1 - RealScalar(2.) * er * sin2;
-    return std::complex<RealScalar>(real_part, er * s);
+    // exp(x) overflows where exp(x) cos(y) and exp(x) sin(y) need not; multiply exp(x / 2) in twice then.
+    if ((numext::isinf)(er) && (numext::isfinite)(xr)) {
+      const RealScalar h = numext::exp(xr / RealScalar(2));
+      return std::complex<RealScalar>((h * numext::cos(xi)) * h - RealScalar(1),
+                                      numext::is_exactly_zero(xi) ? xi : (h * s) * h);
+    }
+    // For x < 0 both terms of expm1(x) - 2 exp(x) sin(y / 2)^2 are <= 0, and the result is -1 exactly once exp(x) is
+    // negligible. For x >= 0, expm1(x) cos(y) - 2 sin(y / 2)^2 has the smaller terms, and no inf - inf at x = inf.
+    RealScalar real_part =
+        xr < RealScalar(0) ? erm1 - RealScalar(2.) * er * sin2 : erm1 * numext::cos(xi) - RealScalar(2.) * sin2;
+    // exp(x) * sin(0) is NaN for infinite exp(x); keep the exact zero instead.
+    return std::complex<RealScalar>(real_part, numext::is_exactly_zero(xi) ? xi : er * s);
   }
 };
 
