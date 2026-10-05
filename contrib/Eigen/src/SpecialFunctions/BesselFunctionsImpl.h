@@ -194,7 +194,9 @@ struct generic_i0 {
     // so we need to tell it not to.
     EIGEN_OPTIMIZATION_BARRIER(scaled)
 #endif
-    return pmul(half_exp, scaled);
+    // i0e(inf) = 0 would turn exp(inf) * i0e(inf) into NaN; i0(+-inf) = +inf.
+    const T inf = pset1<T>(NumTraits<ScalarType>::infinity());
+    return pselect(pcmp_eq(ax, inf), inf, pmul(half_exp, scaled));
   }
 };
 
@@ -353,7 +355,8 @@ struct generic_i1 {
     // Reassociating back to (exp(|x|/2) * exp(|x|/2)) * i1e(x) would reintroduce the overflow.
     EIGEN_OPTIMIZATION_BARRIER(scaled)
 #endif
-    return pmul(half_exp, scaled);
+    // i1(+-inf) = +-inf; the scaled product would be inf * 0 = NaN.
+    return pselect(pcmp_eq(ax, pset1<T>(NumTraits<ScalarType>::infinity())), x, pmul(half_exp, scaled));
   }
 };
 

@@ -258,6 +258,17 @@ void array_bessel_functions() {
     VERIFY_IS_EQUAL(numext::bessel_y1(Scalar(0)), -NumTraits<Scalar>::infinity());
     VERIFY((bessel_y1(zeros) == -NumTraits<Scalar>::infinity()).all());
   }
+
+  // i0(+-inf) = +inf and i1(+-inf) = +-inf, although i0e and i1e vanish there.
+  {
+    typedef typename ArrayType::Scalar Scalar;
+    const Scalar inf = NumTraits<Scalar>::infinity();
+    const ArrayType infs = ArrayType::Constant(8, inf);
+    VERIFY_IS_EQUAL(numext::bessel_i0(-inf), inf);
+    VERIFY_IS_EQUAL(numext::bessel_i1(-inf), -inf);
+    VERIFY((bessel_i0(infs) == inf).all() && (bessel_i0(-infs) == inf).all());
+    VERIFY((bessel_i1(infs) == inf).all() && (bessel_i1(-infs) == -inf).all());
+  }
 }
 
 // exp(|x|) overflows above |x| ~ 88.7228 (float) / ~709.7827 (double), while i0/i1 stay finite up to
