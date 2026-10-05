@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: The Eigen Authors
 // SPDX-License-Identifier: MPL-2.0
 
-// The Cauchy integral formula f(z) = (1/2 pi i) \oint f(w) / (w - z) dw
+// The Cauchy integral formula f(z) = (1/2 pi i) \int_{|w|=rho} f(w) / (w - z) dw
 // discretized: a function analytic in |z| < R is represented on the unit disk
 // by n point charges, r(z) = sum_j c_j / (z - w_j), on the circle |w| = rho
 // between 1 and R. Fitting r to f at n points z_i of the unit circle is a
