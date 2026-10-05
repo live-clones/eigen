@@ -250,6 +250,7 @@ void hyperplane_alignment() {
 
   VERIFY_IS_APPROX(p1->coeffs(), p2->coeffs());
   VERIFY_IS_APPROX(p1->coeffs(), p3->coeffs());
+  VERIFY(p1->isApprox(*p3) && p3->isApprox(*p1));
 }
 
 EIGEN_DECLARE_TEST(geo_hyperplane) {

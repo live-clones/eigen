@@ -264,7 +264,7 @@ class Hyperplane {
   EIGEN_DEVICE_FUNC bool isApprox(
       const Hyperplane<Scalar, AmbientDimAtCompileTime, OtherOptions>& other,
       const typename NumTraits<Scalar>::Real& prec = NumTraits<Scalar>::dummy_precision()) const {
-    return m_coeffs.isApprox(other.m_coeffs, prec);
+    return m_coeffs.isApprox(other.coeffs(), prec);
   }
 
   /** \returns \c true if \c *this and \a other describe approximately the same set of points,
