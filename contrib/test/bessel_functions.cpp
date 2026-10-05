@@ -250,6 +250,14 @@ void array_bessel_functions() {
 
     CALL_SUBTEST(res = bessel_y1(x); verify_component_wise(res, expected););
   }
+
+  // y1 has a pole at 0: y1(0) = -inf.
+  {
+    typedef typename ArrayType::Scalar Scalar;
+    const ArrayType zeros = ArrayType::Zero(8);
+    VERIFY_IS_EQUAL(numext::bessel_y1(Scalar(0)), -NumTraits<Scalar>::infinity());
+    VERIFY((bessel_y1(zeros) == -NumTraits<Scalar>::infinity()).all());
+  }
 }
 
 // exp(|x|) overflows above |x| ~ 88.7228 (float) / ~709.7827 (double), while i0/i1 stay finite up to

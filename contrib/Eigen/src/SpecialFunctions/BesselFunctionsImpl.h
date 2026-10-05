@@ -1440,7 +1440,7 @@ struct generic_y1<T, float> {
     T z = pmul(x, x);
     T x_le_two = pmul(psub(z, YO1), internal::ppolevl<T, 4>::run(z, YP));
     x_le_two = pmadd(x_le_two, x, pmul(TWOOPI, pmadd(generic_j1<T, float>::run(x), plog(x), pdiv(pset1<T>(-1.0f), x))));
-    x_le_two = pselect(pcmp_lt(x, pset1<T>(0.0f)), NEG_MAXNUM, x_le_two);
+    x_le_two = pselect(pcmp_le(x, pset1<T>(0.0f)), NEG_MAXNUM, x_le_two);
 
     T q = pdiv(pset1<T>(1.0), x);
     T w = prsqrt(x);
