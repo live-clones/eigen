@@ -361,6 +361,9 @@ void mapQuaternion(void) {
   VERIFY_IS_APPROX(q1.coeffs(), q2.coeffs());
   VERIFY_IS_APPROX(q1.coeffs(), q3.coeffs());
   VERIFY_IS_APPROX(q4.coeffs(), q3.coeffs());
+  VERIFY_IS_EQUAL(mq3.coeffsScalarFirst(), q3.coeffsScalarFirst());
+  VERIFY_IS_EQUAL(mcq3.coeffsScalarFirst(), q3.coeffsScalarFirst());
+  VERIFY_IS_EQUAL(mcq3.coeffsScalarLast(), q3.coeffsScalarLast());
 
   VERIFY_IS_APPROX(mq1 * (mq1.inverse() * v1), v1);
   VERIFY_IS_APPROX(mq1 * (mq1.conjugate() * v1), v1);

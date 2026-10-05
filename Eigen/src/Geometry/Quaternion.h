@@ -93,9 +93,7 @@ class QuaternionBase : public RotationBase<Derived, 3> {
    *
    * \sa QuaternionBase::coeffsScalarLast()
    * */
-  EIGEN_DEVICE_FUNC inline typename internal::traits<Derived>::Coefficients coeffsScalarFirst() const {
-    return derived().coeffsScalarFirst();
-  }
+  EIGEN_DEVICE_FUNC inline Matrix<Scalar, 4, 1> coeffsScalarFirst() const { return derived().coeffsScalarFirst(); }
 
   /** \returns a vector containing the coefficients in their original order [\c x, \c y, \c z, \c w].
    *
@@ -104,9 +102,7 @@ class QuaternionBase : public RotationBase<Derived, 3> {
    *
    * \sa QuaternionBase::coeffsScalarFirst()
    * */
-  EIGEN_DEVICE_FUNC inline typename internal::traits<Derived>::Coefficients coeffsScalarLast() const {
-    return derived().coeffsScalarLast();
-  }
+  EIGEN_DEVICE_FUNC inline Matrix<Scalar, 4, 1> coeffsScalarLast() const { return derived().coeffsScalarLast(); }
 
   /** \returns a vector expression of the coefficients (x,y,z,w) */
   EIGEN_DEVICE_FUNC inline typename internal::traits<Derived>::Coefficients& coeffs() { return derived().coeffs(); }
@@ -470,9 +466,9 @@ class Map<const Quaternion<Scalar_>, Options_> : public QuaternionBase<Map<const
 
   EIGEN_DEVICE_FUNC inline const Coefficients& coeffs() const { return m_coeffs; }
 
-  EIGEN_DEVICE_FUNC inline Coefficients coeffsScalarLast() const { return m_coeffs; }
+  EIGEN_DEVICE_FUNC inline Matrix<Scalar, 4, 1> coeffsScalarLast() const { return m_coeffs; }
 
-  EIGEN_DEVICE_FUNC inline Coefficients coeffsScalarFirst() const {
+  EIGEN_DEVICE_FUNC inline Matrix<Scalar, 4, 1> coeffsScalarFirst() const {
     return {m_coeffs.w(), m_coeffs.x(), m_coeffs.y(), m_coeffs.z()};
   }
 
@@ -512,9 +508,9 @@ class Map<Quaternion<Scalar_>, Options_> : public QuaternionBase<Map<Quaternion<
   EIGEN_DEVICE_FUNC inline Coefficients& coeffs() { return m_coeffs; }
   EIGEN_DEVICE_FUNC inline const Coefficients& coeffs() const { return m_coeffs; }
 
-  EIGEN_DEVICE_FUNC inline Coefficients coeffsScalarLast() const { return m_coeffs; }
+  EIGEN_DEVICE_FUNC inline Matrix<Scalar, 4, 1> coeffsScalarLast() const { return m_coeffs; }
 
-  EIGEN_DEVICE_FUNC inline Coefficients coeffsScalarFirst() const {
+  EIGEN_DEVICE_FUNC inline Matrix<Scalar, 4, 1> coeffsScalarFirst() const {
     return {m_coeffs.w(), m_coeffs.x(), m_coeffs.y(), m_coeffs.z()};
   }
 
