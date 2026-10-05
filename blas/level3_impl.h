@@ -348,6 +348,11 @@ EIGEN_BLAS_FUNC(trsm)
   if (info) return xerbla_(SCALAR_SUFFIX_UP "TRSM ", &info, kBlasNameLength);
 
   if (*m == 0 || *n == 0) return;
+  // When alpha is zero, A is not referenced and B need not be set on entry.
+  if (alpha == Scalar(0)) {
+    matrix(b, *m, *n, *ldb).setZero();
+    return;
+  }
 
   int code = OP(*opa) | (SIDE(*side) << 2) | (UPLO(*uplo) << 3) | (DIAG(*diag) << 4);
 
@@ -488,6 +493,11 @@ EIGEN_BLAS_FUNC(trmm)
   int code = OP(*opa) | (SIDE(*side) << 2) | (UPLO(*uplo) << 3) | (DIAG(*diag) << 4);
 
   if (*m == 0 || *n == 0) return;
+  // When alpha is zero, A is not referenced and B need not be set on entry.
+  if (alpha == Scalar(0)) {
+    matrix(b, *m, *n, *ldb).setZero();
+    return;
+  }
 
   // FIXME: find a way to avoid this copy
   Eigen::Matrix<Scalar, Dynamic, Dynamic, ColMajor> tmp = matrix(b, *m, *n, *ldb);
