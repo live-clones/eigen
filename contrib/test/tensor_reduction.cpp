@@ -52,6 +52,15 @@ static void test_trivial_reductions() {
       }
     }
   }
+
+  {
+    // A zero-size preserved dimension yields an empty result.
+    Tensor<float, 3, DataLayout> tensor(4, 0, 5);
+    array<ptrdiff_t, 1> reduction_axis{{0}};
+    Tensor<float, 2, DataLayout> result = tensor.sum(reduction_axis);
+    VERIFY_IS_EQUAL(result.dimension(0), 0);
+    VERIFY_IS_EQUAL(result.dimension(1), 5);
+  }
 }
 
 template <typename Scalar, int DataLayout>

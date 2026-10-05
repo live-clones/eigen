@@ -673,13 +673,13 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
         m_outputStrides[0] = 1;
         for (int i = 1; i < NumOutputDims; ++i) {
           m_outputStrides[i] = m_outputStrides[i - 1] * m_dimensions[i - 1];
-          m_fastOutputStrides[i] = internal::TensorIntDivisor<Index>(m_outputStrides[i]);
+          m_fastOutputStrides[i] = internal::TensorIntDivisor<Index>(m_outputStrides[i] > 0 ? m_outputStrides[i] : 1);
         }
       } else {
         m_outputStrides[static_cast<size_t>(NumOutputDims - 1)] = 1;
         for (int i = NumOutputDims - 2; i >= 0; --i) {
           m_outputStrides[i] = m_outputStrides[i + 1] * m_dimensions[i + 1];
-          m_fastOutputStrides[i] = internal::TensorIntDivisor<Index>(m_outputStrides[i]);
+          m_fastOutputStrides[i] = internal::TensorIntDivisor<Index>(m_outputStrides[i] > 0 ? m_outputStrides[i] : 1);
         }
       }
     }
