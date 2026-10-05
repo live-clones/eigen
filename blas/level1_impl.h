@@ -21,11 +21,11 @@ EIGEN_BLAS_FUNC(axpy)
 
   if (*incx == 1 && *incy == 1)
     make_vector(y, *n) += alpha * make_vector(x, *n);
-  else if (*incx > 0 && *incy > 0)
+  else if (*incx >= 0 && *incy >= 0)
     make_vector(y, *n, *incy) += alpha * make_vector(x, *n, *incx);
-  else if (*incx > 0 && *incy < 0)
+  else if (*incx >= 0 && *incy < 0)
     make_vector(y, *n, -*incy) += alpha * make_vector(x, *n, *incx).reverse();
-  else if (*incx < 0 && *incy > 0)
+  else if (*incx < 0 && *incy >= 0)
     make_vector(y, *n, *incy) += alpha * make_vector(x, *n, -*incx).reverse();
   else if (*incx < 0 && *incy < 0)
     make_vector(y, *n, -*incy) += alpha * make_vector(x, *n, -*incx);
