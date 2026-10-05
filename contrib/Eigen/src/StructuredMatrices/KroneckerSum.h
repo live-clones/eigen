@@ -147,11 +147,12 @@ class kron_factor_solver<KroneckerSum<LhsMatrix, RhsMatrix>, kKronSumFactor> {
   DenseMatrix solveLeft(const Xpr& M) const {
     return m_solver.solve(M);
   }
-  // M S^{-T} = (S^{-1} M^T)^T.
+  // X = M S^{-T} solves S X^T = M^T, written through a transposed view of X.
   template <typename Xpr>
   DenseMatrix solveTransposedRight(const Xpr& M) const {
-    const DenseMatrix Xt = m_solver.solve(M.transpose());
-    return Xt.transpose();
+    DenseMatrix X(M.rows(), M.cols());
+    X.transpose() = m_solver.solve(M.transpose());
+    return X;
   }
 
  private:
@@ -296,7 +297,7 @@ class KroneckerSum : public EigenBase<KroneckerSum<LhsMatrix, RhsMatrix>> {
    * (recursively for a Kronecker-sum factor). The set is not sorted. */
   ComplexVector eigenvalues() const {
     const ComplexVector lambda = factorEigenvalues(m_A), mu = factorEigenvalues(m_B);
-    return (mu.replicate(1, lambda.size()) + lambda.transpose().replicate(mu.size(), 1)).reshaped();
+    return (mu.replicate(fix<1>, lambda.size()) + lambda.transpose().replicate(mu.size(), fix<1>)).reshaped();
   }
 
   /** \returns the product expression \c (*this) * \a x, evaluated through
@@ -400,11 +401,11 @@ class KroneckerSum : public EigenBase<KroneckerSum<LhsMatrix, RhsMatrix>> {
     const IndexVector nnzA = VisitedLhsOps::innerNonZeros(A, Dest::IsRowMajor);
     const IndexVector nnzB = VisitedRhsOps::innerNonZeros(B, Dest::IsRowMajor);
     Dest SA(rows(), cols()), SB(rows(), cols());
-    SA.reserve(IndexVector(nnzA.transpose().replicate(n2, 1).reshaped()));
+    SA.reserve(IndexVector(nnzA.transpose().replicate(n2, fix<1>).reshaped()));
     VisitedLhsOps::forEachNonZero(A, [&SA, n2](Index i, Index j, const Scalar& a) {
       for (Index k = 0; k < n2; ++k) SA.insert(i * n2 + k, j * n2 + k) = a;
     });
-    SB.reserve(IndexVector(nnzB.replicate(n1, 1)));
+    SB.reserve(IndexVector(nnzB.replicate(n1, fix<1>)));
     for (Index k = 0; k < n1; ++k)
       VisitedRhsOps::forEachNonZero(
           B, [&SB, n2, k](Index i, Index j, const Scalar& b) { SB.insert(k * n2 + i, k * n2 + j) = b; });
@@ -546,8 +547,8 @@ class BartelsStewart : public SolverBase<BartelsStewart<KroneckerSumType>> {
         // Kronecker order: the new factor's index runs fastest.
         const RealVector& lambda = es.eigenvalues();
         const RealVector previous = m_spectrum;
-        m_spectrum =
-            (lambda.replicate(1, previous.size()) + previous.transpose().replicate(lambda.size(), 1)).reshaped();
+        m_spectrum = (lambda.replicate(fix<1>, previous.size()) + previous.transpose().replicate(lambda.size(), fix<1>))
+                         .reshaped();
       }
     } else {
       ComplexSchur<ComplexMatrix> schur;
@@ -591,7 +592,6 @@ class BartelsStewart : public SolverBase<BartelsStewart<KroneckerSumType>> {
   void _solve_impl(const RhsType& rhs, DstType& dst) const {
     if (m_info != Success) {
       // No usable decompositions; the nested solves never see info().
-      dst.resize(rhs.rows(), rhs.cols());
       dst.setConstant(Scalar(NumTraits<RealScalar>::quiet_NaN()));
       return;
     }

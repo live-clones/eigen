@@ -316,6 +316,14 @@ void test_ksum_solve(Index n1, Index n2) {
   VERIFY((Vec(makeKroneckerSum(Hbad, H2).solve(b)).array().isNaN()).all());
   const Vec bn = Vec::Random(n2 * n1 * n2);
   VERIFY(!Vec(makeKroneckerOperator(Mat::Identity(n2, n2), makeKroneckerSum(Abad, B)).solve(bn)).allFinite());
+
+  // A sum as the left KroneckerOperator factor is solved from the right,
+  // M (A (+) B)^{-T}, on either path.
+  const Mat refSB = reference_kron<Scalar>(reference_ksum<Scalar>(A, B), B);
+  VERIFY_IS_APPROX((refSB * makeKroneckerOperator(makeKroneckerSum(A, B), B).solve(bn)).eval(), bn);
+  const Mat refHB = reference_kron<Scalar>(reference_ksum<Scalar>(H1, H2), B);
+  VERIFY_IS_APPROX((refHB * makeKroneckerOperator(makeKroneckerSum(H1, H2), B).solve(bn)).eval(), bn);
+  VERIFY((Vec(makeKroneckerOperator(makeKroneckerSum(Abad, B), B).solve(bn)).array().isNaN()).all());
 }
 
 // The fast path is gated on exact Hermitian symmetry: complex symmetric
