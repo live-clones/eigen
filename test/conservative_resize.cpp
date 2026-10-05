@@ -102,6 +102,13 @@ void run_vector_tests() {
     m.conservativeResizeLike(Matrix<Scalar, Dynamic, Dynamic>::Zero(1, size));
     VERIFY_IS_APPROX(m.segment(0, 50), n);
     VERIFY(size <= 50 || m.segment(50, size - 50).sum() == Scalar(0));
+
+    // A column vector of the same size: the row vector stays a row vector.
+    m = n = VectorType::Random(50);
+    m.conservativeResizeLike(Matrix<Scalar, Dynamic, 1>::Zero(size));
+    VERIFY_IS_EQUAL(m.size(), Index(size));
+    VERIFY_IS_APPROX(m.segment(0, 50), n);
+    VERIFY(size <= 50 || m.segment(50, size - 50).sum() == Scalar(0));
   }
 }
 

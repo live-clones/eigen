@@ -996,8 +996,8 @@ struct conservative_resize_like_impl<Derived, OtherDerived, true>
 
     const Index num_new_elements = other.size() - _this.size();
 
-    const Index new_rows = Derived::RowsAtCompileTime == 1 ? 1 : other.rows();
-    const Index new_cols = Derived::RowsAtCompileTime == 1 ? other.cols() : 1;
+    const Index new_rows = Derived::RowsAtCompileTime == 1 ? 1 : other.size();
+    const Index new_cols = Derived::RowsAtCompileTime == 1 ? other.size() : 1;
     EIGEN_IF_CONSTEXPR (IsRelocatable)
       _this.derived().m_storage.conservativeResize(other.size(), new_rows, new_cols);
     else
