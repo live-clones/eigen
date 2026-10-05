@@ -509,8 +509,10 @@ EIGEN_DEVICE_FUNC inline Scalar log1p(const Scalar& x) {
   Scalar x1p = RealScalar(1) + x;
   Scalar log_1p = log_impl<Scalar>::run(x1p);
   const bool is_small = numext::equal_strict(x1p, Scalar(1));
-  const bool is_inf = numext::equal_strict(x1p, log_1p);
-  return (is_small || is_inf) ? x : x * (log_1p / (x1p - RealScalar(1)));
+  // The correction below is 0 * inf or inf / inf once log(1 + x) is not finite; that log is the answer then.
+  EIGEN_USING_STD(isfinite);
+  if (!((isfinite)(numext::real(log_1p)) && (isfinite)(numext::imag(log_1p)))) return log_1p;
+  return is_small ? x : x * (log_1p / (x1p - RealScalar(1)));
 }
 }  // namespace std_fallback
 

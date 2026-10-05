@@ -1108,6 +1108,11 @@ void array_complex(const ArrayType& m) {
 #endif
     VERIFY(e0.real() == inf && e0.imag() == RealScalar(0));
     VERIFY(e1.real() == -inf && e1.imag() == -inf);
+    // log1p where log(1 + z) is not finite: (inf, 0) and (-inf, 0), not NaN.
+    const Scalar l0 = numext::log1p(Scalar(inf, RealScalar(1)));
+    const Scalar l1 = numext::log1p(Scalar(RealScalar(-1), RealScalar(0)));
+    VERIFY(l0.real() == inf && l0.imag() == RealScalar(0));
+    VERIFY(l1.real() == -inf && l1.imag() == RealScalar(0));
   }
 
   for (Index i = 0; i < m.rows(); ++i)
