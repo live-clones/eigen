@@ -410,6 +410,15 @@ void linspaced_integer_divisor() {
     VecI v = VecI::LinSpaced(1, 3, 7);
     VERIFY_IS_EQUAL(v(0), 7);
   }
+
+  // More steps than a narrow Scalar can count: num_steps and the index i do not fit in uint8_t.
+  {
+    using VecU8 = Matrix<uint8_t, Dynamic, 1>;
+    VecU8 v = VecU8::LinSpaced(300, 0, 10);
+    VERIFY_IS_EQUAL(v(0), uint8_t(0));
+    VERIFY_IS_EQUAL(v(299), uint8_t(10));
+    for (Index k = 1; k < 300; ++k) VERIFY(v(k) >= v(k - 1) && v(k) <= v(k - 1) + 1);
+  }
 }
 
 EIGEN_DECLARE_TEST(nullary) {
