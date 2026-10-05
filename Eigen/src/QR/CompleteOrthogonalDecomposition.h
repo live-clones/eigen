@@ -113,7 +113,7 @@ class CompleteOrthogonalDecompositionImpl
 
   MatrixType matrixZ() const {
     MatrixType Z = MatrixType::Identity(m_cpqr.cols(), m_cpqr.cols());
-    applyZOnTheLeftInPlace<false>(Z);
+    if (rank() < cols()) applyZOnTheLeftInPlace<false>(Z);
     return Z;
   }
 

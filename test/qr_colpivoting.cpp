@@ -59,6 +59,13 @@ void cod() {
   MatrixType pinv = cod.pseudoInverse();
   VERIFY_IS_APPROX(cod_solution, pinv * rhs);
 
+  // Z is the identity at full column rank, also when reusing a rank-deficient decomposition of the same shape.
+  MatrixType deficient;
+  createRandomPIMatrixOfRank(cols - 1, cols, cols, deficient);
+  CompleteOrthogonalDecomposition<MatrixType> cod3(deficient);
+  cod3.compute(MatrixType::Identity(cols, cols));
+  VERIFY_IS_APPROX(MatrixType(cod3.matrixZ()), MatrixType::Identity(cols, cols));
+
   // now construct a (square) matrix with prescribed determinant
   Index size = internal::random<Index>(2, 20);
   matrix.setZero(size, size);
