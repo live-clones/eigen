@@ -229,6 +229,12 @@ struct general_product_to_triangular_selector<MatrixType, ProductType, UpLo, tru
 
     if (!beta) mat.template triangularView<UpLo>().setZero();
 
+    // The rank-1 kernel below addresses mat with a unit inner stride.
+    if (MatrixType::InnerStrideAtCompileTime != 1 && mat.innerStride() != 1) {
+      mat.template triangularView<UpLo>() += typename ProductType::PlainObject(alpha * prod);
+      return;
+    }
+
     enum {
       StorageOrder = (internal::traits<MatrixType>::Flags & RowMajorBit) ? RowMajor : ColMajor,
       UseLhsDirectly = ActualLhs_::InnerStrideAtCompileTime == 1,

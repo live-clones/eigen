@@ -150,6 +150,19 @@ void syrk(const MatrixType& m) {
     buffer.setZero();
     VERIFY_IS_APPROX((map1.template selfadjointView<Lower>().rankUpdate(rhs2, s1)._expression()),
                      ((s1 * rhs2 * rhs2.adjoint()).eval().template triangularView<Lower>().toDenseMatrix()));
+    buffer.setZero();
+    VERIFY_IS_APPROX(
+        (map1.template selfadjointView<Upper>().rankUpdate(rhs2.col(0), s1)._expression()),
+        ((s1 * rhs2.col(0) * rhs2.col(0).adjoint()).eval().template triangularView<Upper>().toDenseMatrix()));
+    buffer.setZero();
+    VERIFY_IS_APPROX(
+        (map1.template selfadjointView<Lower>().rankUpdate(rhs2.col(0).transpose(), s1)._expression()),
+        ((s1 * rhs2.col(0) * rhs2.col(0).adjoint()).eval().template triangularView<Lower>().toDenseMatrix()));
+    buffer.setZero();
+    map1.template triangularView<Lower>() = s1 * rhs2.col(0) * rhs22.col(0).adjoint();
+    VERIFY_IS_APPROX(
+        map1, (s1 * rhs2.col(0) * rhs22.col(0).adjoint()).eval().template triangularView<Lower>().toDenseMatrix());
+    VERIFY(buffer.row(1).isZero());
   }
 
   // outer products into a strictly triangular part
