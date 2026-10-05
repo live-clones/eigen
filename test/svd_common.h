@@ -382,6 +382,12 @@ void svd_inf_nan() {
   m << 1, 0, 0, 0, 0, 3, 1, min, 1, 0, 1, nan, 0, nan, nan, 0;
   svd.compute(m);
   VERIFY(svd.info() == InvalidInput);
+
+  // A valid recompute of the same shape must not keep reporting the previous failure.
+  m.setIdentity();
+  svd.compute(m);
+  VERIFY(svd.info() == Success);
+  VERIFY_IS_APPROX(svd.singularValues(), MatrixType::Ones(4, 1));
 }
 
 template <typename Scalar>
