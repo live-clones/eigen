@@ -1913,6 +1913,12 @@ void packetmath_notcomplex() {
   for (int i = 0; i < PacketSize; ++i) ref[i] = data1[0] + Scalar(i);
   internal::pstore(data2, internal::plset<Packet>(data1[0]));
   VERIFY(test::areApprox(ref, data2, PacketSize) && "internal::plset");
+  if (NumTraits<Scalar>::IsInteger && NumTraits<Scalar>::IsSigned) {
+    // The carry out of the low 32 bits must reach the high bits of 64-bit lanes.
+    for (int i = 0; i < PacketSize; ++i) ref[i] = Scalar(-1) + Scalar(i);
+    internal::pstore(data2, internal::plset<Packet>(Scalar(-1)));
+    VERIFY(test::areApprox(ref, data2, PacketSize) && "internal::plset(-1)");
+  }
 
   {
     unsigned char* data1_bits = reinterpret_cast<unsigned char*>(data1);
