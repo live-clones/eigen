@@ -457,6 +457,7 @@ void MatrixPower<MatrixType>::compute(ResultType& res, RealScalar p) {
     case 0:
       break;
     case 1:
+      res.resize(1, 1);
       res(0, 0) = pow(m_A.coeff(0, 0), p);
       break;
     default:

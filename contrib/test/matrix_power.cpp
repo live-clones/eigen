@@ -146,6 +146,13 @@ void testSingularTrailingZero() {
   VERIFY_IS_APPROX(A.pow(0.5), A);
 }
 
+// MatrixPower::compute() did not size the result for a 1x1 base.
+void testComputeOneByOne() {
+  MatrixXd a = MatrixXd::Constant(1, 1, 4), r;
+  MatrixPower<MatrixXd>(a).compute(r, 0.5);
+  VERIFY_IS_APPROX(r, MatrixXd::Constant(1, 1, 2));
+}
+
 template <typename MatrixType>
 void testLogThenExp(const MatrixType& m_const, const typename MatrixType::RealScalar& tol) {
   // we need to pass by reference in order to prevent errors with
@@ -206,6 +213,7 @@ EIGEN_DECLARE_TEST(matrix_power) {
   CALL_SUBTEST_7(testSingular(Matrix3dRowMajor(), 512 * NumTraits<double>::epsilon()));
   CALL_SUBTEST_3(testSingular(Matrix4cd(), 8 * NumTraits<std::complex<double>>::epsilon()));
   CALL_SUBTEST_4(testSingular(MatrixXd(8, 8), 128 * NumTraits<double>::epsilon()));
+  CALL_SUBTEST_4(testComputeOneByOne());
   CALL_SUBTEST_1(testSingular(Matrix2f(), 8 * NumTraits<float>::epsilon()));
   CALL_SUBTEST_5(testSingular(Matrix3cf(), 8 * NumTraits<std::complex<float>>::epsilon()));
   CALL_SUBTEST_8(testSingular(Matrix4f(), 256 * NumTraits<float>::epsilon()));
