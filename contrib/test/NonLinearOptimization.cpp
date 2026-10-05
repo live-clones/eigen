@@ -438,6 +438,21 @@ void testLmstr() {
   VERIFY_IS_APPROX(x, x_ref);
 }
 
+// The first lmstr step scales by the column norms of R, which equal those of the Jacobian (MINPACK).
+void testLmstrScaling() {
+  lmstr_functor functor;
+  VectorXd x = VectorXd::Ones(3), row(3);
+  MatrixXd jac(15, 3);
+  for (int i = 0; i < 15; ++i) {
+    functor.df(x, row, i + 2);
+    jac.row(i) = row.transpose();
+  }
+  LevenbergMarquardt<lmstr_functor> lm(functor);
+  lm.minimizeOptimumStorageInit(x);
+  lm.minimizeOptimumStorageOneStep(x);
+  VERIFY_IS_APPROX(lm.diag, VectorXd(jac.colwise().norm().transpose()));
+}
+
 void testLmdif1() {
   const int n = 3;
   int info;
@@ -1255,6 +1270,7 @@ EIGEN_DECLARE_TEST(NonLinearOptimization) {
   CALL_SUBTEST /*_2*/ (testHybrd());
   CALL_SUBTEST /*_3*/ (testLmstr1());
   CALL_SUBTEST /*_3*/ (testLmstr());
+  CALL_SUBTEST /*_3*/ (testLmstrScaling());
   CALL_SUBTEST /*_3*/ (testLmdif1());
   CALL_SUBTEST /*_3*/ (testLmdif());
 
