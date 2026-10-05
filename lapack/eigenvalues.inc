@@ -60,7 +60,7 @@ EIGEN_LAPACK_FUNC(syev)
   if (eig.info() == Eigen::NoConvergence) {
     make_vector(w, *n).setZero();
     if (computeVectors) matrix(a, *n, *n, *lda).setIdentity();
-    //*info = 1;
+    *info = 1;
     return;
   }
 
