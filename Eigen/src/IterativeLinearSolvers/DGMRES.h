@@ -405,12 +405,15 @@ inline typename DGMRES<MatrixType_, Preconditioner_>::ComplexVector DGMRES<Matri
       eig(j) = ComplexScalar(T(j, j), RealScalar(0));
       j++;
     } else {
-      eig(j) = ComplexScalar(T(j, j), T(j + 1, j));
-      eig(j + 1) = ComplexScalar(T(j, j + 1), T(j + 1, j + 1));
-      j++;
+      // Complex pair of the 2x2 block, computed as in EigenSolver.
+      RealScalar p = RealScalar(0.5) * (T(j, j) - T(j + 1, j + 1));
+      RealScalar z = numext::sqrt(numext::abs(p * p + T(j + 1, j) * T(j, j + 1)));
+      eig(j) = ComplexScalar(T(j + 1, j + 1) + p, z);
+      eig(j + 1) = ComplexScalar(T(j + 1, j + 1) + p, -z);
+      j += 2;
     }
   }
-  if (j < it - 1) eig(j) = ComplexScalar(T(j, j), RealScalar(0));
+  if (j == it - 1) eig(j) = ComplexScalar(T(j, j), RealScalar(0));
   return eig;
 }
 
