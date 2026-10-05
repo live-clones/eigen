@@ -167,6 +167,23 @@ void check_inner_panel_compressed_api() {
       [](auto& xpr, auto& matrix, int variant) { verify_inner_vector_reverse_and_sortedness(xpr, matrix, variant); });
 }
 
+// A compile-time 1x1 block, e.g. v.row(i) of a sparse column vector, must read coefficient (i, j).
+void check_one_by_one_blocks() {
+  SparseVector<double> v(5);
+  v.insert(0) = 1;
+  v.insert(3) = 3;
+  SparseMatrix<double> A(3, 4);
+  A.insert(0, 2) = 7;
+  A.insert(1, 1) = 4;
+  const SparseMatrix<double, RowMajor> B = A;
+  for (Index i = 0; i < 5; ++i) VERIFY_IS_EQUAL(MatrixXd(v.row(i))(0, 0), v.coeff(i));
+  for (Index i = 0; i < 3; ++i)
+    for (Index j = 0; j < 4; ++j) {
+      VERIFY_IS_EQUAL(MatrixXd(A.row(i).col(j))(0, 0), A.coeff(i, j));
+      VERIFY_IS_EQUAL(MatrixXd(B.col(j).row(i))(0, 0), A.coeff(i, j));
+    }
+}
+
 // Assigning an inner panel of a matrix to another inner panel of the same matrix.
 void check_aliased_inner_panel_assignment() {
   SparseMatrix<double> A(5, 5);
@@ -459,6 +476,7 @@ EIGEN_DECLARE_TEST(sparse_block) {
     }
     EIGEN_UNUSED_VARIABLE(r + c);
     CALL_SUBTEST_1((sparse_block(SparseMatrix<double>(1, 1))));
+    CALL_SUBTEST_1(check_one_by_one_blocks());
     CALL_SUBTEST_1(check_aliased_inner_panel_assignment());
     CALL_SUBTEST_1((sparse_block(SparseMatrix<double>(8, 8))));
     CALL_SUBTEST_1((sparse_block(SparseMatrix<double>(r, c))));

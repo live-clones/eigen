@@ -503,8 +503,8 @@ class unary_evaluator<Block<ArgType, BlockRows, BlockCols, InnerPanel>, Iterator
 
 template <typename ArgType, int BlockRows, int BlockCols, bool InnerPanel>
 class unary_evaluator<Block<ArgType, BlockRows, BlockCols, InnerPanel>, IteratorBased>::OuterVectorInnerIterator {
-  // NOTE see above
-  enum { XprIsRowMajor = unary_evaluator::IsRowMajor };
+  // NOTE see above. The block crosses the outer vectors of ArgType; a 1x1 block's own flag is ArgType's.
+  enum { XprIsRowMajor = int(ArgType::IsRowMajor) == 0 };
   const unary_evaluator& m_eval;
   Index m_outerPos;
   const Index m_innerIndex;
