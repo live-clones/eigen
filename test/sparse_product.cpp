@@ -912,6 +912,18 @@ void test_pruned_product_row_vector() {
 }
 
 template <typename = void>
+void test_sparse_product_mul_assign() {
+  SparseMatrix<double> A(3, 3), B(3, 3);
+  A.insert(0, 1) = 2;
+  A.insert(2, 2) = 3;
+  B.insert(1, 0) = 5;
+  B.insert(2, 1) = 7;
+  const MatrixXd ref = A.toDense() * B.toDense();
+  A *= B;
+  VERIFY_IS_APPROX(MatrixXd(A.toDense()), ref);
+}
+
+template <typename = void>
 void test_sparse_vector_dense_product() {
   SparseVector<double> sv(3);
   sv.insert(0) = 1.0;
@@ -930,6 +942,7 @@ EIGEN_DECLARE_TEST(sparse_product) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1((test_sparse_vector_dense_product<>()));
     CALL_SUBTEST_1((test_pruned_product_row_vector<>()));
+    CALL_SUBTEST_1((test_sparse_product_mul_assign<>()));
     CALL_SUBTEST_1((sparse_product<SparseMatrix<double, ColMajor>>()));
     CALL_SUBTEST_1((sparse_product<SparseMatrix<double, RowMajor>>()));
     CALL_SUBTEST_1((bug_942<double>()));
