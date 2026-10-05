@@ -97,6 +97,9 @@ void cod_fixedsize() {
   VERIFY(cod.isSurjective() == (rank == Cols));
   VERIFY(cod.isInvertible() == (cod.isInjective() && cod.isSurjective()));
 
+  Matrix<Scalar, Cols, Cols> z = cod.matrixZ();
+  VERIFY_IS_UNITARY(z);
+
   check_solverbase<Matrix<Scalar, Cols, Cols2>, Matrix<Scalar, Rows, Cols2> >(matrix, cod, Rows, Cols, Cols2);
 
   // Verify that we get the same minimum-norm solution as the SVD.
