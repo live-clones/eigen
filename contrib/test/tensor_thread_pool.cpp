@@ -853,6 +853,18 @@ void test_multithread_forced_eval_non_pod() {
 }
 
 template <typename = void>
+void test_enqueue_with_args() {
+  Eigen::ThreadPool tp(2);
+  Eigen::ThreadPoolDevice thread_pool_device(&tp, 2);
+  Eigen::Barrier barrier(2);
+  std::atomic<int> sum(0);
+  thread_pool_device.enqueue([&sum](Eigen::Barrier* b, int x) { sum += x, b->Notify(); }, &barrier, 3);
+  thread_pool_device.enqueueNoNotification([&sum](Eigen::Barrier* b) { sum += 4, b->Notify(); }, &barrier);
+  barrier.Wait();
+  VERIFY_IS_EQUAL(sum.load(), 7);
+}
+
+template <typename = void>
 void test_multithread_random() {
   Eigen::ThreadPool tp(2);
   Eigen::ThreadPoolDevice device(&tp, 2);
@@ -1209,6 +1221,7 @@ EIGEN_DECLARE_TEST(tensor_thread_pool) {
   CALL_SUBTEST_12(test_memcpy<>());
   CALL_SUBTEST_12(test_multithread_random<>());
   CALL_SUBTEST_12(test_multithread_forced_eval_non_pod<>());
+  CALL_SUBTEST_12(test_enqueue_with_args<>());
 
   TestAllocator test_allocator;
   CALL_SUBTEST_13(test_multithread_shuffle<ColMajor>(nullptr));
