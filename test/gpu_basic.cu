@@ -643,6 +643,29 @@ void test_float_nan_minmax() {
 #endif
 }
 
+// Eigen::half != is true when either operand is NaN, on the device as on the host.
+struct half_nan_not_equal_test {
+  EIGEN_DEVICE_FUNC void operator()(int i, const float* in, float* out) const {
+    EIGEN_UNUSED_VARIABLE(i);
+    const Eigen::half nan(in[0]), one(in[1]);
+    out[0] = float(nan != nan);
+    out[1] = float(nan != one);
+    out[2] = float(one != nan);
+    out[3] = float(one != one);
+  }
+};
+
+void test_half_nan_not_equal() {
+  Eigen::ArrayXf in(2), out_ref(4), out_gpu(4);
+  in << std::numeric_limits<float>::quiet_NaN(), 1.f;
+  run_on_cpu(half_nan_not_equal_test(), 1, in, out_ref);
+  run_on_gpu(half_nan_not_equal_test(), 1, in, out_gpu);
+#if !defined(EIGEN_GPU_COMPILE_PHASE)
+  VERIFY_IS_CWISE_EQUAL(out_gpu, Eigen::Array4f(1.f, 1.f, 1.f, 0.f));
+  VERIFY_IS_CWISE_EQUAL(out_ref, out_gpu);
+#endif
+}
+
 template <typename Type1, typename Type2>
 bool verifyIsApproxWithInfsNans(const Type1& a, const Type2& b,
                                 typename Type1::Scalar* = 0)  // Enabled for Eigen's type only
@@ -849,6 +872,7 @@ EIGEN_DECLARE_TEST(gpu_basic) {
 
   CALL_SUBTEST(test_custom_less_scalar_minmax());
   CALL_SUBTEST(test_float_nan_minmax());
+  CALL_SUBTEST(test_half_nan_not_equal());
 
   // `preverse` on every GPU packet type. 32 elements cover several packets of
   // each, including `Packet4h2`, the widest at 8.
