@@ -11,6 +11,7 @@
 // fill-in of a sparse LU of the N x N matrix.
 
 #include <benchmark/benchmark.h>
+#include <Eigen/Eigenvalues>
 #include <Eigen/Sparse>
 #include <Eigen/SparseLU>
 #include <contrib/Eigen/StructuredMatrices>
@@ -213,3 +214,27 @@ static void BM_KroneckerSumAssembleIdentityKron(benchmark::State& state) {
   }
 }
 BENCHMARK(BM_KroneckerSumAssembleIdentityKron)->Arg(32)->Arg(64)->Arg(96);
+
+// --- Spectrum of I_2 (x) (A (+) B) with nonsymmetric tridiagonal n x n A, B ---
+// One n x n eigenvalue solve per factor of the sum, against the dense
+// eigenvalue solve of the materialized n^2 x n^2 sum.
+static void BM_KroneckerSumFactorEigenvalues(benchmark::State& state) {
+  const Index n = state.range(0);
+  const auto K = makeKroneckerOperator(MatrixXd::Identity(2, 2),
+                                       makeKroneckerSum(MatrixXd(tridiagonal(n, 0.5)), MatrixXd(tridiagonal(n, 0.3))));
+  for (auto _ : state) {
+    VectorXcd lambda = K.eigenvalues();
+    benchmark::DoNotOptimize(lambda.data());
+  }
+}
+BENCHMARK(BM_KroneckerSumFactorEigenvalues)->Arg(16)->Arg(24);
+
+static void BM_KroneckerSumFactorEigenvaluesMaterialized(benchmark::State& state) {
+  const Index n = state.range(0);
+  const MatrixXcd S = MatrixXd(makeKroneckerSum(tridiagonal(n, 0.5), tridiagonal(n, 0.3))).cast<std::complex<double>>();
+  for (auto _ : state) {
+    ComplexEigenSolver<MatrixXcd> es(S, /*computeEigenvectors=*/false);
+    benchmark::DoNotOptimize(es.eigenvalues().data());
+  }
+}
+BENCHMARK(BM_KroneckerSumFactorEigenvaluesMaterialized)->Arg(16)->Arg(24);

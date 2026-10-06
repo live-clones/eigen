@@ -698,7 +698,8 @@ class kron_factor_solver<KroneckerOperator<LhsMatrix, RhsMatrix>, kKronKronecker
  * nested Kronecker factor, which recurses into its own factors -- O(n_L^3 +
  * n_R^3) instead of O((n_L n_R)^3), and the eigenvalues of defective factors
  * keep the sensitivity of the factors' Jordan blocks instead of the longer
- * blocks of their product. */
+ * blocks of their product. A Kronecker-sum factor recurses the same way for
+ * its eigenpairs, see KroneckerSum.h. */
 template <typename Factor, int Kind = kron_factor_kind<Factor>()>
 struct kron_factor_spectrum {
   using Ops = kron_factor_ops<Factor>;
@@ -1112,7 +1113,8 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
    * accumulated from the factor LU diagonals (the \c SparseLU pivots for a
    * sparse factor, the diagonal itself for a diagonal factor, skipping the LU;
    * 1 for an identity; recursively for a nested Kronecker factor, whose own
-   * factors must then be square) in the balanced form \c m * 2^e --
+   * factors must then be square; the LU of the materialized matrix for a
+   * \ref KroneckerSum factor) in the balanced form \c m * 2^e --
    * every factor and the running product are renormalized to unit magnitude
    * with the power of two tracked separately -- so the partial products (in
    * particular \c det(A) and \c det(B) themselves, which can overflow or
@@ -1130,7 +1132,10 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
    * \c i*n2 + j is \f$ \lambda_i(A)\,\mu_j(B) \f$, matching column \c i*n2 + j of
    * \ref eigenvectors. The set is not sorted -- there is no canonical eigenvalue
    * order, and sorting would break the Kronecker structure of the eigenvector
-   * matrix. */
+   * matrix. A nested Kronecker or \ref KroneckerSum factor contributes the
+   * eigenvalues of its own factors -- the factors of every nested Kronecker
+   * product must then be square -- with the accuracy
+   * KroneckerSum::eigenvalues() describes for a sum. */
   ComplexVector eigenvalues() const {
     eigen_assert(m_A.rows() == m_A.cols() && m_B.rows() == m_B.cols() &&
                  "KroneckerOperator::eigenvalues requires square factors");

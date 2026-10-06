@@ -349,6 +349,7 @@ void test_ksum_eigenvalues(Index n1, Index n2) {
   using Complex = std::complex<RealScalar>;
   using Mat = Matrix<Scalar, Dynamic, Dynamic>;
   using CMat = Matrix<Complex, Dynamic, Dynamic>;
+  using ColMajorCMat = Matrix<Complex, Dynamic, Dynamic, ColMajor>;
   using CVec = Matrix<Complex, Dynamic, 1>;
   using RealVec = Matrix<RealScalar, Dynamic, 1>;
 
@@ -376,9 +377,62 @@ void test_ksum_eigenvalues(Index n1, Index n2) {
   const Mat A = Mat::Random(n1, n1), B = Mat::Random(n2, n2);
   const CVec a = ComplexEigenSolver<CMat>(A.template cast<Complex>(), false).eigenvalues();
   const CVec c = ComplexEigenSolver<CMat>(B.template cast<Complex>(), false).eigenvalues();
-  const CVec mu = makeKroneckerSum(A, B).eigenvalues();
+  const auto K2 = makeKroneckerSum(A, B);
+  const CVec mu = K2.eigenvalues();
   for (Index i1 = 0; i1 < n1; ++i1)
     for (Index i2 = 0; i2 < n2; ++i2) VERIFY_IS_EQUAL(mu[i1 * n2 + i2], a[i1] + c[i2]);
+
+  // The eigenvectors V_A (x) V_B stay a KroneckerOperator, column for column
+  // with the eigenvalues.
+  STATIC_CHECK((std::is_same<decltype(K2.eigenvectors()), KroneckerOperator<ColMajorCMat, ColMajorCMat>>::value));
+  const CMat V = K2.eigenvectors();
+  const CMat ref2 = reference_ksum<Scalar>(A, B).template cast<Complex>();
+  VERIFY_IS_APPROX((ref2 * V).eval(), (V * mu.asDiagonal()).eval());
+
+  // A nested sum's eigenvectors nest the same way, V_A (x) (V_B (x) V_A), through
+  // the repeated sums a[i1] + c[i2] + a[i3] = a[i3] + c[i2] + a[i1].
+  const auto K3 = makeKroneckerSum(A, makeKroneckerSum(B, A));
+  STATIC_CHECK((std::is_same<decltype(K3.eigenvectors()),
+                             KroneckerOperator<ColMajorCMat, KroneckerOperator<ColMajorCMat, ColMajorCMat>>>::value));
+  const CVec lambda3 = K3.eigenvalues();
+  const CMat V3 = K3.eigenvectors();
+  const CMat ref3 = reference_ksum<Scalar>(A, reference_ksum<Scalar>(B, A)).template cast<Complex>();
+  VERIFY_IS_APPROX((ref3 * V3).eval(), (V3 * lambda3.asDiagonal()).eval());
+
+  // As a KroneckerOperator factor the sum keeps that spectrum, without being
+  // materialized: entry i0 n1 n2 + i1 n2 + i2 of B (x) (A (+) B) is
+  // c[i0] (a[i1] + c[i2]), and the eigenvectors nest as V_B (x) (V_A (x) V_B).
+  const auto KS = makeKroneckerOperator(B, K2);
+  const CVec kappa = KS.eigenvalues();
+  CVec expectedKappa(n2 * n1 * n2);
+  for (Index i0 = 0; i0 < n2; ++i0)
+    for (Index i1 = 0; i1 < n1; ++i1)
+      for (Index i2 = 0; i2 < n2; ++i2) expectedKappa[(i0 * n1 + i1) * n2 + i2] = c[i0] * (a[i1] + c[i2]);
+  VERIFY_IS_APPROX(kappa, expectedKappa);
+  STATIC_CHECK((std::is_same<decltype(KS.eigenvectors()),
+                             KroneckerOperator<ColMajorCMat, KroneckerOperator<ColMajorCMat, ColMajorCMat>>>::value));
+  const CMat W = KS.eigenvectors();
+  const Mat refKS = reference_kron<Scalar>(B, reference_ksum<Scalar>(A, B));
+  VERIFY_IS_APPROX((refKS.template cast<Complex>() * W).eval(), (W * kappa.asDiagonal()).eval());
+
+  // A sum has no separable SVD: a sum factor's is the dense one, inside the
+  // Kronecker structure of U and V.
+  const RealVec sigma = KS.singularValues();
+  const Mat U = KS.matrixU(), VS = KS.matrixV();
+  VERIFY_IS_APPROX((U * sigma.template cast<Scalar>().asDiagonal() * VS.adjoint()).eval(), refKS);
+  VERIFY_IS_EQUAL(KS.rank(), KS.rows());
+
+  // Defective factors: Q1 J_3(1) Q1^H (+) Q2 J_3(-1) Q2^H has the eigenvalue 0
+  // in a Jordan block of length 5, where a dense eigensolver errs by about
+  // eps^(1/5); the factor sums keep the factors' eps^(1/3), also as a
+  // KroneckerOperator factor (at most 2.8 eps^(1/3) over 20000 draws).
+  const Index m = 3;
+  const Mat Q1 = HouseholderQR<Mat>(Mat::Random(m, m)).householderQ();
+  const Mat Q2 = HouseholderQR<Mat>(Mat::Random(m, m)).householderQ();
+  const Mat D1 = Q1 * jordan_block<Mat>(m, Scalar(1), Scalar(1)) * Q1.adjoint();
+  const Mat D2 = Q2 * jordan_block<Mat>(m, Scalar(-1), Scalar(1)) * Q2.adjoint();
+  const auto ID = makeKroneckerOperator(Mat::Identity(2, 2), makeKroneckerSum(D1, D2));
+  VERIFY(ID.eigenvalues().cwiseAbs().maxCoeff() <= RealScalar(16) * numext::cbrt(NumTraits<RealScalar>::epsilon()));
 
   // A Kronecker-product factor contributes the products of its factors'
   // eigenvalues, in its own Kronecker order: entry (i1 n2 + i2) n1 + i3 of

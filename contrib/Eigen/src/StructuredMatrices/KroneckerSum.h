@@ -119,6 +119,11 @@ struct kron_factor_ops<KroneckerSum<LhsMatrix, RhsMatrix>, kKronSumFactor> {
       RhsOps::addRightProduct(dstj, alpha, X.middleCols(j * n2, n2), f.rhs(), work);
     }
   }
+  // det = prod_{i,j} (lambda_i + mu_j) would cost only the factor Schur forms,
+  // but every delta lambda_i recurs in n_R factors of the product, and a shift
+  // split across L and R makes |lambda_i + mu_j| << |lambda_i| + |mu_j|. Against
+  // a 256-bit reference that product lost 1 to 6 digits to the LU of the
+  // materialized sum.
   static Scalar balancedDet(const Factor& f, Index& exponent) {
     return kron_factor_ops<DenseMatrix>::balancedDet(denseFactor(f), exponent);
   }
@@ -133,6 +138,21 @@ struct kron_factor_visitable<KroneckerSum<LhsMatrix, RhsMatrix>, kKronSumFactor>
     S = f;
     return S;
   }
+};
+
+/** \internal (L (+) R)(v_i (x) w_j) = (lambda_i + mu_j)(v_i (x) w_j), so the
+ * eigenvalues and eigenvectors recurse into the factors, as for a Kronecker
+ * factor. A sum has no separable SVD, which stays the dense one of the primary
+ * template. */
+template <typename LhsMatrix, typename RhsMatrix>
+struct kron_factor_spectrum<KroneckerSum<LhsMatrix, RhsMatrix>, kKronSumFactor>
+    : kron_factor_spectrum<KroneckerSum<LhsMatrix, RhsMatrix>, kKronDenseFactor> {
+  using Factor = KroneckerSum<LhsMatrix, RhsMatrix>;
+  using Eigenvectors = KroneckerOperator<typename kron_factor_spectrum<LhsMatrix>::Eigenvectors,
+                                         typename kron_factor_spectrum<RhsMatrix>::Eigenvectors>;
+
+  static typename Factor::ComplexVector eigenvalues(const Factor& f) { return f.eigenvalues(); }
+  static Eigenvectors eigenvectors(const Factor& f) { return f.eigenvectors(); }
 };
 
 template <typename LhsMatrix, typename RhsMatrix>
@@ -192,7 +212,9 @@ class kron_factor_solver<KroneckerSum<LhsMatrix, RhsMatrix>, kKronSumFactor> {
  * sparse matrix on assignment, and plugs into the matrix-free iterative solvers
  * (with \c IdentityPreconditioner). \ref solve and the reusable
  * \ref BartelsStewart solver use the Schur forms of the factors;
- * \ref eigenvalues are the pairwise sums \f$ \lambda_i(A) + \mu_j(B) \f$.
+ * \ref eigenvalues are the pairwise sums \f$ \lambda_i(A) + \mu_j(B) \f$, with
+ * \ref eigenvectors \f$ V_A \otimes V_B \f$, also as a \ref KroneckerOperator
+ * factor.
  * \code
  * SparseMatrix<double> Dx = ..., Dy = ...;                       // tridiag(1, -2, 1) / h^2
  * SparseMatrix<double> Iy(ny, ny); Iy.setIdentity();
@@ -227,6 +249,8 @@ class KroneckerSum : public EigenBase<KroneckerSum<LhsMatrix, RhsMatrix>> {
  private:
   using LhsOps = internal::kron_factor_ops<LhsMatrix>;
   using RhsOps = internal::kron_factor_ops<RhsMatrix>;
+  using LhsSpectrum = internal::kron_factor_spectrum<LhsMatrix>;
+  using RhsSpectrum = internal::kron_factor_spectrum<RhsMatrix>;
 
  public:
   using ComplexScalar = std::complex<RealScalar>;
@@ -294,10 +318,30 @@ class KroneckerSum : public EigenBase<KroneckerSum<LhsMatrix, RhsMatrix>> {
 
   /** \returns the eigenvalues in Kronecker order: entry \c i*n2 + j is
    * \f$ \lambda_i(A) + \mu_j(B) \f$, from one eigenvalue solve per factor
-   * (recursively for a Kronecker-sum factor). The set is not sorted. */
+   * (recursively for a Kronecker-sum factor, and for a Kronecker factor, whose
+   * own factors must then be square), matching column \c i*n2 + j of
+   * \ref eigenvectors. The set is not sorted.
+   *
+   * Each sum carries the errors of the factor eigenvalues, of order
+   * \f$ \epsilon\,(\kappa(\lambda_i) \|A\| + \kappa(\mu_j) \|B\|) \f$ for simple
+   * eigenvalues with condition numbers \f$ \kappa \f$, where a dense eigensolver
+   * of \f$ A \oplus B \f$ errs by
+   * \f$ \epsilon\,\kappa(\lambda_i)\,\kappa(\mu_j)\,\|A \oplus B\| \f$. The sums
+   * are thus the more accurate for ill-conditioned or defective factors, whose
+   * Jordan blocks lengthen in the sum, and the less accurate when a shift
+   * splits across the factors, as in \f$ (A + cI) \oplus (B - cI) \f$. */
   ComplexVector eigenvalues() const {
-    const ComplexVector lambda = factorEigenvalues(m_A), mu = factorEigenvalues(m_B);
+    const ComplexVector lambda = LhsSpectrum::eigenvalues(m_A), mu = RhsSpectrum::eigenvalues(m_B);
     return (mu.replicate(fix<1>, lambda.size()) + lambda.transpose().replicate(mu.size(), fix<1>)).reshaped();
+  }
+
+  /** \returns the matrix of eigenvectors \f$ V_A \otimes V_B \f$ -- a
+   * \ref KroneckerOperator, never materialized -- since
+   * \f$ (A \oplus B)(v_i \otimes w_j) = (\lambda_i + \mu_j)(v_i \otimes w_j) \f$:
+   * column \c i*n2 + j matches \c eigenvalues()[i*n2 + j]. Assign it to a dense
+   * matrix to materialize. */
+  KroneckerOperator<typename LhsSpectrum::Eigenvectors, typename RhsSpectrum::Eigenvectors> eigenvectors() const {
+    return {LhsSpectrum::eigenvectors(m_A), RhsSpectrum::eigenvectors(m_B)};
   }
 
   /** \returns the product expression \c (*this) * \a x, evaluated through
@@ -420,19 +464,6 @@ class KroneckerSum : public EigenBase<KroneckerSum<LhsMatrix, RhsMatrix>> {
       dst += sum;
     else
       dst -= sum;
-  }
-
-  template <typename Factor>
-  static ComplexVector factorEigenvalues(const Factor& f) {
-    return factorEigenvalues(f, internal::kron_factor_is_kronecker_sum<Factor>());
-  }
-  template <typename Factor>
-  static ComplexVector factorEigenvalues(const Factor& f, std::true_type) {
-    return f.eigenvalues();
-  }
-  template <typename Factor>
-  static ComplexVector factorEigenvalues(const Factor& f, std::false_type) {
-    return internal::kron_factor_spectrum<Factor>::eigenvalues(f);
   }
 
   LhsMatrix m_A;
