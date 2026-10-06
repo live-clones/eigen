@@ -21,7 +21,7 @@ struct packet_trig_sign_check<Scalar, Func, true> {
     const Index n = numext::maxi<Index>(32, kSize);
     std::vector<Scalar> x(n), y(n);
     // +-(0.3 + 0.7 k) covers all four quadrants with sin, cos and tan bounded away from 0.
-    for (Index i = 0; i < n; ++i) x[i] = Scalar((i & 1) ? 1 : -1) * (Scalar(0.3) + Scalar(0.7) * Scalar(i % 16));
+    for (Index i = 0; i < n; ++i) x[i] = Scalar((i / 16) % 2 ? 1 : -1) * (Scalar(0.3) + Scalar(0.7) * Scalar(i % 16));
     // The packet kernels are called directly: through the array API they inline and the defect does not appear.
     for (Index i = 0; i < n; i += kSize) {
       const Packet p = internal::ploadu<Packet>(&x[i]);
