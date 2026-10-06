@@ -61,6 +61,7 @@ EXTERNAL_DEP_MODULES = ("AccelerateSupport", "CholmodSupport", "KLUSupport", "Me
                         "PaStiXSupport", "PardisoSupport", "SPQRSupport", "SuperLUSupport",
                         "UmfPackSupport")
 PLEASE_INCLUDE = re.compile(r'"Please include ([^ "]+)')
+ISA_BACKEND = re.compile(r"/arch/(?!Default/)[^/]+/")
 GATE_CONDITION = re.compile(r"#\s*(?:ifdef\s+(EIGEN_USE_\w+)|if\s+defined\s*\(\s*(EIGEN_USE_\w+)\s*\))$")
 TIMEOUT_SECONDS = 30
 
@@ -179,7 +180,9 @@ def tidy_target(rel_path, tmpdir, root=REPO_ROOT):
             return None
         driver = os.path.join(tmpdir, "tidy_driver_" + rel_path.replace("/", "_") + ".cpp")
         with open(driver, "w", encoding="utf-8") as handle:
-            if rel_path.startswith(SRC_TREES):
+            # An ISA backend's gate (EIGEN_USE_SYCL) selects a toolchain this
+            # host lacks; run-clang-tidy.sh never reads one either.
+            if rel_path.startswith(SRC_TREES) and not ISA_BACKEND.search(rel_path):
                 for macro in gate_macros(include, rel_path, root):
                     handle.write("#define %s\n" % macro)
             handle.write("#include <%s>\n" % include)

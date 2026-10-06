@@ -101,6 +101,10 @@ def test_tidy_target():
         assert open(driver).read() == ("#define EIGEN_USE_LAPACKE\n"
                                        "#include <Eigen/LU>\n"
                                        "#include <Eigen/src/LU/PartialPivLU_LAPACKE.h>\n")
+        # An ISA backend's gate is not read.
+        driver = tidy_target("Eigen/src/Core/arch/SYCL/PacketMath.h", tmp)
+        assert open(driver).read() == ("#include <Eigen/Core>\n"
+                                       "#include <Eigen/src/Core/arch/SYCL/PacketMath.h>\n")
 
 
 def test_gate_macros():

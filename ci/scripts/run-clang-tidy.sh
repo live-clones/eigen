@@ -16,7 +16,7 @@
 # heuristic <root>/<Module> for deeply-nested files (e.g. arch-specific
 # backends) that don't carry their own directive.
 #
-# A header the umbrella includes only under `#ifdef EIGEN_USE_<X>` (the
+# A header the umbrella includes only under `#ifdef EIGEN_USE_<X>` (e.g. the
 # *_LAPACKE.h and *_BLAS.h backends) gets EIGEN_USE_<X> defined first, as
 # read by scripts/clang_tidy_hook.py --gate-macros.
 #
