@@ -92,11 +92,13 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
     Packet
     psincos_float(const Packet& _x) {
   using PacketI = typename unpacket_traits<Packet>::integer_packet;
+  using ScalarI = typename unpacket_traits<PacketI>::type;
 
   const Packet cst_2oPI = pset1<Packet>(0.636619746685028076171875f);  // 2/PI
   const Packet cst_rounding_magic = pset1<Packet>(12582912);           // 2^23 for rounding
   const PacketI csti_1 = pset1<PacketI>(1);
-  const Packet cst_sign_mask = psignmask<Packet>();
+  // Integer, not psignmask: GCC 13 materializes a float -0.0 splat as +0.0 under -fno-signed-zeros (issue #3132).
+  const PacketI cst_sign_mask = pset1<PacketI>(NumTraits<ScalarI>::lowest());
 
   Packet x = pabs(_x);
 
@@ -196,7 +198,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
   // cos: sign = second_bit(y_int+1)
   Packet sign_bit = (Func == TrigFunction::Sin) ? pxor(_x, preinterpret<Packet>(plogical_shift_left<30>(y_int)))
                                                 : preinterpret<Packet>(plogical_shift_left<30>(padd(y_int, csti_1)));
-  sign_bit = pand(sign_bit, cst_sign_mask);  // clear all but left most bit
+  sign_bit = preinterpret<Packet>(pand(preinterpret<PacketI>(sign_bit), cst_sign_mask));
 
   if ((Func == TrigFunction::SinCos) || (Func == TrigFunction::Tan)) {
     Packet peven = peven_mask(x);
@@ -204,8 +206,8 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
     Packet ycos = pselect(poly_mask, y1, y2);
     Packet sign_bit_sin = pxor(_x, preinterpret<Packet>(plogical_shift_left<30>(y_int)));
     Packet sign_bit_cos = preinterpret<Packet>(plogical_shift_left<30>(padd(y_int, csti_1)));
-    sign_bit_sin = pand(sign_bit_sin, cst_sign_mask);  // clear all but left most bit
-    sign_bit_cos = pand(sign_bit_cos, cst_sign_mask);  // clear all but left most bit
+    sign_bit_sin = preinterpret<Packet>(pand(preinterpret<PacketI>(sign_bit_sin), cst_sign_mask));
+    sign_bit_cos = preinterpret<Packet>(pand(preinterpret<PacketI>(sign_bit_cos), cst_sign_mask));
     y = (Func == TrigFunction::SinCos) ? pselect(peven, pxor(ysin, sign_bit_sin), pxor(ycos, sign_bit_cos))
                                        : pdiv(pxor(ysin, sign_bit_sin), pxor(ycos, sign_bit_cos));
   } else {
@@ -294,7 +296,8 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
   using PacketI = typename unpacket_traits<Packet>::integer_packet;
   using ScalarI = typename unpacket_traits<PacketI>::type;
 
-  const Packet cst_sign_mask = psignmask<Packet>();
+  // Integer, not psignmask: see psincos_float.
+  const PacketI cst_sign_mask = pset1<PacketI>(NumTraits<ScalarI>::lowest());
 
   // If the argument is smaller than this value, use a simpler argument reduction
   const double small_th = 15;
@@ -386,7 +389,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
     sign_bit = pselect(peven, sign_sin, sign_cos);
     sFinalRes = pselect(pxor(peven, poly_mask), scos, ssin);
   }
-  sign_bit = pand(sign_bit, cst_sign_mask);  // clear all but left most bit
+  sign_bit = preinterpret<Packet>(pand(preinterpret<PacketI>(sign_bit), cst_sign_mask));
   sFinalRes = pxor(sFinalRes, sign_bit);
 
   // For inputs above huge_th the medium-path reduction loses too much precision. A vectorized
