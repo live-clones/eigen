@@ -55,17 +55,19 @@ struct sme_tile_count<double> {
   static constexpr int value = 8;
 };
 
-// Under the AArch64 SME ABI, calling a private-ZA function (one with neither a shared-ZA attribute
-// nor __arm_agnostic("sme_za_state")) from a caller with ZA state requires a lazy ZA save setup,
-// which prevents Clang from inlining any callee that invokes SVE/SME intrinsics. Marking pure
-// streaming-SVE helpers as ZA-agnostic allows them to be called and inlined into both ZA-active
-// kernels and non-ZA streaming functions (such as pack_direct).
-#define EIGEN_SME_ZA_AGNOSTIC
+// Clang 23 and later never inline a private-ZA function (one with neither a shared-ZA attribute nor
+// __arm_agnostic("sme_za_state")) into a caller with ZA state, always_inline or not: the call stays
+// out of line behind a TPIDR2 lazy-save setup. So every function reachable from __arm_inout("za") or
+// __arm_new("za") code needs a shared-ZA attribute or EIGEN_SME_ZA_AGNOSTIC, whether or not it uses
+// intrinsics; agnostic rather than shared because private-ZA streaming entry points such as
+// pack_direct call the same helpers. GCC and Clang before 20 lack the keyword and inline these anyway.
 #if EIGEN_COMP_CLANG
 #if !__is_identifier(__arm_agnostic)
-#undef EIGEN_SME_ZA_AGNOSTIC
 #define EIGEN_SME_ZA_AGNOSTIC __arm_agnostic("sme_za_state")
 #endif
+#endif
+#ifndef EIGEN_SME_ZA_AGNOSTIC
+#define EIGEN_SME_ZA_AGNOSTIC
 #endif
 
 // Scalar -> streaming vector, its two- and four-vector tuples, and the predicates of its element
@@ -260,12 +262,12 @@ EIGEN_ALWAYS_INLINE svfloat64_t pget(svfloat64x4_t v) __arm_streaming EIGEN_SME_
 }
 #endif
 template <typename Packet>
-EIGEN_ALWAYS_INLINE auto pcreate(Packet a, Packet b) __arm_streaming EIGEN_SME_ZA_AGNOSTIC
+EIGEN_ALWAYS_INLINE auto pcreate(Packet a, Packet b) EIGEN_SME_ZA_AGNOSTIC __arm_streaming
     -> decltype(svcreate2(a, b)) {
   return svcreate2(a, b);
 }
 template <typename Packet>
-EIGEN_ALWAYS_INLINE auto pcreate(Packet a, Packet b, Packet c, Packet d) __arm_streaming EIGEN_SME_ZA_AGNOSTIC
+EIGEN_ALWAYS_INLINE auto pcreate(Packet a, Packet b, Packet c, Packet d) EIGEN_SME_ZA_AGNOSTIC __arm_streaming
     -> decltype(svcreate4(a, b, c, d)) {
   return svcreate4(a, b, c, d);
 }
