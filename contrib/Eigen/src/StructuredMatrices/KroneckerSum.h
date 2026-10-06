@@ -511,6 +511,10 @@ auto makeKroneckerSum(const EigenBase<D1>& a, const EigenBase<D2>& b, const Eige
  * factors. Either way the setup costs one \f$ O(n_k^3) \f$ decomposition per
  * factor, each solve \f$ O(N \sum_k n_k) \f$ per right-hand side,
  * \f$ N = \prod_k n_k \f$; sparse factors are densified for the decomposition.
+ * \c transpose().solve() and \c adjoint().solve() reuse the decompositions:
+ * \f[ (A_1 \oplus \cdots \oplus A_d)^H = Q\,(T_1^H \oplus \cdots \oplus T_d^H)\,Q^H \f]
+ * is solved with the same transforms around a forward substitution, and
+ * \f$ M^T x = b \f$ as \f$ M^H \bar x = \bar b \f$.
  *
  * The system is singular exactly when some sum
  * \f$ \lambda_{i_1}(A_1) + \cdots + \lambda_{i_d}(A_d) \f$ vanishes. As with
@@ -621,6 +625,23 @@ class BartelsStewart : public SolverBase<BartelsStewart<KroneckerSumType>> {
 #ifndef EIGEN_PARSED_BY_DOXYGEN
   template <typename RhsType, typename DstType>
   void _solve_impl(const RhsType& rhs, DstType& dst) const {
+    solveImpl(rhs, dst, /*adjoint=*/false);
+  }
+
+  // M^T = conj(M^H): M^{-T} b = conj(M^{-H} conj(b)).
+  template <bool Conjugate, typename RhsType, typename DstType>
+  void _solve_impl_transposed(const RhsType& rhs, DstType& dst) const {
+    constexpr bool ConjugateRhs = !Conjugate && NumTraits<Scalar>::IsComplex;
+    solveImpl(rhs.template conjugateIf<ConjugateRhs>(), dst, /*adjoint=*/true);
+    if (ConjugateRhs) dst = dst.conjugate();
+  }
+#endif
+
+ private:
+  /** \internal x = M^{-1} b, or M^{-H} b when \a adjoint; on the Hermitian path
+   * M^H = M. */
+  template <typename RhsType, typename DstType>
+  void solveImpl(const RhsType& rhs, DstType& dst, bool adjoint) const {
     if (m_info != Success) {
       // No usable decompositions; the nested solves never see info().
       dst.setConstant(Scalar(NumTraits<RealScalar>::quiet_NaN()));
@@ -635,14 +656,17 @@ class BartelsStewart : public SolverBase<BartelsStewart<KroneckerSumType>> {
     } else {
       ComplexMatrix W = rhs.template cast<ComplexScalar>();
       applyBasis(W, m_unitary, /*adjoint=*/true);
-      for (Index j = 0; j < W.cols(); ++j) triangularSolve(0, ComplexScalar(0), W.col(j).data());
+      for (Index j = 0; j < W.cols(); ++j) {
+        if (adjoint)
+          adjointTriangularSolve(0, ComplexScalar(0), W.col(j).data());
+        else
+          triangularSolve(0, ComplexScalar(0), W.col(j).data());
+      }
       applyBasis(W, m_unitary, /*adjoint=*/false);
       dst = internal::structured_scalar_part_impl<Scalar>::run(W);
     }
   }
-#endif
 
- private:
   template <typename Factor>
   static void collectLeaves(const Factor& f, std::vector<DenseMatrix>& leaves) {
     collectLeaves(f, leaves, internal::kron_factor_is_kronecker_sum<Factor>());
@@ -709,6 +733,30 @@ class BartelsStewart : public SolverBase<BartelsStewart<KroneckerSumType>> {
       const Index tail = n - 1 - i;
       if (tail > 0) Y.col(i).noalias() -= Y.rightCols(tail) * T.row(i).tail(tail).transpose();
       triangularSolve(k + 1, sigma + T(i, i), Y.col(i).data());
+    }
+  }
+
+  /** \internal The adjoint of triangularSolve: solves
+   * (sigma I + T_k^H (+) ... (+) T_d^H) y = y in place by forward substitution,
+   * row i of T_k^H being the conjugated column i of T_k. */
+  void adjointTriangularSolve(std::size_t k, const ComplexScalar& sigma, ComplexScalar* y) const {
+    const Index n = m_sizes[k], s = m_inner[k];
+    const TriangularMatrix& T = m_triangular[k];
+    if (k + 1 == m_sizes.size()) {
+      // Last factor, s = 1: by columns of T_d^H, which are the rows of T_d,
+      // contiguous and conjugated.
+      Map<Matrix<ComplexScalar, 1, Dynamic>> Y(y, n);
+      for (Index i = 0; i < n; ++i) {
+        Y(i) /= sigma + numext::conj(T(i, i));
+        const Index tail = n - 1 - i;
+        Y.tail(tail) -= Y(i) * T.row(i).tail(tail).conjugate();
+      }
+      return;
+    }
+    Map<ComplexMatrix> Y(y, s, n);
+    for (Index i = 0; i < n; ++i) {
+      if (i > 0) Y.col(i).noalias() -= Y.leftCols(i) * T.col(i).head(i).conjugate();
+      adjointTriangularSolve(k + 1, sigma + numext::conj(T(i, i)), Y.col(i).data());
     }
   }
 

@@ -251,18 +251,33 @@ Mat hilbert(Index n) {
   return H;
 }
 
+// The forward, transposed and adjoint solves of a set-up solver, several
+// right-hand sides each, against the residual bound; the transposed and adjoint
+// systems reuse the decompositions, and one solve writes into a column block
+// of its destination.
+template <typename Solver, typename Mat>
+void check_ksum_solver(const Solver& solver, const Mat& ref, Index sizeSum,
+                       typename NumTraits<typename Mat::Scalar>::Real normSum) {
+  using Vec = Matrix<typename Mat::Scalar, Dynamic, 1>;
+  VERIFY_IS_EQUAL(solver.info(), Success);
+  const Mat Bm = Mat::Random(ref.rows(), 3);
+  const Mat X = solver.solve(Bm), Xt = solver.transpose().solve(Bm), Xh = solver.adjoint().solve(Bm);
+  Mat Xb = Mat::Zero(ref.rows(), 2);
+  Xb.col(1) = solver.transpose().solve(Bm.col(0));
+  const Mat refT = ref.transpose(), refH = ref.adjoint();
+  for (Index j = 0; j < Bm.cols(); ++j) {
+    check_ksum_residual(ref, Vec(X.col(j)), Vec(Bm.col(j)), sizeSum, normSum);
+    check_ksum_residual(refT, Vec(Xt.col(j)), Vec(Bm.col(j)), sizeSum, normSum);
+    check_ksum_residual(refH, Vec(Xh.col(j)), Vec(Bm.col(j)), sizeSum, normSum);
+  }
+  check_ksum_residual(refT, Vec(Xb.col(1)), Vec(Bm.col(0)), sizeSum, normSum);
+}
+
 template <typename Mat>
 void check_ksum_solves(const Mat& A, const Mat& B) {
-  using Vec = Matrix<typename Mat::Scalar, Dynamic, 1>;
-  const Mat ref = reference_ksum<typename Mat::Scalar>(A, B);
-  const auto K = makeKroneckerSum(A, B);
-  const BartelsStewart<KroneckerSum<Mat, Mat>> solver(K);
-  VERIFY_IS_EQUAL(solver.info(), Success);
+  const BartelsStewart<KroneckerSum<Mat, Mat>> solver(makeKroneckerSum(A, B));
   VERIFY_IS_EQUAL(solver.isHermitian(), A == A.adjoint() && B == B.adjoint());
-  const Mat Bm = Mat::Random(ref.rows(), 3);
-  const Mat X = solver.solve(Bm);
-  for (Index j = 0; j < Bm.cols(); ++j)
-    check_ksum_residual(ref, Vec(X.col(j)), Vec(Bm.col(j)), A.rows() + B.rows(), A.norm() + B.norm());
+  check_ksum_solver(solver, reference_ksum<typename Mat::Scalar>(A, B), A.rows() + B.rows(), A.norm() + B.norm());
 }
 
 template <typename Scalar>
@@ -292,18 +307,30 @@ void test_ksum_solve(Index n1, Index n2) {
   check_ksum_solves(jordan_block<Mat>(n1, Scalar(1), Scalar(1000)), jordan_block<Mat>(n2, Scalar(1), Scalar(-1000)));
   check_ksum_solves(Mat(RealScalar(1e6) * A), B);
 
-  // Three factors, either path, through the nested sum.
+  // Three factors, either path, through the nested sum: Jordan blocks, which
+  // are their own Schur forms; general factors, whose complex eigenvalues make
+  // the shifts the substitutions pass down complex at every level; and the
+  // nearly singular A (+) A (+) (delta I - 2 A^T), with eigenvalue sums delta.
+  using Sum3 = KroneckerSum<Mat, KroneckerSum<Mat, Mat>>;
   const Index n3 = 3;
-  const Mat C = jordan_block<Mat>(n3, Scalar(2), Scalar(100)), H3 = hermitian_spd<Mat>(n3);
-  const Vec b3 = Vec::Random(n1 * n2 * n3);
   const Mat J1 = jordan_block<Mat>(n1, Scalar(1), Scalar(100)), J2 = jordan_block<Mat>(n2, Scalar(-1), Scalar(-100));
-  check_ksum_residual(reference_ksum<Scalar>(J1, reference_ksum<Scalar>(J2, C)),
-                      Vec(makeKroneckerSum(J1, J2, C).solve(b3)), b3, n1 + n2 + n3, J1.norm() + J2.norm() + C.norm());
-  const KroneckerSum<KroneckerSum<Mat, Mat>, Mat> KH3(makeKroneckerSum(H1, H2), H3);
-  const BartelsStewart<KroneckerSum<KroneckerSum<Mat, Mat>, Mat>> h3solver(KH3);
+  const Mat C = jordan_block<Mat>(n3, Scalar(2), Scalar(100));
+  check_ksum_solver(BartelsStewart<Sum3>(makeKroneckerSum(J1, J2, C)),
+                    reference_ksum<Scalar>(J1, reference_ksum<Scalar>(J2, C)), n1 + n2 + n3,
+                    J1.norm() + J2.norm() + C.norm());
+  const Mat G = Mat::Random(n3, n3) + RealScalar(3) * Mat::Identity(n3, n3);
+  check_ksum_solver(BartelsStewart<Sum3>(makeKroneckerSum(A, B, G)),
+                    reference_ksum<Scalar>(A, reference_ksum<Scalar>(B, G)), n1 + n2 + n3,
+                    A.norm() + B.norm() + G.norm());
+  const Mat As = delta * Mat::Identity(n1, n1) - RealScalar(2) * A.transpose();
+  check_ksum_solver(BartelsStewart<Sum3>(makeKroneckerSum(A, A, As)),
+                    reference_ksum<Scalar>(A, reference_ksum<Scalar>(A, As)), 3 * n1, 2 * A.norm() + As.norm());
+  const Mat H3 = hermitian_spd<Mat>(n3);
+  const BartelsStewart<KroneckerSum<KroneckerSum<Mat, Mat>, Mat>> h3solver(
+      KroneckerSum<KroneckerSum<Mat, Mat>, Mat>(makeKroneckerSum(H1, H2), H3));
   VERIFY(h3solver.isHermitian());
-  check_ksum_residual(reference_ksum<Scalar>(reference_ksum<Scalar>(H1, H2), H3), Vec(h3solver.solve(b3)), b3,
-                      n1 + n2 + n3, H1.norm() + H2.norm() + H3.norm());
+  check_ksum_solver(h3solver, reference_ksum<Scalar>(reference_ksum<Scalar>(H1, H2), H3), n1 + n2 + n3,
+                    H1.norm() + H2.norm() + H3.norm());
 
   // A non-finite factor is rejected, and every solve through it returns NaN.
   Mat Abad = A;
@@ -311,6 +338,8 @@ void test_ksum_solve(Index n1, Index n2) {
   const BartelsStewart<KroneckerSum<Mat, Mat>> bad(makeKroneckerSum(Abad, B));
   VERIFY_IS_EQUAL(bad.info(), InvalidInput);
   VERIFY((Vec(bad.solve(b)).array().isNaN()).all());
+  VERIFY((Vec(bad.transpose().solve(b)).array().isNaN()).all());
+  VERIFY((Vec(bad.adjoint().solve(b)).array().isNaN()).all());
   Mat Hbad = H1;
   Hbad(0, 0) = Scalar(NumTraits<RealScalar>::infinity());  // still exactly Hermitian
   VERIFY((Vec(makeKroneckerSum(Hbad, H2).solve(b)).array().isNaN()).all());

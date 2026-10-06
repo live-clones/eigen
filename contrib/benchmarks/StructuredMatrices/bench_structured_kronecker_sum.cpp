@@ -175,6 +175,20 @@ static void BM_KroneckerSumSolveConvection2D(benchmark::State& state) {
 }
 BENCHMARK(BM_KroneckerSumSolveConvection2D)->Arg(64)->Arg(128)->Arg(256);
 
+// The transposed system on the same decompositions: a forward substitution on
+// the transposed Schur forms.
+static void BM_KroneckerSumSolveConvection2DTransposed(benchmark::State& state) {
+  const Index n = state.range(0);
+  auto M = makeKroneckerSum(tridiagonal(n, 0.5), tridiagonal(n, 0.3));
+  BartelsStewart<decltype(M)> solver(M);
+  Vec b = Vec::Random(n * n), u(n * n);
+  for (auto _ : state) {
+    u = solver.transpose().solve(b);
+    benchmark::DoNotOptimize(u.data());
+  }
+}
+BENCHMARK(BM_KroneckerSumSolveConvection2DTransposed)->Arg(64)->Arg(128)->Arg(256);
+
 static void BM_KroneckerSumSolveConvection2DSparseLU(benchmark::State& state) {
   const Index n = state.range(0);
   SpMat M;
