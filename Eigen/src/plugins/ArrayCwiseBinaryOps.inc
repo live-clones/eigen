@@ -26,7 +26,8 @@ operator/(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived> &other) const {
 
 /** \returns an expression of the coefficient-wise modulus of \c *this and \a other
  *
- * \note This operator is for integer scalar types only.
+ * \note This operator is for integer scalar types only. A zero divisor is undefined behavior, as for the built-in
+ * modulus operator.
  *
  * Example: \code
  * Array3i a(7, 8, 9), b(2, 3, 4);
