@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: The Eigen Authors
+// SPDX-License-Identifier: MPL-2.0
+
 // Benchmarks for the implicit Kronecker sum A (+) B = A (x) I + I (x) B and its
 // BartelsStewart solver on finite-difference operators: the 2-D Laplacian
 // Dy (+) Dx and the 3-D Laplacian Dz (+) Dy (+) Dx of tridiagonal 1-D factors,
@@ -6,8 +9,6 @@
 // O(n1 nnz(B) + n2 nnz(A)) either way; the direct solve costs one O(n^3)
 // decomposition per factor and O(N sum_k n_k) per right-hand side, against the
 // fill-in of a sparse LU of the N x N matrix.
-// SPDX-FileCopyrightText: The Eigen Authors
-// SPDX-License-Identifier: MPL-2.0
 
 #include <benchmark/benchmark.h>
 #include <Eigen/Sparse>
