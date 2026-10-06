@@ -16,9 +16,9 @@ umbrella first and then the edited header.  The umbrella name is read from the
 ``#error "Please include <X>"`` directive.  This mirrors what
 ``ci/scripts/run-clang-tidy.sh`` does for merge requests.  Including the edited
 header explicitly also covers a new header that the umbrella does not export
-yet.  A backend header the umbrella includes only under ``#ifdef EIGEN_USE_X``
-gets that macro defined first; ``--gate-macros`` exposes the choice to the CI
-script.
+yet.  If the umbrella includes the header only when an ``EIGEN_USE_*`` macro is
+defined, as ``Eigen/LU`` does ``PartialPivLU_LAPACKE.h``, the driver defines it
+first; ``--gate-macros`` prints those macros for the CI script.
 
 LLVM's ``clang-tidy-diff.py`` cannot replace this routing: it invokes changed
 headers directly, which trips Eigen's internal-header guard, and a PostToolUse
@@ -96,15 +96,14 @@ def umbrella_for(rel_path, root=REPO_ROOT):
 
 
 def gate_macros(umbrella, rel_path, root=REPO_ROOT):
-    """``EIGEN_USE_*`` macros ``umbrella`` must see before it includes ``rel_path``.
+    """Return the ``EIGEN_USE_*`` macros ``umbrella`` needs to include ``rel_path``.
 
-    ``LU/PartialPivLU_LAPACKE.h`` is included only under ``#ifdef
-    EIGEN_USE_LAPACKE``, and so is ``lapacke_helpers.h``, which declares the
-    ``lapack_int`` it uses; forced into a driver without the macro, the header
-    does not compile.  Each enclosing ``#ifdef EIGEN_USE_X`` or ``#if
-    defined(EIGEN_USE_X)`` contributes ``EIGEN_USE_X`` while the include sits
-    in its first branch.  Any other condition, or an ``#elif``/``#else``
-    branch, contributes nothing.
+    ``Eigen/LU`` includes ``PartialPivLU_LAPACKE.h``, and the
+    ``lapacke_helpers.h`` that declares its ``lapack_int``, only inside
+    ``#ifdef EIGEN_USE_LAPACKE``; without the macro the header does not
+    compile.  Only the plain forms ``#ifdef EIGEN_USE_X`` and ``#if
+    defined(EIGEN_USE_X)`` count, and only when the include is in the ``#if``
+    branch, not an ``#elif`` or ``#else``.
     """
     target = os.path.relpath(rel_path, os.path.dirname(umbrella))
     try:
@@ -180,8 +179,8 @@ def tidy_target(rel_path, tmpdir, root=REPO_ROOT):
             return None
         driver = os.path.join(tmpdir, "tidy_driver_" + rel_path.replace("/", "_") + ".cpp")
         with open(driver, "w", encoding="utf-8") as handle:
-            # An ISA backend's gate (EIGEN_USE_SYCL) selects a toolchain this
-            # host lacks; run-clang-tidy.sh never reads one either.
+            # Skip arch/<ISA>/ headers, as run-clang-tidy.sh does: their macro
+            # (EIGEN_USE_SYCL) needs a toolchain this host does not have.
             if rel_path.startswith(SRC_TREES) and not ISA_BACKEND.search(rel_path):
                 for macro in gate_macros(include, rel_path, root):
                     handle.write("#define %s\n" % macro)
