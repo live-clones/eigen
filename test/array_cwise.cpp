@@ -1533,7 +1533,7 @@ void modulus_test_impl() {
   // Matches a hand-rolled loop over random data.
   ArrayX<Scalar> lhs = ArrayX<Scalar>::Random(37);
   ArrayX<Scalar> rhs = ArrayX<Scalar>::Random(37);
-  rhs = (rhs == Scalar(0)).select(ArrayX<Scalar>::Constant(37, Scalar(1)), rhs);
+  rhs = (rhs == Scalar(0) || rhs == Scalar(-1)).select(ArrayX<Scalar>::Constant(37, Scalar(1)), rhs);
   ArrayX<Scalar> got = lhs % rhs;
   for (Index i = 0; i < lhs.size(); ++i) {
     VERIFY_IS_EQUAL(got(i), Scalar(lhs(i) % rhs(i)));
