@@ -16,6 +16,10 @@
 # heuristic <root>/<Module> for deeply-nested files (e.g. arch-specific
 # backends) that don't carry their own directive.
 #
+# A header the umbrella includes only under `#ifdef EIGEN_USE_<X>` (the
+# *_LAPACKE.h and *_BLAS.h backends) gets EIGEN_USE_<X> defined first, as
+# read by scripts/clang_tidy_hook.py --gate-macros.
+#
 # ISA backends under arch/<ISA>/ are the exception: they only compile with the
 # -march/-mcpu flags that select them, which this job does not pass, so forcing
 # them into the driver turns every such change into a wall of clang-diagnostic
@@ -180,9 +184,10 @@ third_party_include_missing_from() {
   # error it is. Eigen spells its own headers relative to the file that
   # includes them, so the form of the directive is what separates the two:
   # <cuda_runtime.h> and <cholmod.h> come from outside the tree, while
-  # "./InternalHeaderCheck.h" and "GenericPacketMathPow.h" do not, and no
-  # quoted third-party include in the tree is reachable without an
-  # EIGEN_USE_* macro this job does not define.
+  # "./InternalHeaderCheck.h" and "GenericPacketMathPow.h" do not. The quoted
+  # third-party includes behind the EIGEN_USE_* macros a driver defines never
+  # fail first: AOCL's sit behind __has_include, and "mkl_lapacke.h" after
+  # <mkl.h>.
   case "${spelling}" in
     Eigen/*|contrib/*|unsupported/*|./*|../*) return 0 ;;
   esac
@@ -270,8 +275,19 @@ for file in "${CHANGED_FILES[@]}"; do
         FORCE_INCLUDE=""
       fi
 
+      GATE_DEFINES=""
+      if [ -n "${FORCE_INCLUDE}" ]; then
+        GATE_MACROS=$(python3 "${REPO_ROOT}/scripts/clang_tidy_hook.py" \
+                        --gate-macros "${MODULE_INCLUDE}" "${file}")
+        if [ -n "${GATE_MACROS}" ]; then
+          NOTE+=" [with ${GATE_MACROS//$'\n'/, }]"
+          GATE_DEFINES=$(sed 's/^/#define /' <<< "${GATE_MACROS}")
+        fi
+      fi
+
       DRIVER="${TIDY_TMPDIR}/tidy_driver_${file//\//_}.cpp"
       cat > "${DRIVER}" <<EOF
+${GATE_DEFINES}
 #include <${MODULE_INCLUDE}>
 ${FORCE_INCLUDE}
 EOF

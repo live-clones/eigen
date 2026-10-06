@@ -237,6 +237,11 @@ A header under `arch/<ISA>/` other than `arch/Default/` is not forced into the d
 selects the backend — SSE2 on the x86-64 runner — and the heading says which backend went unchecked. Validate a
 change to one with a build that enables the ISA rather than relying on this job.
 
+A header its umbrella includes only under `#ifdef EIGEN_USE_<X>` — the `*_LAPACKE.h` and `*_BLAS.h` backends,
+`ThreadedSparseProduct.h`, the GPU module — is linted with `EIGEN_USE_<X>` defined, and the heading names the macro;
+`clang_tidy_hook.py --gate-macros <umbrella> <header>` prints the set. Eigen ships the `lapacke.h` and `blas.h` those
+backends declare against, so they are checked in full; `Assign_MKL.h` reaches `<mkl.h>` and is reported partial.
+
 For a split test the driver checks only the parts that compile the added lines and prints beside the file name the
 parts it left out, so a capped run names what it did not check rather than reporting the file clean;
 [`ci-internals.md`](ci-internals.md) has the reduction.
