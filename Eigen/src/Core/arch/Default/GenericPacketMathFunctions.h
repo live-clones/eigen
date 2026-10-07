@@ -552,8 +552,6 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet pexp_double_reduced(const Packet& g
 
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_double(const Packet _x) {
-  const Packet cst_zero = pset1<Packet>(0.0);
-
   const Packet cst_exp_hi = pset1<Packet>(709.784);
   const Packet cst_exp_lo = pset1<Packet>(-745.519);
   const Packet cst_pldexp_threshold = pset1<Packet>(708.0);
@@ -585,7 +583,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_double(const Pac
     // the fast version of pldexp.
     return pmax(pldexp_fast(x, fx), _x);
   }
-  return pselect(zero_mask, cst_zero, pmax(pldexp(x, fx), _x));
+  return pandnot(pmax(pldexp(x, fx), _x), zero_mask);
 }
 
 template <typename Packet, typename Scalar = typename unpacket_traits<Packet>::type>
