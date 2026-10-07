@@ -507,12 +507,17 @@ Index tridiagonal_inverse_iteration_connected(const DiagType& diag, const Subdia
  * \param[in]  eivals  the eigenvalues whose eigenvectors are wanted, non-decreasing (length \c m).
  * \param[out] eivecs  filled with the \c m eigenvectors as its columns (must be sized \c n x \c m);
  *                     column \c j is a unit-norm eigenvector for \c eivals[j].
+ * \param[in]  shift_tol a bound on the absolute error of \a eivals, e.g. the tolerance of the
+ *                     bisection that produced them (about \f$ eps \|T\| \f$). A block whose own
+ *                     bisection would resolve its eigenvalues more finely has its shifts re-bisected
+ *                     at its own scale. 0 (the default) takes \a eivals as exact.
  * \returns the number of eigenvectors that did not converge within the inverse-iteration step limit
  *          (0 on full success); the caller maps a non-zero count to ComputationInfo::NoConvergence.
  */
 template <typename DiagType, typename SubdiagType, typename EivalType, typename EivecType>
 Index tridiagonal_inverse_iteration(const DiagType& diag, const SubdiagType& subdiag, const EivalType& eivals,
-                                    EivecType& eivecs) {
+                                    EivecType& eivecs,
+                                    typename DiagType::Scalar shift_tol = typename DiagType::Scalar(0)) {
   using RealScalar = typename DiagType::Scalar;
   using VectorType = Matrix<RealScalar, Dynamic, 1>;
   const Index n = diag.size();
@@ -535,11 +540,12 @@ Index tridiagonal_inverse_iteration(const DiagType& diag, const SubdiagType& sub
     // above the largest finite exponent for infinities and NaN.
     const int e = frexp_exponent_preserving_subnormals(maxCoeff);
     if (e != 0 && e <= safe_scaling<RealScalar>::subnormal_recovery_exponent()) {
-      VectorType sdiag(n), ssub(n - 1), seivals(m);
+      VectorType sdiag(n), ssub(n - 1), seivals(m), stol(1);
       const auto factors = safe_scaling<RealScalar>::scale_to(sdiag, diag, maxCoeff);
       safe_scaling<RealScalar>::scale_to(ssub, subdiag, maxCoeff, factors);
       safe_scaling<RealScalar>::scale_to(seivals, eivals, maxCoeff, factors);
-      return tridiagonal_inverse_iteration(sdiag, ssub, seivals, eivecs);
+      safe_scaling<RealScalar>::scale_to(stol, VectorType::Constant(1, shift_tol), maxCoeff, factors);
+      return tridiagonal_inverse_iteration(sdiag, ssub, seivals, eivecs, stol(0));
     }
   }
 
@@ -570,7 +576,8 @@ Index tridiagonal_inverse_iteration(const DiagType& diag, const SubdiagType& sub
   // global scale would hand a small block's eigenvalue to whichever block comes first.
   const RealScalar safemin = numext::maxi(RealScalar(1) / NumTraits<RealScalar>::highest(),
                                           (RealScalar(1) + eps) * (std::numeric_limits<RealScalar>::min)());
-  VectorType alpha_all(n), beta_sq_all(n), bscale(nblocks), bpivmin(nblocks), btol(nblocks);
+  // bgap is the connected kernel's reorthogonalization threshold for the block, in original units.
+  VectorType alpha_all(n), beta_sq_all(n), bscale(nblocks), bpivmin(nblocks), btol(nblocks), bgap(nblocks);
   RealScalar gscale = RealScalar(0);
   for (Index b = 0; b < nblocks; ++b) {
     const Index b0 = bstart(b), nb = bstart(b + 1) - b0;
@@ -582,13 +589,21 @@ Index tridiagonal_inverse_iteration(const DiagType& diag, const SubdiagType& sub
     const auto factors = safe_scaling<RealScalar>::scale_to(alpha, diag.segment(b0, nb), s);
     bscale(b) = factors.scale;
     RealScalar max_bsq = RealScalar(0);
+    // Infinity norm of the normalized block, as tridiagonal_inverse_iteration_connected() computes it.
+    RealScalar onenrm = numext::abs(alpha(0));
     if (nb > 1) {
       auto beta = beta_sq_all.segment(b0, nb - 1);
       safe_scaling<RealScalar>::scale_to(beta, subdiag.segment(b0, nb - 1), s, factors);
+      beta = beta.cwiseAbs();
+      for (Index i = 0; i < nb; ++i) {
+        const RealScalar radius = (i > 0 ? beta(i - 1) : RealScalar(0)) + (i + 1 < nb ? beta(i) : RealScalar(0));
+        onenrm = numext::maxi(onenrm, numext::abs(alpha(i)) + radius);
+      }
       beta = beta.array().square();
       max_bsq = beta.maxCoeff();
     }
     bpivmin(b) = safemin * numext::maxi(max_bsq, RealScalar(1));
+    bgap(b) = RealScalar(1e-3) * onenrm * bscale(b);
     // In original units, block row sums are bounded by 3*s, independently of the chosen scaling factor.
     btol(b) = RealScalar(2.1) * (RealScalar(3) * RealScalar(nb) * eps + RealScalar(4) * safemin) * s;
   }
@@ -728,17 +743,24 @@ Index tridiagonal_inverse_iteration(const DiagType& diag, const SubdiagType& sub
       indices.resize(mb);
       for (Index k = 0; k < mb; ++k) indices(k) = local_index(colmap(k));
       std::sort(indices.data(), indices.data() + mb);
-      endpoints.resize(2 * mb);
-      counts.resize(2 * mb);
-      endpoints.head(mb) = (wloc.array() - btol(b)) / bscale(b);
-      endpoints.tail(mb) = (wloc.array() + btol(b)) / bscale(b);
-      tridiagonal_sturm_counts(alpha_all.data() + b0, beta_sq_all.data() + b0, nb, bpivmin(b), endpoints.data(),
-                               counts.data(), 2 * mb);
-      bool needs_refinement = false;
-      // A supplied shift is locally resolved if its rounding-sized interval contains the
-      // assigned eigenvalue index. This also detects repeated coarse shifts claiming one root.
-      for (Index k = 0; k < mb && !needs_refinement; ++k) {
-        needs_refinement = counts(k) > indices(k) || counts(mb + k) <= indices(k);
+      // After the kernel's three inverse-iteration steps from a random start (tan(theta0) ~ sqrt(nb)),
+      // neighbours at its reorthogonalization threshold bgap keep |v_i' v_j| <~ sqrt(nb) (shift_tol / bgap)^3.
+      // The Sturm check below passes such shifts, so re-bisect at the block's scale when that can exceed
+      // 32 eps: in float from ||T|| ~ 40 ||T_b|| at nb = 1000, in double only beyond that check's own reach.
+      const RealScalar ratio = shift_tol / bgap(b);
+      bool needs_refinement = ratio * ratio * ratio * numext::sqrt(RealScalar(nb)) > RealScalar(32) * eps;
+      if (!needs_refinement) {
+        endpoints.resize(2 * mb);
+        counts.resize(2 * mb);
+        endpoints.head(mb) = (wloc.array() - btol(b)) / bscale(b);
+        endpoints.tail(mb) = (wloc.array() + btol(b)) / bscale(b);
+        tridiagonal_sturm_counts(alpha_all.data() + b0, beta_sq_all.data() + b0, nb, bpivmin(b), endpoints.data(),
+                                 counts.data(), 2 * mb);
+        // A supplied shift is locally resolved if its rounding-sized interval contains the
+        // assigned eigenvalue index. This also detects repeated coarse shifts claiming one root.
+        for (Index k = 0; k < mb && !needs_refinement; ++k) {
+          needs_refinement = counts(k) > indices(k) || counts(mb + k) <= indices(k);
+        }
       }
       if (needs_refinement) {
         for (Index first = 0; first < mb;) {

@@ -309,12 +309,19 @@ void tridiagonal_eigensolver_eigenvectors() {
     VERIFY_IS_EQUAL((onecall.eigenvalues() - w).cwiseAbs().maxCoeff(), RealScalar(0));
     VERIFY_IS_EQUAL((onecall.eigenvectors() - V).cwiseAbs().maxCoeff(), RealScalar(0));
 
-    // The direct API reproduces the staged result exactly (same eigenvalues -> same deterministic vectors).
+    // The direct API on the same eigenvalues reproduces the staged result exactly, unless T splits into
+    // disconnected blocks (xSTEBZ's criterion, here with a 2x margin): the staged pass knows its eigenvalues
+    // are only good to the bisection tolerance and may re-bisect a small block, while supplied eigenvalues
+    // are taken as exact.
     TridiagonalEigenSolver<RealScalar> dir;
     dir.computeEigenvectors(diag, offdiag, w);
     VERIFY_IS_EQUAL(dir.eigenvectors().rows(), n);
     VERIFY_IS_EQUAL(dir.eigenvectors().cols(), n);
-    VERIFY_IS_EQUAL((dir.eigenvectors() - V).cwiseAbs().maxCoeff(), RealScalar(0));
+    const bool may_split =
+        n > 1 && (offdiag.array().abs() <=
+                  RealScalar(2) * eps * (diag.head(n - 1).array().abs().sqrt() * diag.tail(n - 1).array().abs().sqrt()))
+                     .any();
+    if (!may_split) VERIFY_IS_EQUAL((dir.eigenvectors() - V).cwiseAbs().maxCoeff(), RealScalar(0));
     VERIFY_IS_EQUAL(dir.info(), Success);
     VERIFY_IS_EQUAL(dir.eigenvalues(), w);
     const MatrixType& supplied_vectors = dir.eigenvectors();
@@ -742,6 +749,35 @@ void tridiagonal_eigensolver_subnormal_staged() {
   }
 }
 
+// diag(big, tridiag(1, 2, 1)) in float: the staged eigenvalues are accurate to eps * big, which passes the small
+// block's Sturm check yet left inverse iteration with |v_i' v_j| ~ (eps * big / gap)^3, O(1) for big ~ 1e4 and
+// nb = 1000. The staged pass re-bisects the block at its own scale, so its vectors are those of the block solved alone.
+// (Double needs ||T|| / ||T_b|| ~ 1e7 before the shift error matters, past where the Sturm check already refines.)
+template <typename Scalar>
+void tridiagonal_eigensolver_staged_small_block() {
+  using VectorType = Matrix<Scalar, Dynamic, 1>;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  const Index nb = 1000;
+  VectorType d = VectorType::Constant(nb + 1, Scalar(2)), e = VectorType::Ones(nb);
+  d(0) = Scalar(1e4);
+  e(0) = Scalar(0);
+  TridiagonalEigenSolver<Scalar> local, staged;
+  local.computeEigenvalues(d.tail(nb).eval(), e.tail(nb - 1).eval());
+  local.computeEigenvectors();
+  staged.computeEigenvalues(d, e);
+  staged.computeEigenvectors();
+  VERIFY_IS_EQUAL(local.info(), Success);
+  VERIFY_IS_EQUAL(staged.info(), Success);
+  // The block's eigenvalues all lie below big, so they are the first nb columns. Bitwise equality also relies on
+  // the Rayleigh-Ritz refinement leaving both results alone, which it does while their residuals are at eps.
+  const MatrixType block = staged.eigenvectors().bottomLeftCorner(nb, nb);
+  VERIFY_IS_EQUAL(block, local.eigenvectors());
+  VERIFY_IS_EQUAL(staged.eigenvectors().topLeftCorner(1, nb).squaredNorm(), Scalar(0));
+  // Vectors in different xSTEIN clusters are orthogonal to about eps * ||T_b|| / ortol, with ortol = 1e-3 ||T_b||.
+  const Scalar cross_cluster_bound = Scalar(1e3) * NumTraits<Scalar>::epsilon();
+  VERIFY((block.transpose() * block - MatrixType::Identity(nb, nb)).cwiseAbs().maxCoeff() <= cross_cluster_bound);
+}
+
 // d and e against their power-of-two scaled copies, computed beforehand, in every flush-to-zero mode: eigenvalues to
 // the bisection error plus the quantization of the range they are stored in, eigenvectors (invariant under the
 // scaling) against the scaled residual.
@@ -814,6 +850,7 @@ void tridiagonal_eigensolver_flushed_subnormal_coupling() {
 EIGEN_DECLARE_TEST(tridiagonal_eigensolver) {
   CALL_SUBTEST_1(tridiagonal_eigensolver_subnormal_staged<double>());
   CALL_SUBTEST_2(tridiagonal_eigensolver_subnormal_staged<float>());
+  CALL_SUBTEST_2(tridiagonal_eigensolver_staged_small_block<float>());
   CALL_SUBTEST_2(tridiagonal_eigensolver_power_of_two_scaling<>());
   CALL_SUBTEST_2(tridiagonal_eigensolver_scaling_units<float>());
   CALL_SUBTEST_1(tridiagonal_eigensolver_scaling_units<double>());
