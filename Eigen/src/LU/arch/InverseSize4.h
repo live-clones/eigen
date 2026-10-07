@@ -58,7 +58,7 @@ struct compute_inverse_size4<Architecture::Target, float, MatrixType, ResultType
   using ActualMatrixType =
       std::conditional_t<(MatrixType::Flags & LinearAccessBit), const MatrixType &, typename MatrixType::PlainObject>;
 
-  static void run(const MatrixType &mat, ResultType &result) {
+  static constexpr void run(const MatrixType &mat, ResultType &result) {
     ActualMatrixType matrix(mat);
 
     const float *data = matrix.data();
@@ -181,7 +181,7 @@ struct compute_inverse_size4<Architecture::Target, double, MatrixType, ResultTyp
   using ActualMatrixType =
       std::conditional_t<(MatrixType::Flags & LinearAccessBit), const MatrixType &, typename MatrixType::PlainObject>;
 
-  static void run(const MatrixType &mat, ResultType &result) {
+  static constexpr void run(const MatrixType &mat, ResultType &result) {
     ActualMatrixType matrix(mat);
 
     // Four 2x2 sub-matrices of the input matrix, each is further divided into upper and lower

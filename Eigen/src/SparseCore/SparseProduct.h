@@ -29,7 +29,7 @@ namespace Eigen {
  * */
 template <typename Derived>
 template <typename OtherDerived>
-inline const Product<Derived, OtherDerived, AliasFreeProduct> SparseMatrixBase<Derived>::operator*(
+constexpr const Product<Derived, OtherDerived, AliasFreeProduct> SparseMatrixBase<Derived>::operator*(
     const SparseMatrixBase<OtherDerived>& other) const {
   return Product<Derived, OtherDerived, AliasFreeProduct>(derived(), other.derived());
 }
@@ -40,14 +40,14 @@ namespace internal {
 template <typename Lhs, typename Rhs, int ProductType>
 struct generic_product_impl<Lhs, Rhs, SparseShape, SparseShape, ProductType> {
   template <typename Dest>
-  static void evalTo(Dest& dst, const Lhs& lhs, const Rhs& rhs) {
+  static constexpr void evalTo(Dest& dst, const Lhs& lhs, const Rhs& rhs) {
     evalTo(dst, lhs, rhs, typename evaluator_traits<Dest>::Shape());
   }
 
   // dense += sparse * sparse
   template <typename Dest, typename ActualLhs,
             std::enable_if_t<std::is_same<typename evaluator_traits<Dest>::Shape, DenseShape>::value, int> = 0>
-  static void addTo(Dest& dst, const ActualLhs& lhs, const Rhs& rhs) {
+  static constexpr void addTo(Dest& dst, const ActualLhs& lhs, const Rhs& rhs) {
     using LhsNested = typename nested_eval<ActualLhs, Dynamic>::type;
     using RhsNested = typename nested_eval<Rhs, Dynamic>::type;
     LhsNested lhsNested(lhs);
@@ -59,14 +59,14 @@ struct generic_product_impl<Lhs, Rhs, SparseShape, SparseShape, ProductType> {
   // dense -= sparse * sparse
   template <typename Dest,
             std::enable_if_t<std::is_same<typename evaluator_traits<Dest>::Shape, DenseShape>::value, int> = 0>
-  static void subTo(Dest& dst, const Lhs& lhs, const Rhs& rhs) {
+  static constexpr void subTo(Dest& dst, const Lhs& lhs, const Rhs& rhs) {
     addTo(dst, -lhs, rhs);
   }
 
  protected:
   // sparse = sparse * sparse
   template <typename Dest>
-  static void evalTo(Dest& dst, const Lhs& lhs, const Rhs& rhs, SparseShape) {
+  static constexpr void evalTo(Dest& dst, const Lhs& lhs, const Rhs& rhs, SparseShape) {
     using LhsNested = typename nested_eval<Lhs, Dynamic>::type;
     using RhsNested = typename nested_eval<Rhs, Dynamic>::type;
     LhsNested lhsNested(lhs);
@@ -77,7 +77,7 @@ struct generic_product_impl<Lhs, Rhs, SparseShape, SparseShape, ProductType> {
 
   // dense = sparse * sparse
   template <typename Dest>
-  static void evalTo(Dest& dst, const Lhs& lhs, const Rhs& rhs, DenseShape) {
+  static constexpr void evalTo(Dest& dst, const Lhs& lhs, const Rhs& rhs, DenseShape) {
     dst.setZero();
     addTo(dst, lhs, rhs);
   }
@@ -100,8 +100,8 @@ struct Assignment<
     internal::assign_op<typename DstXprType::Scalar, typename Product<Lhs, Rhs, AliasFreeProduct>::Scalar>,
     Sparse2Dense> {
   using SrcXprType = Product<Lhs, Rhs, AliasFreeProduct>;
-  static void run(DstXprType& dst, const SrcXprType& src,
-                  const internal::assign_op<typename DstXprType::Scalar, typename SrcXprType::Scalar>&) {
+  static constexpr void run(DstXprType& dst, const SrcXprType& src,
+                            const internal::assign_op<typename DstXprType::Scalar, typename SrcXprType::Scalar>&) {
     Index dstRows = src.rows();
     Index dstCols = src.cols();
     if ((dst.rows() != dstRows) || (dst.cols() != dstCols)) dst.resize(dstRows, dstCols);
@@ -117,8 +117,8 @@ struct Assignment<
     internal::add_assign_op<typename DstXprType::Scalar, typename Product<Lhs, Rhs, AliasFreeProduct>::Scalar>,
     Sparse2Dense> {
   using SrcXprType = Product<Lhs, Rhs, AliasFreeProduct>;
-  static void run(DstXprType& dst, const SrcXprType& src,
-                  const internal::add_assign_op<typename DstXprType::Scalar, typename SrcXprType::Scalar>&) {
+  static constexpr void run(DstXprType& dst, const SrcXprType& src,
+                            const internal::add_assign_op<typename DstXprType::Scalar, typename SrcXprType::Scalar>&) {
     generic_product_impl<Lhs, Rhs>::addTo(dst, src.lhs(), src.rhs());
   }
 };
@@ -130,8 +130,8 @@ struct Assignment<
     internal::sub_assign_op<typename DstXprType::Scalar, typename Product<Lhs, Rhs, AliasFreeProduct>::Scalar>,
     Sparse2Dense> {
   using SrcXprType = Product<Lhs, Rhs, AliasFreeProduct>;
-  static void run(DstXprType& dst, const SrcXprType& src,
-                  const internal::sub_assign_op<typename DstXprType::Scalar, typename SrcXprType::Scalar>&) {
+  static constexpr void run(DstXprType& dst, const SrcXprType& src,
+                            const internal::sub_assign_op<typename DstXprType::Scalar, typename SrcXprType::Scalar>&) {
     generic_product_impl<Lhs, Rhs>::subTo(dst, src.lhs(), src.rhs());
   }
 };
@@ -143,7 +143,7 @@ struct unary_evaluator<SparseView<Product<Lhs, Rhs, Options> >, IteratorBased>
   using PlainObject = typename XprType::PlainObject;
   using Base = evaluator<PlainObject>;
 
-  explicit unary_evaluator(const XprType& xpr) : m_result(xpr.rows(), xpr.cols()) {
+  constexpr explicit unary_evaluator(const XprType& xpr) : m_result(xpr.rows(), xpr.cols()) {
     using std::abs;
     internal::construct_at<Base>(this, m_result);
     using LhsNested = typename nested_eval<Lhs, Dynamic>::type;
@@ -165,7 +165,7 @@ struct unary_evaluator<SparseView<Product<Lhs, Rhs, Options> >, IteratorBased>
 // sparse matrix = sparse-product (can be sparse*sparse, sparse*perm, etc.)
 template <typename Scalar, int Options_, typename StorageIndex_>
 template <typename Lhs, typename Rhs>
-SparseMatrix<Scalar, Options_, StorageIndex_>& SparseMatrix<Scalar, Options_, StorageIndex_>::operator=(
+constexpr SparseMatrix<Scalar, Options_, StorageIndex_>& SparseMatrix<Scalar, Options_, StorageIndex_>::operator=(
     const Product<Lhs, Rhs, AliasFreeProduct>& src) {
   SparseMatrix dst(src.rows(), src.cols());
   internal::generic_product_impl<Lhs, Rhs>::evalTo(dst, src.lhs(), src.rhs());

@@ -1268,11 +1268,11 @@ EIGEN_ALWAYS_INLINE void nvhpc_optimization_barrier(long double& x) {
 #define EIGEN_USING_STD(FUNC) using std::FUNC;
 #endif
 
-#define EIGEN_INHERIT_ASSIGNMENT_EQUAL_OPERATOR(Derived)                           \
-  using Base::operator=;                                                           \
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator=(const Derived& other) { \
-    Base::operator=(other);                                                        \
-    return *this;                                                                  \
+#define EIGEN_INHERIT_ASSIGNMENT_EQUAL_OPERATOR(Derived)                                     \
+  using Base::operator=;                                                                     \
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Derived& operator=(const Derived& other) { \
+    Base::operator=(other);                                                                  \
+    return *this;                                                                            \
   }
 
 /**
@@ -1280,7 +1280,7 @@ EIGEN_ALWAYS_INLINE void nvhpc_optimization_barrier(long double& x) {
  * \brief Macro to explicitly define the default copy constructor.
  * This is necessary, because the implicit definition is deprecated if the copy-assignment is overridden.
  */
-#define EIGEN_DEFAULT_COPY_CONSTRUCTOR(CLASS) EIGEN_DEVICE_FUNC CLASS(const CLASS&) = default;
+#define EIGEN_DEFAULT_COPY_CONSTRUCTOR(CLASS) EIGEN_DEVICE_FUNC constexpr CLASS(const CLASS&) = default;
 
 /** \internal
  * \brief Macro to manually inherit assignment operators.

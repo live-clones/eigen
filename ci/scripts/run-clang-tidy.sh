@@ -48,7 +48,7 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 # Where a CUDA toolkit is installed the GPU module's headers parse in full;
 # the CI image has none, and third_party_include_missing_from() then marks
 # those files as partially checked.
-DRIVER_COMPILE_ARGS=(-std=c++14 -I"${REPO_ROOT}")
+DRIVER_COMPILE_ARGS=(-std=c++20 -I"${REPO_ROOT}")
 for cuda_root in "${CUDAToolkit_ROOT:-}" "${CUDA_HOME:-}" "${CUDA_PATH:-}" /usr/local/cuda; do
   if [ -n "${cuda_root}" ] && [ -f "${cuda_root}/include/cuda_runtime.h" ]; then
     DRIVER_COMPILE_ARGS+=(-isystem "${cuda_root}/include")

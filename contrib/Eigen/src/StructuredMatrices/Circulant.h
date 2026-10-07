@@ -123,7 +123,7 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
    * \a col -- the eigenvalues of the matrix -- is computed here, once, and reused
    * by every subsequent product and solve. */
   template <typename Derived>
-  explicit Circulant(const MatrixBase<Derived>& col) : m_col(col) {
+  explicit constexpr Circulant(const MatrixBase<Derived>& col) : m_col(col) {
     EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
     eigen_assert(m_col.size() > 0 && "Circulant generator must be non-empty");
     if (m_col.size() > internal::structured_direct_threshold()) {
@@ -132,20 +132,20 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
     }
   }
 
-  EIGEN_DEVICE_FUNC Index rows() const { return m_col.size(); }
-  EIGEN_DEVICE_FUNC Index cols() const { return m_col.size(); }
+  EIGEN_DEVICE_FUNC constexpr Index rows() const { return m_col.size(); }
+  EIGEN_DEVICE_FUNC constexpr Index cols() const { return m_col.size(); }
 
   /** \returns the generating first column. */
-  const GeneratorType& column() const { return m_col; }
+  constexpr const GeneratorType& column() const { return m_col; }
 
   /** \returns the symbol of the operator, i.e. the DFT of the generating column.
    * Its entries are the eigenvalues of the matrix. Cached when the operator is
    * large enough for products to take the FFT path, computed on the fly for small
    * operators. */
-  ComplexVector symbol() const { return m_symbol.size() > 0 ? m_symbol : computeSymbol(); }
+  constexpr ComplexVector symbol() const { return m_symbol.size() > 0 ? m_symbol : computeSymbol(); }
 
   /** \returns the coefficient at row \a row and column \a col. */
-  Scalar coeff(Index row, Index col) const {
+  constexpr Scalar coeff(Index row, Index col) const {
     Index k = row - col;
     if (k < 0) k += rows();
     return m_col.coeff(k);
@@ -188,7 +188,7 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
    * generator rotated downwards by \c j. Row-major destinations use reversed
    * generator segments along each row. Invoked through \c dense = circulant; */
   template <typename Dest>
-  void evalTo(Dest& dst) const {
+  constexpr void evalTo(Dest& dst) const {
     const Index n = rows();
     EIGEN_IF_CONSTEXPR (Dest::IsRowMajor) {
       for (Index i = 0; i < n; ++i) {
@@ -205,7 +205,7 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
 
   /** \internal Computes \c dst += (*this), see evalTo(). */
   template <typename Dest>
-  void addTo(Dest& dst) const {
+  constexpr void addTo(Dest& dst) const {
     const Index n = rows();
     EIGEN_IF_CONSTEXPR (Dest::IsRowMajor) {
       for (Index i = 0; i < n; ++i) {
@@ -222,7 +222,7 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
 
   /** \internal Computes \c dst -= (*this), see evalTo(). */
   template <typename Dest>
-  void subTo(Dest& dst) const {
+  constexpr void subTo(Dest& dst) const {
     const Index n = rows();
     EIGEN_IF_CONSTEXPR (Dest::IsRowMajor) {
       for (Index i = 0; i < n; ++i) {
@@ -242,7 +242,7 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
    * tag, so assigning it behaves like any dense product: a temporary resolves
    * aliasing between the destination and \a x, and \c .noalias() skips it. */
   template <typename Rhs>
-  Product<Circulant, Rhs> operator*(const MatrixBase<Rhs>& x) const {
+  constexpr Product<Circulant, Rhs> operator*(const MatrixBase<Rhs>& x) const {
     EIGEN_STATIC_ASSERT(ColsAtCompileTime == Dynamic || Rhs::RowsAtCompileTime == Dynamic ||
                             int(ColsAtCompileTime) == int(Rhs::RowsAtCompileTime),
                         INVALID_MATRIX_PRODUCT)
@@ -257,7 +257,7 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
    * For a non-singular operator this is the exact solution
    * \c x = ifft( fft(b) ./ fft(c) ). Supports multiple right-hand sides. */
   template <typename Rhs>
-  Matrix<Scalar, Size_, Rhs::ColsAtCompileTime> solve(const MatrixBase<Rhs>& b) const {
+  constexpr Matrix<Scalar, Size_, Rhs::ColsAtCompileTime> solve(const MatrixBase<Rhs>& b) const {
     EIGEN_STATIC_ASSERT(RowsAtCompileTime == Dynamic || Rhs::RowsAtCompileTime == Dynamic ||
                             int(RowsAtCompileTime) == int(Rhs::RowsAtCompileTime),
                         YOU_MIXED_MATRICES_OF_DIFFERENT_SIZES)
@@ -278,7 +278,7 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
    * uses to decide which Fourier components to invert, and the comparison is
    * strict like SVDBase's, so an entry sitting exactly on the threshold still
    * counts as non-zero. */
-  Index rank() const {
+  constexpr Index rank() const {
     const ComplexVector s = symbol();
     const RealVector mods = s.cwiseAbs();
     return (!(mods.array() < internal::structured_rank_threshold(s, mods))).count();  // NaN entries count as non-zero
@@ -288,7 +288,7 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
    * generated by \c ifft(1 ./ symbol), the first column of the inverse matrix.
    * \warning The operator must be non-singular; use \ref solve for a
    * pseudo-inverse solve of a rank-deficient operator. */
-  Circulant inverse() const {
+  constexpr Circulant inverse() const {
     const Index n = rows();
     const ComplexVector sinv = symbol().cwiseInverse();
     GeneratorType col(n);
@@ -312,7 +312,7 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
    * overflow nor underflow when the determinant itself is representable, whatever
    * the ordering of large and small eigenvalues. For a real operator the product
    * is real up to roundoff, and its real part is returned. */
-  Scalar determinant() const {
+  constexpr Scalar determinant() const {
     const ComplexVector s = symbol();
     Complex det(1);
     Index exponent = 0;
@@ -325,13 +325,13 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
    * (unit-norm) eigenvector is the Fourier vector \c f_k with
    * \f$ (f_k)_j = e^{2\pi i j k / n} / \sqrt{n} \f$, see \ref eigenvectors.
    * Every circulant matrix is diagonalized by this same Fourier basis. */
-  ComplexVector eigenvalues() const { return symbol(); }
+  constexpr ComplexVector eigenvalues() const { return symbol(); }
 
   /** \returns the unitary matrix of eigenvectors: column \c k is the Fourier
    * vector \c f_k matching \c eigenvalues()[k].
    * \note The eigenvector matrix is materialized as a dense \c n x \c n matrix;
    * unlike the other methods of this class this costs O(n^2) storage. */
-  ComplexMatrix eigenvectors() const {
+  constexpr ComplexMatrix eigenvectors() const {
     const Index n = rows();
     const ComplexVector roots = fourierRoots();
     ComplexMatrix F(n, n);
@@ -344,7 +344,7 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
    * together they form the SVD \c *this = U * singularValues().asDiagonal() * V^H.
    * A real operator has a conjugate-symmetric symbol, so the two modes of a
    * conjugate pair carry exactly equal singular values. */
-  RealVector singularValues() const {
+  constexpr RealVector singularValues() const {
     ComplexVector s;
     RealVector mods;
     const std::vector<Index> perm = svdOrdering(s, mods);
@@ -356,7 +356,7 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
   /** \returns the matrix of left singular vectors \c U: column \c t is the Fourier
    * vector of the t-th largest symbol entry, scaled by its phase (phase 1 for a
    * zero entry). Dense \c n x \c n, see the note in \ref eigenvectors. */
-  ComplexMatrix matrixU() const {
+  constexpr ComplexMatrix matrixU() const {
     const Index n = rows();
     ComplexVector s;
     RealVector mods;
@@ -374,7 +374,7 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
   /** \returns the matrix of right singular vectors \c V: column \c t is the
    * Fourier vector of the t-th largest symbol entry. Dense \c n x \c n, see the
    * note in \ref eigenvectors. */
-  ComplexMatrix matrixV() const {
+  constexpr ComplexMatrix matrixV() const {
     const Index n = rows();
     ComplexVector s;
     RealVector mods;
@@ -389,7 +389,7 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
    * promoted scalar of the product (complex when a real operator is applied to a
    * complex right-hand side); the accumulation runs in the promoted type. */
   template <typename Dest, typename Rhs, typename ProductScalar>
-  void addProduct(Dest& dst, const Rhs& rhs, const ProductScalar& alpha) const {
+  constexpr void addProduct(Dest& dst, const Rhs& rhs, const ProductScalar& alpha) const {
     const Index n = rows();
     eigen_assert(rhs.rows() == n && "invalid product: dimensions do not match");
     if (n <= internal::structured_direct_threshold()) {
@@ -524,7 +524,7 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
   }
 
   /** \internal \returns the DFT of the generating column. */
-  ComplexVector computeSymbol() const {
+  constexpr ComplexVector computeSymbol() const {
     const Index n = m_col.size();
     const ComplexVector cc = m_col.template cast<Complex>();
     if (n == 1) return cc;  // the DFT of a single sample is the identity
@@ -545,7 +545,8 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
  * \returns a \ref Circulant operator with first column \a col. The compile-time
  * size of the operator is deduced from \a col. */
 template <typename Derived>
-Circulant<typename Derived::Scalar, Derived::SizeAtCompileTime> makeCirculant(const MatrixBase<Derived>& col) {
+constexpr Circulant<typename Derived::Scalar, Derived::SizeAtCompileTime> makeCirculant(
+    const MatrixBase<Derived>& col) {
   return Circulant<typename Derived::Scalar, Derived::SizeAtCompileTime>(col);
 }
 

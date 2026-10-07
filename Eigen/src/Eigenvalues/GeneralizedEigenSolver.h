@@ -120,7 +120,7 @@ class GeneralizedEigenSolver {
    *
    * \sa compute() for an example.
    */
-  GeneralizedEigenSolver()
+  constexpr GeneralizedEigenSolver()
       : m_eivec(), m_alphas(), m_betas(), m_computeEigenvectors(false), m_isInitialized(false), m_realQZ() {}
 
   /** \brief Default constructor with memory preallocation
@@ -129,7 +129,7 @@ class GeneralizedEigenSolver {
    * according to the specified problem \a size.
    * \sa GeneralizedEigenSolver()
    */
-  explicit GeneralizedEigenSolver(Index size)
+  constexpr explicit GeneralizedEigenSolver(Index size)
       : m_eivec(size, size),
         m_alphas(size),
         m_betas(size),
@@ -151,8 +151,8 @@ class GeneralizedEigenSolver {
    * \sa compute()
    */
   template <typename InputTypeA, typename InputTypeB>
-  GeneralizedEigenSolver(const EigenBase<InputTypeA>& A, const EigenBase<InputTypeB>& B,
-                         bool computeEigenvectors = true)
+  constexpr GeneralizedEigenSolver(const EigenBase<InputTypeA>& A, const EigenBase<InputTypeB>& B,
+                                   bool computeEigenvectors = true)
       : m_eivec(A.rows(), A.cols()),
         m_alphas(A.cols()),
         m_betas(A.cols()),
@@ -198,7 +198,7 @@ class GeneralizedEigenSolver {
    *
    * \sa eigenvalues()
    */
-  EigenvectorsType eigenvectors() const {
+  constexpr EigenvectorsType eigenvectors() const {
     eigen_assert(info() == Success && "GeneralizedEigenSolver failed to compute eigenvectors");
     eigen_assert(m_computeEigenvectors && "Eigenvectors for GeneralizedEigenSolver were not calculated");
     return m_eivec;
@@ -222,7 +222,7 @@ class GeneralizedEigenSolver {
    *
    * \sa alphas(), betas(), eigenvectors()
    */
-  EigenvalueType eigenvalues() const {
+  constexpr EigenvalueType eigenvalues() const {
     eigen_assert(info() == Success && "GeneralizedEigenSolver failed to compute eigenvalues.");
     return EigenvalueType(m_alphas, m_betas);
   }
@@ -232,7 +232,7 @@ class GeneralizedEigenSolver {
    * This vector permits to reconstruct the j-th eigenvalues as alphas(i)/betas(j).
    *
    * \sa betas(), eigenvalues() */
-  const ComplexVectorType& alphas() const {
+  constexpr const ComplexVectorType& alphas() const {
     eigen_assert(info() == Success && "GeneralizedEigenSolver failed to compute alphas.");
     return m_alphas;
   }
@@ -242,7 +242,7 @@ class GeneralizedEigenSolver {
    * This vector permits to reconstruct the j-th eigenvalues as alphas(i)/betas(j).
    *
    * \sa alphas(), eigenvalues() */
-  const VectorType& betas() const {
+  constexpr const VectorType& betas() const {
     eigen_assert(info() == Success && "GeneralizedEigenSolver failed to compute betas.");
     return m_betas;
   }
@@ -271,17 +271,17 @@ class GeneralizedEigenSolver {
    * This method reuses the allocated data in the GeneralizedEigenSolver object.
    */
   template <typename InputTypeA, typename InputTypeB>
-  GeneralizedEigenSolver& compute(const EigenBase<InputTypeA>& A, const EigenBase<InputTypeB>& B,
-                                  bool computeEigenvectors = true);
+  constexpr GeneralizedEigenSolver& compute(const EigenBase<InputTypeA>& A, const EigenBase<InputTypeB>& B,
+                                            bool computeEigenvectors = true);
 
-  ComputationInfo info() const {
+  constexpr ComputationInfo info() const {
     eigen_assert(m_isInitialized && "EigenSolver is not initialized.");
     return m_realQZ.info();
   }
 
   /** Sets the maximal number of iterations allowed.
    */
-  GeneralizedEigenSolver& setMaxIterations(Index maxIters) {
+  constexpr GeneralizedEigenSolver& setMaxIterations(Index maxIters) {
     m_realQZ.setMaxIterations(maxIters);
     return *this;
   }
@@ -299,14 +299,13 @@ class GeneralizedEigenSolver {
   ComplexVectorType m_tmp;
 
  private:
-  GeneralizedEigenSolver& computeFromQZ(bool computeEigenvectors);
+  constexpr GeneralizedEigenSolver& computeFromQZ(bool computeEigenvectors);
 };
 
 template <typename MatrixType>
 template <typename InputTypeA, typename InputTypeB>
-GeneralizedEigenSolver<MatrixType>& GeneralizedEigenSolver<MatrixType>::compute(const EigenBase<InputTypeA>& A,
-                                                                                const EigenBase<InputTypeB>& B,
-                                                                                bool computeEigenvectors) {
+constexpr GeneralizedEigenSolver<MatrixType>& GeneralizedEigenSolver<MatrixType>::compute(
+    const EigenBase<InputTypeA>& A, const EigenBase<InputTypeB>& B, bool computeEigenvectors) {
   eigen_assert(A.cols() == A.rows() && B.cols() == A.rows() && B.cols() == B.rows());
   // Reduce to generalized real Schur form:
   // A = Q S Z and B = Q T Z
@@ -317,7 +316,8 @@ GeneralizedEigenSolver<MatrixType>& GeneralizedEigenSolver<MatrixType>::compute(
 /** \internal Computes the generalized eigenvalues, and the eigenvectors when requested, from the QZ decomposition
  * held by m_realQZ. */
 template <typename MatrixType>
-GeneralizedEigenSolver<MatrixType>& GeneralizedEigenSolver<MatrixType>::computeFromQZ(bool computeEigenvectors) {
+constexpr GeneralizedEigenSolver<MatrixType>& GeneralizedEigenSolver<MatrixType>::computeFromQZ(
+    bool computeEigenvectors) {
   const Index size = m_realQZ.matrixS().cols();
   if (m_realQZ.info() == Success) {
     // Resize storage
