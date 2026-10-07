@@ -219,6 +219,34 @@ void test_ksum_nested(Index n1, Index n2, Index n3) {
   check_products(makeKroneckerOperator(makeKroneckerSum(Ad, Cd), B),
                  reference_kron<Scalar>(reference_ksum<Scalar>(Ad, Cd), Bd));
 
+  // Sparse assembly with the sum as the left factor, into either storage order,
+  // and nested a level deeper, where it is still materialized once: a nested
+  // KroneckerOperator is visited through its factors' sparse forms.
+  using RowSparse = SparseMatrix<Scalar, RowMajor>;
+  auto SB = makeKroneckerOperator(makeKroneckerSum(Ad, Cd), B);
+  const Mat refSB = reference_kron<Scalar>(reference_ksum<Scalar>(Ad, Cd), Bd);
+  auto ASB = makeKroneckerOperator(A, SB);
+  STATIC_CHECK((std::is_same<typename internal::kron_factor_visitable<decltype(ASB)>::type,
+                             KroneckerOperator<Mat, KroneckerOperator<Sparse, Sparse>>>::value));
+  const Mat refASB = reference_kron<Scalar>(A, refSB);
+  auto CBS = makeKroneckerSum(Cd, makeKroneckerOperator(B, makeKroneckerSum(Ad, Cd)));
+  const Mat refCBS = reference_ksum<Scalar>(Cd, reference_kron<Scalar>(Bd, reference_ksum<Scalar>(Ad, Cd)));
+  Sparse sparseSB, sparseASB, sparseCBS;
+  RowSparse rowSB, rowASB, rowCBS;
+  sparseSB = SB;
+  rowSB = SB;
+  sparseASB = ASB;
+  rowASB = ASB;
+  sparseCBS = CBS;
+  rowCBS = CBS;
+  VERIFY(sparseSB.isCompressed() && rowSB.isCompressed() && sparseASB.isCompressed() && rowASB.isCompressed());
+  VERIFY_IS_APPROX(Mat(sparseSB), refSB);
+  VERIFY_IS_APPROX(Mat(rowSB), refSB);
+  VERIFY_IS_APPROX(Mat(sparseASB), refASB);
+  VERIFY_IS_APPROX(Mat(rowASB), refASB);
+  VERIFY_IS_APPROX(Mat(sparseCBS), refCBS);
+  VERIFY_IS_APPROX(Mat(rowCBS), refCBS);
+
   // A (+) (B (x) C): a KroneckerOperator as a Kronecker-sum factor.
   auto SK = makeKroneckerSum(Ad, makeKroneckerOperator(B, Cd));
   const Mat refSK = reference_ksum<Scalar>(Ad, reference_kron<Scalar>(Bd, Cd));
@@ -324,6 +352,11 @@ void test_ksum_solve(Index n1, Index n2) {
   check_ksum_solves(hilbert<Mat>(n1), Mat(delta * Mat::Identity(n1, n1) - hilbert<Mat>(n1)));
   check_ksum_solves(jordan_block<Mat>(n1, Scalar(1), Scalar(1000)), jordan_block<Mat>(n2, Scalar(1), Scalar(-1000)));
   check_ksum_solves(Mat(RealScalar(1e6) * A), B);
+
+  // A 1x1 factor next to a non-Hermitian one, on the Schur path.
+  const Mat one = Mat::Constant(1, 1, Scalar(2));
+  check_ksum_solves(one, B);
+  check_ksum_solves(B, one);
 }
 
 // Three factors through the nested sum, either path, and non-finite factors,
@@ -377,6 +410,9 @@ void test_ksum_solve_nested(Index n1, Index n2) {
   reused.compute(makeKroneckerSum(B, H1));
   VERIFY_IS_EQUAL(reused.isHermitian(), B == B.adjoint());
   check_ksum_solver(reused, reference_ksum<Scalar>(B, H1), n1 + n2, B.norm() + H1.norm());
+  reused.compute(makeKroneckerSum(B, C));
+  VERIFY(!reused.isHermitian());
+  check_ksum_solver(reused, reference_ksum<Scalar>(B, C), n2 + n3, B.norm() + C.norm());
 
   // An exactly vanishing eigenvalue sum goes undetected, as documented: the
   // decompositions of I and -I (Hermitian path), and of the Jordan block J(1)
@@ -444,6 +480,33 @@ bool has_complex_pair(const Mat& A) {
   return (T.diagonal(-1).array() != typename Mat::Scalar(0)).any();
 }
 
+// A real matrix already in real Schur form, with one diagonal block per entry
+// of layout: a 2x2 block with eigenvalues a +- i sqrt(bc) for a 2, a 1x1 for a
+// 1, all with real part in [1, 2], under a random upper part.
+template <typename Mat>
+Mat quasi_triangular(std::initializer_list<int> layout) {
+  using RealScalar = typename Mat::Scalar;
+  const auto unit = [] { return RealScalar(1) + internal::random<RealScalar>(RealScalar(0), RealScalar(1)); };
+  Index n = 0;
+  for (int p : layout) n += p;
+  Mat T = Mat::Random(n, n);
+  T.template triangularView<StrictlyLower>().setZero();
+  Index i = 0;
+  for (int p : layout) {
+    T(i, i) = unit();
+    if (p == 2) {
+      T(i + 1, i + 1) = T(i, i);
+      T(i, i + 1) = unit();
+      T(i + 1, i) = -unit();
+    }
+    i += p;
+  }
+  // RealSchur leaves it in place, so the block positions are the ones chosen.
+  const Mat S = RealSchur<Mat>(T).matrixT();
+  VERIFY(((S.diagonal(-1).array() != RealScalar(0)) == (T.diagonal(-1).array() != RealScalar(0))).all());
+  return T;
+}
+
 // Real factors with complex conjugate eigenvalue pairs take the real Schur path.
 // Up to four factors couple the 2x2 blocks in systems up to 16 wide, with the
 // updates across blocks running at every inner factor; five fall back to the
@@ -485,6 +548,27 @@ void test_ksum_real_schur() {
   const Mat S4 = reference_ksum<RealScalar>(A, reference_ksum<RealScalar>(At, reference_ksum<RealScalar>(C, Ct)));
   const Vec s4 = Vec::Random(S4.rows());
   check_ksum_residual(S4, Vec(makeKroneckerSum(A, At, C, Ct).solve(s4)), s4, 12, 2 * A.norm() + C.norm() + Ct.norm());
+
+  // Chosen block layouts: 2x2 blocks first, last and adjacent to each other,
+  // and 1x1 factors, at every position among up to four factors.
+  const Mat Q5 = quasi_triangular<Mat>({2, 1, 2}), Q4 = quasi_triangular<Mat>({1, 2, 1});
+  const Mat Q3a = quasi_triangular<Mat>({1, 2}), Q3b = quasi_triangular<Mat>({2, 1});
+  const Mat Q22 = quasi_triangular<Mat>({2, 2}), one = Mat::Constant(1, 1, RealScalar(0.5));
+  check_ksum_solves(Q5, Q3a);
+  check_ksum_solves(Q22, Q4);
+  check_ksum_solves(one, Q5);
+  check_ksum_solves(Q3b, one);
+  const Mat L3 = reference_ksum<RealScalar>(Q3a, reference_ksum<RealScalar>(one, Q22));
+  const Vec l3 = Vec::Random(L3.rows());
+  check_ksum_residual(L3, Vec(makeKroneckerSum(Q3a, one, Q22).solve(l3)), l3, 8, Q3a.norm() + one.norm() + Q22.norm());
+  const Mat L4 = reference_ksum<RealScalar>(Q5, reference_ksum<RealScalar>(Q3b, reference_ksum<RealScalar>(Q4, Q3a)));
+  const Vec l4 = Vec::Random(L4.rows());
+  check_ksum_residual(L4, Vec(makeKroneckerSum(Q5, Q3b, Q4, Q3a).solve(l4)), l4, 15,
+                      Q5.norm() + Q3b.norm() + Q4.norm() + Q3a.norm());
+  const Mat L1 = reference_ksum<RealScalar>(Q22, reference_ksum<RealScalar>(one, reference_ksum<RealScalar>(Q3b, one)));
+  const Vec l1 = Vec::Random(L1.rows());
+  check_ksum_residual(L1, Vec(makeKroneckerSum(Q22, one, Q3b, one).solve(l1)), l1, 9,
+                      Q22.norm() + 2 * one.norm() + Q3b.norm());
 }
 
 // The fast path is gated on exact Hermitian symmetry: complex symmetric
