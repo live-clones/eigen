@@ -17,12 +17,33 @@ namespace Eigen {
 
 namespace internal {
 
+/** \internal The widest StorageIndex of the sparse leaves of \a Factor, \c int
+ * when it has none. */
+template <typename Factor, int Kind = kron_factor_kind<Factor>()>
+struct kron_view_storage_index {
+  using type = int;
+};
+template <typename Scalar, int Options, typename StorageIndex>
+struct kron_view_storage_index<SparseMatrix<Scalar, Options, StorageIndex>, kKronSparseFactor> {
+  using type = StorageIndex;
+};
+template <typename LhsMatrix, typename RhsMatrix>
+struct kron_view_storage_index<KroneckerOperator<LhsMatrix, RhsMatrix>, kKronKroneckerFactor>
+    : promote_index_type<typename kron_view_storage_index<LhsMatrix>::type,
+                         typename kron_view_storage_index<RhsMatrix>::type> {};
+template <typename LhsMatrix, typename RhsMatrix>
+struct kron_view_storage_index<KroneckerSum<LhsMatrix, RhsMatrix>, kKronSumFactor>
+    : promote_index_type<typename kron_view_storage_index<LhsMatrix>::type,
+                         typename kron_view_storage_index<RhsMatrix>::type> {};
+
 template <typename OperatorType, int Options>
 struct traits<KroneckerSparseView<OperatorType, Options>> {
   using Scalar = typename OperatorType::Scalar;
   using StorageKind = Sparse;
   using XprKind = MatrixXpr;
-  using StorageIndex = int;
+  // The index type of the plain matrices Eigen evaluates the view into (eval(),
+  // product temporaries), which the user does not choose.
+  using StorageIndex = typename kron_view_storage_index<OperatorType>::type;
   static constexpr int RowsAtCompileTime = OperatorType::RowsAtCompileTime;
   static constexpr int ColsAtCompileTime = OperatorType::ColsAtCompileTime;
   static constexpr int MaxRowsAtCompileTime = OperatorType::MaxRowsAtCompileTime;
@@ -43,7 +64,13 @@ struct kron_view_factor {
 template <typename Scalar, int FactorOptions, typename StorageIndex, int Options>
 struct kron_view_factor<SparseMatrix<Scalar, FactorOptions, StorageIndex>, Options, kKronSparseFactor> {
   using type = SparseMatrix<Scalar, Options & RowMajorBit ? RowMajor : ColMajor, StorageIndex>;
-  static type convert(const SparseMatrix<Scalar, FactorOptions, StorageIndex>& f) { return type(f); }
+  // A same-order copy keeps the factor's entry order, and a compressed matrix
+  // may hold unsorted inner vectors; the iterators need them sorted.
+  static type convert(const SparseMatrix<Scalar, FactorOptions, StorageIndex>& f) {
+    type g(f);
+    if (g.innerIndicesAreSorted() != g.outerSize()) g.sortInnerIndices();
+    return g;
+  }
 };
 template <typename LhsMatrix, typename RhsMatrix, int Options>
 struct kron_view_factor<KroneckerOperator<LhsMatrix, RhsMatrix>, Options, kKronKroneckerFactor> {
@@ -220,12 +247,12 @@ class kron_view_iterator<KroneckerSum<LhsMatrix, RhsMatrix>, RowMajor, kKronSumF
     return *this;
   }
   Index index() const { return numext::mini(indexL(), indexR()); }
+  // The values of the materialization (A (x) I) + (I (x) B), signed zeros
+  // included: a + b on the diagonal, a + 0 and 0 + b off it.
   Scalar value() const {
-    const Index current = index();
-    Scalar v(0);
-    if (indexL() == current) v += m_itL.value();
-    if (indexR() == current) v += m_itR.value();
-    return v;
+    const Index l = indexL(), r = indexR();
+    if (l == r) return m_itL.value() + m_itR.value();
+    return l < r ? m_itL.value() + Scalar(0) : Scalar(0) + m_itR.value();
   }
 
  private:
@@ -268,7 +295,12 @@ struct kron_view_nonzeros<KroneckerSum<LhsMatrix, RhsMatrix>, kKronSumFactor> {
  *
  * The view is a \c SparseMatrixBase expression whose inner vectors are
  * iterated straight from the factors, so the operator takes part in sparse
- * expressions, products and assignments without being materialized first:
+ * expressions, products and assignments without being materialized first.
+ * A product follows Eigen's cost model for its operands like any sparse
+ * expression: a sparse-sparse product, or one with a row-major dense
+ * right-hand side, revisits every inner vector of the view and evaluates it
+ * into a temporary first when an entry costs more to recompute than to read
+ * (complex scalars, whose multiply is dearer than a read).
  * \code
  * auto L = makeKroneckerSum(Dy, Dx);                      // 2-D Laplacian
  * SparseMatrix<double> M = Id - tau * L.sparseView();     // assembled once, no temporary for L
@@ -288,8 +320,11 @@ struct kron_view_nonzeros<KroneckerSum<LhsMatrix, RhsMatrix>, kKronSumFactor> {
  * storage order \a Options (\c ColMajor or \c RowMajor, which must match the
  * other operands of a sparse binary expression). Like a \c SparseMatrix it is
  * nested by reference in the expressions built from it, so an expression must
- * not outlive a temporary view. Its \c InnerIterator is also the interface the
- * coefficient-reading preconditioners take, e.g.
+ * not outlive a temporary view. Its \c StorageIndex, the index type of the
+ * temporaries Eigen evaluates it into, is the widest of its sparse factors'
+ * (\c int without any) and must hold its dimensions and stored-entry count;
+ * 64-bit sparse factors give a 64-bit view. Its \c InnerIterator is also the
+ * interface the coefficient-reading preconditioners take, e.g.
  * \c DiagonalPreconditioner::compute(view). The view is not a matrix type for
  * the iterative solvers themselves, which bind theirs through \c Ref; give them
  * the operator (matrix-free, \c IdentityPreconditioner) or a materialized

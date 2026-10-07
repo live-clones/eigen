@@ -114,6 +114,11 @@ void test_view_kronecker(Index m1, Index n1, Index m2, Index n2) {
   E.col(0) *= Scalar(0);
   E.prune(Scalar(0));
   check_view_both_orders(makeKroneckerOperator(A, E));
+  // An explicitly stored zero is an entry of the view, as of the materialization.
+  SparseMatrix<Scalar> Z = S;
+  Z.coeffRef(0, 0) = Scalar(0);
+  check_view_both_orders(makeKroneckerOperator(A, Z));
+  check_view_both_orders(makeKroneckerOperator(Z, D));
 }
 
 template <typename Scalar>
@@ -145,11 +150,17 @@ void test_view_finite_difference(Index n1, Index n2) {
   Sparse Dx(n2, n2), Dy(n1, n1);
   for (Index j = 0; j < n2; ++j) {
     Dx.insert(j, j) = 2.0 + double(j);  // a variable diagonal, so that Jacobi is not a scaling
-    if (j + 1 < n2) Dx.insert(j + 1, j) = Dx.insert(j, j + 1) = -1.0;
+    if (j + 1 < n2) {
+      Dx.insert(j + 1, j) = -1.0;  // separate statements: an insert invalidates references
+      Dx.insert(j, j + 1) = -1.0;
+    }
   }
   for (Index j = 0; j < n1; ++j) {
     Dy.insert(j, j) = 2.0;
-    if (j + 1 < n1) Dy.insert(j + 1, j) = Dy.insert(j, j + 1) = -1.0;
+    if (j + 1 < n1) {
+      Dy.insert(j + 1, j) = -1.0;
+      Dy.insert(j, j + 1) = -1.0;
+    }
   }
   auto L = makeKroneckerSum(Dy, Dx);
   Sparse Lm;
@@ -166,6 +177,60 @@ void test_view_finite_difference(Index n1, Index n2) {
   VERIFY_IS_APPROX(VectorXd(jacobi.solve(b)), VectorXd(b.cwiseQuotient(MatrixXd(Lm).diagonal())));
 }
 
+// Factors outside the common case: a compressed factor with unsorted inner
+// vectors, signed zeros in a Kronecker sum, and 64-bit sparse indices.
+void test_view_factor_contracts() {
+  using Sparse = SparseMatrix<double>;
+  Sparse U(3, 3);
+  U.startVec(0);
+  U.insertBackByOuterInnerUnordered(0, 2) = 1.0;
+  U.insertBackByOuterInnerUnordered(0, 0) = 2.0;
+  U.startVec(1);
+  U.insertBackByOuterInnerUnordered(1, 1) = 3.0;
+  U.startVec(2);
+  U.insertBackByOuterInnerUnordered(2, 1) = 4.0;
+  U.insertBackByOuterInnerUnordered(2, 0) = 5.0;
+  U.finalize();
+  VERIFY(U.innerIndicesAreSorted() != U.outerSize());
+  const MatrixXd A = MatrixXd::Random(2, 2);
+  check_view_both_orders(makeKroneckerOperator(A, U));
+  check_view_both_orders(makeKroneckerOperator(U, A));
+  check_view_both_orders(makeKroneckerSum(U, A));
+
+  // -0 + -0 on the diagonal, -0 + 0 off it.
+  Sparse X(2, 2), Y(2, 2);
+  X.insert(0, 0) = -0.0;
+  X.insert(1, 0) = -0.0;
+  Y.insert(0, 0) = -0.0;
+  Y.insert(0, 1) = -0.0;
+  const auto L = makeKroneckerSum(X, Y);
+  Sparse M;
+  M = L;
+  VERIFY(std::signbit(M.coeff(0, 0)));
+  using View = KroneckerSparseView<KroneckerSum<Sparse, Sparse>, ColMajor>;
+  const View V = L.sparseView();
+  for (Index k = 0; k < V.outerSize(); ++k) {
+    Sparse::InnerIterator ref(M, k);
+    for (View::InnerIterator it(V, k); it; ++it, ++ref) VERIFY(std::signbit(it.value()) == std::signbit(ref.value()));
+  }
+
+  // The plain matrices Eigen evaluates the view into take the widest index of
+  // its sparse factors.
+  using Sparse64 = SparseMatrix<double, ColMajor, std::int64_t>;
+  using Op64 = KroneckerOperator<MatrixXd, KroneckerSum<Sparse, Sparse64>>;
+  STATIC_CHECK((std::is_same<KroneckerSparseView<Op64, ColMajor>::StorageIndex, std::int64_t>::value));
+  STATIC_CHECK(
+      (std::is_same<KroneckerSparseView<KroneckerOperator<MatrixXd, Sparse>, RowMajor>::StorageIndex, int>::value));
+  STATIC_CHECK(
+      (std::is_same<KroneckerSparseView<KroneckerOperator<MatrixXd, MatrixXd>, ColMajor>::StorageIndex, int>::value));
+  const Sparse64 B = Sparse64(random_sparse<double>(3, 3));
+  const auto K64 = makeKroneckerOperator(A, B);
+  const Sparse64 E64 = K64.sparseView().eval();
+  Sparse64 M64;
+  M64 = K64;
+  VERIFY_IS_APPROX(MatrixXd(E64), MatrixXd(M64));
+}
+
 EIGEN_DECLARE_TEST(structured_kronecker_sparse_view) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1((test_view_kronecker<double>(3, 4, 4, 2)));
@@ -174,5 +239,6 @@ EIGEN_DECLARE_TEST(structured_kronecker_sparse_view) {
     CALL_SUBTEST_2((test_view_kronecker_sum<double>(3, 4)));
     CALL_SUBTEST_2((test_view_kronecker_sum<std::complex<double>>(2, 3)));
     CALL_SUBTEST_2(test_view_finite_difference(6, 5));
+    CALL_SUBTEST_3(test_view_factor_contracts());
   }
 }
