@@ -30,8 +30,8 @@ struct trsmKernelL {
   // (-size, 0]. Both origins are elements of the panel, so callers never form a pointer outside
   // the matrix they solve in. The AVX-512 specializations take both by the top-left element and
   // convert when they delegate here.
-  static void kernel(Index size, Index otherSize, const Scalar* _tri, Index triStride, Scalar* _other, Index otherIncr,
-                     Index otherStride);
+  EIGEN_DEVICE_FUNC static void kernel(Index size, Index otherSize, const Scalar* _tri, Index triStride, Scalar* _other,
+                                       Index otherIncr, Index otherStride);
 };
 
 template <typename Scalar, typename Index, int Mode, bool Conjugate, int TriStorageOrder, int OtherInnerStride,
@@ -39,7 +39,7 @@ template <typename Scalar, typename Index, int Mode, bool Conjugate, int TriStor
 struct trsmKernelR {
   // Generic Implementation of triangular solve for triangular matrix on right and multiple lhs.
   // Handles non-packed matrices.
-  static void kernel(Index size, Index otherSize, const Scalar* _tri, Index triStride, Scalar* _other, Index otherIncr,
+  EIGEN_DEVICE_FUNC static void kernel(Index size, Index otherSize, const Scalar* _tri, Index triStride, Scalar* _other, Index otherIncr,
                      Index otherStride);
 };
 
@@ -68,7 +68,7 @@ struct triangular_solve_packet_traits {
 #endif
 
   template <typename Index>
-  static EIGEN_STRONG_INLINE bool use_unblocked(Index size, Index cols, std::ptrdiff_t l1) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool use_unblocked(Index size, Index cols, std::ptrdiff_t l1) {
     if (!UseUnblocked || size < RegisterRows || size > WorkspaceRows || cols < PacketSize) return false;
     const int packets = cols >= RhsPackets * PacketSize ? RhsPackets : 1;
     // Like GEBP's L1 depth model: the RHS tile, reciprocals, and RegisterRows rows
@@ -88,7 +88,8 @@ struct triangular_solve_packet_kernel {
   static constexpr bool IsLower = (Mode & Lower) != 0;
 
   template <int RhsPackets>
-  static EIGEN_STRONG_INLINE bool all_finite(const PacketBlock<Packet, RhsPackets>& x, bool_constant<true>) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool all_finite(const PacketBlock<Packet, RhsPackets>& x,
+                                                               bool_constant<true>) {
     // Classify bits: fast-math may assume the arithmetic results are finite.
     using FloatTraits = binary_floating_point_traits<Scalar>;
     bool nonfinite = false;
@@ -104,19 +105,20 @@ struct triangular_solve_packet_kernel {
 
   // Keep disabled scalar instantiations valid in C++14.
   template <int RhsPackets>
-  static EIGEN_STRONG_INLINE bool all_finite(const PacketBlock<Packet, RhsPackets>&, bool_constant<false>) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool all_finite(const PacketBlock<Packet, RhsPackets>&,
+                                                               bool_constant<false>) {
     return true;
   }
 
   template <int RhsPackets>
-  static EIGEN_STRONG_INLINE void update(PacketBlock<Packet, RhsPackets>& x, const PacketBlock<Packet, RhsPackets>& y,
-                                         Scalar a) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void update(PacketBlock<Packet, RhsPackets>& x,
+                                                           const PacketBlock<Packet, RhsPackets>& y, Scalar a) {
     const Packet pa = pset1<Packet>(a);
     for (int p = 0; p < RhsPackets; ++p) x.packet[p] = pnmadd(pa, y.packet[p], x.packet[p]);
   }
 
   template <int RhsPackets>
-  static EIGEN_STRONG_INLINE void scale(PacketBlock<Packet, RhsPackets>& x, Scalar a) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void scale(PacketBlock<Packet, RhsPackets>& x, Scalar a) {
     EIGEN_IF_CONSTEXPR (!(Mode & UnitDiag)) {
       const Packet pa = pset1<Packet>(a);
       for (int p = 0; p < RhsPackets; ++p) x.packet[p] = pmul(x.packet[p], pa);
@@ -124,8 +126,9 @@ struct triangular_solve_packet_kernel {
   }
 
   template <std::size_t Row, int RhsPackets, std::size_t... Next>
-  static EIGEN_STRONG_INLINE void solve_row(PacketBlock<Packet, RhsPackets>* x, const TriMapper& a,
-                                            const Scalar* inverse, Index r0, Index step, std::index_sequence<Next...>) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void solve_row(PacketBlock<Packet, RhsPackets>* x, const TriMapper& a,
+                                                              const Scalar* inverse, Index r0, Index step,
+                                                              std::index_sequence<Next...>) {
     const Index row = r0 + Index(Row) * step;
     scale(x[Row], inverse[row]);
     int unroll[] = {0, (update(x[Row + 1 + Next], x[Row], a(r0 + Index(Row + 1 + Next) * step, row)), 0)...};
@@ -134,9 +137,9 @@ struct triangular_solve_packet_kernel {
 
   // GCC generates extra instructions when the accumulator indices come from a loop.
   template <int RhsPackets, std::size_t... Rows>
-  static EIGEN_STRONG_INLINE void solve_block(Index i, const TriMapper& a, const Scalar* inverse,
-                                              PacketBlock<Packet, RhsPackets>* work, Index r0, Index step,
-                                              std::index_sequence<Rows...>) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void solve_block(Index i, const TriMapper& a, const Scalar* inverse,
+                                                                PacketBlock<Packet, RhsPackets>* work, Index r0,
+                                                                Index step, std::index_sequence<Rows...>) {
     PacketBlock<Packet, RhsPackets> x[] = {work[r0 + Index(Rows) * step]...};
     for (Index k = 0; k < i; ++k) {
       const Index c = IsLower ? k : r0 + i - k;
@@ -153,8 +156,8 @@ struct triangular_solve_packet_kernel {
   }
 
   template <int RhsPackets>
-  static EIGEN_STRONG_INLINE void solve(Index size, const TriMapper& a, const Scalar* inverse, Scalar* other,
-                                        Index otherStride) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void solve(Index size, const TriMapper& a, const Scalar* inverse,
+                                                          Scalar* other, Index otherStride) {
     PacketBlock<Packet, RhsPackets> work[Traits::WorkspaceRows];
     for (int p = 0; p < RhsPackets; ++p) {
       Index row = 0;
@@ -246,7 +249,7 @@ struct triangular_solve_packet_kernel {
   // one packet solve instead of a scalar dot product per coefficient; a column-major triangle's scalar solve
   // is a contiguous axpy per column, which compilers vectorize. Padded lanes are dropped. Inlined, its buffer
   // and second solve<1> copy measured slower even for solves that never pad.
-  static EIGEN_DONT_INLINE void solve_padded(Index size, const TriMapper& a, const Scalar* inverse, Scalar* other,
+  static EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void solve_padded(Index size, const TriMapper& a, const Scalar* inverse, Scalar* other,
                                              Index otherStride, Index cols) {
     Map<Matrix<Scalar, Dynamic, Dynamic, ColMajor>, Unaligned, OuterStride<>> rest(other, size, cols,
                                                                                    OuterStride<>(otherStride));
@@ -257,7 +260,7 @@ struct triangular_solve_packet_kernel {
     rest = padded.leftCols(cols);
   }
 
-  static EIGEN_DONT_INLINE void kernel(Index size, Index cols, const Scalar* tri, Index triStride, Scalar* other,
+  static EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void kernel(Index size, Index cols, const Scalar* tri, Index triStride, Scalar* other,
                                        Index otherStride) {
     eigen_internal_assert(size <= Traits::WorkspaceRows && cols >= PacketSize &&
                           (TriStorageOrder == RowMajor || cols % PacketSize == 0));
@@ -293,7 +296,7 @@ struct triangular_solve_packet_kernel {
 
 template <typename Scalar, typename Index, int Mode, bool Conjugate, int TriStorageOrder, int OtherInnerStride,
           bool Specialized>
-EIGEN_STRONG_INLINE void trsmKernelL<Scalar, Index, Mode, Conjugate, TriStorageOrder, OtherInnerStride,
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void trsmKernelL<Scalar, Index, Mode, Conjugate, TriStorageOrder, OtherInnerStride,
                                      Specialized>::kernel(Index size, Index otherSize, const Scalar* _tri,
                                                           Index triStride, Scalar* _other, Index otherIncr,
                                                           Index otherStride) {
@@ -348,7 +351,7 @@ EIGEN_STRONG_INLINE void trsmKernelL<Scalar, Index, Mode, Conjugate, TriStorageO
 
 template <typename Scalar, typename Index, int Mode, bool Conjugate, int TriStorageOrder, int OtherInnerStride,
           bool Specialized>
-EIGEN_STRONG_INLINE void trsmKernelR<Scalar, Index, Mode, Conjugate, TriStorageOrder, OtherInnerStride,
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void trsmKernelR<Scalar, Index, Mode, Conjugate, TriStorageOrder, OtherInnerStride,
                                      Specialized>::kernel(Index size, Index otherSize, const Scalar* _tri,
                                                           Index triStride, Scalar* _other, Index otherIncr,
                                                           Index otherStride) {
@@ -438,8 +441,8 @@ EIGEN_STRONG_INLINE void trsmKernelR<Scalar, Index, Mode, Conjugate, TriStorageO
 template <typename Scalar, typename Index, int Side, int Mode, bool Conjugate, int TriStorageOrder,
           int OtherInnerStride>
 struct triangular_solve_matrix<Scalar, Index, Side, Mode, Conjugate, TriStorageOrder, RowMajor, OtherInnerStride> {
-  static void run(Index size, Index cols, const Scalar* tri, Index triStride, Scalar* _other, Index otherIncr,
-                  Index otherStride, level3_blocking<Scalar, Scalar>& blocking) {
+  static EIGEN_DEVICE_FUNC void run(Index size, Index cols, const Scalar* tri, Index triStride, Scalar* _other,
+                                    Index otherIncr, Index otherStride, level3_blocking<Scalar, Scalar>& blocking) {
     triangular_solve_matrix<
         Scalar, Index, Side == OnTheLeft ? OnTheRight : OnTheLeft, (Mode & UnitDiag) | ((Mode & Upper) ? Lower : Upper),
         NumTraits<Scalar>::IsComplex && Conjugate, TriStorageOrder == RowMajor ? ColMajor : RowMajor, ColMajor,
@@ -451,7 +454,7 @@ struct triangular_solve_matrix<Scalar, Index, Side, Mode, Conjugate, TriStorageO
  * k-blocks sweep it: a quarter of the L3, which on a multi-die part is the package total of which one
  * core reaches a fraction, and never less than the L2. */
 template <typename Scalar>
-std::ptrdiff_t triangular_solve_budget(std::ptrdiff_t l2, std::ptrdiff_t l3) {
+EIGEN_DEVICE_FUNC std::ptrdiff_t triangular_solve_budget(std::ptrdiff_t l2, std::ptrdiff_t l3) {
   return (numext::maxi)(l3 / 4, l2) / std::ptrdiff_t(sizeof(Scalar));
 }
 
@@ -460,7 +463,7 @@ std::ptrdiff_t triangular_solve_budget(std::ptrdiff_t l2, std::ptrdiff_t l3) {
  * size^2/2 copies against size^2*nc/2 multiply-adds, and panels narrower than 512 columns measured
  * slower than none, so a right-hand side that would need them is solved whole. */
 template <typename Index>
-Index triangular_solve_panel_columns(Index size, Index cols, std::ptrdiff_t budget, Index nr) {
+EIGEN_DEVICE_FUNC Index triangular_solve_panel_columns(Index size, Index cols, std::ptrdiff_t budget, Index nr) {
   eigen_internal_assert(size > 0);
   const std::ptrdiff_t width = numext::round_down<std::ptrdiff_t>(budget / size, nr);
   return width >= 512 && width < cols ? Index(width) : cols;
@@ -477,8 +480,8 @@ Index triangular_solve_panel_columns(Index size, Index cols, std::ptrdiff_t budg
  * buffers fit on the stack at the blocking's depth, no further than the depth at which they still do.
  * A caller that preallocated the buffers sized them for the blocking's depth. */
 template <typename Scalar, typename Index>
-Index triangular_solve_kc(Index size, Index otherSize, Index extent, std::ptrdiff_t budget, bool slabRuns,
-                          level3_blocking<Scalar, Scalar>& blocking) {
+EIGEN_DEVICE_FUNC Index triangular_solve_kc(Index size, Index otherSize, Index extent, std::ptrdiff_t budget,
+                                            bool slabRuns, level3_blocking<Scalar, Scalar>& blocking) {
   EIGEN_UNUSED_VARIABLE(extent);
   const bool deep = std::ptrdiff_t(size) * otherSize > budget || (slabRuns && std::ptrdiff_t(size) * size / 2 > budget);
   if (!deep || blocking.blockA() != nullptr) return blocking.kc();
@@ -497,12 +500,13 @@ Index triangular_solve_kc(Index size, Index otherSize, Index extent, std::ptrdif
  */
 template <typename Scalar, typename Index, int Mode, bool Conjugate, int TriStorageOrder, int OtherInnerStride>
 struct triangular_solve_matrix<Scalar, Index, OnTheLeft, Mode, Conjugate, TriStorageOrder, ColMajor, OtherInnerStride> {
-  static EIGEN_DONT_INLINE void run(Index size, Index otherSize, const Scalar* _tri, Index triStride, Scalar* _other,
-                                    Index otherIncr, Index otherStride, level3_blocking<Scalar, Scalar>& blocking);
+  static EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void run(Index size, Index otherSize, const Scalar* _tri, Index triStride,
+                                                      Scalar* _other, Index otherIncr, Index otherStride,
+                                                      level3_blocking<Scalar, Scalar>& blocking);
 };
 
 template <typename Scalar, typename Index, int Mode, bool Conjugate, int TriStorageOrder, int OtherInnerStride>
-EIGEN_DONT_INLINE void triangular_solve_matrix<Scalar, Index, OnTheLeft, Mode, Conjugate, TriStorageOrder, ColMajor,
+EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void triangular_solve_matrix<Scalar, Index, OnTheLeft, Mode, Conjugate, TriStorageOrder, ColMajor,
                                                OtherInnerStride>::run(Index size, Index otherSize, const Scalar* _tri,
                                                                       Index triStride, Scalar* _other, Index otherIncr,
                                                                       Index otherStride,
@@ -682,16 +686,16 @@ EIGEN_DONT_INLINE void triangular_solve_matrix<Scalar, Index, OnTheLeft, Mode, C
 template <typename Scalar, typename Index, int Mode, bool Conjugate, int TriStorageOrder, int OtherInnerStride>
 struct triangular_solve_matrix<Scalar, Index, OnTheRight, Mode, Conjugate, TriStorageOrder, ColMajor,
                                OtherInnerStride> {
-  static EIGEN_DONT_INLINE void run(Index size, Index otherSize, const Scalar* _tri, Index triStride, Scalar* _other,
-                                    Index otherIncr, Index otherStride, level3_blocking<Scalar, Scalar>& blocking);
+  static EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void run(Index size, Index otherSize, const Scalar* _tri, Index triStride,
+                                                      Scalar* _other, Index otherIncr, Index otherStride,
+                                                      level3_blocking<Scalar, Scalar>& blocking);
 };
 
 template <typename Scalar, typename Index, int Mode, bool Conjugate, int TriStorageOrder, int OtherInnerStride>
-EIGEN_DONT_INLINE void triangular_solve_matrix<Scalar, Index, OnTheRight, Mode, Conjugate, TriStorageOrder, ColMajor,
-                                               OtherInnerStride>::run(Index size, Index otherSize, const Scalar* _tri,
-                                                                      Index triStride, Scalar* _other, Index otherIncr,
-                                                                      Index otherStride,
-                                                                      level3_blocking<Scalar, Scalar>& blocking) {
+EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void
+triangular_solve_matrix<Scalar, Index, OnTheRight, Mode, Conjugate, TriStorageOrder, ColMajor, OtherInnerStride>::run(
+    Index size, Index otherSize, const Scalar* _tri, Index triStride, Scalar* _other, Index otherIncr,
+    Index otherStride, level3_blocking<Scalar, Scalar>& blocking) {
   Index rows = otherSize;
 
   std::ptrdiff_t l1, l2, l3;
