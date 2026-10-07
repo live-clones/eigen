@@ -102,6 +102,16 @@ static void test_symgroups_dynamic() {
 
   group.apply<checkIdx, int>(identity, 0, found, expected);
   VERIFY_IS_EQUAL(found.size(), 6u);
+
+  // The same group, with each generator's larger index given first.
+  DynamicSGroup reversed;
+  reversed.add(1, 0, NegationFlag);
+  reversed.add(2, 0, ConjugationFlag);
+  VERIFY_IS_EQUAL(reversed.size(), 6u);
+  VERIFY_IS_EQUAL(reversed.globalFlags(), GlobalImagFlag);
+  found.clear();
+  reversed.apply<checkIdx, int>(identity, 0, found, expected);
+  VERIFY_IS_EQUAL(found.size(), 6u);
 }
 
 static void test_symgroups_selection() {
@@ -125,6 +135,11 @@ static void test_symgroups_selection() {
     VERIFY_IS_EQUAL(group.size(), 6u);
     VERIFY_IS_EQUAL(group.globalFlags(), GlobalImagFlag);
     group.apply<checkIdx, int>(identity7, 0, found, expected);
+    VERIFY_IS_EQUAL(found.size(), 6u);
+
+    // Extra trailing indices are passed through for a std::vector as for a std::array.
+    found.clear();
+    group.apply<checkIdx, int>(std::vector<int>(identity7.begin(), identity7.end()), 0, found, expected);
     VERIFY_IS_EQUAL(found.size(), 6u);
   }
 
