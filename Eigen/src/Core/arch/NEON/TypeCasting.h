@@ -248,23 +248,26 @@ EIGEN_STRONG_INLINE Packet2ul pcast<Packet2f, Packet2ul>(const Packet2f& a) {
   return vcvtq_u64_f64(vcvt_f64_f32(a));
 }
 #else
+// A 32-bit conversion would saturate at 2^31 (2^32), so convert each lane in scalar.
+template <>
+EIGEN_STRONG_INLINE Packet2l pcast<Packet2f, Packet2l>(const Packet2f& a) {
+  return vcombine_s64(vdup_n_s64(static_cast<int64_t>(vget_lane_f32(a, 0))),
+                      vdup_n_s64(static_cast<int64_t>(vget_lane_f32(a, 1))));
+}
 template <>
 EIGEN_STRONG_INLINE Packet2l pcast<Packet4f, Packet2l>(const Packet4f& a) {
   // Discard second half of input.
-  return vmovl_s32(vget_low_s32(vcvtq_s32_f32(a)));
+  return pcast<Packet2f, Packet2l>(vget_low_f32(a));
 }
 template <>
-EIGEN_STRONG_INLINE Packet2l pcast<Packet2f, Packet2l>(const Packet2f& a) {
-  return vmovl_s32(vcvt_s32_f32(a));
+EIGEN_STRONG_INLINE Packet2ul pcast<Packet2f, Packet2ul>(const Packet2f& a) {
+  return vcombine_u64(vdup_n_u64(static_cast<uint64_t>(vget_lane_f32(a, 0))),
+                      vdup_n_u64(static_cast<uint64_t>(vget_lane_f32(a, 1))));
 }
 template <>
 EIGEN_STRONG_INLINE Packet2ul pcast<Packet4f, Packet2ul>(const Packet4f& a) {
   // Discard second half of input.
-  return vmovl_u32(vget_low_u32(vcvtq_u32_f32(a)));
-}
-template <>
-EIGEN_STRONG_INLINE Packet2ul pcast<Packet2f, Packet2ul>(const Packet2f& a) {
-  return vmovl_u32(vcvt_u32_f32(a));
+  return pcast<Packet2f, Packet2ul>(vget_low_f32(a));
 }
 #endif  // EIGEN_ARCH_ARM64
 
@@ -1176,11 +1179,9 @@ struct type_casting_traits<numext::int64_t, float> {
   enum { VectorizedCast = 1, SrcCoeffRatio = 2, TgtCoeffRatio = 1 };
 };
 
+// No vector path through double: int64 -> double -> float rounds twice, which can differ from one rounding.
 template <>
 EIGEN_STRONG_INLINE Packet4f pcast<Packet2l, Packet4f>(const Packet2l& a, const Packet2l& b) {
-#if EIGEN_ARCH_ARM64
-  return vcombine_f32(vcvt_f32_f64(vcvtq_f64_s64(a)), vcvt_f32_f64(vcvtq_f64_s64(b)));
-#else
   EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet2l>::alignment) int64_t lvals[4];
   pstore(lvals, a);
   pstore(lvals + 2, b);
@@ -1188,20 +1189,15 @@ EIGEN_STRONG_INLINE Packet4f pcast<Packet2l, Packet4f>(const Packet2l& a, const 
   float fvals[4] = {static_cast<float>(lvals[0]), static_cast<float>(lvals[1]), static_cast<float>(lvals[2]),
                     static_cast<float>(lvals[3])};
   return pload<Packet4f>(fvals);
-#endif
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet2f pcast<Packet2l, Packet2f>(const Packet2l& a) {
-#if EIGEN_ARCH_ARM64
-  return vcvt_f32_f64(vcvtq_f64_s64(a));
-#else
   EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet2l>::alignment) int64_t lvals[2];
   pstore(lvals, a);
   EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet2f>::alignment)
   float fvals[2] = {static_cast<float>(lvals[0]), static_cast<float>(lvals[1])};
   return pload<Packet2f>(fvals);
-#endif
 }
 
 template <>
@@ -1318,9 +1314,6 @@ struct type_casting_traits<numext::uint64_t, float> {
 };
 template <>
 EIGEN_STRONG_INLINE Packet4f pcast<Packet2ul, Packet4f>(const Packet2ul& a, const Packet2ul& b) {
-#if EIGEN_ARCH_ARM64
-  return vcombine_f32(vcvt_f32_f64(vcvtq_f64_u64(a)), vcvt_f32_f64(vcvtq_f64_u64(b)));
-#else
   EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet2ul>::alignment) uint64_t uvals[4];
   pstore(uvals, a);
   pstore(uvals + 2, b);
@@ -1328,19 +1321,14 @@ EIGEN_STRONG_INLINE Packet4f pcast<Packet2ul, Packet4f>(const Packet2ul& a, cons
   float fvals[4] = {static_cast<float>(uvals[0]), static_cast<float>(uvals[1]), static_cast<float>(uvals[2]),
                     static_cast<float>(uvals[3])};
   return pload<Packet4f>(fvals);
-#endif
 }
 template <>
 EIGEN_STRONG_INLINE Packet2f pcast<Packet2ul, Packet2f>(const Packet2ul& a) {
-#if EIGEN_ARCH_ARM64
-  return vcvt_f32_f64(vcvtq_f64_u64(a));
-#else
   EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet2ul>::alignment) uint64_t uvals[2];
   pstore(uvals, a);
   EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet2f>::alignment)
   float fvals[2] = {static_cast<float>(uvals[0]), static_cast<float>(uvals[1])};
   return pload<Packet2f>(fvals);
-#endif
 }
 
 template <>

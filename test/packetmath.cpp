@@ -1913,6 +1913,12 @@ void packetmath_notcomplex() {
   for (int i = 0; i < PacketSize; ++i) ref[i] = data1[0] + Scalar(i);
   internal::pstore(data2, internal::plset<Packet>(data1[0]));
   VERIFY(test::areApprox(ref, data2, PacketSize) && "internal::plset");
+  if (NumTraits<Scalar>::IsInteger && NumTraits<Scalar>::IsSigned) {
+    // The carry out of the low 32 bits must reach the high bits of 64-bit lanes.
+    for (int i = 0; i < PacketSize; ++i) ref[i] = Scalar(-1) + Scalar(i);
+    internal::pstore(data2, internal::plset<Packet>(Scalar(-1)));
+    VERIFY(test::areApprox(ref, data2, PacketSize) && "internal::plset(-1)");
+  }
 
   {
     unsigned char* data1_bits = reinterpret_cast<unsigned char*>(data1);
@@ -2290,6 +2296,24 @@ void packetmath_complex() {
     data1[2] = Scalar(inf, -inf);
     data1[3] = Scalar(-inf, -inf);
     CHECK_CWISE1_N(numext::sqrt, internal::psqrt, 4);
+    data1[0] = Scalar(-inf, -zero);
+    data1[1] = Scalar(-inf, -one);
+    data1[2] = Scalar(inf, -zero);
+    data1[3] = Scalar(inf, -one);
+    CHECK_CWISE1_N(numext::sqrt, internal::psqrt, 4);
+    // |x| + |z| overflows, or |z| / 2 underflows to zero.
+    const RealScalar big = NumTraits<RealScalar>::highest();
+#if !EIGEN_ARCH_ARM
+    const RealScalar denorm = (std::numeric_limits<RealScalar>::denorm_min)();
+#else
+    // 32-bit ARM flushes denormal inputs to zero.
+    const RealScalar denorm = (std::numeric_limits<RealScalar>::min)();
+#endif
+    data1[0] = Scalar(big, zero);
+    data1[1] = Scalar(-big, big);
+    data1[2] = Scalar(denorm, zero);
+    data1[3] = Scalar(zero, -denorm);
+    CHECK_CWISE1_N(numext::sqrt, internal::psqrt, 4);
     data1[0] = Scalar(nan, zero);
     data1[1] = Scalar(zero, nan);
     data1[2] = Scalar(nan, one);
@@ -2317,6 +2341,14 @@ void packetmath_complex() {
         CHECK_CWISE1_IM1ULP_N(std::log, internal::plog, 4);
       }
     }
+    // |z|^2 overflows or underflows while log|z| is finite.
+    const RealScalar big = numext::sqrt(NumTraits<RealScalar>::highest()) * RealScalar(4);
+    const RealScalar tiny = numext::sqrt((std::numeric_limits<RealScalar>::min)()) / RealScalar(4);
+    data1[0] = Scalar(big, one);
+    data1[1] = Scalar(-big, big);
+    data1[2] = Scalar(tiny, zero);
+    data1[3] = Scalar(tiny, -tiny);
+    CHECK_CWISE1_N(std::log, internal::plog, 4);
     // Set reference results to nan.
     // Some architectures don't handle IEEE edge cases correctly
     ref[0] = Scalar(nan, nan);

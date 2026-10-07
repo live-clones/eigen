@@ -132,10 +132,17 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_complex(const Pa
 }
 
 template <typename Packet>
-EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psqrt_complex(const Packet& a) {
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psqrt_complex(const Packet& z) {
   using Scalar = typename unpacket_traits<Packet>::type;
   using RealScalar = typename Scalar::value_type;
   using RealPacket = typename unpacket_traits<Packet>::as_real;
+
+  // sqrt(z) = 2^k * sqrt(a) for a = z * 4^-k, exact, where max(|x|, |y|) = m * 2^e and k = floor(e / 2): the steps
+  // below would overflow in |x| + l for |x| near the largest value and lose a subnormal to zero in 0.5 * l.
+  RealPacket e;
+  pfrexp(pmax(pabs(z.v), pcplxflip(Packet(pabs(z.v))).v), e);
+  const RealPacket k = pfloor(pmul(pset1<RealPacket>(RealScalar(0.5)), e));
+  const Packet a(pldexp(z.v, pmul(pset1<RealPacket>(RealScalar(-2)), k)));
 
   // Computes the principal sqrt of the complex numbers in the input.
   //
@@ -215,6 +222,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psqrt_complex(const P
   negative_real_mask.v = pcmp_lt(pand(real_mask, a.v), pzero(a.v));
   negative_real_mask.v = por(negative_real_mask.v, pcplxflip(negative_real_mask).v);
   Packet result = pselect(negative_real_mask, negative_real_result, positive_real_result);
+  result.v = pldexp(result.v, k);
 
   // Step 6. Handle special cases for infinities:
   // * If z is (x,+∞), the result is (+∞,+∞) even if x is NaN
@@ -231,6 +239,8 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psqrt_complex(const P
   Packet real_inf_result;
   real_inf_result.v = pmul(a_abs, pset1<Packet>(Scalar(RealScalar(1.0), RealScalar(0.0))).v);
   real_inf_result.v = pselect(negative_real_mask.v, pcplxflip(real_inf_result).v, real_inf_result.v);
+  // The imaginary part takes the sign of y: (0, -inf) for (-inf, -y) and (+inf, -0) for (+inf, -y).
+  real_inf_result.v = por(real_inf_result.v, imag_signs);
   // prepare packet of (+∞,+∞) or (+∞,-∞), depending on the sign of the infinite imaginary part.
   Packet is_imag_inf;
   is_imag_inf.v = pandnot(is_inf.v, real_mask);
@@ -257,12 +267,17 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet phypot_complex(const 
   const RealPacket cst_two_rp = pset1<RealPacket>(static_cast<RealScalar>(2.0));
   const RealPacket evenmask = peven_mask(a.v);
 
-  RealPacket a_abs = pabs(a.v);
+  // Scale by 2^-e, exactly, with max(|a|, |b|) = m * 2^e and m in [0.5, 1), so the squares below
+  // neither overflow nor underflow.
+  RealPacket exponent;
+  pfrexp(pmax(pabs(a.v), pcplxflip(Packet(pabs(a.v))).v), exponent);
+  const RealPacket a_v = pldexp(a.v, pnegate(exponent));
+  RealPacket a_abs = pabs(a_v);
   RealPacket a_flip = pcplxflip(Packet(a_abs)).v;       // |b|, |a|
   RealPacket a_all = pselect(evenmask, a_abs, a_flip);  // |a|, |a|
   RealPacket b_all = pselect(evenmask, a_flip, a_abs);  // |b|, |b|
 
-  RealPacket a2 = pmul(a.v, a.v);                    // |a^2, b^2|
+  RealPacket a2 = pmul(a_v, a_v);                    // |a^2, b^2|
   RealPacket a2_flip = pcplxflip(Packet(a2)).v;      // |b^2, a^2|
   RealPacket h = psqrt(padd(a2, a2_flip));           // |sqrt(a^2 + b^2), sqrt(a^2 + b^2)|
   RealPacket h_sq = pmul(h, h);                      // |a^2 + b^2, a^2 + b^2|
@@ -275,8 +290,8 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet phypot_complex(const 
   // handle zero-case
   RealPacket iszero = pcmp_eq(por(a_abs, a_flip), cst_zero_rp);
 
-  h = pandnot(h, iszero);  // |sqrt(a^2+b^2), sqrt(a^2+b^2)|
-  return Packet(h);        // |sqrt(a^2+b^2), sqrt(a^2+b^2)|
+  h = pandnot(h, iszero);              // |sqrt(a^2+b^2), sqrt(a^2+b^2)|
+  return Packet(pldexp(h, exponent));  // |sqrt(a^2+b^2), sqrt(a^2+b^2)|
 }
 
 EIGEN_GCC_FAST_MATH_COMPLEX_VECTORIZE_WORKAROUND_POP
