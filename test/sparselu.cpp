@@ -177,6 +177,14 @@ void test_sparselu_subnormal_pivot(Index n, Index scaledColumn, const T& phase) 
   }
 }
 
+// A 0x0 matrix divided by its column count when sizing the factor storage.
+template <typename T>
+void test_sparselu_empty() {
+  SparseLU<SparseMatrix<T> > lu(SparseMatrix<T>(0, 0));
+  VERIFY_IS_EQUAL(lu.info(), Success);
+  VERIFY_IS_EQUAL(lu.solve(Matrix<T, Dynamic, 1>()).size(), 0);
+}
+
 EIGEN_DECLARE_TEST(sparselu) {
   CALL_SUBTEST_1(test_sparselu_T<float>());
   CALL_SUBTEST_2(test_sparselu_T<double>());
@@ -188,6 +196,7 @@ EIGEN_DECLARE_TEST(sparselu) {
   CALL_SUBTEST_8(test_sparselu_colmajor_uncompressed_input<double>());
   CALL_SUBTEST_9(test_sparselu_clear_error_state<float>());
   CALL_SUBTEST_10(test_sparselu_clear_error_state<double>());
+  CALL_SUBTEST_10(test_sparselu_empty<double>());
   // The scaled column leads a supernode (0) or lies inside one (1); COLAMD is free to move it.
   for (Index scaledColumn = 0; scaledColumn < 2; ++scaledColumn) {
     CALL_SUBTEST_9((test_sparselu_subnormal_pivot<float, NaturalOrdering<int> >(4, scaledColumn, 1.0f)));

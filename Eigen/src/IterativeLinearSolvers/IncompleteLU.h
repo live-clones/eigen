@@ -29,6 +29,9 @@ class IncompleteLU : public SparseSolverBase<IncompleteLU<Scalar_> > {
 
  public:
   using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using StorageIndex = typename FactorType::StorageIndex;
+  static constexpr int ColsAtCompileTime = Dynamic;
+  static constexpr int MaxColsAtCompileTime = Dynamic;
 
   IncompleteLU() {}
 
@@ -54,7 +57,7 @@ class IncompleteLU : public SparseSolverBase<IncompleteLU<Scalar_> > {
         typename FactorType::InnerIterator j_it(k_it);
         typename FactorType::InnerIterator kj_it(m_lu, k);
         while (kj_it && kj_it.index() <= k) ++kj_it;
-        for (++j_it; j_it;) {
+        for (++j_it; j_it && kj_it;) {
           if (kj_it.index() == j_it.index()) {
             j_it.valueRef() -= k_it.value() * kj_it.value();
             ++j_it;

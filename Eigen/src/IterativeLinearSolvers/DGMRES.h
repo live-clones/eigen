@@ -47,8 +47,8 @@ void sortWithPermutation(VectorType& vec, IndexType& perm, typename IndexType::S
         std::swap(perm(j), perm(j + 1));
         flag = true;
       }
-      if (!flag) break;  // The vector is in sorted order
     }
+    if (!flag) break;  // The vector is in sorted order
   }
 }
 
@@ -213,7 +213,7 @@ class DGMRES : public IterativeSolverBase<DGMRES<MatrixType_, Preconditioner_> >
   mutable StorageIndex m_neig;              // Number of eigenvalues to extract at each restart
   mutable Index m_r;                        // Current number of deflated eigenvalues, size of m_U
   mutable Index m_maxNeig;                  // Maximum number of eigenvalues to deflate
-  mutable RealScalar m_lambdaN;             // Modulus of the largest eigenvalue of A
+  mutable RealScalar m_lambdaN = 0;         // Modulus of the largest eigenvalue of A
   mutable bool m_isDeflAllocated;
   mutable bool m_isDeflInitialized;
 
@@ -247,7 +247,7 @@ void DGMRES<MatrixType_, Preconditioner_>::dgmres(const MatrixType& mat, const R
   DenseVector r0(n);
   Index nbIts = 0;
   m_H.resize(m_restart + 1, m_restart);
-  m_Hes.resize(m_restart, m_restart);
+  m_Hes.setZero(m_restart, m_restart);
   m_V.resize(n, m_restart + 1);
   // Initial residual vector and initial norm
   if (x.squaredNorm() == 0) x = precond.solve(rhs);
@@ -312,7 +312,7 @@ Index DGMRES<MatrixType_, Preconditioner_>::dgmresCycle(const MatrixType& mat, c
     // Orthogonalize it with the previous basis in the basis using modified Gram-Schmidt
     Scalar coef;
     for (Index i = 0; i <= it; ++i) {
-      coef = tv1.dot(m_V.col(i));
+      coef = m_V.col(i).dot(tv1);
       tv1 = tv1 - coef * m_V.col(i);
       m_H(i, it) = coef;
       m_Hes(i, it) = coef;
@@ -327,6 +327,7 @@ Index DGMRES<MatrixType_, Preconditioner_>::dgmresCycle(const MatrixType& mat, c
       m_V.col(it + 1) = tv1 / coef;
     }
     m_H(it + 1, it) = coef;
+    if (it + 1 < m_restart) m_Hes(it + 1, it) = coef;
 
     // Update Hessenberg matrix with Givens rotations
     for (Index i = 1; i <= it; ++i) {
@@ -404,12 +405,15 @@ inline typename DGMRES<MatrixType_, Preconditioner_>::ComplexVector DGMRES<Matri
       eig(j) = ComplexScalar(T(j, j), RealScalar(0));
       j++;
     } else {
-      eig(j) = ComplexScalar(T(j, j), T(j + 1, j));
-      eig(j + 1) = ComplexScalar(T(j, j + 1), T(j + 1, j + 1));
-      j++;
+      // Complex pair of the 2x2 block, computed as in EigenSolver.
+      RealScalar p = RealScalar(0.5) * (T(j, j) - T(j + 1, j + 1));
+      RealScalar z = numext::sqrt(numext::abs(p * p + T(j + 1, j) * T(j, j + 1)));
+      eig(j) = ComplexScalar(T(j + 1, j + 1) + p, z);
+      eig(j + 1) = ComplexScalar(T(j + 1, j + 1) + p, -z);
+      j += 2;
     }
   }
-  if (j < it - 1) eig(j) = ComplexScalar(T(j, j), RealScalar(0));
+  if (j == it - 1) eig(j) = ComplexScalar(T(j, j), RealScalar(0));
   return eig;
 }
 
