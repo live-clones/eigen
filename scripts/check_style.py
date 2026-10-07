@@ -68,7 +68,7 @@ LIBRARY_SRC_TREES = ("Eigen/src/", "contrib/Eigen/src/")
 # clang-format keeps the attribute list on the declarator's last line, so one line carries them all.
 SME_ARCH_TREE = "Eigen/src/Core/arch/SME/"
 SME_ZA_CHECK = (
-    r"^(?!.*(?:\b__arm_(?:in|out|inout|preserves|new|agnostic)\s*\(|\bEIGEN_SME_ZA_AGNOSTIC\b))"
+    r"^(?!.*(?:\b__arm_(?:in(?:out)?|out|preserves|new|agnostic)\s*\(|\bEIGEN_SME_ZA_AGNOSTIC\b))"
     r".*\b__arm_streaming(?:_compatible)?\b",
     "SME streaming function without a ZA attribute: Clang 23+ will not inline it into a caller with ZA "
     "state; add EIGEN_SME_ZA_AGNOSTIC (arch/SME/PacketMath.h) or a shared-ZA attribute")
