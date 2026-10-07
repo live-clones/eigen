@@ -164,6 +164,11 @@ class sparse_matrix_block_impl : public SparseCompressedBase<Block<SparseMatrixT
     // 1 - eval to a temporary to avoid transposition and/or aliasing issues
     Ref<const SparseMatrix<Scalar, IsRowMajor ? RowMajor : ColMajor, StorageIndex> > tmp(other.derived());
     eigen_internal_assert(tmp.outerSize() == m_outerSize.value());
+    // the Ref binds to a slice of this very matrix without copying, e.g., A.col(0) = A.col(1)
+    const Scalar* first = matrix.valuePtr();
+    if (tmp.nonZeros() > 0 && std::less_equal<const Scalar*>()(first, tmp.valuePtr()) &&
+        std::less<const Scalar*>()(tmp.valuePtr(), first + matrix.data().allocatedSize()))
+      return operator=(SparseMatrix<Scalar, IsRowMajor ? RowMajor : ColMajor, StorageIndex>(tmp));
 
     // 2 - let's check whether there is enough allocated memory
     Index nnz = tmp.nonZeros();
@@ -498,8 +503,8 @@ class unary_evaluator<Block<ArgType, BlockRows, BlockCols, InnerPanel>, Iterator
 
 template <typename ArgType, int BlockRows, int BlockCols, bool InnerPanel>
 class unary_evaluator<Block<ArgType, BlockRows, BlockCols, InnerPanel>, IteratorBased>::OuterVectorInnerIterator {
-  // NOTE see above
-  enum { XprIsRowMajor = unary_evaluator::IsRowMajor };
+  // NOTE see above. The block crosses the outer vectors of ArgType; a 1x1 block's own flag is ArgType's.
+  enum { XprIsRowMajor = int(ArgType::IsRowMajor) == 0 };
   const unary_evaluator& m_eval;
   Index m_outerPos;
   const Index m_innerIndex;

@@ -97,6 +97,7 @@ void sparse_vector(int rows, int cols) {
   VERIFY_IS_APPROX(v1.squaredNorm(), refV1.squaredNorm());
 
   VERIFY_IS_APPROX(v1.blueNorm(), refV1.blueNorm());
+  VERIFY_IS_APPROX((v1 * s1).blueNorm(), (refV1 * s1).blueNorm());
 
   // test aliasing
   VERIFY_IS_APPROX((v1 = -v1), (refV1 = -refV1));
@@ -223,6 +224,40 @@ void test_pruning() {
   VERIFY_IS_EQUAL(vec.coeff(5), 1.0);
 }
 
+// Reductions of empty sparse objects are zero, as for dense ones.
+void test_empty_reductions() {
+  SparseMatrix<double> m(0, 3), m2(0, 3);
+  SparseVector<double> v(0);
+  VERIFY_IS_EQUAL(m.sum(), 0.0);
+  VERIFY_IS_EQUAL(m.norm(), 0.0);
+  VERIFY(m.isApprox(m2));
+  VERIFY_IS_EQUAL(v.squaredNorm(), 0.0);
+  VERIFY_IS_EQUAL(v.dot(VectorXd(0)), 0.0);
+}
+
+void test_swap_with_matrix() {
+  // The matrix may be uncompressed and holds a different number of nonzeros than the vector.
+  SparseMatrix<double> m(5, 1);
+  m.reserve(VectorXi::Constant(1, 4));
+  m.insert(1, 0) = 1;
+  SparseVector<double> v(5);
+  v.insert(0) = 2;
+  v.insert(4) = 3;
+  const VectorXd refM = m.toDense(), refV = v.toDense();
+  v.swap(m);
+  VERIFY_IS_EQUAL(m.nonZeros(), 2);
+  VERIFY_IS_EQUAL(VectorXd(m.toDense()), refV);
+  VERIFY_IS_EQUAL(VectorXd(v.toDense()), refM);
+
+  SparseMatrix<double, RowMajor> mr(1, 5);
+  mr.insert(0, 1) = 1;
+  SparseVector<double, RowMajor> vr(5);
+  vr.insert(3) = 2;
+  vr.swap(mr);
+  VERIFY_IS_EQUAL(mr.coeff(0, 3), 2.0);
+  VERIFY_IS_EQUAL(vr.coeff(1), 1.0);
+}
+
 EIGEN_DECLARE_TEST(sparse_vector) {
   for (int i = 0; i < g_repeat; i++) {
     int r = Eigen::internal::random<int>(1, 500), c = Eigen::internal::random<int>(1, 500);
@@ -238,4 +273,6 @@ EIGEN_DECLARE_TEST(sparse_vector) {
   }
 
   CALL_SUBTEST_1(test_pruning());
+  CALL_SUBTEST_1(test_swap_with_matrix());
+  CALL_SUBTEST_1(test_empty_reductions());
 }

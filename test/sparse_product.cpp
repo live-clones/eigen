@@ -885,6 +885,44 @@ void test_ambivector_failed_reallocation() {
 }
 #endif  // EIGEN_EXCEPTIONS
 
+// A list that fills its initial capacity must grow before an insertion at its front.
+template <typename = void>
+void test_ambivector_front_insertion_growth() {
+  const int n = 1000;
+  SparseMatrix<double> A(n, 2), B(2, 100);
+  for (int i = 1; i <= n / 2; ++i) A.insert(i, 0) = 1.0;
+  A.insert(0, 1) = 2.0;
+  B.insert(0, 0) = 1.0;
+  B.insert(1, 0) = 1.0;
+  SparseMatrix<double> C = (A * B).pruned();
+  VERIFY_IS_EQUAL(C.nonZeros(), n / 2 + 1);
+  VERIFY_IS_APPROX(MatrixXd(C.toDense()), MatrixXd(A.toDense() * B.toDense()));
+}
+
+template <typename = void>
+void test_pruned_product_row_vector() {
+  SparseMatrix<double> A(4, 3);
+  A.insert(0, 1) = 1;
+  A.insert(3, 0) = 3;
+  SparseVector<double, RowMajor> r(4);
+  r.insert(0) = 2;
+  r.insert(3) = 5;
+  SparseVector<double, RowMajor> c = (r * A).pruned();
+  VERIFY_IS_APPROX(MatrixXd(c.toDense()), MatrixXd(r.toDense() * A.toDense()));
+}
+
+template <typename = void>
+void test_sparse_product_mul_assign() {
+  SparseMatrix<double> A(3, 3), B(3, 3);
+  A.insert(0, 1) = 2;
+  A.insert(2, 2) = 3;
+  B.insert(1, 0) = 5;
+  B.insert(2, 1) = 7;
+  const MatrixXd ref = A.toDense() * B.toDense();
+  A *= B;
+  VERIFY_IS_APPROX(MatrixXd(A.toDense()), ref);
+}
+
 template <typename = void>
 void test_sparse_vector_dense_product() {
   SparseVector<double> sv(3);
@@ -903,6 +941,8 @@ EIGEN_DECLARE_TEST(sparse_product) {
 
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1((test_sparse_vector_dense_product<>()));
+    CALL_SUBTEST_1((test_pruned_product_row_vector<>()));
+    CALL_SUBTEST_1((test_sparse_product_mul_assign<>()));
     CALL_SUBTEST_1((sparse_product<SparseMatrix<double, ColMajor>>()));
     CALL_SUBTEST_1((sparse_product<SparseMatrix<double, RowMajor>>()));
     CALL_SUBTEST_1((bug_942<double>()));
@@ -918,6 +958,7 @@ EIGEN_DECLARE_TEST(sparse_product) {
     CALL_SUBTEST_6((test_pruned_product_custom_scalar<>()));
     CALL_SUBTEST_6((test_ambivector_discard_custom_scalar<>()));
     CALL_SUBTEST_6((test_ambivector_resize_bounds<>()));
+    CALL_SUBTEST_6((test_ambivector_front_insertion_growth<>()));
 #if defined(EIGEN_EXCEPTIONS)
     CALL_SUBTEST_6((test_ambivector_failed_insertion<>()));
     CALL_SUBTEST_6((test_ambivector_failed_reallocation<>()));
