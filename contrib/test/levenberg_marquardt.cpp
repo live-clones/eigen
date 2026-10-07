@@ -889,6 +889,18 @@ void testNistEckerle4(void) {
   VERIFY_IS_APPROX(x[2], 4.5154121844E+02);
 }
 
+// covar() takes the rank to end at the first pivot below tol * |r(0,0)| (MINPACK) and zeroes the rest.
+void testCovarRankDeficient() {
+  MatrixXd r(3, 3);
+  r << 2, 1, 1, 0, 1e-20, 1, 0, 0, 3;
+  VectorXi ipvt(3);
+  ipvt << 0, 1, 2;
+  internal::covar(r, ipvt);
+  MatrixXd expected = MatrixXd::Zero(3, 3);
+  expected(0, 0) = 0.25;
+  VERIFY_IS_APPROX(r, expected);
+}
+
 // lmqrsolv() must minimize ||[R; D] z - [qtb; 0]|| and leave the eliminated
 // factor in the strict lower triangle of s for lmpar2(). Issue #657: the QR is
 // rank-revealing, so R carries zeros above the diagonal, and the Givens
@@ -982,6 +994,7 @@ void testSparseFunctor() {
 
 EIGEN_DECLARE_TEST(levenberg_marquardt) {
   CALL_SUBTEST(testLmqrsolv());
+  CALL_SUBTEST(testCovarRankDeficient());
   CALL_SUBTEST(testSparseFunctor());
 
   // Tests using the examples provided by (c)minpack
