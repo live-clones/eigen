@@ -519,8 +519,17 @@ auto makeKroneckerSum(const EigenBase<D1>& a, const EigenBase<D2>& b, const Eige
  * The system is singular exactly when some sum
  * \f$ \lambda_{i_1}(A_1) + \cdots + \lambda_{i_d}(A_d) \f$ vanishes. As with
  * \c PartialPivLU nothing detects it: the computed sum is typically of order
- * \f$ \epsilon \sum_k \|A_k\| \f$ rather than zero, and the solution huge but
- * finite. \c info() reports \c InvalidInput for a non-finite factor and
+ * \f$ \epsilon \sum_k \|A_k\| \f$ rather than zero, and the solution huge; it
+ * is non-finite when a sum vanishes exactly, as it can for diagonal,
+ * triangular or identity factors, whose decompositions are exact.
+ *
+ * The solve is backward stable relative to the factors, with residual
+ * \f$ \|b - Mx\| = O\big((\sum_k n_k)\,\epsilon\,(\sum_k \|A_k\|)\,\|x\|\big) \f$.
+ * That is relative to \f$ \sum_k \|A_k\| \f$, not \f$ \|M\| \f$; with a shift
+ * split across the factors, as in \f$ (A + cI) \oplus (B - cI) \f$, the first
+ * grows with \f$ c \f$ and the second does not.
+ *
+ * \c info() reports \c InvalidInput for a non-finite factor and
  * \c NoConvergence when a Schur or eigenvalue iteration fails; the solve then
  * returns NaN.
  *

@@ -133,6 +133,24 @@ void test_ksum_product(Index n1, Index n2) {
   RowSparse MR;
   MR = makeKroneckerSum(S, D);
   VERIFY_IS_APPROX(Mat(MR), reference_ksum<Scalar>(Sd, Dd));
+  // Diagonal and identity factors on either side, dense and sparse.
+  const Mat In1 = Mat::Identity(n1, n1), In2 = Mat::Identity(n2, n2);
+  const auto KAD = makeKroneckerSum(A, D);
+  const auto KDI = makeKroneckerSum(D, In1);
+  const auto KIA = makeKroneckerSum(In2, A);
+  const Mat refAD = reference_ksum<Scalar>(A, Dd), refDI = reference_ksum<Scalar>(Dd, In1),
+            refIA = reference_ksum<Scalar>(In2, A);
+  VERIFY_IS_APPROX(Mat(KAD), refAD);
+  VERIFY_IS_APPROX(Mat(KDI), refDI);
+  VERIFY_IS_APPROX(Mat(KIA), refIA);
+  Sparse MAD, MDI;
+  RowSparse MIA;
+  MAD = KAD;
+  MDI = KDI;
+  MIA = KIA;
+  VERIFY_IS_APPROX(Mat(MAD), refAD);
+  VERIFY_IS_APPROX(Mat(MDI), refDI);
+  VERIFY_IS_APPROX(Mat(MIA), refIA);
   Sparse Macc = M;
   Macc += K;
   VERIFY_IS_APPROX(Mat(Macc), (2 * ref).eval());
@@ -332,6 +350,34 @@ void test_ksum_solve(Index n1, Index n2) {
   check_ksum_solver(h3solver, reference_ksum<Scalar>(reference_ksum<Scalar>(H1, H2), H3), n1 + n2 + n3,
                     H1.norm() + H2.norm() + H3.norm());
 
+  // One solver recomputed across both paths and different sizes.
+  BartelsStewart<KroneckerSum<Mat, Mat>> reused;
+  reused.compute(makeKroneckerSum(A, B));
+  VERIFY_IS_EQUAL(reused.isHermitian(), A == A.adjoint() && B == B.adjoint());
+  check_ksum_solver(reused, reference_ksum<Scalar>(A, B), n1 + n2, A.norm() + B.norm());
+  reused.compute(makeKroneckerSum(H2, H1));
+  VERIFY(reused.isHermitian());
+  check_ksum_solver(reused, reference_ksum<Scalar>(H2, H1), n1 + n2, H1.norm() + H2.norm());
+  reused.compute(makeKroneckerSum(B, H1));
+  VERIFY_IS_EQUAL(reused.isHermitian(), B == B.adjoint());
+  check_ksum_solver(reused, reference_ksum<Scalar>(B, H1), n1 + n2, B.norm() + H1.norm());
+
+  // An exactly vanishing eigenvalue sum goes undetected, as documented: the
+  // decompositions of I and -I (Hermitian path), and of the Jordan block J(1)
+  // and -I (Schur path), are exact, so the solve divides by an exact zero.
+  const Mat I1 = Mat::Identity(n1, n1), minusI2 = -Mat::Identity(n2, n2);
+  const BartelsStewart<KroneckerSum<Mat, Mat>> singularH(makeKroneckerSum(I1, minusI2));
+  VERIFY(singularH.isHermitian());
+  VERIFY_IS_EQUAL(singularH.info(), Success);
+  VERIFY(!Vec(singularH.solve(b)).allFinite());
+  if (n1 > 1) {
+    const BartelsStewart<KroneckerSum<Mat, Mat>> singularS(
+        makeKroneckerSum(jordan_block<Mat>(n1, Scalar(1), Scalar(1)), minusI2));
+    VERIFY(!singularS.isHermitian());
+    VERIFY_IS_EQUAL(singularS.info(), Success);
+    VERIFY(!Vec(singularS.solve(b)).allFinite());
+  }
+
   // A non-finite factor is rejected, and every solve through it returns NaN.
   Mat Abad = A;
   Abad(0, 0) = Scalar(NumTraits<RealScalar>::quiet_NaN());
@@ -496,10 +542,12 @@ void test_ksum_finite_difference(Index n1, Index n2) {
   const Vec uLU = lu.solve(b);
   // The spectrum lies in (1, 1 + 8 tau), so cond(M) < 1 + 8 tau and both
   // solutions are within cond * (backward error) of the exact one.
-  const double kappa = 1 + 8 * tau, normM = 1 + 8 * tau;
+  // ||I + tau Dy||_2 + ||tau Dx||_2 < 1 + 8 tau is the factor-norm sum of the
+  // residual bound in the 2-norm, tighter than the Frobenius sum.
+  const double kappa = 1 + 8 * tau, normSum = 1 + 8 * tau;
   VERIFY((u - uLU).norm() <= 2 * kappa * 4 * double(n1 + n2) * eps * uLU.norm());
   const Vec u2 = step.solve(u);  // the decompositions are reused
-  VERIFY((Ms * u2 - u).norm() <= 4 * double(n1 + n2) * eps * normM * u2.norm());
+  VERIFY((Ms * u2 - u).norm() <= 4 * double(n1 + n2) * eps * normSum * u2.norm());
 
   auto L = makeKroneckerSum(Dy, Dx);
   ConjugateGradient<decltype(L), Lower | Upper, IdentityPreconditioner> cg(L);
