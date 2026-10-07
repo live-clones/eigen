@@ -3173,6 +3173,65 @@ bool sme_tiny_gemm(Index rows, Index cols, Index depth, const Scalar* lhs, Index
   return true;
 }
 
+// Largest rows * cols * depth of a whole product the NEON kernel beats ZA on (fitted on Apple M4 Pro).
+#ifndef EIGEN_SME_NEON_SMALL_PRODUCT
+template <typename Scalar>
+struct sme_neon_small_product : std::integral_constant<int, 10240> {};
+template <>
+struct sme_neon_small_product<float> : std::integral_constant<int, 28672> {};
+template <>
+struct sme_neon_small_product<std::complex<double>> : std::integral_constant<int, 5120> {};
+#else
+template <typename Scalar>
+struct sme_neon_small_product : std::integral_constant<int, EIGEN_SME_NEON_SMALL_PRODUCT> {};
+#endif
+
+template <typename Scalar, typename Index>
+EIGEN_ALWAYS_INLINE bool sme_small_gemm_wins(Index rows, Index cols, Index depth) {
+#if defined(EIGEN_SME_NO_NEON_SMALL_BLOCKS) || defined(EIGEN_SME_FORCE_NEON_SMALL_BLOCKS) || defined(EIGEN_USE_BLAS)
+  EIGEN_UNUSED_VARIABLE(rows);
+  EIGEN_UNUSED_VARIABLE(cols);
+  EIGEN_UNUSED_VARIABLE(depth);
+  return false;
+#else
+  if (rows <= 0 || cols <= 0 || depth <= 0) return false;
+  constexpr bool kReal = !NumTraits<Scalar>::IsComplex;
+  // The narrow ZA kernel reads a tall real LHS in place.
+  if (kReal && cols <= 3 && rows >= 3 * Index(sme_block<Scalar>::mr)) return false;
+  // Rows of at most two NEON vectors leave most of a ZA tile idle: NEON up to a 64 KB RHS, real ones 128 deep.
+  if (rows <= Index(32 / sizeof(Scalar)) && depth <= Index(65536 / sizeof(Scalar)) / cols && (!kReal || depth <= 128))
+    return true;
+  // rows * cols * depth <= limit, without the product overflowing Index.
+  const Index limit = Index(sme_neon_small_product<Scalar>::value);
+  return depth <= limit && cols <= limit / depth && rows <= limit / depth / cols;
+#endif
+}
+
+// Both sides are packed with NEON, so the NEON kernel never reads a streaming-packed panel.
+template <typename Scalar, int LhsOrder, int RhsOrder, bool ConjLhs, bool ConjRhs, int ResInnerStride, typename Index>
+void sme_small_gemm(Index rows, Index cols, Index depth, const Scalar* lhs, Index lhsStride, const Scalar* rhs,
+                    Index rhsStride, Scalar* res, Index resIncr, Index resStride, Scalar alpha, Scalar* blockA_,
+                    Scalar* blockB_) {
+  constexpr int MR = sme_block<Scalar>::mr;
+  constexpr int NR = sme_block<Scalar>::nr;
+  using LhsMapper = const_blas_data_mapper<Scalar, Index, LhsOrder>;
+  using RhsMapper = const_blas_data_mapper<Scalar, Index, RhsOrder>;
+  using PackLhs =
+      std::conditional_t<LhsOrder == ColMajor, sme_pack_lhs_colmajor<Scalar, MR, Index, LhsMapper, false, false>,
+                         sme_pack_lhs_rowmajor<Scalar, MR, Index, LhsMapper, false, false>>;
+  using PackRhs =
+      std::conditional_t<RhsOrder == ColMajor, sme_pack_rhs_colmajor<Scalar, NR, Index, RhsMapper, false, false>,
+                         sme_pack_rhs_rowmajor<Scalar, NR, Index, RhsMapper, false, false>>;
+  ei_declare_aligned_stack_constructed_variable(Scalar, blockA, std::size_t(rows) * std::size_t(depth), blockA_);
+  ei_declare_aligned_stack_constructed_variable(Scalar, blockB, std::size_t(depth) * std::size_t(cols), blockB_);
+  PackLhs::pack_neon(blockA, lhs, lhsStride, depth, rows, 0, 0);
+  PackRhs::pack_neon(blockB, rhs, rhsStride, depth, cols, 0, 0);
+  // A compile-time unit row stride, as the result mapper gives the kernel, keeps its contiguous column stores.
+  const Index incr = ResInnerStride == Dynamic ? resIncr : Index(ResInnerStride);
+  sme_gebp_neon<Scalar, ConjLhs, ConjRhs>(res, incr, resStride, blockA, blockB, rows, depth, cols, alpha, depth, depth,
+                                          Index(0), Index(0));
+}
+
 }  // namespace internal
 }  // namespace Eigen
 

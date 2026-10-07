@@ -18,6 +18,7 @@
 
 #include "product.h"
 
+#include <array>
 #include <cfenv>
 
 // Without the right -march flags, __ARM_FEATURE_SME is undefined and
@@ -557,6 +558,84 @@ static void test_tiny_results() {
         C.noalias() = Ar * Bc;
         VERIFY_IS_APPROX(C, Ar.lazyProduct(Bc));
       }
+}
+
+// Whole products on the NEON kernel (sme_small_gemm) and just past its bound, every storage order of A, B and C.
+template <typename Scalar, int AO, int BO, int CO>
+static void verify_small_products(Index m, Index n, Index k) {
+  using MA = Matrix<Scalar, Dynamic, Dynamic, AO>;
+  using MB = Matrix<Scalar, Dynamic, Dynamic, BO>;
+  using MC = Matrix<Scalar, Dynamic, Dynamic, CO>;
+  const MA A = MA::Random(m, k);
+  const MB B = MB::Random(k, n);
+  const MC ref = A.lazyProduct(B);
+  const Scalar alpha = nontrivial_alpha_impl<Scalar>::run();
+  MC C = MC::Random(m, n);
+  const MC C0 = C;
+  C.noalias() = A * B;
+  VERIFY_IS_APPROX(C, ref);
+  C = C0;
+  C.noalias() += alpha * A * B;
+  VERIFY_IS_APPROX(C, C0 + alpha * ref);
+  const SmeColMajorMat<Scalar> Ac = A.conjugate(), Bc = B.conjugate();
+  C.noalias() = A.conjugate() * B;
+  VERIFY_IS_APPROX(SmeColMajorMat<Scalar>(C), SmeColMajorMat<Scalar>(Ac.lazyProduct(B)));
+  C.noalias() = A * B.conjugate();
+  VERIFY_IS_APPROX(SmeColMajorMat<Scalar>(C), SmeColMajorMat<Scalar>(A.lazyProduct(Bc)));
+  const MA At = A.adjoint();
+  C.noalias() = At.adjoint() * B;
+  VERIFY_IS_APPROX(C, ref);
+}
+
+template <typename Scalar>
+static void test_small_products() {
+  const Index size = internal::sme_neon_small_product<Scalar>::value;
+  const Index thin = Index(32 / sizeof(Scalar));
+  // Both sides of the RHS bound for a thin LHS and of the size bound past it, a tall real LHS against three columns,
+  // then squares and thin shapes on either side.
+  std::vector<std::array<Index, 3>> shapes;
+  const Index rhs_depth = numext::mini(Index(65536 / sizeof(Scalar)) / 37, NumTraits<Scalar>::IsComplex ? 4096 : 128);
+  shapes.push_back({thin, 37, rhs_depth});
+  shapes.push_back({thin, 37, rhs_depth + 1});
+  // Deeper than the blocking's kc, which packs into a buffer of its own.
+  shapes.push_back({thin, 4, 2048});
+  for (Index n : {Index(16), Index(37)}) {
+    const Index k = size / ((thin + 1) * n);
+    shapes.push_back({thin + 1, n, k});
+    shapes.push_back({thin + 1, n, k + 1});
+  }
+  shapes.push_back({3 * sme_mr<Scalar>(), 3, 16});
+  for (Index s : {12, 17, 20, 25, 29, 31}) shapes.push_back({s, s, s});
+  for (auto s : std::vector<std::array<Index, 3>>{
+           {2, 64, 48}, {4, 32, 64}, {8, 64, 64}, {32, 4, 32}, {64, 2, 64}, {16, 16, 32}, {12, 12, 64}, {3, 33, 97}})
+    shapes.push_back(s);
+  int on_neon = 0, past = 0;
+  for (const auto& s : shapes) {
+    const bool neon = internal::sme_small_gemm_wins<Scalar>(s[0], s[1], s[2]);
+    on_neon += neon;
+    past += !neon;
+    verify_small_products<Scalar, ColMajor, ColMajor, ColMajor>(s[0], s[1], s[2]);
+    verify_small_products<Scalar, RowMajor, ColMajor, ColMajor>(s[0], s[1], s[2]);
+    verify_small_products<Scalar, ColMajor, RowMajor, ColMajor>(s[0], s[1], s[2]);
+    verify_small_products<Scalar, RowMajor, RowMajor, ColMajor>(s[0], s[1], s[2]);
+    verify_small_products<Scalar, ColMajor, ColMajor, RowMajor>(s[0], s[1], s[2]);
+    verify_small_products<Scalar, RowMajor, RowMajor, RowMajor>(s[0], s[1], s[2]);
+  }
+  VERIFY(on_neon > 0 && past > 0);
+  // Sub-blocks of larger operands and a result with an inner stride, on the NEON kernel.
+  const Index m = thin + 3, n = 9, k = 33;
+  VERIFY(internal::sme_small_gemm_wins<Scalar>(m, n, k));
+  const SmeColMajorMat<Scalar> Abig = SmeColMajorMat<Scalar>::Random(m + 5, k + 2);
+  const SmeRowMajorMat<Scalar> Bbig = SmeRowMajorMat<Scalar>::Random(k + 3, n + 4);
+  const auto A = Abig.block(2, 1, m, k);
+  const auto B = Bbig.block(1, 2, k, n);
+  SmeColMajorMat<Scalar> Cbig = SmeColMajorMat<Scalar>::Random(2 * m, n);
+  SmeColMajorMat<Scalar> ref = Cbig;
+  Map<SmeColMajorMat<Scalar>, 0, Stride<Dynamic, 2>> C(Cbig.data(), m, n, Stride<Dynamic, 2>(2 * m, 2));
+  C.noalias() -= Scalar(3) * A * B;
+  Map<SmeColMajorMat<Scalar>, 0, Stride<Dynamic, 2>>(ref.data(), m, n, Stride<Dynamic, 2>(2 * m, 2)) -=
+      Scalar(3) * A.lazyProduct(B);
+  VERIFY_IS_APPROX(Cbig, ref);
 }
 
 // Every tail width of a deep block, which the ZA transposer packs: a ColMajor RHS tail and, through a RowMajor
@@ -1294,6 +1373,7 @@ EIGEN_DECLARE_TEST(product_sme) {
   CALL_SUBTEST_1(test_pack_direct<float>());
   CALL_SUBTEST_1(test_mapper_fallback<float>());
   CALL_SUBTEST_1(test_neon_small_blocks<float>());
+  CALL_SUBTEST_1(test_small_products<float>());
   CALL_SUBTEST_1(test_direct_lhs<float>());
   CALL_SUBTEST_1(test_small_k_and_single_panel_rhs<float>());
   CALL_SUBTEST_1(test_deep_tail_panels<float>());
@@ -1313,6 +1393,7 @@ EIGEN_DECLARE_TEST(product_sme) {
   CALL_SUBTEST_2(test_pack_direct<double>());
   CALL_SUBTEST_2(test_mapper_fallback<double>());
   CALL_SUBTEST_2(test_neon_small_blocks<double>());
+  CALL_SUBTEST_2(test_small_products<double>());
   CALL_SUBTEST_2(test_direct_lhs<double>());
   CALL_SUBTEST_2(test_small_k_and_single_panel_rhs<double>());
   CALL_SUBTEST_2(test_deep_tail_panels<double>());
@@ -1327,6 +1408,7 @@ EIGEN_DECLARE_TEST(product_sme) {
   CALL_SUBTEST_3(test_pack_direct<std::complex<float>>());
   CALL_SUBTEST_3(test_mapper_fallback<std::complex<float>>());
   CALL_SUBTEST_3(test_neon_small_blocks<std::complex<float>>());
+  CALL_SUBTEST_3(test_small_products<std::complex<float>>());
   CALL_SUBTEST_3(test_fp_flags<std::complex<float>>());
   CALL_SUBTEST_3(test_disjoint_parts<std::complex<float>>());
   CALL_SUBTEST_3((test_complex_alpha_range<float, ColMajor>()));
@@ -1341,6 +1423,7 @@ EIGEN_DECLARE_TEST(product_sme) {
   CALL_SUBTEST_4(test_pack_direct<std::complex<double>>());
   CALL_SUBTEST_4(test_mapper_fallback<std::complex<double>>());
   CALL_SUBTEST_4(test_neon_small_blocks<std::complex<double>>());
+  CALL_SUBTEST_4(test_small_products<std::complex<double>>());
   CALL_SUBTEST_4(test_fp_flags<std::complex<double>>());
   CALL_SUBTEST_4(test_disjoint_parts<std::complex<double>>());
   CALL_SUBTEST_4((test_complex_alpha_range<double, ColMajor>()));
