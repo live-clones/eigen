@@ -1,0 +1,54 @@
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
+
+# Arm Cortex-X925 + Cortex-A725 (10 + 10 cores), Ubuntu 24.04.
+
+id = "cortex-x925-20c"
+display_name = "Arm Cortex-X925 + Cortex-A725 (10+10 cores), Ubuntu 24.04"
+cpu_model = "Cortex-X925"
+max_load_avg = 0.5
+default_isa = "aarch64-neon"
+
+notes = """
+big.LITTLE part, all cores single-threaded, in two clusters: CPUs 0-4 (Cortex-A725)
+and 5-9 (Cortex-X925) share an 8 MiB L3, CPUs 10-14 (A725) and 15-19 (X925) a 16 MiB
+L3; lscpu reports two model names. Each X925 has a 64 KiB L1d and a private 2 MiB L2,
+and runs at 3.9 GHz with frequency boost disabled. The run is pinned to one X925 in
+the second cluster, so every number here is a single performance-core number. SVE2 at
+a 128-bit vector length, bf16, i8mm. GCC 13.3, which does not know -mcpu=cortex-x925.
+"""
+
+[pinning]
+# One X925 of the 16 MiB-L3 cluster, the one with the highest ACPI CPPC performance
+# level; the L2 is private per core, so a migration would refill it.
+cpu_list = "19"
+
+# The compiler's default target (armv8-a), as for the Apple M4 and Grace NEON pages.
+[isa."aarch64-neon"]
+flags = []
+
+# Eigen selects SVE only when asked and only at a fixed vector length.
+[isa."aarch64-sve"]
+flags = ["-march=armv9-a+sve2", "-msve-vector-bits=128", "-DEIGEN_ARM64_USE_SVE"]
+
+# The sequential LP64 library of the official deb installer (GCC build), installed
+# without root with its --install-to option under /tmp/eigen-bench/armpl.
+[arms.armpl]
+cmake_options = ["-DEIGEN_BENCH_REFERENCE=armpl", "-DBLAS_LIBRARIES=/tmp/eigen-bench/armpl/armpl_26.07_gcc/lib/libarmpl_lp64.so", "-DLAPACK_LIBRARIES=/tmp/eigen-bench/armpl/armpl_26.07_gcc/lib/libarmpl_lp64.so"]
+thread_env = { ARMPL_NUM_THREADS = "{threads}" }
+
+# NVPL 26.5 redistributable tarballs (nvpl_common 0.3.5, nvpl_blas 0.6.0,
+# nvpl_lapack 0.4.0.1) unpacked into one prefix; the config packages select
+# the sequential LP64 targets.
+[arms.nvpl]
+cmake_options = ["-DEIGEN_BENCH_REFERENCE=nvpl", "-DCMAKE_PREFIX_PATH=/tmp/eigen-bench/nvpl-26.5"]
+thread_env = { NVPL_BLAS_NUM_THREADS = "{threads}", NVPL_LAPACK_NUM_THREADS = "{threads}" }
+
+# OpenBLAS 0.3.34 from the release tarball: make TARGET=NEOVERSEV2 USE_OPENMP=0
+# NUM_THREADS=20 with GCC and gfortran 13.3 (pthread build, LAPACK bundled),
+# installed with PREFIX=/tmp/eigen-bench/openblas-0.3.34. NEOVERSEV2 is the target
+# OpenBLAS's own CPU detection selects for a Cortex-X925. The host has no
+# libgfortran.so.5, so the run puts a copy on LD_LIBRARY_PATH.
+[arms.openblas]
+cmake_options = ["-DEIGEN_BENCH_REFERENCE=openblas", "-DBLAS_LIBRARIES=/tmp/eigen-bench/openblas-0.3.34/lib/libopenblas.so", "-DLAPACK_LIBRARIES=/tmp/eigen-bench/openblas-0.3.34/lib/libopenblas.so"]
+thread_env = { OPENBLAS_NUM_THREADS = "{threads}" }

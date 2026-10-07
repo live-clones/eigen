@@ -8,13 +8,9 @@
 #include <benchmark/benchmark.h>
 #include <Eigen/Core>
 
-using namespace Eigen;
+#include "../bench_common.h"
 
-template <typename Scalar>
-double symvFlops(Index n) {
-  // SYMV uses n^2 multiply-adds (exploiting symmetry)
-  return (NumTraits<Scalar>::IsComplex ? 8.0 : 2.0) * n * n;
-}
+using namespace Eigen;
 
 // y += selfadjointView<Lower>(A) * x
 template <typename Scalar>
@@ -31,8 +27,7 @@ static void BM_SYMV_Lower(benchmark::State& state) {
     benchmark::DoNotOptimize(y.data());
     benchmark::ClobberMemory();
   }
-  state.counters["GFLOPS"] = benchmark::Counter(symvFlops<Scalar>(n), benchmark::Counter::kIsIterationInvariantRate,
-                                                benchmark::Counter::kIs1000);
+  eigen_bench::setFlopRate(state, eigen_bench::symvFlops<Scalar>(n));
 }
 
 // y += selfadjointView<Upper>(A) * x
@@ -50,8 +45,7 @@ static void BM_SYMV_Upper(benchmark::State& state) {
     benchmark::DoNotOptimize(y.data());
     benchmark::ClobberMemory();
   }
-  state.counters["GFLOPS"] = benchmark::Counter(symvFlops<Scalar>(n), benchmark::Counter::kIsIterationInvariantRate,
-                                                benchmark::Counter::kIs1000);
+  eigen_bench::setFlopRate(state, eigen_bench::symvFlops<Scalar>(n));
 }
 
 // clang-format off
