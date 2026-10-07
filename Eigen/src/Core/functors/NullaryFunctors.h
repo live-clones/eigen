@@ -114,22 +114,23 @@ template <typename Scalar>
 struct linspaced_op_impl<Scalar, /*IsInteger*/ true> {
   EIGEN_DEVICE_FUNC constexpr linspaced_op_impl(const Scalar& low, const Scalar& high, Index num_steps)
       : m_low(low),
-        m_multiplier((high - low) / convert_index<Scalar>(num_steps <= 1 ? 1 : num_steps - 1)),
-        m_divisor(convert_index<Scalar>((high >= low ? num_steps : -num_steps) + (high - low)) /
+        m_multiplier(static_cast<Scalar>((high - low) / (num_steps <= 1 ? Index(1) : num_steps - 1))),
+        m_divisor(((high >= low ? num_steps : -num_steps) + (high - low)) /
                   ((numext::abs(high - low) + 1) == 0 ? 1 : (numext::abs(high - low) + 1))),
         m_use_divisor(num_steps > 1 && (numext::abs(high - low) + 1) < num_steps) {}
 
   template <typename IndexType>
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Scalar operator()(IndexType i) const {
     if (m_use_divisor)
-      return m_low + convert_index<Scalar>(i) / m_divisor;
+      return m_low + convert_index<Scalar>(Index(i) / m_divisor);
     else
       return m_low + convert_index<Scalar>(i) * m_multiplier;
   }
 
   const Scalar m_low;
   const Scalar m_multiplier;
-  const Scalar m_divisor;
+  // An Index, as num_steps and the index i need not fit in a narrow Scalar while the quotient does.
+  const Index m_divisor;
   const bool m_use_divisor;
 };
 
