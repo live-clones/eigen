@@ -136,6 +136,38 @@ void testSingular(const MatrixType& m_const, const typename MatrixType::RealScal
   }
 }
 
+// Zero eigenvalues found below the leading 2x2 block of the Schur factor were not all split off.
+void testSingularTrailingZero() {
+  Matrix3d A;
+  A << 1, 1, 1, 0, 4, 1, 0, 0, 0;
+  Matrix3d R = A.pow(0.5);
+  VERIFY_IS_APPROX(R * R, A);
+  A << 0, 1, 1, 0, 1, 1, 0, 0, 0;  // idempotent
+  VERIFY_IS_APPROX(A.pow(0.5), A);
+}
+
+// MatrixPower::compute() did not size the result for a 1x1 base.
+void testComputeOneByOne() {
+  MatrixXd a = MatrixXd::Constant(1, 1, 4), r;
+  MatrixPower<MatrixXd>(a).compute(r, 0.5);
+  VERIFY_IS_APPROX(r, MatrixXd::Constant(1, 1, 2));
+}
+
+// An infinite entry used to hang the square-rooting loop for atomic blocks larger than 2x2.
+void testInfiniteEntry() {
+  Matrix3d a = Matrix3d::Identity();
+  a(0, 2) = std::numeric_limits<double>::infinity();
+  VERIFY(a.pow(0.5).array().isNaN().all());
+}
+
+// A nonfinite exponent used to hang the binary powering of the integral part.
+void testNonFiniteExponent() {
+  Matrix3d a;
+  a << 1, 2, 3, 4, 5, 6, 7, 8, 10;
+  VERIFY(a.pow(std::numeric_limits<double>::quiet_NaN()).array().isNaN().all());
+  VERIFY(a.pow(std::numeric_limits<double>::infinity()).array().isNaN().all());
+}
+
 template <typename MatrixType>
 void testLogThenExp(const MatrixType& m_const, const typename MatrixType::RealScalar& tol) {
   // we need to pass by reference in order to prevent errors with
@@ -196,12 +228,16 @@ EIGEN_DECLARE_TEST(matrix_power) {
   CALL_SUBTEST_7(testSingular(Matrix3dRowMajor(), 512 * NumTraits<double>::epsilon()));
   CALL_SUBTEST_3(testSingular(Matrix4cd(), 8 * NumTraits<std::complex<double>>::epsilon()));
   CALL_SUBTEST_4(testSingular(MatrixXd(8, 8), 128 * NumTraits<double>::epsilon()));
+  CALL_SUBTEST_4(testComputeOneByOne());
   CALL_SUBTEST_1(testSingular(Matrix2f(), 8 * NumTraits<float>::epsilon()));
   CALL_SUBTEST_5(testSingular(Matrix3cf(), 8 * NumTraits<std::complex<float>>::epsilon()));
   CALL_SUBTEST_8(testSingular(Matrix4f(), 256 * NumTraits<float>::epsilon()));
   CALL_SUBTEST_6(testSingular(MatrixXf(2, 2), 8 * NumTraits<float>::epsilon()));
   CALL_SUBTEST_9(testSingular(MatrixXe(7, 7), 256 * NumTraits<long double>::epsilon()));
   CALL_SUBTEST_10(testSingular(Matrix3d(), 1024 * NumTraits<double>::epsilon()));
+  CALL_SUBTEST_10(testSingularTrailingZero());
+  CALL_SUBTEST_10(testInfiniteEntry());
+  CALL_SUBTEST_10(testNonFiniteExponent());
   CALL_SUBTEST_11(testSingular(Matrix3f(), 2048 * NumTraits<float>::epsilon()));
   CALL_SUBTEST_12(testSingular(Matrix3e(), 1024 * NumTraits<long double>::epsilon()));
 

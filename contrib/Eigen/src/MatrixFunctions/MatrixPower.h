@@ -213,6 +213,11 @@ void MatrixPowerAtomic<MatrixType>::computeBig(ResultType& res) const {
   bool hasExtraSquareRoot = false;
 
   for (Index i = 0; i < m_A.cols(); ++i) eigen_assert(m_A(i, i) != RealScalar(0));
+  // A nonfinite entry is a fixed point of the square roots below.
+  if (!T.allFinite()) {
+    res.setConstant(Scalar(NumTraits<RealScalar>::quiet_NaN()));
+    return;
+  }
 
   while (true) {
     IminusT = MatrixType::Identity(m_A.rows(), m_A.cols()) - T;
@@ -457,9 +462,15 @@ void MatrixPower<MatrixType>::compute(ResultType& res, RealScalar p) {
     case 0:
       break;
     case 1:
+      res.resize(1, 1);
       res(0, 0) = pow(m_A.coeff(0, 0), p);
       break;
     default:
+      // The binary powering in computeIntPower() never terminates for a nonfinite exponent.
+      if (!(numext::isfinite)(p)) {
+        res = MatrixType::Constant(rows(), cols(), Scalar(NumTraits<RealScalar>::quiet_NaN()));
+        break;
+      }
       RealScalar intpart;
       split(p, intpart);
 
@@ -500,8 +511,8 @@ void MatrixPower<MatrixType>::initialize() {
   m_conditionNumber = m_T.diagonal().array().abs().maxCoeff() / m_T.diagonal().array().abs().minCoeff();
 
   // Move zero eigenvalues to the bottom right corner.
+  if (cols() <= 2) return;
   for (Index i = cols() - 1; i >= 0; --i) {
-    if (m_rank <= 2) return;
     if (m_T.coeff(i, i) == RealScalar(0)) {
       for (Index j = i + 1; j < m_rank; ++j) {
         eigenvalue = m_T.coeff(j, j);
