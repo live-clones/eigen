@@ -2283,9 +2283,9 @@ struct expm1_impl<std::complex<RealScalar>> {
     RealScalar erm1 = numext::expm1<RealScalar>(xr);
     RealScalar er = erm1 + RealScalar(1.);
     // C99 Annex G for exp, less one: (+inf, inf or NaN) -> (inf, NaN) and (-inf, inf or NaN) -> (-1, 0).
-    // xi - xi is that NaN, raising FE_INVALID for xi = inf as Annex G asks.
+    // xi * 0 is that NaN, raising FE_INVALID for xi = inf as Annex G asks.
     if ((numext::isinf)(xr) && !(numext::isfinite)(xi)) {
-      return xr > RealScalar(0) ? std::complex<RealScalar>(xr, xi - xi)
+      return xr > RealScalar(0) ? std::complex<RealScalar>(xr, xi * RealScalar(0))
                                 : std::complex<RealScalar>(RealScalar(-1), RealScalar(0));
     }
     RealScalar sin2 = numext::sin(xi / RealScalar(2.));
@@ -2322,9 +2322,9 @@ struct complex_exp2_impl {
     // (a, +-0) -> (2^a, +-0), also for a = +-inf and NaN.
     if (numext::is_exactly_zero(b)) return Complex(numext::exp2(a), b);
     // (+inf, inf or NaN) -> (inf, NaN) and (-inf, inf or NaN) -> (0, 0), where 2^a cos(t) would be NaN.
-    // b - b is that NaN, raising FE_INVALID for b = inf as Annex G asks.
+    // b * 0 is that NaN, raising FE_INVALID for b = inf as Annex G asks.
     if ((numext::isinf)(a) && !(numext::isfinite)(b)) {
-      return a > RealScalar(0) ? Complex(a, b - b) : Complex(RealScalar(0), RealScalar(0));
+      return a > RealScalar(0) ? Complex(a, b * RealScalar(0)) : Complex(RealScalar(0), RealScalar(0));
     }
     // ln2_lo = (double(ln(2)) - ln2_hi) + (ln(2) - double(ln(2))), the first difference exact in Wide.
     using Wide =
